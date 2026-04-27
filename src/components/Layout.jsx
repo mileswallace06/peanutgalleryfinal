@@ -26,6 +26,11 @@ export default function Layout() {
               Events
             </Link>
             {user && (
+              <Link to="/my-tickets" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                My Tickets
+              </Link>
+            )}
+            {user && (
               <Link to="/my-sales" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
                 My Sales
               </Link>
