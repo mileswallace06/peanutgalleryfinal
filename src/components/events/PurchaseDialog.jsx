@@ -5,7 +5,7 @@ import { Elements, CardElement, useStripe, useElements } from '@stripe/react-str
 import { base44 } from '@/api/base44Client';
 import { X, Lock, Shield, ArrowRight } from 'lucide-react';
 
-function CheckoutForm({ event, listing, buyerEmail, onClose }) {
+function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
   const stripe = useStripe();
   const elements = useElements();
   const navigate = useNavigate();
@@ -36,6 +36,7 @@ function CheckoutForm({ event, listing, buyerEmail, onClose }) {
       });
       const { clientSecret, paymentIntentId: piId } = res.data;
       paymentIntentId = piId;
+      onReserved(listing.id); // track reservation so dialog close can release it
 
       // 2. Confirm card payment (authorize only — not captured)
       const result = await stripe.confirmCardPayment(clientSecret, {
@@ -209,7 +210,7 @@ export default function PurchaseDialog({ event, listing, onClose }) {
             <h2 className="font-bold text-foreground">Complete Upgrade</h2>
             <p className="text-xs text-muted-foreground">Section {listing.section} · Row {listing.row}</p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
+          <button onClick={handleClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -220,7 +221,7 @@ export default function PurchaseDialog({ event, listing, onClose }) {
             </div>
           ) : (
             <Elements stripe={stripePromise}>
-              <CheckoutForm event={event} listing={listing} buyerEmail={user?.email} onClose={onClose} />
+              <CheckoutForm event={event} listing={listing} buyerEmail={user?.email} onClose={handleClose} onReserved={setReservedListingId} />
             </Elements>
           )}
         </div>
