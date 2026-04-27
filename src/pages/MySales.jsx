@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { Ticket, Clock, CheckCircle, Package } from 'lucide-react';
+import { Ticket, Clock, CheckCircle, Package, Rocket } from 'lucide-react';
+import SellerMetrics from '@/components/sales/SellerMetrics';
 
 export default function MySales() {
   const [user, setUser] = useState(null);
@@ -80,6 +81,8 @@ export default function MySales() {
         </h1>
         <p className="text-sm text-muted-foreground mt-1">{user.email}</p>
       </div>
+
+      <SellerMetrics purchases={purchases} />
 
       {/* Pending Transfers — action required */}
       <section className="mb-8">
@@ -159,6 +162,19 @@ export default function MySales() {
             })}
           </div>
         )}
+      </section>
+
+      {/* Roadmap */}
+      <section className="mb-8">
+        <div className="bg-secondary border border-border rounded-2xl p-5">
+          <h2 className="font-semibold text-base flex items-center gap-2 mb-2">
+            <Rocket className="w-4 h-4 text-primary" /> Coming Soon: Instant Listings
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Pre-verify your tickets once and get an <span className="font-medium text-foreground">⚡ Instant Listing</span> badge — buyers see your tickets as immediately transferable, boosting your sell rate and trust score. No re-review required per sale.
+          </p>
+          <span className="inline-block mt-3 text-xs bg-amber-100 text-amber-700 border border-amber-200 px-2.5 py-1 rounded-full font-medium">Roadmap · Not yet available</span>
+        </div>
       </section>
 
       {/* Completed Sales */}
