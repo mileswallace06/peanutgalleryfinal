@@ -14,6 +14,7 @@ export default function AdminMode() {
   const [seedResult, setSeedResult] = useState(null);
   const [seedError, setSeedError] = useState('');
   const [seedSellerEmail, setSeedSellerEmail] = useState('');
+  const [seedEmailError, setSeedEmailError] = useState('');
 
   const [listings, setListings] = useState([]);
   const [purchases, setPurchases] = useState([]);
@@ -49,10 +50,16 @@ export default function AdminMode() {
   };
 
   const handleSeed = async () => {
+    setSeedEmailError('');
+    const trimmed = seedSellerEmail.trim();
+    if (trimmed && !trimmed.includes('@')) {
+      setSeedEmailError('Must be a valid email address containing @');
+      return;
+    }
     setSeedLoading(true);
     setSeedError('');
     setSeedResult(null);
-    const payload = seedSellerEmail.trim() ? { seller_email: seedSellerEmail.trim() } : {};
+    const payload = trimmed ? { seller_email: trimmed } : {};
     const res = await base44.functions.invoke('seedDemoListings', payload);
     if (res.data.error) {
       setSeedError(res.data.error);
@@ -147,12 +154,16 @@ export default function AdminMode() {
           <input
             type="email"
             value={seedSellerEmail}
-            onChange={e => setSeedSellerEmail(e.target.value)}
+            onChange={e => { setSeedSellerEmail(e.target.value); setSeedEmailError(''); }}
             placeholder={`Default: your email (${user?.email})`}
-            className="w-full px-3 py-2 rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            className={`w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 ${seedEmailError ? 'border-destructive' : 'border-border'}`}
           />
+          {seedEmailError && <p className="text-xs text-destructive mt-1">{seedEmailError}</p>}
           <p className="text-xs text-muted-foreground mt-1">
             Set this to a <strong>different registered user's email</strong> so you (as admin) can test the full buyer flow without the self-purchase block.
+          </p>
+          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5 mt-2">
+            ⚠️ Use a registered Base44 user email. Do not use fake emails.
           </p>
         </div>
         <button

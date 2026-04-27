@@ -11,6 +11,14 @@ Deno.serve(async (req) => {
   const body = await req.json().catch(() => ({}));
   const sellerEmail = body.seller_email || user.email;
 
+  // If a seller_email override was provided, verify the user exists
+  if (body.seller_email) {
+    const users = await base44.asServiceRole.entities.User.filter({ email: body.seller_email });
+    if (!users || users.length === 0) {
+      return Response.json({ error: `No registered user found with email: ${body.seller_email}` }, { status: 400 });
+    }
+  }
+
   const now = new Date();
   const d = (days) => new Date(now.getTime() + days * 86400000).toISOString();
 
