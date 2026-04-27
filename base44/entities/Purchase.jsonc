@@ -1,0 +1,84 @@
+{
+  "name": "Purchase",
+  "type": "object",
+  "properties": {
+    "listing_id": {
+      "type": "string",
+      "description": "FK to Listing"
+    },
+    "event_id": {
+      "type": "string",
+      "description": "FK to Event"
+    },
+    "buyer_email": {
+      "type": "string"
+    },
+    "buyer_name": {
+      "type": "string"
+    },
+    "buyer_phone": {
+      "type": "string"
+    },
+    "seller_email": {
+      "type": "string",
+      "description": "Copied from Listing at time of purchase"
+    },
+    "amount": {
+      "type": "number",
+      "description": "Total USD"
+    },
+    "quantity": {
+      "type": "number"
+    },
+    "payment_intent_id": {
+      "type": "string",
+      "description": "Stripe PaymentIntent ID"
+    },
+    "payment_captured": {
+      "type": "boolean",
+      "default": false
+    },
+    "transfer_status": {
+      "type": "string",
+      "enum": [
+        "pending_transfer",
+        "completed",
+        "expired",
+        "disputed"
+      ],
+      "default": "pending_transfer"
+    },
+    "buyer_confirmed": {
+      "type": "boolean",
+      "default": false
+    },
+    "seller_confirmed": {
+      "type": "boolean",
+      "default": false
+    },
+    "transfer_notes": {
+      "type": "string"
+    },
+    "transfer_proof_url": {
+      "type": "string"
+    },
+    "dispute_reason": {
+      "type": "string"
+    },
+    "buyer_lat": {
+      "type": "number"
+    },
+    "buyer_lng": {
+      "type": "number"
+    },
+    "location_verified": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "listing_id",
+    "event_id",
+    "amount"
+  ]
+}

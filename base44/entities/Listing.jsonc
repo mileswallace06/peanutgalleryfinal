@@ -1,0 +1,93 @@
+{
+  "name": "Listing",
+  "type": "object",
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "description": "FK to Event"
+    },
+    "seller_email": {
+      "type": "string",
+      "description": "Set to created_by on creation"
+    },
+    "section": {
+      "type": "string",
+      "description": "e.g. 118"
+    },
+    "row": {
+      "type": "string",
+      "description": "e.g. G"
+    },
+    "seats": {
+      "type": "string",
+      "description": "Comma-separated seat numbers"
+    },
+    "quantity": {
+      "type": "number",
+      "default": 1
+    },
+    "tier": {
+      "type": "string",
+      "enum": [
+        "floor",
+        "lower",
+        "mid",
+        "upper"
+      ]
+    },
+    "asking_price": {
+      "type": "number",
+      "description": "Per seat, USD"
+    },
+    "original_price": {
+      "type": "number",
+      "description": "Face value for savings display"
+    },
+    "transfer_method": {
+      "type": "string",
+      "enum": [
+        "platform_transfer",
+        "email_transfer",
+        "in_person"
+      ]
+    },
+    "proof_url": {
+      "type": "string"
+    },
+    "proof_status": {
+      "type": "string",
+      "enum": [
+        "pending_review",
+        "approved",
+        "rejected"
+      ],
+      "default": "pending_review"
+    },
+    "proof_rejection_reason": {
+      "type": "string"
+    },
+    "ticket_file_url": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "pending_transfer",
+        "sold",
+        "cancelled",
+        "expired"
+      ],
+      "default": "active"
+    }
+  },
+  "required": [
+    "event_id",
+    "section",
+    "row",
+    "asking_price"
+  ]
+}

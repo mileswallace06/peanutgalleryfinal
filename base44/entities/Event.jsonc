@@ -1,0 +1,69 @@
+{
+  "name": "Event",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Display name of the event"
+    },
+    "artist": {
+      "type": "string",
+      "description": "Performer name"
+    },
+    "venue": {
+      "type": "string",
+      "description": "Venue name"
+    },
+    "city": {
+      "type": "string"
+    },
+    "state": {
+      "type": "string",
+      "description": "e.g. AZ"
+    },
+    "date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Event start time"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "concert",
+        "sports",
+        "theater",
+        "comedy",
+        "other"
+      ],
+      "description": "Event category"
+    },
+    "image_url": {
+      "type": "string",
+      "description": "Hero image URL"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "upcoming",
+        "live",
+        "ended"
+      ],
+      "default": "upcoming"
+    },
+    "venue_lat": {
+      "type": "number"
+    },
+    "venue_lng": {
+      "type": "number"
+    },
+    "geo_radius_meters": {
+      "type": "number",
+      "default": 500
+    }
+  },
+  "required": [
+    "title",
+    "venue",
+    "date"
+  ]
+}
