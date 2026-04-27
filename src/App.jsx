@@ -13,6 +13,7 @@ import PurchaseSuccess from '@/pages/PurchaseSuccess';
 import AdminMode from '@/pages/AdminMode';
 import MySales from '@/pages/MySales';
 import MyTickets from '@/pages/MyTickets';
+import CreateListing from '@/pages/CreateListing';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -44,6 +45,7 @@ const AuthenticatedApp = () => {
         <Route path="/admin" element={<AdminMode />} />
         <Route path="/my-sales" element={<MySales />} />
         <Route path="/my-tickets" element={<MyTickets />} />
+        <Route path="/create-listing" element={<CreateListing />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>

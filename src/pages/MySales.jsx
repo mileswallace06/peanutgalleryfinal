@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { Ticket, Clock, CheckCircle, Package, Rocket, ArrowRight } from 'lucide-react';
+import { Ticket, Clock, CheckCircle, Package, Rocket, ArrowRight, Plus } from 'lucide-react';
 import SellerMetrics from '@/components/sales/SellerMetrics';
 
 export default function MySales() {
@@ -64,11 +64,19 @@ export default function MySales() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Package className="w-6 h-6 text-primary" /> My Sales
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">{user.email}</p>
+      <div className="flex items-start justify-between gap-4 mb-8">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <Package className="w-6 h-6 text-primary" /> My Sales
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">{user.email}</p>
+        </div>
+        <Link
+          to="/create-listing"
+          className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-primary/90 transition-colors flex-shrink-0"
+        >
+          <Plus className="w-4 h-4" /> List Upgrade
+        </Link>
       </div>
 
       <SellerMetrics purchases={purchases} />
