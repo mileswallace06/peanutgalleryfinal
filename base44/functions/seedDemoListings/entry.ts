@@ -7,6 +7,10 @@ Deno.serve(async (req) => {
     return Response.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
   }
 
+  // Optional: override seller email so the admin can buy their own demo listings for testing
+  const body = await req.json().catch(() => ({}));
+  const sellerEmail = body.seller_email || user.email;
+
   const now = new Date();
   const d = (days) => new Date(now.getTime() + days * 86400000).toISOString();
 
@@ -88,7 +92,7 @@ Deno.serve(async (req) => {
   for (const t of listingTemplates) {
     const listing = {
       event_id: createdEvents[t.eventIdx].id,
-      seller_email: user.email,
+      seller_email: sellerEmail,
       section: t.section,
       row: t.row,
       seats: t.seats || '',
@@ -99,7 +103,7 @@ Deno.serve(async (req) => {
       transfer_method: 'email_transfer',
       proof_status: 'approved',
       status: 'active',
-      notes: `[DEMO] Great seats! Willing to move to a lower section. Seller: ${user.email}`
+      notes: `[DEMO] Great seats! Willing to move to a lower section. Seller: ${sellerEmail}`
     };
     await base44.asServiceRole.entities.Listing.create(listing);
     listingsCreated++;

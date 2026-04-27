@@ -13,6 +13,7 @@ export default function AdminMode() {
   const [seedLoading, setSeedLoading] = useState(false);
   const [seedResult, setSeedResult] = useState(null);
   const [seedError, setSeedError] = useState('');
+  const [seedSellerEmail, setSeedSellerEmail] = useState('');
 
   const [listings, setListings] = useState([]);
   const [purchases, setPurchases] = useState([]);
@@ -51,7 +52,8 @@ export default function AdminMode() {
     setSeedLoading(true);
     setSeedError('');
     setSeedResult(null);
-    const res = await base44.functions.invoke('seedDemoListings', {});
+    const payload = seedSellerEmail.trim() ? { seller_email: seedSellerEmail.trim() } : {};
+    const res = await base44.functions.invoke('seedDemoListings', payload);
     if (res.data.error) {
       setSeedError(res.data.error);
     } else {
@@ -135,9 +137,24 @@ export default function AdminMode() {
           <h2 className="font-bold text-lg">Seed Demo Inventory</h2>
         </div>
         <p className="text-sm text-muted-foreground mb-4">
-          Creates 3 demo events and 15 listings with your email as seller. All listings are pre-approved and immediately purchasable.
+          Creates 3 demo events and 15 listings. All listings are pre-approved and immediately purchasable.
           <span className="text-amber-600 font-medium"> Run only once per environment.</span>
         </p>
+        <div className="mb-4">
+          <label className="block text-xs font-medium text-foreground mb-1">
+            Seller Email Override <span className="text-muted-foreground font-normal">(optional — for buyer flow testing)</span>
+          </label>
+          <input
+            type="email"
+            value={seedSellerEmail}
+            onChange={e => setSeedSellerEmail(e.target.value)}
+            placeholder={`Default: your email (${user?.email})`}
+            className="w-full px-3 py-2 rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Set this to a <strong>different registered user's email</strong> so you (as admin) can test the full buyer flow without the self-purchase block.
+          </p>
+        </div>
         <button
           onClick={handleSeed}
           disabled={seedLoading}
