@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { ArrowLeft, ArrowRight, CheckCircle, Upload, DollarSign, MapPin } from 'lucide-react';
 
@@ -26,7 +26,6 @@ function StepIndicator({ current }) {
 }
 
 export default function CreateListing() {
-  const navigate = useNavigate();
   const [step, setStep] = useState(0);
   const [events, setEvents] = useState([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
