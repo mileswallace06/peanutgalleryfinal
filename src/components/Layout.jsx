@@ -25,6 +25,11 @@ export default function Layout() {
             <Link to="/events" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               Events
             </Link>
+            {user && (
+              <Link to="/my-sales" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                My Sales
+              </Link>
+            )}
             {user?.role === 'admin' && (
               <Link to="/admin" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
                 Admin
