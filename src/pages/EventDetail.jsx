@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { MapPin, Calendar, ArrowLeft, Ticket } from 'lucide-react';
+import { MapPin, Calendar, ArrowLeft, Ticket, TrendingDown, Star } from 'lucide-react';
 import ListingCard from '@/components/events/ListingCard';
 import PurchaseDialog from '@/components/events/PurchaseDialog';
 
@@ -84,36 +84,65 @@ export default function EventDetail() {
       </div>
 
       {/* Listings */}
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="font-bold text-xl text-foreground flex items-center gap-2">
-          <Ticket className="w-5 h-5 text-primary" />
-          Available Upgrades
-          <span className="text-base font-normal text-muted-foreground">({listings.length})</span>
-        </h2>
-        {adminUnlocked && (
-          <span className="text-xs bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full font-medium">
-            🔑 Admin bypass active
-          </span>
-        )}
-      </div>
+      {(() => {
+        const sorted = [...listings].sort((a, b) => a.asking_price - b.asking_price);
+        const cheapest = sorted[0]?.asking_price;
+        const TIER_RANK = { floor: 0, lower: 1, mid: 2, upper: 3 };
+        const bestTier = sorted.reduce((best, l) => {
+          if (!l.tier) return best;
+          if (best === null || (TIER_RANK[l.tier] ?? 99) < (TIER_RANK[best] ?? 99)) return l.tier;
+          return best;
+        }, null);
 
-      {listings.length === 0 ? (
-        <div className="text-center py-14 text-muted-foreground bg-muted/40 rounded-xl">
-          <p className="text-3xl mb-3">🎟️</p>
-          <p className="font-medium">No upgrades available yet</p>
-          <p className="text-sm mt-1">Check back closer to the event</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {listings.map(listing => (
-            <ListingCard
-              key={listing.id}
-              listing={listing}
-              onUpgrade={setSelectedListing}
-            />
-          ))}
-        </div>
-      )}
+        return (
+          <>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-bold text-xl text-foreground flex items-center gap-2">
+                <Ticket className="w-5 h-5 text-primary" />
+                Active Upgrades
+                <span className="text-base font-normal text-muted-foreground">({listings.length})</span>
+              </h2>
+              {adminUnlocked && (
+                <span className="text-xs bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full font-medium">
+                  🔑 Admin bypass active
+                </span>
+              )}
+            </div>
+
+            {listings.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-4">
+                <span className="inline-flex items-center gap-1.5 bg-green-50 border border-green-200 text-green-800 text-xs font-semibold px-3 py-1.5 rounded-full">
+                  <TrendingDown className="w-3.5 h-3.5" /> From ${cheapest}/ticket
+                </span>
+                {bestTier && (
+                  <span className="inline-flex items-center gap-1.5 bg-blue-50 border border-blue-200 text-blue-800 text-xs font-semibold px-3 py-1.5 rounded-full capitalize">
+                    <Star className="w-3.5 h-3.5" /> Best: {bestTier} section
+                  </span>
+                )}
+              </div>
+            )}
+
+            {listings.length === 0 ? (
+              <div className="text-center py-14 text-muted-foreground bg-muted/40 rounded-xl">
+                <p className="text-3xl mb-3">🎟️</p>
+                <p className="font-medium">No upgrades available yet</p>
+                <p className="text-sm mt-1">Check back closer to the event</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {sorted.map(listing => (
+                  <ListingCard
+                    key={listing.id}
+                    listing={listing}
+                    isCheapest={listing.asking_price === cheapest}
+                    onUpgrade={setSelectedListing}
+                  />
+                ))}
+              </div>
+            )}
+          </>
+        );
+      })()}
 
       {selectedListing && (
         <PurchaseDialog
