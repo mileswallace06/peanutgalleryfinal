@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { Ticket, Clock, CheckCircle, Package, Rocket } from 'lucide-react';
+import { Ticket, Clock, CheckCircle, Package, Rocket, ArrowRight } from 'lucide-react';
 import SellerMetrics from '@/components/sales/SellerMetrics';
 
 export default function MySales() {
@@ -11,7 +11,6 @@ export default function MySales() {
   const [purchases, setPurchases] = useState([]);
   const [events, setEvents] = useState({});
   const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState('');
 
   const load = async () => {
     const me = await base44.auth.me();
@@ -42,16 +41,6 @@ export default function MySales() {
   useEffect(() => {
     load().catch(console.error).finally(() => setLoading(false));
   }, []);
-
-  const handleConfirmSent = async (purchaseId) => {
-    setActionLoading(purchaseId);
-    await base44.functions.invoke('capturePayment', {
-      purchase_id: purchaseId,
-      confirming_role: 'seller',
-    });
-    await load();
-    setActionLoading('');
-  };
 
   if (loading) {
     return (
@@ -116,20 +105,13 @@ export default function MySales() {
                         Buyer confirmed receipt: {p.buyer_confirmed ? <span className="text-green-600 font-medium">Yes ✓</span> : <span>Not yet</span>}
                       </div>
                     </div>
-                    <button
-                      onClick={() => handleConfirmSent(p.id)}
-                      disabled={actionLoading === p.id}
-                      className="bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-60 flex-shrink-0"
+                    <Link
+                      to={`/purchase/${p.id}`}
+                      className="inline-flex items-center gap-1.5 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-semibold hover:bg-primary/90 transition-colors flex-shrink-0"
                     >
-                      {actionLoading === p.id ? 'Processing…' : "Mark Tickets as Sent"}
-                    </button>
+                      Send Tickets <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
                   </div>
-                  <Link
-                    to={`/purchase/${p.id}`}
-                    className="text-xs text-primary hover:underline mt-2 inline-block"
-                  >
-                    View transfer details →
-                  </Link>
                 </div>
               );
             })}
