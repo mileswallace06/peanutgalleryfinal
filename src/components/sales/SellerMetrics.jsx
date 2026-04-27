@@ -8,8 +8,13 @@ function formatDuration(minutes) {
   return `${h}h`;
 }
 
-// A seller is "fast" if avg seller-confirm time < 2 hours
-const FAST_THRESHOLD_MINUTES = 120;
+function getSellerTier(avgMinutes) {
+  if (avgMinutes === null) return null;
+  if (avgMinutes < 2)  return { label: '🏆 Elite Seller',    className: 'bg-purple-100 text-purple-700 border-purple-200' };
+  if (avgMinutes < 5)  return { label: '⚡ Fast Seller',     className: 'bg-amber-100 text-amber-700 border-amber-200' };
+  if (avgMinutes < 15) return { label: '✅ Reliable Seller', className: 'bg-green-100 text-green-700 border-green-200' };
+  return                       { label: '🐢 Slow Seller',    className: 'bg-muted text-muted-foreground border-border' };
+}
 
 export default function SellerMetrics({ purchases }) {
   const completed = purchases.filter(p => p.transfer_status === 'completed' && p.seller_confirmed);
@@ -41,7 +46,7 @@ export default function SellerMetrics({ purchases }) {
     : null;
 
   const failedCount = expired.length;
-  const isFastSeller = avgSellerConfirm !== null && avgSellerConfirm < FAST_THRESHOLD_MINUTES;
+  const tier = getSellerTier(avgSellerConfirm);
 
   if (purchases.length === 0) return null;
 
@@ -51,9 +56,9 @@ export default function SellerMetrics({ purchases }) {
         <h2 className="font-bold text-base flex items-center gap-2">
           <Zap className="w-4 h-4 text-primary" /> Seller Performance
         </h2>
-        {isFastSeller && (
-          <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-700 border border-amber-200 text-xs font-bold px-2.5 py-1 rounded-full">
-            ⚡ Fast Seller
+        {tier && (
+          <span className={`inline-flex items-center gap-1 border text-xs font-bold px-2.5 py-1 rounded-full ${tier.className}`}>
+            {tier.label}
           </span>
         )}
       </div>
@@ -86,11 +91,9 @@ export default function SellerMetrics({ purchases }) {
         />
       </div>
 
-      {!isFastSeller && avgSellerConfirm !== null && (
-        <p className="text-xs text-muted-foreground mt-3">
-          Confirm within <span className="font-medium">2 hours</span> of a sale to earn the ⚡ Fast Seller badge.
-        </p>
-      )}
+      <p className="text-xs text-muted-foreground mt-3">
+        Tiers: <span className="font-medium">🏆 Elite</span> &lt;2m · <span className="font-medium">⚡ Fast</span> &lt;5m · <span className="font-medium">✅ Reliable</span> &lt;15m · <span className="font-medium">🐢 Slow</span> 15m+
+      </p>
     </div>
   );
 }
