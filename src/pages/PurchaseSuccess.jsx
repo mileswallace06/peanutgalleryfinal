@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { CheckCircle, Clock, XCircle, AlertTriangle, ArrowLeft, Ticket } from 'lucide-react';
+import { CheckCircle, Clock, XCircle, AlertTriangle, ArrowLeft, Ticket, Upload, FileText, Image } from 'lucide-react';
 
 const STEPS = [
   { key: 'pending_transfer', label: 'Payment Authorized' },
@@ -55,6 +55,9 @@ export default function PurchaseSuccess() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState('');
+  const [proofNote, setProofNote] = useState('');
+  const [proofFile, setProofFile] = useState(null);
+  const [proofUploading, setProofUploading] = useState(false);
 
   const load = async () => {
     const [me, purchases] = await Promise.all([
@@ -77,6 +80,40 @@ export default function PurchaseSuccess() {
   useEffect(() => {
     load().catch(console.error).finally(() => setLoading(false));
   }, [id]);
+
+  const handleSellerConfirm = async () => {
+    if (!proofNote.trim() && !proofFile) {
+      setError('Please provide a transfer screenshot or confirmation note before confirming.');
+      return;
+    }
+    setActionLoading(true);
+    setProofUploading(true);
+    setError('');
+
+    let proofUrl = null;
+    if (proofFile) {
+      const uploadRes = await base44.integrations.Core.UploadFile({ file: proofFile });
+      proofUrl = uploadRes.file_url;
+    }
+    setProofUploading(false);
+
+    // Save proof to purchase before confirming
+    await base44.entities.Purchase.update(purchase.id, {
+      ...(proofUrl ? { transfer_proof_url: proofUrl } : {}),
+      ...(proofNote.trim() ? { transfer_notes: proofNote.trim() } : {}),
+    });
+
+    const res = await base44.functions.invoke('capturePayment', {
+      purchase_id: purchase.id,
+      confirming_role: 'seller',
+    });
+    if (res.data.error) {
+      setError(res.data.error);
+    } else {
+      await load();
+    }
+    setActionLoading(false);
+  };
 
   const handleConfirm = async (role) => {
     setActionLoading(true);
@@ -224,15 +261,54 @@ export default function PurchaseSuccess() {
               </div>
               {!purchase.seller_confirmed && (
                 <>
-                  <p className="text-sm text-muted-foreground mb-3">Transfer the tickets to the buyer using the contact info above, then confirm below.</p>
+                  <p className="text-sm text-muted-foreground mb-3">Transfer the tickets to the buyer, then provide proof of transfer below.</p>
+                  <div className="space-y-3 mb-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-foreground mb-1">Screenshot / Proof Image</label>
+                      <label className="flex items-center gap-2 cursor-pointer border border-dashed border-border rounded-lg px-3 py-2.5 hover:bg-white/60 transition-colors text-sm text-muted-foreground">
+                        <Upload className="w-4 h-4 flex-shrink-0" />
+                        {proofFile ? <span className="text-foreground font-medium truncate">{proofFile.name}</span> : <span>Upload screenshot (optional if note provided)</span>}
+                        <input type="file" accept="image/*,application/pdf" className="hidden" onChange={e => setProofFile(e.target.files[0] || null)} />
+                      </label>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-foreground mb-1">Transfer Note</label>
+                      <textarea
+                        value={proofNote}
+                        onChange={e => setProofNote(e.target.value)}
+                        placeholder="e.g. Sent via Ticketmaster transfer to buyer email on 4/27…"
+                        rows={2}
+                        className="w-full px-3 py-2 text-sm rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">At least one of the above is required.</p>
+                  </div>
                   <button
-                    onClick={() => handleConfirm('seller')}
+                    onClick={handleSellerConfirm}
                     disabled={actionLoading}
                     className="bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-60"
                   >
-                    {actionLoading ? 'Processing…' : "I've Sent the Tickets"}
+                    {proofUploading ? 'Uploading…' : actionLoading ? 'Processing…' : "I've Sent the Tickets"}
                   </button>
                 </>
+              )}
+              {/* Show submitted proof */}
+              {purchase.seller_confirmed && (purchase.transfer_proof_url || purchase.transfer_notes) && (
+                <div className="mt-3 bg-white border border-border rounded-lg p-3 text-sm space-y-2">
+                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Transfer Proof</div>
+                  {purchase.transfer_notes && (
+                    <div className="flex items-start gap-2 text-foreground">
+                      <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                      <span>{purchase.transfer_notes}</span>
+                    </div>
+                  )}
+                  {purchase.transfer_proof_url && (
+                    <a href={purchase.transfer_proof_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-primary hover:underline">
+                      <Image className="w-4 h-4 flex-shrink-0" />
+                      View screenshot
+                    </a>
+                  )}
+                </div>
               )}
             </div>
           )}
@@ -244,6 +320,24 @@ export default function PurchaseSuccess() {
                 {purchase.buyer_confirmed ? <CheckCircle className="w-5 h-5 text-green-600" /> : <Clock className="w-5 h-5 text-amber-500" />}
                 Buyer: {purchase.buyer_confirmed ? 'Tickets Received ✓' : 'Confirm Receipt'}
               </h3>
+              {/* Show seller's transfer proof to buyer */}
+              {purchase.seller_confirmed && (purchase.transfer_proof_url || purchase.transfer_notes) && (
+                <div className="bg-secondary border border-border rounded-lg p-3 mb-3 text-sm space-y-2">
+                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Seller's Transfer Proof</div>
+                  {purchase.transfer_notes && (
+                    <div className="flex items-start gap-2 text-foreground">
+                      <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                      <span>{purchase.transfer_notes}</span>
+                    </div>
+                  )}
+                  {purchase.transfer_proof_url && (
+                    <a href={purchase.transfer_proof_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-primary hover:underline">
+                      <Image className="w-4 h-4 flex-shrink-0" />
+                      View screenshot
+                    </a>
+                  )}
+                </div>
+              )}
               {!purchase.buyer_confirmed && (
                 <>
                   <p className="text-sm text-muted-foreground mb-3">Once you confirm receipt, payment will be released to the seller.</p>
