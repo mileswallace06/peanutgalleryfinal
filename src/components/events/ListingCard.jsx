@@ -32,6 +32,10 @@ export default function ListingCard({ listing, onUpgrade, isCheapest }) {
           <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
             🥜 Demo Listing
           </span>
+        ) : listing.proof_url ? (
+          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 flex items-center gap-1">
+            <BadgeCheck className="w-3 h-3" /> Trusted Seller
+          </span>
         ) : (
           <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200 flex items-center gap-1">
             <BadgeCheck className="w-3 h-3" /> Verified

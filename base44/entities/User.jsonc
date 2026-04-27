@@ -1,0 +1,19 @@
+{
+  "name": "User",
+  "type": "object",
+  "properties": {
+    "role": {
+      "type": "string",
+      "enum": [
+        "admin",
+        "user"
+      ],
+      "default": "user"
+    },
+    "strike_count": {
+      "type": "number",
+      "default": 0,
+      "description": "Number of confirmed bad transfers / disputes attributed to this seller"
+    }
+  }
+}

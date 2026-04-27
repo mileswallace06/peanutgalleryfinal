@@ -77,9 +77,16 @@ export default function AdminMode() {
     setSeedLoading(false);
   };
 
-  const handleProofAction = async (listingId, action) => {
+  const handleProofAction = async (listingId, action, sellerEmail) => {
     setActionLoading(listingId + action);
     await base44.entities.Listing.update(listingId, { proof_status: action === 'approve' ? 'approved' : 'rejected' });
+    if (action === 'reject' && sellerEmail) {
+      // Increment strike_count on seller
+      const users = await base44.entities.User.filter({ email: sellerEmail });
+      if (users[0]) {
+        await base44.entities.User.update(users[0].id, { strike_count: (users[0].strike_count || 0) + 1 });
+      }
+    }
     await loadData();
     setActionLoading('');
   };
@@ -198,7 +205,7 @@ export default function AdminMode() {
 
       {/* Proof Review */}
       <div className="bg-white border border-border rounded-2xl p-5 mb-6">
-        <h2 className="font-bold text-lg mb-4">Proof Review ({pendingProof.length} pending)</h2>
+        <h2 className="font-bold text-lg mb-4">Flagged Listings ({pendingProof.length} pending review)</h2>
         {pendingProof.length === 0 ? (
           <p className="text-sm text-muted-foreground">No listings pending proof review.</p>
         ) : (
@@ -206,35 +213,44 @@ export default function AdminMode() {
             {pendingProof.map(l => {
             const sales = sellerSales[l.seller_email] || 0;
             return (
-            <div key={l.id} className="flex items-center justify-between p-3 bg-secondary rounded-lg text-sm">
-              <div>
-                <span className="font-medium">Section {l.section} Row {l.row}</span>
-                <span className="text-muted-foreground ml-2">· {l.seller_email}</span>
-                <span className={`ml-2 text-xs font-semibold px-1.5 py-0.5 rounded-full ${sales === 0 ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
-                  {sales === 0 ? 'First-time seller' : `${sales} completed sale${sales !== 1 ? 's' : ''}`}
-                </span>
-                {l.proof_url && (
-                  <a href={l.proof_url} target="_blank" rel="noopener noreferrer" className="ml-2 text-xs text-primary hover:underline">View proof ↗</a>
-                )}
-              </div>
-                <div className="flex gap-2">
+            <div key={l.id} className="p-3 bg-secondary rounded-lg text-sm space-y-2">
+              <div className="flex items-start justify-between gap-2 flex-wrap">
+                <div>
+                  <span className="font-medium">Section {l.section} Row {l.row}</span>
+                  <span className="text-muted-foreground ml-2">· ${l.asking_price}/ea · {l.seller_email}</span>
+                  {l.proof_rejection_reason && (
+                    <div className="mt-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 inline-block">
+                      ⚠️ {l.proof_rejection_reason}
+                    </div>
+                  )}
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${sales === 0 ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
+                      {sales === 0 ? 'No prior sales' : `${sales} completed sale${sales !== 1 ? 's' : ''}`}
+                    </span>
+                    {l.proof_url && (
+                      <a href={l.proof_url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline">View proof ↗</a>
+                    )}
+                  </div>
+                </div>
+                <div className="flex gap-2 flex-wrap">
                   <button
-                    onClick={() => handleProofAction(l.id, 'approve')}
-                    disabled={actionLoading === l.id + 'approve'}
+                    onClick={() => handleProofAction(l.id, 'approve', l.seller_email)}
+                    disabled={!!actionLoading}
                     className="flex items-center gap-1 bg-green-100 text-green-700 border border-green-200 px-3 py-1 rounded-lg text-xs font-medium hover:bg-green-200 transition-colors"
                   >
                     <CheckCircle className="w-3 h-3" /> Approve
                   </button>
                   <button
-                    onClick={() => handleProofAction(l.id, 'reject')}
-                    disabled={actionLoading === l.id + 'reject'}
+                    onClick={() => handleProofAction(l.id, 'reject', l.seller_email)}
+                    disabled={!!actionLoading}
                     className="flex items-center gap-1 bg-red-50 text-red-600 border border-red-200 px-3 py-1 rounded-lg text-xs font-medium hover:bg-red-100 transition-colors"
                   >
-                    <XCircle className="w-3 h-3" /> Reject
+                    <XCircle className="w-3 h-3" /> Reject + Strike
                   </button>
                 </div>
               </div>
-              );
+            </div>
+            );
             })}
           </div>
         )}

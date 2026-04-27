@@ -31,7 +31,7 @@ export default function CreateListing() {
   const [loadingEvents, setLoadingEvents] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
-  const [autoApproved, setAutoApproved] = useState(false);
+  const [flagged, setFlagged] = useState(false);
   const [uploadingProof, setUploadingProof] = useState(false);
 
   const [form, setForm] = useState({
@@ -79,7 +79,7 @@ export default function CreateListing() {
       transfer_method: form.transfer_method,
       proof_url: form.proof_url || undefined,
     });
-    setAutoApproved(res.data.auto_approved);
+    setFlagged(res.data.flagged);
     setSubmitting(false);
     setDone(true);
   };
@@ -92,12 +92,12 @@ export default function CreateListing() {
           <CheckCircle className="w-9 h-9 text-green-600" />
         </div>
         <h1 className="text-2xl font-bold mb-2">
-          {autoApproved ? 'Listing Live! 🎉' : 'Listing Submitted!'}
+          {flagged ? 'Listing Under Review' : 'Listing Live! 🎉'}
         </h1>
         <p className="text-muted-foreground text-sm mb-6">
-          {autoApproved
-            ? 'Your listing is live and visible to buyers right now. Thanks for being a trusted seller!'
-            : 'Your tickets are pending review. Once approved, they\'ll appear live to buyers within minutes.'}
+          {flagged
+            ? 'Your listing is being reviewed by our team and will go live shortly.'
+            : 'Your listing is live and visible to buyers right now!'}
         </p>
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <Link to="/my-sales" className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-xl font-semibold text-sm hover:bg-primary/90 transition-colors">
@@ -279,7 +279,7 @@ export default function CreateListing() {
           <div>
             <label className="block font-semibold text-sm mb-1 flex items-center gap-1">
               <Upload className="w-4 h-4 text-primary" /> Ticket screenshot or PDF
-              <span className="text-muted-foreground font-normal text-xs ml-1">(optional but speeds up approval)</span>
+              <span className="text-muted-foreground font-normal text-xs ml-1">(optional — earns you a Trusted Seller badge)</span>
             </label>
             {form.proof_url ? (
               <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
