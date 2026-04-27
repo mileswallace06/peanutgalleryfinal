@@ -183,6 +183,7 @@ function CheckoutForm({ event, listing, buyerEmail, onClose }) {
 export default function PurchaseDialog({ event, listing, onClose }) {
   const [stripePromise, setStripePromise] = useState(null);
   const [user, setUser] = useState(null);
+  const [reservedListingId, setReservedListingId] = useState(null);
 
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => {});
@@ -191,9 +192,17 @@ export default function PurchaseDialog({ event, listing, onClose }) {
     }).catch(console.error);
   }, []);
 
+  // If dialog is closed after reservation but before purchase completes, release the listing
+  const handleClose = async () => {
+    if (reservedListingId) {
+      await base44.entities.Listing.update(reservedListingId, { status: 'active' }).catch(() => {});
+    }
+    onClose();
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/50" onClick={handleClose} />
       <div className="relative bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md mx-auto max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white border-b border-border px-5 py-4 flex items-center justify-between rounded-t-2xl sm:rounded-t-2xl">
           <div>
