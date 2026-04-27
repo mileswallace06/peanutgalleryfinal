@@ -133,8 +133,8 @@ export default function PurchaseSuccess() {
     );
   }
 
-  const isBuyer = user?.email === purchase.buyer_email || user?.role === 'admin';
-  const isSeller = user?.email === purchase.seller_email || user?.role === 'admin';
+  const isBuyer = user?.email === purchase.buyer_email;
+  const isSeller = user?.email === purchase.seller_email || (user?.role === 'admin' && user?.email !== purchase.buyer_email);
   const isCompleted = purchase.transfer_status === 'completed';
   const isExpired = purchase.transfer_status === 'expired';
   const isDisputed = purchase.transfer_status === 'disputed';
