@@ -34,13 +34,9 @@ export default function ListingCard({ listing, onUpgrade, isCheapest }) {
           </span>
         ) : listing.proof_url ? (
           <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 flex items-center gap-1">
-            <BadgeCheck className="w-3 h-3" /> Trusted Seller
+            <BadgeCheck className="w-3 h-3" /> Verified Transfer Info
           </span>
-        ) : (
-          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200 flex items-center gap-1">
-            <BadgeCheck className="w-3 h-3" /> Verified
-          </span>
-        )}
+        ) : null}
       </div>
 
       {/* Seat info + price */}

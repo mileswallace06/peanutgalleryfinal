@@ -279,7 +279,7 @@ export default function CreateListing() {
           <div>
             <label className="block font-semibold text-sm mb-1 flex items-center gap-1">
               <Upload className="w-4 h-4 text-primary" /> Ticket screenshot or PDF
-              <span className="text-muted-foreground font-normal text-xs ml-1">(optional — earns you a Trusted Seller badge)</span>
+              <span className="text-muted-foreground font-normal text-xs ml-1">(optional — shows a "Verified Transfer Info" badge to buyers)</span>
             </label>
             {form.proof_url ? (
               <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
