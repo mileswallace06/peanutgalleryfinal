@@ -18,6 +18,7 @@ export default function AdminMode() {
 
   const [listings, setListings] = useState([]);
   const [purchases, setPurchases] = useState([]);
+  const [sellerSales, setSellerSales] = useState({});
   const [dataLoading, setDataLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState('');
 
@@ -36,6 +37,12 @@ export default function AdminMode() {
     ]);
     setListings(l);
     setPurchases(p);
+    // Build completed sales count per seller
+    const salesMap = {};
+    p.filter(pur => pur.transfer_status === 'completed').forEach(pur => {
+      salesMap[pur.seller_email] = (salesMap[pur.seller_email] || 0) + 1;
+    });
+    setSellerSales(salesMap);
     setDataLoading(false);
   };
 
@@ -196,12 +203,20 @@ export default function AdminMode() {
           <p className="text-sm text-muted-foreground">No listings pending proof review.</p>
         ) : (
           <div className="space-y-3">
-            {pendingProof.map(l => (
-              <div key={l.id} className="flex items-center justify-between p-3 bg-secondary rounded-lg text-sm">
-                <div>
-                  <span className="font-medium">Section {l.section} Row {l.row}</span>
-                  <span className="text-muted-foreground ml-2">· {l.seller_email}</span>
-                </div>
+            {pendingProof.map(l => {
+            const sales = sellerSales[l.seller_email] || 0;
+            return (
+            <div key={l.id} className="flex items-center justify-between p-3 bg-secondary rounded-lg text-sm">
+              <div>
+                <span className="font-medium">Section {l.section} Row {l.row}</span>
+                <span className="text-muted-foreground ml-2">· {l.seller_email}</span>
+                <span className={`ml-2 text-xs font-semibold px-1.5 py-0.5 rounded-full ${sales === 0 ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
+                  {sales === 0 ? 'First-time seller' : `${sales} completed sale${sales !== 1 ? 's' : ''}`}
+                </span>
+                {l.proof_url && (
+                  <a href={l.proof_url} target="_blank" rel="noopener noreferrer" className="ml-2 text-xs text-primary hover:underline">View proof ↗</a>
+                )}
+              </div>
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleProofAction(l.id, 'approve')}
@@ -219,7 +234,8 @@ export default function AdminMode() {
                   </button>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

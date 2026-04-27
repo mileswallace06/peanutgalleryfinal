@@ -31,6 +31,7 @@ export default function CreateListing() {
   const [loadingEvents, setLoadingEvents] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  const [autoApproved, setAutoApproved] = useState(false);
   const [uploadingProof, setUploadingProof] = useState(false);
 
   const [form, setForm] = useState({
@@ -66,10 +67,8 @@ export default function CreateListing() {
 
   const handleSubmit = async () => {
     setSubmitting(true);
-    const me = await base44.auth.me();
-    await base44.entities.Listing.create({
+    const res = await base44.functions.invoke('submitListing', {
       event_id: form.event_id,
-      seller_email: me.email,
       section: form.section,
       row: form.row,
       seats: form.seats || undefined,
@@ -79,9 +78,8 @@ export default function CreateListing() {
       original_price: form.original_price ? parseFloat(form.original_price) : undefined,
       transfer_method: form.transfer_method,
       proof_url: form.proof_url || undefined,
-      proof_status: 'pending_review',
-      status: 'active',
     });
+    setAutoApproved(res.data.auto_approved);
     setSubmitting(false);
     setDone(true);
   };
@@ -93,9 +91,13 @@ export default function CreateListing() {
         <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
           <CheckCircle className="w-9 h-9 text-green-600" />
         </div>
-        <h1 className="text-2xl font-bold mb-2">Listing Submitted!</h1>
+        <h1 className="text-2xl font-bold mb-2">
+          {autoApproved ? 'Listing Live! 🎉' : 'Listing Submitted!'}
+        </h1>
         <p className="text-muted-foreground text-sm mb-6">
-          Your tickets are pending review. Once approved, they'll appear live to buyers within minutes.
+          {autoApproved
+            ? 'Your listing is live and visible to buyers right now. Thanks for being a trusted seller!'
+            : 'Your tickets are pending review. Once approved, they\'ll appear live to buyers within minutes.'}
         </p>
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <Link to="/my-sales" className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-xl font-semibold text-sm hover:bg-primary/90 transition-colors">
