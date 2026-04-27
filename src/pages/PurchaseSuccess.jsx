@@ -210,14 +210,21 @@ export default function PurchaseSuccess() {
         <div className="space-y-4">
           {/* Seller panel */}
           {isSeller && (
-            <div className={`border rounded-xl p-5 ${purchase.seller_confirmed ? 'border-green-200 bg-green-50' : 'border-border bg-white'}`}>
-              <h3 className="font-semibold mb-1 flex items-center gap-2">
+            <div className={`border rounded-xl p-5 ${purchase.seller_confirmed ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50'}`}>
+              <h3 className="font-semibold mb-3 flex items-center gap-2">
                 {purchase.seller_confirmed ? <CheckCircle className="w-5 h-5 text-green-600" /> : <Clock className="w-5 h-5 text-amber-500" />}
-                Seller: {purchase.seller_confirmed ? 'Tickets Sent ✓' : 'Mark Tickets as Sent'}
+                {purchase.seller_confirmed ? 'Tickets Sent ✓' : 'Send Tickets to Buyer'}
               </h3>
+              {/* Buyer contact info — always visible to seller */}
+              <div className="bg-white border border-border rounded-lg p-3 mb-4 text-sm space-y-1">
+                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Buyer Contact Info</div>
+                <div><span className="text-muted-foreground">Name:</span> <span className="font-medium">{purchase.buyer_name || '—'}</span></div>
+                <div><span className="text-muted-foreground">Email:</span> <span className="font-medium">{purchase.buyer_email}</span></div>
+                {purchase.buyer_phone && <div><span className="text-muted-foreground">Phone:</span> <span className="font-medium">{purchase.buyer_phone}</span></div>}
+              </div>
               {!purchase.seller_confirmed && (
                 <>
-                  <p className="text-sm text-muted-foreground mb-3">Confirm that you've sent the tickets to the buyer.</p>
+                  <p className="text-sm text-muted-foreground mb-3">Transfer the tickets to the buyer using the contact info above, then confirm below.</p>
                   <button
                     onClick={() => handleConfirm('seller')}
                     disabled={actionLoading}
