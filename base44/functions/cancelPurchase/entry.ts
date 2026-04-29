@@ -31,10 +31,11 @@ Deno.serve(async (req) => {
     return Response.json({ error: 'Only the buyer can cancel a purchase' }, { status: 403 });
   }
 
-  const terminal = ['completed', 'expired', 'disputed'];
+  const terminal = ['completed', 'expired'];
   if (terminal.includes(purchase.transfer_status)) {
     return Response.json({ error: `Cannot cancel a ${purchase.transfer_status} purchase` }, { status: 409 });
   }
+  // disputed purchases can be refunded (by admin or buyer)
   if (purchase.payment_captured) {
     return Response.json({ error: 'Payment already captured' }, { status: 409 });
   }

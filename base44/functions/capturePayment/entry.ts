@@ -30,6 +30,10 @@ Deno.serve(async (req) => {
     return Response.json({ status: 'already_completed' });
   }
 
+  if (purchase.transfer_status === 'disputed') {
+    return Response.json({ error: 'Cannot capture payment on a disputed purchase' }, { status: 409 });
+  }
+
   // Update the confirming party
   const update = {};
   if (confirming_role === 'seller') {
