@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { CheckCircle, Clock, XCircle, AlertTriangle, ArrowLeft, Ticket, Upload, FileText, ExternalLink, RefreshCw } from 'lucide-react';
+import DisputeModal from '@/components/purchase/DisputeModal';
 
 // ── Progress bar ────────────────────────────────────────────────────────────
 const STEPS = ['Payment Authorized', 'Seller Sending', 'Buyer Confirmed', 'Complete'];
@@ -356,6 +357,7 @@ export default function PurchaseSuccess() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showDisputeModal, setShowDisputeModal] = useState(false);
   const autoRefreshRef = useRef(null);
 
   const load = async () => {
@@ -429,14 +431,16 @@ export default function PurchaseSuccess() {
     setActionLoading(false);
   };
 
-  const handleDispute = async () => {
-    const reason = prompt('Please describe the issue:');
-    if (!reason) return;
+  const handleDispute = async ({ category, details }) => {
+    setActionLoading(true);
+    const reason = details ? `${category}: ${details}` : category;
     await base44.entities.Purchase.update(purchase.id, {
       transfer_status: 'disputed',
       dispute_reason: reason,
     });
+    setShowDisputeModal(false);
     await load();
+    setActionLoading(false);
   };
 
   if (loading) {
@@ -547,9 +551,17 @@ export default function PurchaseSuccess() {
         <BuyerPanel
           purchase={purchase}
           onConfirm={handleConfirm}
-          onDispute={handleDispute}
+          onDispute={() => setShowDisputeModal(true)}
           onCancel={handleCancel}
           actionLoading={actionLoading}
+        />
+      )}
+
+      {showDisputeModal && (
+        <DisputeModal
+          onSubmit={handleDispute}
+          onClose={() => setShowDisputeModal(false)}
+          loading={actionLoading}
         />
       )}
 

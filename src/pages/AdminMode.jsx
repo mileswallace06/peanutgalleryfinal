@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Shield, Database, CheckCircle, XCircle, RefreshCw, Lock } from 'lucide-react';
+import { Shield, Database, CheckCircle, XCircle, RefreshCw, Lock, AlertTriangle, FileText } from 'lucide-react';
+import { format } from 'date-fns';
 
 const ADMIN_PASSWORD = 'peanut2026';
 
@@ -18,6 +19,7 @@ export default function AdminMode() {
 
   const [listings, setListings] = useState([]);
   const [purchases, setPurchases] = useState([]);
+  const [events, setEvents] = useState({});
   const [sellerSales, setSellerSales] = useState({});
   const [dataLoading, setDataLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState('');
@@ -43,6 +45,14 @@ export default function AdminMode() {
       salesMap[pur.seller_email] = (salesMap[pur.seller_email] || 0) + 1;
     });
     setSellerSales(salesMap);
+    // Fetch events for disputed purchases
+    const eventIds = [...new Set(p.map(pur => pur.event_id).filter(Boolean))];
+    const eventMap = {};
+    await Promise.all(eventIds.map(async eid => {
+      const res = await base44.entities.Event.filter({ id: eid });
+      if (res[0]) eventMap[eid] = res[0];
+    }));
+    setEvents(eventMap);
     setDataLoading(false);
   };
 
@@ -93,9 +103,26 @@ export default function AdminMode() {
 
   const handleCaptureAdmin = async (purchase) => {
     setActionLoading(purchase.id);
-    // Mark both confirmed and capture
     await base44.entities.Purchase.update(purchase.id, { seller_confirmed: true, buyer_confirmed: true });
     await base44.functions.invoke('capturePayment', { purchase_id: purchase.id, confirming_role: 'buyer' });
+    await loadData();
+    setActionLoading('');
+  };
+
+  const handleDisputeAction = async (purchase, action) => {
+    setActionLoading(purchase.id + action);
+    if (action === 'refund_buyer') {
+      await base44.functions.invoke('cancelPurchase', { purchase_id: purchase.id });
+    } else if (action === 'release_seller') {
+      await base44.entities.Purchase.update(purchase.id, { seller_confirmed: true, buyer_confirmed: true });
+      await base44.functions.invoke('capturePayment', { purchase_id: purchase.id, confirming_role: 'buyer' });
+    } else if (action === 'strike_seller') {
+      const users = await base44.entities.User.filter({ email: purchase.seller_email });
+      if (users[0]) {
+        await base44.entities.User.update(users[0].id, { strike_count: (users[0].strike_count || 0) + 1 });
+      }
+      await base44.entities.Purchase.update(purchase.id, { transfer_status: 'expired' });
+    }
     await loadData();
     setActionLoading('');
   };
@@ -133,6 +160,7 @@ export default function AdminMode() {
 
   const pendingProof = listings.filter(l => l.proof_status === 'pending_review');
   const activePurchases = purchases.filter(p => p.transfer_status === 'pending_transfer');
+  const disputedPurchases = purchases.filter(p => p.transfer_status === 'disputed');
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
@@ -251,6 +279,106 @@ export default function AdminMode() {
               </div>
             </div>
             );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Dispute Queue */}
+      <div className="bg-white border border-border rounded-2xl p-5 mb-6">
+        <div className="flex items-center gap-2 mb-4">
+          <AlertTriangle className="w-5 h-5 text-amber-500" />
+          <h2 className="font-bold text-lg">Dispute Queue ({disputedPurchases.length})</h2>
+        </div>
+        {disputedPurchases.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No open disputes.</p>
+        ) : (
+          <div className="space-y-4">
+            {disputedPurchases.map(p => {
+              const event = events[p.event_id];
+              return (
+                <div key={p.id} className="border border-amber-200 bg-amber-50/40 rounded-xl p-4 text-sm space-y-3">
+                  {/* Header row */}
+                  <div className="flex items-start justify-between gap-2 flex-wrap">
+                    <div>
+                      <div className="font-semibold text-foreground">{event?.title || p.event_id}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        {event?.venue && <>{event.venue} · </>}
+                        {p.created_date && format(new Date(p.created_date), 'MMM d, yyyy h:mm a')}
+                      </div>
+                    </div>
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-300 flex-shrink-0">
+                      Disputed
+                    </span>
+                  </div>
+
+                  {/* Parties */}
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div className="bg-white rounded-lg p-2.5 border border-border">
+                      <div className="text-muted-foreground font-medium uppercase tracking-wide mb-0.5">Buyer</div>
+                      <div className="font-semibold text-foreground">{p.buyer_email}</div>
+                      {p.buyer_name && <div className="text-muted-foreground">{p.buyer_name}</div>}
+                    </div>
+                    <div className="bg-white rounded-lg p-2.5 border border-border">
+                      <div className="text-muted-foreground font-medium uppercase tracking-wide mb-0.5">Seller</div>
+                      <div className="font-semibold text-foreground">{p.seller_email}</div>
+                    </div>
+                  </div>
+
+                  {/* Dispute reason */}
+                  <div className="bg-white rounded-lg p-2.5 border border-amber-200">
+                    <div className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-0.5">Reason</div>
+                    <div className="text-foreground font-medium">{p.dispute_reason || '—'}</div>
+                  </div>
+
+                  {/* Transfer proof */}
+                  {(p.transfer_proof_url || p.transfer_notes) && (
+                    <div className="bg-white rounded-lg p-2.5 border border-border space-y-1">
+                      <div className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Seller's Proof Submitted</div>
+                      {p.transfer_notes && <p className="text-xs text-foreground">{p.transfer_notes}</p>}
+                      {p.transfer_proof_url && (
+                        <a href={p.transfer_proof_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline font-medium">
+                          <FileText className="w-3 h-3" /> View screenshot ↗
+                        </a>
+                      )}
+                      {!p.transfer_proof_url && !p.transfer_notes && (
+                        <span className="text-xs text-muted-foreground italic">None</span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Amount */}
+                  <div className="text-xs text-muted-foreground">
+                    Amount in escrow: <span className="font-bold text-foreground">${p.amount?.toFixed(2)}</span>
+                    {' '}· Qty: {p.quantity}
+                  </div>
+
+                  {/* Admin actions */}
+                  <div className="flex flex-wrap gap-2 pt-1 border-t border-amber-200">
+                    <button
+                      onClick={() => handleDisputeAction(p, 'refund_buyer')}
+                      disabled={!!actionLoading}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors disabled:opacity-50"
+                    >
+                      <XCircle className="w-3.5 h-3.5" /> Refund Buyer
+                    </button>
+                    <button
+                      onClick={() => handleDisputeAction(p, 'release_seller')}
+                      disabled={!!actionLoading}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors disabled:opacity-50"
+                    >
+                      <CheckCircle className="w-3.5 h-3.5" /> Release to Seller
+                    </button>
+                    <button
+                      onClick={() => handleDisputeAction(p, 'strike_seller')}
+                      disabled={!!actionLoading}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors disabled:opacity-50"
+                    >
+                      <AlertTriangle className="w-3.5 h-3.5" /> Refund + Strike Seller
+                    </button>
+                  </div>
+                </div>
+              );
             })}
           </div>
         )}
