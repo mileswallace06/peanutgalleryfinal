@@ -64,12 +64,13 @@ export default function ListingCard({ listing, onUpgrade, isCheapest }) {
       {/* CTA */}
       <button
         onClick={() => onUpgrade(listing)}
-        className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground px-4 py-3 rounded-xl font-bold text-sm hover:bg-primary/90 active:scale-95 transition-all"
+        className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground px-4 py-4 rounded-xl font-bold text-base hover:bg-primary/90 active:scale-95 transition-all shadow-md"
       >
-        <ArrowUpRight className="w-4 h-4" />
-        Upgrade Now — ${listing.asking_price}
+        <ArrowUpRight className="w-5 h-5" />
+        Upgrade to These Seats — ${listing.asking_price}
         {listing.quantity > 1 ? ` × ${listing.quantity}` : ''}
       </button>
+      <p className="text-center text-xs text-muted-foreground mt-1.5">Instant purchase • Pay safely</p>
     </div>
   );
 }
