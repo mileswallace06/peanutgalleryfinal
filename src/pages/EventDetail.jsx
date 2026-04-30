@@ -50,6 +50,7 @@ export default function EventDetail() {
 
   const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
   const isLive = event.status === 'live';
+  const isDemoOnly = listings.length > 0 && listings.every(l => l.notes?.startsWith('[DEMO]'));
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
@@ -122,11 +123,19 @@ export default function EventDetail() {
               </div>
             )}
 
+            {isDemoOnly && (
+              <div className="mb-3">
+                <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+                  🧪 Demo upgrades for testing
+                </span>
+              </div>
+            )}
+
             {listings.length === 0 ? (
               <div className="text-center py-14 text-muted-foreground bg-muted/40 rounded-xl">
                 <p className="text-3xl mb-3">🎟️</p>
                 <p className="font-medium">No upgrades available yet</p>
-                <p className="text-sm mt-1">Check back closer to the event</p>
+                <p className="text-sm mt-1">Upgrades usually appear after the event starts. Check back in a few minutes.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

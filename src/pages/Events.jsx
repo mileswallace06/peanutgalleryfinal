@@ -80,8 +80,17 @@ export default function Events() {
       ) : filtered.length === 0 ? (
         <div className="text-center py-20 text-muted-foreground">
           <p className="text-4xl mb-3">🥜</p>
-          <p className="font-medium">No events found</p>
-          <p className="text-sm mt-1">Try adjusting your search or filters</p>
+          {search || category !== 'all' ? (
+            <>
+              <p className="font-medium">No events found</p>
+              <p className="text-sm mt-1">Try adjusting your search or filters</p>
+            </>
+          ) : (
+            <>
+              <p className="font-medium">No events available right now</p>
+              <p className="text-sm mt-1">Check back later or try another search</p>
+            </>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
