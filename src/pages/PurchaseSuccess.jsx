@@ -141,8 +141,8 @@ function SellerPanel({ purchase, onConfirm, actionLoading, error, setError }) {
     <div className="bg-white border border-border rounded-2xl overflow-hidden">
       {/* Header */}
       <div className="bg-gradient-to-r from-primary/10 to-amber-50 border-b border-border px-5 py-4">
-        <h2 className="font-bold text-lg text-foreground">Transfer Your Tickets Now</h2>
-        <p className="text-sm text-muted-foreground mt-0.5">Follow the steps below to complete this sale</p>
+        <h2 className="font-bold text-lg text-foreground">Send Your Tickets Now</h2>
+        <p className="text-sm text-muted-foreground mt-0.5">Transfer your tickets using your ticket app, then return here to confirm. You will be paid after the buyer confirms receipt.</p>
       </div>
 
       <div className="p-5 space-y-5">
