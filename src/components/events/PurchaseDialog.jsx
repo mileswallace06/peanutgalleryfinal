@@ -105,7 +105,7 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
       <div className="flex items-start gap-3 bg-green-50 border border-green-200 rounded-lg p-3">
         <Shield className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
         <div className="text-xs text-green-800">
-          <span className="font-semibold">Protected by Escrow.</span> Your payment is held securely and only released after both you and the seller confirm the ticket transfer.
+          Your payment is held safely until the ticket transfer is confirmed. The seller does not get paid until you confirm you received the seats.
         </div>
       </div>
 
