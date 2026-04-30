@@ -6,12 +6,6 @@ import { Search, MapPin, Calendar, Filter } from 'lucide-react';
 
 const CATEGORIES = ['all', 'concert', 'sports', 'theater', 'comedy', 'other'];
 
-const STATUS_BADGE = {
-  live: 'bg-red-100 text-red-700 border border-red-200',
-  upcoming: 'bg-amber-50 text-amber-700 border border-amber-200',
-  ended: 'bg-muted text-muted-foreground',
-};
-
 export default function Events() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -33,48 +27,46 @@ export default function Events() {
   });
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground mb-1">Live Events</h1>
-        <p className="text-muted-foreground">Find seat upgrades near you</p>
+    <div className="px-4 py-6 pb-32">
+      <div className="mb-6">
+        <h1 className="font-display text-4xl text-foreground mb-1">Live Events</h1>
+        <p className="text-sm text-muted-foreground">Find seat upgrades near you</p>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-8">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search events, venues, cities..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 rounded-lg border border-border bg-white text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-muted-foreground" />
-          <div className="flex gap-1 flex-wrap">
-            {CATEGORIES.map(cat => (
-              <button
-                key={cat}
-                onClick={() => setCategory(cat)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium capitalize transition-colors ${
-                  category === cat
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
-                }`}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-        </div>
+      {/* Search */}
+      <div className="relative mb-4">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <input
+          type="text"
+          placeholder="Search events, venues, cities..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="w-full pl-9 pr-4 py-3 rounded-xl border border-white/10 bg-white/5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+        />
+      </div>
+
+      {/* Category pills */}
+      <div className="flex gap-2 flex-wrap mb-6">
+        {CATEGORIES.map(cat => (
+          <button
+            key={cat}
+            onClick={() => setCategory(cat)}
+            className={`px-3 py-1.5 rounded-full text-xs font-bold capitalize transition-all ${
+              category === cat
+                ? 'text-black neon-glow-purple'
+                : 'bg-white/5 text-muted-foreground border border-white/10 hover:border-white/20'
+            }`}
+            style={category === cat ? { background: '#BF5FFF' } : {}}
+          >
+            {cat}
+          </button>
+        ))}
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="rounded-xl border border-border bg-white h-64 animate-pulse" />
+        <div className="space-y-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="rounded-2xl border border-white/08 bg-white/04 h-36 animate-pulse" />
           ))}
         </div>
       ) : filtered.length === 0 ? (
@@ -93,14 +85,14 @@ export default function Events() {
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="space-y-4">
           {filtered.map(event => (
             <Link
               key={event.id}
               to={`/events/${event.id}`}
-              className="group rounded-xl border border-border bg-white overflow-hidden hover:shadow-md transition-shadow"
+              className="group glass-card rounded-2xl overflow-hidden flex flex-col active:scale-[0.98] transition-transform"
             >
-              <div className="h-44 bg-muted relative overflow-hidden">
+              <div className="h-40 bg-white/5 relative overflow-hidden">
                 {event.image_url ? (
                   <img
                     src={event.image_url}
@@ -110,17 +102,22 @@ export default function Events() {
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-5xl">🎫</div>
                 )}
-                <span className={`absolute top-3 right-3 text-xs font-semibold px-2 py-0.5 rounded-full ${STATUS_BADGE[event.status] || STATUS_BADGE.upcoming}`}>
-                  {event.status === 'live' ? '🔴 LIVE' : event.status?.toUpperCase()}
-                </span>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                {event.status === 'live' && (
+                  <span className="absolute top-3 right-3 text-xs font-bold px-2 py-0.5 rounded-full animate-pulse"
+                    style={{ background: '#FF2D7818', color: '#FF2D78', border: '1px solid #FF2D7840' }}>
+                    🔴 LIVE
+                  </span>
+                )}
                 {event.category && (
-                  <span className="absolute top-3 left-3 text-xs font-medium px-2 py-0.5 rounded-full bg-black/40 text-white capitalize">
+                  <span className="absolute top-3 left-3 text-xs font-bold px-2 py-0.5 rounded-full"
+                    style={{ background: 'rgba(0,0,0,0.5)', color: '#fff', backdropFilter: 'blur(8px)' }}>
                     {event.category}
                   </span>
                 )}
               </div>
               <div className="p-4">
-                <h3 className="font-semibold text-foreground line-clamp-1 mb-1">{event.title}</h3>
+                <h3 className="font-bold text-foreground text-base line-clamp-1 mb-2">{event.title}</h3>
                 <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
                   <Calendar className="w-3 h-3" />
                   {event.date ? format(new Date(event.date), 'EEE, MMM d · h:mm a') : 'TBD'}

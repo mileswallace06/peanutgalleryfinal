@@ -1,40 +1,47 @@
-import { BadgeCheck, ArrowUpRight, FlameKindling } from 'lucide-react';
+import { ArrowUpRight, FlameKindling } from 'lucide-react';
 
-const TIER_COLORS = {
-  floor: 'bg-purple-100 text-purple-700 border-purple-200',
-  lower: 'bg-blue-100 text-blue-700 border-blue-200',
-  mid: 'bg-green-100 text-green-700 border-green-200',
-  upper: 'bg-amber-100 text-amber-700 border-amber-200',
+const TIER_STYLES = {
+  floor: { color: '#FF2D78', bg: '#FF2D7815' },
+  lower: { color: '#BF5FFF', bg: '#BF5FFF15' },
+  mid:   { color: '#00C8FF', bg: '#00C8FF15' },
+  upper: { color: '#FFE600', bg: '#FFE60015' },
 };
 
 export default function ListingCard({ listing, onUpgrade, isCheapest }) {
   const isDemo = listing.notes?.startsWith('[DEMO]');
+  const tier = TIER_STYLES[listing.tier];
   const savings = listing.original_price
     ? Math.round(((listing.original_price - listing.asking_price) / listing.original_price) * 100)
     : null;
 
   return (
-    <div className={`bg-white rounded-xl p-4 hover:shadow-lg transition-shadow flex flex-col gap-3 ${isCheapest ? 'border-2 border-primary' : 'border border-border'}`}>
-
+    <div
+      className={`glass-card rounded-2xl p-4 flex flex-col gap-3 active:scale-[0.98] transition-transform ${isCheapest ? 'neon-border-green' : ''}`}
+      style={isCheapest ? {} : { border: '1px solid rgba(255,255,255,0.09)' }}
+    >
       {/* Top badges row */}
       <div className="flex items-center gap-2 flex-wrap">
         {isCheapest && (
-          <span className="inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full bg-primary text-primary-foreground">
+          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full"
+            style={{ background: '#00FF8712', color: '#00FF87', border: '1px solid #00FF8730' }}>
             <FlameKindling className="w-3 h-3" /> Best Price
           </span>
         )}
-        {listing.tier && (
-          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border capitalize ${TIER_COLORS[listing.tier] || 'bg-muted text-muted-foreground border-border'}`}>
+        {tier && (
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full capitalize"
+            style={{ background: tier.bg, color: tier.color }}>
             {listing.tier}
           </span>
         )}
         {isDemo ? (
-          <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
-            🥜 Demo Listing
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+            style={{ background: '#FFE60012', color: '#FFE600', border: '1px solid #FFE60030' }}>
+            🥜 Demo
           </span>
         ) : listing.proof_url ? (
-          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 flex items-center gap-1">
-            <BadgeCheck className="w-3 h-3" /> Verified Transfer Info
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+            style={{ background: '#00FF8712', color: '#00FF87', border: '1px solid #00FF8730' }}>
+            ✓ Verified
           </span>
         ) : null}
       </div>
@@ -50,12 +57,12 @@ export default function ListingCard({ listing, onUpgrade, isCheapest }) {
           </div>
         </div>
         <div className="text-right flex-shrink-0">
-          <div className="text-2xl font-bold text-foreground">${listing.asking_price}</div>
+          <div className="font-display text-3xl text-foreground">${listing.asking_price}</div>
           {listing.original_price && (
             <div className="text-xs text-muted-foreground line-through">${listing.original_price}</div>
           )}
           {savings !== null && savings > 0 && (
-            <div className="text-xs font-semibold text-green-600">{savings}% off</div>
+            <div className="text-xs font-bold" style={{ color: '#00FF87' }}>{savings}% off</div>
           )}
           <div className="text-xs text-muted-foreground">per ticket</div>
         </div>
@@ -64,13 +71,14 @@ export default function ListingCard({ listing, onUpgrade, isCheapest }) {
       {/* CTA */}
       <button
         onClick={() => onUpgrade(listing)}
-        className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground px-4 py-4 rounded-xl font-bold text-base hover:bg-primary/90 active:scale-95 transition-all shadow-md"
+        className="w-full flex items-center justify-center gap-2 px-4 py-4 rounded-full font-bold text-base transition-all neon-glow-green active:scale-95"
+        style={{ background: '#00FF87', color: '#0D0B14' }}
       >
         <ArrowUpRight className="w-5 h-5" />
         Upgrade to These Seats — ${listing.asking_price}
         {listing.quantity > 1 ? ` × ${listing.quantity}` : ''}
       </button>
-      <p className="text-center text-xs text-muted-foreground mt-1.5">Instant purchase • Pay safely</p>
+      <p className="text-center text-xs text-muted-foreground">Instant purchase • Pay safely</p>
     </div>
   );
 }

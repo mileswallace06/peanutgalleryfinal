@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,79 +6,41 @@
 
 @layer base {
   :root {
-    --font-inter: 'Inter', sans-serif;
-    --background: 40 20% 98%;
-    --foreground: 24 10% 10%;
-    --card: 0 0% 100%;
-    --card-foreground: 24 10% 10%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 24 10% 10%;
-    --primary: 28 80% 52%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 35 30% 93%;
-    --secondary-foreground: 24 10% 15%;
-    --muted: 36 15% 94%;
-    --muted-foreground: 24 5% 46%;
-    --accent: 160 50% 42%;
-    --accent-foreground: 0 0% 100%;
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 30 15% 88%;
-    --input: 30 15% 88%;
-    --ring: 28 80% 52%;
-    --chart-1: 28 80% 52%;
-    --chart-2: 160 50% 42%;
-    --chart-3: 220 60% 50%;
-    --chart-4: 45 80% 58%;
-    --chart-5: 0 72% 51%;
-    --radius: 0.625rem;
-    --sidebar-background: 35 25% 96%;
-    --sidebar-foreground: 24 10% 15%;
-    --sidebar-primary: 28 80% 52%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 35 30% 93%;
-    --sidebar-accent-foreground: 24 10% 15%;
-    --sidebar-border: 30 15% 88%;
-    --sidebar-ring: 28 80% 52%;
-  }
+    --font-display: 'Black Han Sans', Impact, sans-serif;
+    --font-sans: 'DM Sans', system-ui, sans-serif;
 
-  .dark {
-    --background: 24 10% 7%;
-    --foreground: 36 15% 94%;
-    --card: 24 10% 10%;
-    --card-foreground: 36 15% 94%;
-    --popover: 24 10% 10%;
-    --popover-foreground: 36 15% 94%;
-    --primary: 28 80% 52%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 24 10% 15%;
-    --secondary-foreground: 36 15% 94%;
-    --muted: 24 10% 15%;
-    --muted-foreground: 24 5% 55%;
-    --accent: 160 50% 42%;
-    --accent-foreground: 0 0% 100%;
-    --destructive: 0 62% 35%;
+    /* RAVE MODE — always dark */
+    --background: 255 10% 5%;
+    --foreground: 0 0% 98%;
+    --card: 255 12% 9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 255 12% 9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 270 100% 70%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 255 10% 14%;
+    --secondary-foreground: 0 0% 90%;
+    --muted: 255 10% 14%;
+    --muted-foreground: 255 8% 55%;
+    --accent: 145 100% 50%;
+    --accent-foreground: 255 10% 5%;
+    --destructive: 0 80% 55%;
     --destructive-foreground: 0 0% 98%;
-    --border: 24 10% 18%;
-    --input: 24 10% 18%;
-    --ring: 28 80% 52%;
-    --chart-1: 28 80% 52%;
-    --chart-2: 160 50% 42%;
-    --chart-3: 220 60% 50%;
-    --chart-4: 45 80% 58%;
-    --chart-5: 0 72% 51%;
-    --sidebar-background: 24 10% 8%;
-    --sidebar-foreground: 36 15% 94%;
-    --sidebar-primary: 28 80% 52%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 24 10% 13%;
-    --sidebar-accent-foreground: 36 15% 94%;
-    --sidebar-border: 24 10% 18%;
-    --sidebar-ring: 28 80% 52%;
+    --border: 255 10% 18%;
+    --input: 255 10% 18%;
+    --ring: 270 100% 70%;
+    --radius: 1rem;
+
+    --sidebar-background: 255 10% 5%;
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-primary: 270 100% 70%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 255 10% 14%;
+    --sidebar-accent-foreground: 0 0% 90%;
+    --sidebar-border: 255 10% 18%;
+    --sidebar-ring: 270 100% 70%;
   }
 }
-
-
 
 @layer base {
   * {
@@ -87,5 +49,96 @@
 
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+  }
+}
+
+@layer utilities {
+  /* Page background */
+  .rave-bg {
+    background:
+      radial-gradient(ellipse 80% 60% at 15% -5%, #BF5FFF1A, transparent 55%),
+      radial-gradient(ellipse 70% 50% at 85% 5%, #FF2D781A, transparent 50%),
+      radial-gradient(ellipse 60% 70% at 50% 110%, #00FF8710, transparent 55%),
+      radial-gradient(ellipse 40% 30% at 50% 50%, #00C8FF08, transparent 50%),
+      hsl(255 10% 5%);
+  }
+
+  /* Frosted nav */
+  .frosted-bar {
+    background: rgba(13, 11, 20, 0.85);
+    backdrop-filter: blur(30px) saturate(180%);
+    -webkit-backdrop-filter: blur(30px) saturate(180%);
+  }
+
+  /* Glass levels */
+  .glass {
+    background: rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(24px) saturate(180%);
+  }
+
+  .glass-strong {
+    background: rgba(255, 255, 255, 0.07);
+    backdrop-filter: blur(32px) saturate(200%);
+  }
+
+  .glass-card {
+    background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  /* Neon glows */
+  .neon-glow-green {
+    box-shadow: 0 0 20px #00FF8766, 0 0 40px #00FF8733, 0 0 80px #00FF8715;
+  }
+
+  .neon-glow-purple {
+    box-shadow: 0 0 20px #BF5FFF66, 0 0 40px #BF5FFF33, 0 0 80px #BF5FFF15;
+  }
+
+  .neon-glow-pink {
+    box-shadow: 0 0 20px #FF2D7866, 0 0 40px #FF2D7833;
+  }
+
+  .neon-border-green {
+    border-color: #00FF87;
+    box-shadow: 0 0 0 1px #00FF8755, inset 0 0 0 1px #00FF8733;
+  }
+
+  /* Text gradients */
+  .gradient-text-rave {
+    background: linear-gradient(90deg, #BF5FFF, #FF2D78, #FFE600);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .gradient-text-green {
+    background: linear-gradient(90deg, #00FF87, #00C8FF);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .gradient-text-purple {
+    background: linear-gradient(135deg, #BF5FFF, #00C8FF);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Gradient border */
+  .gradient-border {
+    position: relative;
+    background-clip: padding-box;
+  }
+  .gradient-border::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    background: linear-gradient(135deg, #BF5FFF44, #FF2D7822, #00FF8722);
+    z-index: -1;
   }
 }

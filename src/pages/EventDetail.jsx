@@ -29,11 +29,11 @@ export default function EventDetail() {
 
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto px-4 py-8 space-y-4">
-        <div className="h-56 bg-muted rounded-xl animate-pulse" />
-        <div className="h-6 w-48 bg-muted rounded animate-pulse" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
-          {[...Array(4)].map((_, i) => <div key={i} className="h-36 bg-muted rounded-xl animate-pulse" />)}
+      <div className="px-4 py-8 space-y-4">
+        <div className="h-56 bg-white/5 rounded-2xl animate-pulse" />
+        <div className="h-6 w-48 bg-white/5 rounded animate-pulse" />
+        <div className="space-y-4 mt-4">
+          {[...Array(3)].map((_, i) => <div key={i} className="h-36 bg-white/5 rounded-2xl animate-pulse" />)}
         </div>
       </div>
     );
@@ -41,7 +41,7 @@ export default function EventDetail() {
 
   if (!event) {
     return (
-      <div className="max-w-4xl mx-auto px-4 py-20 text-center">
+      <div className="px-4 py-20 text-center">
         <p className="text-muted-foreground">Event not found.</p>
         <Link to="/events" className="text-primary text-sm mt-3 inline-block">← Back to events</Link>
       </div>
@@ -53,7 +53,7 @@ export default function EventDetail() {
   const isDemoOnly = listings.length > 0 && listings.every(l => l.notes?.startsWith('[DEMO]'));
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6">
+    <div className="px-4 py-6 pb-32">
       <Link to="/events" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-5 transition-colors">
         <ArrowLeft className="w-4 h-4" /> All Events
       </Link>
@@ -137,13 +137,13 @@ export default function EventDetail() {
             )}
 
             {listings.length === 0 ? (
-              <div className="text-center py-14 text-muted-foreground bg-muted/40 rounded-xl">
+              <div className="text-center py-14 text-muted-foreground glass-card rounded-2xl">
                 <p className="text-3xl mb-3">🎟️</p>
                 <p className="font-medium">No upgrades available yet</p>
                 <p className="text-sm mt-1">Upgrades usually appear after the event starts. Check back in a few minutes.</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-4">
                 {sorted.map(listing => (
                   <ListingCard
                     key={listing.id}
