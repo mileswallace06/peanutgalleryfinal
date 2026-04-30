@@ -58,6 +58,11 @@ export default function EventDetail() {
         <ArrowLeft className="w-4 h-4" /> All Events
       </Link>
 
+      <div className="mb-5">
+        <h2 className="text-xl font-bold text-foreground">Upgrade Your Seats</h2>
+        <p className="text-sm text-muted-foreground mt-0.5">Buy better seats from fans already at the event. Pay safely and confirm after transfer.</p>
+      </div>
+
       {/* Hero */}
       <div className="relative rounded-2xl overflow-hidden mb-6 bg-muted h-52 sm:h-64">
         {event.image_url ? (
