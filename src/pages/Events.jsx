@@ -44,11 +44,11 @@ export default function Events() {
         />
 
         {/* Logo pill header */}
-        <div style={{ position: 'absolute', top: '14px', left: '50%', transform: 'translateX(-50%)', width: 'auto', paddingLeft: '16px', paddingRight: '16px', height: '44px', borderRadius: '999px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(10, 8, 18, 0.35)', backdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 0 16px rgba(191,95,255,0.25)' }}>
+        <div style={{ position: 'absolute', top: '24px', left: '50%', transform: 'translateX(-50%)', width: 'auto', paddingLeft: '20px', paddingRight: '20px', height: '52px', borderRadius: '999px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(10, 8, 18, 0.45)', backdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 0 12px rgba(191,95,255,0.18)' }}>
           <img
             src="https://media.base44.com/images/public/69ef9900cf3862dc0ea39734/f15cb860e_ChatGPTImageMay1202601_38_44PM.png"
             alt="Peanut Gallery"
-            style={{ maxHeight: '26px', width: 'auto', objectFit: 'contain' }}
+            style={{ maxHeight: '32px', width: 'auto', objectFit: 'contain' }}
           />
         </div>
 
