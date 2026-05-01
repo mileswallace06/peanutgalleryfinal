@@ -174,12 +174,21 @@ export default function Onboarding({ onDone }) {
       {/* Particles */}
       <Particles color={slide.accent} />
 
+      {/* Logo — top left */}
+      <div className="absolute top-10 left-4 z-20">
+        <img
+          src="https://media.base44.com/images/public/69ef9900cf3862dc0ea39734/9022a5431_ChatGPTImageMay1202601_29_27PM.png"
+          alt="Peanut Gallery"
+          className="h-24 w-auto rounded-2xl"
+        />
+      </div>
+
       {/* Skip button */}
       <div className="relative z-10 flex justify-end px-6 pt-12 pb-4">
         <button
-          onClick={finish} className="h-24 w-auto">
-
-          
+          onClick={finish}
+          className="text-xs font-bold text-white/50 hover:text-white transition-colors tracking-widest uppercase"
+        >
           Skip ✕
         </button>
       </div>

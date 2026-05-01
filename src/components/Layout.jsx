@@ -34,8 +34,7 @@ export default function Layout() {
             <img
               src="https://media.base44.com/images/public/69ef9900cf3862dc0ea39734/9022a5431_ChatGPTImageMay1202601_29_27PM.png"
               alt="Peanut Gallery"
-              className="h-12 w-auto"
-              style={{ mixBlendMode: 'multiply' }}
+              className="h-12 w-auto rounded-xl"
             />
           </Link>
           {!user && (
