@@ -44,7 +44,7 @@ export default function Me() {
       }}
     >
       {/* Background fade overlay */}
-      <div className="absolute inset-0 rave-bg opacity-95 pointer-events-none z-0" />
+      <div className="absolute inset-0 rave-bg opacity-70 pointer-events-none z-0" />
       
       {/* Content wrapper */}
       <div className="relative z-10">
