@@ -43,15 +43,7 @@ export default function Events() {
           style={{ background: 'linear-gradient(to bottom, rgba(5,3,12,0.45) 0%, rgba(5,3,12,0.2) 40%, rgba(5,3,12,0.92) 100%)' }}
         />
 
-        {/* Tag */}
-        <div className="absolute top-5 left-4">
-          <span
-            className="text-[10px] font-black tracking-[0.2em] px-3 py-1 rounded-full flex items-center gap-1.5"
-            style={{ background: 'rgba(0,0,0,0.5)', color: '#00C8FF', border: '1px solid #00C8FF55', backdropFilter: 'blur(12px)' }}
-          >
-            📍 PEANUT GALLERY
-          </span>
-        </div>
+
 
         {/* Headline */}
         <div className="absolute bottom-5 left-4 right-4">
