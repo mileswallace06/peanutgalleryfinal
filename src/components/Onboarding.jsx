@@ -1,34 +1,86 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const SLIDES = [
   {
-    emoji: '🎫',
-    title: 'Upgrade Your Seats',
-    text: 'Buy better seats from fans already at the event',
-    color: '#BF5FFF',
+    bg: 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=800&q=80', // packed concert crowd
+    accent: '#BF5FFF',
+    accent2: '#FF2D78',
+    tag: 'SEAT UPGRADES',
+    title: ['You\'re', 'In The', 'Nosebleeds.'],
+    titleHighlight: 2, // index of highlighted word
+    highlightColor: '#FF2D78',
+    body: 'While you\'re stuck in row ZZ, someone down front is leaving early. Peanut Gallery lets you buy their seats — live, at the event, in minutes.',
+    cta: null,
   },
   {
-    emoji: '🔒',
-    title: 'Pay Safely',
-    text: 'Your payment is held until you confirm your seats',
-    color: '#00C8FF',
+    bg: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&q=80', // phone payment
+    accent: '#00C8FF',
+    accent2: '#00FF87',
+    tag: 'ZERO RISK',
+    title: ['Your Money', 'Is Safe', 'Period.'],
+    titleHighlight: 1,
+    highlightColor: '#00FF87',
+    body: 'We hold your payment in escrow. The seller doesn\'t get a single cent until you physically receive the tickets and tap confirm. Scammers can\'t win here.',
+    cta: null,
   },
   {
-    emoji: '💸',
-    title: 'Sell Your Tickets',
-    text: "Can't use your seats? Sell them instantly to other fans",
-    color: '#FF2D78',
+    bg: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800&q=80', // festival crowd
+    accent: '#FF2D78',
+    accent2: '#FFE600',
+    tag: 'SELL INSTANTLY',
+    title: ['Got Seats', 'You Can\'t', 'Use?'],
+    titleHighlight: 2,
+    highlightColor: '#FFE600',
+    body: 'List your tickets in 60 seconds. Buyers nearby see them instantly. Get paid the moment they confirm receipt. No waiting, no BS.',
+    cta: null,
   },
   {
-    emoji: '🚀',
-    title: 'Ready?',
-    text: 'Browse upgrades and move closer now',
-    color: '#00FF87',
-    cta: true,
+    bg: 'https://images.unsplash.com/photo-1598387993441-a364f854c3e1?w=800&q=80', // stage lights
+    accent: '#00FF87',
+    accent2: '#BF5FFF',
+    tag: 'LET\'S GO',
+    title: ['Stop', 'Watching', 'From Far.'],
+    titleHighlight: 2,
+    highlightColor: '#00FF87',
+    body: 'Real fans deserve real seats. Find an upgrade at tonight\'s show and get there before the headliner hits.',
+    cta: 'Find My Upgrade 🎫',
   },
 ];
+
+// Floating particle component
+function Particles({ color }) {
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      {[...Array(12)].map((_, i) => (
+        <motion.div
+          key={i}
+          className="absolute rounded-full"
+          style={{
+            width: Math.random() * 6 + 2,
+            height: Math.random() * 6 + 2,
+            background: i % 2 === 0 ? color : '#ffffff',
+            left: `${Math.random() * 100}%`,
+            top: `${Math.random() * 100}%`,
+            opacity: 0,
+          }}
+          animate={{
+            y: [0, -80, -160],
+            opacity: [0, 0.8, 0],
+            scale: [1, 1.5, 0.5],
+          }}
+          transition={{
+            duration: 2 + Math.random() * 2,
+            repeat: Infinity,
+            delay: Math.random() * 2,
+            ease: 'easeOut',
+          }}
+        />
+      ))}
+    </div>
+  );
+}
 
 export default function Onboarding({ onDone }) {
   const [index, setIndex] = useState(0);
@@ -40,7 +92,7 @@ export default function Onboarding({ onDone }) {
 
   const advance = (delta = 1) => {
     setDir(delta);
-    setIndex(i => i + delta);
+    setIndex(i => Math.max(0, Math.min(SLIDES.length - 1, i + delta)));
   };
 
   const finish = () => {
@@ -49,107 +101,189 @@ export default function Onboarding({ onDone }) {
     navigate('/events');
   };
 
+  // Swipe support
+  const [touchStart, setTouchStart] = useState(null);
+  const handleTouchStart = (e) => setTouchStart(e.touches[0].clientX);
+  const handleTouchEnd = (e) => {
+    if (touchStart === null) return;
+    const diff = touchStart - e.changedTouches[0].clientX;
+    if (Math.abs(diff) > 50) {
+      if (diff > 0 && !isLast) advance(1);
+      else if (diff < 0 && index > 0) advance(-1);
+    }
+    setTouchStart(null);
+  };
+
   return (
-    <div className="fixed inset-0 z-[100] rave-bg flex flex-col items-center justify-between px-6 py-10">
-      {/* Skip */}
-      <div className="w-full flex justify-end">
+    <div
+      className="fixed inset-0 z-[100] flex flex-col"
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* Background image with overlay */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={`bg-${index}`}
+          className="absolute inset-0"
+          initial={{ opacity: 0, scale: 1.08 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.96 }}
+          transition={{ duration: 0.5 }}
+          style={{
+            backgroundImage: `url(${slide.bg})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }}
+        />
+      </AnimatePresence>
+
+      {/* Dark gradient overlay — heavy at bottom, lighter at top */}
+      <div className="absolute inset-0"
+        style={{
+          background: `linear-gradient(to bottom, rgba(5,3,12,0.55) 0%, rgba(5,3,12,0.3) 30%, rgba(5,3,12,0.75) 60%, rgba(5,3,12,0.97) 100%)`,
+        }}
+      />
+
+      {/* Accent color splash */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={`splash-${index}`}
+          className="absolute inset-0 pointer-events-none"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.4 }}
+          style={{
+            background: `radial-gradient(ellipse 70% 40% at 50% 100%, ${slide.accent}30, transparent 70%)`,
+          }}
+        />
+      </AnimatePresence>
+
+      {/* Particles */}
+      <Particles color={slide.accent} />
+
+      {/* Skip button */}
+      <div className="relative z-10 flex justify-end px-6 pt-12 pb-4">
         <button
           onClick={finish}
-          className="text-xs text-muted-foreground hover:text-foreground transition-colors border border-white/10 rounded-full px-3 py-1.5"
+          className="text-xs font-bold text-white/50 hover:text-white transition-colors tracking-widest uppercase"
         >
-          Skip
+          Skip ✕
         </button>
       </div>
 
-      {/* Slide */}
-      <div className="flex-1 flex items-center justify-center w-full">
+      {/* Main content — bottom aligned */}
+      <div className="relative z-10 flex-1 flex flex-col justify-end px-6 pb-4">
         <AnimatePresence mode="wait" custom={dir}>
           <motion.div
-            key={index}
+            key={`content-${index}`}
             custom={dir}
-            initial={{ opacity: 0, x: dir * 60 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: dir * -60 }}
-            transition={{ duration: 0.3, ease: 'easeInOut' }}
-            className="flex flex-col items-center text-center gap-6 w-full max-w-xs"
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.4, ease: 'easeOut' }}
+            className="flex flex-col gap-4"
           >
-            {/* Emoji glow orb */}
-            <div
-              className="w-28 h-28 rounded-full flex items-center justify-center text-6xl"
+            {/* Tag */}
+            <motion.span
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.1 }}
+              className="text-xs font-black tracking-[0.25em] px-3 py-1 rounded-full w-fit"
               style={{
-                background: `radial-gradient(circle, ${slide.color}22, transparent 70%)`,
-                boxShadow: `0 0 40px ${slide.color}44`,
-                border: `1px solid ${slide.color}33`,
+                background: `${slide.accent}20`,
+                color: slide.accent,
+                border: `1px solid ${slide.accent}40`,
               }}
             >
-              {slide.emoji}
+              {slide.tag}
+            </motion.span>
+
+            {/* Title — multi-color */}
+            <div className="font-display leading-none" style={{ fontSize: 'clamp(2.8rem, 14vw, 4.5rem)' }}>
+              {slide.title.map((word, i) => (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, x: -30 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.15 + i * 0.08 }}
+                  style={{
+                    color: i === slide.titleHighlight ? slide.highlightColor : '#fff',
+                    textShadow: i === slide.titleHighlight
+                      ? `0 0 30px ${slide.highlightColor}99, 0 0 60px ${slide.highlightColor}44`
+                      : '0 2px 20px rgba(0,0,0,0.8)',
+                  }}
+                >
+                  {word}
+                </motion.div>
+              ))}
             </div>
 
-            <div className="space-y-3">
-              <h1
-                className="font-display text-4xl leading-tight"
-                style={{ color: slide.color, textShadow: `0 0 20px ${slide.color}66` }}
-              >
-                {slide.title}
-              </h1>
-              <p className="text-base text-muted-foreground leading-relaxed">{slide.text}</p>
-            </div>
+            {/* Body */}
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.4 }}
+              className="text-base text-white/75 leading-relaxed max-w-sm"
+            >
+              {slide.body}
+            </motion.p>
           </motion.div>
         </AnimatePresence>
       </div>
 
-      {/* Dots */}
-      <div className="flex gap-2 mb-6">
-        {SLIDES.map((s, i) => (
-          <div
-            key={i}
-            className="rounded-full transition-all duration-300"
-            style={{
-              width: i === index ? 24 : 8,
-              height: 8,
-              background: i === index ? slide.color : 'rgba(255,255,255,0.2)',
-              boxShadow: i === index ? `0 0 8px ${slide.color}` : 'none',
-            }}
-          />
-        ))}
-      </div>
+      {/* Bottom controls */}
+      <div className="relative z-10 px-6 pb-10 pt-4 flex flex-col gap-4">
+        {/* Dots */}
+        <div className="flex gap-2">
+          {SLIDES.map((_, i) => (
+            <motion.div
+              key={i}
+              className="rounded-full"
+              animate={{
+                width: i === index ? 28 : 8,
+                background: i === index ? slide.accent : 'rgba(255,255,255,0.25)',
+              }}
+              transition={{ duration: 0.3 }}
+              style={{ height: 6, boxShadow: i === index ? `0 0 10px ${slide.accent}` : 'none' }}
+            />
+          ))}
+        </div>
 
-      {/* CTA */}
-      <div className="w-full max-w-xs space-y-3">
-        {isLast ? (
-          <button
-            onClick={finish}
-            className="w-full py-4 rounded-full font-bold text-base transition-all active:scale-95"
-            style={{
-              background: '#00FF87',
-              color: '#0D0B14',
-              boxShadow: '0 0 20px #00FF8766, 0 0 40px #00FF8733',
-            }}
-          >
-            Start Browsing 🎫
-          </button>
-        ) : (
-          <button
-            onClick={() => advance(1)}
-            className="w-full py-4 rounded-full font-bold text-base transition-all active:scale-95"
-            style={{
-              background: slide.color,
-              color: '#0D0B14',
-              boxShadow: `0 0 20px ${slide.color}66`,
-            }}
-          >
-            Next →
-          </button>
-        )}
-
-        {index > 0 && (
-          <button
-            onClick={() => advance(-1)}
-            className="w-full py-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            ← Back
-          </button>
-        )}
+        {/* CTA button */}
+        <AnimatePresence mode="wait">
+          {isLast ? (
+            <motion.button
+              key="finish"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              onClick={finish}
+              className="w-full py-5 rounded-2xl font-black text-lg tracking-wide active:scale-95 transition-transform"
+              style={{
+                background: `linear-gradient(135deg, ${slide.accent}, ${slide.accent2})`,
+                color: '#0D0B14',
+                boxShadow: `0 0 30px ${slide.accent}88, 0 0 60px ${slide.accent}44`,
+              }}
+            >
+              Find My Upgrade 🎫
+            </motion.button>
+          ) : (
+            <motion.button
+              key="next"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              onClick={() => advance(1)}
+              className="w-full py-5 rounded-2xl font-black text-lg tracking-wide active:scale-95 transition-transform"
+              style={{
+                background: `linear-gradient(135deg, ${slide.accent}, ${slide.accent2})`,
+                color: '#0D0B14',
+                boxShadow: `0 0 20px ${slide.accent}66`,
+              }}
+            >
+              Next →
+            </motion.button>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
