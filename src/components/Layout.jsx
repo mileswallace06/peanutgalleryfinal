@@ -30,9 +30,12 @@ export default function Layout() {
       {/* Top brand bar */}
       <header className="frosted-bar border-b border-white/10 sticky top-0 z-50">
         <div className="max-w-lg mx-auto px-4 h-14 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 font-bold text-lg text-primary"
-            style={{ textShadow: '0 0 12px #BF5FFF99' }}>
-            🥜 Peanut Gallery
+          <Link to="/" className="flex items-center">
+            <img
+              src="https://media.base44.com/images/public/69ef9900cf3862dc0ea39734/45897bdff_ChatGPTImageMay1202601_23_36PM.png"
+              alt="Peanut Gallery"
+              className="h-9 w-auto"
+            />
           </Link>
           {!user && (
             <button
