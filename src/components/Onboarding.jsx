@@ -56,7 +56,7 @@ const SLIDES = [
     title: ['Stop', 'Watching', 'From Far.'],
     titleHighlight: 2,
     highlightColor: '#00FF87',
-    body: 'Real fans deserve real seats. Find an upgrade at tonight\'s show and get there before the headliner hits.',
+    body: 'Real fans deserve real seats. Whether it\'s a concert, game, or show — find an upgrade and move closer before the action starts.',
     cta: 'Find My Upgrade 🎫',
   },
 ];
