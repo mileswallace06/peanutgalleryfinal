@@ -250,6 +250,16 @@ export default function Onboarding({ onDone }) {
           ))}
         </div>
 
+        {/* Back button */}
+        {index > 0 && (
+          <button
+            onClick={() => advance(-1)}
+            className="text-xs text-white/40 hover:text-white/70 transition-colors text-center tracking-widest uppercase"
+          >
+            ← Back
+          </button>
+        )}
+
         {/* CTA button */}
         <AnimatePresence mode="wait">
           {isLast ? (

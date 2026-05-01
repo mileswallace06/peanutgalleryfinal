@@ -179,6 +179,22 @@ export default function AdminMode() {
         </button>
       </div>
 
+      {/* Replay Onboarding */}
+      <div className="bg-white border border-border rounded-2xl p-5 mb-6">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h2 className="font-bold text-lg">Replay Onboarding</h2>
+            <p className="text-sm text-muted-foreground mt-0.5">Clears localStorage flag and re-shows the intro screens on next page load.</p>
+          </div>
+          <button
+            onClick={() => { localStorage.removeItem('pg_onboarded'); window.location.href = '/'; }}
+            className="flex items-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-lg font-semibold text-sm hover:bg-primary/90 transition-colors"
+          >
+            🎫 Replay Onboarding
+          </button>
+        </div>
+      </div>
+
       {/* Seed Demo Inventory */}
       <div className="bg-white border border-border rounded-2xl p-5 mb-6">
         <div className="flex items-center gap-2 mb-3">
