@@ -28,17 +28,17 @@ export default function Layout() {
   return (
     <div className="min-h-screen rave-bg font-sans">
       {/* Black banner at top */}
-      <div className="fixed top-0 right-0 h-12 bg-black z-[99] rounded-b-2xl opacity-30" style={{ left: '-0.625rem' }} />
+      
       
       {/* Logo */}
-      <Link to="/" className="opacity-100 fixed -top-16 left-0 right-0 z-[100] flex items-center justify-center pointer-events-auto">
-        <img
-          src="https://media.base44.com/images/public/69ef9900cf3862dc0ea39734/f15cb860e_ChatGPTImageMay1202601_38_44PM.png"
-          alt="Peanut Gallery"
-          className="h-48 w-auto object-contain"
-          style={{ mixBlendMode: 'screen' }} />
-        
-      </Link>
+      
+
+
+
+
+
+
+      
       
       {!user &&
       <button
