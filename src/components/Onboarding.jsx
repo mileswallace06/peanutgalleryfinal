@@ -8,30 +8,31 @@ const SLIDES = [
     accent: '#00FF87',
     accent2: '#BF5FFF',
     tag: '🥜 PEANUT GALLERY',
-    title: ['Seat', 'Upgrades.', 'Cheap.'],
-    titleHighlight: 1,
+    slogan: true,
+    title: ['Move.', 'Up.', 'Cheap.'],
+    titleHighlight: -1, // all white — slogan gets special treatment
     highlightColor: '#00FF87',
-    body: 'The peer-to-peer marketplace for buying and selling seat upgrades at live events. Better seats, fair prices, no scalpers.',
+    body: 'The only app that lets fans inside the venue buy and sell seat upgrades after the event starts. Better seats, fair prices, no scalpers.',
     cta: null,
   },
   {
     bg: 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=800&q=80', // packed concert crowd
-    accent: '#BF5FFF',
-    accent2: '#FF2D78',
+    accent: '#FF2D78',
+    accent2: '#FFE600',
     tag: 'SEAT UPGRADES',
     title: ['Stuck In', 'The Back', 'Row?'],
-    titleHighlight: 1,
+    titleHighlight: -1,
     highlightColor: '#FF2D78',
-    body: 'Fans who couldn\'t sell their seats before the event list them cheap — right now, in the venue. You buy the upgrade for a fraction of face value. Location-locked so only real fans at the venue can buy, not scalpers.',
+    body: 'Fans who couldn\'t sell their seats before the event list them cheap on Peanut Gallery — the only place to buy upgrades live at the venue. Location-locked so only people actually there can buy. No scalpers, ever.',
     cta: null,
   },
   {
-    bg: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&q=80', // phone payment
-    accent: '#00C8FF',
-    accent2: '#00FF87',
+    bg: 'https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?w=800&q=80', // stadium football
+    accent: '#00FF87',
+    accent2: '#00C8FF',
     tag: 'ZERO RISK',
-    title: ['Your Money', 'Is Safe', 'Period.'],
-    titleHighlight: 1,
+    title: ['Your Money', 'Is Safe.', 'Period.'],
+    titleHighlight: -1,
     highlightColor: '#00FF87',
     body: 'We hold your payment in escrow. The seller doesn\'t get a single cent until you physically receive the tickets and tap confirm. Scammers can\'t win here.',
     cta: null,
@@ -212,23 +213,27 @@ export default function Onboarding({ onDone }) {
             </motion.span>
 
             {/* Title — multi-color */}
-            <div className="font-display leading-none" style={{ fontSize: 'clamp(2.8rem, 14vw, 4.5rem)' }}>
-              {slide.title.map((word, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, x: -30 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.15 + i * 0.08 }}
-                  style={{
-                    color: i === slide.titleHighlight ? slide.highlightColor : '#fff',
-                    textShadow: i === slide.titleHighlight
-                      ? `0 0 30px ${slide.highlightColor}99, 0 0 60px ${slide.highlightColor}44`
-                      : '0 2px 20px rgba(0,0,0,0.8)',
-                  }}
-                >
-                  {word}
-                </motion.div>
-              ))}
+            <div className="font-display leading-[0.95]" style={{ fontSize: slide.slogan ? 'clamp(3.8rem, 18vw, 6rem)' : 'clamp(2.8rem, 14vw, 4.5rem)' }}>
+              {slide.title.map((word, i) => {
+                const isHighlighted = slide.slogan ? true : i === slide.titleHighlight;
+                const wordColor = isHighlighted ? slide.highlightColor : '#fff';
+                return (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, x: -30 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.15 + i * 0.08 }}
+                    style={{
+                      color: wordColor,
+                      textShadow: isHighlighted
+                        ? `0 0 30px ${wordColor}99, 0 0 60px ${wordColor}44`
+                        : '0 2px 20px rgba(0,0,0,0.8)',
+                    }}
+                  >
+                    {word}
+                  </motion.div>
+                );
+              })}
             </div>
 
             {/* Body */}
