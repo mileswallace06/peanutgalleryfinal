@@ -28,7 +28,7 @@ export default function Layout() {
   return (
     <div className="min-h-screen rave-bg font-sans">
       {/* Black banner at top */}
-      <div className="fixed top-0 right-0 h-12 bg-black z-[99] rounded-b-2xl" style={{ left: '-0.625rem' }} />
+      <div className="fixed top-0 right-0 h-12 bg-black z-[99] rounded-b-2xl opacity-60" style={{ left: '-0.625rem' }} />
       
       {/* Logo */}
       <Link to="/" className="opacity-100 fixed -top-16 left-0 right-0 z-[100] flex items-center justify-center pointer-events-auto">
