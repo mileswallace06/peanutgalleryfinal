@@ -37,13 +37,13 @@ export default function Me() {
     <div className="rave-bg min-h-screen pb-28">
       {/* Hero banner */}
       <div className="relative h-44 overflow-hidden">
-        <img
-          src="https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&q=80"
-          alt="banner" className="w-full h-full object-cover hidden"
-
-          style={{ filter: 'brightness(0.35) saturate(1.3)' }} />
         
-        <div className="absolute inset-0 hidden" style={{ background: 'linear-gradient(to bottom, transparent 30%, rgba(13,11,20,0.98) 100%)' }} />
+
+
+
+        
+        
+        
       </div>
 
       {/* Avatar + name */}
