@@ -4,14 +4,25 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 const SLIDES = [
   {
+    bg: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&q=80', // stadium crowd overhead
+    accent: '#00FF87',
+    accent2: '#BF5FFF',
+    tag: '🥜 PEANUT GALLERY',
+    title: ['Seat', 'Upgrades.', 'Cheap.'],
+    titleHighlight: 1,
+    highlightColor: '#00FF87',
+    body: 'The peer-to-peer marketplace for buying and selling seat upgrades at live events. Better seats, fair prices, no scalpers.',
+    cta: null,
+  },
+  {
     bg: 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=800&q=80', // packed concert crowd
     accent: '#BF5FFF',
     accent2: '#FF2D78',
     tag: 'SEAT UPGRADES',
-    title: ['You\'re', 'In The', 'Nosebleeds.'],
-    titleHighlight: 2, // index of highlighted word
+    title: ['Stuck In', 'The Back', 'Row?'],
+    titleHighlight: 1,
     highlightColor: '#FF2D78',
-    body: 'While you\'re stuck in row ZZ, someone down front is leaving early. Peanut Gallery lets you buy their seats — live, at the event, in minutes.',
+    body: 'Fans who couldn\'t sell their seats before the event list them cheap — right now, in the venue. You buy the upgrade for a fraction of face value. Location-locked so only real fans at the venue can buy, not scalpers.',
     cta: null,
   },
   {
@@ -191,9 +202,10 @@ export default function Onboarding({ onDone }) {
               transition={{ delay: 0.1 }}
               className="text-xs font-black tracking-[0.25em] px-3 py-1 rounded-full w-fit"
               style={{
-                background: `${slide.accent}20`,
+                background: `${slide.accent}35`,
                 color: slide.accent,
-                border: `1px solid ${slide.accent}40`,
+                border: `1px solid ${slide.accent}70`,
+                textShadow: `0 0 12px ${slide.accent}`,
               }}
             >
               {slide.tag}
