@@ -32,7 +32,7 @@ export default function Layout() {
         <img
           src="https://media.base44.com/images/public/69ef9900cf3862dc0ea39734/f15cb860e_ChatGPTImageMay1202601_38_44PM.png"
           alt="Peanut Gallery"
-          className="h-20 w-auto object-contain"
+          className="h-32 w-auto object-contain"
           style={{ mixBlendMode: 'screen' }}
         />
       </Link>
