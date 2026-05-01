@@ -196,21 +196,67 @@ export default function Onboarding({ onDone }) {
             transition={{ duration: 0.4, ease: 'easeOut' }}
             className="flex flex-col gap-4"
           >
-            {/* Tag */}
-            <motion.span
+            {/* Logo */}
+            <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.1 }}
-              className="text-xs font-black tracking-[0.25em] px-3 py-1 rounded-full w-fit"
-              style={{
-                background: `rgba(0,0,0,0.55)`,
-                color: '#fff',
-                border: `1px solid ${slide.accent}90`,
-                boxShadow: `0 0 10px ${slide.accent}55`,
-              }}
+              className="flex items-center gap-2.5 w-fit"
             >
-              {slide.tag}
-            </motion.span>
+              {/* Peanut icon SVG */}
+              <div
+                className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{
+                  background: `linear-gradient(135deg, ${slide.accent}28, ${slide.accent2}18)`,
+                  border: `1px solid ${slide.accent}55`,
+                  boxShadow: `0 0 16px ${slide.accent}44, inset 0 1px 0 rgba(255,255,255,0.15)`,
+                }}
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                  {/* Peanut shell */}
+                  <path
+                    d="M12 3C9.5 3 7.5 5 7 7.5C5.5 8 4 9.5 4 11.5C4 13.8 5.8 15.5 8 15.5H8.5C8.8 17.5 10.2 19.5 12 20.5C13.8 19.5 15.2 17.5 15.5 15.5H16C18.2 15.5 20 13.8 20 11.5C20 9.5 18.5 8 17 7.5C16.5 5 14.5 3 12 3Z"
+                    fill={slide.accent}
+                    fillOpacity="0.9"
+                    style={{ filter: `drop-shadow(0 0 4px ${slide.accent}99)` }}
+                  />
+                  {/* Middle pinch line */}
+                  <path
+                    d="M8.5 10.5C9.5 10 10.5 9.8 12 9.8C13.5 9.8 14.5 10 15.5 10.5"
+                    stroke="rgba(0,0,0,0.4)"
+                    strokeWidth="1.2"
+                    strokeLinecap="round"
+                  />
+                  {/* Left peanut bump */}
+                  <circle cx="9.5" cy="12.5" r="2" fill="rgba(0,0,0,0.2)" />
+                  {/* Right peanut bump */}
+                  <circle cx="14.5" cy="12.5" r="2" fill="rgba(0,0,0,0.2)" />
+                </svg>
+              </div>
+
+              {/* Wordmark */}
+              <div className="flex flex-col leading-none">
+                <span
+                  className="font-display text-base tracking-wide"
+                  style={{
+                    background: `linear-gradient(90deg, ${slide.accent}, ${slide.accent2})`,
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text',
+                    filter: `drop-shadow(0 0 8px ${slide.accent}77)`,
+                    lineHeight: 1,
+                  }}
+                >
+                  Peanut Gallery
+                </span>
+                <span
+                  className="text-[9px] font-bold tracking-[0.22em] uppercase mt-0.5"
+                  style={{ color: 'rgba(255,255,255,0.45)' }}
+                >
+                  {slide.tag}
+                </span>
+              </div>
+            </motion.div>
 
             {/* Title — multi-color */}
             <div className="font-display leading-[0.95]" style={{ fontSize: slide.slogan ? 'clamp(3rem, 12vw, 5rem)' : 'clamp(2.8rem, 14vw, 4.5rem)' }}>
