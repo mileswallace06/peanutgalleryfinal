@@ -28,7 +28,7 @@ export default function Layout() {
   return (
     <div className="min-h-screen rave-bg font-sans">
       {/* Black banner at top */}
-      <div className="fixed top-0 left-0 right-0 h-12 bg-black z-[99] rounded-b-2xl" />
+      <div className="fixed top-0 left-4 right-0 h-12 bg-black z-[99] rounded-b-2xl" />
       
       {/* Logo */}
       <Link to="/" className="fixed -top-16 left-0 right-0 z-[100] flex items-center justify-center pointer-events-auto">
