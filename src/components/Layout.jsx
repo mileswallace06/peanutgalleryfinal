@@ -32,10 +32,10 @@ export default function Layout() {
         <div className="max-w-lg mx-auto px-4 h-14 flex items-center justify-between">
           <Link to="/" className="flex items-center">
             <img
-              src="https://media.base44.com/images/public/69ef9900cf3862dc0ea39734/45897bdff_ChatGPTImageMay1202601_23_36PM.png"
+              src="https://media.base44.com/images/public/69ef9900cf3862dc0ea39734/9022a5431_ChatGPTImageMay1202601_29_27PM.png"
               alt="Peanut Gallery"
-              className="h-9 w-auto rounded-2xl"
-              style={{ mixBlendMode: 'screen' }}
+              className="h-9 w-auto"
+              style={{ mixBlendMode: 'multiply' }}
             />
           </Link>
           {!user && (
