@@ -1,7 +1,7 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { useState, useEffect } from 'react';
-import { Calendar, Ticket, TrendingUp, Shield, LogIn } from 'lucide-react';
+import { MapPin, TrendingUp, Tag, Flame, User } from 'lucide-react';
 import Onboarding from '@/components/Onboarding';
 
 export default function Layout() {
@@ -20,14 +20,11 @@ export default function Layout() {
   const isActive = (path) => location.pathname === path || location.pathname.startsWith(path + '/');
 
   const navItems = [
-    { to: '/events', label: 'Events', icon: Calendar, color: '#00C8FF' },
-    ...(user ? [
-      { to: '/my-tickets', label: 'Tickets', icon: Ticket, color: '#00FF87' },
-      { to: '/my-sales', label: 'Sales', icon: TrendingUp, color: '#BF5FFF' },
-    ] : []),
-    ...(user?.role === 'admin' ? [
-      { to: '/admin', label: 'Admin', icon: Shield, color: '#FFE600' },
-    ] : []),
+    { to: '/events',       label: 'Tickets',   icon: MapPin,      color: '#00C8FF' },
+    { to: '/events',       label: 'Upgrade ⚡', icon: TrendingUp,  color: '#00FF87' },
+    { to: '/create-listing', label: 'Sell',    icon: Tag,         color: '#FF2D78' },
+    { to: '/fan-zone',     label: 'Fan Zone',  icon: Flame,       color: '#FFE600' },
+    { to: '/me',           label: 'Me',        icon: User,        color: '#BF5FFF' },
   ];
 
   if (showOnboarding) {
@@ -42,14 +39,7 @@ export default function Layout() {
           <Link to="/" className="flex items-center gap-2 font-bold text-lg text-primary" style={{textShadow:'0 0 12px #BF5FFF99'}}>
             🥜 Peanut Gallery
           </Link>
-          {user ? (
-            <button
-              onClick={handleLogout}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors border border-white/10 rounded-full px-3 py-1.5"
-            >
-              Sign out
-            </button>
-          ) : (
+          {!user && (
             <button
               onClick={() => base44.auth.redirectToLogin()}
               className="text-sm font-bold px-4 py-1.5 rounded-full transition-colors"
@@ -69,39 +59,52 @@ export default function Layout() {
       {/* Bottom nav bar */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 frosted-bar border-t border-white/10">
         <div className="max-w-lg mx-auto flex items-stretch">
-          {navItems.map(({ to, label, icon: Icon, color }) => {
-            const active = isActive(to);
+          {navItems.map(({ to, label, icon: Icon, color }, idx) => {
+            const active = location.pathname === to && !(to === '/events' && idx === 1);
+            const isUpgrade = idx === 1;
+            const isActive = isUpgrade
+              ? location.pathname === '/events'
+              : location.pathname === to || location.pathname.startsWith(to + '/');
+            const isActiveTab = isUpgrade ? false : isActive;
+            const highlighted = isUpgrade ? location.pathname === '/events' && false : isActive;
+            // Simple active: exact match for /events only for first tab, others by path
+            const tabActive = idx === 0
+              ? location.pathname === '/events' || location.pathname.startsWith('/events/')
+              : idx === 1
+              ? false
+              : idx === 2
+              ? location.pathname === '/create-listing' || location.pathname === '/my-sales'
+              : idx === 3
+              ? location.pathname === '/fan-zone'
+              : location.pathname === '/me' || location.pathname === '/my-tickets' || location.pathname === '/admin';
+
             return (
               <Link
-                key={to}
+                key={idx}
                 to={to}
-                className="flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-all"
-                style={{ color: active ? color : 'rgba(255,255,255,0.4)' }}
+                className="flex-1 flex flex-col items-center justify-center gap-0.5 py-3 relative transition-all"
+                style={{ color: tabActive ? color : 'rgba(255,255,255,0.38)' }}
               >
-                <Icon
-                  className="w-5 h-5"
-                  style={active ? { filter: `drop-shadow(0 0 6px ${color})` } : {}}
-                />
-                <span className="text-[10px] font-bold">{label}</span>
-                {active && (
+                {/* Active top bar */}
+                {tabActive && (
                   <span
-                    className="absolute bottom-0 w-8 h-0.5 rounded-full"
-                    style={{ background: color, boxShadow: `0 0 8px ${color}` }}
+                    className="absolute top-0 left-1/2 -translate-x-1/2 h-0.5 w-8 rounded-b"
+                    style={{ background: `linear-gradient(90deg, ${color}00, ${color}, ${color}00)`, boxShadow: `0 0 8px ${color}88` }}
                   />
                 )}
+                <div
+                  className="w-11 h-9 flex items-center justify-center rounded-xl transition-all"
+                  style={tabActive ? { background: `${color}18`, boxShadow: `0 0 14px ${color}44` } : {}}
+                >
+                  <Icon
+                    className="w-5 h-5"
+                    style={tabActive ? { filter: `drop-shadow(0 0 6px ${color}bb)`, strokeWidth: 2.5 } : { strokeWidth: 1.8 }}
+                  />
+                </div>
+                <span className="text-[10px] font-bold leading-none">{label}</span>
               </Link>
             );
           })}
-          {!user && (
-            <button
-              onClick={() => base44.auth.redirectToLogin()}
-              className="flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-all"
-              style={{ color: 'rgba(255,255,255,0.4)' }}
-            >
-              <LogIn className="w-5 h-5" />
-              <span className="text-[10px] font-bold">Sign In</span>
-            </button>
-          )}
         </div>
       </nav>
     </div>
