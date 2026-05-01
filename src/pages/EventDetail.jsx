@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { MapPin, Calendar, ArrowLeft, Ticket, TrendingDown, Star } from 'lucide-react';
+import { MapPin, Calendar, ArrowLeft, Ticket } from 'lucide-react';
 import ListingCard from '@/components/events/ListingCard';
 import PurchaseDialog from '@/components/events/PurchaseDialog';
 
@@ -21,7 +21,6 @@ export default function EventDetail() {
       base44.entities.Listing.filter({ event_id: id, status: 'active', proof_status: 'approved' }),
     ]).then(([events, rawListings]) => {
       setEvent(events[0] || null);
-      // Apply demo visibility rule: show demo only if no real listings
       const real = rawListings.filter(l => !l.notes?.startsWith('[DEMO]'));
       setListings(real.length > 0 ? real : rawListings);
     }).catch(console.error).finally(() => setLoading(false));
@@ -30,10 +29,10 @@ export default function EventDetail() {
   if (loading) {
     return (
       <div className="px-4 py-8 space-y-4">
-        <div className="h-56 bg-white/5 rounded-2xl animate-pulse" />
-        <div className="h-6 w-48 bg-white/5 rounded animate-pulse" />
+        <div className="h-64 bg-white/5 rounded-3xl animate-pulse" />
+        <div className="h-5 w-48 bg-white/5 rounded animate-pulse mt-6" />
         <div className="space-y-4 mt-4">
-          {[...Array(3)].map((_, i) => <div key={i} className="h-36 bg-white/5 rounded-2xl animate-pulse" />)}
+          {[...Array(3)].map((_, i) => <div key={i} className="h-40 bg-white/5 rounded-2xl animate-pulse" />)}
         </div>
       </div>
     );
@@ -51,112 +50,112 @@ export default function EventDetail() {
   const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
   const isLive = event.status === 'live';
   const isDemoOnly = listings.length > 0 && listings.every(l => l.notes?.startsWith('[DEMO]'));
+  const sorted = [...listings].sort((a, b) => a.asking_price - b.asking_price);
+  const cheapest = sorted[0]?.asking_price;
 
   return (
-    <div className="px-4 py-6 pb-32">
-      <Link to="/events" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-5 transition-colors">
-        <ArrowLeft className="w-4 h-4" /> All Events
-      </Link>
+    <div className="pb-32">
 
-      <div className="mb-5">
-        <h2 className="text-xl font-bold text-foreground">Upgrade Your Seats</h2>
-        <p className="text-sm text-muted-foreground mt-0.5">Buy better seats from fans already at the event. Pay safely and confirm after transfer.</p>
-      </div>
-
-      {/* Hero */}
-      <div className="relative rounded-2xl overflow-hidden mb-6 bg-muted h-52 sm:h-64">
+      {/* ── Hero ── */}
+      <div className="relative h-72 sm:h-80 overflow-hidden">
         {event.image_url ? (
           <img src={event.image_url} alt={event.title} className="w-full h-full object-cover" />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-6xl">🎫</div>
+          <div className="w-full h-full bg-white/5 flex items-center justify-center text-7xl">🎫</div>
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
-        <div className="absolute bottom-0 left-0 p-5 text-white">
-          {isLive && (
-            <span className="inline-block bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full mb-2">🔴 LIVE NOW</span>
-          )}
-          <h1 className="text-2xl sm:text-3xl font-bold leading-tight">{event.title}</h1>
-          <div className="flex flex-wrap gap-3 mt-2 text-sm text-white/80">
-            <span className="flex items-center gap-1">
+        {/* Heavy bottom gradient */}
+        <div className="absolute inset-0"
+          style={{ background: 'linear-gradient(to bottom, rgba(5,3,12,0.25) 0%, rgba(5,3,12,0.5) 50%, rgba(5,3,12,0.97) 100%)' }}
+        />
+
+        {/* Back button */}
+        <Link
+          to="/events"
+          className="absolute top-4 left-4 flex items-center gap-1.5 text-sm font-semibold text-white/80 hover:text-white transition-colors px-3 py-1.5 rounded-full"
+          style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(12px)' }}
+        >
+          <ArrowLeft className="w-4 h-4" /> Events
+        </Link>
+
+        {/* Live badge */}
+        {isLive && (
+          <span className="absolute top-4 right-4 text-xs font-black px-3 py-1 rounded-full animate-pulse"
+            style={{ background: '#FF2D7820', color: '#FF2D78', border: '1px solid #FF2D7860' }}>
+            🔴 LIVE NOW
+          </span>
+        )}
+
+        {/* Event info overlaid on bottom of hero */}
+        <div className="absolute bottom-0 left-0 right-0 px-5 pb-5">
+          <h1 className="font-display text-foreground leading-tight mb-2"
+            style={{ fontSize: 'clamp(1.8rem, 7vw, 2.8rem)' }}>
+            {event.title}
+          </h1>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-1.5 text-xs text-white/70">
               <Calendar className="w-3.5 h-3.5" />
               {event.date ? format(new Date(event.date), 'EEEE, MMMM d, yyyy · h:mm a') : 'TBD'}
-            </span>
-            <span className="flex items-center gap-1">
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-white/70">
               <MapPin className="w-3.5 h-3.5" />
               {event.venue}{event.city ? `, ${event.city}` : ''}
-            </span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Listings */}
-      {(() => {
-        const sorted = [...listings].sort((a, b) => a.asking_price - b.asking_price);
-        const cheapest = sorted[0]?.asking_price;
-        const TIER_RANK = { floor: 0, lower: 1, mid: 2, upper: 3 };
-        const bestTier = sorted.reduce((best, l) => {
-          if (!l.tier) return best;
-          if (best === null || (TIER_RANK[l.tier] ?? 99) < (TIER_RANK[best] ?? 99)) return l.tier;
-          return best;
-        }, null);
+      {/* ── Content ── */}
+      <div className="px-4 pt-8">
 
-        return (
-          <>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="font-bold text-xl text-foreground flex items-center gap-2">
+        {/* Section header */}
+        <div className="mb-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="font-display text-2xl text-foreground flex items-center gap-2">
                 <Ticket className="w-5 h-5 text-primary" />
-                Active Upgrades
-                <span className="text-base font-normal text-muted-foreground">({listings.length})</span>
+                Available Upgrades
+                <span className="font-sans text-base font-normal text-muted-foreground">({listings.length})</span>
               </h2>
-              {adminUnlocked && (
-                <span className="text-xs bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full font-medium">
-                  🔑 Admin bypass active
-                </span>
-              )}
+              <p className="text-sm text-muted-foreground mt-1">Buy better seats from fans at the event</p>
             </div>
-
-            {listings.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-4">
-                <span className="inline-flex items-center gap-1.5 bg-green-50 border border-green-200 text-green-800 text-xs font-semibold px-3 py-1.5 rounded-full">
-                  <TrendingDown className="w-3.5 h-3.5" /> From ${cheapest}/ticket
-                </span>
-                {bestTier && (
-                  <span className="inline-flex items-center gap-1.5 bg-blue-50 border border-blue-200 text-blue-800 text-xs font-semibold px-3 py-1.5 rounded-full capitalize">
-                    <Star className="w-3.5 h-3.5" /> Best: {bestTier} section
-                  </span>
-                )}
-              </div>
+            {adminUnlocked && (
+              <span className="text-xs bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full font-medium">
+                🔑 Admin
+              </span>
             )}
+          </div>
 
-            {isDemoOnly && (
-              <div className="mb-3">
-                <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
-                  🧪 Demo upgrades for testing
-                </span>
-              </div>
-            )}
+          {isDemoOnly && (
+            <div className="mt-3">
+              <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+                🧪 Demo upgrades for testing
+              </span>
+            </div>
+          )}
+        </div>
 
-            {listings.length === 0 ? (
-              <div className="text-center py-14 text-muted-foreground glass-card rounded-2xl">
-                <p className="text-3xl mb-3">🎟️</p>
-                <p className="font-medium">No upgrades available yet</p>
-                <p className="text-sm mt-1">Upgrades usually appear after the event starts. Check back in a few minutes.</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {sorted.map(listing => (
-                  <ListingCard
-                    key={listing.id}
-                    listing={listing}
-                    isCheapest={listing.asking_price === cheapest}
-                    onUpgrade={setSelectedListing}
-                  />
-                ))}
-              </div>
-            )}
-          </>
-        );
-      })()}
+        {/* Listings */}
+        {listings.length === 0 ? (
+          <div className="text-center py-16 glass-card rounded-2xl">
+            <p className="text-4xl mb-3">🎟️</p>
+            <p className="font-bold text-foreground">No upgrades available yet</p>
+            <p className="text-sm text-muted-foreground mt-1 max-w-[220px] mx-auto leading-relaxed">
+              Upgrades usually appear after the event starts. Check back soon.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {sorted.map(listing => (
+              <ListingCard
+                key={listing.id}
+                listing={listing}
+                isCheapest={listing.asking_price === cheapest}
+                onUpgrade={setSelectedListing}
+              />
+            ))}
+          </div>
+        )}
+      </div>
 
       {selectedListing && (
         <PurchaseDialog
