@@ -27,28 +27,25 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen rave-bg font-sans">
-      {/* Top brand bar */}
-      <header className="frosted-bar border-b border-white/10 sticky top-0 z-50 h-16">
-        <div className="max-w-lg mx-auto relative h-full">
-          <Link to="/" className="block w-full h-full">
-            <img
-              src="https://media.base44.com/images/public/69ef9900cf3862dc0ea39734/f15cb860e_ChatGPTImageMay1202601_38_44PM.png"
-              alt="Peanut Gallery"
-              className="w-full h-full object-contain"
-              style={{ mixBlendMode: 'screen', transform: 'scale(3.5) translateY(14px)', transformOrigin: 'center center' }}
-            />
-          </Link>
-          {!user && (
-            <button
-              onClick={() => base44.auth.redirectToLogin()}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold px-4 py-1.5 rounded-full"
-              style={{ background: '#BF5FFF', color: '#fff' }}
-            >
-              Sign in
-            </button>
-          )}
-        </div>
-      </header>
+      {/* Logo */}
+      <Link to="/" className="fixed top-0 left-0 right-0 z-[100] flex items-center justify-center h-16 pointer-events-auto">
+        <img
+          src="https://media.base44.com/images/public/69ef9900cf3862dc0ea39734/f15cb860e_ChatGPTImageMay1202601_38_44PM.png"
+          alt="Peanut Gallery"
+          className="h-full object-contain"
+          style={{ mixBlendMode: 'screen', maxWidth: '80%' }}
+        />
+      </Link>
+      
+      {!user && (
+        <button
+          onClick={() => base44.auth.redirectToLogin()}
+          className="fixed top-4 right-4 z-[99] text-sm font-bold px-4 py-1.5 rounded-full"
+          style={{ background: '#BF5FFF', color: '#fff' }}
+        >
+          Sign in
+        </button>
+      )}
 
       {/* Page content */}
       <main className="max-w-lg mx-auto pb-24">
