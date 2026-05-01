@@ -1,8 +1,16 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { useState, useEffect } from 'react';
-import { MapPin, TrendingUp, Tag, Flame, User } from 'lucide-react';
+import { MapPin, Zap, Tag, Flame, User } from 'lucide-react';
 import Onboarding from '@/components/Onboarding';
+
+const NAV = [
+  { to: '/events',   label: 'Tickets',  icon: MapPin,  color: '#00C8FF' },
+  { to: '/upgrades', label: 'Upgrades', icon: Zap,     color: '#00FF87' },
+  { to: '/sell',     label: 'Sell',     icon: Tag,     color: '#FF2D78' },
+  { to: '/fan-zone', label: 'Fan Zone', icon: Flame,   color: '#FFE600' },
+  { to: '/me',       label: 'Me',       icon: User,    color: '#BF5FFF' },
+];
 
 export default function Layout() {
   const [user, setUser] = useState(null);
@@ -13,20 +21,6 @@ export default function Layout() {
     base44.auth.me().then(setUser).catch(() => {});
   }, []);
 
-  const handleLogout = () => {
-    base44.auth.logout('/');
-  };
-
-  const isActive = (path) => location.pathname === path || location.pathname.startsWith(path + '/');
-
-  const navItems = [
-    { to: '/events',       label: 'Tickets',   icon: MapPin,      color: '#00C8FF' },
-    { to: '/my-tickets',   label: 'Upgrade ⚡', icon: TrendingUp,  color: '#00FF87' },
-    { to: '/create-listing', label: 'Sell',    icon: Tag,         color: '#FF2D78' },
-    { to: '/fan-zone',     label: 'Fan Zone',  icon: Flame,       color: '#FFE600' },
-    { to: '/me',           label: 'Me',        icon: User,        color: '#BF5FFF' },
-  ];
-
   if (showOnboarding) {
     return <Onboarding onDone={() => setShowOnboarding(false)} />;
   }
@@ -36,14 +30,15 @@ export default function Layout() {
       {/* Top brand bar */}
       <header className="frosted-bar border-b border-white/10 sticky top-0 z-50">
         <div className="max-w-lg mx-auto px-4 h-14 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 font-bold text-lg text-primary" style={{textShadow:'0 0 12px #BF5FFF99'}}>
+          <Link to="/" className="flex items-center gap-2 font-bold text-lg text-primary"
+            style={{ textShadow: '0 0 12px #BF5FFF99' }}>
             🥜 Peanut Gallery
           </Link>
           {!user && (
             <button
               onClick={() => base44.auth.redirectToLogin()}
-              className="text-sm font-bold px-4 py-1.5 rounded-full transition-colors"
-              style={{background:'#BF5FFF', color:'#fff'}}
+              className="text-sm font-bold px-4 py-1.5 rounded-full"
+              style={{ background: '#BF5FFF', color: '#fff' }}
             >
               Sign in
             </button>
@@ -51,54 +46,39 @@ export default function Layout() {
         </div>
       </header>
 
-      {/* Page content — padded at bottom to clear nav */}
+      {/* Page content */}
       <main className="max-w-lg mx-auto pb-24">
         <Outlet />
       </main>
 
-      {/* Bottom nav bar */}
+      {/* Bottom nav */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 frosted-bar border-t border-white/10">
         <div className="max-w-lg mx-auto flex items-stretch">
-          {navItems.map(({ to, label, icon: Icon, color }, idx) => {
-            const active = location.pathname === to && !(to === '/events' && idx === 1);
-            const isUpgrade = idx === 1;
-            const isActive = isUpgrade
-              ? location.pathname === '/events'
-              : location.pathname === to || location.pathname.startsWith(to + '/');
-            const isActiveTab = isUpgrade ? false : isActive;
-            const highlighted = isUpgrade ? location.pathname === '/events' && false : isActive;
-            // Simple active: exact match for /events only for first tab, others by path
-            const tabActive = idx === 0
-              ? location.pathname === '/events' || location.pathname.startsWith('/events/')
-              : idx === 1
-              ? location.pathname === '/my-tickets'
-              : idx === 2
-              ? location.pathname === '/create-listing' || location.pathname === '/my-sales'
-              : idx === 3
-              ? location.pathname === '/fan-zone'
-              : location.pathname === '/me' || location.pathname === '/my-tickets' || location.pathname === '/admin';
-
+          {NAV.map(({ to, label, icon: Icon, color }) => {
+            const active = location.pathname === to || location.pathname.startsWith(to + '/');
             return (
               <Link
-                key={idx}
+                key={to}
                 to={to}
                 className="flex-1 flex flex-col items-center justify-center gap-0.5 py-3 relative transition-all"
-                style={{ color: tabActive ? color : 'rgba(255,255,255,0.38)' }}
+                style={{ color: active ? color : 'rgba(255,255,255,0.38)' }}
               >
-                {/* Active top bar */}
-                {tabActive && (
+                {active && (
                   <span
                     className="absolute top-0 left-1/2 -translate-x-1/2 h-0.5 w-8 rounded-b"
-                    style={{ background: `linear-gradient(90deg, ${color}00, ${color}, ${color}00)`, boxShadow: `0 0 8px ${color}88` }}
+                    style={{
+                      background: `linear-gradient(90deg, ${color}00, ${color}, ${color}00)`,
+                      boxShadow: `0 0 8px ${color}88`,
+                    }}
                   />
                 )}
                 <div
                   className="w-11 h-9 flex items-center justify-center rounded-xl transition-all"
-                  style={tabActive ? { background: `${color}18`, boxShadow: `0 0 14px ${color}44` } : {}}
+                  style={active ? { background: `${color}18`, boxShadow: `0 0 14px ${color}44` } : {}}
                 >
                   <Icon
                     className="w-5 h-5"
-                    style={tabActive ? { filter: `drop-shadow(0 0 6px ${color}bb)`, strokeWidth: 2.5 } : { strokeWidth: 1.8 }}
+                    style={active ? { filter: `drop-shadow(0 0 6px ${color}bb)`, strokeWidth: 2.5 } : { strokeWidth: 1.8 }}
                   />
                 </div>
                 <span className="text-[10px] font-bold leading-none">{label}</span>

@@ -16,6 +16,8 @@ import MyTickets from '@/pages/MyTickets';
 import CreateListing from '@/pages/CreateListing';
 import FanZone from '@/pages/FanZone';
 import Me from '@/pages/Me';
+import Upgrades from '@/pages/Upgrades';
+import Sell from '@/pages/Sell';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -50,6 +52,8 @@ const AuthenticatedApp = () => {
         <Route path="/create-listing" element={<CreateListing />} />
         <Route path="/fan-zone" element={<FanZone />} />
         <Route path="/me" element={<Me />} />
+        <Route path="/upgrades" element={<Upgrades />} />
+        <Route path="/sell" element={<Sell />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>
