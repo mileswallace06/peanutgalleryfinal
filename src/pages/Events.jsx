@@ -2,15 +2,13 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { Search, MapPin, Calendar, Filter } from 'lucide-react';
-
-const CATEGORIES = ['all', 'concert', 'sports', 'theater', 'comedy', 'other'];
+import { MapPin, Calendar, Search, ChevronRight, ArrowRight } from 'lucide-react';
 
 export default function Events() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [category, setCategory] = useState('all');
+  const [showSearch, setShowSearch] = useState(false);
 
   useEffect(() => {
     base44.entities.Event.list('date', 50)
@@ -20,117 +18,189 @@ export default function Events() {
   }, []);
 
   const filtered = events.filter(e => {
-    const matchCat = category === 'all' || e.category === category;
+    if (!search) return true;
     const q = search.toLowerCase();
-    const matchSearch = !q || e.title?.toLowerCase().includes(q) || e.city?.toLowerCase().includes(q) || e.venue?.toLowerCase().includes(q);
-    return matchCat && matchSearch;
+    return (
+      e.title?.toLowerCase().includes(q) ||
+      e.city?.toLowerCase().includes(q) ||
+      e.venue?.toLowerCase().includes(q)
+    );
   });
 
   return (
-    <div className="px-4 py-6 pb-32">
-      <div className="mb-6">
-        <h1 className="font-display text-4xl text-foreground mb-1">Live Events</h1>
-        <p className="text-sm text-muted-foreground">Find seat upgrades near you</p>
-      </div>
+    <div className="pb-32">
 
-      {/* Search */}
-      <div className="relative mb-4">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <input
-          type="text"
-          placeholder="Search events, venues, cities..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="w-full pl-9 pr-4 py-3 rounded-xl border border-white/10 bg-white/5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+      {/* ── Hero ── */}
+      <div className="relative h-56 overflow-hidden">
+        <img
+          src="https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=900&q=80"
+          alt="crowd"
+          className="w-full h-full object-cover object-top"
         />
-      </div>
+        {/* Dark overlay — heavy at bottom */}
+        <div
+          className="absolute inset-0"
+          style={{ background: 'linear-gradient(to bottom, rgba(5,3,12,0.45) 0%, rgba(5,3,12,0.2) 40%, rgba(5,3,12,0.92) 100%)' }}
+        />
 
-      {/* Category pills */}
-      <div className="flex gap-2 flex-wrap mb-6">
-        {CATEGORIES.map(cat => (
-          <button
-            key={cat}
-            onClick={() => setCategory(cat)}
-            className={`px-3 py-1.5 rounded-full text-xs font-bold capitalize transition-all ${
-              category === cat
-                ? 'text-black neon-glow-purple'
-                : 'bg-white/5 text-muted-foreground border border-white/10 hover:border-white/20'
-            }`}
-            style={category === cat ? { background: '#BF5FFF' } : {}}
+        {/* Tag */}
+        <div className="absolute top-5 left-4">
+          <span
+            className="text-[10px] font-black tracking-[0.2em] px-3 py-1 rounded-full flex items-center gap-1.5"
+            style={{ background: 'rgba(0,0,0,0.5)', color: '#00C8FF', border: '1px solid #00C8FF55', backdropFilter: 'blur(12px)' }}
           >
-            {cat}
-          </button>
-        ))}
+            📍 PEANUT GALLERY
+          </span>
+        </div>
+
+        {/* Headline */}
+        <div className="absolute bottom-5 left-4 right-4">
+          <h1
+            className="font-display leading-[0.9] text-white"
+            style={{ fontSize: 'clamp(2.8rem, 13vw, 4.5rem)', textShadow: '0 2px 30px rgba(0,0,0,0.8)' }}
+          >
+            Get Tickets
+          </h1>
+        </div>
       </div>
 
+      {/* ── Search / Recommended toggle ── */}
+      <div className="px-4 mt-5 mb-4">
+        {showSearch ? (
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <input
+              autoFocus
+              type="text"
+              placeholder="Search events, venues, cities..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-3.5 rounded-2xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+              style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)' }}
+            />
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <button
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-sm"
+              style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', border: '1px solid rgba(255,255,255,0.15)' }}
+            >
+              📍 Recommended
+            </button>
+            <button
+              onClick={() => setShowSearch(true)}
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-sm"
+              style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.08)' }}
+            >
+              <Search className="w-4 h-4" /> Search
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Event count ── */}
+      {!loading && (
+        <div className="px-4 mb-3">
+          <p className="text-xs text-muted-foreground font-medium">
+            {filtered.length} event{filtered.length !== 1 ? 's' : ''} near you
+          </p>
+        </div>
+      )}
+
+      {/* ── List ── */}
       {loading ? (
-        <div className="space-y-4">
+        <div className="px-4 space-y-3">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="rounded-2xl border border-white/08 bg-white/04 h-36 animate-pulse" />
+            <div key={i} className="rounded-2xl h-28 animate-pulse" style={{ background: 'rgba(255,255,255,0.05)' }} />
           ))}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-20 text-muted-foreground">
+        <div className="text-center py-20 text-muted-foreground px-4">
           <p className="text-4xl mb-3">🥜</p>
-          {search || category !== 'all' ? (
-            <>
-              <p className="font-medium">No events found</p>
-              <p className="text-sm mt-1">Try adjusting your search or filters</p>
-            </>
-          ) : (
-            <>
-              <p className="font-medium">No events available right now</p>
-              <p className="text-sm mt-1">Check back later or try another search</p>
-            </>
-          )}
+          <p className="font-medium">No events found</p>
+          <p className="text-sm mt-1 opacity-70">Try adjusting your search</p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="px-4 space-y-3">
           {filtered.map(event => (
-            <Link
-              key={event.id}
-              to={`/events/${event.id}`}
-              className="group glass-card rounded-2xl overflow-hidden flex flex-col active:scale-[0.98] transition-transform"
-            >
-              <div className="h-40 bg-white/5 relative overflow-hidden">
-                {event.image_url ? (
-                  <img
-                    src={event.image_url}
-                    alt={event.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-5xl">🎫</div>
-                )}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                {event.status === 'live' && (
-                  <span className="absolute top-3 right-3 text-xs font-bold px-2 py-0.5 rounded-full animate-pulse"
-                    style={{ background: '#FF2D7818', color: '#FF2D78', border: '1px solid #FF2D7840' }}>
-                    🔴 LIVE
-                  </span>
-                )}
-                {event.category && (
-                  <span className="absolute top-3 left-3 text-xs font-bold px-2 py-0.5 rounded-full"
-                    style={{ background: 'rgba(0,0,0,0.5)', color: '#fff', backdropFilter: 'blur(8px)' }}>
-                    {event.category}
-                  </span>
-                )}
-              </div>
-              <div className="p-4">
-                <h3 className="font-bold text-foreground text-base line-clamp-1 mb-2">{event.title}</h3>
-                <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
-                  <Calendar className="w-3 h-3" />
-                  {event.date ? format(new Date(event.date), 'EEE, MMM d · h:mm a') : 'TBD'}
-                </div>
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <MapPin className="w-3 h-3" />
-                  {event.venue}{event.city ? `, ${event.city}` : ''}
-                </div>
-              </div>
-            </Link>
+            <EventRow key={event.id} event={event} />
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function EventRow({ event }) {
+  return (
+    <div
+      className="rounded-2xl overflow-hidden flex items-stretch"
+      style={{
+        background: 'linear-gradient(135deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.03) 100%)',
+        border: '1px solid rgba(255,255,255,0.09)',
+        boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
+      }}
+    >
+      {/* Thumbnail */}
+      <div className="w-28 h-full flex-shrink-0 relative overflow-hidden" style={{ minHeight: 110 }}>
+        {event.image_url ? (
+          <img src={event.image_url} alt={event.title} className="w-full h-full object-cover absolute inset-0" />
+        ) : (
+          <div className="w-full h-full absolute inset-0 flex items-center justify-center text-4xl" style={{ background: 'rgba(255,255,255,0.04)' }}>
+            🎫
+          </div>
+        )}
+        {event.status === 'live' && (
+          <span
+            className="absolute top-2 left-2 text-[9px] font-black px-1.5 py-0.5 rounded-full"
+            style={{ background: '#FF2D78', color: '#fff' }}
+          >
+            LIVE
+          </span>
+        )}
+      </div>
+
+      {/* Info */}
+      <div className="flex-1 px-4 py-3.5 flex flex-col justify-between min-w-0">
+        <div>
+          <h3 className="font-bold text-foreground text-sm leading-tight mb-2 line-clamp-2">{event.title}</h3>
+          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mb-1">
+            <MapPin className="w-3 h-3 flex-shrink-0" style={{ color: '#00C8FF' }} />
+            <span className="truncate">{event.venue}{event.city ? `, ${event.city}` : ''}</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <Calendar className="w-3 h-3 flex-shrink-0" style={{ color: '#BF5FFF' }} />
+            <span>{event.date ? format(new Date(event.date), 'EEE, MMM d · h:mm a') : 'TBD'}</span>
+          </div>
+        </div>
+
+        {/* List your seats tag */}
+        <div className="mt-2.5">
+          <Link
+            to="/create-listing"
+            className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full"
+            style={{ background: 'rgba(191,95,255,0.12)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.25)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            🥜 List your seats
+          </Link>
+        </div>
+      </div>
+
+      {/* View button */}
+      <div className="flex items-center pr-3 pl-1">
+        <Link
+          to={`/events/${event.id}`}
+          className="flex items-center gap-1 px-3 py-2 rounded-xl font-bold text-xs whitespace-nowrap"
+          style={{
+            background: 'rgba(0,200,255,0.15)',
+            color: '#00C8FF',
+            border: '1px solid rgba(0,200,255,0.25)',
+          }}
+        >
+          View <ChevronRight className="w-3.5 h-3.5" />
+        </Link>
+      </div>
     </div>
   );
 }
