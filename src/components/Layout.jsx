@@ -28,14 +28,14 @@ export default function Layout() {
   return (
     <div className="min-h-screen rave-bg font-sans">
       {/* Top brand bar */}
-      <header className="frosted-bar border-b border-white/10 sticky top-0 z-50">
-        <div className="max-w-lg mx-auto relative">
-          <Link to="/" className="block w-full">
+      <header className="frosted-bar border-b border-white/10 sticky top-0 z-50 h-16">
+        <div className="max-w-lg mx-auto relative h-full">
+          <Link to="/" className="block w-full h-full">
             <img
               src="https://media.base44.com/images/public/69ef9900cf3862dc0ea39734/f15cb860e_ChatGPTImageMay1202601_38_44PM.png"
               alt="Peanut Gallery"
-              className="w-full object-contain object-center"
-              style={{ mixBlendMode: 'screen', height: '80px', padding: '6px 0' }}
+              className="w-full h-full object-contain object-center"
+              style={{ mixBlendMode: 'screen', padding: '4px 0' }}
             />
           </Link>
           {!user && (
