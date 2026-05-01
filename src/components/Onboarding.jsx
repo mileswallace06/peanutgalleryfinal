@@ -45,7 +45,7 @@ const SLIDES = [
     title: ['Got Seats', 'You Can\'t', 'Use?'],
     titleHighlight: 2,
     highlightColor: '#FFE600',
-    body: 'List your tickets in 60 seconds. Buyers nearby see them instantly. Get paid the moment they confirm receipt. No waiting, no BS.',
+    body: 'List your tickets from anywhere in the world in 60 seconds. Buyers at the venue see them instantly. Get paid the moment they confirm receipt. No waiting, no BS.',
     cta: null,
   },
   {
