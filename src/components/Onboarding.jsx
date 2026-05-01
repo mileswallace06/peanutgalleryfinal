@@ -213,10 +213,11 @@ export default function Onboarding({ onDone }) {
             </motion.span>
 
             {/* Title — multi-color */}
-            <div className="font-display leading-[0.95]" style={{ fontSize: slide.slogan ? 'clamp(3.8rem, 18vw, 6rem)' : 'clamp(2.8rem, 14vw, 4.5rem)' }}>
+            <div className="font-display leading-[0.95]" style={{ fontSize: slide.slogan ? 'clamp(2.4rem, 11vw, 4rem)' : 'clamp(2.8rem, 14vw, 4.5rem)' }}>
               {slide.title.map((word, i) => {
+                const SLOGAN_COLORS = ['#00FF87', '#BF5FFF', '#FF2D78'];
                 const isHighlighted = slide.slogan ? true : i === slide.titleHighlight;
-                const wordColor = isHighlighted ? slide.highlightColor : '#fff';
+                const wordColor = slide.slogan ? SLOGAN_COLORS[i % SLOGAN_COLORS.length] : (isHighlighted ? slide.highlightColor : '#fff');
                 return (
                   <motion.div
                     key={i}
