@@ -206,8 +206,8 @@ export default function Onboarding({ onDone }) {
               <img
                 src="https://media.base44.com/images/public/69ef9900cf3862dc0ea39734/45897bdff_ChatGPTImageMay1202601_23_36PM.png"
                 alt="Peanut Gallery"
-                className="w-32 h-auto drop-shadow-lg"
-                style={{ filter: `drop-shadow(0 0 12px ${slide.accent}66)` }}
+                className="w-32 h-auto rounded-3xl"
+                style={{ mixBlendMode: 'screen', filter: `drop-shadow(0 0 12px ${slide.accent}66)` }}
               />
             </motion.div>
 
