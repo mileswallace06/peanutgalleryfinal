@@ -213,11 +213,37 @@ export default function Onboarding({ onDone }) {
             </motion.span>
 
             {/* Title — multi-color */}
-            <div className="font-display leading-[0.95]" style={{ fontSize: slide.slogan ? 'clamp(2.4rem, 11vw, 4rem)' : 'clamp(2.8rem, 14vw, 4.5rem)' }}>
+            <div className="font-display leading-[0.95]" style={{ fontSize: slide.slogan ? 'clamp(3rem, 13vw, 5rem)' : 'clamp(2.8rem, 14vw, 4.5rem)' }}>
               {slide.title.map((word, i) => {
-                const SLOGAN_COLORS = ['#00FF87', '#BF5FFF', '#FF2D78'];
+                const SLOGAN_GRADIENTS = [
+                  { grad: 'linear-gradient(90deg, #00FF87, #00C8FF)', glow: '#00FF87' },
+                  { grad: 'linear-gradient(90deg, #BF5FFF, #FF2D78)', glow: '#BF5FFF' },
+                  { grad: 'linear-gradient(90deg, #FFE600, #FF2D78)', glow: '#FFE600' },
+                ];
                 const isHighlighted = slide.slogan ? true : i === slide.titleHighlight;
-                const wordColor = slide.slogan ? SLOGAN_COLORS[i % SLOGAN_COLORS.length] : (isHighlighted ? slide.highlightColor : '#fff');
+
+                if (slide.slogan) {
+                  const { grad, glow } = SLOGAN_GRADIENTS[i % SLOGAN_GRADIENTS.length];
+                  return (
+                    <motion.div
+                      key={i}
+                      initial={{ opacity: 0, x: -30 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.15 + i * 0.08 }}
+                      style={{
+                        background: grad,
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                        backgroundClip: 'text',
+                        filter: `drop-shadow(0 0 18px ${glow}88)`,
+                      }}
+                    >
+                      {word}
+                    </motion.div>
+                  );
+                }
+
+                const wordColor = isHighlighted ? slide.highlightColor : '#fff';
                 return (
                   <motion.div
                     key={i}
