@@ -29,18 +29,19 @@ export default function Layout() {
     <div className="min-h-screen rave-bg font-sans">
       {/* Top brand bar */}
       <header className="frosted-bar border-b border-white/10 sticky top-0 z-50">
-        <div className="max-w-lg mx-auto px-4 h-14 flex items-center justify-between">
-          <Link to="/" className="flex items-center">
+        <div className="max-w-lg mx-auto relative">
+          <Link to="/" className="block w-full">
             <img
-              src="https://media.base44.com/images/public/69ef9900cf3862dc0ea39734/9022a5431_ChatGPTImageMay1202601_29_27PM.png"
+              src="https://media.base44.com/images/public/69ef9900cf3862dc0ea39734/f15cb860e_ChatGPTImageMay1202601_38_44PM.png"
               alt="Peanut Gallery"
-              className="h-12 w-auto rounded-xl"
+              className="w-full h-16 object-contain"
+              style={{ mixBlendMode: 'screen' }}
             />
           </Link>
           {!user && (
             <button
               onClick={() => base44.auth.redirectToLogin()}
-              className="text-sm font-bold px-4 py-1.5 rounded-full"
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold px-4 py-1.5 rounded-full"
               style={{ background: '#BF5FFF', color: '#fff' }}
             >
               Sign in
