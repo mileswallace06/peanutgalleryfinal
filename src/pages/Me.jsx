@@ -36,7 +36,7 @@ export default function Me() {
   return (
     <div className="rave-bg min-h-screen pb-28">
       {/* Hero banner */}
-      <div className="relative h-44 overflow-hidden">
+      <div className="relative h-28 overflow-hidden">
         <img
           src="https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&q=80"
           alt="banner"
