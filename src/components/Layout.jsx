@@ -21,7 +21,7 @@ export default function Layout() {
 
   const navItems = [
     { to: '/events',       label: 'Tickets',   icon: MapPin,      color: '#00C8FF' },
-    { to: '/events',       label: 'Upgrade ⚡', icon: TrendingUp,  color: '#00FF87' },
+    { to: '/my-tickets',   label: 'Upgrade ⚡', icon: TrendingUp,  color: '#00FF87' },
     { to: '/create-listing', label: 'Sell',    icon: Tag,         color: '#FF2D78' },
     { to: '/fan-zone',     label: 'Fan Zone',  icon: Flame,       color: '#FFE600' },
     { to: '/me',           label: 'Me',        icon: User,        color: '#BF5FFF' },
@@ -71,7 +71,7 @@ export default function Layout() {
             const tabActive = idx === 0
               ? location.pathname === '/events' || location.pathname.startsWith('/events/')
               : idx === 1
-              ? false
+              ? location.pathname === '/my-tickets'
               : idx === 2
               ? location.pathname === '/create-listing' || location.pathname === '/my-sales'
               : idx === 3
