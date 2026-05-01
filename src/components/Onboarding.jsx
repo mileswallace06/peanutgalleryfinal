@@ -179,8 +179,8 @@ export default function Onboarding({ onDone }) {
         <img
           src="https://media.base44.com/images/public/69ef9900cf3862dc0ea39734/45897bdff_ChatGPTImageMay1202601_23_36PM.png"
           alt="Peanut Gallery"
-          className="h-14 w-auto"
-          style={{ mixBlendMode: 'lighten' }}
+          className="h-24 w-auto"
+          style={{ mixBlendMode: 'screen', filter: 'brightness(1.15)' }}
         />
       </div>
 
