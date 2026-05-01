@@ -9,7 +9,7 @@ const SLIDES = [
     accent2: '#BF5FFF',
     tag: '🥜 PEANUT GALLERY',
     slogan: true,
-    title: ['Move.', 'Up.', 'Cheap.'],
+    title: ['Find.', 'Upgrade.', 'Experience.'],
     titleHighlight: -1, // all white — slogan gets special treatment
     highlightColor: '#00FF87',
     body: 'The only app that lets fans inside the venue buy and sell seat upgrades after the event starts. Better seats, fair prices, no scalpers.',
