@@ -203,10 +203,10 @@ export default function Onboarding({ onDone }) {
               transition={{ delay: 0.1 }}
               className="text-xs font-black tracking-[0.25em] px-3 py-1 rounded-full w-fit"
               style={{
-                background: `${slide.accent}35`,
-                color: slide.accent,
-                border: `1px solid ${slide.accent}70`,
-                textShadow: `0 0 12px ${slide.accent}`,
+                background: `rgba(0,0,0,0.55)`,
+                color: '#fff',
+                border: `1px solid ${slide.accent}90`,
+                boxShadow: `0 0 10px ${slide.accent}55`,
               }}
             >
               {slide.tag}
