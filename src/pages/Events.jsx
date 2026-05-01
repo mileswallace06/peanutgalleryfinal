@@ -33,7 +33,7 @@ export default function Events() {
       {/* ── Hero ── */}
       <div className="relative h-56 overflow-hidden">
         <img
-          src="https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=900&q=80"
+          src="https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=900&q=80"
           alt="crowd"
           className="w-full h-full object-cover object-top"
         />
