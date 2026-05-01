@@ -174,6 +174,16 @@ export default function Onboarding({ onDone }) {
       {/* Particles */}
       <Particles color={slide.accent} />
 
+      {/* Logo — top left */}
+      <div className="absolute top-10 left-4 z-20">
+        <img
+          src="https://media.base44.com/images/public/69ef9900cf3862dc0ea39734/45897bdff_ChatGPTImageMay1202601_23_36PM.png"
+          alt="Peanut Gallery"
+          className="h-14 w-auto"
+          style={{ mixBlendMode: 'lighten' }}
+        />
+      </div>
+
       {/* Skip button */}
       <div className="relative z-10 flex justify-end px-6 pt-12 pb-4">
         <button
@@ -196,21 +206,6 @@ export default function Onboarding({ onDone }) {
             transition={{ duration: 0.4, ease: 'easeOut' }}
             className="flex flex-col gap-4"
           >
-            {/* Logo */}
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.1 }}
-              className="flex items-center gap-2.5 w-fit"
-            >
-              <img
-                src="https://media.base44.com/images/public/69ef9900cf3862dc0ea39734/45897bdff_ChatGPTImageMay1202601_23_36PM.png"
-                alt="Peanut Gallery"
-                className="w-32 h-auto rounded-3xl"
-                style={{ mixBlendMode: 'screen', filter: `drop-shadow(0 0 12px ${slide.accent}66)` }}
-              />
-            </motion.div>
-
             {/* Title — multi-color */}
             <div className="font-display leading-[0.95]" style={{ fontSize: slide.slogan ? 'clamp(3rem, 12vw, 5rem)' : 'clamp(2.8rem, 14vw, 4.5rem)' }}>
               {slide.title.map((word, i) => {
