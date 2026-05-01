@@ -43,7 +43,7 @@ export default function Me() {
           className="w-full h-full object-cover"
           style={{ filter: 'brightness(0.35) saturate(1.3)' }}
         />
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, transparent 30%, rgba(13,11,20,0.98) 100%)' }} />
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, transparent 15%, rgba(13,11,20,0.92) 60%, rgba(13,11,20,1) 100%)' }} />
       </div>
 
       {/* Avatar + name */}
