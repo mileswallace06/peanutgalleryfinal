@@ -17,22 +17,22 @@ const SLIDES = [
   },
   {
     bg: 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=800&q=80', // packed concert crowd
-    accent: '#FF2D78',
-    accent2: '#FFE600',
+    accent: '#BF5FFF',
+    accent2: '#FF2D78',
     tag: 'SEAT UPGRADES',
     title: ['Stuck In', 'The Back', 'Row?'],
-    titleHighlight: -1,
+    titleHighlight: 2,
     highlightColor: '#FF2D78',
     body: 'Fans who couldn\'t sell their seats before the event list them cheap on Peanut Gallery — the only place to buy upgrades live at the venue. Location-locked so only people actually there can buy. No scalpers, ever.',
     cta: null,
   },
   {
     bg: 'https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?w=800&q=80', // stadium football
-    accent: '#00FF87',
-    accent2: '#00C8FF',
+    accent: '#00C8FF',
+    accent2: '#00FF87',
     tag: 'ZERO RISK',
     title: ['Your Money', 'Is Safe.', 'Period.'],
-    titleHighlight: -1,
+    titleHighlight: 1,
     highlightColor: '#00FF87',
     body: 'We hold your payment in escrow. The seller doesn\'t get a single cent until you physically receive the tickets and tap confirm. Scammers can\'t win here.',
     cta: null,
