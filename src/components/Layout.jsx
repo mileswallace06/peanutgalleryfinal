@@ -35,7 +35,7 @@ export default function Layout() {
               src="https://media.base44.com/images/public/69ef9900cf3862dc0ea39734/f15cb860e_ChatGPTImageMay1202601_38_44PM.png"
               alt="Peanut Gallery"
               className="w-full h-full object-contain object-center"
-              style={{ mixBlendMode: 'screen', padding: '0' }}
+              style={{ mixBlendMode: 'screen', transform: 'scale(1.75)', transformOrigin: 'center center' }}
             />
           </Link>
           {!user && (
