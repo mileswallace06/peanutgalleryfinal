@@ -2,9 +2,11 @@ import { Outlet, Link, useLocation } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { useState, useEffect } from 'react';
 import { Calendar, Ticket, TrendingUp, Shield, LogIn } from 'lucide-react';
+import Onboarding from '@/components/Onboarding';
 
 export default function Layout() {
   const [user, setUser] = useState(null);
+  const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('pg_onboarded'));
   const location = useLocation();
 
   useEffect(() => {
@@ -27,6 +29,10 @@ export default function Layout() {
       { to: '/admin', label: 'Admin', icon: Shield, color: '#FFE600' },
     ] : []),
   ];
+
+  if (showOnboarding) {
+    return <Onboarding onDone={() => setShowOnboarding(false)} />;
+  }
 
   return (
     <div className="min-h-screen rave-bg font-sans">
