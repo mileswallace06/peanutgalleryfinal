@@ -177,7 +177,7 @@ export default function Onboarding({ onDone }) {
       {/* Skip button */}
       <div className="relative z-10 flex justify-end px-6 pt-12 pb-4">
         <button
-          onClick={finish} className="px-1 h-24 w-auto">
+          onClick={finish} className="h-24 w-auto">
 
           
           Skip ✕
