@@ -34,7 +34,20 @@ export default function Me() {
   }
 
   return (
-    <div className="rave-bg min-h-screen pb-28">
+    <div 
+      className="rave-bg min-h-screen pb-28 relative"
+      style={{
+        backgroundImage: 'url(https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=800&q=80)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundAttachment: 'fixed'
+      }}
+    >
+      {/* Background fade overlay */}
+      <div className="absolute inset-0 rave-bg opacity-95 pointer-events-none z-0" />
+      
+      {/* Content wrapper */}
+      <div className="relative z-10">
       {/* Hero banner */}
       <div className="relative h-44 overflow-hidden">
         
@@ -107,6 +120,7 @@ export default function Me() {
           
           Sign out
         </button>
+      </div>
       </div>
     </div>);
 
