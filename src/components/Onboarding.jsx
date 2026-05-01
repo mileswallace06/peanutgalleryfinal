@@ -213,7 +213,7 @@ export default function Onboarding({ onDone }) {
             </motion.span>
 
             {/* Title — multi-color */}
-            <div className="font-display leading-[0.95]" style={{ fontSize: slide.slogan ? 'clamp(3.6rem, 16vw, 6rem)' : 'clamp(2.8rem, 14vw, 4.5rem)' }}>
+            <div className="font-display leading-[0.95]" style={{ fontSize: slide.slogan ? 'clamp(3rem, 12vw, 5rem)' : 'clamp(2.8rem, 14vw, 4.5rem)' }}>
               {slide.title.map((word, i) => {
                 const SLOGAN_GRADIENTS = [
                   { grad: 'linear-gradient(90deg, #00FF87, #00C8FF)', glow: '#00FF87' },
