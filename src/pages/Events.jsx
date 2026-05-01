@@ -43,12 +43,12 @@ export default function Events() {
           style={{ background: 'linear-gradient(to bottom, rgba(5,3,12,0.7) 0%, rgba(5,3,12,0.55) 20%, rgba(5,3,12,0.2) 40%, rgba(5,3,12,0.92) 100%)' }}
         />
 
-        {/* Floating logo pill header */}
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 px-3 py-2 rounded-full glass border border-white/10 flex items-center" style={{ width: '90%', boxShadow: '0 4px 20px rgba(0,0,0,0.3), 0 0 15px rgba(191,95,255,0.1)' }}>
+        {/* Floating glass header with logo */}
+        <div className="absolute top-4 left-4 right-4 px-4 py-3 rounded-2xl glass-strong border border-white/10" style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.3), 0 0 20px rgba(191,95,255,0.15)' }}>
           <img
             src="https://media.base44.com/images/public/69ef9900cf3862dc0ea39734/9022a5431_ChatGPTImageMay1202601_29_27PM.png"
             alt="Peanut Gallery"
-            className="h-12 w-auto"
+            className="h-16 w-auto rounded-lg"
           />
         </div>
 
