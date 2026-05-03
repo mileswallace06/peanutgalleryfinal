@@ -53,7 +53,7 @@ export default function Events() {
           >
             Get Tickets
           </h1>
-          <p className="text-sm mt-3 leading-snug" style={{ color: '#BF5FFF', textShadow: '0 0 12px #BF5FFF99' }}>
+          <p className="text-sm mt-3 leading-snug" style={{ color: '#D97FFF', textShadow: '0 0 16px #BF5FFFcc, 0 0 32px #BF5FFF66' }}>
             Buy tickets to any event, from anywhere, anytime.<br />
             Browse upcoming shows, sports, and more — all in one place.
           </p>
