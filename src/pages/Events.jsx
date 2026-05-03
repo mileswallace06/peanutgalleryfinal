@@ -53,6 +53,9 @@ export default function Events() {
           >
             Get Tickets
           </h1>
+          <p className="text-white/60 text-sm mt-1 leading-snug">
+            Buy tickets to any event, from anywhere, anytime.
+          </p>
         </div>
       </div>
 
