@@ -55,7 +55,7 @@ export default function Events() {
           </h1>
           <p className="text-white/60 text-sm mt-3 leading-snug">
             Buy tickets to any event, from anywhere, anytime.<br />
-            Just like any other ticketing service — simple and instant.
+            Browse upcoming shows, sports, and more — all in one place.
           </p>
         </div>
       </div>
