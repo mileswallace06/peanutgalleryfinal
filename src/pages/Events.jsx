@@ -48,12 +48,19 @@ export default function Events() {
         {/* Headline */}
         <div className="absolute bottom-5 left-4 right-4">
           <h1
-            className="font-display leading-[0.9] gradient-text-purple"
-            style={{ fontSize: 'clamp(2.8rem, 13vw, 4.5rem)', filter: 'drop-shadow(0 0 20px #BF5FFF88)' }}
+            className="font-display leading-[0.9]"
+            style={{
+              fontSize: 'clamp(2.8rem, 13vw, 4.5rem)',
+              background: 'linear-gradient(135deg, #BF5FFF, #00C8FF)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+              filter: 'drop-shadow(0 0 30px #BF5FFFcc) drop-shadow(0 0 60px #BF5FFF88)'
+            }}
           >
             Get Tickets
           </h1>
-          <p className="text-sm mt-3 leading-snug" style={{ color: '#BF5FFF', textShadow: '0 0 12px #BF5FFF99' }}>
+          <p className="text-sm mt-3 leading-snug font-semibold" style={{ color: '#fff', textShadow: '0 0 18px #BF5FFFdd, 0 0 40px #BF5FFF99, 0 2px 8px rgba(0,0,0,0.9)' }}>
             Buy tickets to any event, from anywhere, anytime.<br />
             Browse upcoming shows, sports, and more — all in one place.
           </p>
