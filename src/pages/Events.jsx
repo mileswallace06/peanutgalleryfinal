@@ -48,11 +48,15 @@ export default function Events() {
         {/* Headline */}
         <div className="absolute bottom-5 left-4 right-4">
           <h1
-            className="font-display leading-[0.9] text-white"
-            style={{ fontSize: 'clamp(2.8rem, 13vw, 4.5rem)', textShadow: '0 2px 30px rgba(0,0,0,0.8)' }}
+            className="font-display leading-[0.9] gradient-text-purple"
+            style={{ fontSize: 'clamp(2.8rem, 13vw, 4.5rem)', filter: 'drop-shadow(0 0 20px #BF5FFF88)' }}
           >
             Get Tickets
           </h1>
+          <p className="text-sm mt-3 leading-snug" style={{ color: '#ffffff', textShadow: '0 0 12px #BF5FFF, 0 0 24px #BF5FFFcc, 0 0 48px #BF5FFF88' }}>
+            Buy tickets to any event, from anywhere, anytime.<br />
+            Browse upcoming shows, sports, and more — all in one place.
+          </p>
         </div>
       </div>
 
