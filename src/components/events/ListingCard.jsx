@@ -7,7 +7,7 @@ const TIER_STYLES = {
   upper: { color: '#FFE600', bg: '#FFE60015', label: 'Upper Level' },
 };
 
-export default function ListingCard({ listing, onUpgrade, isCheapest }) {
+export default function ListingCard({ listing, onUpgrade, isCheapest, mode = 'upgrade' }) {
   const isDemo = listing.notes?.startsWith('[DEMO]');
   const isVerified = !!listing.proof_url && !isDemo;
   const tier = TIER_STYLES[listing.tier];
@@ -115,7 +115,10 @@ export default function ListingCard({ listing, onUpgrade, isCheapest }) {
           }}
         >
           <ArrowUpRight className="w-4 h-4" />
-          Upgrade — ${listing.asking_price}{listing.quantity > 1 ? ` × ${listing.quantity}` : ''}
+          {mode === 'upgrade'
+            ? `Upgrade to These Seats — $${listing.asking_price}${listing.quantity > 1 ? ` × ${listing.quantity}` : ''}`
+            : `Buy Tickets — $${listing.asking_price}${listing.quantity > 1 ? ` × ${listing.quantity}` : ''}`
+          }
         </button>
 
         <p className="text-center text-[10px] text-muted-foreground -mt-1">

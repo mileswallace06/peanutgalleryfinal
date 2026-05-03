@@ -181,7 +181,7 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
   );
 }
 
-export default function PurchaseDialog({ event, listing, onClose }) {
+export default function PurchaseDialog({ event, listing, onClose, mode = 'ticket' }) {
   const [stripePromise, setStripePromise] = useState(null);
   const [user, setUser] = useState(null);
   const [reservedListingId, setReservedListingId] = useState(null);
@@ -207,7 +207,7 @@ export default function PurchaseDialog({ event, listing, onClose }) {
       <div className="relative bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md mx-auto max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white border-b border-border px-5 py-4 flex items-center justify-between rounded-t-2xl sm:rounded-t-2xl">
           <div>
-            <h2 className="font-bold text-foreground">Complete Upgrade</h2>
+            <h2 className="font-bold text-foreground">{mode === 'upgrade' ? 'Complete Upgrade' : 'Buy Tickets'}</h2>
             <p className="text-xs text-muted-foreground">Section {listing.section} · Row {listing.row}</p>
           </div>
           <button onClick={handleClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors">

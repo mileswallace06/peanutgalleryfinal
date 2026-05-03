@@ -2,11 +2,11 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { MapPin, Calendar, ArrowLeft, Ticket } from 'lucide-react';
+import { MapPin, Calendar, ArrowLeft, Zap } from 'lucide-react';
 import ListingCard from '@/components/events/ListingCard';
 import PurchaseDialog from '@/components/events/PurchaseDialog';
 
-export default function EventDetail() {
+export default function EventDetailUpgrade() {
   const { id } = useParams();
   const [event, setEvent] = useState(null);
   const [listings, setListings] = useState([]);
@@ -42,7 +42,7 @@ export default function EventDetail() {
     return (
       <div className="px-4 py-20 text-center">
         <p className="text-muted-foreground">Event not found.</p>
-        <Link to="/events" className="text-primary text-sm mt-3 inline-block">← Back to events</Link>
+        <Link to="/upgrades" className="text-primary text-sm mt-3 inline-block">← Back to upgrades</Link>
       </div>
     );
   }
@@ -63,21 +63,18 @@ export default function EventDetail() {
         ) : (
           <div className="w-full h-full bg-white/5 flex items-center justify-center text-7xl">🎫</div>
         )}
-        {/* Heavy bottom gradient */}
         <div className="absolute inset-0"
           style={{ background: 'linear-gradient(to bottom, rgba(5,3,12,0.25) 0%, rgba(5,3,12,0.5) 50%, rgba(5,3,12,0.97) 100%)' }}
         />
 
-        {/* Back button */}
         <Link
-          to="/events"
+          to="/upgrades"
           className="absolute top-4 left-4 flex items-center gap-1.5 text-sm font-semibold text-white/80 hover:text-white transition-colors px-3 py-1.5 rounded-full"
           style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(12px)' }}
         >
-          <ArrowLeft className="w-4 h-4" /> Events
+          <ArrowLeft className="w-4 h-4" /> Upgrades
         </Link>
 
-        {/* Live badge */}
         {isLive && (
           <span className="absolute top-4 right-4 text-xs font-black px-3 py-1 rounded-full animate-pulse"
             style={{ background: '#FF2D7820', color: '#FF2D78', border: '1px solid #FF2D7860' }}>
@@ -85,7 +82,6 @@ export default function EventDetail() {
           </span>
         )}
 
-        {/* Event info overlaid on bottom of hero */}
         <div className="absolute bottom-0 left-0 right-0 px-5 pb-5">
           <h1 className="font-display text-foreground leading-tight mb-2"
             style={{ fontSize: 'clamp(1.8rem, 7vw, 2.8rem)' }}>
@@ -107,16 +103,24 @@ export default function EventDetail() {
       {/* ── Content ── */}
       <div className="px-4 pt-8">
 
-        {/* Section header */}
+        {/* Location-lock notice */}
+        <div className="mb-5 rounded-2xl px-4 py-3 flex items-start gap-3"
+          style={{ background: 'rgba(0,255,135,0.06)', border: '1px solid rgba(0,255,135,0.2)' }}>
+          <Zap className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: '#00FF87' }} />
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            <span className="font-bold text-foreground">Location-locked</span> — only fans physically at the venue can buy upgrades. No scalpers, ever.
+          </p>
+        </div>
+
         <div className="mb-6">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="font-display text-2xl text-foreground flex items-center gap-2">
-                <Ticket className="w-5 h-5 text-primary" />
-                Available Tickets
+                <Zap className="w-5 h-5" style={{ color: '#00FF87' }} />
+                Seat Upgrades
                 <span className="font-sans text-base font-normal text-muted-foreground">({listings.length})</span>
               </h2>
-              <p className="text-sm text-muted-foreground mt-1">Buy tickets from other fans</p>
+              <p className="text-sm text-muted-foreground mt-1">Move to better seats from fans already at the venue</p>
             </div>
             {adminUnlocked && (
               <span className="text-xs bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full font-medium">
@@ -134,13 +138,12 @@ export default function EventDetail() {
           )}
         </div>
 
-        {/* Listings */}
         {listings.length === 0 ? (
           <div className="text-center py-16 glass-card rounded-2xl">
-            <p className="text-4xl mb-3">🎟️</p>
-            <p className="font-bold text-foreground">No tickets available yet</p>
+            <p className="text-4xl mb-3">⚡</p>
+            <p className="font-bold text-foreground">No upgrades available yet</p>
             <p className="text-sm text-muted-foreground mt-1 max-w-[220px] mx-auto leading-relaxed">
-              Check back soon for available listings.
+              Upgrades usually appear after the event starts. Check back soon.
             </p>
           </div>
         ) : (
@@ -151,7 +154,7 @@ export default function EventDetail() {
                 listing={listing}
                 isCheapest={listing.asking_price === cheapest}
                 onUpgrade={setSelectedListing}
-                mode="ticket"
+                mode="upgrade"
               />
             ))}
           </div>
@@ -163,7 +166,7 @@ export default function EventDetail() {
           event={event}
           listing={selectedListing}
           onClose={() => setSelectedListing(null)}
-          mode="ticket"
+          mode="upgrade"
         />
       )}
     </div>

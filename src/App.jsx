@@ -17,6 +17,7 @@ import CreateListing from '@/pages/CreateListing';
 import FanZone from '@/pages/FanZone';
 import Me from '@/pages/Me';
 import Upgrades from '@/pages/Upgrades';
+import EventDetailUpgrade from '@/pages/EventDetailUpgrade';
 import Sell from '@/pages/Sell';
 
 const AuthenticatedApp = () => {
@@ -53,6 +54,7 @@ const AuthenticatedApp = () => {
         <Route path="/fan-zone" element={<FanZone />} />
         <Route path="/me" element={<Me />} />
         <Route path="/upgrades" element={<Upgrades />} />
+        <Route path="/upgrades/:id" element={<EventDetailUpgrade />} />
         <Route path="/sell" element={<Sell />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />

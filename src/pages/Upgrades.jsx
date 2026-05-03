@@ -75,7 +75,7 @@ export default function Upgrades() {
             {events.map(event => (
               <Link
                 key={event.id}
-                to={`/events/${event.id}`}
+                to={`/upgrades/${event.id}`}
                 className="flex items-center gap-3 rounded-2xl overflow-hidden active:scale-[0.98] transition-transform"
                 style={{
                   background: 'linear-gradient(135deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.03) 100%)',
