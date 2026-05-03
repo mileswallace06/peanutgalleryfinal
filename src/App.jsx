@@ -6,7 +6,7 @@ import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import Layout from '@/components/Layout';
-import Home from '@/pages/Home';
+import { Navigate } from 'react-router-dom';
 import Events from '@/pages/Events';
 import EventDetail from '@/pages/EventDetail';
 import PurchaseSuccess from '@/pages/PurchaseSuccess';
@@ -42,7 +42,7 @@ const AuthenticatedApp = () => {
   return (
     <Routes>
       <Route element={<Layout />}>
-        <Route path="/" element={<Home />} />
+        <Route path="/" element={<Navigate to="/events" replace />} />
         <Route path="/events" element={<Events />} />
         <Route path="/events/:id" element={<EventDetail />} />
         <Route path="/purchase/:id" element={<PurchaseSuccess />} />
