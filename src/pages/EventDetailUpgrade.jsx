@@ -20,9 +20,17 @@ export default function EventDetailUpgrade() {
       base44.entities.Event.filter({ id }),
       base44.entities.Listing.filter({ event_id: id, status: 'active', proof_status: 'approved' }),
     ]).then(([events, rawListings]) => {
-      setEvent(events[0] || null);
-      const real = rawListings.filter(l => !l.notes?.startsWith('[DEMO]'));
-      setListings(real.length > 0 ? real : rawListings);
+      const ev = events[0] || null;
+      setEvent(ev);
+      const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
+      const now = Date.now();
+      const eventStarted = ev?.date ? now >= new Date(ev.date).getTime() : false;
+      // Upgrades tab shows POST-event listings only (unless admin bypass)
+      const filtered = adminUnlocked
+        ? rawListings
+        : rawListings.filter(() => eventStarted);
+      const real = filtered.filter(l => !l.notes?.startsWith('[DEMO]'));
+      setListings(real.length > 0 ? real : filtered);
     }).catch(console.error).finally(() => setLoading(false));
   }, [id]);
 
@@ -49,6 +57,7 @@ export default function EventDetailUpgrade() {
 
   const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
   const isLive = event.status === 'live';
+  const eventStarted = event.date ? Date.now() >= new Date(event.date).getTime() : false;
   const isDemoOnly = listings.length > 0 && listings.every(l => l.notes?.startsWith('[DEMO]'));
   const sorted = [...listings].sort((a, b) => a.asking_price - b.asking_price);
   const cheapest = sorted[0]?.asking_price;
@@ -141,10 +150,21 @@ export default function EventDetailUpgrade() {
         {listings.length === 0 ? (
           <div className="text-center py-16 glass-card rounded-2xl">
             <p className="text-4xl mb-3">⚡</p>
-            <p className="font-bold text-foreground">No upgrades available yet</p>
-            <p className="text-sm text-muted-foreground mt-1 max-w-[220px] mx-auto leading-relaxed">
-              Upgrades usually appear after the event starts. Check back soon.
-            </p>
+          {!eventStarted && !adminUnlocked ? (
+            <>
+              <p className="font-bold text-foreground">Event hasn't started yet</p>
+              <p className="text-sm text-muted-foreground mt-1 max-w-[240px] mx-auto leading-relaxed">
+                Seat upgrades unlock the moment the event begins. Come back then!
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="font-bold text-foreground">No upgrades available yet</p>
+              <p className="text-sm text-muted-foreground mt-1 max-w-[220px] mx-auto leading-relaxed">
+                Upgrades usually appear after the event starts. Check back soon.
+              </p>
+            </>
+          )}
           </div>
         ) : (
           <div className="space-y-4">

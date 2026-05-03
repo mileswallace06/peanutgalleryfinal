@@ -11,8 +11,17 @@ export default function Events() {
   const [showSearch, setShowSearch] = useState(false);
 
   useEffect(() => {
+    const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
+    const now = Date.now();
     base44.entities.Event.list('date', 50)
-      .then(data => setEvents(data.filter(e => e.status !== 'ended')))
+      .then(data => {
+        const eligible = data.filter(e => e.status !== 'ended');
+        // Events tab = upcoming events that haven't started yet
+        setEvents(adminUnlocked
+          ? eligible
+          : eligible.filter(e => !e.date || now < new Date(e.date).getTime())
+        );
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);

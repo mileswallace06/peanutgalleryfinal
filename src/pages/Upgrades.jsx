@@ -9,8 +9,17 @@ export default function Upgrades() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
+    const now = Date.now();
     base44.entities.Event.list('date', 50)
-      .then(data => setEvents(data.filter(e => e.status === 'live' || e.status === 'upcoming')))
+      .then(data => {
+        const eligible = data.filter(e => e.status !== 'ended');
+        // Upgrades tab = events that have already started
+        setEvents(adminUnlocked
+          ? eligible
+          : eligible.filter(e => e.date && now >= new Date(e.date).getTime())
+        );
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
