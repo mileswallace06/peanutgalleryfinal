@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { MapPin, Calendar, Search, ChevronRight, ArrowRight } from 'lucide-react';
+import { MapPin, Calendar, Search, ChevronRight, ExternalLink } from 'lucide-react';
 
 export default function Events() {
   const [events, setEvents] = useState([]);
@@ -13,17 +13,26 @@ export default function Events() {
   useEffect(() => {
     const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
     const now = Date.now();
-    base44.entities.Event.list('date', 50)
-      .then(data => {
-        const eligible = data.filter(e => e.status !== 'ended');
-        // Events tab = upcoming events that haven't started yet
-        setEvents(adminUnlocked
-          ? eligible
-          : eligible.filter(e => !e.date || now < new Date(e.date).getTime())
-        );
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
+
+    Promise.all([
+      base44.entities.Event.list('date', 50),
+      base44.functions.invoke('getTicketmasterEvents', { size: 40 }),
+    ]).then(([localData, tmRes]) => {
+      // Local PG events (pre-event only unless admin)
+      const eligible = localData.filter(e => e.status !== 'ended');
+      const pgEvents = adminUnlocked
+        ? eligible
+        : eligible.filter(e => !e.date || now < new Date(e.date).getTime());
+      // Mark PG events as source
+      const pgMapped = pgEvents.map(e => ({ ...e, source: 'pg' }));
+
+      // Ticketmaster events
+      const tmEvents = (tmRes?.data?.events || []).map(e => ({ ...e, id: `tm_${e.tm_id}` }));
+
+      // Merge: PG events first, then TM events not already represented by a PG event
+      // De-dupe by title+date similarity is complex; just concat for now
+      setEvents([...pgMapped, ...tmEvents]);
+    }).catch(console.error).finally(() => setLoading(false));
   }, []);
 
   const filtered = events.filter(e => {
@@ -32,6 +41,7 @@ export default function Events() {
     return (
       e.title?.toLowerCase().includes(q) ||
       e.city?.toLowerCase().includes(q) ||
+      e.state?.toLowerCase().includes(q) ||
       e.venue?.toLowerCase().includes(q)
     );
   });
@@ -133,6 +143,8 @@ export default function Events() {
 }
 
 function EventRow({ event }) {
+  const isTM = event.source === 'ticketmaster';
+
   return (
     <div
       className="rounded-2xl overflow-hidden flex items-stretch"
@@ -152,11 +164,15 @@ function EventRow({ event }) {
           </div>
         )}
         {event.status === 'live' && (
-          <span
-            className="absolute top-2 left-2 text-[9px] font-black px-1.5 py-0.5 rounded-full"
-            style={{ background: '#FF2D78', color: '#fff' }}
-          >
+          <span className="absolute top-2 left-2 text-[9px] font-black px-1.5 py-0.5 rounded-full"
+            style={{ background: '#FF2D78', color: '#fff' }}>
             LIVE
+          </span>
+        )}
+        {isTM && (
+          <span className="absolute bottom-1.5 left-1.5 text-[8px] font-bold px-1.5 py-0.5 rounded-full"
+            style={{ background: 'rgba(0,0,0,0.7)', color: 'rgba(255,255,255,0.6)' }}>
+            TM
           </span>
         )}
       </div>
@@ -167,7 +183,9 @@ function EventRow({ event }) {
           <h3 className="font-bold text-foreground text-sm leading-tight mb-2 line-clamp-2">{event.title}</h3>
           <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mb-1">
             <MapPin className="w-3 h-3 flex-shrink-0" style={{ color: '#00C8FF' }} />
-            <span className="truncate">{event.venue}{event.city ? `, ${event.city}` : ''}</span>
+            <span className="truncate">
+              {event.venue}{event.city ? `, ${event.city}` : ''}{event.state ? `, ${event.state}` : ''}
+            </span>
           </div>
           <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
             <Calendar className="w-3 h-3 flex-shrink-0" style={{ color: '#BF5FFF' }} />
@@ -175,32 +193,58 @@ function EventRow({ event }) {
           </div>
         </div>
 
-        {/* List your seats tag */}
-        <div className="mt-2.5">
-          <Link
-            to="/create-listing"
-            className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full"
-            style={{ background: 'rgba(191,95,255,0.12)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.25)' }}
-            onClick={e => e.stopPropagation()}
-          >
-            🥜 List your seats
-          </Link>
-        </div>
+        {/* List your seats tag — only for PG events */}
+        {!isTM && (
+          <div className="mt-2.5">
+            <Link
+              to="/create-listing"
+              className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full"
+              style={{ background: 'rgba(191,95,255,0.12)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.25)' }}
+              onClick={e => e.stopPropagation()}
+            >
+              🥜 List your seats
+            </Link>
+          </div>
+        )}
+        {isTM && (
+          <div className="mt-2.5">
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full"
+              style={{ background: 'rgba(0,200,255,0.08)', color: 'rgba(0,200,255,0.7)', border: '1px solid rgba(0,200,255,0.15)' }}>
+              🎟️ Official tickets
+            </span>
+          </div>
+        )}
       </div>
 
       {/* View button */}
       <div className="flex items-center pr-3 pl-1">
-        <Link
-          to={`/events/${event.id}`}
-          className="flex items-center gap-1 px-3 py-2 rounded-xl font-bold text-xs whitespace-nowrap"
-          style={{
-            background: 'rgba(0,200,255,0.15)',
-            color: '#00C8FF',
-            border: '1px solid rgba(0,200,255,0.25)',
-          }}
-        >
-          View <ChevronRight className="w-3.5 h-3.5" />
-        </Link>
+        {isTM ? (
+          <a
+            href={event.tm_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 px-3 py-2 rounded-xl font-bold text-xs whitespace-nowrap"
+            style={{
+              background: 'rgba(0,200,255,0.15)',
+              color: '#00C8FF',
+              border: '1px solid rgba(0,200,255,0.25)',
+            }}
+          >
+            Buy <ExternalLink className="w-3 h-3" />
+          </a>
+        ) : (
+          <Link
+            to={`/events/${event.id}`}
+            className="flex items-center gap-1 px-3 py-2 rounded-xl font-bold text-xs whitespace-nowrap"
+            style={{
+              background: 'rgba(0,200,255,0.15)',
+              color: '#00C8FF',
+              border: '1px solid rgba(0,200,255,0.25)',
+            }}
+          >
+            View <ChevronRight className="w-3.5 h-3.5" />
+          </Link>
+        )}
       </div>
     </div>
   );
