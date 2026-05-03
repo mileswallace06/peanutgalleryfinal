@@ -35,21 +35,11 @@ export default function Upgrades() {
         </div>
 
         <div className="absolute bottom-5 left-4">
-          <h1 className="font-display leading-[0.9]"
-            style={{
-              fontSize: 'clamp(2.8rem, 13vw, 4.5rem)',
-              background: 'linear-gradient(135deg, #00FF87, #00C8FF)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-              filter: 'drop-shadow(0 0 30px #00FF87cc) drop-shadow(0 0 60px #00FF8788)'
-            }}>
+          <h1 className="font-display text-white leading-[0.9]"
+            style={{ fontSize: 'clamp(2.8rem, 13vw, 4.5rem)', textShadow: '0 2px 30px rgba(0,0,0,0.8)' }}>
             Upgrades
           </h1>
-          <p className="text-sm mt-3 leading-snug font-semibold"
-            style={{ color: '#fff', textShadow: '0 0 18px #00FF87dd, 0 0 40px #00FF8799, 0 2px 8px rgba(0,0,0,0.9)' }}>
-            Better seats, live at the venue.
-          </p>
+          <p className="text-sm mt-1" style={{ color: '#00FF87' }}>Better seats, live at the venue</p>
         </div>
       </div>
 
