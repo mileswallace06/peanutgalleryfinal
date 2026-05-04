@@ -46,8 +46,8 @@ export default function Upgrades() {
           </span>
         </div>
 
-        {/* Headline + info pill — same structure as Tickets */}
-        <div className="absolute bottom-12 left-4 right-4">
+        {/* Headline */}
+        <div className="absolute bottom-5 left-4 right-4">
           <h1 className="font-display leading-[0.9]"
           style={{
             fontSize: 'clamp(3.2rem, 15vw, 5.2rem)',
@@ -56,24 +56,26 @@ export default function Upgrades() {
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
             backgroundClip: 'text',
-            WebkitTextStroke: '0.5px rgba(255,255,255,0.3)',
             filter: 'drop-shadow(0 6px 24px rgba(0,0,0,0.6))',
           }}>
             Upgrades
           </h1>
-          {/* Info pill — exact same structure as Tickets subtext pill, green accent */}
-          <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full"
-            style={{ background: 'rgba(0,255,135,0.15)', border: '1px solid rgba(0,255,135,0.35)' }}>
-            <Zap className="w-3 h-3 flex-shrink-0" style={{ color: '#00FF87' }} />
-            <span className="text-[11px] font-medium leading-snug" style={{ color: 'rgba(210,255,235,0.9)' }}>
-              Already at the show? Upgrade seats from fans around you — location-verified.
-            </span>
-          </div>
+        </div>
+      </div>
+
+      {/* Info pill — sits between hero and event count */}
+      <div className="px-4 mt-3 mb-1">
+        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full"
+          style={{ background: 'rgba(0,255,135,0.15)', border: '1px solid rgba(0,255,135,0.35)' }}>
+          <Zap className="w-3 h-3 flex-shrink-0" style={{ color: '#00FF87' }} />
+          <span className="text-[11px] font-medium leading-snug" style={{ color: 'rgba(210,255,235,0.9)' }}>
+            Already at the show? Upgrade seats from fans around you — location-verified.
+          </span>
         </div>
       </div>
 
       {/* Event list */}
-      <div className="px-4 mt-4">
+      <div className="px-4 mt-2">
         <p className="text-xs text-muted-foreground font-medium mb-3">
           {loading ? 'Loading...' : `${events.length} event${events.length !== 1 ? 's' : ''} with upgrades`}
         </p>
