@@ -26,7 +26,7 @@ export default function FanZone() {
               fontSize: 'clamp(3rem, 12vw, 4.5rem)',
               letterSpacing: '-0.02em',
               lineHeight: 1.1,
-              background: 'linear-gradient(135deg, #FFE600 0%, #00FF87 100%)',
+              background: 'linear-gradient(135deg, #00C8FF 0%, #FF2D78 100%)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               backgroundClip: 'text',
