@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { Plus, Tag, TrendingUp, LogIn } from 'lucide-react';
+import { Plus, Tag, TrendingUp, LogIn, Zap } from 'lucide-react';
 
 export default function Sell() {
   const [user, setUser] = useState(null);
@@ -54,31 +54,41 @@ export default function Sell() {
   return (
     <div className="pb-32">
       {/* Hero */}
-      <div className="relative h-44 overflow-hidden">
+      <div className="relative h-56 overflow-hidden">
         <img
           src="https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=900&q=80"
           alt="Sell"
-          className="w-full h-full object-cover"
-          style={{ filter: 'brightness(0.4) saturate(1.3)' }}
+          className="w-full h-full object-cover object-top"
         />
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, rgba(5,3,12,0.3) 0%, rgba(5,3,12,0.95) 100%)' }} />
-        <div className="absolute bottom-5 left-4 right-4 flex items-end justify-between">
-          <div>
-            <span className="text-[10px] font-black tracking-[0.2em] px-3 py-1 rounded-full mb-2 inline-block"
-              style={{ background: 'rgba(0,0,0,0.5)', color: '#FF2D78', border: '1px solid #FF2D7855', backdropFilter: 'blur(12px)' }}>
-              🏷️ SELLER HUB
+        <div
+          className="absolute inset-0"
+          style={{ background: 'linear-gradient(to bottom, rgba(5,3,12,0.45) 0%, rgba(5,3,12,0.2) 40%, rgba(5,3,12,0.92) 100%)' }}
+        />
+
+        <div className="absolute bottom-5 left-4 right-4">
+          <span className="text-[10px] font-black tracking-[0.2em] px-3 py-1 rounded-full inline-block mb-3"
+            style={{ background: 'rgba(0,0,0,0.5)', color: '#FF2D78', border: '1px solid #FF2D7855', backdropFilter: 'blur(12px)' }}>
+            🏷️ SELLER HUB
+          </span>
+          <h1 className="font-display leading-[0.9] mb-3"
+            style={{
+              fontSize: 'clamp(3.2rem, 15vw, 5.2rem)',
+              letterSpacing: '-0.02em',
+              background: 'linear-gradient(135deg, #FF2D78 0%, #FFE600 55%, #00FF87 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+              filter: 'drop-shadow(0 6px 24px rgba(0,0,0,0.6))'
+            }}>
+            Sell Tickets
+          </h1>
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full"
+            style={{ background: 'rgba(255,45,120,0.15)', border: '1px solid rgba(255,45,120,0.35)' }}>
+            <Tag className="w-3 h-3 flex-shrink-0" style={{ color: '#FF2D78' }} />
+            <span className="text-[11px] font-medium leading-snug" style={{ color: 'rgba(255,215,235,0.9)' }}>
+              List your seats and start earning instantly — keep 80% of sales.
             </span>
-            <h1 className="font-display text-white leading-[0.9]" style={{ fontSize: 'clamp(2.4rem, 11vw, 3.8rem)' }}>
-              Sell Tickets
-            </h1>
           </div>
-          <Link
-            to="/create-listing"
-            className="flex items-center gap-1.5 font-bold text-sm px-4 py-2.5 rounded-2xl flex-shrink-0"
-            style={{ background: '#FF2D78', color: '#fff', boxShadow: '0 0 20px #FF2D7866' }}
-          >
-            <Plus className="w-4 h-4" /> New Listing
-          </Link>
         </div>
       </div>
 
