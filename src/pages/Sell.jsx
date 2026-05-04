@@ -67,7 +67,7 @@ export default function Sell() {
 
         <div className="absolute bottom-5 left-4 right-4">
           <span className="text-[10px] font-black tracking-[0.2em] px-3 py-1 rounded-full inline-block mb-3"
-            style={{ background: 'rgba(0,0,0,0.5)', color: '#FF2D78', border: '1px solid #FF2D7855', backdropFilter: 'blur(12px)' }}>
+            style={{ background: 'rgba(0,0,0,0.5)', color: '#FF8C00', border: '1px solid #FF8C0055', backdropFilter: 'blur(12px)' }}>
             🏷️ SELLER HUB
           </span>
           <h1 className="font-display leading-[0.9] mb-3"
@@ -83,7 +83,7 @@ export default function Sell() {
             Sell Tickets
           </h1>
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full"
-            style={{ background: 'rgba(255,45,120,0.15)', border: '1px solid rgba(255,45,120,0.35)' }}>
+            style={{ background: 'rgba(255,140,0,0.15)', border: '1px solid rgba(255,140,0,0.35)' }}>
             <Tag className="w-3 h-3 flex-shrink-0" style={{ color: '#FF2D78' }} />
             <span className="text-[11px] font-medium leading-snug" style={{ color: 'rgba(255,215,235,0.9)' }}>
               List your seats instantly. Sellers keep 95% — the highest rate in the industry.

@@ -7,7 +7,7 @@ import Onboarding from '@/components/Onboarding';
 const NAV = [
 { to: '/events', label: 'Tickets', icon: MapPin, color: '#BF5FFF' },
 { to: '/upgrades', label: 'Upgrades', icon: Zap, color: '#00FF87' },
-{ to: '/sell', label: 'Sell', icon: Tag, color: '#FF2D78' },
+{ to: '/sell', label: 'Sell', icon: Tag, color: '#FF8C00' },
 { to: '/fan-zone', label: 'Fan Zone', icon: Flame, color: '#FF2D78' },
 { to: '/me', label: 'Me', icon: User, color: '#BF5FFF' }];
 
