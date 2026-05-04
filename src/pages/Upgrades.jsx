@@ -33,10 +33,10 @@ export default function Upgrades() {
           alt="Upgrades"
           className="w-full h-full object-cover object-top" />
         <div className="absolute inset-0"
-        style={{ background: 'linear-gradient(to bottom, rgba(5,3,12,0.4) 0%, rgba(5,3,12,0.2) 40%, rgba(5,3,12,0.9) 100%)' }} />
+        style={{ background: 'linear-gradient(to bottom, rgba(5,3,12,0.55) 0%, rgba(5,3,12,0.35) 40%, rgba(5,3,12,0.95) 100%)' }} />
         <div className="absolute top-5 left-4">
           <span className="text-[10px] font-black tracking-[0.2em] px-3 py-1 rounded-full flex items-center gap-1.5"
-          style={{ background: 'rgba(0,0,0,0.5)', color: '#00FF87', border: '1px solid #00FF8755', backdropFilter: 'blur(12px)' }}>
+          style={{ background: 'rgba(0,0,0,0.5)', color: '#00CC6A', border: '1px solid rgba(0,255,135,0.3)', backdropFilter: 'blur(12px)' }}>
             ⚡ PEANUT GALLERY
           </span>
         </div>
@@ -51,7 +51,6 @@ export default function Upgrades() {
           WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent',
           backgroundClip: 'text',
-          filter: 'drop-shadow(0 0 20px rgba(0,255,135,0.5)) drop-shadow(0 0 40px rgba(0,200,255,0.3))',
         }}>
           Upgrades
         </h1>
@@ -59,13 +58,13 @@ export default function Upgrades() {
 
       {/* Info banner with subtext inside */}
       <div className="mx-4 mt-3 rounded-2xl px-4 py-3 flex items-start gap-3"
-      style={{ background: 'rgba(0,255,135,0.13)', border: '1px solid rgba(0,255,135,0.45)', boxShadow: '0 0 18px rgba(0,255,135,0.15), inset 0 0 12px rgba(0,255,135,0.06)' }}>
-        <Zap className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: '#00FF87', filter: 'drop-shadow(0 0 5px #00FF87aa)' }} />
+      style={{ background: 'rgba(0,20,10,0.75)', border: '1px solid rgba(0,255,135,0.3)', boxShadow: '0 10px 30px rgba(0,0,0,0.4)' }}>
+        <Zap className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: '#00FF87' }} />
         <div>
           <p className="text-xs font-medium leading-snug" style={{ color: '#00FF87' }}>
             Already at the show? Upgrade to better seats from fans around you — verified by your location, in real time.
           </p>
-          <p className="text-[11px] mt-1 leading-relaxed" style={{ color: 'rgba(255,255,255,0.75)' }}>
+          <p className="text-[11px] mt-1 leading-relaxed" style={{ color: 'rgba(255,255,255,0.8)' }}>
             <span className="font-bold" style={{ color: '#00FF87' }}>Location-locked</span> — only fans physically at the venue can buy. No scalpers, ever.
           </p>
         </div>
