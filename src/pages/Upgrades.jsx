@@ -62,7 +62,7 @@ export default function Upgrades() {
             Upgrades
           </h1>
           {/* Info pill — exact same structure as Tickets subtext pill, green accent */}
-          <div className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-full"
+          <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full"
             style={{ background: 'rgba(0,255,135,0.15)', border: '1px solid rgba(0,255,135,0.35)' }}>
             <Zap className="w-3 h-3 flex-shrink-0" style={{ color: '#00FF87' }} />
             <span className="text-[11px] font-medium leading-snug" style={{ color: 'rgba(210,255,235,0.9)' }}>
