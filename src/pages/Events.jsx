@@ -118,14 +118,24 @@ export default function Events() {
         {/* Headline */}
         <div className="absolute bottom-5 left-4 right-4">
           <h1
-            className="font-display leading-[0.9] text-white"
-            style={{ fontSize: 'clamp(2.8rem, 13vw, 4.5rem)', textShadow: '0 2px 30px rgba(0,0,0,0.8)' }}
+            className="font-display leading-[0.9]"
+            style={{
+              fontSize: 'clamp(2.8rem, 13vw, 4.5rem)',
+              background: 'linear-gradient(135deg, #BF5FFF 0%, #FF2D78 50%, #FFE600 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+              filter: 'drop-shadow(0 0 20px rgba(191,95,255,0.5)) drop-shadow(0 0 40px rgba(255,45,120,0.3))',
+            }}
           >
             Get Tickets
           </h1>
-          <p className="text-sm font-medium mt-2 leading-snug" style={{ color: '#BF5FFF', textShadow: '0 0 20px rgba(191,95,255,0.6), 0 1px 12px rgba(0,0,0,0.9)' }}>
-            Purchase fan-listed tickets to any event, anywhere — anytime before the show starts.
-          </p>
+          <div className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-full"
+            style={{ background: 'rgba(191,95,255,0.15)', border: '1px solid rgba(191,95,255,0.35)', boxShadow: '0 0 12px rgba(191,95,255,0.2)' }}>
+            <span className="text-[11px] font-medium leading-snug" style={{ color: '#BF5FFF' }}>
+              Purchase fan-listed tickets to any event, anywhere — anytime before the show starts.
+            </span>
+          </div>
         </div>
       </div>
 
