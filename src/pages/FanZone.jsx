@@ -4,7 +4,7 @@ export default function FanZone() {
       {/* Hero */}
       <div className="relative h-56 overflow-hidden">
         <img
-          src="https://images.unsplash.com/photo-1487215078519-e21cc028cb29?w=900&q=80"
+          src="https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=900&q=80"
           alt="Fan Zone"
           className="w-full h-full object-cover object-top"
         />
@@ -23,14 +23,15 @@ export default function FanZone() {
         <div className="absolute bottom-5 left-4 right-4">
           <h1 className="font-display mb-3"
             style={{
-              fontSize: 'clamp(3rem, 12vw, 4.5rem)',
+              fontSize: 'clamp(3.4rem, 13vw, 5rem)',
+              fontWeight: 900,
               letterSpacing: '-0.02em',
               lineHeight: 1.1,
-              background: 'linear-gradient(135deg, #FF2D78 0%, #00C8FF 100%)',
+              background: 'linear-gradient(135deg, #FF4D96 0%, #00E5FF 100%)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               backgroundClip: 'text',
-              filter: 'drop-shadow(0 0 30px rgba(0,255,135,0.4)), drop-shadow(0 6px 24px rgba(0,0,0,0.6))'
+              filter: 'drop-shadow(0 0 40px rgba(0,229,255,0.6)), drop-shadow(0 8px 32px rgba(0,0,0,0.7))'
             }}>
             Fan Zone
           </h1>
