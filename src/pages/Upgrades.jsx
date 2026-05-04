@@ -48,7 +48,7 @@ export default function Upgrades() {
           style={{ fontSize: 'clamp(2.8rem, 13vw, 4.5rem)', textShadow: '0 2px 30px rgba(0,0,0,0.8)' }}>
             Upgrades
           </h1>
-          <p className="text-sm mt-1 hidden" style={{ color: '#00FF87' }}>Better seats, live at the venue</p>
+          
         </div>
       </div>
 
