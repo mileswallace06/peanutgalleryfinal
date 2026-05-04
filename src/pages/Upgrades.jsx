@@ -27,7 +27,7 @@ export default function Upgrades() {
   return (
     <div className="pb-32">
       {/* Hero */}
-      <div className="relative h-52 overflow-hidden">
+      <div className="relative h-56 overflow-hidden">
         <img
           src="https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=900&q=80"
           alt="Upgrades"
@@ -38,17 +38,24 @@ export default function Upgrades() {
 
         <div className="absolute top-5 left-4">
           <span className="text-[10px] font-black tracking-[0.2em] px-3 py-1 rounded-full flex items-center gap-1.5"
-          style={{ background: 'rgba(0,0,0,0.5)', color: '#00FF87', border: '1px solid #00FF8755', backdropFilter: 'blur(12px)' }}>
+          style={{ background: 'rgba(0,200,255,0.15)', color: '#00C8FF', border: '1px solid rgba(0,200,255,0.3)' }}>
             ⚡ PEANUT GALLERY
           </span>
         </div>
 
-        <div className="absolute bottom-5 left-4">
-          <h1 className="font-display text-white leading-[0.9]"
-          style={{ fontSize: 'clamp(2.8rem, 13vw, 4.5rem)', textShadow: '0 2px 30px rgba(0,0,0,0.8)' }}>
+        <div className="absolute bottom-5 left-4 right-4">
+          <h1 className="font-display leading-[0.9] mb-2"
+          style={{ 
+            fontSize: 'clamp(2.8rem, 13vw, 4.5rem)', 
+            background: 'linear-gradient(135deg, #00FF87 0%, #00C8FF 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
+            textShadow: 'none',
+            filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.5))'
+          }}>
             Upgrades
           </h1>
-          
         </div>
       </div>
 
