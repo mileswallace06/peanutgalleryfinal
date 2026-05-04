@@ -132,7 +132,7 @@ export default function Events() {
           </h1>
           <div className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-full"
             style={{ background: 'rgba(191,95,255,0.13)', border: '1px solid rgba(191,95,255,0.7)', boxShadow: '0 0 14px rgba(191,95,255,0.4)' }}>
-            <span className="text-[11px] font-bold leading-snug" style={{ color: '#BF5FFF' }}>
+            <span className="text-[11px] font-black leading-snug" style={{ color: '#D47FFF', textShadow: '0 0 8px rgba(191,95,255,0.7)' }}>
               Purchase fan-listed tickets to any event, anywhere — anytime before the show starts.
             </span>
           </div>
