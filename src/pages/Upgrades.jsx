@@ -44,10 +44,11 @@ export default function Upgrades() {
         </div>
 
         <div className="absolute bottom-5 left-4 right-4">
-          <h1 className="font-display leading-[0.9] mb-3"
+          <h1 className="font-display mb-3"
           style={{
             fontSize: 'clamp(3.2rem, 15vw, 5.2rem)',
             letterSpacing: '-0.02em',
+            lineHeight: 1.1,
             background: 'linear-gradient(135deg, #00FF87 0%, #00C8FF 60%, #BF5FFF 100%)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
