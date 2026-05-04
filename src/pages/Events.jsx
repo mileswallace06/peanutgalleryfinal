@@ -123,6 +123,9 @@ export default function Events() {
           >
             Get Tickets
           </h1>
+          <p className="text-white/75 text-sm font-medium mt-2 leading-snug" style={{ textShadow: '0 1px 8px rgba(0,0,0,0.8)' }}>
+            Buy tickets to any event, anywhere — right up until it starts.
+          </p>
         </div>
       </div>
 
