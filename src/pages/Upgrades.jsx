@@ -44,8 +44,15 @@ export default function Upgrades() {
 
       {/* Title */}
       <div className="px-4 pt-4 pb-2">
-        <h1 className="font-display text-white leading-[0.9]"
-        style={{ fontSize: 'clamp(2.8rem, 13vw, 4.5rem)', textShadow: '0 2px 30px rgba(0,0,0,0.8)' }}>
+        <h1 className="font-display leading-[0.9]"
+        style={{
+          fontSize: 'clamp(2.8rem, 13vw, 4.5rem)',
+          background: 'linear-gradient(135deg, #00FF87 0%, #00C8FF 50%, #BF5FFF 100%)',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          backgroundClip: 'text',
+          filter: 'drop-shadow(0 0 20px rgba(0,255,135,0.5)) drop-shadow(0 0 40px rgba(0,200,255,0.3))',
+        }}>
           Upgrades
         </h1>
       </div>
