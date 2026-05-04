@@ -42,24 +42,26 @@ export default function Upgrades() {
         </div>
       </div>
 
-      {/* Title + subtext — outside overflow container so never clipped */}
+      {/* Title */}
       <div className="px-4 pt-4 pb-2">
         <h1 className="font-display text-white leading-[0.9]"
         style={{ fontSize: 'clamp(2.8rem, 13vw, 4.5rem)', textShadow: '0 2px 30px rgba(0,0,0,0.8)' }}>
           Upgrades
         </h1>
-        <p className="text-sm font-medium mt-2 leading-snug" style={{ color: '#00C8FF', textShadow: '0 0 20px rgba(0,200,255,0.6), 0 1px 12px rgba(0,0,0,0.9)' }}>
-          Already at the show? Upgrade to better seats from fans around you — verified by your location, in real time.
-        </p>
       </div>
 
-      {/* Info banner */}
+      {/* Info banner with subtext inside */}
       <div className="mx-4 mt-3 rounded-2xl px-4 py-3 flex items-start gap-3"
       style={{ background: 'rgba(0,255,135,0.13)', border: '1px solid rgba(0,255,135,0.45)', boxShadow: '0 0 18px rgba(0,255,135,0.15), inset 0 0 12px rgba(0,255,135,0.06)' }}>
         <Zap className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: '#00FF87', filter: 'drop-shadow(0 0 5px #00FF87aa)' }} />
-        <p className="text-xs leading-relaxed" style={{ color: 'rgba(255,255,255,0.85)' }}>
-          <span className="font-bold" style={{ color: '#00FF87' }}>Location-locked upgrades</span> — only fans physically at the venue can buy. No scalpers, ever.
-        </p>
+        <div>
+          <p className="text-sm font-medium leading-snug" style={{ color: '#00FF87' }}>
+            Already at the show? Upgrade to better seats from fans around you — verified by your location, in real time.
+          </p>
+          <p className="text-xs mt-1 leading-relaxed" style={{ color: 'rgba(255,255,255,0.75)' }}>
+            <span className="font-bold" style={{ color: '#00FF87' }}>Location-locked</span> — only fans physically at the venue can buy. No scalpers, ever.
+          </p>
+        </div>
       </div>
 
       {/* Event list */}
