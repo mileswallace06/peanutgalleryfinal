@@ -23,14 +23,14 @@ export default function FanZone() {
         <div className="absolute bottom-5 left-4 right-4">
           <h1 className="font-display mb-3"
             style={{
-              fontSize: 'clamp(3.2rem, 15vw, 5.2rem)',
+              fontSize: 'clamp(4rem, 18vw, 6rem)',
               letterSpacing: '-0.02em',
               lineHeight: 1.1,
-              background: 'linear-gradient(135deg, #FF00FF 0%, #00C8FF 100%)',
+              background: 'linear-gradient(135deg, #FFE600 0%, #00FF87 100%)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               backgroundClip: 'text',
-              filter: 'drop-shadow(0 0 30px rgba(255,0,255,0.5)), drop-shadow(0 6px 24px rgba(0,0,0,0.6))'
+              filter: 'drop-shadow(0 0 30px rgba(0,255,135,0.4)), drop-shadow(0 6px 24px rgba(0,0,0,0.6))'
             }}>
             Fan Zone
           </h1>
