@@ -112,6 +112,11 @@ export default function Events() {
           className="absolute inset-0"
           style={{ background: 'linear-gradient(to bottom, rgba(5,3,12,0.45) 0%, rgba(5,3,12,0.2) 40%, rgba(5,3,12,0.92) 100%)' }}
         />
+        {/* Extra text-area darkening */}
+        <div
+          className="absolute bottom-0 left-0 right-0 h-36"
+          style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.65), transparent)' }}
+        />
 
 
 
@@ -120,19 +125,20 @@ export default function Events() {
           <h1
             className="font-display leading-[0.9]"
             style={{
-              fontSize: 'clamp(2.8rem, 13vw, 4.5rem)',
+              fontSize: 'clamp(3.2rem, 15vw, 5.2rem)',
+              letterSpacing: '-0.02em',
               background: 'linear-gradient(135deg, #BF5FFF 0%, #FF2D78 55%, #FFE600 100%)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               backgroundClip: 'text',
-              filter: 'drop-shadow(0 0 8px rgba(191,95,255,0.6)) drop-shadow(0 2px 6px rgba(0,0,0,0.95))',
+              filter: 'drop-shadow(0 0 8px rgba(191,95,255,0.6)) drop-shadow(0 6px 24px rgba(0,0,0,0.6))',
             }}
           >
             Get Tickets
           </h1>
           <div className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-full"
-            style={{ background: 'rgba(191,95,255,0.13)', border: '1px solid rgba(191,95,255,0.7)', boxShadow: '0 0 14px rgba(191,95,255,0.4)' }}>
-            <span className="text-[11px] font-black leading-snug" style={{ color: '#D47FFF', textShadow: '0 0 8px rgba(191,95,255,0.7)' }}>
+            style={{ background: 'rgba(191,95,255,0.35)', border: '1px solid rgba(191,95,255,0.7)', boxShadow: '0 0 20px rgba(191,95,255,0.25)' }}>
+            <span className="text-[11px] font-black leading-snug" style={{ color: '#f0d8ff' }}>
               Purchase fan-listed tickets to any event, anywhere — anytime before the show starts.
             </span>
           </div>
