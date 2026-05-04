@@ -47,7 +47,7 @@ export default function Upgrades() {
         </div>
 
         {/* Headline + info pill — same structure as Tickets */}
-        <div className="absolute bottom-5 left-4 right-4">
+        <div className="absolute bottom-12 left-4 right-4">
           <h1 className="font-display leading-[0.9]"
           style={{
             fontSize: 'clamp(3.2rem, 15vw, 5.2rem)',
