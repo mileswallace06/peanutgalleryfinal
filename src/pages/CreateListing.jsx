@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
+import { useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, CheckCircle, Upload, DollarSign, MapPin } from 'lucide-react';
 
 const STEPS = ['Event', 'Seats', 'Price & Proof'];
@@ -26,7 +27,10 @@ function StepIndicator({ current }) {
 }
 
 export default function CreateListing() {
-  const [step, setStep] = useState(0);
+  const [searchParams] = useSearchParams();
+  const preselectedEventId = searchParams.get('event_id');
+
+  const [step, setStep] = useState(preselectedEventId ? 1 : 0);
   const [events, setEvents] = useState([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -35,7 +39,7 @@ export default function CreateListing() {
   const [uploadingProof, setUploadingProof] = useState(false);
 
   const [form, setForm] = useState({
-    event_id: '',
+    event_id: preselectedEventId || '',
     section: '',
     row: '',
     seats: '',

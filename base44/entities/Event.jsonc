@@ -59,6 +59,14 @@
     "geo_radius_meters": {
       "type": "number",
       "default": 500
+    },
+    "tm_id": {
+      "type": "string",
+      "description": "Ticketmaster event ID for externally sourced events"
+    },
+    "tm_url": {
+      "type": "string",
+      "description": "Ticketmaster event URL for externally sourced events"
     }
   },
   "required": [

@@ -1,33 +1,69 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { MapPin, Calendar, ArrowLeft, Ticket, ExternalLink } from 'lucide-react';
+import { MapPin, Calendar, ArrowLeft, Ticket, ExternalLink, Plus } from 'lucide-react';
 import ListingCard from '@/components/events/ListingCard';
 import PurchaseDialog from '@/components/events/PurchaseDialog';
 
 export default function EventDetailTM() {
   const { tmId } = useParams();
-  const [event, setEvent] = useState(null);
+  const navigate = useNavigate();
+  const [event, setEvent] = useState(null); // TM event data
+  const [localEventId, setLocalEventId] = useState(null); // local DB Event.id if it exists
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedListing, setSelectedListing] = useState(null);
+  const [creatingEvent, setCreatingEvent] = useState(false);
 
   useEffect(() => {
-    // Fetch TM events and find the matching one by tm_id
-    base44.functions.invoke('getTicketmasterEvents', { size: 100 })
-      .then(res => {
-        const tmEvents = res?.data?.events || [];
-        const found = tmEvents.find(e => e.tm_id === tmId);
-        if (found) {
-          setEvent(found);
-          // Check if we have a local PG event that maps to this TM event
-          // For now, listings remain empty since TM events aren't in local DB
-        }
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    Promise.all([
+      base44.functions.invoke('getTicketmasterEvents', { size: 100 }),
+      base44.entities.Event.filter({ tm_id: tmId }),
+    ]).then(([tmRes, localEvents]) => {
+      const tmEvents = tmRes?.data?.events || [];
+      const found = tmEvents.find(e => e.tm_id === tmId);
+      if (found) setEvent(found);
+
+      // Check if a local event already exists for this tm_id
+      if (localEvents.length > 0) {
+        const localEv = localEvents[0];
+        setLocalEventId(localEv.id);
+        // Load listings for this local event
+        return base44.entities.Listing.filter({ event_id: localEv.id, status: 'active', proof_status: 'approved' });
+      }
+      return [];
+    }).then(rawListings => {
+      const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
+      const real = rawListings.filter(l => !l.notes?.startsWith('[DEMO]'));
+      setListings(real.length > 0 ? real : rawListings);
+      if (!adminUnlocked) setListings(rl => rl); // no time filter needed for pre-event tickets
+    }).catch(console.error).finally(() => setLoading(false));
   }, [tmId]);
+
+  // Upsert a local Event record from TM data, then navigate to CreateListing
+  const handleListTickets = async () => {
+    setCreatingEvent(true);
+    let eventId = localEventId;
+    if (!eventId) {
+      // Create a local Event record from TM data
+      const created = await base44.entities.Event.create({
+        title: event.title,
+        venue: event.venue,
+        city: event.city,
+        state: event.state,
+        date: event.date,
+        image_url: event.image_url,
+        tm_id: event.tm_id,
+        tm_url: event.tm_url,
+        status: 'upcoming',
+      });
+      eventId = created.id;
+      setLocalEventId(eventId);
+    }
+    setCreatingEvent(false);
+    navigate(`/create-listing?event_id=${eventId}`);
+  };
 
   if (loading) {
     return (
@@ -109,13 +145,27 @@ export default function EventDetailTM() {
       {/* ── Content ── */}
       <div className="px-4 pt-8">
 
-        <div className="mb-6">
-          <h2 className="font-display text-2xl text-foreground flex items-center gap-2">
-            <Ticket className="w-5 h-5 text-primary" />
-            Fan Tickets
-            <span className="font-sans text-base font-normal text-muted-foreground">({listings.length})</span>
-          </h2>
-          <p className="text-sm text-muted-foreground mt-1">Buy tickets from other fans at this event</p>
+        <div className="mb-6 flex items-start justify-between gap-3">
+          <div>
+            <h2 className="font-display text-2xl text-foreground flex items-center gap-2">
+              <Ticket className="w-5 h-5 text-primary" />
+              Fan Tickets
+              <span className="font-sans text-base font-normal text-muted-foreground">({listings.length})</span>
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">Buy tickets from other fans at this event</p>
+          </div>
+          <button
+            onClick={handleListTickets}
+            disabled={creatingEvent}
+            className="flex-shrink-0 flex items-center gap-1.5 font-bold text-xs px-3 py-2 rounded-xl"
+            style={{ background: 'rgba(191,95,255,0.15)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.3)' }}
+          >
+            {creatingEvent
+              ? <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              : <Plus className="w-3.5 h-3.5" />
+            }
+            List tickets
+          </button>
         </div>
 
         {listings.length === 0 ? (
@@ -125,13 +175,18 @@ export default function EventDetailTM() {
             <p className="text-sm text-muted-foreground mt-1 max-w-[240px] mx-auto leading-relaxed">
               Be the first to list your seats for this event.
             </p>
-            <Link
-              to="/create-listing"
+            <button
+              onClick={handleListTickets}
+              disabled={creatingEvent}
               className="mt-4 inline-flex items-center gap-1.5 font-bold text-sm px-5 py-2.5 rounded-full"
               style={{ background: 'rgba(191,95,255,0.15)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.3)' }}
             >
-              🥜 List your seats
-            </Link>
+              {creatingEvent
+                ? <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                : '🥜'
+              }
+              List your seats
+            </button>
 
             {event.tm_url && (
               <div className="mt-5">
