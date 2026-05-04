@@ -7,6 +7,9 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const keyword = body.keyword || '';
     const size = body.size || 20;
+    const latlong = body.latlong || ''; // e.g. "33.4484,-112.0740"
+    const radius = body.radius || '50'; // miles
+    const city = body.city || ''; // city name or zip
 
     const apiKey = Deno.env.get('Ticketmaster_consumer_key');
     if (!apiKey) {
@@ -25,6 +28,13 @@ Deno.serve(async (req) => {
     });
 
     if (keyword) params.set('keyword', keyword);
+    if (latlong) {
+      params.set('latlong', latlong);
+      params.set('radius', String(radius));
+      params.set('unit', 'miles');
+    } else if (city) {
+      params.set('city', city);
+    }
 
     const url = `https://app.ticketmaster.com/discovery/v2/events.json?${params}`;
     const res = await fetch(url);

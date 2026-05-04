@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { MapPin, Calendar, Search, ChevronRight } from 'lucide-react';
+import { MapPin, Calendar, Search, ChevronRight, LocateFixed, X } from 'lucide-react';
 
 export default function Events() {
   const [events, setEvents] = useState([]);
@@ -10,30 +10,81 @@ export default function Events() {
   const [search, setSearch] = useState('');
   const [showSearch, setShowSearch] = useState(false);
 
-  useEffect(() => {
+  // Location state
+  const [locationLabel, setLocationLabel] = useState('');
+  const [latlong, setLatlong] = useState('');
+  const [locationInput, setLocationInput] = useState('');
+  const [editingLocation, setEditingLocation] = useState(false);
+  const [detectingLocation, setDetectingLocation] = useState(false);
+  const locationInputRef = useRef(null);
+
+  const fetchEvents = (ll, cityOverride) => {
+    setLoading(true);
     const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
     const now = Date.now();
+    const tmParams = { size: 40 };
+    if (ll) { tmParams.latlong = ll; tmParams.radius = '50'; }
+    else if (cityOverride) { tmParams.city = cityOverride; }
 
     Promise.all([
       base44.entities.Event.list('date', 50),
-      base44.functions.invoke('getTicketmasterEvents', { size: 40 }),
+      base44.functions.invoke('getTicketmasterEvents', tmParams),
     ]).then(([localData, tmRes]) => {
-      // Local PG events (pre-event only unless admin)
       const eligible = localData.filter(e => e.status !== 'ended');
       const pgEvents = adminUnlocked
         ? eligible
         : eligible.filter(e => !e.date || now < new Date(e.date).getTime());
-      // Mark PG events as source
       const pgMapped = pgEvents.map(e => ({ ...e, source: 'pg' }));
-
-      // Ticketmaster events
       const tmEvents = (tmRes?.data?.events || []).map(e => ({ ...e, id: `tm_${e.tm_id}` }));
-
-      // Merge: PG events first, then TM events not already represented by a PG event
-      // De-dupe by title+date similarity is complex; just concat for now
       setEvents([...pgMapped, ...tmEvents]);
     }).catch(console.error).finally(() => setLoading(false));
+  };
+
+  // Auto-detect on mount
+  useEffect(() => {
+    setDetectingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const ll = `${pos.coords.latitude},${pos.coords.longitude}`;
+        setLatlong(ll);
+        setLocationLabel('Near me');
+        setDetectingLocation(false);
+        fetchEvents(ll, null);
+      },
+      () => {
+        // Permission denied or unavailable — load without location
+        setDetectingLocation(false);
+        fetchEvents(null, null);
+      },
+      { timeout: 6000 }
+    );
   }, []);
+
+  const handleLocationSubmit = (e) => {
+    e.preventDefault();
+    const val = locationInput.trim();
+    if (!val) return;
+    setLatlong('');
+    setLocationLabel(val);
+    setEditingLocation(false);
+    fetchEvents(null, val);
+  };
+
+  const handleDetectAgain = () => {
+    setDetectingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const ll = `${pos.coords.latitude},${pos.coords.longitude}`;
+        setLatlong(ll);
+        setLocationLabel('Near me');
+        setDetectingLocation(false);
+        setEditingLocation(false);
+        fetchEvents(ll, null);
+      },
+      () => setDetectingLocation(false),
+      { timeout: 6000 }
+    );
+  };
 
   const filtered = events.filter(e => {
     if (!search) return true;
@@ -75,38 +126,74 @@ export default function Events() {
         </div>
       </div>
 
-      {/* ── Search / Recommended toggle ── */}
-      <div className="px-4 mt-5 mb-4">
-        {showSearch ? (
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <input
-              autoFocus
-              type="text"
-              placeholder="Search events, venues, cities..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-3.5 rounded-2xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
-              style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)' }}
-            />
-          </div>
+      {/* ── Location bar ── */}
+      <div className="px-4 mt-4 mb-2">
+        {editingLocation ? (
+          <form onSubmit={handleLocationSubmit} className="flex gap-2">
+            <div className="relative flex-1">
+              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input
+                ref={locationInputRef}
+                autoFocus
+                type="text"
+                placeholder="City or zip code…"
+                value={locationInput}
+                onChange={e => setLocationInput(e.target.value)}
+                className="w-full pl-9 pr-3 py-2.5 rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.14)' }}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={handleDetectAgain}
+              title="Use my location"
+              className="flex items-center justify-center w-10 h-10 rounded-xl flex-shrink-0"
+              style={{ background: 'rgba(0,200,255,0.12)', border: '1px solid rgba(0,200,255,0.25)', color: '#00C8FF' }}
+            >
+              <LocateFixed className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditingLocation(false)}
+              className="flex items-center justify-center w-10 h-10 rounded-xl flex-shrink-0"
+              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)' }}
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <button type="submit" className="px-4 py-2.5 rounded-xl font-bold text-sm flex-shrink-0"
+              style={{ background: 'rgba(0,200,255,0.15)', color: '#00C8FF', border: '1px solid rgba(0,200,255,0.3)' }}>
+              Go
+            </button>
+          </form>
         ) : (
-          <div className="flex gap-2">
-            <button
-              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-sm"
-              style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', border: '1px solid rgba(255,255,255,0.15)' }}
-            >
-              📍 Recommended
-            </button>
-            <button
-              onClick={() => setShowSearch(true)}
-              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-sm"
-              style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.08)' }}
-            >
-              <Search className="w-4 h-4" /> Search
-            </button>
-          </div>
+          <button
+            onClick={() => { setLocationInput(locationLabel === 'Near me' ? '' : locationLabel); setEditingLocation(true); }}
+            className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-xl"
+            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', color: 'rgba(255,255,255,0.7)' }}
+          >
+            {detectingLocation
+              ? <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              : <MapPin className="w-3.5 h-3.5" style={{ color: '#00C8FF' }} />
+            }
+            <span>{detectingLocation ? 'Detecting location…' : locationLabel || 'Set location'}</span>
+            <span className="text-[10px] text-muted-foreground ml-1">· change</span>
+          </button>
         )}
+      </div>
+
+      {/* ── Search bar ── */}
+      <div className="px-4 mt-2 mb-4">
+        <div className="relative">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Search events, venues, cities..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full pl-10 pr-4 py-3 rounded-2xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}
+          />
+        </div>
       </div>
 
       {/* ── Event count ── */}
