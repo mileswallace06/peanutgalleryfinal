@@ -4,7 +4,7 @@ export default function FanZone() {
       {/* Hero */}
       <div className="relative h-56 overflow-hidden">
         <img
-          src="https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=900&q=80"
+          src="https://images.unsplash.com/photo-1487215078519-e21cc028cb29?w=900&q=80"
           alt="Fan Zone"
           className="w-full h-full object-cover object-top"
         />
