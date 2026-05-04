@@ -118,10 +118,14 @@ export default function Events() {
         {/* Headline */}
         <div className="absolute bottom-5 left-4 right-4">
           <h1
-            className="font-display leading-[0.9] text-white"
+            className="font-display leading-[0.9]"
             style={{
               fontSize: 'clamp(2.8rem, 13vw, 4.5rem)',
-              textShadow: '0 0 15px #BF5FFF, 0 0 30px #BF5FFF, 0 0 60px #FF2D78, 0 0 90px #FF2D7855, 0 2px 8px rgba(0,0,0,0.9)',
+              background: 'linear-gradient(135deg, #BF5FFF 0%, #FF2D78 55%, #FFE600 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+              filter: 'drop-shadow(0 0 8px rgba(191,95,255,0.6)) drop-shadow(0 2px 6px rgba(0,0,0,0.95))',
             }}
           >
             Get Tickets
