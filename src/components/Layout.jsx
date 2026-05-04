@@ -5,10 +5,10 @@ import { MapPin, Zap, Tag, Flame, User } from 'lucide-react';
 import Onboarding from '@/components/Onboarding';
 
 const NAV = [
-{ to: '/events', label: 'Tickets', icon: MapPin, color: '#00C8FF' },
+{ to: '/events', label: 'Tickets', icon: MapPin, color: '#BF5FFF' },
 { to: '/upgrades', label: 'Upgrades', icon: Zap, color: '#00FF87' },
 { to: '/sell', label: 'Sell', icon: Tag, color: '#FF2D78' },
-{ to: '/fan-zone', label: 'Fan Zone', icon: Flame, color: '#FFE600' },
+{ to: '/fan-zone', label: 'Fan Zone', icon: Flame, color: '#FF2D78' },
 { to: '/me', label: 'Me', icon: User, color: '#BF5FFF' }];
 
 
