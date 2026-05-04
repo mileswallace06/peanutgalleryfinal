@@ -26,38 +26,39 @@ export default function Upgrades() {
 
   return (
     <div className="pb-32">
-      {/* Hero */}
-      <div className="relative h-52 overflow-hidden">
+      {/* Hero image */}
+      <div className="relative h-40 overflow-hidden">
         <img
           src="https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=900&q=80"
           alt="Upgrades"
           className="w-full h-full object-cover object-top" />
-        
         <div className="absolute inset-0"
-        style={{ background: 'linear-gradient(to bottom, rgba(5,3,12,0.4) 0%, rgba(5,3,12,0.2) 40%, rgba(5,3,12,0.95) 100%)' }} />
-
+        style={{ background: 'linear-gradient(to bottom, rgba(5,3,12,0.4) 0%, rgba(5,3,12,0.2) 40%, rgba(5,3,12,0.9) 100%)' }} />
         <div className="absolute top-5 left-4">
           <span className="text-[10px] font-black tracking-[0.2em] px-3 py-1 rounded-full flex items-center gap-1.5"
           style={{ background: 'rgba(0,0,0,0.5)', color: '#00FF87', border: '1px solid #00FF8755', backdropFilter: 'blur(12px)' }}>
             ⚡ PEANUT GALLERY
           </span>
         </div>
+      </div>
 
-        <div className="absolute bottom-5 left-4">
-          <h1 className="font-display text-white leading-[0.9]"
-          style={{ fontSize: 'clamp(2.8rem, 13vw, 4.5rem)', textShadow: '0 2px 30px rgba(0,0,0,0.8)' }}>
-            Upgrades
-          </h1>
-          
-        </div>
+      {/* Title + subtext — outside overflow container so never clipped */}
+      <div className="px-4 pt-4 pb-2">
+        <h1 className="font-display text-white leading-[0.9]"
+        style={{ fontSize: 'clamp(2.8rem, 13vw, 4.5rem)', textShadow: '0 2px 30px rgba(0,0,0,0.8)' }}>
+          Upgrades
+        </h1>
+        <p className="text-sm font-medium mt-2 leading-snug" style={{ color: '#00FF87', textShadow: '0 0 20px rgba(0,255,135,0.6), 0 1px 12px rgba(0,0,0,0.9)' }}>
+          Already at the show? Upgrade to better seats from fans around you — verified by your location, in real time.
+        </p>
       </div>
 
       {/* Info banner */}
-      <div className="mx-4 mt-5 rounded-2xl px-4 py-3 flex items-start gap-3"
-      style={{ background: 'rgba(0,255,135,0.06)', border: '1px solid rgba(0,255,135,0.2)' }}>
-        <Zap className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: '#00FF87' }} />
-        <p className="text-xs text-muted-foreground leading-relaxed">
-          <span className="font-bold text-foreground">Location-locked upgrades</span> — only fans physically at the venue can buy. No scalpers, ever.
+      <div className="mx-4 mt-3 rounded-2xl px-4 py-3 flex items-start gap-3"
+      style={{ background: 'rgba(0,255,135,0.13)', border: '1px solid rgba(0,255,135,0.45)', boxShadow: '0 0 18px rgba(0,255,135,0.15), inset 0 0 12px rgba(0,255,135,0.06)' }}>
+        <Zap className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: '#00FF87', filter: 'drop-shadow(0 0 5px #00FF87aa)' }} />
+        <p className="text-xs leading-relaxed" style={{ color: 'rgba(255,255,255,0.85)' }}>
+          <span className="font-bold" style={{ color: '#00FF87' }}>Location-locked upgrades</span> — only fans physically at the venue can buy. No scalpers, ever.
         </p>
       </div>
 
