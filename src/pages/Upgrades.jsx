@@ -55,10 +55,10 @@ export default function Upgrades() {
       style={{ background: 'rgba(0,255,135,0.13)', border: '1px solid rgba(0,255,135,0.45)', boxShadow: '0 0 18px rgba(0,255,135,0.15), inset 0 0 12px rgba(0,255,135,0.06)' }}>
         <Zap className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: '#00FF87', filter: 'drop-shadow(0 0 5px #00FF87aa)' }} />
         <div>
-          <p className="text-sm font-medium leading-snug" style={{ color: '#00FF87' }}>
+          <p className="text-xs font-medium leading-snug" style={{ color: '#00FF87' }}>
             Already at the show? Upgrade to better seats from fans around you — verified by your location, in real time.
           </p>
-          <p className="text-xs mt-1 leading-relaxed" style={{ color: 'rgba(255,255,255,0.75)' }}>
+          <p className="text-[11px] mt-1 leading-relaxed" style={{ color: 'rgba(255,255,255,0.75)' }}>
             <span className="font-bold" style={{ color: '#00FF87' }}>Location-locked</span> — only fans physically at the venue can buy. No scalpers, ever.
           </p>
         </div>
