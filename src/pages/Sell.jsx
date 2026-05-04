@@ -86,7 +86,7 @@ export default function Sell() {
             style={{ background: 'rgba(255,45,120,0.15)', border: '1px solid rgba(255,45,120,0.35)' }}>
             <Tag className="w-3 h-3 flex-shrink-0" style={{ color: '#FF2D78' }} />
             <span className="text-[11px] font-medium leading-snug" style={{ color: 'rgba(255,215,235,0.9)' }}>
-              List your seats and start earning instantly — keep 100% during beta. More than any traditional marketplace.
+              List your seats instantly. Sellers keep 95% — the highest rate in the industry.
             </span>
           </div>
         </div>
