@@ -39,7 +39,7 @@ export default function Upgrades() {
         <div className="absolute top-5 left-4">
           <span className="text-[10px] font-black tracking-[0.2em] px-3 py-1 rounded-full flex items-center gap-1.5"
           style={{ background: 'rgba(0,0,0,0.5)', color: '#00FF87', border: '1px solid #00FF8755', backdropFilter: 'blur(12px)' }}>
-            ⚡ PEANUT GALLERY
+            ⚡ THE PEANUT GALLERY
           </span>
         </div>
 
