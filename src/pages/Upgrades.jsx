@@ -27,38 +27,50 @@ export default function Upgrades() {
   return (
     <div className="pb-32">
       {/* Hero image */}
-      <div className="relative h-40 overflow-hidden">
+      <div className="relative h-56 overflow-hidden">
         <img
           src="https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=900&q=80"
           alt="Upgrades"
           className="w-full h-full object-cover object-top" />
+        {/* Same overlay as Tickets page */}
         <div className="absolute inset-0"
-        style={{ background: 'linear-gradient(to bottom, rgba(5,3,12,0.55) 0%, rgba(5,3,12,0.35) 40%, rgba(5,3,12,0.95) 100%)' }} />
+        style={{ background: 'linear-gradient(to bottom, rgba(5,3,12,0.45) 0%, rgba(5,3,12,0.2) 40%, rgba(5,3,12,0.92) 100%)' }} />
+        <div className="absolute bottom-0 left-0 right-0 h-36"
+        style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.65), transparent)' }} />
+
+        {/* Pill */}
         <div className="absolute top-5 left-4">
           <span className="text-[10px] font-black tracking-[0.2em] px-3 py-1 rounded-full flex items-center gap-1.5"
           style={{ background: 'rgba(0,0,0,0.5)', color: '#00CC6A', border: '1px solid rgba(0,255,135,0.3)', backdropFilter: 'blur(12px)' }}>
             ⚡ PEANUT GALLERY
           </span>
         </div>
-      </div>
 
-      {/* Title */}
-      <div className="px-4 pt-4 pb-2">
-        <h1 className="font-display leading-[0.9]"
-        style={{
-          fontSize: 'clamp(2.8rem, 13vw, 4.5rem)',
-          background: 'linear-gradient(135deg, #00FF87 0%, #00C8FF 50%, #BF5FFF 100%)',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-          backgroundClip: 'text',
-        }}>
-          Upgrades
-        </h1>
+        {/* Headline — same position/size/treatment as Tickets */}
+        <div className="absolute bottom-5 left-4 right-4">
+          <h1 className="font-display leading-[0.9]"
+          style={{
+            fontSize: 'clamp(3.2rem, 15vw, 5.2rem)',
+            letterSpacing: '-0.02em',
+            background: 'linear-gradient(135deg, #00FF87 0%, #00C8FF 60%, #BF5FFF 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
+            WebkitTextStroke: '0.5px rgba(255,255,255,0.3)',
+            filter: 'drop-shadow(0 6px 24px rgba(0,0,0,0.6))',
+          }}>
+            Upgrades
+          </h1>
+        </div>
       </div>
 
       {/* Info banner with subtext inside */}
-      <div className="mx-4 mt-3 rounded-2xl px-4 py-3 flex items-start gap-3"
-      style={{ background: 'rgba(0,20,10,0.75)', border: '1px solid rgba(0,255,135,0.3)', boxShadow: '0 10px 30px rgba(0,0,0,0.4)' }}>
+      <div className="mx-4 mt-4 rounded-2xl px-4 py-3.5 flex items-start gap-3"
+      style={{
+        background: 'linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)',
+        border: '1px solid rgba(0,255,135,0.2)',
+        boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
+      }}>
         <Zap className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: '#00FF87' }} />
         <div>
           <p className="text-xs font-medium leading-snug" style={{ color: '#00FF87' }}>
@@ -71,7 +83,7 @@ export default function Upgrades() {
       </div>
 
       {/* Event list */}
-      <div className="px-4 mt-5">
+      <div className="px-4 mt-4">
         <p className="text-xs text-muted-foreground font-medium mb-3">
           {loading ? 'Loading...' : `${events.length} event${events.length !== 1 ? 's' : ''} with upgrades`}
         </p>
@@ -98,7 +110,7 @@ export default function Upgrades() {
             style={{
               background: 'linear-gradient(135deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.03) 100%)',
               border: event.status === 'live' ? '1px solid rgba(0,255,135,0.25)' : '1px solid rgba(255,255,255,0.09)',
-              boxShadow: event.status === 'live' ? '0 0 20px rgba(0,255,135,0.08)' : 'none'
+              boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
             }}>
             
                 {/* Thumbnail */}

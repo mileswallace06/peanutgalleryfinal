@@ -132,14 +132,14 @@ export default function Events() {
               WebkitTextFillColor: 'transparent',
               backgroundClip: 'text',
               WebkitTextStroke: '0.5px rgba(255,255,255,0.3)',
-              filter: 'drop-shadow(0 0 8px rgba(191,95,255,0.6)) drop-shadow(0 6px 24px rgba(0,0,0,0.6))',
+              filter: 'drop-shadow(0 6px 24px rgba(0,0,0,0.6))',
             }}
           >
             Get Tickets
           </h1>
           <div className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-full"
-            style={{ background: 'rgba(191,95,255,0.35)', border: '1px solid rgba(191,95,255,0.7)', boxShadow: '0 0 20px rgba(191,95,255,0.25)' }}>
-            <span className="text-[11px] font-black leading-snug" style={{ color: '#f0d8ff' }}>
+            style={{ background: 'rgba(191,95,255,0.25)', border: '1px solid rgba(191,95,255,0.4)' }}>
+            <span className="text-[11px] font-medium leading-snug" style={{ color: 'rgba(240,216,255,0.9)' }}>
               Purchase fan-listed tickets to any event, anywhere — anytime before the show starts.
             </span>
           </div>
