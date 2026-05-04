@@ -120,6 +120,13 @@ export default function Events() {
 
 
 
+        <div className="absolute top-5 left-4">
+          <span className="text-[10px] font-black tracking-[0.2em] px-3 py-1 rounded-full flex items-center gap-1.5"
+          style={{ background: 'rgba(0,0,0,0.5)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.4)', backdropFilter: 'blur(12px)' }}>
+            🎫 TICKETS
+          </span>
+        </div>
+
         {/* Headline */}
         <div className="absolute bottom-5 left-4 right-4">
           <h1
