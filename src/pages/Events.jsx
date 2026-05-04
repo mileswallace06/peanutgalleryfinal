@@ -125,7 +125,7 @@ export default function Events() {
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               backgroundClip: 'text',
-              WebkitTextStroke: '3px rgba(255,255,255,0.6)',
+              WebkitTextStroke: '1.5px rgba(255,255,255,0.45)',
               filter: 'drop-shadow(0 0 24px rgba(191,95,255,0.7)) drop-shadow(0 2px 4px rgba(0,0,0,0.9))',
             }}
           >
