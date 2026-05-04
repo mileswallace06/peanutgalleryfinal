@@ -46,7 +46,7 @@ export default function Upgrades() {
           </span>
         </div>
 
-        {/* Headline — same position/size/treatment as Tickets */}
+        {/* Headline + info pill — same structure as Tickets */}
         <div className="absolute bottom-5 left-4 right-4">
           <h1 className="font-display leading-[0.9]"
           style={{
@@ -61,24 +61,14 @@ export default function Upgrades() {
           }}>
             Upgrades
           </h1>
-        </div>
-      </div>
-
-      {/* Info banner with subtext inside */}
-      <div className="mx-4 mt-4 rounded-2xl px-4 py-3.5 flex items-start gap-3"
-      style={{
-        background: 'linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)',
-        border: '1px solid rgba(0,255,135,0.2)',
-        boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
-      }}>
-        <Zap className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: '#00FF87' }} />
-        <div>
-          <p className="text-xs font-medium leading-snug" style={{ color: '#00FF87' }}>
-            Already at the show? Upgrade to better seats from fans around you — verified by your location, in real time.
-          </p>
-          <p className="text-[11px] mt-1 leading-relaxed" style={{ color: 'rgba(255,255,255,0.8)' }}>
-            <span className="font-bold" style={{ color: '#00FF87' }}>Location-locked</span> — only fans physically at the venue can buy. No scalpers, ever.
-          </p>
+          {/* Info pill — exact same structure as Tickets subtext pill, green accent */}
+          <div className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-full"
+            style={{ background: 'rgba(0,255,135,0.15)', border: '1px solid rgba(0,255,135,0.35)' }}>
+            <Zap className="w-3 h-3 flex-shrink-0" style={{ color: '#00FF87' }} />
+            <span className="text-[11px] font-medium leading-snug" style={{ color: 'rgba(210,255,235,0.9)' }}>
+              Already at the show? Upgrade seats from fans around you — location-verified.
+            </span>
+          </div>
         </div>
       </div>
 
