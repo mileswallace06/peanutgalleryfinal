@@ -43,13 +43,20 @@ export default function Upgrades() {
           </span>
         </div>
 
-        <div className="absolute bottom-5 left-4">
-          <h1 className="font-display text-white leading-[0.9]"
-          style={{ fontSize: 'clamp(2.8rem, 13vw, 4.5rem)', textShadow: '0 2px 30px rgba(0,0,0,0.8)' }}>
+        <div className="absolute bottom-5 left-4 right-4">
+          <h1 className="font-display leading-[0.9] mb-3"
+          style={{
+            fontSize: 'clamp(3.2rem, 15vw, 5.2rem)',
+            letterSpacing: '-0.02em',
+            background: 'linear-gradient(135deg, #00FF87 0%, #00C8FF 60%, #BF5FFF 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
+            filter: 'drop-shadow(0 6px 24px rgba(0,0,0,0.6))'
+          }}>
             Upgrades
           </h1>
-          {/* Info pill — exact same structure as Tickets subtext pill, green accent */}
-          <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full"
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full"
             style={{ background: 'rgba(0,255,135,0.15)', border: '1px solid rgba(0,255,135,0.35)' }}>
             <Zap className="w-3 h-3 flex-shrink-0" style={{ color: '#00FF87' }} />
             <span className="text-[11px] font-medium leading-snug" style={{ color: 'rgba(210,255,235,0.9)' }}>
