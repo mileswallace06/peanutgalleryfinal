@@ -15,7 +15,7 @@ export default function FanZone() {
 
         <div className="absolute top-5 left-4">
           <span className="text-[10px] font-black tracking-[0.2em] px-3 py-1 rounded-full inline-block"
-            style={{ background: 'rgba(0,0,0,0.5)', color: '#FFE600', border: '1px solid #FFE60055', backdropFilter: 'blur(12px)' }}>
+            style={{ background: 'rgba(0,0,0,0.5)', color: '#00C8FF', border: '1px solid #00C8FF55', backdropFilter: 'blur(12px)' }}>
             🎤 FAN ZONE
           </span>
         </div>
@@ -35,8 +35,8 @@ export default function FanZone() {
             Fan Zone
           </h1>
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full"
-            style={{ background: 'rgba(255,230,0,0.15)', border: '1px solid rgba(255,230,0,0.35)' }}>
-            <span className="text-[11px] font-medium leading-snug" style={{ color: 'rgba(255,250,210,0.9)' }}>
+            style={{ background: 'rgba(0,200,255,0.15)', border: '1px solid rgba(0,200,255,0.35)' }}>
+            <span className="text-[11px] font-medium leading-snug" style={{ color: 'rgba(200,235,255,0.9)' }}>
               Share concert moments and connect with fans in your section.
             </span>
           </div>
