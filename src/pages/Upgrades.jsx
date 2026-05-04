@@ -54,10 +54,10 @@ export default function Upgrades() {
 
       {/* Info banner */}
       <div className="mx-4 mt-5 rounded-2xl px-4 py-3 flex items-start gap-3"
-      style={{ background: 'rgba(0,255,135,0.06)', border: '1px solid rgba(0,255,135,0.2)' }}>
-        <Zap className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: '#00FF87' }} />
-        <p className="text-xs text-muted-foreground leading-relaxed">
-          <span className="font-bold text-foreground">Location-locked upgrades</span> — only fans physically at the venue can buy. No scalpers, ever.
+      style={{ background: 'rgba(0,255,135,0.13)', border: '1px solid rgba(0,255,135,0.45)', boxShadow: '0 0 18px rgba(0,255,135,0.15), inset 0 0 12px rgba(0,255,135,0.06)' }}>
+        <Zap className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: '#00FF87', filter: 'drop-shadow(0 0 5px #00FF87aa)' }} />
+        <p className="text-xs leading-relaxed" style={{ color: 'rgba(255,255,255,0.85)' }}>
+          <span className="font-bold" style={{ color: '#00FF87' }}>Location-locked upgrades</span> — only fans physically at the venue can buy. No scalpers, ever.
         </p>
       </div>
 
