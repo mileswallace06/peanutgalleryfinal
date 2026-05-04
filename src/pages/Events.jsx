@@ -124,7 +124,7 @@ export default function Events() {
             Get Tickets
           </h1>
           <p className="text-sm font-medium mt-2 leading-snug" style={{ color: '#BF5FFF', textShadow: '0 1px 12px rgba(0,0,0,0.9)' }}>
-            Fan-to-fan tickets for any event, any city — buy or sell right up until the doors open.
+            Purchase fan-listed tickets to any event, anywhere — anytime before the show starts.
           </p>
         </div>
       </div>
