@@ -48,9 +48,7 @@ export default function Upgrades() {
           style={{ fontSize: 'clamp(2.8rem, 13vw, 4.5rem)', textShadow: '0 2px 30px rgba(0,0,0,0.8)' }}>
             Upgrades
           </h1>
-          <p className="text-sm font-medium mt-2 leading-snug right-4 pr-4" style={{ color: '#00FF87', textShadow: '0 0 20px rgba(0,255,135,0.6), 0 1px 12px rgba(0,0,0,0.9)' }}>
-            Already at the show? Upgrade to better seats from fans around you — verified by your location, in real time.
-          </p>
+          
         </div>
       </div>
 
