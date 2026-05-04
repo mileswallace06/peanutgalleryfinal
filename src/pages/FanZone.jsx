@@ -26,11 +26,11 @@ export default function FanZone() {
               fontSize: 'clamp(3.2rem, 15vw, 5.2rem)',
               letterSpacing: '-0.02em',
               lineHeight: 1.1,
-              background: 'linear-gradient(135deg, #FFE600 0%, #FF2D78 50%, #BF5FFF 100%)',
+              background: 'linear-gradient(135deg, #FF00FF 0%, #00C8FF 100%)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               backgroundClip: 'text',
-              filter: 'drop-shadow(0 6px 24px rgba(0,0,0,0.6))'
+              filter: 'drop-shadow(0 0 30px rgba(255,0,255,0.5)), drop-shadow(0 6px 24px rgba(0,0,0,0.6))'
             }}>
             Fan Zone
           </h1>
