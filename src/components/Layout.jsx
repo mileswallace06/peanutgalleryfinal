@@ -9,7 +9,7 @@ const NAV = [
 { to: '/upgrades', label: 'Upgrades', icon: Zap, color: '#00FF87' },
 { to: '/sell', label: 'Sell', icon: Tag, color: '#FF8C00' },
 { to: '/fan-zone', label: 'Fan Zone', icon: Flame, color: '#00C8FF' },
-{ to: '/me', label: 'Me', icon: User, color: '#BF5FFF' }];
+{ to: '/me', label: 'Me', icon: User, color: '#00C8FF' }];
 
 
 export default function Layout() {
