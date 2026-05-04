@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { MapPin, Calendar, Search, ChevronRight, ExternalLink } from 'lucide-react';
+import { MapPin, Calendar, Search, ChevronRight } from 'lucide-react';
 
 export default function Events() {
   const [events, setEvents] = useState([]);
@@ -219,10 +219,8 @@ function EventRow({ event }) {
       {/* View button */}
       <div className="flex items-center pr-3 pl-1">
         {isTM ? (
-          <a
-            href={event.tm_url}
-            target="_blank"
-            rel="noopener noreferrer"
+          <Link
+            to={`/events/tm/${event.tm_id}`}
             className="flex items-center gap-1 px-3 py-2 rounded-xl font-bold text-xs whitespace-nowrap"
             style={{
               background: 'rgba(0,200,255,0.15)',
@@ -230,8 +228,8 @@ function EventRow({ event }) {
               border: '1px solid rgba(0,200,255,0.25)',
             }}
           >
-            Buy <ExternalLink className="w-3 h-3" />
-          </a>
+            View <ChevronRight className="w-3.5 h-3.5" />
+          </Link>
         ) : (
           <Link
             to={`/events/${event.id}`}
