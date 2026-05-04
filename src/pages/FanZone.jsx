@@ -23,7 +23,7 @@ export default function FanZone() {
         <div className="absolute bottom-5 left-4 right-4">
           <h1 className="font-display mb-3"
             style={{
-              fontSize: 'clamp(4rem, 18vw, 6rem)',
+              fontSize: 'clamp(3rem, 12vw, 4.5rem)',
               letterSpacing: '-0.02em',
               lineHeight: 1.1,
               background: 'linear-gradient(135deg, #FFE600 0%, #00FF87 100%)',
