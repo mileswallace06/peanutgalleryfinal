@@ -124,7 +124,7 @@ export default function EventDetailUpgrade() {
         </div>
 
         <div className="mb-6">
-          <div className="flex items-center justify-between">
+          <div className="flex items-start justify-between">
             <div>
               <h2 className="font-display text-2xl text-foreground flex items-center gap-2">
                 <Zap className="w-5 h-5" style={{ color: '#00FF87' }} />
@@ -134,8 +134,9 @@ export default function EventDetailUpgrade() {
               <p className="text-sm text-muted-foreground mt-1">Move to better seats from fans already at the venue</p>
             </div>
             {adminUnlocked && (
-              <span className="text-xs bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full font-medium">
-                🔑 Admin
+              <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full opacity-50"
+                style={{ background: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                admin
               </span>
             )}
           </div>

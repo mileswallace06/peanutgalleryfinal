@@ -4,7 +4,7 @@ const TIER_STYLES = {
   floor: { color: '#FF2D78', bg: '#FF2D7815', label: 'Floor' },
   lower: { color: '#BF5FFF', bg: '#BF5FFF15', label: 'Lower Bowl' },
   mid:   { color: '#00C8FF', bg: '#00C8FF15', label: 'Mid Level' },
-  upper: { color: '#FFE600', bg: '#FFE60015', label: 'Upper Level' },
+  upper: { color: 'rgba(255,255,255,0.55)', bg: 'rgba(255,255,255,0.06)', label: 'Upper Level' },
 };
 
 // Deterministic signals based on listing id so they don't flicker
@@ -44,17 +44,17 @@ export default function ListingCard({ listing, onUpgrade, isCheapest, mode = 'up
       className="rounded-2xl overflow-hidden flex transition-transform active:scale-[0.98]"
       style={{
         background: 'linear-gradient(135deg, rgba(255,255,255,0.055) 0%, rgba(255,255,255,0.02) 100%)',
-        border: isCheapest ? '1px solid #00FF8730' : '1px solid rgba(255,255,255,0.08)',
+        border: isCheapest ? '1px solid rgba(0,255,135,0.2)' : '1px solid rgba(255,255,255,0.08)',
         boxShadow: isCheapest
-          ? '0 0 0 1px rgba(0,255,135,0.08), 0 8px 32px rgba(0,0,0,0.45)'
-          : '0 4px 24px rgba(0,0,0,0.35)',
+          ? '0 0 0 1px rgba(0,255,135,0.05), 0 6px 24px rgba(0,0,0,0.4)'
+          : '0 4px 20px rgba(0,0,0,0.3)',
         backdropFilter: 'blur(20px)',
       }}
     >
       {/* Left accent bar */}
       <div
         className="w-1 shrink-0 rounded-r-full my-3"
-        style={{ background: accentColor, boxShadow: isCheapest ? '0 0 8px #00FF8788' : 'none' }}
+        style={{ background: accentColor, boxShadow: isCheapest ? '0 0 6px #00FF8744' : 'none' }}
       />
 
       {/* Card body */}
@@ -76,18 +76,18 @@ export default function ListingCard({ listing, onUpgrade, isCheapest, mode = 'up
           )}
           {isDemo ? (
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-              style={{ background: '#FFE60012', color: '#FFE600', border: '1px solid #FFE60030' }}>
+              style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.45)', border: '1px solid rgba(255,255,255,0.1)' }}>
               🥜 Demo
             </span>
           ) : isVerified ? (
             <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full"
-              style={{ background: '#00FF8712', color: '#00FF87', border: '1px solid #00FF8730' }}>
+              style={{ background: '#00FF8710', color: '#00FF87', border: '1px solid #00FF8728' }}>
               <ShieldCheck className="w-2.5 h-2.5" /> Verified
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full"
-              style={{ background: '#FFE60012', color: '#FFE600', border: '1px solid #FFE60030' }}>
-              <Clock className="w-2.5 h-2.5" /> Pending
+            <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full"
+              style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.08)' }}>
+              Available
             </span>
           )}
           {demandLabel && (
@@ -118,7 +118,7 @@ export default function ListingCard({ listing, onUpgrade, isCheapest, mode = 'up
               style={{
                 fontSize: 'clamp(2.2rem, 9vw, 2.8rem)',
                 color: isCheapest ? '#00FF87' : '#fff',
-                filter: isCheapest ? 'drop-shadow(0 0 12px #00FF8766)' : 'none',
+                filter: isCheapest ? 'drop-shadow(0 0 8px #00FF8740)' : 'none',
               }}
             >
               ${listing.asking_price}
@@ -136,10 +136,11 @@ export default function ListingCard({ listing, onUpgrade, isCheapest, mode = 'up
         {/* CTA Button */}
         <button
           onClick={() => onUpgrade(listing)}
-          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-full font-black text-sm transition-all active:scale-95 neon-glow-green"
+          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-full font-black text-sm transition-all active:scale-95"
           style={{
-            background: 'linear-gradient(135deg, #00FF87, #00C8FF)',
+            background: 'linear-gradient(135deg, #00E87A, #00B8E8)',
             color: '#0D0B14',
+            boxShadow: '0 0 18px rgba(0,232,122,0.22), 0 4px 16px rgba(0,0,0,0.3)',
           }}
         >
           <ArrowUpRight className="w-4 h-4" />
