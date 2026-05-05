@@ -94,6 +94,15 @@ export default function Sell() {
 
       <div className="px-4 pt-6 space-y-6">
 
+        {/* Primary CTA */}
+        <Link
+          to="/create-listing"
+          className="flex items-center justify-center gap-2 w-full py-4 rounded-full font-black text-sm"
+          style={{ background: 'linear-gradient(135deg, #FF2D78, #BF5FFF)', color: '#fff', boxShadow: '0 0 20px rgba(191,95,255,0.25)' }}
+        >
+          <Plus className="w-4 h-4" /> List My Tickets
+        </Link>
+
         {/* Stats row */}
         <div className="grid grid-cols-3 gap-3">
           {[
