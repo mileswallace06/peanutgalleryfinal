@@ -34,7 +34,8 @@ export default function Events() {
       const pgEvents = adminUnlocked
         ? eligible
         : eligible.filter(e => !e.date || now < new Date(e.date).getTime());
-      const pgMapped = pgEvents.map(e => ({ ...e, source: 'pg' }));
+      // Exclude is_beta_live events from Tickets (they belong in Upgrades)
+      const pgMapped = pgEvents.filter(e => !e.is_beta_live).map(e => ({ ...e, source: 'pg' }));
       const tmEvents = (tmRes?.data?.events || []).map(e => ({ ...e, id: `tm_${e.tm_id}` }));
       setEvents([...pgMapped, ...tmEvents]);
     }).catch(console.error).finally(() => setLoading(false));

@@ -25,10 +25,11 @@ export default function EventDetailUpgrade() {
       const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
       const now = Date.now();
       const eventStarted = ev?.date ? now >= new Date(ev.date).getTime() : false;
-      // Upgrades tab shows POST-event listings only (unless admin bypass)
+      const isLiveMode = ev?.is_beta_live || eventStarted;
+      // Upgrades tab shows POST-event / beta-live listings only (unless admin bypass)
       const filtered = adminUnlocked
         ? rawListings
-        : rawListings.filter(() => eventStarted);
+        : rawListings.filter(() => isLiveMode);
       const real = filtered.filter(l => !l.notes?.startsWith('[DEMO]'));
       setListings(real.length > 0 ? real : filtered);
     }).catch(console.error).finally(() => setLoading(false));
@@ -58,6 +59,7 @@ export default function EventDetailUpgrade() {
   const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
   const isLive = event.status === 'live';
   const eventStarted = event.date ? Date.now() >= new Date(event.date).getTime() : false;
+  const isLiveMode = event.is_beta_live || eventStarted;
   const isDemoOnly = listings.length > 0 && listings.every(l => l.notes?.startsWith('[DEMO]'));
   const sorted = [...listings].sort((a, b) => a.asking_price - b.asking_price);
   const cheapest = sorted[0]?.asking_price;
@@ -150,7 +152,7 @@ export default function EventDetailUpgrade() {
         {listings.length === 0 ? (
           <div className="text-center py-16 glass-card rounded-2xl">
             <p className="text-4xl mb-3">⚡</p>
-          {!eventStarted && !adminUnlocked ? (
+          {!isLiveMode && !adminUnlocked ? (
             <>
               <p className="font-bold text-foreground">Event hasn't started yet</p>
               <p className="text-sm text-muted-foreground mt-1 max-w-[240px] mx-auto leading-relaxed">

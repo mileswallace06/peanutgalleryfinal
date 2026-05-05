@@ -14,10 +14,10 @@ export default function Upgrades() {
     base44.entities.Event.list('date', 50).
     then((data) => {
       const eligible = data.filter((e) => e.status !== 'ended');
-      // Upgrades tab = events that have already started
+      // Upgrades tab = events that are live: date passed OR is_beta_live flag
       setEvents(adminUnlocked ?
-      eligible :
-      eligible.filter((e) => e.date && now >= new Date(e.date).getTime())
+        eligible :
+        eligible.filter((e) => e.is_beta_live || (e.date && now >= new Date(e.date).getTime()))
       );
     }).
     catch(console.error).
