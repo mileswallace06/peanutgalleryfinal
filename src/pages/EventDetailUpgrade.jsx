@@ -177,7 +177,7 @@ export default function EventDetailUpgrade() {
               </span>
               <span className="text-[10px] text-muted-foreground flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block animate-pulse" />
-                Updated in real time
+                Updated recently
               </span>
             </div>
             {sorted.map(listing => (
