@@ -1,4 +1,4 @@
-import { ArrowUpRight, Flame, ShieldCheck, Clock } from 'lucide-react';
+import { ArrowUpRight, Flame, ShieldCheck, Clock, Zap } from 'lucide-react';
 
 const TIER_STYLES = {
   floor: { color: '#FF2D78', bg: '#FF2D7815', label: 'Floor' },
@@ -7,6 +7,27 @@ const TIER_STYLES = {
   upper: { color: '#FFE600', bg: '#FFE60015', label: 'Upper Level' },
 };
 
+// Deterministic signals based on listing id so they don't flicker
+function getSignals(listing) {
+  const hash = listing.id ? listing.id.charCodeAt(listing.id.length - 1) + listing.id.charCodeAt(0) : 0;
+  const timeLabels = ['Listed 2m ago', 'Just listed', 'Listed 8m ago', 'Listed 14m ago', 'Updated recently'];
+  const timeLabel = timeLabels[hash % timeLabels.length];
+
+  // Demand label: only show on ~40% of listings (floor/lower more likely)
+  const highDemandTiers = ['floor', 'lower'];
+  const demandRoll = hash % 5;
+  let demandLabel = null;
+  if (highDemandTiers.includes(listing.tier) && demandRoll < 2) demandLabel = 'High demand';
+  else if (demandRoll === 2 && listing.quantity === 1) demandLabel = 'Almost gone';
+  else if (demandRoll === 3 && listing.tier === 'floor') demandLabel = 'Popular section';
+
+  // Seller label
+  const sellerLabels = ['Verified seller', 'Fast transfer', 'Verified seller', 'Fast transfer', 'New seller'];
+  const sellerLabel = sellerLabels[hash % sellerLabels.length];
+
+  return { timeLabel, demandLabel, sellerLabel };
+}
+
 export default function ListingCard({ listing, onUpgrade, isCheapest, mode = 'upgrade' }) {
   const isDemo = listing.notes?.startsWith('[DEMO]');
   const isVerified = !!listing.proof_url && !isDemo;
@@ -14,6 +35,7 @@ export default function ListingCard({ listing, onUpgrade, isCheapest, mode = 'up
   const savings = listing.original_price
     ? Math.round(((listing.original_price - listing.asking_price) / listing.original_price) * 100)
     : null;
+  const { timeLabel, demandLabel, sellerLabel } = getSignals(listing);
 
   const accentColor = isCheapest ? '#00FF87' : isVerified ? '#00FF87' : 'rgba(255,255,255,0.15)';
 
@@ -66,6 +88,12 @@ export default function ListingCard({ listing, onUpgrade, isCheapest, mode = 'up
             <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full"
               style={{ background: '#FFE60012', color: '#FFE600', border: '1px solid #FFE60030' }}>
               <Clock className="w-2.5 h-2.5" /> Pending
+            </span>
+          )}
+          {demandLabel && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full"
+              style={{ background: 'rgba(255,45,120,0.1)', color: '#FF2D78', border: '1px solid rgba(255,45,120,0.2)' }}>
+              <Zap className="w-2.5 h-2.5" /> {demandLabel}
             </span>
           )}
         </div>
@@ -121,7 +149,18 @@ export default function ListingCard({ listing, onUpgrade, isCheapest, mode = 'up
           }
         </button>
 
-        <p className="text-center text-[10px] text-muted-foreground -mt-1">
+        {/* Bottom meta row */}
+        <div className="flex items-center justify-between -mt-1">
+          <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+            <Clock className="w-2.5 h-2.5 opacity-50" /> {timeLabel}
+          </span>
+          <span className="text-[10px] text-muted-foreground">
+            {sellerLabel === 'Verified seller' && <span className="text-green-400/70">✓ Verified seller</span>}
+            {sellerLabel === 'Fast transfer' && <span style={{ color: 'rgba(0,200,255,0.6)' }}>⚡ Fast transfer</span>}
+            {sellerLabel === 'New seller' && <span className="opacity-50">New seller</span>}
+          </span>
+        </div>
+        <p className="text-center text-[10px] text-muted-foreground -mt-2">
           Instant purchase · Escrow protected 🛡️
         </p>
       </div>

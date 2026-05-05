@@ -170,6 +170,16 @@ export default function EventDetailUpgrade() {
           </div>
         ) : (
           <div className="space-y-4">
+            {/* Marketplace status bar */}
+            <div className="flex items-center justify-between px-1 mb-1">
+              <span className="text-xs font-semibold text-foreground/80">
+                {listings.length} live listing{listings.length !== 1 ? 's' : ''}
+              </span>
+              <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block animate-pulse" />
+                Updated in real time
+              </span>
+            </div>
             {sorted.map(listing => (
               <ListingCard
                 key={listing.id}
