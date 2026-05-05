@@ -50,6 +50,11 @@
       ],
       "default": "upcoming"
     },
+    "is_beta_live": {
+      "type": "boolean",
+      "default": false,
+      "description": "Force-marks event as live for beta testing \u2014 listings appear in Upgrades tab regardless of date"
+    },
     "venue_lat": {
       "type": "number"
     },
