@@ -428,7 +428,7 @@ export default function PurchaseSuccess() {
   }
 
   const isBuyer = user?.email === purchase.buyer_email;
-  const isSeller = !isBuyer && (user?.email === purchase.seller_email || user?.role === 'admin');
+  const isSeller = !isBuyer && user?.email === purchase.seller_email;
   const isCompleted = purchase.transfer_status === 'completed';
   const isExpired = purchase.transfer_status === 'expired';
   const isDisputed = purchase.transfer_status === 'disputed';
