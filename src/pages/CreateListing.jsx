@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { useSearchParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, CheckCircle, Upload, Zap } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle, Upload, Zap, Search, Star } from 'lucide-react';
 
 const STEPS = ['Event', 'Seats', 'Price', 'Done'];
 
@@ -64,6 +64,13 @@ export default function CreateListing() {
   const [flagged, setFlagged] = useState(false);
   const [uploadingProof, setUploadingProof] = useState(false);
   const [user, setUser] = useState(null);
+  const [eventTab, setEventTab] = useState('recommended');
+  const [tmQuery, setTmQuery] = useState('');
+  const [tmResults, setTmResults] = useState([]);
+  const [tmLoading, setTmLoading] = useState(false);
+  const [tmSearched, setTmSearched] = useState(false);
+  // For TM events, store the selected event object (not just id)
+  const [selectedTmEvent, setSelectedTmEvent] = useState(null);
 
   const [form, setForm] = useState({
     event_id: preselectedEventId || '',
@@ -118,7 +125,38 @@ export default function CreateListing() {
     setDone(true);
   };
 
-  const selectedEvent = events.find(e => e.id === form.event_id);
+  const handleTmSearch = async () => {
+    if (!tmQuery.trim()) return;
+    setTmLoading(true);
+    setTmSearched(true);
+    const res = await base44.functions.invoke('getTicketmasterEvents', { keyword: tmQuery });
+    setTmResults(res.data.events || []);
+    setTmLoading(false);
+  };
+
+  const handleSelectTmEvent = async (tmEvent) => {
+    // Upsert the TM event into local DB
+    const existing = await base44.entities.Event.filter({ tm_id: tmEvent.id });
+    let localEvent;
+    if (existing.length > 0) {
+      localEvent = existing[0];
+    } else {
+      localEvent = await base44.entities.Event.create({
+        title: tmEvent.name,
+        venue: tmEvent.venue,
+        city: tmEvent.city,
+        date: tmEvent.date,
+        image_url: tmEvent.image_url,
+        tm_id: tmEvent.id,
+        tm_url: tmEvent.url,
+        status: 'upcoming',
+      });
+    }
+    setSelectedTmEvent(localEvent);
+    set('event_id', localEvent.id);
+  };
+
+  const selectedEvent = events.find(e => e.id === form.event_id) || selectedTmEvent;
 
   // ── Success screen ────────────────────────────────────────────────────────
   const isAdminUser = user?.role === 'admin';
@@ -159,6 +197,7 @@ export default function CreateListing() {
             onClick={() => {
               setDone(false); setStep(0);
               setForm({ event_id: '', section: '', row: '', seats: '', quantity: '1', tier: '', asking_price: '', original_price: '', transfer_method: 'email_transfer', proof_url: '' });
+              setSelectedTmEvent(null); setTmResults([]); setTmQuery(''); setTmSearched(false);
             }}
             className="inline-flex items-center justify-center gap-2 py-3 rounded-full font-semibold text-sm"
             style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)' }}
@@ -191,31 +230,121 @@ export default function CreateListing() {
 
       {/* ── Step 0: Pick Event ── */}
       {step === 0 && (
-        <div className="space-y-2">
-          <p className="text-xs text-muted-foreground font-medium mb-3">Which event?</p>
-          {loadingEvents ? (
-            <div className="h-14 rounded-2xl animate-pulse" style={{ background: 'rgba(255,255,255,0.05)' }} />
-          ) : events.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">No upcoming events found.</p>
-          ) : (
-            events.map(ev => (
-              <button
-                key={ev.id}
-                onClick={() => set('event_id', ev.id)}
-                className="w-full text-left px-4 py-3.5 rounded-2xl transition-all"
-                style={{
-                  background: form.event_id === ev.id ? 'rgba(191,95,255,0.12)' : 'rgba(255,255,255,0.04)',
-                  border: form.event_id === ev.id ? '1px solid rgba(191,95,255,0.4)' : '1px solid rgba(255,255,255,0.08)',
-                  boxShadow: form.event_id === ev.id ? '0 0 16px rgba(191,95,255,0.15)' : 'none',
-                }}
-              >
-                <div className="font-bold text-sm text-foreground">{ev.title}</div>
-                <div className="text-xs text-muted-foreground mt-0.5">
-                  {ev.venue}{ev.city ? `, ${ev.city}` : ''}
-                  {ev.date && <> · {new Date(ev.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</>}
+        <div className="space-y-3">
+          {/* Tabs */}
+          <div className="flex rounded-2xl p-1 gap-1" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <button
+              onClick={() => setEventTab('recommended')}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all"
+              style={{
+                background: eventTab === 'recommended' ? 'rgba(191,95,255,0.2)' : 'transparent',
+                color: eventTab === 'recommended' ? '#BF5FFF' : 'rgba(255,255,255,0.4)',
+                border: eventTab === 'recommended' ? '1px solid rgba(191,95,255,0.35)' : '1px solid transparent',
+              }}
+            >
+              <Star className="w-3 h-3" /> Recommended
+            </button>
+            <button
+              onClick={() => setEventTab('search')}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all"
+              style={{
+                background: eventTab === 'search' ? 'rgba(191,95,255,0.2)' : 'transparent',
+                color: eventTab === 'search' ? '#BF5FFF' : 'rgba(255,255,255,0.4)',
+                border: eventTab === 'search' ? '1px solid rgba(191,95,255,0.35)' : '1px solid transparent',
+              }}
+            >
+              <Search className="w-3 h-3" /> Search
+            </button>
+          </div>
+
+          {/* Recommended Tab */}
+          {eventTab === 'recommended' && (
+            <div className="space-y-2">
+              {loadingEvents ? (
+                <div className="h-14 rounded-2xl animate-pulse" style={{ background: 'rgba(255,255,255,0.05)' }} />
+              ) : events.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">No upcoming events found.</p>
+              ) : (
+                events.map(ev => (
+                  <button
+                    key={ev.id}
+                    onClick={() => { set('event_id', ev.id); setSelectedTmEvent(null); }}
+                    className="w-full text-left px-4 py-3.5 rounded-2xl transition-all"
+                    style={{
+                      background: form.event_id === ev.id ? 'rgba(191,95,255,0.12)' : 'rgba(255,255,255,0.04)',
+                      border: form.event_id === ev.id ? '1px solid rgba(191,95,255,0.4)' : '1px solid rgba(255,255,255,0.08)',
+                      boxShadow: form.event_id === ev.id ? '0 0 16px rgba(191,95,255,0.15)' : 'none',
+                    }}
+                  >
+                    <div className="font-bold text-sm text-foreground">{ev.title}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      {ev.venue}{ev.city ? `, ${ev.city}` : ''}
+                      {ev.date && <> · {new Date(ev.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</>}
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+
+          {/* Search Tab */}
+          {eventTab === 'search' && (
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <input
+                    type="text"
+                    value={tmQuery}
+                    onChange={e => setTmQuery(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleTmSearch()}
+                    placeholder="Artist, team, or event name…"
+                    className="w-full pl-9 pr-4 py-3 rounded-2xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }}
+                  />
                 </div>
-              </button>
-            ))
+                <button
+                  onClick={handleTmSearch}
+                  disabled={tmLoading || !tmQuery.trim()}
+                  className="px-4 py-3 rounded-2xl font-bold text-sm transition-all disabled:opacity-40"
+                  style={{ background: 'linear-gradient(135deg, #BF5FFF, #FF2D78)', color: '#fff' }}
+                >
+                  {tmLoading ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" /> : 'Go'}
+                </button>
+              </div>
+
+              {tmLoading && (
+                <div className="space-y-2">
+                  {[1,2,3].map(i => <div key={i} className="h-14 rounded-2xl animate-pulse" style={{ background: 'rgba(255,255,255,0.05)' }} />)}
+                </div>
+              )}
+
+              {!tmLoading && tmSearched && tmResults.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-6">No events found. Try a different search.</p>
+              )}
+
+              {!tmLoading && tmResults.map(ev => (
+                <button
+                  key={ev.id}
+                  onClick={() => handleSelectTmEvent(ev)}
+                  className="w-full text-left px-4 py-3.5 rounded-2xl transition-all flex items-center gap-3"
+                  style={{
+                    background: form.event_id && selectedTmEvent?.tm_id === ev.id ? 'rgba(191,95,255,0.12)' : 'rgba(255,255,255,0.04)',
+                    border: form.event_id && selectedTmEvent?.tm_id === ev.id ? '1px solid rgba(191,95,255,0.4)' : '1px solid rgba(255,255,255,0.08)',
+                    boxShadow: form.event_id && selectedTmEvent?.tm_id === ev.id ? '0 0 16px rgba(191,95,255,0.15)' : 'none',
+                  }}
+                >
+                  {ev.image_url && <img src={ev.image_url} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />}
+                  <div className="min-w-0">
+                    <div className="font-bold text-sm text-foreground truncate">{ev.name}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5 truncate">
+                      {ev.venue}{ev.city ? `, ${ev.city}` : ''}
+                      {ev.date && <> · {new Date(ev.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</>}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
           )}
         </div>
       )}
