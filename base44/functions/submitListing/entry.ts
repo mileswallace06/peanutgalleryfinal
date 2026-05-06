@@ -51,7 +51,13 @@ Deno.serve(async (req) => {
   const body = await req.json().catch(() => ({}));
   const askingPrice = parseFloat(body.asking_price) || 0;
 
-  const { flagged, reason } = await checkSuspicious(base44, user.email, askingPrice);
+  const isAdmin = user.role === 'admin';
+  const isTest = body.is_test === true;
+
+  // Admin/test listings skip the suspicious check and are auto-approved
+  const { flagged, reason } = isAdmin || isTest
+    ? { flagged: false, reason: null }
+    : await checkSuspicious(base44, user.email, askingPrice);
 
   const listing = await base44.entities.Listing.create({
     event_id: body.event_id,
@@ -68,6 +74,7 @@ Deno.serve(async (req) => {
     proof_status: flagged ? 'pending_review' : 'approved',
     proof_rejection_reason: flagged ? reason : undefined,
     status: 'active',
+    notes: (isAdmin || isTest) ? '[TEST] Admin/demo listing' : undefined,
   });
 
   return Response.json({ listing, flagged, flag_reason: reason });

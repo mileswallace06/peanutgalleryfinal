@@ -63,6 +63,7 @@ export default function CreateListing() {
   const [done, setDone] = useState(false);
   const [flagged, setFlagged] = useState(false);
   const [uploadingProof, setUploadingProof] = useState(false);
+  const [user, setUser] = useState(null);
 
   const [form, setForm] = useState({
     event_id: preselectedEventId || '',
@@ -78,6 +79,7 @@ export default function CreateListing() {
   });
 
   useEffect(() => {
+    base44.auth.me().then(setUser).catch(() => {});
     base44.entities.Event.filter({ status: 'upcoming' })
       .then(res => setEvents(res.filter(e => e.status !== 'ended')))
       .catch(console.error)
@@ -97,6 +99,7 @@ export default function CreateListing() {
 
   const handleSubmit = async () => {
     setSubmitting(true);
+    const isAdmin = user?.role === 'admin';
     const res = await base44.functions.invoke('submitListing', {
       event_id: form.event_id,
       section: form.section,
@@ -108,6 +111,7 @@ export default function CreateListing() {
       original_price: form.original_price ? parseFloat(form.original_price) : undefined,
       transfer_method: form.transfer_method,
       proof_url: form.proof_url || undefined,
+      is_test: isAdmin,
     });
     setFlagged(res.data.flagged);
     setSubmitting(false);
@@ -117,9 +121,17 @@ export default function CreateListing() {
   const selectedEvent = events.find(e => e.id === form.event_id);
 
   // ── Success screen ────────────────────────────────────────────────────────
+  const isAdminUser = user?.role === 'admin';
+
   if (done) {
     return (
       <div className="max-w-md mx-auto px-4 py-16 text-center">
+        {isAdminUser && (
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black mb-4"
+            style={{ background: 'rgba(255,200,80,0.12)', color: '#FFE600', border: '1px solid rgba(255,200,80,0.3)' }}>
+            🧪 Test Listing
+          </div>
+        )}
         <div
           className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-5"
           style={{ background: 'rgba(0,255,135,0.12)', border: '1px solid rgba(0,255,135,0.3)', boxShadow: '0 0 32px rgba(0,255,135,0.2)' }}
