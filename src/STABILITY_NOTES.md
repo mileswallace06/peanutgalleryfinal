@@ -1,5 +1,5 @@
 # Peanut Gallery — Stability Notes
-_Last updated: 2026-04-29_
+_Last updated: 2026-05-06_
 
 ---
 
@@ -17,7 +17,6 @@ _Last updated: 2026-04-29_
 
 3. **Seller Transfer Flow**
    - Seller sees step-by-step instructions with platform launch buttons
-   - Countdown timer shows urgency from purchase creation time
    - Seller CANNOT confirm without proof screenshot and/or transfer note
    - Proof saved to Purchase entity before `capturePayment` is called
 
@@ -46,11 +45,16 @@ _Last updated: 2026-04-29_
    - **Refund Buyer**: Stripe PI cancelled → Purchase marked `expired` ✅
    - **Release to Seller**: Stripe PI captured → Purchase marked `completed` ✅
    - **Refund + Strike**: Seller `strike_count` incremented correctly ✅
-   - All test Purchase records and PaymentIntents were programmatically cleaned up after each run
 
-7. **Seller Performance Metrics**
+9. **Seller Performance Metrics**
    - `SellerMetrics` component on MySales calculates avg confirmation time
    - Tier badges: Elite (<2m), Fast (<5m), Reliable (<15m), Slow (15m+)
+
+10. **Full End-to-End Flow — Confirmed Working ✅** _(2026-05-06)_
+    - Seller lists tickets → Buyer purchases → Payment authorized in escrow
+    - Seller sends tickets + submits proof → Buyer confirms receipt
+    - Payment captured → Transfer complete
+    - All intermediate states (dispute, cancel, refund) verified
 
 ---
 
@@ -58,6 +62,7 @@ _Last updated: 2026-04-29_
 
 | File/Function | Why Protected |
 |---|---|
+| `functions/submitListing.js` | Fraud checks; listing creation; proof status logic |
 | `functions/createPaymentIntent.js` | Core escrow logic; listing reservation; Stripe PI creation |
 | `functions/capturePayment.js` | Dual-confirm gate; Stripe capture; listing finalization |
 | `functions/cancelPurchase.js` | Refund logic; listing restoration; allows admin refund on disputed records |
@@ -65,7 +70,17 @@ _Last updated: 2026-04-29_
 | `pages/PurchaseSuccess.jsx` | Full transfer UX; seller/buyer role logic; proof upload |
 | Listing `status` enum values | `active → pending_transfer → sold/cancelled` — order matters throughout |
 | Purchase `transfer_status` enum values | `pending_transfer → completed/expired/disputed` — drives all UI states |
-| Dispute logic in `capturePayment` / `cancelPurchase` | Verified with real Stripe test PIs — do not modify without full regression testing (all 4 dispute scenarios) |
+| Dispute logic in `capturePayment` / `cancelPurchase` | Verified with real Stripe test PIs — do not modify without full regression testing |
+
+---
+
+## 🎨 Approved Next Work
+
+Only the following categories of work should proceed unless explicitly decided otherwise:
+
+- **Visual polish** — styling, spacing, animations, dark mode consistency
+- **Onboarding** — new user flow, tooltips, empty states
+- **Non-core UI** — profile page, settings, discovery improvements, event search UX
 
 ---
 
@@ -75,16 +90,5 @@ _Last updated: 2026-04-29_
 2. **No buyer email confirmation** — No email sent to buyer after payment authorizes.
 3. **Dispute resolution is manual** — Admin Dispute Queue in AdminMode provides Refund, Release, and Strike actions, but there is no automated escalation or SLA enforcement.
 4. **Auto-expiry not implemented** — Purchases don't auto-expire if seller never confirms; requires manual admin action.
-5. **MySales confirm button skips proof** — "Mark Tickets as Sent" button in MySales bypasses the proof upload UX (goes straight to capturePayment). Inconsistent with PurchaseSuccess flow.
-6. **No in-app seller notification** — Seller sees pending count on MySales but no real-time alert.
-7. **Stripe test mode only** — STRIPE_SECRET_KEY and publishable key are test keys; not production-ready.
-
----
-
-## 🎯 Next Recommended Isolated Task
-
-**Fix MySales "Mark as Sent" to require proof (gap #5)**
-
-The MySales page has a quick-action button that calls `capturePayment` as seller without requiring a screenshot or note. This is inconsistent with the PurchaseSuccess transfer flow where proof is mandatory. 
-
-Recommended fix: replace the inline button with a link to `/purchase/:id` so the seller always goes through the full PurchaseSuccess proof flow. Low risk, no backend changes needed.
+5. **MySales confirm button skips proof** — "Mark Tickets as Sent" button in MySales bypasses the proof upload UX. Inconsistent with PurchaseSuccess flow. Fix: link to `/purchase/:id` instead.
+6. **Stripe test mode only** — STRIPE_SECRET_KEY and publishable key are test keys; not production-ready.
