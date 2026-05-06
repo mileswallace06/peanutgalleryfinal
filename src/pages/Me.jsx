@@ -1,23 +1,45 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { Ticket, TrendingUp, Shield, LogIn, Edit2, Check, X, Tag, Zap, ChevronRight, LogOut } from 'lucide-react';
+import { Ticket, TrendingUp, Shield, LogIn, Edit2, Check, X, Tag, Zap, ChevronRight, LogOut, Camera, ImagePlus } from 'lucide-react';
 
 export default function Me() {
   const [user, setUser] = useState(null);
   const [editing, setEditing] = useState(false);
-  const [displayName, setDisplayName] = useState('');
   const [bio, setBio] = useState('');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [uploadingBanner, setUploadingBanner] = useState(false);
+  const avatarInputRef = useRef(null);
+  const bannerInputRef = useRef(null);
 
   useEffect(() => {
     base44.auth.me().then(u => {
       setUser(u);
-      setDisplayName(u?.full_name || '');
       setBio(u?.bio || '');
     }).catch(() => {});
   }, []);
+
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploadingAvatar(true);
+    const { file_url } = await base44.integrations.Core.UploadFile({ file });
+    await base44.auth.updateMe({ avatar_url: file_url });
+    setUser(u => ({ ...u, avatar_url: file_url }));
+    setUploadingAvatar(false);
+  };
+
+  const handleBannerUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploadingBanner(true);
+    const { file_url } = await base44.integrations.Core.UploadFile({ file });
+    await base44.auth.updateMe({ banner_url: file_url });
+    setUser(u => ({ ...u, banner_url: file_url }));
+    setUploadingBanner(false);
+  };
 
   const initials = user?.full_name
     ? user.full_name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
@@ -68,28 +90,60 @@ export default function Me() {
     <div className="rave-bg min-h-screen pb-32">
 
       {/* Hero banner */}
-      <div className="relative h-40 overflow-hidden">
+      <div className="relative h-40 overflow-hidden group/banner">
         <img
-          src="https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=900&q=80"
-          alt="concert"
+          src={user.banner_url || 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=900&q=80'}
+          alt="banner"
           className="w-full h-full object-cover object-center"
         />
         <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, rgba(5,3,12,0.3) 0%, rgba(5,3,12,0.85) 100%)' }} />
+        {/* Banner edit overlay */}
+        <button
+          onClick={() => bannerInputRef.current?.click()}
+          disabled={uploadingBanner}
+          className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/banner:opacity-100 transition-opacity"
+          style={{ background: 'rgba(0,0,0,0.4)' }}
+        >
+          {uploadingBanner
+            ? <span className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            : <div className="flex items-center gap-2 px-4 py-2 rounded-full font-bold text-sm text-white" style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', backdropFilter: 'blur(8px)' }}>
+                <ImagePlus className="w-4 h-4" /> Change Banner
+              </div>
+          }
+        </button>
+        <input ref={bannerInputRef} type="file" accept="image/*" className="hidden" onChange={handleBannerUpload} />
       </div>
 
       {/* Avatar floats over banner */}
       <div className="px-5 -mt-12 relative z-10">
         <div className="flex items-end justify-between mb-4">
           {/* Avatar */}
-          <div
-            className="w-24 h-24 rounded-full flex items-center justify-center font-display text-3xl text-white flex-shrink-0"
-            style={{
-              background: 'linear-gradient(135deg, #BF5FFF, #FF2D78)',
-              boxShadow: '0 0 32px rgba(191,95,255,0.5)',
-              border: '3px solid hsl(255 10% 5%)',
-            }}
-          >
-            {initials}
+          <div className="relative group/avatar flex-shrink-0">
+            <div
+              className="w-24 h-24 rounded-full flex items-center justify-center font-display text-3xl text-white overflow-hidden"
+              style={{
+                background: 'linear-gradient(135deg, #BF5FFF, #FF2D78)',
+                boxShadow: '0 0 32px rgba(191,95,255,0.5)',
+                border: '3px solid hsl(255 10% 5%)',
+              }}
+            >
+              {user.avatar_url
+                ? <img src={user.avatar_url} alt="avatar" className="w-full h-full object-cover" />
+                : initials
+              }
+            </div>
+            <button
+              onClick={() => avatarInputRef.current?.click()}
+              disabled={uploadingAvatar}
+              className="absolute inset-0 rounded-full flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity"
+              style={{ background: 'rgba(0,0,0,0.55)' }}
+            >
+              {uploadingAvatar
+                ? <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                : <Camera className="w-5 h-5 text-white" />
+              }
+            </button>
+            <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
           </div>
 
           {/* Edit / Save buttons */}
