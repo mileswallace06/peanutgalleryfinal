@@ -202,10 +202,10 @@ export default function PurchaseDialog({ event, listing, onClose, mode = 'ticket
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/50" onClick={handleClose} />
       <div className="relative bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md mx-auto flex flex-col"
-        style={{ maxHeight: '92dvh' }}>
+        style={{ maxHeight: 'calc(100dvh - 72px)' }}>
         {/* Sticky header */}
         <div className="flex-shrink-0 bg-white border-b border-border px-5 py-4 flex items-center justify-between rounded-t-2xl">
           <div>
