@@ -136,7 +136,7 @@ export default function CreateListing() {
 
   const handleSelectTmEvent = async (tmEvent) => {
     // Upsert the TM event into local DB
-    const existing = await base44.entities.Event.filter({ tm_id: tmEvent.id });
+    const existing = await base44.entities.Event.filter({ tm_id: tmEvent.tm_id });
     let localEvent;
     if (existing.length > 0) {
       localEvent = existing[0];
@@ -325,13 +325,13 @@ export default function CreateListing() {
 
               {!tmLoading && tmResults.map(ev => (
                 <button
-                  key={ev.id}
+                  key={ev.tm_id}
                   onClick={() => handleSelectTmEvent(ev)}
                   className="w-full text-left px-4 py-3.5 rounded-2xl transition-all flex items-center gap-3"
                   style={{
-                    background: form.event_id && selectedTmEvent?.tm_id === ev.id ? 'rgba(191,95,255,0.12)' : 'rgba(255,255,255,0.04)',
-                    border: form.event_id && selectedTmEvent?.tm_id === ev.id ? '1px solid rgba(191,95,255,0.4)' : '1px solid rgba(255,255,255,0.08)',
-                    boxShadow: form.event_id && selectedTmEvent?.tm_id === ev.id ? '0 0 16px rgba(191,95,255,0.15)' : 'none',
+                    background: form.event_id && selectedTmEvent?.tm_id === ev.tm_id ? 'rgba(191,95,255,0.12)' : 'rgba(255,255,255,0.04)',
+                    border: form.event_id && selectedTmEvent?.tm_id === ev.tm_id ? '1px solid rgba(191,95,255,0.4)' : '1px solid rgba(255,255,255,0.08)',
+                    boxShadow: form.event_id && selectedTmEvent?.tm_id === ev.tm_id ? '0 0 16px rgba(191,95,255,0.15)' : 'none',
                   }}
                 >
                   {ev.image_url && <img src={ev.image_url} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />}
