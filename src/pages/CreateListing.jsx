@@ -71,6 +71,7 @@ export default function CreateListing() {
   const [tmSearched, setTmSearched] = useState(false);
   // For TM events, store the selected event object (not just id)
   const [selectedTmEvent, setSelectedTmEvent] = useState(null);
+  const [selectingTmId, setSelectingTmId] = useState(null);
 
   const [form, setForm] = useState({
     event_id: preselectedEventId || '',
@@ -135,9 +136,9 @@ export default function CreateListing() {
   };
 
   const handleSelectTmEvent = async (tmEvent) => {
-    // Upsert the TM event into local DB
-    const existing = await base44.entities.Event.filter({ tm_id: tmEvent.tm_id });
+    setSelectingTmId(tmEvent.tm_id);
     let localEvent;
+    const existing = await base44.entities.Event.filter({ tm_id: tmEvent.tm_id });
     if (existing.length > 0) {
       localEvent = existing[0];
     } else {
@@ -154,6 +155,8 @@ export default function CreateListing() {
     }
     setSelectedTmEvent(localEvent);
     set('event_id', localEvent.id);
+    setSelectingTmId(null);
+    setStep(1);
   };
 
   const selectedEvent = events.find(e => e.id === form.event_id) || selectedTmEvent;
@@ -197,7 +200,7 @@ export default function CreateListing() {
             onClick={() => {
               setDone(false); setStep(0);
               setForm({ event_id: '', section: '', row: '', seats: '', quantity: '1', tier: '', asking_price: '', original_price: '', transfer_method: 'email_transfer', proof_url: '' });
-              setSelectedTmEvent(null); setTmResults([]); setTmQuery(''); setTmSearched(false);
+              setSelectedTmEvent(null); setTmResults([]); setTmQuery(''); setTmSearched(false); setSelectingTmId(null);
             }}
             className="inline-flex items-center justify-center gap-2 py-3 rounded-full font-semibold text-sm"
             style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)' }}
@@ -327,21 +330,25 @@ export default function CreateListing() {
                 <button
                   key={ev.tm_id}
                   onClick={() => handleSelectTmEvent(ev)}
-                  className="w-full text-left px-4 py-3.5 rounded-2xl transition-all flex items-center gap-3"
+                  disabled={!!selectingTmId}
+                  className="w-full text-left px-4 py-3.5 rounded-2xl transition-all flex items-center gap-3 disabled:opacity-60"
                   style={{
-                    background: form.event_id && selectedTmEvent?.tm_id === ev.tm_id ? 'rgba(191,95,255,0.12)' : 'rgba(255,255,255,0.04)',
-                    border: form.event_id && selectedTmEvent?.tm_id === ev.tm_id ? '1px solid rgba(191,95,255,0.4)' : '1px solid rgba(255,255,255,0.08)',
-                    boxShadow: form.event_id && selectedTmEvent?.tm_id === ev.tm_id ? '0 0 16px rgba(191,95,255,0.15)' : 'none',
+                    background: selectingTmId === ev.tm_id ? 'rgba(191,95,255,0.12)' : 'rgba(255,255,255,0.04)',
+                    border: selectingTmId === ev.tm_id ? '1px solid rgba(191,95,255,0.4)' : '1px solid rgba(255,255,255,0.08)',
+                    boxShadow: selectingTmId === ev.tm_id ? '0 0 16px rgba(191,95,255,0.15)' : 'none',
                   }}
                 >
                   {ev.image_url && <img src={ev.image_url} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />}
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="font-bold text-sm text-foreground truncate">{ev.title}</div>
                     <div className="text-xs text-muted-foreground mt-0.5 truncate">
                       {ev.venue}{ev.city ? `, ${ev.city}` : ''}
                       {ev.date && <> · {new Date(ev.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</>}
                     </div>
                   </div>
+                  {selectingTmId === ev.tm_id && (
+                    <span className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                  )}
                 </button>
               ))}
             </div>
