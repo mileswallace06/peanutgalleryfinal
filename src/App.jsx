@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import Layout from '@/components/Layout';
 import { Navigate } from 'react-router-dom';
+import Landing from '@/pages/Landing';
 import Events from '@/pages/Events';
 import EventDetail from '@/pages/EventDetail';
 import PurchaseSuccess from '@/pages/PurchaseSuccess';
@@ -24,27 +25,41 @@ import EventDetailTM from '@/pages/EventDetailTM';
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, checkAppState } = useAuth();
 
+  // Branded loading spinner
   if (isLoadingPublicSettings || isLoadingAuth) {
     return (
-      <div className="fixed inset-0 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-amber-200 border-t-amber-600 rounded-full animate-spin"></div>
+      <div className="fixed inset-0 flex flex-col items-center justify-center gap-4"
+        style={{ background: 'hsl(255 10% 5%)' }}>
+        <img
+          src="https://media.base44.com/images/public/69ef9900cf3862dc0ea39734/9022a5431_ChatGPTImageMay1202601_29_27PM.png"
+          alt="Peanut Gallery"
+          className="h-16 w-auto rounded-2xl mb-2"
+        />
+        <div className="w-8 h-8 border-4 rounded-full animate-spin"
+          style={{ borderColor: 'rgba(191,95,255,0.3)', borderTopColor: '#BF5FFF' }} />
       </div>
     );
   }
 
   if (authError) {
-      if (authError.type === 'user_not_registered') {
-        return <UserNotRegisteredError onRetry={checkAppState} />;
-      } else if (authError.type === 'auth_required') {
-      navigateToLogin();
-      return null;
+    if (authError.type === 'user_not_registered') {
+      return <UserNotRegisteredError onRetry={checkAppState} />;
+    } else if (authError.type === 'auth_required') {
+      // Not logged in — show the branded landing page instead of redirecting to Base44 login
+      return (
+        <Routes>
+          <Route path="/" element={<Landing />} />
+          <Route path="*" element={<Landing />} />
+        </Routes>
+      );
     }
   }
 
   return (
     <Routes>
+      {/* Authenticated root → straight to events */}
+      <Route path="/" element={<Navigate to="/events" replace />} />
       <Route element={<Layout />}>
-        <Route path="/" element={<Navigate to="/events" replace />} />
         <Route path="/events" element={<Events />} />
         <Route path="/events/:id" element={<EventDetail />} />
         <Route path="/purchase/:id" element={<PurchaseSuccess />} />
