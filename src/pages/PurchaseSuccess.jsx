@@ -25,7 +25,7 @@ function ProgressBar({ purchase }) {
               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all ${
                 i < step ? 'bg-green-500 border-green-500 text-white'
                 : i === step ? 'bg-primary border-primary text-white animate-pulse'
-                : 'bg-white border-border text-muted-foreground'
+                : 'border-border text-muted-foreground'
               }`}>
                 {i < step ? '✓' : i + 1}
               </div>
@@ -41,48 +41,7 @@ function ProgressBar({ purchase }) {
   );
 }
 
-// ── Countdown timer (5-minute urgency) ──────────────────────────────────────
-function CountdownTimer({ createdAt }) {
-  const URGENCY_SECONDS = 5 * 60;
-  const [remaining, setRemaining] = useState(URGENCY_SECONDS);
 
-  useEffect(() => {
-    const created = createdAt ? new Date(createdAt).getTime() : Date.now();
-    const tick = () => {
-      const elapsed = Math.floor((Date.now() - created) / 1000);
-      setRemaining(Math.max(0, URGENCY_SECONDS - elapsed));
-    };
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [createdAt]);
-
-  const mins = Math.floor(remaining / 60);
-  const secs = remaining % 60;
-  const isUrgent = remaining < 60;
-  const expired = remaining === 0;
-
-  return (
-    <div className={`rounded-xl px-4 py-3 flex items-center gap-3 mb-5 border ${
-      expired ? 'bg-red-50 border-red-200' : isUrgent ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'
-    }`}>
-      <Clock className={`w-5 h-5 flex-shrink-0 ${isUrgent || expired ? 'text-red-500' : 'text-amber-500'}`} />
-      <div>
-        <div className={`font-bold text-sm ${isUrgent || expired ? 'text-red-700' : 'text-amber-800'}`}>
-          {expired ? 'Transfer overdue — please act now!' : `Transfer now — buyer is waiting`}
-        </div>
-        <div className={`text-xs ${isUrgent || expired ? 'text-red-600' : 'text-amber-700'}`}>
-          {expired ? 'Your response time is being tracked.' : `${mins}:${String(secs).padStart(2, '0')} elapsed since purchase`}
-        </div>
-      </div>
-      {!expired && (
-        <div className={`ml-auto font-mono font-bold text-lg ${isUrgent ? 'text-red-600' : 'text-amber-700'}`}>
-          {mins}:{String(secs).padStart(2, '0')}
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ── Transfer platform buttons ────────────────────────────────────────────────
 const PLATFORMS = [
@@ -114,16 +73,16 @@ function SellerPanel({ purchase, onConfirm, actionLoading, error, setError }) {
 
   if (purchase.seller_confirmed) {
     return (
-      <div className="bg-green-50 border border-green-200 rounded-2xl p-5">
+      <div className="rounded-2xl p-5" style={{ background: 'rgba(0,255,135,0.08)', border: '1px solid rgba(0,255,135,0.25)' }}>
         <div className="flex items-center gap-3 mb-3">
-          <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0" />
+          <CheckCircle className="w-6 h-6 flex-shrink-0" style={{ color: '#00FF87' }} />
           <div>
-            <div className="font-bold text-green-800">Tickets Sent ✓</div>
-            <div className="text-sm text-green-700">Waiting for buyer to confirm receipt.</div>
+            <div className="font-bold text-foreground">Tickets Sent ✓</div>
+            <div className="text-sm text-muted-foreground">Waiting for buyer to confirm receipt.</div>
           </div>
         </div>
         {(purchase.transfer_notes || purchase.transfer_proof_url) && (
-          <div className="bg-white border border-green-200 rounded-xl p-3 text-sm space-y-2">
+          <div className="rounded-xl p-3 text-sm space-y-2" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
             <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Your Proof Submitted</div>
             {purchase.transfer_notes && <p className="text-foreground">{purchase.transfer_notes}</p>}
             {purchase.transfer_proof_url && (
@@ -138,20 +97,20 @@ function SellerPanel({ purchase, onConfirm, actionLoading, error, setError }) {
   }
 
   return (
-    <div className="bg-white border border-border rounded-2xl overflow-hidden">
+    <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}>
       {/* Header */}
-      <div className="bg-gradient-to-r from-primary/10 to-amber-50 border-b border-border px-5 py-4">
+      <div className="px-5 py-4" style={{ background: 'rgba(191,95,255,0.1)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
         <h2 className="font-bold text-lg text-foreground">Send Your Tickets Now</h2>
         <p className="text-sm text-muted-foreground mt-0.5">Transfer your tickets using your ticket app, then return here to confirm. You will be paid after the buyer confirms receipt.</p>
       </div>
 
       <div className="p-5 space-y-5">
         {/* Buyer info */}
-        <div className="bg-secondary rounded-xl p-4">
+        <div className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)' }}>
           <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Transfer To</div>
           <div className="space-y-1 text-sm">
             <div className="font-semibold text-foreground">{purchase.buyer_name || 'Buyer'}</div>
-            <div className="text-primary font-medium">{purchase.buyer_email}</div>
+            <div className="font-medium" style={{ color: '#BF5FFF' }}>{purchase.buyer_email}</div>
             {purchase.buyer_phone && <div className="text-muted-foreground">{purchase.buyer_phone}</div>}
           </div>
         </div>
@@ -161,7 +120,7 @@ function SellerPanel({ purchase, onConfirm, actionLoading, error, setError }) {
           <div className="flex items-start gap-3">
             <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">1</div>
             <div>
-              <div className="font-semibold text-sm">Open your ticket platform</div>
+              <div className="font-semibold text-sm text-foreground">Open your ticket platform</div>
               <div className="text-xs text-muted-foreground mb-2">Transfer tickets to the buyer's email above</div>
               <div className="flex flex-wrap gap-2">
                 {PLATFORMS.map(p => (
@@ -177,9 +136,10 @@ function SellerPanel({ purchase, onConfirm, actionLoading, error, setError }) {
           <div className="flex items-start gap-3">
             <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">2</div>
             <div className="flex-1">
-              <div className="font-semibold text-sm">Upload proof of transfer</div>
+              <div className="font-semibold text-sm text-foreground">Upload proof of transfer</div>
               <div className="text-xs text-muted-foreground mb-2">Screenshot of the transfer confirmation screen</div>
-              <label className="flex items-center gap-2 cursor-pointer border-2 border-dashed border-border rounded-xl px-4 py-3 hover:border-primary/40 hover:bg-primary/5 transition-all text-sm text-muted-foreground">
+              <label className="flex items-center gap-2 cursor-pointer rounded-xl px-4 py-3 transition-all text-sm text-muted-foreground"
+                style={{ border: '1.5px dashed rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.03)' }}>
                 <Upload className="w-4 h-4 flex-shrink-0 text-primary" />
                 {proofFile
                   ? <span className="text-foreground font-medium truncate">{proofFile.name}</span>
@@ -192,20 +152,21 @@ function SellerPanel({ purchase, onConfirm, actionLoading, error, setError }) {
           <div className="flex items-start gap-3">
             <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">3</div>
             <div className="flex-1">
-              <div className="font-semibold text-sm">Add a transfer note <span className="text-muted-foreground font-normal">(optional if screenshot provided)</span></div>
+              <div className="font-semibold text-sm text-foreground">Add a transfer note <span className="text-muted-foreground font-normal">(optional if screenshot provided)</span></div>
               <textarea
                 value={proofNote}
                 onChange={e => setProofNote(e.target.value)}
                 placeholder="e.g. Transferred via Ticketmaster to buyer's email at 7:32 PM"
                 rows={2}
-                className="mt-1.5 w-full px-3 py-2 text-sm rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
+                className="mt-1.5 w-full px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
+                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }}
               />
             </div>
           </div>
         </div>
 
         {error && (
-          <div className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
+          <div className="text-sm rounded-xl px-3 py-2" style={{ color: '#FF2D78', background: 'rgba(255,45,120,0.1)', border: '1px solid rgba(255,45,120,0.25)' }}>
             {error}
           </div>
         )}
@@ -213,12 +174,13 @@ function SellerPanel({ purchase, onConfirm, actionLoading, error, setError }) {
         <button
           onClick={handleConfirm}
           disabled={actionLoading}
-          className="w-full bg-primary text-primary-foreground py-3.5 rounded-xl font-bold text-sm hover:bg-primary/90 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+          className="w-full py-3.5 rounded-full font-black text-sm transition-all disabled:opacity-40 flex items-center justify-center gap-2"
+          style={{ background: 'linear-gradient(135deg, #00E87A, #00B8E8)', color: '#0D0B14' }}
         >
           {proofUploading ? (
-            <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Uploading proof…</>
+            <><span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> Uploading proof…</>
           ) : actionLoading ? (
-            <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Confirming…</>
+            <><span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> Confirming…</>
           ) : (
             <><CheckCircle className="w-4 h-4" /> I've Sent the Tickets</>
           )}
@@ -236,11 +198,11 @@ function SellerPanel({ purchase, onConfirm, actionLoading, error, setError }) {
 function BuyerPanel({ purchase, onConfirm, onDispute, onCancel, actionLoading }) {
   if (purchase.buyer_confirmed) {
     return (
-      <div className="bg-green-50 border border-green-200 rounded-2xl p-5 flex items-center gap-3">
-        <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0" />
+      <div className="flex items-center gap-3 rounded-2xl p-5" style={{ background: 'rgba(0,255,135,0.08)', border: '1px solid rgba(0,255,135,0.25)' }}>
+        <CheckCircle className="w-6 h-6 flex-shrink-0" style={{ color: '#00FF87' }} />
         <div>
-          <div className="font-bold text-green-800">You confirmed receipt ✓</div>
-          <div className="text-sm text-green-700">Payment has been released to the seller.</div>
+          <div className="font-bold text-foreground">You confirmed receipt ✓</div>
+          <div className="text-sm text-muted-foreground">Payment has been released to the seller.</div>
         </div>
       </div>
     );
@@ -248,15 +210,15 @@ function BuyerPanel({ purchase, onConfirm, onDispute, onCancel, actionLoading })
 
   if (!purchase.seller_confirmed) {
     return (
-      <div className="bg-white border border-border rounded-2xl p-5 space-y-4">
+      <div className="rounded-2xl p-5 space-y-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}>
         {/* Waiting banner */}
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
-          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-            <Clock className="w-4 h-4 text-blue-600 animate-pulse" />
+        <div className="rounded-xl p-4 flex items-start gap-3" style={{ background: 'rgba(0,200,255,0.08)', border: '1px solid rgba(0,200,255,0.2)' }}>
+          <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(0,200,255,0.15)' }}>
+            <Clock className="w-4 h-4 animate-pulse" style={{ color: '#00C8FF' }} />
           </div>
           <div>
-            <div className="font-bold text-blue-900 text-sm">Waiting for Seller to Transfer</div>
-            <div className="text-xs text-blue-700 mt-0.5">The seller has been notified and is processing your tickets.</div>
+            <div className="font-bold text-foreground text-sm">Waiting for Seller to Transfer</div>
+            <div className="text-xs text-muted-foreground mt-0.5">The seller has been notified and is processing your tickets.</div>
           </div>
         </div>
 
@@ -275,14 +237,15 @@ function BuyerPanel({ purchase, onConfirm, onDispute, onCancel, actionLoading })
           </div>
         </div>
 
-        <div className="bg-secondary rounded-xl p-3 text-xs text-muted-foreground text-center">
+        <div className="rounded-xl p-3 text-xs text-muted-foreground text-center" style={{ background: 'rgba(255,255,255,0.05)' }}>
           Check your email — the ticket transfer invite may arrive before this page updates.
         </div>
 
         <button
           onClick={onCancel}
           disabled={actionLoading}
-          className="w-full border border-border text-muted-foreground py-2.5 rounded-xl text-sm hover:bg-muted transition-colors disabled:opacity-60"
+          className="w-full py-2.5 rounded-xl text-sm text-muted-foreground transition-colors disabled:opacity-60"
+          style={{ border: '1px solid rgba(255,255,255,0.12)' }}
         >
           Cancel Purchase & Refund
         </button>
@@ -292,15 +255,15 @@ function BuyerPanel({ purchase, onConfirm, onDispute, onCancel, actionLoading })
 
   // Seller has confirmed — prompt buyer to verify
   return (
-    <div className="bg-white border border-border rounded-2xl p-5 space-y-4">
-      <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-        <div className="font-bold text-green-800 text-sm mb-1">🎟 Seller has sent your tickets!</div>
-        <div className="text-xs text-green-700">Check your email and the ticket platform for the transfer invite.</div>
+    <div className="rounded-2xl p-5 space-y-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}>
+      <div className="rounded-xl p-4" style={{ background: 'rgba(0,255,135,0.08)', border: '1px solid rgba(0,255,135,0.2)' }}>
+        <div className="font-bold text-foreground text-sm mb-1">🎟 Seller has sent your tickets!</div>
+        <div className="text-xs text-muted-foreground">Check your email and the ticket platform for the transfer invite.</div>
       </div>
 
       {/* Seller's proof */}
       {(purchase.transfer_notes || purchase.transfer_proof_url) && (
-        <div className="bg-secondary border border-border rounded-xl p-3 text-sm space-y-2">
+        <div className="rounded-xl p-3 text-sm space-y-2" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
           <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Seller's Transfer Proof</div>
           {purchase.transfer_notes && <p className="text-foreground">{purchase.transfer_notes}</p>}
           {purchase.transfer_proof_url && (
@@ -315,10 +278,11 @@ function BuyerPanel({ purchase, onConfirm, onDispute, onCancel, actionLoading })
       <button
         onClick={() => onConfirm('buyer')}
         disabled={actionLoading}
-        className="w-full bg-accent text-accent-foreground py-3.5 rounded-xl font-bold text-sm hover:bg-accent/90 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+        className="w-full py-3.5 rounded-full font-black text-sm transition-all disabled:opacity-40 flex items-center justify-center gap-2"
+        style={{ background: 'linear-gradient(135deg, #00E87A, #00B8E8)', color: '#0D0B14' }}
       >
         {actionLoading
-          ? <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Processing…</>
+          ? <><span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> Processing…</>
           : <><CheckCircle className="w-4 h-4" /> I Received My Tickets</>
         }
       </button>
@@ -327,14 +291,16 @@ function BuyerPanel({ purchase, onConfirm, onDispute, onCancel, actionLoading })
         <button
           onClick={onDispute}
           disabled={actionLoading}
-          className="flex-1 border border-amber-300 text-amber-700 bg-amber-50 py-2.5 rounded-xl text-sm font-semibold hover:bg-amber-100 transition-colors"
+          className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors disabled:opacity-60"
+          style={{ background: 'rgba(255,200,0,0.1)', border: '1px solid rgba(255,200,0,0.3)', color: '#FFE600' }}
         >
           Open Dispute
         </button>
         <button
           onClick={onCancel}
           disabled={actionLoading}
-          className="flex-1 border border-border text-muted-foreground py-2.5 rounded-xl text-sm hover:bg-muted transition-colors"
+          className="flex-1 py-2.5 rounded-xl text-sm text-muted-foreground transition-colors disabled:opacity-60"
+          style={{ border: '1px solid rgba(255,255,255,0.12)' }}
         >
           Cancel & Refund
         </button>
@@ -476,36 +442,36 @@ export default function PurchaseSuccess() {
 
       {/* Terminal status banners */}
       {isCompleted && (
-        <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-2xl p-4 mb-5">
-          <CheckCircle className="w-7 h-7 text-green-600 flex-shrink-0" />
+        <div className="flex items-center gap-3 rounded-2xl p-4 mb-5" style={{ background: 'rgba(0,255,135,0.1)', border: '1px solid rgba(0,255,135,0.3)' }}>
+          <CheckCircle className="w-7 h-7 flex-shrink-0" style={{ color: '#00FF87' }} />
           <div>
-            <div className="font-bold text-green-800">Transfer Complete! 🎉</div>
-            <div className="text-sm text-green-700 mt-0.5">Payment released. Enjoy the upgrade!</div>
+            <div className="font-bold text-foreground">Transfer Complete! 🎉</div>
+            <div className="text-sm text-muted-foreground mt-0.5">Payment released. Enjoy the upgrade!</div>
           </div>
         </div>
       )}
       {isExpired && (
-        <div className="flex items-center gap-3 bg-muted rounded-2xl p-4 mb-5">
+        <div className="flex items-center gap-3 rounded-2xl p-4 mb-5" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
           <XCircle className="w-6 h-6 text-muted-foreground flex-shrink-0" />
           <div>
-            <div className="font-semibold">Purchase Cancelled</div>
+            <div className="font-semibold text-foreground">Purchase Cancelled</div>
             <div className="text-sm text-muted-foreground">Refund issued to your original payment method.</div>
           </div>
         </div>
       )}
       {isDisputed && (
-        <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-5">
-          <AlertTriangle className="w-6 h-6 text-amber-600 flex-shrink-0" />
+        <div className="flex items-center gap-3 rounded-2xl p-4 mb-5" style={{ background: 'rgba(255,200,0,0.1)', border: '1px solid rgba(255,200,0,0.3)' }}>
+          <AlertTriangle className="w-6 h-6 flex-shrink-0" style={{ color: '#FFE600' }} />
           <div>
-            <div className="font-bold text-amber-800">Dispute Open</div>
-            <div className="text-sm text-amber-700">Payment frozen. Our team will review and resolve.</div>
+            <div className="font-bold text-foreground">Dispute Open</div>
+            <div className="text-sm text-muted-foreground">Payment frozen. Our team will review and resolve.</div>
           </div>
         </div>
       )}
 
       {/* Order summary card */}
-      <div className="bg-white border border-border rounded-2xl overflow-hidden mb-5">
-        <div className="bg-secondary px-5 py-3.5 border-b border-border flex items-center justify-between">
+      <div className="rounded-2xl overflow-hidden mb-5" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
+        <div className="px-5 py-3.5 flex items-center justify-between" style={{ background: 'rgba(255,255,255,0.05)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
           <div className="flex items-center gap-2">
             <Ticket className="w-4 h-4 text-primary" />
             <span className="font-bold text-sm">{event?.title || 'Your Upgrade'}</span>
@@ -523,19 +489,14 @@ export default function PurchaseSuccess() {
             <div><div className="text-xs text-muted-foreground">Qty</div><div className="font-bold">{purchase.quantity}</div></div>
           </div>
         )}
-        <div className="border-t border-border px-5 py-3 flex justify-between font-bold text-sm">
+        <div className="px-5 py-3 flex justify-between font-bold text-sm text-foreground" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
           <span>Total Paid</span>
-          <span>${purchase.amount?.toFixed(2)}</span>
+          <span style={{ color: '#00FF87' }}>${purchase.amount?.toFixed(2)}</span>
         </div>
       </div>
 
       {/* Progress bar */}
       {isPending && <ProgressBar purchase={purchase} />}
-
-      {/* Urgency countdown — seller only, while unsent */}
-      {isPending && isSeller && !purchase.seller_confirmed && (
-        <CountdownTimer createdAt={purchase.created_date} />
-      )}
 
       {/* Role-specific panels */}
       {isPending && isSeller && (
