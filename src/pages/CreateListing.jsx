@@ -147,8 +147,8 @@ export default function CreateListing() {
         city: tmEvent.city,
         date: tmEvent.date,
         image_url: tmEvent.image_url,
-        tm_id: tmEvent.id,
-        tm_url: tmEvent.url,
+        tm_id: tmEvent.tm_id,
+        tm_url: tmEvent.tm_url,
         status: 'upcoming',
       });
     }
