@@ -127,15 +127,14 @@ export default function CreateListing() {
           <CheckCircle className="w-10 h-10" style={{ color: '#00FF87' }} />
         </div>
         <h1 className="font-display text-4xl mb-2" style={{ background: 'linear-gradient(135deg, #00FF87, #00C8FF)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
-          {flagged ? 'Under Review' : "You're Live!"}
+          {flagged ? 'Pending Verification' : 'Listing Live'}
         </h1>
         <p className="text-muted-foreground text-sm mb-1 mt-2">
           {flagged ? 'Your listing is being reviewed and will go live shortly.' : 'Your listing is now live and visible to buyers.'}
         </p>
-        {!flagged && (
-          <p className="text-xs mb-8" style={{ color: 'rgba(0,255,135,0.7)' }}>Buyers can see it right now ⚡</p>
-        )}
-        {flagged && <div className="mb-8" />}
+        <p className="text-xs mb-8" style={{ color: flagged ? 'rgba(255,200,80,0.7)' : 'rgba(0,255,135,0.7)' }}>
+          {flagged ? 'Usually approved within minutes.' : 'Buyers can see it right now ⚡'}
+        </p>
         <div className="flex flex-col gap-3">
           <Link
             to="/my-sales"
@@ -333,9 +332,8 @@ export default function CreateListing() {
             <label className="block text-xs text-muted-foreground mb-2">How will you transfer?</label>
             <div className="space-y-2">
               {[
-                { value: 'email_transfer', label: '📧 Email transfer' },
-                { value: 'platform_transfer', label: '📲 App transfer' },
-                { value: 'in_person', label: '🤝 In person at venue' },
+                { value: 'email_transfer', label: '📧 Email Transfer' },
+                { value: 'platform_transfer', label: '📲 Mobile Ticket Transfer' },
               ].map(opt => (
                 <button key={opt.value} type="button" onClick={() => set('transfer_method', opt.value)}
                   className="w-full text-left px-4 py-3.5 rounded-2xl transition-all"
