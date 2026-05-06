@@ -427,7 +427,7 @@ export default function PurchaseSuccess() {
     );
   }
 
-  const isBuyer = user?.email === purchase.buyer_email;
+  const isBuyer = user?.email === purchase.buyer_email || user?.email === purchase.created_by;
   const isSeller = !isBuyer && user?.email === purchase.seller_email;
   const isCompleted = purchase.transfer_status === 'completed';
   const isExpired = purchase.transfer_status === 'expired';
