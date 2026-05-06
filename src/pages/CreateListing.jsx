@@ -142,7 +142,7 @@ export default function CreateListing() {
       localEvent = existing[0];
     } else {
       localEvent = await base44.entities.Event.create({
-        title: tmEvent.name,
+        title: tmEvent.title,
         venue: tmEvent.venue,
         city: tmEvent.city,
         date: tmEvent.date,
@@ -336,7 +336,7 @@ export default function CreateListing() {
                 >
                   {ev.image_url && <img src={ev.image_url} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />}
                   <div className="min-w-0">
-                    <div className="font-bold text-sm text-foreground truncate">{ev.name}</div>
+                    <div className="font-bold text-sm text-foreground truncate">{ev.title}</div>
                     <div className="text-xs text-muted-foreground mt-0.5 truncate">
                       {ev.venue}{ev.city ? `, ${ev.city}` : ''}
                       {ev.date && <> · {new Date(ev.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</>}
