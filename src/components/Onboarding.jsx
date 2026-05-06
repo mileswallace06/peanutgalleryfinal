@@ -45,7 +45,7 @@ const SLIDES = [
   title: ['Got Seats', 'You Can\'t', 'Use?'],
   titleHighlight: 2,
   highlightColor: '#FFE600',
-  body: 'List your tickets from anywhere in the world in 60 seconds. Buyers at the venue see them instantly. Get paid the moment they confirm receipt. No waiting, no BS.',
+  body: 'List your tickets from anywhere in the world in 60 seconds. Buyers at the venue see them instantly. Get paid the moment they confirm receipt. Fast transfers. Instant confirmation.',
   cta: null
 },
 {
@@ -149,10 +149,12 @@ export default function Onboarding({ onDone }) {
         
       </AnimatePresence>
 
-      {/* Dark gradient overlay — heavy at bottom, lighter at top */}
+      {/* Dark gradient overlay — heavier on slides 0 and 3 for readability */}
       <div className="absolute inset-0"
       style={{
-        background: `linear-gradient(to bottom, rgba(5,3,12,0.55) 0%, rgba(5,3,12,0.3) 30%, rgba(5,3,12,0.75) 60%, rgba(5,3,12,0.97) 100%)`
+        background: (index === 0 || index === 3)
+          ? `linear-gradient(to bottom, rgba(5,3,12,0.68) 0%, rgba(5,3,12,0.45) 30%, rgba(5,3,12,0.82) 60%, rgba(5,3,12,0.97) 100%)`
+          : `linear-gradient(to bottom, rgba(5,3,12,0.55) 0%, rgba(5,3,12,0.3) 30%, rgba(5,3,12,0.75) 60%, rgba(5,3,12,0.97) 100%)`
       }} />
       
 
@@ -179,7 +181,7 @@ export default function Onboarding({ onDone }) {
         <img
           src="https://media.base44.com/images/public/69ef9900cf3862dc0ea39734/9022a5431_ChatGPTImageMay1202601_29_27PM.png"
           alt="Peanut Gallery"
-          className="h-24 w-auto rounded-2xl"
+          className="h-28 w-auto rounded-2xl"
         />
       </div>
 
@@ -325,7 +327,7 @@ export default function Onboarding({ onDone }) {
             style={{
               background: `linear-gradient(135deg, ${slide.accent}, ${slide.accent2})`,
               color: '#0D0B14',
-              boxShadow: `0 0 30px ${slide.accent}88, 0 0 60px ${slide.accent}44`
+              boxShadow: `0 0 20px ${slide.accent}55, 0 0 40px ${slide.accent}25`
             }}>
             
               Find My Upgrade 🎫
@@ -340,7 +342,7 @@ export default function Onboarding({ onDone }) {
             style={{
               background: `linear-gradient(135deg, ${slide.accent}, ${slide.accent2})`,
               color: '#0D0B14',
-              boxShadow: `0 0 20px ${slide.accent}66`
+              boxShadow: `0 0 14px ${slide.accent}44`
             }}>
             
               Next →
