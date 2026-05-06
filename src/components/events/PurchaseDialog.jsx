@@ -204,8 +204,10 @@ export default function PurchaseDialog({ event, listing, onClose, mode = 'ticket
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/50" onClick={handleClose} />
-      <div className="relative bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md mx-auto max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-border px-5 py-4 flex items-center justify-between rounded-t-2xl sm:rounded-t-2xl">
+      <div className="relative bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md mx-auto flex flex-col"
+        style={{ maxHeight: '92dvh' }}>
+        {/* Sticky header */}
+        <div className="flex-shrink-0 bg-white border-b border-border px-5 py-4 flex items-center justify-between rounded-t-2xl">
           <div>
             <h2 className="font-bold text-foreground">{mode === 'upgrade' ? 'Complete Upgrade' : 'Buy Tickets'}</h2>
             <p className="text-xs text-muted-foreground">Section {listing.section} · Row {listing.row}</p>
@@ -214,7 +216,8 @@ export default function PurchaseDialog({ event, listing, onClose, mode = 'ticket
             <X className="w-5 h-5" />
           </button>
         </div>
-        <div className="p-5">
+        {/* Scrollable body */}
+        <div className="flex-1 overflow-y-auto p-5 pb-8">
           {!stripePromise ? (
             <div className="flex justify-center py-8">
               <span className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
