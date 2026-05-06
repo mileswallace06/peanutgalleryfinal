@@ -35,7 +35,31 @@ export default function Events() {
         ? eligible
         : eligible.filter(e => !e.date || now < new Date(e.date).getTime());
       // Exclude is_beta_live events from Tickets (they belong in Upgrades)
-      const pgMapped = pgEvents.filter(e => !e.is_beta_live).map(e => ({ ...e, source: 'pg' }));
+      let pgFiltered = pgEvents.filter(e => !e.is_beta_live);
+
+      // Filter local events by city when a city/location is set (no latlong filtering for local events)
+      if (cityOverride) {
+        const cityLower = cityOverride.toLowerCase();
+        pgFiltered = pgFiltered.filter(e =>
+          e.city?.toLowerCase().includes(cityLower) ||
+          e.venue?.toLowerCase().includes(cityLower)
+        );
+      } else if (!ll) {
+        // No location set — show all local events (fallback)
+      }
+      // When latlong is set, filter local events to cities that appear in TM results (within radius)
+      if (ll) {
+        const tmCities = new Set(
+          (tmRes?.data?.events || []).map(e => e.city?.toLowerCase()).filter(Boolean)
+        );
+        if (tmCities.size > 0) {
+          pgFiltered = pgFiltered.filter(e =>
+            !e.city || tmCities.has(e.city.toLowerCase())
+          );
+        }
+      }
+
+      const pgMapped = pgFiltered.map(e => ({ ...e, source: 'pg' }));
       const tmEvents = (tmRes?.data?.events || []).map(e => ({ ...e, id: `tm_${e.tm_id}` }));
       setEvents([...pgMapped, ...tmEvents]);
     }).catch(console.error).finally(() => setLoading(false));
