@@ -22,7 +22,7 @@ import Sell from '@/pages/Sell';
 import EventDetailTM from '@/pages/EventDetailTM';
 
 const AuthenticatedApp = () => {
-  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
+  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, checkAppState } = useAuth();
 
   if (isLoadingPublicSettings || isLoadingAuth) {
     return (
@@ -33,9 +33,9 @@ const AuthenticatedApp = () => {
   }
 
   if (authError) {
-    if (authError.type === 'user_not_registered') {
-      return <UserNotRegisteredError />;
-    } else if (authError.type === 'auth_required') {
+      if (authError.type === 'user_not_registered') {
+        return <UserNotRegisteredError onRetry={checkAppState} />;
+      } else if (authError.type === 'auth_required') {
       navigateToLogin();
       return null;
     }
