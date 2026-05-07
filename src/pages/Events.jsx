@@ -10,6 +10,7 @@ export default function Events() {
   const [search, setSearch] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const searchDebounceRef = useRef(null);
+  const initializedRef = useRef(false);
 
   // Location state
   const [locationLabel, setLocationLabel] = useState('');
@@ -87,11 +88,14 @@ export default function Events() {
     );
   }, []);
 
-  // Re-fetch with search keyword when user types (debounced 400ms)
+  // Re-fetch with search keyword when user types (debounced 400ms), but skip the initial mount
   useEffect(() => {
+    if (!initializedRef.current) {
+      initializedRef.current = true;
+      return;
+    }
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
     searchDebounceRef.current = setTimeout(() => {
-      // Only re-fetch TM if there's a keyword — local event filtering handles no-keyword case
       fetchEvents(latlong || null, locationLabel && locationLabel !== 'Near me' ? locationLabel : null, search.trim() || null);
     }, 400);
     return () => clearTimeout(searchDebounceRef.current);
@@ -298,7 +302,8 @@ export default function Events() {
 }
 
 function EventRow({ event }) {
-  const isTM = event.source === 'ticketmaster';
+  // A TM event has source='ticketmaster' AND a tm_id but no real DB id (or id starts with tm_)
+  const isTM = event.source === 'ticketmaster' || String(event.id || '').startsWith('tm_');
 
   return (
     <div
@@ -375,7 +380,7 @@ function EventRow({ event }) {
       <div className="flex items-center pr-3 pl-1">
         {isTM ? (
           <Link
-            to={`/events/tm/${event.tm_id}`}
+            to={`/events/tm/${event.tm_id || String(event.id).replace('tm_', '')}`}
             className="flex items-center gap-1 px-3 py-2 rounded-xl font-bold text-xs whitespace-nowrap"
             style={{
               background: 'rgba(0,200,255,0.15)',
