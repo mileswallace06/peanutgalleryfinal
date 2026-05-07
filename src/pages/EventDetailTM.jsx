@@ -5,6 +5,8 @@ import { format } from 'date-fns';
 import { MapPin, Calendar, ArrowLeft, Ticket, ExternalLink, Plus } from 'lucide-react';
 import ListingCard from '@/components/events/ListingCard';
 import PurchaseDialog from '@/components/events/PurchaseDialog';
+import useVenueGeolock from '@/hooks/useVenueGeolock';
+import GeoLockGate from '@/components/GeoLockGate';
 
 export default function EventDetailTM() {
   const { tmId } = useParams();
@@ -17,6 +19,14 @@ export default function EventDetailTM() {
   const [loading, setLoading] = useState(true);
   const [selectedListing, setSelectedListing] = useState(null);
   const [creatingEvent, setCreatingEvent] = useState(false);
+
+  // Geolock — only enforced in upgrade mode (city-level check for TM events)
+  const { status: geoStatus, reason: geoReason, distanceKm } = useVenueGeolock({
+    venueLat: null,
+    venueLng: null,
+    venueCity: isUpgradeMode ? event?.city : null,
+    venueState: isUpgradeMode ? event?.state : null,
+  });
 
   useEffect(() => {
     Promise.all([
@@ -89,6 +99,18 @@ export default function EventDetailTM() {
 
   const sorted = [...listings].sort((a, b) => a.asking_price - b.asking_price);
   const cheapest = sorted[0]?.asking_price;
+
+  if (isUpgradeMode && geoStatus !== 'allowed') {
+    return (
+      <GeoLockGate
+        status={geoStatus}
+        reason={geoReason}
+        venueName={event?.venue}
+        distanceKm={distanceKm}
+        backPath="/upgrades"
+      />
+    );
+  }
 
   return (
     <div className="pb-32">

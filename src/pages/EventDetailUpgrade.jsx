@@ -5,6 +5,8 @@ import { format } from 'date-fns';
 import { MapPin, Calendar, ArrowLeft, Zap } from 'lucide-react';
 import ListingCard from '@/components/events/ListingCard';
 import PurchaseDialog from '@/components/events/PurchaseDialog';
+import useVenueGeolock from '@/hooks/useVenueGeolock';
+import GeoLockGate from '@/components/GeoLockGate';
 
 export default function EventDetailUpgrade() {
   const { id } = useParams();
@@ -26,7 +28,6 @@ export default function EventDetailUpgrade() {
       const now = Date.now();
       const eventStarted = ev?.date ? now >= new Date(ev.date).getTime() : false;
       const isLiveMode = ev?.is_beta_live || eventStarted;
-      // Upgrades tab shows POST-event / beta-live listings only (unless admin bypass)
       const filtered = adminUnlocked
         ? rawListings
         : rawListings.filter(() => isLiveMode);
@@ -34,6 +35,13 @@ export default function EventDetailUpgrade() {
       setListings(real.length > 0 ? real : filtered);
     }).catch(console.error).finally(() => setLoading(false));
   }, [id]);
+
+  const { status: geoStatus, reason: geoReason, distanceKm } = useVenueGeolock({
+    venueLat: event?.venue_lat,
+    venueLng: event?.venue_lng,
+    venueCity: event?.city,
+    venueState: event?.state,
+  });
 
   if (loading) {
     return (
@@ -53,6 +61,19 @@ export default function EventDetailUpgrade() {
         <p className="text-muted-foreground">Event not found.</p>
         <Link to="/upgrades" className="text-primary text-sm mt-3 inline-block">← Back to upgrades</Link>
       </div>
+    );
+  }
+
+  // Show geolock gate while checking or if blocked
+  if (geoStatus !== 'allowed') {
+    return (
+      <GeoLockGate
+        status={geoStatus}
+        reason={geoReason}
+        venueName={event.venue}
+        distanceKm={distanceKm}
+        backPath="/upgrades"
+      />
     );
   }
 
