@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
@@ -9,6 +9,7 @@ export default function Events() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [showSearch, setShowSearch] = useState(false);
+  const searchDebounceRef = useRef(null);
 
   // Location state
   const [locationLabel, setLocationLabel] = useState('');
@@ -18,13 +19,14 @@ export default function Events() {
   const [detectingLocation, setDetectingLocation] = useState(false);
   const locationInputRef = useRef(null);
 
-  const fetchEvents = (ll, cityOverride) => {
+  const fetchEvents = (ll, cityOverride, keyword) => {
     setLoading(true);
     const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
     const now = Date.now();
     const tmParams = { size: 40 };
     if (ll) { tmParams.latlong = ll; tmParams.radius = '50'; }
     else if (cityOverride) { tmParams.city = cityOverride; }
+    if (keyword) { tmParams.keyword = keyword; }
 
     Promise.all([
       base44.entities.Event.list('date', 50),
@@ -74,16 +76,26 @@ export default function Events() {
         setLatlong(ll);
         setLocationLabel('Near me');
         setDetectingLocation(false);
-        fetchEvents(ll, null);
+        fetchEvents(ll, null, null);
       },
       () => {
         // Permission denied or unavailable — load without location
         setDetectingLocation(false);
-        fetchEvents(null, null);
+        fetchEvents(null, null, null);
       },
       { timeout: 6000 }
     );
   }, []);
+
+  // Re-fetch with search keyword when user types (debounced 400ms)
+  useEffect(() => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      // Only re-fetch TM if there's a keyword — local event filtering handles no-keyword case
+      fetchEvents(latlong || null, locationLabel && locationLabel !== 'Near me' ? locationLabel : null, search.trim() || null);
+    }, 400);
+    return () => clearTimeout(searchDebounceRef.current);
+  }, [search]);
 
   const handleLocationSubmit = (e) => {
     e.preventDefault();
@@ -92,7 +104,7 @@ export default function Events() {
     setLatlong('');
     setLocationLabel(val);
     setEditingLocation(false);
-    fetchEvents(null, val);
+    fetchEvents(null, val, search.trim() || null);
   };
 
   const handleDetectAgain = () => {
@@ -104,21 +116,25 @@ export default function Events() {
         setLocationLabel('Near me');
         setDetectingLocation(false);
         setEditingLocation(false);
-        fetchEvents(ll, null);
+        fetchEvents(ll, null, search.trim() || null);
       },
       () => setDetectingLocation(false),
       { timeout: 6000 }
     );
   };
 
+  // Local filter handles PG events; TM events are already filtered server-side by keyword
   const filtered = events.filter(e => {
     if (!search) return true;
     const q = search.toLowerCase();
+    // TM events were already filtered by keyword in the API call — always show them
+    if (e.source === 'ticketmaster') return true;
     return (
       e.title?.toLowerCase().includes(q) ||
       e.city?.toLowerCase().includes(q) ||
       e.state?.toLowerCase().includes(q) ||
-      e.venue?.toLowerCase().includes(q)
+      e.venue?.toLowerCase().includes(q) ||
+      e.artist?.toLowerCase().includes(q)
     );
   });
 
