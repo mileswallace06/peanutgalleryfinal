@@ -17,27 +17,36 @@ export default function EventDetailTM() {
   const [creatingEvent, setCreatingEvent] = useState(false);
 
   useEffect(() => {
+    // Fetch local DB record and TM event data (by tm_id keyword) in parallel
     Promise.all([
-      base44.functions.invoke('getTicketmasterEvents', { size: 100 }),
       base44.entities.Event.filter({ tm_id: tmId }),
-    ]).then(([tmRes, localEvents]) => {
+      base44.functions.invoke('getTicketmasterEvents', { keyword: tmId, size: 1 }),
+    ]).then(async ([localEvents, tmRes]) => {
+      // Try to find the event from TM results
       const tmEvents = tmRes?.data?.events || [];
-      const found = tmEvents.find(e => e.tm_id === tmId);
-      if (found) setEvent(found);
+      const found = tmEvents.find(e => e.tm_id === tmId) || tmEvents[0] || null;
 
-      // Check if a local event already exists for this tm_id
+      // If we have a local DB record, use it to fill in event data
       if (localEvents.length > 0) {
         const localEv = localEvents[0];
         setLocalEventId(localEv.id);
-        // Load listings for this local event
-        return base44.entities.Listing.filter({ event_id: localEv.id, status: 'active', proof_status: 'approved' });
+        // Use local DB data as event (has all fields), fallback to TM data
+        setEvent(found || {
+          title: localEv.title,
+          venue: localEv.venue,
+          city: localEv.city,
+          state: localEv.state,
+          date: localEv.date,
+          image_url: localEv.image_url,
+          tm_id: localEv.tm_id,
+          tm_url: localEv.tm_url,
+        });
+        const rawListings = await base44.entities.Listing.filter({ event_id: localEv.id, status: 'active', proof_status: 'approved' });
+        const real = rawListings.filter(l => !l.notes?.startsWith('[DEMO]'));
+        setListings(real.length > 0 ? real : rawListings);
+      } else {
+        setEvent(found);
       }
-      return [];
-    }).then(rawListings => {
-      const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
-      const real = rawListings.filter(l => !l.notes?.startsWith('[DEMO]'));
-      setListings(real.length > 0 ? real : rawListings);
-      if (!adminUnlocked) setListings(rl => rl); // no time filter needed for pre-event tickets
     }).catch(console.error).finally(() => setLoading(false));
   }, [tmId]);
 
