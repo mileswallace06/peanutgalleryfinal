@@ -1,6 +1,8 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import Stripe from 'npm:stripe@14.21.0';
 
+const PLATFORM_FEE_PCT = 0.10; // 10% platform fee
+
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
   const user = await base44.auth.me();
@@ -36,7 +38,13 @@ Deno.serve(async (req) => {
     return Response.json({ error: 'You cannot purchase your own listing' }, { status: 400 });
   }
 
-  const amount = Math.round(listing.asking_price * (listing.quantity || 1) * 100); // cents
+  // Fee breakdown
+  const subtotal = listing.asking_price * (listing.quantity || 1);
+  const platformFee = Math.round(subtotal * PLATFORM_FEE_PCT * 100) / 100;
+  const buyerTotal = subtotal + platformFee;
+  const sellerPayout = subtotal; // seller always receives original asking price
+
+  const amountCents = Math.round(buyerTotal * 100); // charge buyer the full total including fee
 
   // Reserve the listing
   await base44.asServiceRole.entities.Listing.update(listing.id, { status: 'pending_transfer' });
@@ -44,14 +52,17 @@ Deno.serve(async (req) => {
   let paymentIntent;
   try {
     paymentIntent = await stripe.paymentIntents.create({
-      amount,
+      amount: amountCents,
       currency: 'usd',
       capture_method: 'manual',
       metadata: {
         listing_id: listing.id,
         event_id: listing.event_id,
         buyer_email: buyer_email || user.email,
-        seller_email: listing.seller_email
+        seller_email: listing.seller_email,
+        subtotal: subtotal.toString(),
+        platform_fee: platformFee.toString(),
+        seller_payout: sellerPayout.toString()
       },
       description: `Peanut Gallery: Section ${listing.section} Row ${listing.row}`
     });
@@ -64,6 +75,9 @@ Deno.serve(async (req) => {
   return Response.json({
     clientSecret: paymentIntent.client_secret,
     paymentIntentId: paymentIntent.id,
-    amount: listing.asking_price * (listing.quantity || 1)
+    subtotal,
+    platformFee,
+    buyerTotal,
+    sellerPayout
   });
 });

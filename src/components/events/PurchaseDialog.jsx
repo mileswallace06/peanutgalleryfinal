@@ -15,8 +15,11 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [feeBreakdown, setFeeBreakdown] = useState(null);
 
-  const total = listing.asking_price * (listing.quantity || 1);
+  const subtotal = listing.asking_price * (listing.quantity || 1);
+  const estimatedFee = Math.round(subtotal * 0.10 * 100) / 100;
+  const total = feeBreakdown ? feeBreakdown.buyerTotal : subtotal + estimatedFee;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -34,8 +37,9 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
         buyer_email: email,
         buyer_phone: phone,
       });
-      const { clientSecret, paymentIntentId: piId } = res.data;
+      const { clientSecret, paymentIntentId: piId, subtotal, platformFee, buyerTotal, sellerPayout } = res.data;
       paymentIntentId = piId;
+      setFeeBreakdown({ subtotal, platformFee, buyerTotal, sellerPayout });
       onReserved(listing.id); // track reservation so dialog close can release it
 
       // 2. Confirm card payment (authorize only — not captured)
@@ -55,6 +59,7 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
       }
 
       // 3. Create Purchase entity
+      const fb = feeBreakdown || { subtotal, platformFee: estimatedFee, buyerTotal: total, sellerPayout: subtotal };
       const purchase = await base44.entities.Purchase.create({
         listing_id: listing.id,
         event_id: event.id,
@@ -62,7 +67,10 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
         buyer_name: name,
         buyer_phone: phone,
         seller_email: listing.seller_email,
-        amount: total,
+        amount: fb.buyerTotal,
+        subtotal: fb.subtotal,
+        platform_fee: fb.platformFee,
+        seller_payout: fb.sellerPayout,
         quantity: listing.quantity || 1,
         payment_intent_id: paymentIntentId,
         transfer_status: 'pending_transfer',
@@ -87,18 +95,25 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
     <form onSubmit={handleSubmit} className="space-y-5">
       {/* Order summary */}
       <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
-        <div className="font-semibold text-sm text-foreground mb-2">Order Summary</div>
-        <div className="flex justify-between text-sm mb-1">
-          <span className="text-muted-foreground">{event.title}</span>
+        <div className="font-semibold text-sm text-foreground mb-3">Order Summary</div>
+        <div className="flex justify-between text-sm mb-1.5">
+          <span className="text-muted-foreground">Section {listing.section} · Row {listing.row} × {listing.quantity || 1}</span>
+          <span className="text-foreground">${subtotal.toFixed(2)}</span>
         </div>
-        <div className="flex justify-between text-sm mb-1">
-          <span className="text-muted-foreground">Section {listing.section} · Row {listing.row}</span>
-          <span className="text-foreground">${listing.asking_price} × {listing.quantity || 1}</span>
+        <div className="flex justify-between text-sm mb-1.5">
+          <span className="text-muted-foreground flex items-center gap-1">
+            🔒 Protected Transfer Fee
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(191,95,255,0.12)', color: '#BF5FFF' }}>10%</span>
+          </span>
+          <span className="text-foreground">${(feeBreakdown?.platformFee ?? estimatedFee).toFixed(2)}</span>
         </div>
-        <div className="mt-2 pt-2 flex justify-between font-bold text-foreground" style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-          <span>Total</span>
+        <div className="mt-3 pt-2.5 flex justify-between font-black text-base" style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+          <span className="text-foreground">Total</span>
           <span style={{ color: '#00FF87' }}>${total.toFixed(2)}</span>
         </div>
+        <p className="text-[10px] text-muted-foreground mt-1.5 leading-relaxed">
+          Fee covers escrow protection, fraud prevention & platform support.
+        </p>
       </div>
 
       {/* Escrow notice */}
@@ -179,7 +194,7 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
         {loading ? (
           <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Processing...</>
         ) : (
-          <><Lock className="w-4 h-4" /> Pay ${total.toFixed(2)} Securely <ArrowRight className="w-4 h-4" /></>
+          <><Lock className="w-4 h-4" /> Pay ${total.toFixed(2)} Securely — Escrow Protected <ArrowRight className="w-4 h-4" /></>
         )}
       </button>
     </form>

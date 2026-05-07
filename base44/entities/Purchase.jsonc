@@ -25,7 +25,19 @@
     },
     "amount": {
       "type": "number",
-      "description": "Total USD"
+      "description": "Total USD charged to buyer (including platform fee)"
+    },
+    "subtotal": {
+      "type": "number",
+      "description": "Ticket price before platform fee"
+    },
+    "platform_fee": {
+      "type": "number",
+      "description": "Platform fee collected by Peanut Gallery (USD)"
+    },
+    "seller_payout": {
+      "type": "number",
+      "description": "Amount owed to seller after platform fee (USD)"
     },
     "quantity": {
       "type": "number"
