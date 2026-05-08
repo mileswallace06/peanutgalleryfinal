@@ -88,7 +88,7 @@ export default function CreateListing() {
 
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => {});
-    base44.entities.Event.filter({ status: 'upcoming' })
+    base44.entities.Event.list('date', 100)
       .then(res => setEvents(res.filter(e => e.status !== 'ended')))
       .catch(console.error)
       .finally(() => setLoadingEvents(false));
