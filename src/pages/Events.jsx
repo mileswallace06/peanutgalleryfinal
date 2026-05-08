@@ -46,7 +46,7 @@ export default function Events() {
       const eligible = localData.filter(e => e.status !== 'ended');
       const pgEvents = adminUnlocked
         ? eligible
-        : eligible.filter(e => isEventUpcoming(e));
+        : eligible.filter(e => e.is_beta_live || e.status === 'live' || isEventUpcoming(e));
       let pgFiltered = [...pgEvents];
 
       if (cityOverride) {
