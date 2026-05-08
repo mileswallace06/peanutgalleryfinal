@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { useSearchParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, CheckCircle, Upload, Zap, Search, Star } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle, Upload, Zap, Search, Star, MapPin, LocateFixed } from 'lucide-react';
 
 const STEPS = ['Event', 'Seats', 'Price', 'Done'];
 
@@ -69,9 +69,12 @@ export default function CreateListing() {
   const [tmResults, setTmResults] = useState([]);
   const [tmLoading, setTmLoading] = useState(false);
   const [tmSearched, setTmSearched] = useState(false);
-  // For TM events, store the selected event object (not just id)
   const [selectedTmEvent, setSelectedTmEvent] = useState(null);
   const [selectingTmId, setSelectingTmId] = useState(null);
+  // Location for recommended tab
+  const [userCity, setUserCity] = useState(null);
+  const [locationLoading, setLocationLoading] = useState(true);
+  const locationFetchedRef = useRef(false);
 
   const [form, setForm] = useState({
     event_id: preselectedEventId || '',
@@ -92,6 +95,36 @@ export default function CreateListing() {
       .then(res => setEvents(res.filter(e => e.status !== 'ended')))
       .catch(console.error)
       .finally(() => setLoadingEvents(false));
+  }, []);
+
+  // Detect location once for recommended tab
+  useEffect(() => {
+    if (locationFetchedRef.current) return;
+    locationFetchedRef.current = true;
+    if (!navigator.geolocation) { setLocationLoading(false); return; }
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const { latitude, longitude } = pos.coords;
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`
+          );
+          const data = await res.json();
+          const city =
+            data.address?.city ||
+            data.address?.town ||
+            data.address?.village ||
+            data.address?.county ||
+            null;
+          setUserCity(city?.toLowerCase() || null);
+        } catch {
+          setUserCity(null);
+        }
+        setLocationLoading(false);
+      },
+      () => setLocationLoading(false),
+      { timeout: 10000, enableHighAccuracy: false, maximumAge: 60000 }
+    );
   }, []);
 
   const set = (field, value) => setForm(f => ({ ...f, [field]: value }));
@@ -158,6 +191,26 @@ export default function CreateListing() {
     setSelectingTmId(null);
     setStep(1);
   };
+
+  // Filter recommended: today's events in user's city
+  const recommendedEvents = (() => {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const todayEnd = todayStart + 24 * 60 * 60 * 1000;
+    return events.filter(e => {
+      if (!e.date) return false;
+      const eventTime = new Date(e.date).getTime();
+      // Must be happening today (started today or already live/underway), not ended
+      const isToday = eventTime >= todayStart && eventTime < todayEnd;
+      const isLiveOrStarted = e.status === 'live' || e.is_beta_live || eventTime <= now.getTime();
+      if (!isToday && !isLiveOrStarted) return false;
+      // If we have a city, filter by city match
+      if (userCity && e.city) {
+        return e.city.toLowerCase().includes(userCity) || userCity.includes(e.city.toLowerCase());
+      }
+      return true; // no city detected — show all today's events
+    });
+  })();
 
   const selectedEvent = events.find(e => e.id === form.event_id) || selectedTmEvent;
 
@@ -263,12 +316,37 @@ export default function CreateListing() {
           {/* Recommended Tab */}
           {eventTab === 'recommended' && (
             <div className="space-y-2">
-              {loadingEvents ? (
+              {/* Location indicator */}
+              <div className="flex items-center gap-2 px-1 mb-1">
+                {locationLoading ? (
+                  <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                    <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    Detecting your location…
+                  </span>
+                ) : userCity ? (
+                  <span className="flex items-center gap-1.5 text-[11px]" style={{ color: '#00C8FF' }}>
+                    <MapPin className="w-3 h-3" /> Showing today's events near {userCity.charAt(0).toUpperCase() + userCity.slice(1)}
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                    <LocateFixed className="w-3 h-3" /> Showing today's events · enable location for local results
+                  </span>
+                )}
+              </div>
+
+              {loadingEvents || locationLoading ? (
                 <div className="h-14 rounded-2xl animate-pulse" style={{ background: 'rgba(255,255,255,0.05)' }} />
-              ) : events.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">No upcoming events found.</p>
+              ) : recommendedEvents.length === 0 ? (
+                <div className="text-center py-8 space-y-2">
+                  <p className="text-sm text-muted-foreground">No events happening today{userCity ? ` near ${userCity.charAt(0).toUpperCase() + userCity.slice(1)}` : ''}.</p>
+                  <button onClick={() => setEventTab('search')}
+                    className="text-xs font-bold px-4 py-2 rounded-full"
+                    style={{ background: 'rgba(191,95,255,0.12)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.3)' }}>
+                    Search for your event →
+                  </button>
+                </div>
               ) : (
-                events.map(ev => (
+                recommendedEvents.map(ev => (
                   <button
                     key={ev.id}
                     onClick={() => { set('event_id', ev.id); setSelectedTmEvent(null); }}
@@ -279,10 +357,16 @@ export default function CreateListing() {
                       boxShadow: form.event_id === ev.id ? '0 0 16px rgba(191,95,255,0.15)' : 'none',
                     }}
                   >
-                    <div className="font-bold text-sm text-foreground">{ev.title}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-sm text-foreground">{ev.title}</span>
+                      {(ev.status === 'live' || ev.is_beta_live) && (
+                        <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full flex-shrink-0"
+                          style={{ background: '#FF2D78', color: '#fff' }}>LIVE</span>
+                      )}
+                    </div>
                     <div className="text-xs text-muted-foreground mt-0.5">
                       {ev.venue}{ev.city ? `, ${ev.city}` : ''}
-                      {ev.date && <> · {new Date(ev.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</>}
+                      {ev.date && <> · {new Date(ev.date).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</>}
                     </div>
                   </button>
                 ))
