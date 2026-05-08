@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, CheckCircle, Upload, Zap, Search, Star, MapPin, LocateFixed } from 'lucide-react';
-import { isEventToday, isEventExplicitlyLive } from '@/lib/dateUtils';
+import { isEventToday, isEventExplicitlyLive, localDateString } from '@/lib/dateUtils';
 
 const STEPS = ['Event', 'Seats', 'Price', 'Done'];
 
@@ -113,7 +113,7 @@ export default function CreateListing() {
 
   const fetchTmRecommended = (latlong, city) => {
     setTmRecommendedLoading(true);
-    const params = { size: 20 };
+    const params = { size: 20, localDate: localDateString() };
     if (latlong) { params.latlong = latlong; params.radius = '30'; }
     else if (city) { params.city = city; }
     base44.functions.invoke('getTicketmasterEvents', params)

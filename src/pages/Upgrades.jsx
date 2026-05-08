@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 import { MapPin, Calendar, Zap, ChevronRight, Search, LocateFixed, X } from 'lucide-react';
-import { isEventExplicitlyLive, isEventToday } from '@/lib/dateUtils';
+import { isEventExplicitlyLive, isEventToday, localDateString } from '@/lib/dateUtils';
 
 export default function Upgrades() {
   const [pgEvents, setPgEvents] = useState([]);
@@ -39,7 +39,7 @@ export default function Upgrades() {
 
   const fetchTMEvents = (ll, cityOverride, keyword) => {
     setTmLoading(true);
-    const tmParams = { size: 30 };
+    const tmParams = { size: 30, localDate: localDateString() };
     if (ll) { tmParams.latlong = ll; tmParams.radius = '50'; }
     else if (cityOverride) { tmParams.city = cityOverride; }
     if (keyword) { tmParams.keyword = keyword; }
