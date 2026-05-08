@@ -197,21 +197,29 @@ export default function CreateListing() {
     setStep(1);
   };
 
-  // Filter recommended: today's events, optionally city-matched
+  // Filter recommended: strictly today's events only (by user's local date), optionally city-matched
   const recommendedEvents = (() => {
     const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    const todayEnd = todayStart + 24 * 60 * 60 * 1000;
+    // Today's boundaries in the user's LOCAL timezone
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).getTime();
+    const todayEnd   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).getTime();
+
     return events.filter(e => {
       if (!e.date) return false;
       const eventTime = new Date(e.date).getTime();
-      const isToday = eventTime >= todayStart && eventTime < todayEnd;
-      const isLiveOrStartedToday = (e.status === 'live' || e.is_beta_live || eventTime <= now.getTime()) && eventTime >= todayStart;
-      if (!isToday && !isLiveOrStartedToday) return false;
-      if (userCity && e.city) {
+
+      // Must fall within today (local time) OR be currently live/beta-live
+      const isToday = eventTime >= todayStart && eventTime <= todayEnd;
+      const isCurrentlyLive = e.status === 'live' || e.is_beta_live;
+
+      if (!isToday && !isCurrentlyLive) return false;
+
+      // City filter — only apply once location is resolved
+      if (locationStatus === 'done' && userCity && e.city) {
         return e.city.toLowerCase().includes(userCity) || userCity.includes(e.city.toLowerCase());
       }
-      return locationStatus !== 'done'; // only show unfiltered if location not yet resolved
+      // If location resolved but no city found, or still detecting — show all today's events
+      return true;
     });
   })();
 
@@ -351,7 +359,7 @@ export default function CreateListing() {
                 )}
               </div>
 
-              {loadingEvents || locationStatus === 'detecting' ? (
+              {loadingEvents ? (
                 <div className="h-14 rounded-2xl animate-pulse" style={{ background: 'rgba(255,255,255,0.05)' }} />
               ) : recommendedEvents.length === 0 ? (
                 <div className="text-center py-8 space-y-2">

@@ -27,16 +27,21 @@ export default function Upgrades() {
   // Load PG live events once
   useEffect(() => {
     const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
-    const now = Date.now();
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).getTime();
+    const todayEnd   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).getTime();
+
     base44.entities.Event.list('date', 50).then((data) => {
       const eligible = data.filter((e) => e.status !== 'ended');
       setPgEvents(adminUnlocked
         ? eligible
-        : eligible.filter((e) =>
-            e.is_beta_live ||
-            e.status === 'live' ||
-            (e.date && now >= new Date(e.date).getTime())
-          )
+        : eligible.filter((e) => {
+            if (e.is_beta_live || e.status === 'live') return true;
+            if (!e.date) return false;
+            const t = new Date(e.date).getTime();
+            // Only show events happening today (local time)
+            return t >= todayStart && t <= todayEnd;
+          })
       );
     }).catch(console.error).finally(() => setLoading(false));
   }, []);
