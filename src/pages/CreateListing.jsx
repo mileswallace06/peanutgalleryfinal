@@ -225,9 +225,8 @@ export default function CreateListing() {
     setStep(1);
   };
 
-  // PG events for today / live
+  // PG events: show all upcoming/live events, filtered by city if location is known
   const pgRecommended = events.filter(e => {
-    if (!isEventToday(e) && !isEventExplicitlyLive(e)) return false;
     if (locationStatus === 'done' && userCity && e.city) {
       return e.city.toLowerCase().includes(userCity) || userCity.includes(e.city.toLowerCase());
     }
@@ -383,7 +382,7 @@ export default function CreateListing() {
                 </div>
               ) : allRecommended.length === 0 ? (
                 <div className="text-center py-8 space-y-2">
-                  <p className="text-sm text-muted-foreground">No events happening today{userCity ? ` near ${userCity.charAt(0).toUpperCase() + userCity.slice(1)}` : ''}.</p>
+                  <p className="text-sm text-muted-foreground">No events found{userCity ? ` near ${userCity.charAt(0).toUpperCase() + userCity.slice(1)}` : ''}.</p>
                   <button onClick={() => setEventTab('search')}
                     className="text-xs font-bold px-4 py-2 rounded-full"
                     style={{ background: 'rgba(191,95,255,0.12)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.3)' }}>
