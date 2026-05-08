@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 import { MapPin, Calendar, Search, ChevronRight, LocateFixed, X } from 'lucide-react';
+import { now, isEventUpcoming } from '@/lib/dateUtils';
 
 export default function Events() {
   const [events, setEvents] = useState([]);
@@ -33,7 +34,6 @@ export default function Events() {
   const fetchEvents = (ll, cityOverride, keyword) => {
     setLoading(true);
     const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
-    const now = Date.now();
     const tmParams = { size: 40 };
     if (ll) { tmParams.latlong = ll; tmParams.radius = '50'; }
     else if (cityOverride) { tmParams.city = cityOverride; }
@@ -46,7 +46,7 @@ export default function Events() {
       const eligible = localData.filter(e => e.status !== 'ended');
       const pgEvents = adminUnlocked
         ? eligible
-        : eligible.filter(e => !e.date || now < new Date(e.date).getTime());
+        : eligible.filter(e => isEventUpcoming(e));
       let pgFiltered = pgEvents.filter(e => !e.is_beta_live);
 
       if (cityOverride) {

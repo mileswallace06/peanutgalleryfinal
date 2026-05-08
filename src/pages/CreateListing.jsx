@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, CheckCircle, Upload, Zap, Search, Star, MapPin, LocateFixed } from 'lucide-react';
+import { isEventToday, isEventExplicitlyLive } from '@/lib/dateUtils';
 
 const STEPS = ['Event', 'Seats', 'Price', 'Done'];
 
@@ -197,31 +198,14 @@ export default function CreateListing() {
     setStep(1);
   };
 
-  // Filter recommended: strictly today's events only (by user's local date), optionally city-matched
-  const recommendedEvents = (() => {
-    const now = new Date();
-    // Today's boundaries in the user's LOCAL timezone
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).getTime();
-    const todayEnd   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).getTime();
-
-    return events.filter(e => {
-      if (!e.date) return false;
-      const eventTime = new Date(e.date).getTime();
-
-      // Must fall within today (local time) OR be currently live/beta-live
-      const isToday = eventTime >= todayStart && eventTime <= todayEnd;
-      const isCurrentlyLive = e.status === 'live' || e.is_beta_live;
-
-      if (!isToday && !isCurrentlyLive) return false;
-
-      // City filter — only apply once location is resolved
-      if (locationStatus === 'done' && userCity && e.city) {
-        return e.city.toLowerCase().includes(userCity) || userCity.includes(e.city.toLowerCase());
-      }
-      // If location resolved but no city found, or still detecting — show all today's events
-      return true;
-    });
-  })();
+  // Filter recommended: today's events only (using shared date utils), optionally city-matched
+  const recommendedEvents = events.filter(e => {
+    if (!isEventToday(e) && !isEventExplicitlyLive(e)) return false;
+    if (locationStatus === 'done' && userCity && e.city) {
+      return e.city.toLowerCase().includes(userCity) || userCity.includes(e.city.toLowerCase());
+    }
+    return true;
+  });
 
   const selectedEvent = events.find(e => e.id === form.event_id) || selectedTmEvent;
 

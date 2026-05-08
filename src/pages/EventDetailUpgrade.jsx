@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 import { MapPin, Calendar, ArrowLeft, Zap } from 'lucide-react';
+import { isEventExplicitlyLive, hasEventStarted } from '@/lib/dateUtils';
 import ListingCard from '@/components/events/ListingCard';
 import PurchaseDialog from '@/components/events/PurchaseDialog';
 import useVenueGeolock from '@/hooks/useVenueGeolock';
@@ -25,9 +26,7 @@ export default function EventDetailUpgrade() {
       const ev = events[0] || null;
       setEvent(ev);
       const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
-      const now = Date.now();
-      const eventStarted = ev?.date ? now >= new Date(ev.date).getTime() : false;
-      const isLiveMode = ev?.is_beta_live || eventStarted;
+      const isLiveMode = isEventExplicitlyLive(ev);
       const filtered = adminUnlocked
         ? rawListings
         : rawListings.filter(() => isLiveMode);
@@ -79,8 +78,7 @@ export default function EventDetailUpgrade() {
 
   const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
   const isLive = event.status === 'live';
-  const eventStarted = event.date ? Date.now() >= new Date(event.date).getTime() : false;
-  const isLiveMode = event.is_beta_live || eventStarted;
+  const isLiveMode = isEventExplicitlyLive(event);
   const isDemoOnly = listings.length > 0 && listings.every(l => l.notes?.startsWith('[DEMO]'));
   const sorted = [...listings].sort((a, b) => a.asking_price - b.asking_price);
   const cheapest = sorted[0]?.asking_price;

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 import { MapPin, Calendar, Zap, ChevronRight, Search, LocateFixed, X } from 'lucide-react';
+import { isEventExplicitlyLive, isEventToday } from '@/lib/dateUtils';
 
 export default function Upgrades() {
   const [pgEvents, setPgEvents] = useState([]);
@@ -27,21 +28,11 @@ export default function Upgrades() {
   // Load PG live events once
   useEffect(() => {
     const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).getTime();
-    const todayEnd   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).getTime();
-
     base44.entities.Event.list('date', 50).then((data) => {
       const eligible = data.filter((e) => e.status !== 'ended');
       setPgEvents(adminUnlocked
         ? eligible
-        : eligible.filter((e) => {
-            if (e.is_beta_live || e.status === 'live') return true;
-            if (!e.date) return false;
-            const t = new Date(e.date).getTime();
-            // Only show events happening today (local time)
-            return t >= todayStart && t <= todayEnd;
-          })
+        : eligible.filter((e) => isEventExplicitlyLive(e) || isEventToday(e))
       );
     }).catch(console.error).finally(() => setLoading(false));
   }, []);
