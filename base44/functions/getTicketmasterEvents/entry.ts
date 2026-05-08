@@ -16,12 +16,18 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Ticketmaster API key not configured' }, { status: 500 });
     }
 
-    // Use caller-supplied local date string (YYYY-MM-DD) if provided, else fall back to UTC now.
-    // This ensures we filter by venue-local "today" rather than UTC midnight.
+    // Look back up to 6 hours so events that have already started tonight still appear.
+    // This ensures live/in-progress events aren't dropped from results.
     const localDate = body.localDate || ''; // e.g. "2026-05-08"
-    const startDateTime = localDate
-      ? `${localDate}T00:00:00Z`
-      : new Date().toISOString().split('.')[0] + 'Z';
+    let startDateTime;
+    if (localDate) {
+      // Start of that local date, but also look back 6 hours from now to catch in-progress events
+      const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
+      const localDateMidnight = new Date(`${localDate}T00:00:00Z`);
+      startDateTime = (sixHoursAgo < localDateMidnight ? sixHoursAgo : localDateMidnight).toISOString().split('.')[0] + 'Z';
+    } else {
+      startDateTime = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString().split('.')[0] + 'Z';
+    }
 
     const params = new URLSearchParams({
       apikey: apiKey,
