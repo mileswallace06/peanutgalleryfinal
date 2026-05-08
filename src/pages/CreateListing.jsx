@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, CheckCircle, Upload, Zap, Search, Star, MapPin, LocateFixed } from 'lucide-react';
-import { isEventToday, isEventExplicitlyLive, localDateString } from '@/lib/dateUtils';
+import { isEventToday, isEventExplicitlyLive, localDateString, localTodayStart } from '@/lib/dateUtils';
 
 const STEPS = ['Event', 'Seats', 'Price', 'Done'];
 
@@ -97,13 +97,13 @@ export default function CreateListing() {
     base44.auth.me().then(setUser).catch(() => {});
     base44.entities.Event.list('date', 100)
       .then(res => {
-        // Only keep events that are not ended AND not in the past (unless explicitly live)
+        // Only keep events that are not ended AND (live/beta-live OR today/future)
         const filtered = res.filter(e => {
           if (e.status === 'ended') return false;
           if (e.status === 'live' || e.is_beta_live) return true;
-          // Drop events whose date has already passed
-          if (e.date && new Date(e.date).getTime() < Date.now() - 4 * 60 * 60 * 1000) return false;
-          return true;
+          // Drop events whose local date is before today's start
+          if (!e.date) return true;
+          return new Date(e.date).getTime() >= localTodayStart().getTime();
         });
         setEvents(filtered);
       })
