@@ -32,7 +32,11 @@ export default function Upgrades() {
       const eligible = data.filter((e) => e.status !== 'ended');
       setPgEvents(adminUnlocked
         ? eligible
-        : eligible.filter((e) => e.is_beta_live || (e.date && now >= new Date(e.date).getTime()))
+        : eligible.filter((e) =>
+            e.is_beta_live ||
+            e.status === 'live' ||
+            (e.date && now >= new Date(e.date).getTime())
+          )
       );
     }).catch(console.error).finally(() => setLoading(false));
   }, []);
@@ -178,8 +182,23 @@ export default function Upgrades() {
         </div>
       </div>
 
-      {/* Location bar */}
+      {/* Search bar */}
       <div className="px-4 mt-4 mb-2">
+        <div className="relative">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Search events, venues, artists..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full pl-10 pr-4 py-3 rounded-2xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}
+          />
+        </div>
+      </div>
+
+      {/* Location bar */}
+      <div className="px-4 mb-2">
         {editingLocation ? (
           <form onSubmit={handleLocationSubmit} className="flex gap-2">
             <div className="relative flex-1">
@@ -233,21 +252,6 @@ export default function Upgrades() {
             )}
           </div>
         )}
-      </div>
-
-      {/* Search bar */}
-      <div className="px-4 mt-2 mb-4">
-        <div className="relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search events, venues, artists..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 rounded-2xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
-            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}
-          />
-        </div>
       </div>
 
       {/* Event list */}
