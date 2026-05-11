@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
       venue: venue || '',
       city: city || '',
       state: state || '',
-      date: date || null,
+      date: date || undefined,
       image_url: image_url || '',
       tm_url: tm_url || '',
       category: category || null,
