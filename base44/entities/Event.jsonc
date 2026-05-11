@@ -24,7 +24,24 @@
     "date": {
       "type": "string",
       "format": "date-time",
-      "description": "Event start time \u2014 always stored as UTC ISO string (e.g. 2026-05-08T02:00:00Z)"
+      "description": "Legacy field \u2014 UTC ISO string. Prefer event_start_utc for new events."
+    },
+    "event_start_local": {
+      "type": "string",
+      "description": "Local date/time at the venue as ISO string WITHOUT timezone offset, e.g. 2026-05-08T19:00:00. Used for display and initial data entry."
+    },
+    "event_start_utc": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Canonical UTC start time as ISO string. Derived from event_start_local + venue_timezone. All live/expired logic compares against this."
+    },
+    "venue_timezone": {
+      "type": "string",
+      "description": "IANA timezone of the venue, e.g. America/Phoenix, America/Los_Angeles, America/New_York. REQUIRED for accurate live-window calculation."
+    },
+    "duration_hours": {
+      "type": "number",
+      "description": "How many hours after start time the event is considered live. Defaults: concert/sports=4h, theater/comedy=3h."
     },
     "category": {
       "type": "string",
@@ -35,7 +52,7 @@
         "comedy",
         "other"
       ],
-      "description": "Event category"
+      "description": "Event category \u2014 also controls default duration_hours"
     },
     "image_url": {
       "type": "string",
@@ -72,14 +89,6 @@
     "tm_url": {
       "type": "string",
       "description": "Ticketmaster event URL for externally sourced events"
-    },
-    "venue_timezone": {
-      "type": "string",
-      "description": "IANA timezone of the venue, e.g. America/Phoenix. Used for accurate live-window calculation."
-    },
-    "duration_hours": {
-      "type": "number",
-      "description": "Override: how many hours after start time the event is considered live. Defaults to category duration (concert/sports=4h, theater/comedy=3h)."
     }
   },
   "required": [

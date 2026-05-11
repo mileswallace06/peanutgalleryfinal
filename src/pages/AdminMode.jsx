@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Shield, Database, CheckCircle, XCircle, RefreshCw, Lock, AlertTriangle, FileText, CreditCard } from 'lucide-react';
 import { format } from 'date-fns';
+import EventTimingDebug from '@/components/admin/EventTimingDebug';
 
 const ADMIN_PASSWORD = 'peanut2026';
 
@@ -488,6 +489,9 @@ export default function AdminMode() {
           </div>
         )}
       </div>
+
+      {/* Event Timing Debug */}
+      <EventTimingDebug />
 
       {/* Escrow Dashboard */}
       <div className="bg-card border border-border rounded-2xl p-5">

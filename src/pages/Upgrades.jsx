@@ -3,32 +3,7 @@ import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 import { MapPin, Calendar, Zap, ChevronRight, LocateFixed, X, Clock } from 'lucide-react';
-
-const LIVE_DURATION_MS = {
-  concert: 4 * 60 * 60 * 1000,
-  sports:  4 * 60 * 60 * 1000,
-  theater: 3 * 60 * 60 * 1000,
-  comedy:  3 * 60 * 60 * 1000,
-  other:   4 * 60 * 60 * 1000,
-};
-const DEFAULT_LIVE_MS = 4 * 60 * 60 * 1000;
-
-function isEventLive(event, nowMs) {
-  if (event.is_beta_live) return true;
-  if (!event.date) return false;
-  const startMs = new Date(event.date).getTime();
-  if (isNaN(startMs)) return false;
-  const duration = event.duration_hours
-    ? event.duration_hours * 60 * 60 * 1000
-    : (LIVE_DURATION_MS[event.category] ?? DEFAULT_LIVE_MS);
-  return nowMs >= startMs && nowMs <= startMs + duration;
-}
-
-function isEventUpcoming(event, nowMs) {
-  if (!event.date) return false;
-  const startMs = new Date(event.date).getTime();
-  return nowMs < startMs;
-}
+import { getEventLiveStatus, SOON_WINDOW_MINUTES } from '@/lib/eventTiming';
 
 export default function Upgrades() {
   const [allEvents, setAllEvents] = useState([]);
@@ -105,10 +80,24 @@ export default function Upgrades() {
   };
 
   const nowMs = Date.now();
-  const liveEvents = allEvents.filter((e) => isEventLive(e, nowMs));
+  const liveEvents = allEvents.filter((e) => {
+    const s = getEventLiveStatus(e, nowMs).status;
+    return s === 'live';
+  });
+  const soonEvents = allEvents.filter((e) => {
+    const s = getEventLiveStatus(e, nowMs).status;
+    return s === 'soon';
+  });
   const upcomingEvents = allEvents
-    .filter((e) => isEventUpcoming(e, nowMs))
-    .sort((a, b) => new Date(a.date) - new Date(b.date));
+    .filter((e) => {
+      const s = getEventLiveStatus(e, nowMs).status;
+      return s === 'upcoming';
+    })
+    .sort((a, b) => {
+      const aMs = new Date(a.event_start_utc || a.date || 0).getTime();
+      const bMs = new Date(b.event_start_utc || b.date || 0).getTime();
+      return aMs - bMs;
+    });
 
   return (
     <div className="pb-32">
@@ -241,6 +230,25 @@ export default function Upgrades() {
               )}
             </section>
 
+            {/* STARTING SOON */}
+            {soonEvents.length > 0 && (
+              <section>
+                <div className="flex items-center gap-2 mb-3">
+                  <Clock className="w-3.5 h-3.5" style={{ color: '#FFE600' }} />
+                  <h2 className="text-sm font-black tracking-widest uppercase" style={{ color: '#FFE600' }}>Starting Soon</h2>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full font-bold"
+                    style={{ background: 'rgba(255,230,0,0.12)', color: '#FFE600', border: '1px solid rgba(255,230,0,0.3)' }}>
+                    within {SOON_WINDOW_MINUTES} min
+                  </span>
+                </div>
+                <div className="space-y-3">
+                  {soonEvents.map((event) => (
+                    <EventCard key={event.id} event={event} mode="soon" />
+                  ))}
+                </div>
+              </section>
+            )}
+
             {/* UPCOMING */}
             <section>
               <div className="flex items-center gap-2 mb-3">
@@ -272,13 +280,14 @@ export default function Upgrades() {
 
 function EventCard({ event, mode }) {
   const isLive = mode === 'live';
+  const isSoon = mode === 'soon';
   return (
     <div
       className="flex items-center gap-3 rounded-2xl overflow-hidden"
       style={{
         background: 'linear-gradient(135deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.03) 100%)',
-        border: isLive ? '1px solid rgba(0,255,135,0.3)' : '1px solid rgba(255,255,255,0.09)',
-        boxShadow: isLive ? '0 0 20px rgba(0,255,135,0.08)' : 'none',
+        border: isLive ? '1px solid rgba(0,255,135,0.3)' : isSoon ? '1px solid rgba(255,230,0,0.3)' : '1px solid rgba(255,255,255,0.09)',
+        boxShadow: isLive ? '0 0 20px rgba(0,255,135,0.08)' : isSoon ? '0 0 20px rgba(255,230,0,0.06)' : 'none',
       }}
     >
       <div className="w-20 h-20 flex-shrink-0 relative overflow-hidden">
@@ -289,8 +298,11 @@ function EventCard({ event, mode }) {
             style={{ background: 'rgba(255,255,255,0.04)' }}>🎫</div>
         )}
         <span className="absolute top-1.5 left-1.5 text-[8px] font-black px-1.5 py-0.5 rounded-full"
-          style={{ background: isLive ? '#FF2D78' : 'rgba(191,95,255,0.85)', color: '#fff' }}>
-          {isLive ? 'LIVE' : 'SOON'}
+          style={{
+            background: isLive ? '#FF2D78' : isSoon ? 'rgba(255,230,0,0.9)' : 'rgba(191,95,255,0.85)',
+            color: isSoon ? '#000' : '#fff'
+          }}>
+          {isLive ? 'LIVE' : isSoon ? 'SOON' : 'UPCOMING'}
         </span>
       </div>
 
@@ -318,10 +330,12 @@ function EventCard({ event, mode }) {
           className="flex items-center gap-1 px-3 py-2 rounded-xl font-bold text-xs whitespace-nowrap"
           style={isLive
             ? { background: 'rgba(0,255,135,0.15)', color: '#00FF87', border: '1px solid rgba(0,255,135,0.3)' }
+            : isSoon
+            ? { background: 'rgba(255,230,0,0.12)', color: '#FFE600', border: '1px solid rgba(255,230,0,0.3)' }
             : { background: 'rgba(191,95,255,0.12)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.25)' }
           }
         >
-          {isLive ? 'Upgrades' : 'Get Ready'} <ChevronRight className="w-3.5 h-3.5" />
+          {isLive ? 'Upgrades' : isSoon ? 'Starting Soon' : 'Get Ready'} <ChevronRight className="w-3.5 h-3.5" />
         </Link>
       </div>
     </div>

@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 import { MapPin, Calendar, ArrowLeft, Ticket } from 'lucide-react';
 import ListingCard from '@/components/events/ListingCard';
 import PurchaseDialog from '@/components/events/PurchaseDialog';
+import { getEventLiveStatus } from '@/lib/eventTiming';
 
 export default function EventDetail() {
   const { id } = useParams();
@@ -23,9 +24,8 @@ export default function EventDetail() {
       const ev = events[0] || null;
       setEvent(ev);
       const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
-      const now = Date.now();
-      const eventStarted = ev?.date ? now >= new Date(ev.date).getTime() : false;
-      const isLiveMode = ev?.is_beta_live || eventStarted;
+      const timing = ev ? getEventLiveStatus(ev) : null;
+      const isLiveMode = timing ? (timing.status === 'live' || timing.status === 'ended') : false;
       // Events tab shows PRE-event listings only (unless admin bypass)
       const filtered = adminUnlocked
         ? rawListings
@@ -57,9 +57,9 @@ export default function EventDetail() {
   }
 
   const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
-  const isLive = event.status === 'live';
-  const eventStarted = event.date ? Date.now() >= new Date(event.date).getTime() : false;
-  const isLiveMode = event.is_beta_live || eventStarted;
+  const timing = getEventLiveStatus(event);
+  const isLive = timing.status === 'live';
+  const isLiveMode = timing.status === 'live' || timing.status === 'ended';
   const isDemoOnly = listings.length > 0 && listings.every(l => l.notes?.startsWith('[DEMO]'));
   const sorted = [...listings].sort((a, b) => a.asking_price - b.asking_price);
   const cheapest = sorted[0]?.asking_price;
@@ -130,7 +130,7 @@ export default function EventDetail() {
               <p className="text-sm text-muted-foreground mt-1">Buy tickets from other fans</p>
             </div>
             {adminUnlocked && (
-              <span className="text-xs bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full font-medium">
+              <span className="text-xs bg-amber-500/15 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-full font-medium">
                 🔑 Admin
               </span>
             )}
@@ -138,7 +138,7 @@ export default function EventDetail() {
 
           {isDemoOnly && (
             <div className="mt-3">
-              <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+              <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30">
                 🧪 Demo upgrades for testing
               </span>
             </div>
