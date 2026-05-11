@@ -176,7 +176,7 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
             }
           }} />
         </div>
-        <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1"><Lock className="w-3 h-3" /> Secured by Stripe · 256-bit encryption</p>
+        <p className="text-xs text-muted-foreground mt-1">Test card: 4242 4242 4242 4242 · any future date · any CVC</p>
       </div>
 
       {error && (

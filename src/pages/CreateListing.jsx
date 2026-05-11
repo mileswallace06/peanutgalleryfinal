@@ -1,9 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { useSearchParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, CheckCircle, Upload, Zap, Search, Star, MapPin, LocateFixed } from 'lucide-react';
-import { isEventToday, isEventExplicitlyLive, localDateString, localTodayStart } from '@/lib/dateUtils';
+import { ArrowLeft, ArrowRight, CheckCircle, Upload, Zap, Search, Star } from 'lucide-react';
 
 const STEPS = ['Event', 'Seats', 'Price', 'Done'];
 
@@ -70,15 +69,9 @@ export default function CreateListing() {
   const [tmResults, setTmResults] = useState([]);
   const [tmLoading, setTmLoading] = useState(false);
   const [tmSearched, setTmSearched] = useState(false);
+  // For TM events, store the selected event object (not just id)
   const [selectedTmEvent, setSelectedTmEvent] = useState(null);
   const [selectingTmId, setSelectingTmId] = useState(null);
-  // Location for recommended tab
-  const [userCity, setUserCity] = useState(null);
-  const [userLatLng, setUserLatLng] = useState(null);
-  const [locationStatus, setLocationStatus] = useState('idle'); // idle | detecting | done | denied
-  const locationFetchedRef = useRef(false);
-  const [tmRecommended, setTmRecommended] = useState([]);
-  const [tmRecommendedLoading, setTmRecommendedLoading] = useState(false);
 
   const [form, setForm] = useState({
     event_id: preselectedEventId || '',
@@ -95,69 +88,10 @@ export default function CreateListing() {
 
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => {});
-    base44.entities.Event.list('date', 100)
-      .then(res => {
-        // Only keep events that are not ended AND (live/beta-live OR today/future)
-        const filtered = res.filter(e => {
-          if (e.status === 'ended') return false;
-          if (e.status === 'live' || e.is_beta_live) return true;
-          // Drop events whose local date is before today's start
-          if (!e.date) return true;
-          return new Date(e.date).getTime() >= localTodayStart().getTime();
-        });
-        setEvents(filtered);
-      })
+    base44.entities.Event.filter({ status: 'upcoming' })
+      .then(res => setEvents(res.filter(e => e.status !== 'ended')))
       .catch(console.error)
       .finally(() => setLoadingEvents(false));
-  }, []);
-
-  const fetchTmRecommended = (latlong, city) => {
-    setTmRecommendedLoading(true);
-    const params = { size: 20, localDate: localDateString() };
-    if (latlong) { params.latlong = latlong; params.radius = '30'; }
-    else if (city) { params.city = city; }
-    base44.functions.invoke('getTicketmasterEvents', params)
-      .then(res => setTmRecommended(res?.data?.events || []))
-      .catch(() => setTmRecommended([]))
-      .finally(() => setTmRecommendedLoading(false));
-  };
-
-  const detectLocation = () => {
-    if (!navigator.geolocation) { setLocationStatus('denied'); fetchTmRecommended(null, null); return; }
-    setLocationStatus('detecting');
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const { latitude, longitude } = pos.coords;
-        const latlong = `${latitude},${longitude}`;
-        setUserLatLng(latlong);
-        try {
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`
-          );
-          const data = await res.json();
-          const city =
-            data.address?.city ||
-            data.address?.town ||
-            data.address?.village ||
-            data.address?.county ||
-            null;
-          setUserCity(city?.toLowerCase() || null);
-        } catch {
-          setUserCity(null);
-        }
-        setLocationStatus('done');
-        fetchTmRecommended(latlong, null);
-      },
-      () => { setLocationStatus('denied'); fetchTmRecommended(null, null); },
-      { timeout: 10000, enableHighAccuracy: false, maximumAge: 60000 }
-    );
-  };
-
-  // Auto-detect on mount
-  useEffect(() => {
-    if (locationFetchedRef.current) return;
-    locationFetchedRef.current = true;
-    detectLocation();
   }, []);
 
   const set = (field, value) => setForm(f => ({ ...f, [field]: value }));
@@ -224,21 +158,6 @@ export default function CreateListing() {
     setSelectingTmId(null);
     setStep(1);
   };
-
-  // PG events: show all upcoming/live events, filtered by city if location is known
-  const pgRecommended = events.filter(e => {
-    if (locationStatus === 'done' && userCity && e.city) {
-      return e.city.toLowerCase().includes(userCity) || userCity.includes(e.city.toLowerCase());
-    }
-    return true;
-  });
-
-  // Dedupe TM events already in PG
-  const pgTmIds = new Set(events.map(e => e.tm_id).filter(Boolean));
-  const tmRecommendedFiltered = tmRecommended.filter(e => !pgTmIds.has(e.tm_id));
-
-  // Combined list: PG first, then TM
-  const allRecommended = [...pgRecommended, ...tmRecommendedFiltered];
 
   const selectedEvent = events.find(e => e.id === form.event_id) || selectedTmEvent;
 
@@ -344,88 +263,29 @@ export default function CreateListing() {
           {/* Recommended Tab */}
           {eventTab === 'recommended' && (
             <div className="space-y-2">
-              {/* Location bar */}
-              <div className="flex items-center justify-between px-3 py-2.5 rounded-xl mb-1"
-                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)' }}>
-                <div className="flex items-center gap-2">
-                  {locationStatus === 'detecting' ? (
-                    <>
-                      <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" style={{ color: '#00C8FF' }} />
-                      <span className="text-xs text-muted-foreground">Detecting location…</span>
-                    </>
-                  ) : userCity ? (
-                    <>
-                      <MapPin className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#00C8FF' }} />
-                      <span className="text-xs font-medium" style={{ color: '#00C8FF' }}>
-                        {userCity.charAt(0).toUpperCase() + userCity.slice(1)} · today only
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <LocateFixed className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground" />
-                      <span className="text-xs text-muted-foreground">Location off · showing all today's events</span>
-                    </>
-                  )}
-                </div>
-                {locationStatus !== 'detecting' && (
-                  <button onClick={detectLocation}
-                    className="text-[11px] font-bold px-2.5 py-1 rounded-lg"
-                    style={{ background: 'rgba(0,200,255,0.12)', color: '#00C8FF', border: '1px solid rgba(0,200,255,0.2)' }}>
-                    {locationStatus === 'denied' ? 'Retry' : 'Refresh'}
-                  </button>
-                )}
-              </div>
-
-              {(loadingEvents || tmRecommendedLoading) ? (
-                <div className="space-y-2">
-                  {[1,2,3].map(i => <div key={i} className="h-14 rounded-2xl animate-pulse" style={{ background: 'rgba(255,255,255,0.05)' }} />)}
-                </div>
-              ) : allRecommended.length === 0 ? (
-                <div className="text-center py-8 space-y-2">
-                  <p className="text-sm text-muted-foreground">No events found{userCity ? ` near ${userCity.charAt(0).toUpperCase() + userCity.slice(1)}` : ''}.</p>
-                  <button onClick={() => setEventTab('search')}
-                    className="text-xs font-bold px-4 py-2 rounded-full"
-                    style={{ background: 'rgba(191,95,255,0.12)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.3)' }}>
-                    Search for your event →
-                  </button>
-                </div>
+              {loadingEvents ? (
+                <div className="h-14 rounded-2xl animate-pulse" style={{ background: 'rgba(255,255,255,0.05)' }} />
+              ) : events.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">No upcoming events found.</p>
               ) : (
-                allRecommended.map(ev => {
-                  const isTM = !!ev.tm_id && !ev.id;
-                  const key = ev.id || ev.tm_id;
-                  const isSelected = isTM ? selectingTmId === ev.tm_id : form.event_id === ev.id;
-                  return (
-                    <button
-                      key={key}
-                      onClick={() => isTM ? handleSelectTmEvent(ev) : (set('event_id', ev.id), setSelectedTmEvent(null))}
-                      disabled={!!selectingTmId}
-                      className="w-full text-left px-4 py-3.5 rounded-2xl transition-all flex items-center gap-3 disabled:opacity-60"
-                      style={{
-                        background: isSelected ? 'rgba(191,95,255,0.12)' : 'rgba(255,255,255,0.04)',
-                        border: isSelected ? '1px solid rgba(191,95,255,0.4)' : '1px solid rgba(255,255,255,0.08)',
-                        boxShadow: isSelected ? '0 0 16px rgba(191,95,255,0.15)' : 'none',
-                      }}
-                    >
-                      {ev.image_url && <img src={ev.image_url} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />}
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-sm text-foreground truncate">{ev.title}</span>
-                          {(ev.status === 'live' || ev.is_beta_live) && (
-                            <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full flex-shrink-0"
-                              style={{ background: '#FF2D78', color: '#fff' }}>LIVE</span>
-                          )}
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-0.5 truncate">
-                          {ev.venue}{ev.city ? `, ${ev.city}` : ''}
-                          {ev.date && <> · {new Date(ev.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</>}
-                        </div>
-                      </div>
-                      {selectingTmId === ev.tm_id && (
-                        <span className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin flex-shrink-0" />
-                      )}
-                    </button>
-                  );
-                })
+                events.map(ev => (
+                  <button
+                    key={ev.id}
+                    onClick={() => { set('event_id', ev.id); setSelectedTmEvent(null); }}
+                    className="w-full text-left px-4 py-3.5 rounded-2xl transition-all"
+                    style={{
+                      background: form.event_id === ev.id ? 'rgba(191,95,255,0.12)' : 'rgba(255,255,255,0.04)',
+                      border: form.event_id === ev.id ? '1px solid rgba(191,95,255,0.4)' : '1px solid rgba(255,255,255,0.08)',
+                      boxShadow: form.event_id === ev.id ? '0 0 16px rgba(191,95,255,0.15)' : 'none',
+                    }}
+                  >
+                    <div className="font-bold text-sm text-foreground">{ev.title}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      {ev.venue}{ev.city ? `, ${ev.city}` : ''}
+                      {ev.date && <> · {new Date(ev.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</>}
+                    </div>
+                  </button>
+                ))
               )}
             </div>
           )}

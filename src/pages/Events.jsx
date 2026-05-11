@@ -3,38 +3,28 @@ import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 import { MapPin, Calendar, Search, ChevronRight, LocateFixed, X } from 'lucide-react';
-import { now, isEventUpcoming, localDateString } from '@/lib/dateUtils';
 
 export default function Events() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
   const searchDebounceRef = useRef(null);
+  const initializedRef = useRef(false);
 
-  // Use refs to always have fresh values in async callbacks
+  // Location state
   const [locationLabel, setLocationLabel] = useState('');
   const [latlong, setLatlong] = useState('');
-  const latlongRef = useRef('');
-  const locationLabelRef = useRef('');
   const [locationInput, setLocationInput] = useState('');
   const [editingLocation, setEditingLocation] = useState(false);
   const [detectingLocation, setDetectingLocation] = useState(false);
   const locationInputRef = useRef(null);
-  const mountedRef = useRef(false);
-
-  const setLL = (ll) => {
-    latlongRef.current = ll;
-    setLatlong(ll);
-  };
-  const setLabel = (label) => {
-    locationLabelRef.current = label;
-    setLocationLabel(label);
-  };
 
   const fetchEvents = (ll, cityOverride, keyword) => {
     setLoading(true);
     const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
-    const tmParams = { size: 40, localDate: localDateString() };
+    const now = Date.now();
+    const tmParams = { size: 40 };
     if (ll) { tmParams.latlong = ll; tmParams.radius = '50'; }
     else if (cityOverride) { tmParams.city = cityOverride; }
     if (keyword) { tmParams.keyword = keyword; }
@@ -46,16 +36,21 @@ export default function Events() {
       const eligible = localData.filter(e => e.status !== 'ended');
       const pgEvents = adminUnlocked
         ? eligible
-        : eligible.filter(e => e.is_beta_live || e.status === 'live' || isEventUpcoming(e));
-      let pgFiltered = [...pgEvents];
+        : eligible.filter(e => !e.date || now < new Date(e.date).getTime());
+      // Exclude is_beta_live events from Tickets (they belong in Upgrades)
+      let pgFiltered = pgEvents.filter(e => !e.is_beta_live);
 
+      // Filter local events by city when a city/location is set (no latlong filtering for local events)
       if (cityOverride) {
         const cityLower = cityOverride.toLowerCase();
         pgFiltered = pgFiltered.filter(e =>
           e.city?.toLowerCase().includes(cityLower) ||
           e.venue?.toLowerCase().includes(cityLower)
         );
+      } else if (!ll) {
+        // No location set — show all local events (fallback)
       }
+      // When latlong is set, filter local events to cities that appear in TM results (within radius)
       if (ll) {
         const tmCities = new Set(
           (tmRes?.data?.events || []).map(e => e.city?.toLowerCase()).filter(Boolean)
@@ -73,52 +68,35 @@ export default function Events() {
     }).catch(console.error).finally(() => setLoading(false));
   };
 
-  const detectLocation = (onSuccess, onError) => {
-    if (!navigator.geolocation) {
-      onError && onError();
-      return;
-    }
+  // Auto-detect on mount
+  useEffect(() => {
+    setDetectingLocation(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const ll = `${pos.coords.latitude},${pos.coords.longitude}`;
-        onSuccess(ll);
-      },
-      () => { onError && onError(); },
-      { timeout: 10000, enableHighAccuracy: true, maximumAge: 0 }
-    );
-  };
-
-  // Auto-detect on mount
-  useEffect(() => {
-    if (mountedRef.current) return;
-    mountedRef.current = true;
-    setDetectingLocation(true);
-    detectLocation(
-      (ll) => {
-        setLL(ll);
-        setLabel('Near me');
+        setLatlong(ll);
+        setLocationLabel('Near me');
         setDetectingLocation(false);
         fetchEvents(ll, null, null);
       },
       () => {
+        // Permission denied or unavailable — load without location
         setDetectingLocation(false);
         fetchEvents(null, null, null);
-      }
+      },
+      { timeout: 6000 }
     );
   }, []);
 
-  // Re-fetch when search changes (debounced), using fresh refs for location
+  // Re-fetch with search keyword when user types (debounced 400ms), but skip the initial mount
   useEffect(() => {
-    if (!mountedRef.current) return;
+    if (!initializedRef.current) {
+      initializedRef.current = true;
+      return;
+    }
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
     searchDebounceRef.current = setTimeout(() => {
-      const ll = latlongRef.current;
-      const label = locationLabelRef.current;
-      fetchEvents(
-        ll || null,
-        label && label !== 'Near me' ? label : null,
-        search.trim() || null
-      );
+      fetchEvents(latlong || null, locationLabel && locationLabel !== 'Near me' ? locationLabel : null, search.trim() || null);
     }, 400);
     return () => clearTimeout(searchDebounceRef.current);
   }, [search]);
@@ -127,26 +105,25 @@ export default function Events() {
     e.preventDefault();
     const val = locationInput.trim();
     if (!val) return;
-    setLL('');
-    setLabel(val);
+    setLatlong('');
+    setLocationLabel(val);
     setEditingLocation(false);
     fetchEvents(null, val, search.trim() || null);
   };
 
   const handleDetectAgain = () => {
     setDetectingLocation(true);
-    setEditingLocation(false);
-    detectLocation(
-      (ll) => {
-        setLL(ll);
-        setLabel('Near me');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const ll = `${pos.coords.latitude},${pos.coords.longitude}`;
+        setLatlong(ll);
+        setLocationLabel('Near me');
         setDetectingLocation(false);
+        setEditingLocation(false);
         fetchEvents(ll, null, search.trim() || null);
       },
-      () => {
-        setDetectingLocation(false);
-        setLabel('Location unavailable');
-      }
+      () => setDetectingLocation(false),
+      { timeout: 6000 }
     );
   };
 
@@ -261,34 +238,18 @@ export default function Events() {
             </button>
           </form>
         ) : (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => {
-                if (detectingLocation) return;
-                setLocationInput(locationLabel === 'Near me' ? '' : locationLabel);
-                setEditingLocation(true);
-              }}
-              disabled={detectingLocation}
-              className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-xl transition-opacity"
-              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', color: 'rgba(255,255,255,0.7)', opacity: detectingLocation ? 0.6 : 1 }}
-            >
-              {detectingLocation
-                ? <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                : <MapPin className="w-3.5 h-3.5" style={{ color: '#00C8FF' }} />
-              }
-              <span>{detectingLocation ? 'Detecting location…' : locationLabel || 'Set location'}</span>
-              {!detectingLocation && <span className="text-[10px] text-muted-foreground ml-1">· change</span>}
-            </button>
-            {!detectingLocation && !locationLabel && (
-              <button
-                onClick={handleDetectAgain}
-                className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl"
-                style={{ background: 'rgba(0,200,255,0.12)', border: '1px solid rgba(0,200,255,0.25)', color: '#00C8FF' }}
-              >
-                <LocateFixed className="w-3.5 h-3.5" /> Use my location
-              </button>
-            )}
-          </div>
+          <button
+            onClick={() => { setLocationInput(locationLabel === 'Near me' ? '' : locationLabel); setEditingLocation(true); }}
+            className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-xl"
+            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', color: 'rgba(255,255,255,0.7)' }}
+          >
+            {detectingLocation
+              ? <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              : <MapPin className="w-3.5 h-3.5" style={{ color: '#00C8FF' }} />
+            }
+            <span>{detectingLocation ? 'Detecting location…' : locationLabel || 'Set location'}</span>
+            <span className="text-[10px] text-muted-foreground ml-1">· change</span>
+          </button>
         )}
       </div>
 

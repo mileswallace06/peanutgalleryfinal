@@ -1,17 +1,13 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 import { MapPin, Calendar, ArrowLeft, Ticket, ExternalLink, Plus } from 'lucide-react';
 import ListingCard from '@/components/events/ListingCard';
 import PurchaseDialog from '@/components/events/PurchaseDialog';
-import useVenueGeolock from '@/hooks/useVenueGeolock';
-import GeoLockGate from '@/components/GeoLockGate';
 
 export default function EventDetailTM() {
   const { tmId } = useParams();
-  const [searchParams] = useSearchParams();
-  const isUpgradeMode = searchParams.get('mode') === 'upgrade';
   const navigate = useNavigate();
   const [event, setEvent] = useState(null); // TM event data
   const [localEventId, setLocalEventId] = useState(null); // local DB Event.id if it exists
@@ -20,35 +16,28 @@ export default function EventDetailTM() {
   const [selectedListing, setSelectedListing] = useState(null);
   const [creatingEvent, setCreatingEvent] = useState(false);
 
-  // Geolock — only enforced in upgrade mode (city-level check for TM events)
-  const { status: geoStatus, reason: geoReason, distanceKm } = useVenueGeolock({
-    venueLat: null,
-    venueLng: null,
-    venueCity: isUpgradeMode ? event?.city : null,
-    venueState: isUpgradeMode ? event?.state : null,
-  });
-
   useEffect(() => {
     Promise.all([
+      base44.functions.invoke('getTicketmasterEvents', { size: 100 }),
       base44.entities.Event.filter({ tm_id: tmId }),
-      base44.functions.invoke('getTicketmasterEvent', { tm_id: tmId }),
-    ]).then(async ([localEvents, tmRes]) => {
-      const tmEvent = tmRes?.data?.event || null;
+    ]).then(([tmRes, localEvents]) => {
+      const tmEvents = tmRes?.data?.events || [];
+      const found = tmEvents.find(e => e.tm_id === tmId);
+      if (found) setEvent(found);
 
+      // Check if a local event already exists for this tm_id
       if (localEvents.length > 0) {
         const localEv = localEvents[0];
         setLocalEventId(localEv.id);
-        setEvent(tmEvent || {
-          title: localEv.title, venue: localEv.venue, city: localEv.city,
-          state: localEv.state, date: localEv.date, image_url: localEv.image_url,
-          tm_id: localEv.tm_id, tm_url: localEv.tm_url,
-        });
-        const rawListings = await base44.entities.Listing.filter({ event_id: localEv.id, status: 'active', proof_status: 'approved' });
-        const real = rawListings.filter(l => !l.notes?.startsWith('[DEMO]'));
-        setListings(real.length > 0 ? real : rawListings);
-      } else {
-        setEvent(tmEvent);
+        // Load listings for this local event
+        return base44.entities.Listing.filter({ event_id: localEv.id, status: 'active', proof_status: 'approved' });
       }
+      return [];
+    }).then(rawListings => {
+      const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
+      const real = rawListings.filter(l => !l.notes?.startsWith('[DEMO]'));
+      setListings(real.length > 0 ? real : rawListings);
+      if (!adminUnlocked) setListings(rl => rl); // no time filter needed for pre-event tickets
     }).catch(console.error).finally(() => setLoading(false));
   }, [tmId]);
 
@@ -99,18 +88,6 @@ export default function EventDetailTM() {
 
   const sorted = [...listings].sort((a, b) => a.asking_price - b.asking_price);
   const cheapest = sorted[0]?.asking_price;
-
-  if (isUpgradeMode && geoStatus !== 'allowed') {
-    return (
-      <GeoLockGate
-        status={geoStatus}
-        reason={geoReason}
-        venueName={event?.venue}
-        distanceKm={distanceKm}
-        backPath="/upgrades"
-      />
-    );
-  }
 
   return (
     <div className="pb-32">
@@ -217,29 +194,24 @@ export default function EventDetailTM() {
           {listings.length === 0 ? (
             <div
               className="text-center py-12 rounded-2xl"
-              style={{ background: isUpgradeMode ? 'rgba(0,255,135,0.04)' : 'rgba(191,95,255,0.04)', border: isUpgradeMode ? '1px solid rgba(0,255,135,0.12)' : '1px solid rgba(191,95,255,0.12)' }}
+              style={{ background: 'rgba(191,95,255,0.04)', border: '1px solid rgba(191,95,255,0.12)' }}
             >
-              <p className="text-3xl mb-3">{isUpgradeMode ? '⚡' : '🥜'}</p>
-              <p className="font-bold text-foreground text-sm">
-                {isUpgradeMode ? 'No upgrade listings yet' : 'No Peanut Gallery listings yet'}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1 mb-4 max-w-[240px] mx-auto leading-relaxed">
-                {isUpgradeMode
-                  ? 'No fans have listed seat upgrades for this event yet. Check back once the event starts, or list your own!'
-                  : 'Be the first to list your tickets for this event inside Peanut Gallery.'
-                }
+              <p className="text-3xl mb-3">🥜</p>
+              <p className="font-bold text-foreground text-sm">No Peanut Gallery listings yet</p>
+              <p className="text-xs text-muted-foreground mt-1 mb-4 max-w-[220px] mx-auto leading-relaxed">
+                Be the first to list your tickets for this event inside Peanut Gallery.
               </p>
               <button
                 onClick={handleListTickets}
                 disabled={creatingEvent}
                 className="inline-flex items-center gap-2 font-bold text-sm px-5 py-2.5 rounded-full"
-                style={{ background: isUpgradeMode ? 'rgba(0,255,135,0.12)' : 'rgba(191,95,255,0.15)', color: isUpgradeMode ? '#00FF87' : '#BF5FFF', border: isUpgradeMode ? '1px solid rgba(0,255,135,0.3)' : '1px solid rgba(191,95,255,0.3)' }}
+                style={{ background: 'rgba(191,95,255,0.15)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.3)' }}
               >
                 {creatingEvent
                   ? <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                   : <Plus className="w-4 h-4" />
                 }
-                {isUpgradeMode ? 'List your seats for upgrade' : 'List tickets for this event'}
+                List tickets for this event
               </button>
             </div>
           ) : (

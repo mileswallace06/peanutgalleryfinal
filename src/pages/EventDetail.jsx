@@ -3,7 +3,6 @@ import { useParams, Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 import { MapPin, Calendar, ArrowLeft, Ticket } from 'lucide-react';
-import { isEventExplicitlyLive, hasEventStarted } from '@/lib/dateUtils';
 import ListingCard from '@/components/events/ListingCard';
 import PurchaseDialog from '@/components/events/PurchaseDialog';
 
@@ -24,7 +23,9 @@ export default function EventDetail() {
       const ev = events[0] || null;
       setEvent(ev);
       const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
-      const isLiveMode = isEventExplicitlyLive(ev);
+      const now = Date.now();
+      const eventStarted = ev?.date ? now >= new Date(ev.date).getTime() : false;
+      const isLiveMode = ev?.is_beta_live || eventStarted;
       // Events tab shows PRE-event listings only (unless admin bypass)
       const filtered = adminUnlocked
         ? rawListings
@@ -57,7 +58,8 @@ export default function EventDetail() {
 
   const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
   const isLive = event.status === 'live';
-  const isLiveMode = isEventExplicitlyLive(event);
+  const eventStarted = event.date ? Date.now() >= new Date(event.date).getTime() : false;
+  const isLiveMode = event.is_beta_live || eventStarted;
   const isDemoOnly = listings.length > 0 && listings.every(l => l.notes?.startsWith('[DEMO]'));
   const sorted = [...listings].sort((a, b) => a.asking_price - b.asking_price);
   const cheapest = sorted[0]?.asking_price;
