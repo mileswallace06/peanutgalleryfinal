@@ -1,28 +1,104 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { MapPin, Calendar, Zap, ChevronRight } from 'lucide-react';
+import { MapPin, Calendar, Zap, ChevronRight, LocateFixed, X } from 'lucide-react';
 
 export default function Upgrades() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [locationLabel, setLocationLabel] = useState('');
+  const [locationInput, setLocationInput] = useState('');
+  const [editingLocation, setEditingLocation] = useState(false);
+  const [detectingLocation, setDetectingLocation] = useState(false);
+  const latlongRef = useRef('');
+  const locationLabelRef = useRef('');
+  const locationInputRef = useRef(null);
 
-  useEffect(() => {
+  const setLatlongSync = (val) => { latlongRef.current = val; };
+  const setLocationLabelSync = (val) => { locationLabelRef.current = val; setLocationLabel(val); };
+
+  const fetchEvents = useCallback((ll, cityOverride) => {
+    setLoading(true);
     const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
     const now = Date.now();
-    base44.entities.Event.list('date', 50).
-    then((data) => {
+    base44.entities.Event.list('date', 50).then((data) => {
       const eligible = data.filter((e) => e.status !== 'ended');
-      // Upgrades tab = events that are live: date passed OR is_beta_live flag
-      setEvents(adminUnlocked ?
-        eligible :
-        eligible.filter((e) => e.is_beta_live || (e.date && now >= new Date(e.date).getTime()))
-      );
-    }).
-    catch(console.error).
-    finally(() => setLoading(false));
+      let live = adminUnlocked
+        ? eligible
+        : eligible.filter((e) => e.is_beta_live || (e.date && now >= new Date(e.date).getTime()));
+
+      // Filter by city if manually entered
+      if (cityOverride) {
+        const cityLower = cityOverride.toLowerCase();
+        live = live.filter((e) =>
+          e.city?.toLowerCase().includes(cityLower) ||
+          e.venue?.toLowerCase().includes(cityLower)
+        );
+      }
+      // Filter by proximity using Ticketmaster city names as a proxy if we have latlong
+      if (ll) {
+        base44.functions.invoke('getTicketmasterEvents', { latlong: ll, radius: '30', size: 1 })
+          .then((tmRes) => {
+            const tmCities = new Set(
+              (tmRes?.data?.events || []).map((e) => e.city?.toLowerCase()).filter(Boolean)
+            );
+            if (tmCities.size > 0) {
+              live = live.filter((e) => !e.city || tmCities.has(e.city.toLowerCase()));
+            }
+            setEvents(live);
+          }).catch(() => setEvents(live))
+          .finally(() => setLoading(false));
+        return;
+      }
+      setEvents(live);
+    }).catch(console.error).finally(() => setLoading(false));
   }, []);
+
+  // Auto-detect location on mount
+  useEffect(() => {
+    setDetectingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const ll = `${pos.coords.latitude},${pos.coords.longitude}`;
+        setLatlongSync(ll);
+        setLocationLabelSync('Near me');
+        setDetectingLocation(false);
+        fetchEvents(ll, null);
+      },
+      () => {
+        setDetectingLocation(false);
+        fetchEvents(null, null);
+      },
+      { timeout: 8000, enableHighAccuracy: true, maximumAge: 0 }
+    );
+  }, [fetchEvents]);
+
+  const handleLocationSubmit = (e) => {
+    e.preventDefault();
+    const val = locationInput.trim();
+    if (!val) return;
+    setLatlongSync('');
+    setLocationLabelSync(val);
+    setEditingLocation(false);
+    fetchEvents(null, val);
+  };
+
+  const handleDetectAgain = () => {
+    setDetectingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const ll = `${pos.coords.latitude},${pos.coords.longitude}`;
+        setLatlongSync(ll);
+        setLocationLabelSync('Near me');
+        setDetectingLocation(false);
+        setEditingLocation(false);
+        fetchEvents(ll, null);
+      },
+      () => setDetectingLocation(false),
+      { timeout: 8000, enableHighAccuracy: true, maximumAge: 0 }
+    );
+  };
 
   return (
     <div className="pb-32">
@@ -67,8 +143,56 @@ export default function Upgrades() {
         </div>
       </div>
 
+      {/* Location bar */}
+      <div className="px-4 mt-4 mb-2">
+        {editingLocation ? (
+          <form onSubmit={handleLocationSubmit} className="flex gap-2">
+            <div className="relative flex-1">
+              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input
+                ref={locationInputRef}
+                autoFocus
+                type="text"
+                placeholder="City or zip code…"
+                value={locationInput}
+                onChange={(e) => setLocationInput(e.target.value)}
+                className="w-full pl-9 pr-3 py-2.5 rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.14)' }}
+              />
+            </div>
+            <button type="button" onClick={handleDetectAgain} title="Use my location"
+              className="flex items-center justify-center w-10 h-10 rounded-xl flex-shrink-0"
+              style={{ background: 'rgba(0,200,255,0.12)', border: '1px solid rgba(0,200,255,0.25)', color: '#00C8FF' }}>
+              <LocateFixed className="w-4 h-4" />
+            </button>
+            <button type="button" onClick={() => setEditingLocation(false)}
+              className="flex items-center justify-center w-10 h-10 rounded-xl flex-shrink-0"
+              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)' }}>
+              <X className="w-4 h-4" />
+            </button>
+            <button type="submit" className="px-4 py-2.5 rounded-xl font-bold text-sm flex-shrink-0"
+              style={{ background: 'rgba(0,200,255,0.15)', color: '#00C8FF', border: '1px solid rgba(0,200,255,0.3)' }}>
+              Go
+            </button>
+          </form>
+        ) : (
+          <button
+            onClick={() => { setLocationInput(locationLabel === 'Near me' ? '' : locationLabel); setEditingLocation(true); }}
+            className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-xl"
+            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', color: 'rgba(255,255,255,0.7)' }}
+          >
+            {detectingLocation
+              ? <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              : <MapPin className="w-3.5 h-3.5" style={{ color: '#00FF87' }} />
+            }
+            <span>{detectingLocation ? 'Detecting location…' : locationLabel || 'Set location'}</span>
+            <span className="text-[10px] text-muted-foreground ml-1">· change</span>
+          </button>
+        )}
+      </div>
+
       {/* Event list */}
-      <div className="px-4 mt-5">
+      <div className="px-4 mt-3">
         <p className="text-xs text-muted-foreground font-medium mb-3">
           {loading ? 'Loading...' : `${events.length} event${events.length !== 1 ? 's' : ''} with upgrades`}
         </p>
