@@ -8,19 +8,24 @@ export default function Events() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [showSearch, setShowSearch] = useState(false);
   const searchDebounceRef = useRef(null);
-  const initializedRef = useRef(false);
 
-  // Location state
+  // Location state — use refs to always have fresh values in callbacks
   const [locationLabel, setLocationLabel] = useState('');
   const [latlong, setLatlong] = useState('');
+  const latlongRef = useRef('');
+  const locationLabelRef = useRef('');
   const [locationInput, setLocationInput] = useState('');
   const [editingLocation, setEditingLocation] = useState(false);
   const [detectingLocation, setDetectingLocation] = useState(false);
+  const searchRef = useRef('');
   const locationInputRef = useRef(null);
 
-  const fetchEvents = (ll, cityOverride, keyword) => {
+  // Keep refs in sync
+  const setLatlongSync = (val) => { latlongRef.current = val; setLatlong(val); };
+  const setLocationLabelSync = (val) => { locationLabelRef.current = val; setLocationLabel(val); };
+
+  const fetchEvents = useCallback((ll, cityOverride, keyword) => {
     setLoading(true);
     const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
     const now = Date.now();
@@ -37,20 +42,15 @@ export default function Events() {
       const pgEvents = adminUnlocked
         ? eligible
         : eligible.filter(e => !e.date || now < new Date(e.date).getTime());
-      // Exclude is_beta_live events from Tickets (they belong in Upgrades)
       let pgFiltered = pgEvents.filter(e => !e.is_beta_live);
 
-      // Filter local events by city when a city/location is set (no latlong filtering for local events)
       if (cityOverride) {
         const cityLower = cityOverride.toLowerCase();
         pgFiltered = pgFiltered.filter(e =>
           e.city?.toLowerCase().includes(cityLower) ||
           e.venue?.toLowerCase().includes(cityLower)
         );
-      } else if (!ll) {
-        // No location set — show all local events (fallback)
       }
-      // When latlong is set, filter local events to cities that appear in TM results (within radius)
       if (ll) {
         const tmCities = new Set(
           (tmRes?.data?.events || []).map(e => e.city?.toLowerCase()).filter(Boolean)
@@ -66,49 +66,48 @@ export default function Events() {
       const tmEvents = (tmRes?.data?.events || []).map(e => ({ ...e, id: `tm_${e.tm_id}` }));
       setEvents([...pgMapped, ...tmEvents]);
     }).catch(console.error).finally(() => setLoading(false));
-  };
+  }, []);
 
-  // Auto-detect on mount
+  // Auto-detect location on mount
   useEffect(() => {
     setDetectingLocation(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const ll = `${pos.coords.latitude},${pos.coords.longitude}`;
-        setLatlong(ll);
-        setLocationLabel('Near me');
+        setLatlongSync(ll);
+        setLocationLabelSync('Near me');
         setDetectingLocation(false);
-        fetchEvents(ll, null, null);
+        fetchEvents(ll, null, searchRef.current || null);
       },
       () => {
-        // Permission denied or unavailable — load without location
         setDetectingLocation(false);
-        fetchEvents(null, null, null);
+        fetchEvents(null, null, searchRef.current || null);
       },
-      { timeout: 6000 }
+      { timeout: 8000, enableHighAccuracy: true, maximumAge: 0 }
     );
-  }, []);
+  }, [fetchEvents]);
 
-  // Re-fetch with search keyword when user types (debounced 400ms), but skip the initial mount
+  // Search debounce — reads fresh values from refs
   useEffect(() => {
-    if (!initializedRef.current) {
-      initializedRef.current = true;
-      return;
-    }
+    searchRef.current = search;
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
     searchDebounceRef.current = setTimeout(() => {
-      fetchEvents(latlong || null, locationLabel && locationLabel !== 'Near me' ? locationLabel : null, search.trim() || null);
+      const ll = latlongRef.current || null;
+      const city = locationLabelRef.current && locationLabelRef.current !== 'Near me'
+        ? locationLabelRef.current : null;
+      fetchEvents(ll, city, search.trim() || null);
     }, 400);
     return () => clearTimeout(searchDebounceRef.current);
-  }, [search]);
+  }, [search, fetchEvents]);
 
   const handleLocationSubmit = (e) => {
     e.preventDefault();
     const val = locationInput.trim();
     if (!val) return;
-    setLatlong('');
-    setLocationLabel(val);
+    setLatlongSync('');
+    setLocationLabelSync(val);
     setEditingLocation(false);
-    fetchEvents(null, val, search.trim() || null);
+    fetchEvents(null, val, searchRef.current || null);
   };
 
   const handleDetectAgain = () => {
@@ -116,14 +115,16 @@ export default function Events() {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const ll = `${pos.coords.latitude},${pos.coords.longitude}`;
-        setLatlong(ll);
-        setLocationLabel('Near me');
+        setLatlongSync(ll);
+        setLocationLabelSync('Near me');
         setDetectingLocation(false);
         setEditingLocation(false);
-        fetchEvents(ll, null, search.trim() || null);
+        fetchEvents(ll, null, searchRef.current || null);
       },
-      () => setDetectingLocation(false),
-      { timeout: 6000 }
+      () => {
+        setDetectingLocation(false);
+      },
+      { timeout: 8000, enableHighAccuracy: true, maximumAge: 0 }
     );
   };
 
