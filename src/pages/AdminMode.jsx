@@ -195,7 +195,7 @@ export default function AdminMode() {
       </div>
 
       {/* Stripe Mode Status */}
-      <div className="bg-white border border-border rounded-2xl p-5 mb-6">
+      <div className="bg-card border border-border rounded-2xl p-5 mb-6">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <CreditCard className="w-5 h-5 text-primary" />
@@ -255,12 +255,12 @@ export default function AdminMode() {
             </div>
 
             {!stripeMode.consistent && (
-              <div className="text-xs bg-red-50 border border-red-200 text-red-700 rounded-lg px-3 py-2">
+              <div className="text-xs bg-red-500/15 border border-red-500/30 text-red-400 rounded-lg px-3 py-2">
                 ⚠️ <strong>Key mismatch detected.</strong> Frontend and backend must both be in the same mode (both pk_live + sk_live, or both pk_test + sk_test). Mixed modes will cause payment failures.
               </div>
             )}
             {stripeMode.overallMode === 'test' && (
-              <div className="text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-3 py-2">
+              <div className="text-xs bg-amber-500/15 border border-amber-500/30 text-amber-400 rounded-lg px-3 py-2">
                 To enable real payments: replace <code>STRIPE_PUBLISHABLE_KEY</code> with a <code>pk_live_…</code> key and <code>STRIPE_SECRET_KEY</code> with a <code>sk_live_…</code> key in Dashboard → Settings → Environment Variables.
               </div>
             )}
@@ -269,7 +269,7 @@ export default function AdminMode() {
       </div>
 
       {/* Replay Onboarding */}
-      <div className="bg-white border border-border rounded-2xl p-5 mb-6">
+      <div className="bg-card border border-border rounded-2xl p-5 mb-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <h2 className="font-bold text-lg">Replay Onboarding</h2>
@@ -285,7 +285,7 @@ export default function AdminMode() {
       </div>
 
       {/* Seed Demo Inventory */}
-      <div className="bg-white border border-border rounded-2xl p-5 mb-6">
+      <div className="bg-card border border-border rounded-2xl p-5 mb-6">
         <div className="flex items-center gap-2 mb-3">
           <Database className="w-5 h-5 text-primary" />
           <h2 className="font-bold text-lg">Seed Demo Inventory</h2>
@@ -309,7 +309,7 @@ export default function AdminMode() {
           <p className="text-xs text-muted-foreground mt-1">
             Set this to a <strong>different registered user's email</strong> so you (as admin) can test the full buyer flow without the self-purchase block.
           </p>
-          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5 mt-2">
+          <p className="text-xs text-amber-400 bg-amber-500/15 border border-amber-500/30 rounded-md px-2 py-1.5 mt-2">
             ⚠️ Use a registered Base44 user email. Do not use fake emails.
           </p>
         </div>
@@ -325,7 +325,7 @@ export default function AdminMode() {
           )}
         </button>
         {seedResult && (
-          <div className="mt-3 text-sm bg-green-50 border border-green-200 rounded-lg p-3 text-green-800">
+          <div className="mt-3 text-sm bg-green-500/15 border border-green-500/30 rounded-lg p-3 text-green-400">
             ✅ Created {seedResult.events_created} events and {seedResult.listings_created} listings.
           </div>
         )}
@@ -337,7 +337,7 @@ export default function AdminMode() {
       </div>
 
       {/* Proof Review */}
-      <div className="bg-white border border-border rounded-2xl p-5 mb-6">
+      <div className="bg-card border border-border rounded-2xl p-5 mb-6">
         <h2 className="font-bold text-lg mb-4">Flagged Listings ({pendingProof.length} pending review)</h2>
         {pendingProof.length === 0 ? (
           <p className="text-sm text-muted-foreground">No listings pending proof review.</p>
@@ -352,12 +352,12 @@ export default function AdminMode() {
                   <span className="font-medium">Section {l.section} Row {l.row}</span>
                   <span className="text-muted-foreground ml-2">· ${l.asking_price}/ea · {l.seller_email}</span>
                   {l.proof_rejection_reason && (
-                    <div className="mt-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 inline-block">
+                    <div className="mt-1 text-xs text-amber-400 bg-amber-500/15 border border-amber-500/30 rounded px-2 py-1 inline-block">
                       ⚠️ {l.proof_rejection_reason}
                     </div>
                   )}
                   <div className="mt-1 flex flex-wrap gap-1.5">
-                    <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${sales === 0 ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
+                    <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${sales === 0 ? 'bg-amber-500/15 text-amber-400' : 'bg-green-500/15 text-green-400'}`}>
                       {sales === 0 ? 'No prior sales' : `${sales} completed sale${sales !== 1 ? 's' : ''}`}
                     </span>
                     {l.proof_url && (
@@ -369,14 +369,14 @@ export default function AdminMode() {
                   <button
                     onClick={() => handleProofAction(l.id, 'approve', l.seller_email)}
                     disabled={!!actionLoading}
-                    className="flex items-center gap-1 bg-green-100 text-green-700 border border-green-200 px-3 py-1 rounded-lg text-xs font-medium hover:bg-green-200 transition-colors"
+                    className="flex items-center gap-1 bg-green-500/15 text-green-400 border border-green-500/30 px-3 py-1 rounded-lg text-xs font-medium hover:bg-green-500/25 transition-colors"
                   >
                     <CheckCircle className="w-3 h-3" /> Approve
                   </button>
                   <button
                     onClick={() => handleProofAction(l.id, 'reject', l.seller_email)}
                     disabled={!!actionLoading}
-                    className="flex items-center gap-1 bg-red-50 text-red-600 border border-red-200 px-3 py-1 rounded-lg text-xs font-medium hover:bg-red-100 transition-colors"
+                    className="flex items-center gap-1 bg-red-500/15 text-red-400 border border-red-500/30 px-3 py-1 rounded-lg text-xs font-medium hover:bg-red-500/25 transition-colors"
                   >
                     <XCircle className="w-3 h-3" /> Reject + Strike
                   </button>
@@ -390,7 +390,7 @@ export default function AdminMode() {
       </div>
 
       {/* Dispute Queue */}
-      <div className="bg-white border border-border rounded-2xl p-5 mb-6">
+      <div className="bg-card border border-border rounded-2xl p-5 mb-6">
         <div className="flex items-center gap-2 mb-4">
           <AlertTriangle className="w-5 h-5 text-amber-500" />
           <h2 className="font-bold text-lg">Dispute Queue ({disputedPurchases.length})</h2>
@@ -402,7 +402,7 @@ export default function AdminMode() {
             {disputedPurchases.map(p => {
               const event = events[p.event_id];
               return (
-                <div key={p.id} className="border border-amber-200 bg-amber-50/40 rounded-xl p-4 text-sm space-y-3">
+                <div key={p.id} className="border border-amber-500/30 bg-amber-500/10 rounded-xl p-4 text-sm space-y-3">
                   {/* Header row */}
                   <div className="flex items-start justify-between gap-2 flex-wrap">
                     <div>
@@ -412,33 +412,33 @@ export default function AdminMode() {
                         {p.created_date && format(new Date(p.created_date), 'MMM d, yyyy h:mm a')}
                       </div>
                     </div>
-                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-300 flex-shrink-0">
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 flex-shrink-0">
                       Disputed
                     </span>
                   </div>
 
                   {/* Parties */}
                   <div className="grid grid-cols-2 gap-3 text-xs">
-                    <div className="bg-white rounded-lg p-2.5 border border-border">
+                    <div className="bg-secondary rounded-lg p-2.5 border border-border">
                       <div className="text-muted-foreground font-medium uppercase tracking-wide mb-0.5">Buyer</div>
                       <div className="font-semibold text-foreground">{p.buyer_email}</div>
                       {p.buyer_name && <div className="text-muted-foreground">{p.buyer_name}</div>}
                     </div>
-                    <div className="bg-white rounded-lg p-2.5 border border-border">
+                    <div className="bg-secondary rounded-lg p-2.5 border border-border">
                       <div className="text-muted-foreground font-medium uppercase tracking-wide mb-0.5">Seller</div>
                       <div className="font-semibold text-foreground">{p.seller_email}</div>
                     </div>
                   </div>
 
                   {/* Dispute reason */}
-                  <div className="bg-white rounded-lg p-2.5 border border-amber-200">
+                  <div className="bg-secondary rounded-lg p-2.5 border border-amber-200">
                     <div className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-0.5">Reason</div>
                     <div className="text-foreground font-medium">{p.dispute_reason || '—'}</div>
                   </div>
 
                   {/* Transfer proof */}
                   {(p.transfer_proof_url || p.transfer_notes) && (
-                    <div className="bg-white rounded-lg p-2.5 border border-border space-y-1">
+                    <div className="bg-secondary rounded-lg p-2.5 border border-border space-y-1">
                       <div className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Seller's Proof Submitted</div>
                       {p.transfer_notes && <p className="text-xs text-foreground">{p.transfer_notes}</p>}
                       {p.transfer_proof_url && (
@@ -459,25 +459,25 @@ export default function AdminMode() {
                   </div>
 
                   {/* Admin actions */}
-                  <div className="flex flex-wrap gap-2 pt-1 border-t border-amber-200">
+                  <div className="flex flex-wrap gap-2 pt-1 border-t border-amber-500/30">
                     <button
                       onClick={() => handleDisputeAction(p, 'refund_buyer')}
                       disabled={!!actionLoading}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors disabled:opacity-50"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-500/15 text-blue-400 border border-blue-500/30 hover:bg-blue-500/25 transition-colors disabled:opacity-50"
                     >
                       <XCircle className="w-3.5 h-3.5" /> Refund Buyer
                     </button>
                     <button
                       onClick={() => handleDisputeAction(p, 'release_seller')}
                       disabled={!!actionLoading}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors disabled:opacity-50"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-500/15 text-green-400 border border-green-500/30 hover:bg-green-500/25 transition-colors disabled:opacity-50"
                     >
                       <CheckCircle className="w-3.5 h-3.5" /> Release to Seller
                     </button>
                     <button
                       onClick={() => handleDisputeAction(p, 'strike_seller')}
                       disabled={!!actionLoading}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors disabled:opacity-50"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500/15 text-red-400 border border-red-500/30 hover:bg-red-500/25 transition-colors disabled:opacity-50"
                     >
                       <AlertTriangle className="w-3.5 h-3.5" /> Refund + Strike Seller
                     </button>
@@ -490,7 +490,7 @@ export default function AdminMode() {
       </div>
 
       {/* Escrow Dashboard */}
-      <div className="bg-white border border-border rounded-2xl p-5">
+      <div className="bg-card border border-border rounded-2xl p-5">
         <h2 className="font-bold text-lg mb-4">Escrow Dashboard ({activePurchases.length} active)</h2>
         {activePurchases.length === 0 ? (
           <p className="text-sm text-muted-foreground">No active purchases in escrow.</p>
