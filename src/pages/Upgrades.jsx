@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 import { MapPin, Calendar, Zap, ChevronRight, Search, LocateFixed, X } from 'lucide-react';
-import { isEventExplicitlyLive, isEventToday, localDateString } from '@/lib/dateUtils';
+import { isEventUpgradeEligible, localDateString } from '@/lib/dateUtils';
 
 export default function Upgrades() {
   const [pgEvents, setPgEvents] = useState([]);
@@ -11,6 +11,7 @@ export default function Upgrades() {
   const [loading, setLoading] = useState(true);
   const [tmLoading, setTmLoading] = useState(false);
   const [search, setSearch] = useState('');
+  const [locationObtained, setLocationObtained] = useState(false);
   const searchDebounceRef = useRef(null);
 
   const [locationLabel, setLocationLabel] = useState('');
@@ -25,31 +26,69 @@ export default function Upgrades() {
   const setLL = (ll) => { latlongRef.current = ll; setLatlong(ll); };
   const setLabel = (label) => { locationLabelRef.current = label; setLocationLabel(label); };
 
-  // Load PG live events once
+  // Load PG events — show anything that is live now or explicitly flagged
   useEffect(() => {
     const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
-    base44.entities.Event.list('date', 50).then((data) => {
+    base44.entities.Event.list('date', 100).then((data) => {
       const eligible = data.filter((e) => e.status !== 'ended');
       setPgEvents(adminUnlocked
         ? eligible
-        : eligible.filter((e) => isEventExplicitlyLive(e) || isEventToday(e))
+        : eligible.filter(isEventUpgradeEligible)
       );
     }).catch(console.error).finally(() => setLoading(false));
   }, []);
 
-  const fetchTMEvents = (ll, cityOverride, keyword) => {
+  /**
+   * Fetch TM events that are live right now or starting today.
+   * We look back 6 hours so in-progress events that TM may have deprioritized still appear.
+   * We also persist newly discovered TM events locally so they survive TM removing them.
+   */
+  const fetchTMEvents = async (ll, cityOverride, keyword) => {
     setTmLoading(true);
-    const tmParams = { size: 30, localDate: localDateString() };
+    const tmParams = { size: 40, localDate: localDateString() };
     if (ll) { tmParams.latlong = ll; tmParams.radius = '50'; }
     else if (cityOverride) { tmParams.city = cityOverride; }
     if (keyword) { tmParams.keyword = keyword; }
 
-    base44.functions.invoke('getTicketmasterEvents', tmParams)
-      .then((tmRes) => {
-        setTmEvents(tmRes?.data?.events || []);
-      })
-      .catch(console.error)
-      .finally(() => setTmLoading(false));
+    try {
+      const tmRes = await base44.functions.invoke('getTicketmasterEvents', tmParams);
+      const events = tmRes?.data?.events || [];
+      setTmEvents(events);
+
+      // Persist any new TM events locally so they remain available after TM drops them
+      if (events.length > 0) {
+        persistTMEventsLocally(events).catch(console.error);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setTmLoading(false);
+    }
+  };
+
+  /**
+   * Save TM events to local DB if they don't already exist.
+   * This ensures events remain queryable even after TM stops returning them.
+   */
+  const persistTMEventsLocally = async (tmEventsList) => {
+    for (const ev of tmEventsList) {
+      if (!ev.tm_id) continue;
+      const existing = await base44.entities.Event.filter({ tm_id: ev.tm_id });
+      if (existing.length === 0) {
+        await base44.entities.Event.create({
+          title: ev.title,
+          venue: ev.venue,
+          city: ev.city,
+          state: ev.state,
+          date: ev.date,
+          image_url: ev.image_url,
+          tm_id: ev.tm_id,
+          tm_url: ev.tm_url,
+          status: 'upcoming',
+          category: 'concert', // default; TM doesn't always provide category
+        });
+      }
+    }
   };
 
   const detectLocation = (onSuccess, onError) => {
@@ -70,10 +109,13 @@ export default function Upgrades() {
       (ll) => {
         setLL(ll); setLabel('Near me');
         setDetectingLocation(false);
+        setLocationObtained(true);
         fetchTMEvents(ll, null, null);
       },
       () => {
         setDetectingLocation(false);
+        setLocationObtained(false);
+        // Still fetch TM events without location so locally-persisted events appear
         fetchTMEvents(null, null, null);
       }
     );
@@ -101,6 +143,7 @@ export default function Upgrades() {
     if (!val) return;
     setLL(''); setLabel(val);
     setEditingLocation(false);
+    setLocationObtained(true);
     fetchTMEvents(null, val, search.trim() || null);
   };
 
@@ -111,6 +154,7 @@ export default function Upgrades() {
       (ll) => {
         setLL(ll); setLabel('Near me');
         setDetectingLocation(false);
+        setLocationObtained(true);
         fetchTMEvents(ll, null, search.trim() || null);
       },
       () => { setDetectingLocation(false); setLabel('Location unavailable'); }
@@ -250,6 +294,17 @@ export default function Upgrades() {
         )}
       </div>
 
+      {/* No-location notice */}
+      {!detectingLocation && !locationObtained && !locationLabel && (
+        <div className="mx-4 mb-3 px-4 py-3 rounded-2xl flex items-center gap-3"
+          style={{ background: 'rgba(0,200,255,0.06)', border: '1px solid rgba(0,200,255,0.15)' }}>
+          <MapPin className="w-4 h-4 flex-shrink-0" style={{ color: '#00C8FF' }} />
+          <p className="text-xs" style={{ color: 'rgba(0,200,255,0.8)' }}>
+            Enable location to see live upgrades near you
+          </p>
+        </div>
+      )}
+
       {/* Event list */}
       <div className="px-4 mt-1">
         {!(loading || tmLoading) && (
@@ -267,84 +322,79 @@ export default function Upgrades() {
         ) : totalCount === 0 ? (
           <div className="text-center py-16 glass-card rounded-2xl">
             <p className="text-4xl mb-3">⚡</p>
-            <p className="font-bold text-foreground">No events found</p>
-            <p className="text-sm text-muted-foreground mt-1">Try adjusting your search or location.</p>
+            <p className="font-bold text-foreground">No live events found</p>
+            <p className="text-sm text-muted-foreground mt-1 px-6">
+              {locationObtained || locationLabel
+                ? 'No events appear to be happening near you right now.'
+                : 'Enable location to see live events near you.'}
+            </p>
           </div>
         ) : (
           <div className="space-y-3">
-            {/* PG live events */}
+            {/* PG events (explicitly live or within live window) */}
             {filteredPg.map((event) => (
-              <Link
-                key={event.id}
-                to={`/upgrades/${event.id}`}
-                className="flex items-center gap-3 rounded-2xl overflow-hidden active:scale-[0.98] transition-transform"
-                style={{
-                  background: 'linear-gradient(135deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.03) 100%)',
-                  border: event.status === 'live' ? '1px solid rgba(0,255,135,0.25)' : '1px solid rgba(255,255,255,0.09)',
-                  boxShadow: event.status === 'live' ? '0 0 20px rgba(0,255,135,0.08)' : 'none'
-                }}
-              >
-                <div className="w-20 h-20 flex-shrink-0 relative overflow-hidden">
-                  {event.image_url
-                    ? <img src={event.image_url} alt={event.title} className="w-full h-full object-cover absolute inset-0" />
-                    : <div className="w-full h-full absolute inset-0 flex items-center justify-center text-3xl" style={{ background: 'rgba(255,255,255,0.04)' }}>🎫</div>
-                  }
-                  {event.status === 'live' && (
-                    <span className="absolute top-1.5 left-1.5 text-[8px] font-black px-1.5 py-0.5 rounded-full"
-                      style={{ background: '#FF2D78', color: '#fff' }}>LIVE</span>
-                  )}
-                </div>
-                <div className="flex-1 py-3 min-w-0">
-                  <h3 className="font-bold text-foreground text-sm leading-tight line-clamp-1">{event.title}</h3>
-                  <div className="flex items-center gap-1 text-[11px] text-muted-foreground mt-1">
-                    <MapPin className="w-3 h-3 flex-shrink-0" style={{ color: '#00C8FF' }} />
-                    <span className="truncate">{event.venue}{event.city ? `, ${event.city}` : ''}</span>
-                  </div>
-                  <div className="flex items-center gap-1 text-[11px] text-muted-foreground mt-0.5">
-                    <Calendar className="w-3 h-3 flex-shrink-0" style={{ color: '#BF5FFF' }} />
-                    <span>{event.date ? format(new Date(event.date), 'EEE, MMM d · h:mm a') : 'TBD'}</span>
-                  </div>
-                </div>
-                <ChevronRight className="w-4 h-4 mr-3 flex-shrink-0 text-muted-foreground" />
-              </Link>
+              <EventRow key={event.id} event={event} to={`/upgrades/${event.id}`} isPG />
             ))}
 
-            {/* TM events */}
+            {/* TM events (from current search, deduped) */}
             {filteredTm.map((event) => (
-              <Link
-                key={event.tm_id}
-                to={`/events/tm/${event.tm_id}?mode=upgrade`}
-                className="flex items-center gap-3 rounded-2xl overflow-hidden active:scale-[0.98] transition-transform"
-                style={{
-                  background: 'linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                }}
-              >
-                <div className="w-20 h-20 flex-shrink-0 relative overflow-hidden">
-                  {event.image_url
-                    ? <img src={event.image_url} alt={event.title} className="w-full h-full object-cover absolute inset-0" />
-                    : <div className="w-full h-full absolute inset-0 flex items-center justify-center text-3xl" style={{ background: 'rgba(255,255,255,0.04)' }}>🎫</div>
-                  }
-                  <span className="absolute bottom-1 left-1 text-[8px] font-bold px-1.5 py-0.5 rounded-full"
-                    style={{ background: 'rgba(0,0,0,0.7)', color: 'rgba(255,255,255,0.55)' }}>TM</span>
-                </div>
-                <div className="flex-1 py-3 min-w-0">
-                  <h3 className="font-bold text-foreground text-sm leading-tight line-clamp-1">{event.title}</h3>
-                  <div className="flex items-center gap-1 text-[11px] text-muted-foreground mt-1">
-                    <MapPin className="w-3 h-3 flex-shrink-0" style={{ color: '#00C8FF' }} />
-                    <span className="truncate">{event.venue}{event.city ? `, ${event.city}` : ''}</span>
-                  </div>
-                  <div className="flex items-center gap-1 text-[11px] text-muted-foreground mt-0.5">
-                    <Calendar className="w-3 h-3 flex-shrink-0" style={{ color: '#BF5FFF' }} />
-                    <span>{event.date ? format(new Date(event.date), 'EEE, MMM d · h:mm a') : 'TBD'}</span>
-                  </div>
-                </div>
-                <ChevronRight className="w-4 h-4 mr-3 flex-shrink-0 text-muted-foreground" />
-              </Link>
+              <EventRow key={event.tm_id} event={event} to={`/events/tm/${event.tm_id}?mode=upgrade`} />
             ))}
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+function EventRow({ event, to, isPG }) {
+  const isLive = event.status === 'live' || event.is_beta_live;
+  return (
+    <Link
+      to={to}
+      className="flex items-center gap-3 rounded-2xl overflow-hidden active:scale-[0.98] transition-transform"
+      style={{
+        background: isPG
+          ? 'linear-gradient(135deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.03) 100%)'
+          : 'linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)',
+        border: isLive ? '1px solid rgba(0,255,135,0.25)' : '1px solid rgba(255,255,255,0.09)',
+        boxShadow: isLive ? '0 0 20px rgba(0,255,135,0.08)' : 'none',
+      }}
+    >
+      <div className="w-20 h-20 flex-shrink-0 relative overflow-hidden">
+        {event.image_url
+          ? <img src={event.image_url} alt={event.title} className="w-full h-full object-cover absolute inset-0" />
+          : <div className="w-full h-full absolute inset-0 flex items-center justify-center text-3xl" style={{ background: 'rgba(255,255,255,0.04)' }}>🎫</div>
+        }
+        {isLive && (
+          <span className="absolute top-1.5 left-1.5 text-[8px] font-black px-1.5 py-0.5 rounded-full"
+            style={{ background: '#FF2D78', color: '#fff' }}>LIVE</span>
+        )}
+        {!isPG && (
+          <span className="absolute bottom-1 left-1 text-[8px] font-bold px-1.5 py-0.5 rounded-full"
+            style={{ background: 'rgba(0,0,0,0.7)', color: 'rgba(255,255,255,0.55)' }}>TM</span>
+        )}
+      </div>
+      <div className="flex-1 py-3 min-w-0">
+        <h3 className="font-bold text-foreground text-sm leading-tight line-clamp-1">{event.title}</h3>
+        <div className="flex items-center gap-1 text-[11px] text-muted-foreground mt-1">
+          <MapPin className="w-3 h-3 flex-shrink-0" style={{ color: '#00C8FF' }} />
+          <span className="truncate">{event.venue}{event.city ? `, ${event.city}` : ''}</span>
+        </div>
+        <div className="flex items-center gap-1 text-[11px] text-muted-foreground mt-0.5">
+          <Calendar className="w-3 h-3 flex-shrink-0" style={{ color: '#BF5FFF' }} />
+          <span>{event.date ? format(new Date(event.date), 'EEE, MMM d · h:mm a') : 'TBD'}</span>
+        </div>
+        {isPG && !isLive && (
+          <div className="mt-1">
+            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full"
+              style={{ background: 'rgba(0,200,255,0.1)', color: 'rgba(0,200,255,0.7)', border: '1px solid rgba(0,200,255,0.15)' }}>
+              Happening now
+            </span>
+          </div>
+        )}
+      </div>
+      <ChevronRight className="w-4 h-4 mr-3 flex-shrink-0 text-muted-foreground" />
+    </Link>
   );
 }

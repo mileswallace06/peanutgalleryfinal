@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 import { MapPin, Calendar, ArrowLeft, Zap } from 'lucide-react';
-import { isEventExplicitlyLive, hasEventStarted } from '@/lib/dateUtils';
+import { isEventUpgradeEligible } from '@/lib/dateUtils';
 import ListingCard from '@/components/events/ListingCard';
 import PurchaseDialog from '@/components/events/PurchaseDialog';
 import useVenueGeolock from '@/hooks/useVenueGeolock';
@@ -26,7 +26,7 @@ export default function EventDetailUpgrade() {
       const ev = events[0] || null;
       setEvent(ev);
       const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
-      const isLiveMode = isEventExplicitlyLive(ev);
+      const isLiveMode = isEventUpgradeEligible(ev);
       const filtered = adminUnlocked
         ? rawListings
         : rawListings.filter(() => isLiveMode);
@@ -77,8 +77,8 @@ export default function EventDetailUpgrade() {
   }
 
   const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
-  const isLive = event.status === 'live';
-  const isLiveMode = isEventExplicitlyLive(event);
+  const isLive = event.status === 'live' || event.is_beta_live;
+  const isLiveMode = isEventUpgradeEligible(event);
   const isDemoOnly = listings.length > 0 && listings.every(l => l.notes?.startsWith('[DEMO]'));
   const sorted = [...listings].sort((a, b) => a.asking_price - b.asking_price);
   const cheapest = sorted[0]?.asking_price;
@@ -170,23 +170,30 @@ export default function EventDetailUpgrade() {
         </div>
 
         {listings.length === 0 ? (
-          <div className="text-center py-16 glass-card rounded-2xl">
+          <div className="text-center py-12 glass-card rounded-2xl px-6">
             <p className="text-4xl mb-3">⚡</p>
-          {!isLiveMode && !adminUnlocked ? (
-            <>
-              <p className="font-bold text-foreground">Event hasn't started yet</p>
-              <p className="text-sm text-muted-foreground mt-1 max-w-[240px] mx-auto leading-relaxed">
-                Seat upgrades unlock the moment the event begins. Come back then!
-              </p>
-            </>
-          ) : (
-            <>
-              <p className="font-bold text-foreground">No upgrades available yet</p>
-              <p className="text-sm text-muted-foreground mt-1 max-w-[220px] mx-auto leading-relaxed">
-                Upgrades usually appear after the event starts. Check back soon.
-              </p>
-            </>
-          )}
+            {!isLiveMode && !adminUnlocked ? (
+              <>
+                <p className="font-bold text-foreground">Event hasn't started yet</p>
+                <p className="text-sm text-muted-foreground mt-1 max-w-[240px] mx-auto leading-relaxed">
+                  Seat upgrades unlock the moment the event begins. Come back then!
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="font-bold text-foreground">No upgrades listed yet</p>
+                <p className="text-sm text-muted-foreground mt-1 max-w-[220px] mx-auto leading-relaxed">
+                  Be the first to list your seats for this event.
+                </p>
+                <Link
+                  to={`/create-listing?event_id=${event.id}`}
+                  className="inline-flex items-center gap-2 mt-5 px-5 py-2.5 rounded-full font-bold text-sm"
+                  style={{ background: 'linear-gradient(135deg, #BF5FFF, #FF2D78)', color: '#fff', boxShadow: '0 0 16px rgba(191,95,255,0.25)' }}
+                >
+                  <Zap className="w-4 h-4" /> List seats for this event
+                </Link>
+              </>
+            )}
           </div>
         ) : (
           <div className="space-y-4">
