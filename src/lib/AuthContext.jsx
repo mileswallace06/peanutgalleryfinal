@@ -21,7 +21,8 @@ export const AuthProvider = ({ children }) => {
   const checkAppState = async () => {
     try {
       setIsLoadingPublicSettings(true);
-      setAuthError(null);
+      // Only clear auth error if we don't already have an authenticated user
+      if (!user) setAuthError(null);
       
       // First, check app public settings (with token if available)
       // This will tell us if auth is required, user not registered, etc.
@@ -70,20 +71,26 @@ export const AuthProvider = ({ children }) => {
             });
           }
         } else {
-          setAuthError({
-            type: 'unknown',
-            message: appError.message || 'Failed to load app'
-          });
+          // Unknown/network error — don't sign out if we already have a user session
+          if (!user) {
+            setAuthError({
+              type: 'unknown',
+              message: appError.message || 'Failed to load app'
+            });
+          }
         }
         setIsLoadingPublicSettings(false);
         setIsLoadingAuth(false);
       }
     } catch (error) {
       console.error('Unexpected error:', error);
-      setAuthError({
-        type: 'unknown',
-        message: error.message || 'An unexpected error occurred'
-      });
+      // Don't sign out on transient errors if already authenticated
+      if (!user) {
+        setAuthError({
+          type: 'unknown',
+          message: error.message || 'An unexpected error occurred'
+        });
+      }
       setIsLoadingPublicSettings(false);
       setIsLoadingAuth(false);
     }
@@ -104,8 +111,8 @@ export const AuthProvider = ({ children }) => {
       setIsAuthenticated(false);
       setAuthChecked(true);
       
-      // If user auth fails, it might be an expired token
-      if (error.status === 401 || error.status === 403) {
+      // Only redirect to login if we don't already have a cached user (avoids sign-out on transient errors)
+      if (!user && (error.status === 401 || error.status === 403)) {
         setAuthError({
           type: 'auth_required',
           message: 'Authentication required'
