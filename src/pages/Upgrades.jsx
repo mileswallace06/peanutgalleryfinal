@@ -2,9 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { MapPin, Calendar, Zap, ChevronRight, LocateFixed, X } from 'lucide-react';
+import { MapPin, Calendar, Zap, ChevronRight, LocateFixed, X, Clock } from 'lucide-react';
 
-// How long (ms) each category is considered "live" after start
 const LIVE_DURATION_MS = {
   concert: 4 * 60 * 60 * 1000,
   sports:  4 * 60 * 60 * 1000,
@@ -15,6 +14,7 @@ const LIVE_DURATION_MS = {
 const DEFAULT_LIVE_MS = 4 * 60 * 60 * 1000;
 
 function isEventLive(event, nowMs) {
+  if (event.is_beta_live) return true;
   if (!event.date) return false;
   const startMs = new Date(event.date).getTime();
   if (isNaN(startMs)) return false;
@@ -24,75 +24,48 @@ function isEventLive(event, nowMs) {
   return nowMs >= startMs && nowMs <= startMs + duration;
 }
 
+function isEventUpcoming(event, nowMs) {
+  if (!event.date) return false;
+  const startMs = new Date(event.date).getTime();
+  return nowMs < startMs;
+}
+
 export default function Upgrades() {
-  const [events, setEvents] = useState([]);
+  const [allEvents, setAllEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [locationLabel, setLocationLabel] = useState('');
   const [locationInput, setLocationInput] = useState('');
   const [editingLocation, setEditingLocation] = useState(false);
   const [detectingLocation, setDetectingLocation] = useState(false);
   const [locationDenied, setLocationDenied] = useState(false);
-  const latlongRef = useRef('');
   const locationLabelRef = useRef('');
   const locationInputRef = useRef(null);
 
-  const setLatlongSync = (val) => { latlongRef.current = val; };
   const setLocationLabelSync = (val) => { locationLabelRef.current = val; setLocationLabel(val); };
 
   const fetchEvents = useCallback((cityOverride) => {
     setLoading(true);
-    const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
-    const nowMs = Date.now();
-
     base44.entities.Event.list('date', 200).then((data) => {
-      let live;
-
-      if (adminUnlocked) {
-        // Admin sees everything not ended
-        live = data.filter((e) => e.status !== 'ended');
-      } else {
-        // Normal: show events within their live window OR manually flagged
-        live = data.filter((e) => {
-          if (e.status === 'ended') return false;
-          if (e.is_beta_live) return true;
-          return isEventLive(e, nowMs);
-        });
-      }
-
-      // Location filter — only by city text (no TM proxy)
+      let events = data.filter((e) => e.status !== 'ended');
       if (cityOverride) {
-        const cityLower = cityOverride.toLowerCase();
-        live = live.filter((e) =>
-          e.city?.toLowerCase().includes(cityLower) ||
-          e.state?.toLowerCase().includes(cityLower) ||
-          e.venue?.toLowerCase().includes(cityLower)
+        const q = cityOverride.toLowerCase();
+        events = events.filter((e) =>
+          e.city?.toLowerCase().includes(q) ||
+          e.state?.toLowerCase().includes(q) ||
+          e.venue?.toLowerCase().includes(q)
         );
       }
-
-      // Sort: live events first, then by start time desc
-      live.sort((a, b) => {
-        const aLive = isEventLive(a, nowMs) ? 1 : 0;
-        const bLive = isEventLive(b, nowMs) ? 1 : 0;
-        if (bLive !== aLive) return bLive - aLive;
-        return new Date(b.date) - new Date(a.date);
-      });
-
-      setEvents(live);
+      setAllEvents(events);
     }).catch(console.error).finally(() => setLoading(false));
   }, []);
 
-  // Auto-detect location on mount
   useEffect(() => {
     setDetectingLocation(true);
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const ll = `${pos.coords.latitude},${pos.coords.longitude}`;
-        setLatlongSync(ll);
+      () => {
         setLocationLabelSync('Near me');
         setDetectingLocation(false);
         setLocationDenied(false);
-        // We don't filter by latlong directly — city name from reverse label is enough
-        // Just fetch all live events (user is at venue, city filter is implicit via city stored on event)
         fetchEvents(null);
       },
       () => {
@@ -108,7 +81,6 @@ export default function Upgrades() {
     e.preventDefault();
     const val = locationInput.trim();
     if (!val) return;
-    setLatlongSync('');
     setLocationLabelSync(val);
     setEditingLocation(false);
     fetchEvents(val);
@@ -118,9 +90,7 @@ export default function Upgrades() {
     setDetectingLocation(true);
     setLocationDenied(false);
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const ll = `${pos.coords.latitude},${pos.coords.longitude}`;
-        setLatlongSync(ll);
+      () => {
         setLocationLabelSync('Near me');
         setDetectingLocation(false);
         setEditingLocation(false);
@@ -133,6 +103,12 @@ export default function Upgrades() {
       { timeout: 8000, enableHighAccuracy: true, maximumAge: 0 }
     );
   };
+
+  const nowMs = Date.now();
+  const liveEvents = allEvents.filter((e) => isEventLive(e, nowMs));
+  const upcomingEvents = allEvents
+    .filter((e) => isEventUpcoming(e, nowMs))
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
 
   return (
     <div className="pb-32">
@@ -178,7 +154,7 @@ export default function Upgrades() {
       </div>
 
       {/* Location bar */}
-      <div className="px-4 mt-4 mb-2">
+      <div className="px-4 mt-4 mb-4">
         {editingLocation ? (
           <form onSubmit={handleLocationSubmit} className="flex gap-2">
             <div className="relative flex-1">
@@ -216,7 +192,7 @@ export default function Upgrades() {
             style={{ background: 'rgba(255,165,0,0.08)', border: '1px solid rgba(255,165,0,0.2)', color: 'rgba(255,200,100,0.9)' }}
           >
             <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
-            <span>Enable location or enter your city to see live upgrades near you</span>
+            <span>Enable location or enter your city to see events near you</span>
           </button>
         ) : (
           <button
@@ -234,79 +210,119 @@ export default function Upgrades() {
         )}
       </div>
 
-      {/* Event list */}
-      <div className="px-4 mt-3">
-        <p className="text-xs text-muted-foreground font-medium mb-3">
-          {loading ? 'Loading...' : `${events.length} live event${events.length !== 1 ? 's' : ''} happening now`}
-        </p>
-
+      {/* Content */}
+      <div className="px-4 space-y-8">
         {loading ? (
           <div className="space-y-3">
             {[...Array(4)].map((_, i) => (
               <div key={i} className="rounded-2xl h-24 animate-pulse" style={{ background: 'rgba(255,255,255,0.05)' }} />
             ))}
           </div>
-        ) : events.length === 0 ? (
-          <div className="text-center py-16 glass-card rounded-2xl">
-            <p className="text-4xl mb-3">⚡</p>
-            <p className="font-bold text-foreground">No live events right now</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              {locationDenied && !locationLabel
-                ? 'Enter your city above to find live shows nearby.'
-                : 'Check back once a show near you starts.'}
-            </p>
-          </div>
         ) : (
-          <div className="space-y-3">
-            {events.map((event) => {
-              const nowMs = Date.now();
-              const currentlyLive = event.is_beta_live || isEventLive(event, nowMs);
-              return (
-                <Link
-                  key={event.id}
-                  to={`/upgrades/${event.id}`}
-                  className="flex items-center gap-3 rounded-2xl overflow-hidden active:scale-[0.98] transition-transform"
-                  style={{
-                    background: 'linear-gradient(135deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.03) 100%)',
-                    border: currentlyLive ? '1px solid rgba(0,255,135,0.3)' : '1px solid rgba(255,255,255,0.09)',
-                    boxShadow: currentlyLive ? '0 0 20px rgba(0,255,135,0.1)' : 'none',
-                  }}
-                >
-                  {/* Thumbnail */}
-                  <div className="w-20 h-20 flex-shrink-0 relative overflow-hidden">
-                    {event.image_url ? (
-                      <img src={event.image_url} alt={event.title} className="w-full h-full object-cover absolute inset-0" />
-                    ) : (
-                      <div className="w-full h-full absolute inset-0 flex items-center justify-center text-3xl"
-                        style={{ background: 'rgba(255,255,255,0.04)' }}>🎫</div>
-                    )}
-                    {currentlyLive && (
-                      <span className="absolute top-1.5 left-1.5 text-[8px] font-black px-1.5 py-0.5 rounded-full"
-                        style={{ background: '#FF2D78', color: '#fff' }}>
-                        LIVE
-                      </span>
-                    )}
-                  </div>
+          <>
+            {/* LIVE NOW */}
+            <section>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                <h2 className="text-sm font-black tracking-widest uppercase" style={{ color: '#FF2D78' }}>Live Now</h2>
+              </div>
+              {liveEvents.length === 0 ? (
+                <div className="rounded-2xl px-4 py-5 text-center"
+                  style={{ background: 'rgba(255,45,120,0.05)', border: '1px solid rgba(255,45,120,0.15)' }}>
+                  <p className="text-sm font-medium text-foreground/70">No events live right now</p>
+                  <p className="text-xs text-muted-foreground mt-1">Check back once a show near you starts</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {liveEvents.map((event) => (
+                    <EventCard key={event.id} event={event} mode="live" />
+                  ))}
+                </div>
+              )}
+            </section>
 
-                  {/* Info */}
-                  <div className="flex-1 py-3 min-w-0">
-                    <h3 className="font-bold text-foreground text-sm leading-tight line-clamp-1">{event.title}</h3>
-                    <div className="flex items-center gap-1 text-[11px] text-muted-foreground mt-1">
-                      <MapPin className="w-3 h-3 flex-shrink-0" style={{ color: '#00C8FF' }} />
-                      <span className="truncate">{event.venue}{event.city ? `, ${event.city}` : ''}</span>
-                    </div>
-                    <div className="flex items-center gap-1 text-[11px] text-muted-foreground mt-0.5">
-                      <Calendar className="w-3 h-3 flex-shrink-0" style={{ color: '#BF5FFF' }} />
-                      <span>{event.date ? format(new Date(event.date), 'EEE, MMM d · h:mm a') : 'TBD'}</span>
-                    </div>
-                  </div>
-
-                  <ChevronRight className="w-4 h-4 mr-3 flex-shrink-0 text-muted-foreground" />
-                </Link>
-              );
-            })}
-          </div>
+            {/* UPCOMING */}
+            <section>
+              <div className="flex items-center gap-2 mb-3">
+                <Clock className="w-3.5 h-3.5" style={{ color: '#BF5FFF' }} />
+                <h2 className="text-sm font-black tracking-widest uppercase" style={{ color: '#BF5FFF' }}>Upcoming Near You</h2>
+              </div>
+              {upcomingEvents.length === 0 ? (
+                <div className="rounded-2xl px-4 py-5 text-center"
+                  style={{ background: 'rgba(191,95,255,0.05)', border: '1px solid rgba(191,95,255,0.15)' }}>
+                  <p className="text-sm font-medium text-foreground/70">No upcoming events found</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {locationDenied && !locationLabel ? 'Enter your city above to find nearby events.' : 'New events are added regularly — check back soon.'}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {upcomingEvents.map((event) => (
+                    <EventCard key={event.id} event={event} mode="upcoming" />
+                  ))}
+                </div>
+              )}
+            </section>
+          </>
         )}
+      </div>
+    </div>
+  );
+}
+
+function EventCard({ event, mode }) {
+  const isLive = mode === 'live';
+  return (
+    <div
+      className="flex items-center gap-3 rounded-2xl overflow-hidden"
+      style={{
+        background: 'linear-gradient(135deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.03) 100%)',
+        border: isLive ? '1px solid rgba(0,255,135,0.3)' : '1px solid rgba(255,255,255,0.09)',
+        boxShadow: isLive ? '0 0 20px rgba(0,255,135,0.08)' : 'none',
+      }}
+    >
+      <div className="w-20 h-20 flex-shrink-0 relative overflow-hidden">
+        {event.image_url ? (
+          <img src={event.image_url} alt={event.title} className="w-full h-full object-cover absolute inset-0" />
+        ) : (
+          <div className="w-full h-full absolute inset-0 flex items-center justify-center text-3xl"
+            style={{ background: 'rgba(255,255,255,0.04)' }}>🎫</div>
+        )}
+        <span className="absolute top-1.5 left-1.5 text-[8px] font-black px-1.5 py-0.5 rounded-full"
+          style={{ background: isLive ? '#FF2D78' : 'rgba(191,95,255,0.85)', color: '#fff' }}>
+          {isLive ? 'LIVE' : 'SOON'}
+        </span>
+      </div>
+
+      <div className="flex-1 py-3 min-w-0">
+        <h3 className="font-bold text-foreground text-sm leading-tight line-clamp-1">{event.title}</h3>
+        <div className="flex items-center gap-1 text-[11px] text-muted-foreground mt-1">
+          <MapPin className="w-3 h-3 flex-shrink-0" style={{ color: '#00C8FF' }} />
+          <span className="truncate">{event.venue}{event.city ? `, ${event.city}` : ''}</span>
+        </div>
+        <div className="flex items-center gap-1 text-[11px] text-muted-foreground mt-0.5">
+          <Calendar className="w-3 h-3 flex-shrink-0" style={{ color: '#BF5FFF' }} />
+          <span>{event.date ? format(new Date(event.date), 'EEE, MMM d · h:mm a') : 'TBD'}</span>
+        </div>
+        {!isLive && (
+          <span className="inline-flex items-center gap-1 mt-1.5 text-[9px] font-bold px-2 py-0.5 rounded-full"
+            style={{ background: 'rgba(191,95,255,0.12)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.25)' }}>
+            <Clock className="w-2.5 h-2.5" /> Upgrades unlock at showtime
+          </span>
+        )}
+      </div>
+
+      <div className="pr-3 flex-shrink-0">
+        <Link
+          to={`/upgrades/${event.id}`}
+          className="flex items-center gap-1 px-3 py-2 rounded-xl font-bold text-xs whitespace-nowrap"
+          style={isLive
+            ? { background: 'rgba(0,255,135,0.15)', color: '#00FF87', border: '1px solid rgba(0,255,135,0.3)' }
+            : { background: 'rgba(191,95,255,0.12)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.25)' }
+          }
+        >
+          {isLive ? 'Upgrades' : 'Get Ready'} <ChevronRight className="w-3.5 h-3.5" />
+        </Link>
       </div>
     </div>
   );
