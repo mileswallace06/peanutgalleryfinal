@@ -65,6 +65,21 @@ export default function Events() {
       const pgMapped = pgFiltered.map(e => ({ ...e, source: 'pg' }));
       const tmEvents = (tmRes?.data?.events || []).map(e => ({ ...e, id: `tm_${e.tm_id}` }));
       setEvents([...pgMapped, ...tmEvents]);
+
+      // Persist TM events locally so they survive past start time
+      (tmRes?.data?.events || []).forEach(e => {
+        base44.functions.invoke('syncTMEvent', {
+          tm_id: e.tm_id,
+          title: e.title,
+          venue: e.venue,
+          city: e.city,
+          state: e.state,
+          date: e.date,
+          image_url: e.image_url,
+          tm_url: e.tm_url,
+          category: e.category || null,
+        }).catch(() => {}); // fire-and-forget, don't block UI
+      });
     }).catch(console.error).finally(() => setLoading(false));
   }, []);
 

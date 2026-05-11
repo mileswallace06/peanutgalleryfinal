@@ -24,7 +24,7 @@
     "date": {
       "type": "string",
       "format": "date-time",
-      "description": "Event start time"
+      "description": "Event start time \u2014 always stored as UTC ISO string (e.g. 2026-05-08T02:00:00Z)"
     },
     "category": {
       "type": "string",
@@ -72,6 +72,14 @@
     "tm_url": {
       "type": "string",
       "description": "Ticketmaster event URL for externally sourced events"
+    },
+    "venue_timezone": {
+      "type": "string",
+      "description": "IANA timezone of the venue, e.g. America/Phoenix. Used for accurate live-window calculation."
+    },
+    "duration_hours": {
+      "type": "number",
+      "description": "Override: how many hours after start time the event is considered live. Defaults to category duration (concert/sports=4h, theater/comedy=3h)."
     }
   },
   "required": [
