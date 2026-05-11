@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Shield, Database, CheckCircle, XCircle, RefreshCw, Lock, AlertTriangle, FileText } from 'lucide-react';
+import { Shield, Database, CheckCircle, XCircle, RefreshCw, Lock, AlertTriangle, FileText, CreditCard } from 'lucide-react';
 import { format } from 'date-fns';
 
 const ADMIN_PASSWORD = 'peanut2026';
@@ -11,6 +11,9 @@ export default function AdminMode() {
   const [pwError, setPwError] = useState('');
 
   const [user, setUser] = useState(null);
+  const [stripeMode, setStripeMode] = useState(null);
+  const [stripeModeLoading, setStripeModeLoading] = useState(false);
+
   const [seedLoading, setSeedLoading] = useState(false);
   const [seedResult, setSeedResult] = useState(null);
   const [seedError, setSeedError] = useState('');
@@ -28,8 +31,20 @@ export default function AdminMode() {
     if (unlocked) {
       base44.auth.me().then(setUser).catch(() => {});
       loadData();
+      loadStripeMode();
     }
   }, [unlocked]);
+
+  const loadStripeMode = async () => {
+    setStripeModeLoading(true);
+    try {
+      const res = await base44.functions.invoke('getStripeMode', {});
+      setStripeMode(res.data);
+    } catch (e) {
+      setStripeMode({ error: e.message });
+    }
+    setStripeModeLoading(false);
+  };
 
   const loadData = async () => {
     setDataLoading(true);
@@ -177,6 +192,80 @@ export default function AdminMode() {
         >
           <RefreshCw className={`w-4 h-4 text-muted-foreground ${dataLoading ? 'animate-spin' : ''}`} />
         </button>
+      </div>
+
+      {/* Stripe Mode Status */}
+      <div className="bg-white border border-border rounded-2xl p-5 mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <CreditCard className="w-5 h-5 text-primary" />
+            <h2 className="font-bold text-lg">Stripe Configuration</h2>
+          </div>
+          <button onClick={loadStripeMode} disabled={stripeModeLoading}
+            className="p-1.5 rounded-lg hover:bg-muted transition-colors"
+            title="Refresh Stripe mode">
+            <RefreshCw className={`w-4 h-4 text-muted-foreground ${stripeModeLoading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
+
+        {stripeModeLoading && !stripeMode ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            Checking Stripe keys…
+          </div>
+        ) : stripeMode?.error ? (
+          <div className="text-sm text-destructive bg-destructive/10 rounded-lg px-3 py-2">{stripeMode.error}</div>
+        ) : stripeMode ? (
+          <div className="space-y-3">
+            {/* Overall mode badge */}
+            <div className="flex items-center gap-3">
+              {stripeMode.overallMode === 'live' ? (
+                <span className="inline-flex items-center gap-1.5 text-sm font-bold px-3 py-1.5 rounded-full bg-green-100 text-green-700 border border-green-300">
+                  <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                  ✅ Stripe LIVE Mode
+                </span>
+              ) : stripeMode.overallMode === 'test' ? (
+                <span className="inline-flex items-center gap-1.5 text-sm font-bold px-3 py-1.5 rounded-full bg-amber-100 text-amber-700 border border-amber-300">
+                  <span className="w-2 h-2 rounded-full bg-amber-500" />
+                  🧪 Stripe TEST Mode — Real cards will be rejected
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 text-sm font-bold px-3 py-1.5 rounded-full bg-red-100 text-red-700 border border-red-300">
+                  ⚠️ Key Mismatch — Frontend and backend are in different modes!
+                </span>
+              )}
+            </div>
+
+            {/* Key details */}
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="bg-secondary rounded-lg p-3 border border-border">
+                <div className="text-muted-foreground font-medium uppercase tracking-wide mb-1">Frontend Key (pk_)</div>
+                <code className="font-mono text-foreground">{stripeMode.publishablePrefix}</code>
+                <div className={`mt-1 font-semibold ${stripeMode.publishableMode === 'live' ? 'text-green-600' : stripeMode.publishableMode === 'test' ? 'text-amber-600' : 'text-destructive'}`}>
+                  {stripeMode.publishableMode === 'live' ? '✅ Live' : stripeMode.publishableMode === 'test' ? '🧪 Test' : '❌ Unknown'}
+                </div>
+              </div>
+              <div className="bg-secondary rounded-lg p-3 border border-border">
+                <div className="text-muted-foreground font-medium uppercase tracking-wide mb-1">Backend Key (sk_)</div>
+                <code className="font-mono text-foreground">{stripeMode.secretPrefix}</code>
+                <div className={`mt-1 font-semibold ${stripeMode.secretMode === 'live' ? 'text-green-600' : stripeMode.secretMode === 'test' ? 'text-amber-600' : 'text-destructive'}`}>
+                  {stripeMode.secretMode === 'live' ? '✅ Live' : stripeMode.secretMode === 'test' ? '🧪 Test' : '❌ Unknown'}
+                </div>
+              </div>
+            </div>
+
+            {!stripeMode.consistent && (
+              <div className="text-xs bg-red-50 border border-red-200 text-red-700 rounded-lg px-3 py-2">
+                ⚠️ <strong>Key mismatch detected.</strong> Frontend and backend must both be in the same mode (both pk_live + sk_live, or both pk_test + sk_test). Mixed modes will cause payment failures.
+              </div>
+            )}
+            {stripeMode.overallMode === 'test' && (
+              <div className="text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-3 py-2">
+                To enable real payments: replace <code>STRIPE_PUBLISHABLE_KEY</code> with a <code>pk_live_…</code> key and <code>STRIPE_SECRET_KEY</code> with a <code>sk_live_…</code> key in Dashboard → Settings → Environment Variables.
+              </div>
+            )}
+          </div>
+        ) : null}
       </div>
 
       {/* Replay Onboarding */}
