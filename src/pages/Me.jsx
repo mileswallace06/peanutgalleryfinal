@@ -367,7 +367,7 @@ export default function Me() {
             </div>
             <div className="flex-1">
               <div className="font-bold text-sm dark:text-[#00C8FF]" style={{ color: '#003366' }}>My Tickets</div>
-              <div className="text-xs dark:text-[rgba(0,200,255,0.6)]" style={{ color: '#002847' }}>View your purchases</div>
+              <div className="text-xs" style={{ color: '#002847' }}>View your purchases</div>
             </div>
             <ChevronRight className="w-4 h-4 text-muted-foreground" />
           </Link>
@@ -383,7 +383,7 @@ export default function Me() {
             </div>
             <div className="flex-1">
               <div className="font-bold text-sm dark:text-[#BF5FFF]" style={{ color: '#6B3B7F' }}>My Sales</div>
-              <div className="text-xs dark:text-[rgba(191,95,255,0.6)]" style={{ color: '#4A2D5F' }}>Track your listings</div>
+              <div className="text-xs" style={{ color: '#4A2D5F' }}>Track your listings</div>
             </div>
             <ChevronRight className="w-4 h-4 text-muted-foreground" />
           </Link>
@@ -399,7 +399,7 @@ export default function Me() {
             </div>
             <div className="flex-1">
               <div className="font-bold text-sm dark:text-[#00FF87]" style={{ color: '#004D30' }}>Sell Tickets</div>
-              <div className="text-xs dark:text-[rgba(0,255,135,0.6)]" style={{ color: '#003D24' }}>List seats you want to move</div>
+              <div className="text-xs" style={{ color: '#003D24' }}>List seats you want to move</div>
             </div>
             <ChevronRight className="w-4 h-4 text-muted-foreground" />
           </Link>
@@ -416,7 +416,7 @@ export default function Me() {
               </div>
               <div className="flex-1">
                 <div className="font-bold text-sm dark:text-[#FFE600]" style={{ color: '#664D00' }}>Admin Panel</div>
-                <div className="text-xs dark:text-[rgba(255,230,0,0.6)]" style={{ color: '#4D3300' }}>Manage events and listings</div>
+                <div className="text-xs" style={{ color: '#4D3300' }}>Manage events and listings</div>
               </div>
               <ChevronRight className="w-4 h-4 text-muted-foreground" />
             </Link>
