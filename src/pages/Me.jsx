@@ -214,12 +214,12 @@ export default function Me() {
 
         {/* Role badges */}
         <div className="flex items-center gap-2 mb-4 flex-wrap">
-          <span className="text-[10px] font-bold px-2.5 py-1 rounded-full dark:bg-[rgba(0,200,255,0.1)] dark:border-[rgba(0,200,255,0.25)]"
+          <span className="text-[10px] font-bold px-2.5 py-1 rounded-full dark:bg-[rgba(0,200,255,0.25)] dark:border-[rgba(0,200,255,0.5)] dark:text-[#00FFFF]"
             style={{ background: '#e0f0f8', color: '#00C8FF', border: '1px solid #d0e8f0' }}>
             🥜 Fan
           </span>
           {user.role === 'admin' && (
-            <span className="text-[10px] font-bold px-2.5 py-1 rounded-full dark:bg-[rgba(255,230,0,0.1)] dark:border-[rgba(255,230,0,0.3)]"
+            <span className="text-[10px] font-bold px-2.5 py-1 rounded-full dark:bg-[rgba(255,230,0,0.25)] dark:border-[rgba(255,230,0,0.5)] dark:text-[#FFFF00]"
               style={{ background: '#f8f8e8', color: '#FFE600', border: '1px solid #f0e8d0' }}>
               ✦ Admin
             </span>
