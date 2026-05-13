@@ -204,7 +204,7 @@ export default function Me() {
           <div className="flex items-center gap-2 flex-wrap">
             <h2 className="font-display text-2xl text-foreground">{user.full_name || 'Fan'}</h2>
             {saved && (
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(0,255,135,0.15)', color: '#00FF87', border: '1px solid rgba(0,255,135,0.3)' }}>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full dark:bg-[rgba(0,255,135,0.15)] dark:border-[rgba(0,255,135,0.3)]" style={{ background: '#e8f8f0', color: '#00FF87', border: '1px solid #d0f0d8' }}>
                 ✓ Saved
               </span>
             )}
@@ -214,13 +214,13 @@ export default function Me() {
 
         {/* Role badges */}
         <div className="flex items-center gap-2 mb-4 flex-wrap">
-          <span className="text-[10px] font-bold px-2.5 py-1 rounded-full"
-            style={{ background: 'rgba(0,200,255,0.1)', color: '#00C8FF', border: '1px solid rgba(0,200,255,0.25)' }}>
+          <span className="text-[10px] font-bold px-2.5 py-1 rounded-full dark:bg-[rgba(0,200,255,0.1)] dark:border-[rgba(0,200,255,0.25)]"
+            style={{ background: '#e0f0f8', color: '#00C8FF', border: '1px solid #d0e8f0' }}>
             🥜 Fan
           </span>
           {user.role === 'admin' && (
-            <span className="text-[10px] font-bold px-2.5 py-1 rounded-full"
-              style={{ background: 'rgba(255,230,0,0.1)', color: '#FFE600', border: '1px solid rgba(255,230,0,0.3)' }}>
+            <span className="text-[10px] font-bold px-2.5 py-1 rounded-full dark:bg-[rgba(255,230,0,0.1)] dark:border-[rgba(255,230,0,0.3)]"
+              style={{ background: '#f8f8e8', color: '#FFE600', border: '1px solid #f0e8d0' }}>
               ✦ Admin
             </span>
           )}
@@ -301,8 +301,8 @@ export default function Me() {
                       </div>
                       <button
                         onClick={() => handleUnfollow(f)}
-                        className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold"
-                        style={{ background: 'rgba(255,45,120,0.1)', color: '#FF2D78', border: '1px solid rgba(255,45,120,0.2)' }}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold dark:bg-[rgba(255,45,120,0.1)] dark:border-[rgba(255,45,120,0.2)]"
+                        style={{ background: '#f8e8f0', color: '#FF2D78', border: '1px solid #f0d0d8' }}
                       >
                         <UserCheck className="w-3 h-3" /> Unfollow
                       </button>
@@ -337,8 +337,8 @@ export default function Me() {
                               });
                               setFollowing(prev => [...prev, created]);
                             }}
-                            className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold"
-                            style={{ background: 'rgba(191,95,255,0.12)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.3)' }}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold dark:bg-[rgba(191,95,255,0.12)] dark:border-[rgba(191,95,255,0.3)]"
+                            style={{ background: '#f0e8f8', color: '#BF5FFF', border: '1px solid #e8d0f0' }}
                           >
                             <UserPlus className="w-3 h-3" /> Follow Back
                           </button>
