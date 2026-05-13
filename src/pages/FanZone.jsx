@@ -108,9 +108,9 @@ export default function FanZone() {
             }}>
             Fan Zone
           </h1>
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full"
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full w-fit"
             style={{ background: 'rgba(0,200,255,0.15)', border: '1px solid rgba(0,200,255,0.35)' }}>
-            <span className="text-[11px] font-medium" style={{ color: 'rgba(200,235,255,0.9)' }}>
+            <span className="text-[11px] font-medium whitespace-nowrap" style={{ color: 'rgba(200,235,255,0.9)' }}>
               Share moments · Connect with fans
             </span>
           </div>
@@ -268,60 +268,118 @@ function FabOption({ label, emoji, color, delay = '0s', onClick }) {
   );
 }
 
+// Deterministic avatar gradient per author
+const AVATAR_GRADIENTS = [
+  'linear-gradient(135deg, #FF99CC, #BF5FFF)',
+  'linear-gradient(135deg, #66FFFF, #00C8FF)',
+  'linear-gradient(135deg, #FFE600, #FF7A00)',
+  'linear-gradient(135deg, #00FF87, #00C8FF)',
+  'linear-gradient(135deg, #FF2D78, #FF99CC)',
+];
+function avatarGradient(str) {
+  let h = 0;
+  for (let i = 0; i < (str || '').length; i++) h = (h * 31 + str.charCodeAt(i)) & 0xffff;
+  return AVATAR_GRADIENTS[h % AVATAR_GRADIENTS.length];
+}
+
 function PostCard({ post, user, onReact, reactingId }) {
   const reactions = post.reactions || { fire: [], eyes: [], peanut: [] };
+  const isSeatFlex = post.post_type === 'seat_flex';
+  const authorKey = post.author_email || post.author_name || '?';
+  const initials = (post.author_name || post.author_email || '?')[0].toUpperCase();
 
   return (
-    <div className="rounded-2xl px-4 py-4 space-y-3"
+    <div className="rounded-2xl overflow-hidden"
       style={{
-        background: 'linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)',
-        border: '1px solid rgba(255,255,255,0.08)',
+        background: 'linear-gradient(160deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.02) 100%)',
+        border: isSeatFlex ? '1px solid rgba(102,255,255,0.2)' : '1px solid rgba(255,255,255,0.09)',
+        boxShadow: isSeatFlex ? '0 0 20px rgba(102,255,255,0.06)' : 'none',
       }}>
 
-      {/* Author row */}
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-xs"
-            style={{ background: 'rgba(0,200,255,0.15)', color: '#00C8FF', border: '1px solid rgba(0,200,255,0.25)' }}>
-            {(post.author_name || post.author_email || '?')[0].toUpperCase()}
+      {/* Seat Flex accent bar */}
+      {isSeatFlex && (
+        <div className="h-0.5 w-full" style={{ background: 'linear-gradient(90deg, #66FFFF, #BF5FFF)' }} />
+      )}
+
+      <div className="px-4 py-4 space-y-3">
+        {/* Author row */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2.5">
+            {/* Avatar */}
+            <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 font-black text-sm"
+              style={{ background: avatarGradient(authorKey), color: '#0a0510', boxShadow: '0 0 10px rgba(0,0,0,0.4)' }}>
+              {initials}
+            </div>
+            <div>
+              <p className="text-sm font-bold text-foreground leading-none">{post.author_name || post.author_email}</p>
+              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                {isSeatFlex && (
+                  <span className="text-[9px] font-black tracking-widest px-1.5 py-0.5 rounded-full"
+                    style={{ background: 'rgba(102,255,255,0.15)', color: '#66FFFF', border: '1px solid rgba(102,255,255,0.3)' }}>
+                    💺 SEAT FLEX
+                  </span>
+                )}
+                {post.event_title && (
+                  <span className="text-[10px] text-muted-foreground">🎫 {post.event_title}</span>
+                )}
+              </div>
+            </div>
           </div>
-          <div>
-            <p className="text-xs font-semibold text-foreground leading-none">{post.author_name || post.author_email}</p>
-            {post.event_title && (
-              <p className="text-[10px] text-muted-foreground mt-0.5">🎫 {post.event_title}</p>
+          <span className="text-[10px] text-muted-foreground flex-shrink-0 mt-0.5 whitespace-nowrap">
+            {post.created_date ? formatDistanceToNow(new Date(post.created_date), { addSuffix: true }) : ''}
+          </span>
+        </div>
+
+        {/* Seat Flex photos */}
+        {isSeatFlex && (post.before_photo_url || post.after_photo_url) && (
+          <div className="grid grid-cols-2 gap-2">
+            {post.before_photo_url && (
+              <div className="relative rounded-xl overflow-hidden aspect-[4/3]">
+                <img src={post.before_photo_url} alt="Before" className="w-full h-full object-cover" />
+                <span className="absolute bottom-1.5 left-1.5 text-[9px] font-black px-1.5 py-0.5 rounded-full"
+                  style={{ background: 'rgba(0,0,0,0.7)', color: 'rgba(255,255,255,0.8)' }}>BEFORE</span>
+              </div>
+            )}
+            {post.after_photo_url && (
+              <div className="relative rounded-xl overflow-hidden aspect-[4/3]">
+                <img src={post.after_photo_url} alt="After" className="w-full h-full object-cover" />
+                <span className="absolute bottom-1.5 left-1.5 text-[9px] font-black px-1.5 py-0.5 rounded-full"
+                  style={{ background: 'rgba(102,255,255,0.85)', color: '#0a0510' }}>AFTER</span>
+              </div>
             )}
           </div>
+        )}
+
+        {/* Post text */}
+        <p className="text-sm text-foreground leading-relaxed">{post.text}</p>
+
+        {/* Divider */}
+        <div className="h-px" style={{ background: 'rgba(255,255,255,0.06)' }} />
+
+        {/* Reactions */}
+        <div className="flex items-center gap-2">
+          {REACTIONS.map(({ key, emoji }) => {
+            const arr = reactions[key] || [];
+            const reacted = user && arr.includes(user.email);
+            return (
+              <button
+                key={key}
+                onClick={() => onReact(post, key)}
+                disabled={!user || !!reactingId}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all active:scale-95 disabled:opacity-50"
+                style={{
+                  background: reacted ? 'rgba(255,153,204,0.18)' : 'rgba(255,255,255,0.05)',
+                  border: reacted ? '1px solid rgba(255,153,204,0.4)' : '1px solid rgba(255,255,255,0.08)',
+                  color: reacted ? '#FF99CC' : 'rgba(255,255,255,0.55)',
+                  boxShadow: reacted ? '0 0 10px rgba(255,153,204,0.15)' : 'none',
+                }}
+              >
+                <span className="text-sm">{emoji}</span>
+                {arr.length > 0 && <span>{arr.length}</span>}
+              </button>
+            );
+          })}
         </div>
-        <span className="text-[10px] text-muted-foreground flex-shrink-0 mt-0.5">
-          {post.created_date ? formatDistanceToNow(new Date(post.created_date), { addSuffix: true }) : ''}
-        </span>
-      </div>
-
-      {/* Post text */}
-      <p className="text-sm text-foreground leading-relaxed">{post.text}</p>
-
-      {/* Reactions */}
-      <div className="flex items-center gap-2">
-        {REACTIONS.map(({ key, emoji }) => {
-          const arr = reactions[key] || [];
-          const reacted = user && arr.includes(user.email);
-          return (
-            <button
-              key={key}
-              onClick={() => onReact(post, key)}
-              disabled={!user || !!reactingId}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-all disabled:opacity-50"
-              style={{
-                background: reacted ? 'rgba(0,200,255,0.15)' : 'rgba(255,255,255,0.05)',
-                border: reacted ? '1px solid rgba(0,200,255,0.3)' : '1px solid rgba(255,255,255,0.08)',
-                color: reacted ? '#00C8FF' : 'rgba(255,255,255,0.5)',
-              }}
-            >
-              <span>{emoji}</span>
-              {arr.length > 0 && <span>{arr.length}</span>}
-            </button>
-          );
-        })}
       </div>
     </div>
   );
