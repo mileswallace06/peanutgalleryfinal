@@ -367,7 +367,7 @@ export default function Me() {
             </div>
             <div className="flex-1">
               <div className="font-bold text-sm" style={{ color: '#003366' }} className="dark:!text-[#00FFFF]">My Tickets</div>
-              <div className="text-xs" style={{ color: '#002847' }} className="dark:!text-[#00FFFF]">View your purchases</div>
+              <div className="text-[11px]" style={{ color: '#002847' }} className="dark:!text-[#00FFFF]">View your purchases</div>
             </div>
             <ChevronRight className="w-4 h-4 text-muted-foreground" />
           </Link>
@@ -383,7 +383,7 @@ export default function Me() {
             </div>
             <div className="flex-1">
               <div className="font-bold text-sm" style={{ color: '#6B3B7F' }} className="dark:!text-[#FF00FF]">My Sales</div>
-              <div className="text-xs" style={{ color: '#4A2D5F' }} className="dark:!text-[#FF99FF]">Track your listings</div>
+              <div className="text-[11px]" style={{ color: '#4A2D5F' }} className="dark:!text-[#FF99FF]">Track your listings</div>
             </div>
             <ChevronRight className="w-4 h-4 text-muted-foreground" />
           </Link>
@@ -399,7 +399,7 @@ export default function Me() {
             </div>
             <div className="flex-1">
               <div className="font-bold text-sm" style={{ color: '#004D30' }} className="dark:!text-[#00FF99]">Sell Tickets</div>
-              <div className="text-xs" style={{ color: '#003D24' }} className="dark:!text-[#00FF99]">List seats you want to move</div>
+              <div className="text-[11px]" style={{ color: '#003D24' }} className="dark:!text-[#00FF99]">List seats you want to move</div>
             </div>
             <ChevronRight className="w-4 h-4 text-muted-foreground" />
           </Link>
@@ -416,7 +416,7 @@ export default function Me() {
               </div>
               <div className="flex-1">
                 <div className="font-bold text-sm" style={{ color: '#664D00' }} className="dark:!text-[#FFFF00]">Admin Panel</div>
-                <div className="text-xs" style={{ color: '#4D3300' }} className="dark:!text-[#FFFF99]">Manage events and listings</div>
+                <div className="text-[11px]" style={{ color: '#4D3300' }} className="dark:!text-[#FFFF99]">Manage events and listings</div>
               </div>
               <ChevronRight className="w-4 h-4 text-muted-foreground" />
             </Link>
