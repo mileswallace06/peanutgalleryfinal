@@ -60,17 +60,16 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen bg-background font-sans dark:rave-bg" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
-      <div className="fixed top-4 right-4 z-[99] flex items-center gap-2">
-        <ThemeToggle />
-        {!user && (
+      {!user && (
+        <div className="fixed top-4 right-4 z-[99]">
           <button
             onClick={() => base44.auth.redirectToLogin()}
             className="text-sm font-bold px-4 py-1.5 rounded-full"
             style={{ background: '#BF5FFF', color: '#fff' }}>
             Sign in
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Stack-preserved tab containers */}
       <div className="relative w-full max-w-lg mx-auto pb-24">

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { Ticket, TrendingUp, Shield, LogIn, Edit2, Check, X, Tag, Zap, ChevronRight, LogOut, Camera, ImagePlus, Users, UserPlus, UserCheck, Trash2 } from 'lucide-react';
 import DeleteAccountModal from '@/components/DeleteAccountModal';
+import ThemeToggle from '@/components/ThemeToggle';
 
 export default function Me() {
   const [user, setUser] = useState(null);
@@ -106,7 +107,10 @@ export default function Me() {
   }
 
   return (
-    <div className="min-h-screen pb-32 dark:rave-bg">
+    <div className="min-h-screen pb-32 dark:rave-bg relative">
+      <div className="fixed top-4 right-4 z-[99]">
+        <ThemeToggle />
+      </div>
 
       {/* Hero banner */}
       <div className="relative h-40 overflow-hidden group/banner">
