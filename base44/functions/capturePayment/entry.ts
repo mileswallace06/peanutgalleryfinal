@@ -14,7 +14,7 @@ Deno.serve(async (req) => {
   }
 
   const stripe = new Stripe(secretKey);
-  const { purchase_id, confirming_role } = await req.json();
+  const { purchase_id, confirming_role, optimistic_id } = await req.json();
 
   if (!purchase_id || !confirming_role) {
     return Response.json({ error: 'purchase_id and confirming_role are required' }, { status: 400 });
@@ -68,12 +68,13 @@ Deno.serve(async (req) => {
     });
     await base44.asServiceRole.entities.Listing.update(purchase.listing_id, { status: 'sold' });
 
-    return Response.json({ status: 'completed', payment_captured: true });
+    return Response.json({ status: 'completed', payment_captured: true, optimistic_id: optimistic_id });
   }
 
   return Response.json({
     status: 'confirmed',
     buyer_confirmed: updatedBuyerConfirmed,
-    seller_confirmed: updatedSellerConfirmed
+    seller_confirmed: updatedSellerConfirmed,
+    optimistic_id: optimistic_id
   });
 });

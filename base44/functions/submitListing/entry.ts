@@ -50,6 +50,7 @@ Deno.serve(async (req) => {
 
   const body = await req.json().catch(() => ({}));
   const askingPrice = parseFloat(body.asking_price) || 0;
+  const optimisticId = body.optimistic_id; // UI-generated temp ID for optimistic updates
 
   const isAdmin = user.role === 'admin';
   const isTest = body.is_test === true;
@@ -77,5 +78,5 @@ Deno.serve(async (req) => {
     notes: (isAdmin || isTest) ? '[TEST] Admin/demo listing' : undefined,
   });
 
-  return Response.json({ listing, flagged, flag_reason: reason });
+  return Response.json({ listing, flagged, flag_reason: reason, optimistic_id: optimisticId });
 });
