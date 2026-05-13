@@ -164,14 +164,14 @@ export default function FanZone() {
             <FabOption
               label="Seat Flex"
               emoji="💺"
-              color="#FFE600"
+              color="#66FFFF"
               delay="0s"
               onClick={() => setFab('flex')}
             />
             <FabOption
               label="Create a post"
               emoji="🎤"
-              color="#BF5FFF"
+              color="#FF99CC"
               delay="0.05s"
               onClick={() => setFab('post')}
             />
