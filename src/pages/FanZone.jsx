@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { formatDistanceToNow } from 'date-fns';
-import { Plus, X, ImagePlus, Filter, ChevronDown } from 'lucide-react';
+import { Plus, X, ImagePlus, Filter, ChevronDown, Search } from 'lucide-react';
 import SeatFlexSheet from '@/components/fanzone/SeatFlexSheet';
 
 const REACTIONS = [
@@ -30,6 +30,7 @@ export default function FanZone() {
   // Filter state
   const [filterEventId, setFilterEventId] = useState('');
   const [filterCity, setFilterCity] = useState('');
+  const [filterSearch, setFilterSearch] = useState('');
   const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
@@ -100,10 +101,15 @@ export default function FanZone() {
   const filtered = posts.filter(p => {
     if (filterEventId && p.event_id !== filterEventId) return false;
     if (filterCity && p.event_city !== filterCity) return false;
+    if (filterSearch) {
+      const q = filterSearch.toLowerCase();
+      const haystack = [p.event_title, p.event_city, p.text, p.author_name].join(' ').toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
     return true;
   });
 
-  const hasFilters = filterEventId || filterCity;
+  const hasFilters = filterEventId || filterCity || filterSearch;
 
   return (
     <div className="pb-32">
@@ -162,8 +168,20 @@ export default function FanZone() {
         </button>
 
         {showFilters && (
-          <div className="mt-2 space-y-2 p-3 rounded-2xl"
+          <div className="mt-2 space-y-3 p-3 rounded-2xl"
             style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Artist, team, venue, band…"
+                value={filterSearch}
+                onChange={e => setFilterSearch(e.target.value)}
+                className="w-full pl-8 pr-4 py-2.5 rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
+                style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}
+              />
+            </div>
             <div>
               <p className="text-[10px] font-black tracking-widest uppercase mb-1.5 text-muted-foreground">Event</p>
               <select
@@ -206,7 +224,7 @@ export default function FanZone() {
             )}
             {hasFilters && (
               <button
-                onClick={() => { setFilterEventId(''); setFilterCity(''); }}
+                onClick={() => { setFilterEventId(''); setFilterCity(''); setFilterSearch(''); }}
                 className="text-xs text-muted-foreground hover:text-foreground transition-colors"
               >Clear filters</button>
             )}
