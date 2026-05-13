@@ -358,7 +358,7 @@ export default function Me() {
 
           <Link
             to="/my-tickets"
-            className="flex items-center gap-4 px-5 py-4 rounded-2xl transition-all active:scale-[0.98] dark:bg-[rgba(0,200,255,0.06)] dark:border-[rgba(0,200,255,0.16)]"
+            className="flex items-center gap-4 px-5 py-4 rounded-2xl transition-all active:scale-[0.98] dark:bg-[rgba(0,200,255,0.06)] dark:border-[1px_solid_rgba(0,200,255,0.16)]"
             style={{ background: '#f0f5fa', border: '1px solid #d0e8f0' }}
           >
             <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 dark:bg-[rgba(0,200,255,0.12)]"
@@ -374,7 +374,7 @@ export default function Me() {
 
           <Link
             to="/my-sales"
-            className="flex items-center gap-4 px-5 py-4 rounded-2xl transition-all active:scale-[0.98] dark:bg-[rgba(191,95,255,0.06)] dark:border-[rgba(191,95,255,0.16)]"
+            className="flex items-center gap-4 px-5 py-4 rounded-2xl transition-all active:scale-[0.98] dark:bg-[rgba(191,95,255,0.06)] dark:border-[1px_solid_rgba(191,95,255,0.16)]"
             style={{ background: '#faf5f0', border: '1px solid #f0d0e8' }}
           >
             <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 dark:bg-[rgba(191,95,255,0.12)]"
@@ -390,7 +390,7 @@ export default function Me() {
 
           <Link
             to="/create-listing"
-            className="flex items-center gap-4 px-5 py-4 rounded-2xl transition-all active:scale-[0.98] dark:bg-[rgba(0,255,135,0.05)] dark:border-[rgba(0,255,135,0.15)]"
+            className="flex items-center gap-4 px-5 py-4 rounded-2xl transition-all active:scale-[0.98] dark:bg-[rgba(0,255,135,0.05)] dark:border-[1px_solid_rgba(0,255,135,0.15)]"
             style={{ background: '#f0faf5', border: '1px solid #d0f0d8' }}
           >
             <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 dark:bg-[rgba(0,255,135,0.1)]"
@@ -407,7 +407,7 @@ export default function Me() {
           {user.role === 'admin' && (
             <Link
               to="/admin"
-              className="flex items-center gap-4 px-5 py-4 rounded-2xl transition-all active:scale-[0.98] dark:bg-[rgba(255,230,0,0.05)] dark:border-[rgba(255,230,0,0.15)]"
+              className="flex items-center gap-4 px-5 py-4 rounded-2xl transition-all active:scale-[0.98] dark:bg-[rgba(255,230,0,0.05)] dark:border-[1px_solid_rgba(255,230,0,0.15)]"
               style={{ background: '#faf8f0', border: '1px solid #f0e8d0' }}
             >
               <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 dark:bg-[rgba(255,230,0,0.1)]"
