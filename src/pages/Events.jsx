@@ -107,12 +107,20 @@ export default function Events() {
     searchRef.current = search;
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
     searchDebounceRef.current = setTimeout(() => {
-      const hasKeyword = search.trim().length > 0;
+      const keyword = search.trim();
+      const hasKeyword = keyword.length > 0;
       // When keyword is active, ignore geo so results aren't geo-restricted
       const ll = hasKeyword ? null : (latlongRef.current || null);
       const city = hasKeyword ? null : (locationLabelRef.current && locationLabelRef.current !== 'Near me'
         ? locationLabelRef.current : null);
-      fetchEvents(ll, city, search.trim() || null);
+      // Update the top location label to reflect what's being searched
+      if (hasKeyword) {
+        setLocationLabel(`"${keyword}"`);
+      } else {
+        // Restore the real location label from ref (which was never overwritten)
+        setLocationLabel(locationLabelRef.current);
+      }
+      fetchEvents(ll, city, keyword || null);
     }, 400);
     return () => clearTimeout(searchDebounceRef.current);
   }, [search, fetchEvents]);
