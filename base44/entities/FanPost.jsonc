@@ -31,6 +31,14 @@
       "type": "string",
       "description": "Cached event title for display"
     },
+    "event_city": {
+      "type": "string",
+      "description": "Cached city for filtering"
+    },
+    "photo_url": {
+      "type": "string",
+      "description": "Single photo for regular posts"
+    },
     "before_photo_url": {
       "type": "string",
       "description": "Before seat photo URL (seat flex only)"
@@ -38,6 +46,22 @@
     "after_photo_url": {
       "type": "string",
       "description": "After / upgrade seat photo URL (seat flex only)"
+    },
+    "from_section": {
+      "type": "string",
+      "description": "Original seat section (seat flex only)"
+    },
+    "from_row": {
+      "type": "string",
+      "description": "Original seat row (seat flex only)"
+    },
+    "to_section": {
+      "type": "string",
+      "description": "New seat section after upgrade (seat flex only)"
+    },
+    "to_row": {
+      "type": "string",
+      "description": "New seat row after upgrade (seat flex only)"
     },
     "reactions": {
       "type": "object",

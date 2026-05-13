@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { formatDistanceToNow } from 'date-fns';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, ImagePlus, Filter, ChevronDown } from 'lucide-react';
 import SeatFlexSheet from '@/components/fanzone/SeatFlexSheet';
 
 const REACTIONS = [
@@ -17,13 +17,20 @@ export default function FanZone() {
   const [loading, setLoading] = useState(true);
   const [reactingId, setReactingId] = useState(null);
 
-  // FAB state: null | 'menu' | 'post' | 'flex'
+  // FAB state
   const [fab, setFab] = useState(null);
 
   // Compose state
   const [text, setText] = useState('');
   const [selectedEventId, setSelectedEventId] = useState('');
+  const [photoUrl, setPhotoUrl] = useState('');
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // Filter state
+  const [filterEventId, setFilterEventId] = useState('');
+  const [filterCity, setFilterCity] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => {});
@@ -35,24 +42,35 @@ export default function FanZone() {
 
   const loadPosts = async () => {
     setLoading(true);
-    const data = await base44.entities.FanPost.list('-created_date', 50);
+    const data = await base44.entities.FanPost.list('-created_date', 100);
     setPosts(data);
     setLoading(false);
   };
 
-  const closeAll = () => { setFab(null); setText(''); setSelectedEventId(''); };
+  const closeAll = () => { setFab(null); setText(''); setSelectedEventId(''); setPhotoUrl(''); };
+
+  const handlePhotoUpload = async (file) => {
+    if (!file) return;
+    setUploadingPhoto(true);
+    const { file_url } = await base44.integrations.Core.UploadFile({ file });
+    setPhotoUrl(file_url);
+    setUploadingPhoto(false);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!text.trim()) return;
+    if (!text.trim() && !photoUrl) return;
     setSubmitting(true);
     const event = events.find(ev => ev.id === selectedEventId);
     await base44.entities.FanPost.create({
       author_email: user?.email || '',
       author_name: user?.full_name || user?.email || 'Fan',
-      text: text.trim(),
+      text: text.trim() || '📸',
+      post_type: 'post',
       event_id: selectedEventId || null,
       event_title: event?.title || null,
+      event_city: event?.city || null,
+      photo_url: photoUrl || null,
       reactions: { fire: [], eyes: [], peanut: [] },
     });
     closeAll();
@@ -75,6 +93,18 @@ export default function FanZone() {
     setReactingId(null);
   };
 
+  // Get unique cities from posts for filter
+  const cities = [...new Set(posts.map(p => p.event_city).filter(Boolean))];
+
+  // Filter posts
+  const filtered = posts.filter(p => {
+    if (filterEventId && p.event_id !== filterEventId) return false;
+    if (filterCity && p.event_city !== filterCity) return false;
+    return true;
+  });
+
+  const hasFilters = filterEventId || filterCity;
+
   return (
     <div className="pb-32">
       {/* Hero */}
@@ -86,14 +116,12 @@ export default function FanZone() {
         />
         <div className="absolute inset-0"
           style={{ background: 'linear-gradient(to bottom, rgba(5,3,12,0.4) 0%, rgba(5,3,12,0.15) 40%, rgba(5,3,12,0.95) 100%)' }} />
-
         <div className="absolute top-5 left-4">
           <span className="text-[10px] font-black tracking-[0.2em] px-3 py-1 rounded-full"
             style={{ background: 'rgba(0,0,0,0.5)', color: '#00C8FF', border: '1px solid #00C8FF55', backdropFilter: 'blur(12px)' }}>
             🎤 FAN ZONE
           </span>
         </div>
-
         <div className="absolute bottom-5 left-4 right-4">
           <h1 className="font-display mb-2"
             style={{
@@ -108,29 +136,105 @@ export default function FanZone() {
             }}>
             Fan Zone
           </h1>
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full w-fit"
-            style={{ background: 'rgba(0,200,255,0.15)', border: '1px solid rgba(0,200,255,0.35)' }}>
-            <span className="text-[11px] font-medium whitespace-nowrap" style={{ color: 'rgba(200,235,255,0.9)' }}>
-              Share moments · Connect with fans
-            </span>
-          </div>
         </div>
       </div>
 
+      {/* Filter bar */}
+      <div className="px-4 mt-4 mb-2">
+        <button
+          onClick={() => setShowFilters(v => !v)}
+          className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold transition-all"
+          style={{
+            background: hasFilters ? 'rgba(191,95,255,0.12)' : 'rgba(255,255,255,0.05)',
+            border: hasFilters ? '1px solid rgba(191,95,255,0.35)' : '1px solid rgba(255,255,255,0.09)',
+            color: hasFilters ? '#BF5FFF' : 'rgba(255,255,255,0.6)',
+          }}
+        >
+          <Filter className="w-3.5 h-3.5" />
+          <span>{hasFilters ? 'Filtered' : 'Filter'}</span>
+          {hasFilters && (
+            <span className="flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-black"
+              style={{ background: '#BF5FFF', color: '#fff' }}>
+              {(filterEventId ? 1 : 0) + (filterCity ? 1 : 0)}
+            </span>
+          )}
+          <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
+        </button>
+
+        {showFilters && (
+          <div className="mt-2 space-y-2 p-3 rounded-2xl"
+            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <div>
+              <p className="text-[10px] font-black tracking-widest uppercase mb-1.5 text-muted-foreground">Event</p>
+              <select
+                value={filterEventId}
+                onChange={e => setFilterEventId(e.target.value)}
+                className="w-full text-sm px-3 py-2.5 rounded-xl focus:outline-none"
+                style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', color: filterEventId ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))' }}
+              >
+                <option value="">All events</option>
+                {events.map(ev => <option key={ev.id} value={ev.id}>{ev.title}</option>)}
+              </select>
+            </div>
+            {cities.length > 0 && (
+              <div>
+                <p className="text-[10px] font-black tracking-widest uppercase mb-1.5 text-muted-foreground">City</p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setFilterCity('')}
+                    className="px-3 py-1.5 rounded-full text-xs font-bold transition-all"
+                    style={{
+                      background: !filterCity ? 'rgba(191,95,255,0.2)' : 'rgba(255,255,255,0.05)',
+                      border: !filterCity ? '1px solid rgba(191,95,255,0.4)' : '1px solid rgba(255,255,255,0.1)',
+                      color: !filterCity ? '#BF5FFF' : 'rgba(255,255,255,0.5)',
+                    }}
+                  >All</button>
+                  {cities.map(city => (
+                    <button
+                      key={city}
+                      onClick={() => setFilterCity(city === filterCity ? '' : city)}
+                      className="px-3 py-1.5 rounded-full text-xs font-bold transition-all"
+                      style={{
+                        background: filterCity === city ? 'rgba(191,95,255,0.2)' : 'rgba(255,255,255,0.05)',
+                        border: filterCity === city ? '1px solid rgba(191,95,255,0.4)' : '1px solid rgba(255,255,255,0.1)',
+                        color: filterCity === city ? '#BF5FFF' : 'rgba(255,255,255,0.5)',
+                      }}
+                    >{city}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {hasFilters && (
+              <button
+                onClick={() => { setFilterEventId(''); setFilterCity(''); }}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >Clear filters</button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Post count */}
+      {!loading && (
+        <div className="px-4 mb-3">
+          <p className="text-xs text-muted-foreground">{filtered.length} post{filtered.length !== 1 ? 's' : ''}</p>
+        </div>
+      )}
+
       {/* Feed */}
-      <div className="px-4 mt-5 space-y-3">
+      <div className="px-4 space-y-3">
         {loading ? (
           [...Array(3)].map((_, i) => (
-            <div key={i} className="rounded-2xl h-24 animate-pulse" style={{ background: 'rgba(255,255,255,0.04)' }} />
+            <div key={i} className="rounded-2xl h-40 animate-pulse" style={{ background: 'rgba(255,255,255,0.04)' }} />
           ))
-        ) : posts.length === 0 ? (
+        ) : filtered.length === 0 ? (
           <div className="text-center py-24 space-y-3">
             <p className="text-4xl">🎤</p>
-            <p className="font-bold text-foreground">No fan posts yet</p>
-            <p className="text-sm text-muted-foreground">Be the first to start the conversation</p>
+            <p className="font-bold text-foreground">{hasFilters ? 'No posts match your filters' : 'No fan posts yet'}</p>
+            <p className="text-sm text-muted-foreground">{hasFilters ? 'Try clearing your filters' : 'Be the first to start the conversation'}</p>
           </div>
         ) : (
-          posts.map(post => (
+          filtered.map(post => (
             <PostCard key={post.id} post={post} user={user} onReact={handleReact} reactingId={reactingId} />
           ))
         )}
@@ -147,10 +251,7 @@ export default function FanZone() {
       >
         <Plus
           className="w-7 h-7 transition-transform duration-200"
-          style={{
-            color: '#0a0510',
-            transform: fab === 'menu' ? 'rotate(45deg)' : 'rotate(0deg)',
-          }}
+          style={{ color: '#0a0510', transform: fab === 'menu' ? 'rotate(45deg)' : 'rotate(0deg)' }}
         />
       </button>
 
@@ -160,35 +261,17 @@ export default function FanZone() {
           <div className="fixed inset-0 z-30" onClick={closeAll} />
           <div className="fixed bottom-40 right-5 z-40 flex flex-col items-end gap-3"
             style={{ animation: 'fabMenuIn 0.18s cubic-bezier(0.34,1.56,0.64,1) both' }}>
-            <FabOption
-              label="Seat Flex"
-              emoji="💺"
-              color="#66FFFF"
-              delay="0s"
-              onClick={() => setFab('flex')}
-            />
-            <FabOption
-              label="Create a post"
-              emoji="🎤"
-              color="#FF99CC"
-              delay="0.05s"
-              onClick={() => setFab('post')}
-            />
+            <FabOption label="Seat Flex" emoji="💺" color="#66FFFF" delay="0s" onClick={() => setFab('flex')} />
+            <FabOption label="Create a post" emoji="🎤" color="#FF99CC" delay="0.05s" onClick={() => setFab('post')} />
           </div>
           <style>{`
-            @keyframes fabMenuIn {
-              from { opacity: 0; transform: translateY(16px) scale(0.92); }
-              to   { opacity: 1; transform: translateY(0) scale(1); }
-            }
-            @keyframes fabItemIn {
-              from { opacity: 0; transform: translateX(20px) scale(0.88); }
-              to   { opacity: 1; transform: translateX(0) scale(1); }
-            }
+            @keyframes fabMenuIn { from { opacity:0; transform:translateY(16px) scale(0.92); } to { opacity:1; transform:translateY(0) scale(1); } }
+            @keyframes fabItemIn { from { opacity:0; transform:translateX(20px) scale(0.88); } to { opacity:1; transform:translateX(0) scale(1); } }
           `}</style>
         </>
       )}
 
-      {/* Bottom sheet — post */}
+      {/* Bottom sheet — regular post */}
       {fab === 'post' && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeAll} />
@@ -206,9 +289,32 @@ export default function FanZone() {
                 onChange={e => setText(e.target.value)}
                 placeholder="What's happening at the show?"
                 maxLength={280}
-                rows={4}
+                rows={3}
                 className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none leading-relaxed"
               />
+
+              {/* Photo upload */}
+              {photoUrl ? (
+                <div className="relative rounded-xl overflow-hidden">
+                  <img src={photoUrl} alt="post" className="w-full max-h-48 object-cover rounded-xl" />
+                  <button type="button" onClick={() => setPhotoUrl('')}
+                    className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center"
+                    style={{ background: 'rgba(0,0,0,0.7)' }}>
+                    <X className="w-4 h-4 text-white" />
+                  </button>
+                </div>
+              ) : (
+                <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer w-fit"
+                  style={{ color: uploadingPhoto ? '#BF5FFF' : 'rgba(255,255,255,0.4)' }}>
+                  {uploadingPhoto
+                    ? <span className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                    : <ImagePlus className="w-4 h-4" />}
+                  <span>{uploadingPhoto ? 'Uploading…' : 'Add photo'}</span>
+                  <input type="file" accept="image/*" className="hidden"
+                    onChange={e => handlePhotoUpload(e.target.files[0])} disabled={uploadingPhoto} />
+                </label>
+              )}
+
               <div className="h-px" style={{ background: 'rgba(255,255,255,0.08)' }} />
               <div className="flex items-center gap-3">
                 <select
@@ -224,7 +330,7 @@ export default function FanZone() {
               </div>
               <button
                 type="submit"
-                disabled={!text.trim() || submitting}
+                disabled={(!text.trim() && !photoUrl) || submitting || uploadingPhoto}
                 className="w-full py-3 rounded-2xl font-bold text-sm disabled:opacity-40 transition-opacity"
                 style={{ background: 'linear-gradient(135deg, rgba(0,200,255,0.3), rgba(191,95,255,0.3))', color: '#fff', border: '1px solid rgba(0,200,255,0.3)' }}
               >
@@ -257,7 +363,6 @@ function FabOption({ label, emoji, color, delay = '0s', onClick }) {
       className="flex items-center gap-2.5 pl-3.5 pr-4 py-2.5 rounded-2xl"
       style={{
         background: color,
-        border: `1.5px solid ${color}`,
         boxShadow: `0 0 20px ${color}88, 0 4px 20px rgba(0,0,0,0.6)`,
         animation: `fabItemIn 0.22s cubic-bezier(0.34,1.56,0.64,1) ${delay} both`,
       }}
@@ -268,7 +373,6 @@ function FabOption({ label, emoji, color, delay = '0s', onClick }) {
   );
 }
 
-// Deterministic avatar gradient per author
 const AVATAR_GRADIENTS = [
   'linear-gradient(135deg, #FF99CC, #BF5FFF)',
   'linear-gradient(135deg, #66FFFF, #00C8FF)',
@@ -287,6 +391,7 @@ function PostCard({ post, user, onReact, reactingId }) {
   const isSeatFlex = post.post_type === 'seat_flex';
   const authorKey = post.author_email || post.author_name || '?';
   const initials = (post.author_name || post.author_email || '?')[0].toUpperCase();
+  const hasSeatMove = post.from_section || post.to_section;
 
   return (
     <div className="rounded-2xl overflow-hidden"
@@ -305,7 +410,6 @@ function PostCard({ post, user, onReact, reactingId }) {
         {/* Author row */}
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2.5">
-            {/* Avatar */}
             <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 font-black text-sm"
               style={{ background: avatarGradient(authorKey), color: '#0a0510', boxShadow: '0 0 10px rgba(0,0,0,0.4)' }}>
               {initials}
@@ -319,9 +423,6 @@ function PostCard({ post, user, onReact, reactingId }) {
                     💺 SEAT FLEX
                   </span>
                 )}
-                {post.event_title && (
-                  <span className="text-[10px] text-muted-foreground">🎫 {post.event_title}</span>
-                )}
               </div>
             </div>
           </div>
@@ -330,23 +431,57 @@ function PostCard({ post, user, onReact, reactingId }) {
           </span>
         </div>
 
-        {/* Seat Flex photos */}
+        {/* Event tag — always show if present */}
+        {post.event_title && (
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl w-fit"
+            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)' }}>
+            <span className="text-[10px]">🎫</span>
+            <span className="text-[11px] font-semibold text-muted-foreground">{post.event_title}</span>
+            {post.event_city && <span className="text-[10px] text-muted-foreground opacity-60">· {post.event_city}</span>}
+          </div>
+        )}
+
+        {/* Seat move badge */}
+        {isSeatFlex && hasSeatMove && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl"
+            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-black" style={{ color: '#FF99CC' }}>
+                Sec {post.from_section || '?'}{post.from_row ? ` Row ${post.from_row}` : ''}
+              </span>
+              <span className="text-xs text-muted-foreground">→</span>
+              <span className="text-[10px] font-black" style={{ color: '#66FFFF' }}>
+                Sec {post.to_section || '?'}{post.to_row ? ` Row ${post.to_row}` : ''}
+              </span>
+            </div>
+            <span className="text-sm ml-auto">🚀</span>
+          </div>
+        )}
+
+        {/* Seat Flex before/after photos */}
         {isSeatFlex && (post.before_photo_url || post.after_photo_url) && (
           <div className="grid grid-cols-2 gap-2">
             {post.before_photo_url && (
               <div className="relative rounded-xl overflow-hidden aspect-[4/3]">
                 <img src={post.before_photo_url} alt="Before" className="w-full h-full object-cover" />
                 <span className="absolute bottom-1.5 left-1.5 text-[9px] font-black px-1.5 py-0.5 rounded-full"
-                  style={{ background: 'rgba(0,0,0,0.7)', color: 'rgba(255,255,255,0.8)' }}>BEFORE</span>
+                  style={{ background: 'rgba(0,0,0,0.75)', color: '#FF99CC' }}>BEFORE</span>
               </div>
             )}
             {post.after_photo_url && (
               <div className="relative rounded-xl overflow-hidden aspect-[4/3]">
                 <img src={post.after_photo_url} alt="After" className="w-full h-full object-cover" />
                 <span className="absolute bottom-1.5 left-1.5 text-[9px] font-black px-1.5 py-0.5 rounded-full"
-                  style={{ background: 'rgba(102,255,255,0.85)', color: '#0a0510' }}>AFTER</span>
+                  style={{ background: 'rgba(0,0,0,0.75)', color: '#66FFFF' }}>AFTER</span>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Regular post photo */}
+        {!isSeatFlex && post.photo_url && (
+          <div className="rounded-xl overflow-hidden">
+            <img src={post.photo_url} alt="post" className="w-full max-h-72 object-cover" />
           </div>
         )}
 
