@@ -12,7 +12,16 @@
     },
     "text": {
       "type": "string",
-      "description": "Post content"
+      "description": "Post content / caption"
+    },
+    "post_type": {
+      "type": "string",
+      "enum": [
+        "post",
+        "seat_flex"
+      ],
+      "default": "post",
+      "description": "Type of fan post"
     },
     "event_id": {
       "type": "string",
@@ -21,6 +30,14 @@
     "event_title": {
       "type": "string",
       "description": "Cached event title for display"
+    },
+    "before_photo_url": {
+      "type": "string",
+      "description": "Before seat photo URL (seat flex only)"
+    },
+    "after_photo_url": {
+      "type": "string",
+      "description": "After / upgrade seat photo URL (seat flex only)"
     },
     "reactions": {
       "type": "object",

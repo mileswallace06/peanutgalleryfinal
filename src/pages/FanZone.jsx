@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { formatDistanceToNow } from 'date-fns';
 import { Plus, X } from 'lucide-react';
+import SeatFlexSheet from '@/components/fanzone/SeatFlexSheet';
 
 const REACTIONS = [
   { key: 'fire', emoji: '🔥' },
@@ -73,8 +74,6 @@ export default function FanZone() {
     setPosts(prev => prev.map(p => p.id === post.id ? { ...p, reactions: updated } : p));
     setReactingId(null);
   };
-
-  const sheetOpen = fab === 'post' || fab === 'flex';
 
   return (
     <div className="pb-32">
@@ -189,72 +188,62 @@ export default function FanZone() {
         </>
       )}
 
-      {/* Bottom sheet overlay */}
-      {sheetOpen && (
+      {/* Bottom sheet — post */}
+      {fab === 'post' && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeAll} />
-          <div
-            className="relative z-10 rounded-t-3xl px-5 pt-5 pb-10"
-            style={{ background: 'hsl(255 12% 9%)', border: '1px solid rgba(255,255,255,0.1)' }}
-          >
-            {/* Handle */}
+          <div className="relative z-10 rounded-t-3xl px-5 pt-5 pb-10"
+            style={{ background: 'hsl(255 12% 9%)', border: '1px solid rgba(255,255,255,0.1)' }}>
             <div className="w-10 h-1 rounded-full mx-auto mb-5" style={{ background: 'rgba(255,255,255,0.2)' }} />
-
-            {fab === 'post' && (
-              <>
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="font-bold text-base text-foreground">Create a post</h2>
-                  <button onClick={closeAll}><X className="w-5 h-5 text-muted-foreground" /></button>
-                </div>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <textarea
-                    autoFocus
-                    value={text}
-                    onChange={e => setText(e.target.value)}
-                    placeholder="What's happening at the show?"
-                    maxLength={280}
-                    rows={4}
-                    className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none leading-relaxed"
-                  />
-                  <div className="h-px" style={{ background: 'rgba(255,255,255,0.08)' }} />
-                  <div className="flex items-center gap-3">
-                    <select
-                      value={selectedEventId}
-                      onChange={e => setSelectedEventId(e.target.value)}
-                      className="flex-1 text-xs px-3 py-2.5 rounded-xl focus:outline-none"
-                      style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', color: selectedEventId ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))' }}
-                    >
-                      <option value="">🎫 Tag an event (optional)</option>
-                      {events.map(ev => <option key={ev.id} value={ev.id}>{ev.title}</option>)}
-                    </select>
-                    <span className="text-[10px] text-muted-foreground flex-shrink-0">{280 - text.length}</span>
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={!text.trim() || submitting}
-                    className="w-full py-3 rounded-2xl font-bold text-sm disabled:opacity-40 transition-opacity"
-                    style={{ background: 'linear-gradient(135deg, rgba(0,200,255,0.3), rgba(191,95,255,0.3))', color: '#fff', border: '1px solid rgba(0,200,255,0.3)' }}
-                  >
-                    {submitting ? 'Posting…' : 'Post'}
-                  </button>
-                </form>
-              </>
-            )}
-
-            {fab === 'flex' && (
-              <div className="text-center py-6 space-y-3">
-                <p className="text-4xl">💺</p>
-                <p className="font-bold text-foreground">Seat Flex</p>
-                <p className="text-sm text-muted-foreground max-w-[240px] mx-auto leading-relaxed">
-                  Show off your seats — photos and seat comparisons coming soon.
-                </p>
-                <button onClick={closeAll} className="mt-2 text-xs font-semibold px-4 py-2 rounded-full"
-                  style={{ background: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.6)' }}>
-                  Got it
-                </button>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-base text-foreground">Create a post</h2>
+              <button onClick={closeAll}><X className="w-5 h-5 text-muted-foreground" /></button>
+            </div>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <textarea
+                autoFocus
+                value={text}
+                onChange={e => setText(e.target.value)}
+                placeholder="What's happening at the show?"
+                maxLength={280}
+                rows={4}
+                className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none leading-relaxed"
+              />
+              <div className="h-px" style={{ background: 'rgba(255,255,255,0.08)' }} />
+              <div className="flex items-center gap-3">
+                <select
+                  value={selectedEventId}
+                  onChange={e => setSelectedEventId(e.target.value)}
+                  className="flex-1 text-xs px-3 py-2.5 rounded-xl focus:outline-none"
+                  style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', color: selectedEventId ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))' }}
+                >
+                  <option value="">🎫 Tag an event (optional)</option>
+                  {events.map(ev => <option key={ev.id} value={ev.id}>{ev.title}</option>)}
+                </select>
+                <span className="text-[10px] text-muted-foreground flex-shrink-0">{280 - text.length}</span>
               </div>
-            )}
+              <button
+                type="submit"
+                disabled={!text.trim() || submitting}
+                className="w-full py-3 rounded-2xl font-bold text-sm disabled:opacity-40 transition-opacity"
+                style={{ background: 'linear-gradient(135deg, rgba(0,200,255,0.3), rgba(191,95,255,0.3))', color: '#fff', border: '1px solid rgba(0,200,255,0.3)' }}
+              >
+                {submitting ? 'Posting…' : 'Post'}
+              </button>
+            </form>
           </div>
+        </div>
+      )}
+
+      {/* Bottom sheet — seat flex */}
+      {fab === 'flex' && (
+        <div className="fixed inset-0 z-50 flex flex-col justify-end">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeAll} />
+          <SeatFlexSheet
+            user={user}
+            onClose={closeAll}
+            onPosted={async () => { closeAll(); await loadPosts(); }}
+          />
         </div>
       )}
     </div>
