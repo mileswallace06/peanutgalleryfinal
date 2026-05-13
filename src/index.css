@@ -43,6 +43,10 @@
 }
 
 @layer base {
+  html, body {
+    overscroll-behavior: none;
+  }
+
   * {
     @apply border-border outline-ring/50;
   }
@@ -50,6 +54,11 @@
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-sans);
+  }
+
+  button, [role="button"], svg {
+    user-select: none;
+    -webkit-user-select: none;
   }
 }
 

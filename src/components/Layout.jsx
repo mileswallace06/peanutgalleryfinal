@@ -26,7 +26,7 @@ export default function Layout() {
   }
 
   return (
-    <div className="min-h-screen rave-bg font-sans">
+    <div className="min-h-screen rave-bg font-sans" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
       {/* Black banner at top */}
       
       
@@ -56,7 +56,7 @@ export default function Layout() {
       </main>
 
       {/* Bottom nav */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 frosted-bar border-t border-white/10">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 frosted-bar border-t border-white/10" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         <div className="max-w-lg mx-auto flex items-stretch">
           {NAV.map(({ to, label, icon: Icon, color }) => {
             const active = location.pathname === to || location.pathname.startsWith(to + '/');

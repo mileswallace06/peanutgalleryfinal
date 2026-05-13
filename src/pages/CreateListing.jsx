@@ -459,10 +459,23 @@ export default function CreateListing() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-muted-foreground mb-1.5">Seats</label>
-              <select value={form.quantity} onChange={e => set('quantity', e.target.value)}
-                className={inputClass} style={{ ...inputStyle, appearance: 'none' }}>
-                {[1,2,3,4,5,6].map(n => <option key={n} value={n}>{n} seat{n > 1 ? 's' : ''}</option>)}
-              </select>
+              <div className="flex gap-2">
+                {[1,2,3,4,5,6].map(n => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => set('quantity', String(n))}
+                    className="flex-1 py-3 rounded-xl text-xs font-bold transition-all"
+                    style={{
+                      background: form.quantity === String(n) ? 'rgba(191,95,255,0.15)' : 'rgba(255,255,255,0.04)',
+                      border: form.quantity === String(n) ? '1px solid rgba(191,95,255,0.4)' : '1px solid rgba(255,255,255,0.08)',
+                      color: form.quantity === String(n) ? '#BF5FFF' : 'rgba(255,255,255,0.55)',
+                    }}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
             </div>
             <div>
               <label className="block text-xs text-muted-foreground mb-1.5">Seat #s <span className="opacity-50">(optional)</span></label>
