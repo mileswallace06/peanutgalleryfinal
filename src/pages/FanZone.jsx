@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { formatDistanceToNow } from 'date-fns';
-import { Plus, X, ImagePlus, Star, MapPin, Users, TrendingUp } from 'lucide-react';
+import { Plus, X, ImagePlus, Star, MapPin, Users, TrendingUp, Search, ChevronDown } from 'lucide-react';
 import SeatFlexSheet from '@/components/fanzone/SeatFlexSheet';
 import BucketListSheet from '@/components/fanzone/BucketListSheet';
 
@@ -25,9 +25,12 @@ export default function FanZone() {
   // Compose state
   const [text, setText] = useState('');
   const [selectedEventId, setSelectedEventId] = useState('');
+  const [eventQuery, setEventQuery] = useState('');
+  const [showEventPicker, setShowEventPicker] = useState(false);
   const [photoUrl, setPhotoUrl] = useState('');
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const eventPickerRef = useRef(null);
 
   // Filter state
   const [feedTab, setFeedTab] = useState('trending'); // 'trending' | 'bucket' | 'nearby' | 'friends'
@@ -71,7 +74,7 @@ export default function FanZone() {
     setLoading(false);
   };
 
-  const closeAll = () => { setFab(null); setText(''); setSelectedEventId(''); setPhotoUrl(''); };
+  const closeAll = () => { setFab(null); setText(''); setSelectedEventId(''); setEventQuery(''); setShowEventPicker(false); setPhotoUrl(''); };
 
   const handlePhotoUpload = async (file) => {
     if (!file) return;
@@ -339,17 +342,71 @@ export default function FanZone() {
               )}
 
               <div className="h-px" style={{ background: 'rgba(255,255,255,0.08)' }} />
-              <div className="flex items-center gap-3">
-                <select
-                  value={selectedEventId}
-                  onChange={e => setSelectedEventId(e.target.value)}
-                  className="flex-1 text-xs px-3 py-2.5 rounded-xl focus:outline-none"
+
+              {/* Searchable event picker */}
+              <div className="relative" ref={eventPickerRef}>
+                <button
+                  type="button"
+                  onClick={() => setShowEventPicker(v => !v)}
+                  className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs text-left"
                   style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', color: selectedEventId ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))' }}
                 >
-                  <option value="">🎫 Tag an event (optional)</option>
-                  {events.map(ev => <option key={ev.id} value={ev.id}>{ev.title}</option>)}
-                </select>
-                <span className="text-[10px] text-muted-foreground flex-shrink-0">{280 - text.length}</span>
+                  <span className="flex-shrink-0">🎫</span>
+                  <span className="flex-1 truncate">
+                    {selectedEventId ? events.find(e => e.id === selectedEventId)?.title : 'Tag an event (optional)'}
+                  </span>
+                  {selectedEventId
+                    ? <X className="w-3.5 h-3.5 flex-shrink-0" onClick={e => { e.stopPropagation(); setSelectedEventId(''); setEventQuery(''); setShowEventPicker(false); }} />
+                    : <ChevronDown className="w-3.5 h-3.5 flex-shrink-0 opacity-50" />
+                  }
+                </button>
+
+                {showEventPicker && (
+                  <div className="absolute bottom-full left-0 right-0 mb-1 rounded-2xl overflow-hidden z-10"
+                    style={{ background: 'hsl(255 12% 11%)', border: '1px solid rgba(255,255,255,0.12)', maxHeight: '220px', display: 'flex', flexDirection: 'column' }}>
+                    <div className="p-2 flex-shrink-0">
+                      <div className="relative">
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                        <input
+                          autoFocus
+                          type="text"
+                          placeholder="Search events…"
+                          value={eventQuery}
+                          onChange={e => setEventQuery(e.target.value)}
+                          className="w-full pl-8 pr-3 py-2 rounded-xl text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
+                          style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}
+                        />
+                      </div>
+                    </div>
+                    <div className="overflow-y-auto flex-1">
+                      {events
+                        .filter(ev => !eventQuery || ev.title?.toLowerCase().includes(eventQuery.toLowerCase()) || ev.venue?.toLowerCase().includes(eventQuery.toLowerCase()))
+                        .map(ev => (
+                          <button
+                            key={ev.id}
+                            type="button"
+                            onClick={() => { setSelectedEventId(ev.id); setShowEventPicker(false); setEventQuery(''); }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left transition-all"
+                            style={{ background: selectedEventId === ev.id ? 'rgba(0,200,255,0.1)' : 'transparent', borderBottom: '1px solid rgba(255,255,255,0.05)' }}
+                          >
+                            {ev.image_url
+                              ? <img src={ev.image_url} alt="" className="w-7 h-7 rounded-lg object-cover flex-shrink-0" />
+                              : <span className="w-7 h-7 flex items-center justify-center text-sm flex-shrink-0 rounded-lg" style={{ background: 'rgba(255,255,255,0.06)' }}>🎫</span>
+                            }
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-semibold text-foreground truncate">{ev.title}</p>
+                              {ev.city && <p className="text-[10px] text-muted-foreground">{ev.city}</p>}
+                            </div>
+                          </button>
+                        ))
+                      }
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end">
+                <span className="text-[10px] text-muted-foreground">{280 - text.length}</span>
               </div>
               <button
                 type="submit"
