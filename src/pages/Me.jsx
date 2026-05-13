@@ -363,7 +363,7 @@ export default function Me() {
           >
             <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
               style={{ background: 'rgba(0,200,255,0.2)' }}>
-              <Ticket className="w-5 h-5 dark:drop-shadow-[0_0_8px_rgba(0,200,255,0.8)]" style={{ color: '#00C8FF' }} />
+              <Ticket className="w-5 h-5 dark:!text-[#00C8FF] dark:drop-shadow-[0_0_8px_rgba(0,200,255,0.8)]" style={{ color: '#003366' }} />
             </div>
             <div className="flex-1">
               <div className="font-bold text-sm" style={{ color: '#00C8FF' }}>My Tickets</div>
@@ -379,7 +379,7 @@ export default function Me() {
           >
             <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
               style={{ background: 'rgba(191,95,255,0.2)' }}>
-              <TrendingUp className="w-5 h-5 dark:drop-shadow-[0_0_8px_rgba(191,95,255,0.8)]" style={{ color: '#BF5FFF' }} />
+              <TrendingUp className="w-5 h-5 dark:!text-[#BF5FFF] dark:drop-shadow-[0_0_8px_rgba(191,95,255,0.8)]" style={{ color: '#6B3B7F' }} />
             </div>
             <div className="flex-1">
               <div className="font-bold text-sm" style={{ color: '#BF5FFF' }}>My Sales</div>
@@ -395,7 +395,7 @@ export default function Me() {
           >
             <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
               style={{ background: 'rgba(0,255,135,0.2)' }}>
-              <Zap className="w-5 h-5 dark:drop-shadow-[0_0_8px_rgba(0,255,135,0.8)]" style={{ color: '#00FF87' }} />
+              <Zap className="w-5 h-5 dark:!text-[#00FF87] dark:drop-shadow-[0_0_8px_rgba(0,255,135,0.8)]" style={{ color: '#004D30' }} />
             </div>
             <div className="flex-1">
               <div className="font-bold text-sm" style={{ color: '#00FF87' }}>Sell Tickets</div>
@@ -412,7 +412,7 @@ export default function Me() {
             >
               <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
                 style={{ background: 'rgba(255,230,0,0.2)' }}>
-                <Shield className="w-5 h-5 dark:drop-shadow-[0_0_8px_rgba(255,230,0,0.8)]" style={{ color: '#FFE600' }} />
+                <Shield className="w-5 h-5 dark:!text-[#FFE600] dark:drop-shadow-[0_0_8px_rgba(255,230,0,0.8)]" style={{ color: '#664D00' }} />
               </div>
               <div className="flex-1">
                 <div className="font-bold text-sm" style={{ color: '#FFE600' }}>Admin Panel</div>
