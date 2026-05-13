@@ -107,8 +107,8 @@ export default function Me() {
   }
 
   return (
-    <div className="min-h-screen pb-32 dark:rave-bg relative">
-      <div className="absolute top-4 right-4 z-[99]">
+    <div className="min-h-screen pb-32 dark:rave-bg relative" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+      <div className="absolute top-4 right-4 z-[99]" style={{ paddingTop: 'env(safe-area-inset-top)', paddingRight: 'env(safe-area-inset-right)' }}>
         <ThemeToggle />
       </div>
 

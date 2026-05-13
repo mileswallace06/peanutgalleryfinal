@@ -129,6 +129,7 @@ export default function Onboarding({ onDone }) {
   return (
     <div
       className="fixed inset-0 z-[100] flex flex-col"
+      style={{ paddingTop: 'env(safe-area-inset-top)' }}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}>
       
@@ -177,7 +178,7 @@ export default function Onboarding({ onDone }) {
       <Particles color={slide.accent} />
 
       {/* Logo — top left */}
-      <div className="absolute top-4 left-0 z-20">
+      <div className="absolute top-4 left-0 z-20" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         <img
           src="https://media.base44.com/images/public/69ef9900cf3862dc0ea39734/9022a5431_ChatGPTImageMay1202601_29_27PM.png"
           alt="Peanut Gallery"

@@ -249,7 +249,7 @@ export default function CreateListing() {
   const canSubmit = !!form.asking_price && parseFloat(form.asking_price) > 0;
 
   return (
-    <div className="max-w-lg mx-auto px-4 py-8 pb-32">
+    <div className="max-w-lg mx-auto px-4 py-8 pb-32" style={{ paddingTop: 'calc(2rem + env(safe-area-inset-top))' }}>
       <Link to="/my-sales" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-6 transition-colors">
         <ArrowLeft className="w-3.5 h-3.5" /> Back
       </Link>

@@ -80,7 +80,7 @@ export default function BucketListSheet({ user, onClose }) {
         ))}
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 pb-28 min-h-0">
+      <div className="flex-1 overflow-y-auto px-5 min-h-0" style={{ paddingBottom: 'calc(7rem + env(safe-area-inset-bottom))' }}>
         {tab === 'search' ? (
           <BucketListSearch following={following} onFollow={handleFollow} />
         ) : loading ? (

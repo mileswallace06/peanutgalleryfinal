@@ -54,7 +54,7 @@ export default function Sell() {
   return (
     <div className="pb-32">
       {/* Hero */}
-      <div className="relative h-56 overflow-hidden">
+      <div className="relative h-56 overflow-hidden" style={{ marginTop: 'env(safe-area-inset-top)' }}>
         <img
           src="https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=900&q=80"
           alt="Sell"

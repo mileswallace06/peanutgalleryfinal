@@ -63,7 +63,7 @@ export default function MySales() {
   const activeListings = listings.filter(l => l.status === 'active');
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8">
+    <div className="max-w-3xl mx-auto px-4 py-8" style={{ paddingTop: 'calc(2rem + env(safe-area-inset-top))' }}>
       <div className="flex items-start justify-between gap-4 mb-8">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">

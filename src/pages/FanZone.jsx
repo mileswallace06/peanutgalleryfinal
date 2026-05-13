@@ -184,7 +184,7 @@ export default function FanZone() {
         </div>
       )}
       {/* Hero */}
-      <div className="relative h-52 overflow-hidden">
+      <div className="relative h-52 overflow-hidden" style={{ marginTop: 'env(safe-area-inset-top)' }}>
         <img
           src="https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=900&q=80"
           alt="Fan Zone"
@@ -279,14 +279,15 @@ export default function FanZone() {
       </div>
 
       {/* FAB */}
-      <button
-        onClick={() => setFab(fab === 'menu' ? null : 'menu')}
-        className="fixed bottom-24 right-5 z-40 w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform active:scale-95"
-        style={{
-          background: 'linear-gradient(135deg, #FF99CC, #66FFFF)',
-          boxShadow: '0 0 24px rgba(0,200,255,0.4), 0 4px 24px rgba(0,0,0,0.5)',
-        }}
-      >
+       <button
+         onClick={() => setFab(fab === 'menu' ? null : 'menu')}
+         className="fixed right-5 z-40 w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform active:scale-95"
+         style={{
+           background: 'linear-gradient(135deg, #FF99CC, #66FFFF)',
+           boxShadow: '0 0 24px rgba(0,200,255,0.4), 0 4px 24px rgba(0,0,0,0.5)',
+           bottom: 'calc(6rem + env(safe-area-inset-bottom))'
+         }}
+       >
         <Plus
           className="w-7 h-7 transition-transform duration-200"
           style={{ color: '#0a0510', transform: fab === 'menu' ? 'rotate(45deg)' : 'rotate(0deg)' }}
@@ -297,8 +298,8 @@ export default function FanZone() {
       {fab === 'menu' && (
         <>
           <div className="fixed inset-0 z-30" onClick={closeAll} />
-          <div className="fixed bottom-40 right-5 z-40 flex flex-col items-end gap-3"
-            style={{ animation: 'fabMenuIn 0.18s cubic-bezier(0.34,1.56,0.64,1) both' }}>
+          <div className="fixed right-5 z-40 flex flex-col items-end gap-3"
+            style={{ bottom: 'calc(10rem + env(safe-area-inset-bottom))', animation: 'fabMenuIn 0.18s cubic-bezier(0.34,1.56,0.64,1) both' }}>
             <FabOption label="Seat Flex" emoji="💺" color="#66FFFF" delay="0s" onClick={() => setFab('flex')} />
             <FabOption label="Create a post" emoji="🎤" color="#FF99CC" delay="0.05s" onClick={() => setFab('post')} />
           </div>
@@ -313,8 +314,8 @@ export default function FanZone() {
       {fab === 'post' && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeAll} />
-          <div className="relative z-10 rounded-t-3xl px-5 pt-5 pb-28 overflow-y-auto max-h-[85vh]"
-            style={{ background: 'hsl(255 12% 9%)', border: '1px solid rgba(255,255,255,0.1)' }}>
+          <div className="relative z-10 rounded-t-3xl px-5 pt-5 overflow-y-auto max-h-[85vh]"
+            style={{ background: 'hsl(255 12% 9%)', border: '1px solid rgba(255,255,255,0.1)', paddingBottom: 'calc(7rem + env(safe-area-inset-bottom))' }}>
             <div className="w-10 h-1 rounded-full mx-auto mb-5" style={{ background: 'rgba(255,255,255,0.2)' }} />
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-bold text-base text-foreground">Create a post</h2>

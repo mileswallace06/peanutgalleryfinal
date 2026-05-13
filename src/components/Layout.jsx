@@ -87,7 +87,7 @@ export default function Layout() {
       </div>
 
       {/* Bottom nav */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 frosted-bar border-t border-white/10 dark:border-white/10" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      <nav className="fixed bottom-0 left-0 right-0 z-50 frosted-bar border-t border-white/10 dark:border-white/10" style={{ paddingBottom: 'env(safe-area-inset-bottom)', paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)' }}>
         <div className="max-w-lg mx-auto flex items-stretch">
           {NAV.map(({ to, label, icon: Icon, color, key }) => {
             const active = currentTab === key;
