@@ -2,7 +2,9 @@ import { Outlet, Link, useLocation } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { useState, useEffect, useRef } from 'react';
 import { MapPin, Zap, Tag, Flame, User } from 'lucide-react';
+import { useTheme } from '@/hooks/useTheme';
 import Onboarding from '@/components/Onboarding';
+import ThemeToggle from '@/components/ThemeToggle';
 
 const NAV = [
   { to: '/events', label: 'Tickets', icon: MapPin, color: '#BF5FFF', key: 'events' },
@@ -18,6 +20,9 @@ export default function Layout() {
   const location = useLocation();
   const scrollPositions = useRef({});
   const containerRefs = useRef({});
+
+  // Initialize theme hook at top level
+  useTheme();
 
   // Get current tab key
   const getCurrentTab = () => {
@@ -55,14 +60,17 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen bg-background font-sans dark:rave-bg" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
-      {!user && (
-        <button
-          onClick={() => base44.auth.redirectToLogin()}
-          className="fixed top-4 right-4 z-[99] text-sm font-bold px-4 py-1.5 rounded-full"
-          style={{ background: '#BF5FFF', color: '#fff' }}>
-          Sign in
-        </button>
-      )}
+      <div className="fixed top-4 right-4 z-[99] flex items-center gap-2">
+        <ThemeToggle />
+        {!user && (
+          <button
+            onClick={() => base44.auth.redirectToLogin()}
+            className="text-sm font-bold px-4 py-1.5 rounded-full"
+            style={{ background: '#BF5FFF', color: '#fff' }}>
+            Sign in
+          </button>
+        )}
+      </div>
 
       {/* Stack-preserved tab containers */}
       <div className="relative w-full max-w-lg mx-auto pb-24">
