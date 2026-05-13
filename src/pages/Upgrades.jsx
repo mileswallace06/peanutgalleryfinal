@@ -13,40 +13,69 @@ export default function Upgrades() {
   const [editingLocation, setEditingLocation] = useState(false);
   const [detectingLocation, setDetectingLocation] = useState(false);
   const [locationDenied, setLocationDenied] = useState(false);
+  const [latlong, setLatlong] = useState('');
   const locationLabelRef = useRef('');
+  const latlongRef = useRef('');
   const locationInputRef = useRef(null);
 
   const setLocationLabelSync = (val) => { locationLabelRef.current = val; setLocationLabel(val); };
+  const setLatlongSync = (val) => { latlongRef.current = val; setLatlong(val); };
 
-  const fetchEvents = useCallback((cityOverride) => {
+  const fetchEvents = useCallback((ll, cityOverride) => {
     setLoading(true);
-    base44.entities.Event.list('date', 200).then((data) => {
-      let events = data.filter((e) => e.status !== 'ended');
-      if (cityOverride) {
+    const tmParams = { size: 40 };
+    if (ll) { tmParams.latlong = ll; tmParams.radius = '50'; }
+    else if (cityOverride) { tmParams.city = cityOverride; }
+
+    Promise.all([
+      base44.entities.Event.list('date', 200),
+      base44.functions.invoke('getTicketmasterEvents', tmParams),
+    ]).then(([localData, tmRes]) => {
+      let pgEvents = localData.filter((e) => e.status !== 'ended');
+
+      if (cityOverride && !ll) {
         const q = cityOverride.toLowerCase();
-        events = events.filter((e) =>
+        pgEvents = pgEvents.filter((e) =>
           e.city?.toLowerCase().includes(q) ||
           e.state?.toLowerCase().includes(q) ||
           e.venue?.toLowerCase().includes(q)
         );
       }
-      setAllEvents(events);
+      if (ll) {
+        const tmCities = new Set(
+          (tmRes?.data?.events || []).map(e => e.city?.toLowerCase()).filter(Boolean)
+        );
+        if (tmCities.size > 0) {
+          pgEvents = pgEvents.filter(e => !e.city || tmCities.has(e.city.toLowerCase()));
+        }
+      }
+
+      const pgMapped = pgEvents.map(e => ({ ...e, source: 'pg' }));
+      const tmEvents = (tmRes?.data?.events || []).map(e => ({ ...e, id: `tm_${e.tm_id}`, source: 'ticketmaster' }));
+
+      // Merge: prefer PG events, deduplicate TM events that already exist locally by tm_id
+      const pgTmIds = new Set(pgMapped.map(e => e.tm_id).filter(Boolean));
+      const uniqueTM = tmEvents.filter(e => !pgTmIds.has(e.tm_id));
+
+      setAllEvents([...pgMapped, ...uniqueTM]);
     }).catch(console.error).finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
     setDetectingLocation(true);
     navigator.geolocation.getCurrentPosition(
-      () => {
+      (pos) => {
+        const ll = `${pos.coords.latitude},${pos.coords.longitude}`;
+        setLatlongSync(ll);
         setLocationLabelSync('Near me');
         setDetectingLocation(false);
         setLocationDenied(false);
-        fetchEvents(null);
+        fetchEvents(ll, null);
       },
       () => {
         setDetectingLocation(false);
         setLocationDenied(true);
-        fetchEvents(null);
+        fetchEvents(null, null);
       },
       { timeout: 8000, enableHighAccuracy: true, maximumAge: 0 }
     );
@@ -56,20 +85,23 @@ export default function Upgrades() {
     e.preventDefault();
     const val = locationInput.trim();
     if (!val) return;
+    setLatlongSync('');
     setLocationLabelSync(val);
     setEditingLocation(false);
-    fetchEvents(val);
+    fetchEvents(null, val);
   };
 
   const handleDetectAgain = () => {
     setDetectingLocation(true);
     setLocationDenied(false);
     navigator.geolocation.getCurrentPosition(
-      () => {
+      (pos) => {
+        const ll = `${pos.coords.latitude},${pos.coords.longitude}`;
+        setLatlongSync(ll);
         setLocationLabelSync('Near me');
         setDetectingLocation(false);
         setEditingLocation(false);
-        fetchEvents(null);
+        fetchEvents(ll, null);
       },
       () => {
         setDetectingLocation(false);
@@ -176,7 +208,7 @@ export default function Upgrades() {
           </form>
         ) : locationDenied && !locationLabel ? (
           <button
-            onClick={() => setEditingLocation(true)}
+            onClick={() => { setLocationInput(''); setEditingLocation(true); }}
             className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-xl w-full"
             style={{ background: 'rgba(255,165,0,0.08)', border: '1px solid rgba(255,165,0,0.2)', color: 'rgba(255,200,100,0.9)' }}
           >
@@ -281,6 +313,13 @@ export default function Upgrades() {
 function EventCard({ event, mode }) {
   const isLive = mode === 'live';
   const isSoon = mode === 'soon';
+  const isTM = event.source === 'ticketmaster' || String(event.id || '').startsWith('tm_');
+  const tmId = event.tm_id || String(event.id || '').replace('tm_', '');
+  const linkTo = isTM ? `/events/tm/${tmId}` : `/upgrades/${event.id}`;
+  const linkLabel = isTM
+    ? 'View'
+    : isLive ? 'Upgrades' : isSoon ? 'Starting Soon' : 'Get Ready';
+
   return (
     <div
       className="flex items-center gap-3 rounded-2xl overflow-hidden"
@@ -304,6 +343,10 @@ function EventCard({ event, mode }) {
           }}>
           {isLive ? 'LIVE' : isSoon ? 'SOON' : 'UPCOMING'}
         </span>
+        {isTM && (
+          <span className="absolute bottom-1.5 left-1.5 text-[8px] font-bold px-1.5 py-0.5 rounded-full"
+            style={{ background: 'rgba(0,0,0,0.7)', color: 'rgba(255,255,255,0.6)' }}>TM</span>
+        )}
       </div>
 
       <div className="flex-1 py-3 min-w-0">
@@ -316,7 +359,7 @@ function EventCard({ event, mode }) {
           <Calendar className="w-3 h-3 flex-shrink-0" style={{ color: '#BF5FFF' }} />
           <span>{event.date ? format(new Date(event.date), 'EEE, MMM d · h:mm a') : 'TBD'}</span>
         </div>
-        {!isLive && (
+        {!isLive && !isTM && (
           <span className="inline-flex items-center gap-1 mt-1.5 text-[9px] font-bold px-2 py-0.5 rounded-full"
             style={{ background: 'rgba(191,95,255,0.12)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.25)' }}>
             <Clock className="w-2.5 h-2.5" /> Upgrades unlock at showtime
@@ -326,7 +369,7 @@ function EventCard({ event, mode }) {
 
       <div className="pr-3 flex-shrink-0">
         <Link
-          to={`/upgrades/${event.id}`}
+          to={linkTo}
           className="flex items-center gap-1 px-3 py-2 rounded-xl font-bold text-xs whitespace-nowrap"
           style={isLive
             ? { background: 'rgba(0,255,135,0.15)', color: '#00FF87', border: '1px solid rgba(0,255,135,0.3)' }
@@ -335,7 +378,7 @@ function EventCard({ event, mode }) {
             : { background: 'rgba(191,95,255,0.12)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.25)' }
           }
         >
-          {isLive ? 'Upgrades' : isSoon ? 'Starting Soon' : 'Get Ready'} <ChevronRight className="w-3.5 h-3.5" />
+          {linkLabel} <ChevronRight className="w-3.5 h-3.5" />
         </Link>
       </div>
     </div>
