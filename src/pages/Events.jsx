@@ -102,14 +102,16 @@ export default function Events() {
     );
   }, [fetchEvents]);
 
-  // Search debounce — reads fresh values from refs
+  // Search debounce — if user typed a keyword, drop geo filter so TM searches globally
   useEffect(() => {
     searchRef.current = search;
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
     searchDebounceRef.current = setTimeout(() => {
-      const ll = latlongRef.current || null;
-      const city = locationLabelRef.current && locationLabelRef.current !== 'Near me'
-        ? locationLabelRef.current : null;
+      const hasKeyword = search.trim().length > 0;
+      // When keyword is active, ignore geo so results aren't geo-restricted
+      const ll = hasKeyword ? null : (latlongRef.current || null);
+      const city = hasKeyword ? null : (locationLabelRef.current && locationLabelRef.current !== 'Near me'
+        ? locationLabelRef.current : null);
       fetchEvents(ll, city, search.trim() || null);
     }, 400);
     return () => clearTimeout(searchDebounceRef.current);
