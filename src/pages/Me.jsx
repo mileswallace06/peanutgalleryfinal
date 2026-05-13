@@ -361,8 +361,8 @@ export default function Me() {
             className="flex items-center gap-4 px-5 py-4 rounded-2xl transition-all active:scale-[0.98] dark:bg-[rgba(0,200,255,0.06)] dark:border-[rgba(0,200,255,0.16)]"
             style={{ background: '#f0f5fa', border: '1px solid #d0e8f0' }}
           >
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ background: 'rgba(0,200,255,0.12)' }}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 dark:bg-[rgba(0,200,255,0.12)]"
+              style={{ background: '#e0f0f8' }}>
               <Ticket className="w-5 h-5" style={{ color: '#00C8FF' }} />
             </div>
             <div className="flex-1">
@@ -377,8 +377,8 @@ export default function Me() {
             className="flex items-center gap-4 px-5 py-4 rounded-2xl transition-all active:scale-[0.98] dark:bg-[rgba(191,95,255,0.06)] dark:border-[rgba(191,95,255,0.16)]"
             style={{ background: '#faf5f0', border: '1px solid #f0d0e8' }}
           >
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ background: 'rgba(191,95,255,0.12)' }}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 dark:bg-[rgba(191,95,255,0.12)]"
+              style={{ background: '#f0e8f8' }}>
               <TrendingUp className="w-5 h-5" style={{ color: '#BF5FFF' }} />
             </div>
             <div className="flex-1">
@@ -393,8 +393,8 @@ export default function Me() {
             className="flex items-center gap-4 px-5 py-4 rounded-2xl transition-all active:scale-[0.98] dark:bg-[rgba(0,255,135,0.05)] dark:border-[rgba(0,255,135,0.15)]"
             style={{ background: '#f0faf5', border: '1px solid #d0f0d8' }}
           >
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ background: 'rgba(0,255,135,0.1)' }}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 dark:bg-[rgba(0,255,135,0.1)]"
+              style={{ background: '#e8f8f0' }}>
               <Zap className="w-5 h-5" style={{ color: '#00FF87' }} />
             </div>
             <div className="flex-1">
@@ -410,8 +410,8 @@ export default function Me() {
               className="flex items-center gap-4 px-5 py-4 rounded-2xl transition-all active:scale-[0.98] dark:bg-[rgba(255,230,0,0.05)] dark:border-[rgba(255,230,0,0.15)]"
               style={{ background: '#faf8f0', border: '1px solid #f0e8d0' }}
             >
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{ background: 'rgba(255,230,0,0.1)' }}>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 dark:bg-[rgba(255,230,0,0.1)]"
+                style={{ background: '#f8f8e8' }}>
                 <Shield className="w-5 h-5" style={{ color: '#FFE600' }} />
               </div>
               <div className="flex-1">
@@ -435,8 +435,8 @@ export default function Me() {
         {/* Delete Account */}
         <button
           onClick={() => setShowDeleteModal(true)}
-          className="w-full flex items-center justify-center gap-2 mt-3 py-3.5 rounded-2xl text-sm font-semibold transition-all"
-          style={{ background: 'rgba(255,45,120,0.1)', border: '1px solid rgba(255,45,120,0.25)', color: '#FF2D78' }}
+          className="w-full flex items-center justify-center gap-2 mt-3 py-3.5 rounded-2xl text-sm font-semibold transition-all dark:bg-[rgba(255,45,120,0.1)] dark:border-[rgba(255,45,120,0.25)]"
+          style={{ background: '#f8e8f0', border: '1px solid #f0d0d8', color: '#a04050' }}
         >
           <Trash2 className="w-4 h-4" /> Delete Account
         </button>
