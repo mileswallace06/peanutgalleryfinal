@@ -169,8 +169,8 @@ export default function Me() {
           {!editing ? (
             <button
               onClick={() => setEditing(true)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all"
-              style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.7)' }}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all dark:text-[rgba(255,255,255,0.7)] dark:bg-[rgba(255,255,255,0.07)] dark:border-[rgba(255,255,255,0.12)]"
+              style={{ background: '#f0f0f0', border: '1px solid #d0d0d0', color: '#000' }}
             >
               <Edit2 className="w-3.5 h-3.5" /> Edit Profile
             </button>
@@ -178,8 +178,8 @@ export default function Me() {
             <div className="flex gap-2">
               <button
                 onClick={handleCancel}
-                className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold"
-                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)' }}
+                className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold dark:text-[rgba(255,255,255,0.5)] dark:bg-[rgba(255,255,255,0.06)] dark:border-[rgba(255,255,255,0.1)]"
+                style={{ background: '#f0f0f0', border: '1px solid #d0d0d0', color: '#666' }}
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -236,8 +236,8 @@ export default function Me() {
               placeholder="Tell the crowd who you are…"
               rows={3}
               maxLength={160}
-              className="w-full px-4 py-3 rounded-2xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none"
-              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }}
+              className="w-full px-4 py-3 rounded-2xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none dark:bg-[rgba(255,255,255,0.06)] dark:border-[rgba(255,255,255,0.12)]"
+              style={{ background: '#f5f5f5', border: '1px solid #e0e0e0' }}
             />
             <p className="text-[10px] text-muted-foreground text-right mt-1">{bio.length}/160</p>
           </div>
@@ -261,7 +261,7 @@ export default function Me() {
               className="flex flex-col items-center px-4 py-2.5 rounded-2xl transition-all"
               style={socialTab === 'following'
                 ? { background: 'rgba(191,95,255,0.12)', border: '1px solid rgba(191,95,255,0.3)', color: '#BF5FFF' }
-                : { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)' }
+                : { background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--foreground)' }
               }
             >
               <span className="font-black text-lg leading-none text-foreground">{following.length}</span>
@@ -272,7 +272,7 @@ export default function Me() {
               className="flex flex-col items-center px-4 py-2.5 rounded-2xl transition-all"
               style={socialTab === 'followers'
                 ? { background: 'rgba(191,95,255,0.12)', border: '1px solid rgba(191,95,255,0.3)', color: '#BF5FFF' }
-                : { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)' }
+                : { background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--foreground)' }
               }
             >
               <span className="font-black text-lg leading-none text-foreground">{followers.length}</span>
@@ -287,7 +287,7 @@ export default function Me() {
               : <div className="space-y-2">
                   {following.map(f => (
                     <div key={f.id} className="flex items-center gap-3 px-3 py-2.5 rounded-2xl"
-                      style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                      style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
                       <div className="w-9 h-9 rounded-full flex items-center justify-center font-black text-sm flex-shrink-0"
                         style={{ background: 'linear-gradient(135deg, #BF5FFF, #FF2D78)', color: '#fff' }}>
                         {f.following_avatar_url
@@ -318,7 +318,7 @@ export default function Me() {
                     const alreadyFollowing = following.some(fw => fw.following_email === f.follower_email);
                     return (
                       <div key={f.id} className="flex items-center gap-3 px-3 py-2.5 rounded-2xl"
-                        style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                        style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
                         <div className="w-9 h-9 rounded-full flex items-center justify-center font-black text-sm flex-shrink-0"
                           style={{ background: 'linear-gradient(135deg, #00C8FF, #00FF87)', color: '#0a0510' }}>
                           {(f.follower_email || '?')[0].toUpperCase()}
@@ -351,15 +351,15 @@ export default function Me() {
         </div>
 
         {/* Divider */}
-        <div className="h-px mb-5" style={{ background: 'rgba(255,255,255,0.07)' }} />
+        <div className="h-px mb-5" style={{ background: 'var(--border)' }} />
 
         {/* Quick links */}
         <div className="space-y-3">
 
           <Link
             to="/my-tickets"
-            className="flex items-center gap-4 px-5 py-4 rounded-2xl transition-all active:scale-[0.98]"
-            style={{ background: 'rgba(0,200,255,0.06)', border: '1px solid rgba(0,200,255,0.16)' }}
+            className="flex items-center gap-4 px-5 py-4 rounded-2xl transition-all active:scale-[0.98] dark:bg-[rgba(0,200,255,0.06)] dark:border-[rgba(0,200,255,0.16)]"
+            style={{ background: '#f0f5fa', border: '1px solid #d0e8f0' }}
           >
             <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
               style={{ background: 'rgba(0,200,255,0.12)' }}>
@@ -374,8 +374,8 @@ export default function Me() {
 
           <Link
             to="/my-sales"
-            className="flex items-center gap-4 px-5 py-4 rounded-2xl transition-all active:scale-[0.98]"
-            style={{ background: 'rgba(191,95,255,0.06)', border: '1px solid rgba(191,95,255,0.16)' }}
+            className="flex items-center gap-4 px-5 py-4 rounded-2xl transition-all active:scale-[0.98] dark:bg-[rgba(191,95,255,0.06)] dark:border-[rgba(191,95,255,0.16)]"
+            style={{ background: '#faf5f0', border: '1px solid #f0d0e8' }}
           >
             <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
               style={{ background: 'rgba(191,95,255,0.12)' }}>
@@ -390,8 +390,8 @@ export default function Me() {
 
           <Link
             to="/create-listing"
-            className="flex items-center gap-4 px-5 py-4 rounded-2xl transition-all active:scale-[0.98]"
-            style={{ background: 'rgba(0,255,135,0.05)', border: '1px solid rgba(0,255,135,0.15)' }}
+            className="flex items-center gap-4 px-5 py-4 rounded-2xl transition-all active:scale-[0.98] dark:bg-[rgba(0,255,135,0.05)] dark:border-[rgba(0,255,135,0.15)]"
+            style={{ background: '#f0faf5', border: '1px solid #d0f0d8' }}
           >
             <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
               style={{ background: 'rgba(0,255,135,0.1)' }}>
@@ -407,8 +407,8 @@ export default function Me() {
           {user.role === 'admin' && (
             <Link
               to="/admin"
-              className="flex items-center gap-4 px-5 py-4 rounded-2xl transition-all active:scale-[0.98]"
-              style={{ background: 'rgba(255,230,0,0.05)', border: '1px solid rgba(255,230,0,0.15)' }}
+              className="flex items-center gap-4 px-5 py-4 rounded-2xl transition-all active:scale-[0.98] dark:bg-[rgba(255,230,0,0.05)] dark:border-[rgba(255,230,0,0.15)]"
+              style={{ background: '#faf8f0', border: '1px solid #f0e8d0' }}
             >
               <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
                 style={{ background: 'rgba(255,230,0,0.1)' }}>
@@ -426,8 +426,8 @@ export default function Me() {
         {/* Sign out */}
         <button
           onClick={() => base44.auth.logout('/')}
-          className="w-full flex items-center justify-center gap-2 mt-6 py-3.5 rounded-2xl text-sm font-semibold transition-all"
-          style={{ background: 'rgba(255,45,120,0.07)', border: '1px solid rgba(255,45,120,0.15)', color: 'rgba(255,100,140,0.8)' }}
+          className="w-full flex items-center justify-center gap-2 mt-6 py-3.5 rounded-2xl text-sm font-semibold transition-all dark:bg-[rgba(255,45,120,0.07)] dark:border-[rgba(255,45,120,0.15)] dark:text-[rgba(255,100,140,0.8)]"
+          style={{ background: '#faf0f5', border: '1px solid #f0d0d8', color: '#a04050' }}
         >
           <LogOut className="w-4 h-4" /> Sign Out
         </button>
