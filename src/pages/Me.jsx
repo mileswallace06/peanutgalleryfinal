@@ -366,8 +366,8 @@ export default function Me() {
               <Ticket className="w-5 h-5 dark:!text-[#00C8FF] dark:drop-shadow-[0_0_8px_rgba(0,200,255,0.8)]" style={{ color: '#003366' }} />
             </div>
             <div className="flex-1">
-              <div className="font-bold text-sm" style={{ color: '#00C8FF' }}>My Tickets</div>
-              <div className="text-xs" style={{ color: 'rgba(0,200,255,0.6)' }}>View your purchases</div>
+              <div className="font-bold text-sm dark:text-[#00C8FF]" style={{ color: '#003366' }}>My Tickets</div>
+              <div className="text-xs dark:text-[rgba(0,200,255,0.6)]" style={{ color: '#004d7a' }}>View your purchases</div>
             </div>
             <ChevronRight className="w-4 h-4 text-muted-foreground" />
           </Link>
@@ -382,8 +382,8 @@ export default function Me() {
               <TrendingUp className="w-5 h-5 dark:!text-[#BF5FFF] dark:drop-shadow-[0_0_8px_rgba(191,95,255,0.8)]" style={{ color: '#6B3B7F' }} />
             </div>
             <div className="flex-1">
-              <div className="font-bold text-sm" style={{ color: '#BF5FFF' }}>My Sales</div>
-              <div className="text-xs" style={{ color: 'rgba(191,95,255,0.6)' }}>Track your listings</div>
+              <div className="font-bold text-sm dark:text-[#BF5FFF]" style={{ color: '#6B3B7F' }}>My Sales</div>
+              <div className="text-xs dark:text-[rgba(191,95,255,0.6)]" style={{ color: '#8B5A99' }}>Track your listings</div>
             </div>
             <ChevronRight className="w-4 h-4 text-muted-foreground" />
           </Link>
@@ -398,8 +398,8 @@ export default function Me() {
               <Zap className="w-5 h-5 dark:!text-[#00FF87] dark:drop-shadow-[0_0_8px_rgba(0,255,135,0.8)]" style={{ color: '#004D30' }} />
             </div>
             <div className="flex-1">
-              <div className="font-bold text-sm" style={{ color: '#00FF87' }}>Sell Tickets</div>
-              <div className="text-xs" style={{ color: 'rgba(0,255,135,0.6)' }}>List seats you want to move</div>
+              <div className="font-bold text-sm dark:text-[#00FF87]" style={{ color: '#004D30' }}>Sell Tickets</div>
+              <div className="text-xs dark:text-[rgba(0,255,135,0.6)]" style={{ color: '#007550' }}>List seats you want to move</div>
             </div>
             <ChevronRight className="w-4 h-4 text-muted-foreground" />
           </Link>
@@ -415,8 +415,8 @@ export default function Me() {
                 <Shield className="w-5 h-5 dark:!text-[#FFE600] dark:drop-shadow-[0_0_8px_rgba(255,230,0,0.8)]" style={{ color: '#664D00' }} />
               </div>
               <div className="flex-1">
-                <div className="font-bold text-sm" style={{ color: '#FFE600' }}>Admin Panel</div>
-                <div className="text-xs" style={{ color: 'rgba(255,230,0,0.6)' }}>Manage events and listings</div>
+                <div className="font-bold text-sm dark:text-[#FFE600]" style={{ color: '#664D00' }}>Admin Panel</div>
+                <div className="text-xs dark:text-[rgba(255,230,0,0.6)]" style={{ color: '#996600' }}>Manage events and listings</div>
               </div>
               <ChevronRight className="w-4 h-4 text-muted-foreground" />
             </Link>
