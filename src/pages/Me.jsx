@@ -366,7 +366,7 @@ export default function Me() {
               <Ticket className="w-5 h-5 dark:!text-[#00C8FF] dark:drop-shadow-[0_0_8px_rgba(0,200,255,0.8)]" style={{ color: '#003366' }} />
             </div>
             <div className="flex-1">
-              <div className="font-bold text-sm" style={{ color: '#003366', '--tw-text-opacity': '1' }} className="dark:text-[#66FFFF]">My Tickets</div>
+              <div className="font-bold text-sm dark:text-[#66FFFF]" style={{ color: '#003366' }}>My Tickets</div>
               <div className="text-xs dark:text-[rgba(102,255,255,1)]" style={{ color: '#002847' }}>View your purchases</div>
             </div>
             <ChevronRight className="w-4 h-4 text-muted-foreground" />
