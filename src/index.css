@@ -11,34 +11,34 @@
 
     /* Light mode (default) */
     --background: 0 0% 100%;
-    --foreground: 0 0% 8%;
-    --card: 0 0% 98%;
-    --card-foreground: 0 0% 8%;
+    --foreground: 0 0% 10%;
+    --card: 0 0% 96%;
+    --card-foreground: 0 0% 10%;
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 8%;
-    --primary: 270 100% 50%;
+    --popover-foreground: 0 0% 10%;
+    --primary: 270 100% 45%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 0 0% 85%;
-    --secondary-foreground: 0 0% 8%;
-    --muted: 0 0% 80%;
-    --muted-foreground: 0 0% 45%;
-    --accent: 145 100% 38%;
+    --secondary: 0 0% 90%;
+    --secondary-foreground: 0 0% 15%;
+    --muted: 0 0% 85%;
+    --muted-foreground: 0 0% 50%;
+    --accent: 145 100% 30%;
     --accent-foreground: 0 0% 100%;
-    --destructive: 0 84% 60%;
+    --destructive: 0 84% 55%;
     --destructive-foreground: 0 0% 100%;
-    --border: 0 0% 92%;
-    --input: 0 0% 94%;
-    --ring: 270 100% 50%;
+    --border: 0 0% 90%;
+    --input: 0 0% 92%;
+    --ring: 270 100% 45%;
     --radius: 1rem;
 
     --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 0 0% 8%;
-    --sidebar-primary: 270 100% 50%;
+    --sidebar-foreground: 0 0% 10%;
+    --sidebar-primary: 270 100% 45%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 0 0% 90%;
-    --sidebar-accent-foreground: 0 0% 8%;
-    --sidebar-border: 0 0% 92%;
-    --sidebar-ring: 270 100% 50%;
+    --sidebar-accent-foreground: 0 0% 15%;
+    --sidebar-border: 0 0% 90%;
+    --sidebar-ring: 270 100% 45%;
   }
 
   .dark {
