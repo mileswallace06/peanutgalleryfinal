@@ -108,7 +108,7 @@ export default function Me() {
 
   return (
     <div className="min-h-screen pb-32 dark:rave-bg relative">
-      <div className="fixed top-4 right-4 z-[99]">
+      <div className="absolute top-4 right-4 z-[99]">
         <ThemeToggle />
       </div>
 
