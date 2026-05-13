@@ -13,16 +13,16 @@ export default function ThemeToggle() {
       style={{
         background: theme === 'dark' 
           ? 'rgba(191,95,255,0.3)' 
-          : 'rgba(0,0,0,0.12)',
+          : 'rgba(255,255,255,0.95)',
         color: theme === 'dark' 
           ? '#FF99FF' 
-          : '#000',
+          : '#1a1a1a',
         border: theme === 'dark'
           ? '1.5px solid rgba(191,95,255,0.6)'
-          : '1.5px solid rgba(0,0,0,0.3)',
+          : '1.5px solid rgba(255,255,255,0.8)',
         boxShadow: theme === 'dark'
           ? '0 0 16px rgba(191,95,255,0.25)'
-          : '0 0 12px rgba(0,0,0,0.1)'
+          : '0 0 24px rgba(255,255,255,0.6), 0 0 40px rgba(255,255,255,0.3)'
       }}
       title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
     >
