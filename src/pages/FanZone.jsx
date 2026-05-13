@@ -48,6 +48,17 @@ export default function FanZone() {
       .catch(() => {});
   }, []);
 
+  // Request geolocation when Near Me tab is selected
+  useEffect(() => {
+    if (feedTab !== 'nearby') return;
+    if (userLocation) return;
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      pos => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => setUserLocation(null)
+    );
+  }, [feedTab]);
+
   const loadPosts = async () => {
     setLoading(true);
     const data = await base44.entities.FanPost.list('-created_date', 100);
@@ -123,9 +134,25 @@ export default function FanZone() {
       });
     }
     if (feedTab === 'nearby') {
-      // Filter posts that have a city matching any event city near the user
-      // For now: show posts that have an event_city tagged
-      return posts.filter(p => !!p.event_city);
+      if (!userLocation) return posts.filter(p => !!p.event_city);
+      // Find events within ~80km of user using event venue lat/lng
+      const RADIUS_KM = 80;
+      const deg2rad = d => d * Math.PI / 180;
+      const haversine = (lat1, lng1, lat2, lng2) => {
+        const R = 6371;
+        const dLat = deg2rad(lat2 - lat1);
+        const dLng = deg2rad(lng2 - lng1);
+        const a = Math.sin(dLat/2)**2 + Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.sin(dLng/2)**2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      };
+      const nearbyEventIds = new Set(
+        events
+          .filter(e => e.venue_lat && e.venue_lng && haversine(userLocation.lat, userLocation.lng, e.venue_lat, e.venue_lng) <= RADIUS_KM)
+          .map(e => e.id)
+      );
+      // Also match by city name if events don't have lat/lng
+      const nearbyCities = new Set(events.filter(e => nearbyEventIds.has(e.id)).map(e => e.city).filter(Boolean));
+      return posts.filter(p => nearbyEventIds.has(p.event_id) || (p.event_city && nearbyCities.has(p.event_city)));
     }
     if (feedTab === 'friends') {
       // Show posts by people who have also reacted to any of the same posts as the current user
@@ -185,44 +212,38 @@ export default function FanZone() {
         </div>
       </div>
 
-      {/* Feed tabs */}
-      <div className="px-4 mt-4 mb-4">
-        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-          <FeedTab id="trending" active={feedTab} label="Trending" icon={<TrendingUp className="w-3.5 h-3.5" />} color="#FF99CC" onClick={setFeedTab} />
-          <FeedTab id="bucket" active={feedTab} label="Bucket List" icon={<Star className="w-3.5 h-3.5" />} color="#FFE600"
+      {/* Feed tabs — 2×2 grid, no scroll */}
+      <div className="px-4 mt-4 mb-4 space-y-2">
+        <div className="grid grid-cols-2 gap-2">
+          <FeedTab id="trending" active={feedTab} label="Trending" icon={<TrendingUp className="w-4 h-4" />} onClick={setFeedTab} />
+          <FeedTab
+            id="bucket"
+            active={feedTab}
+            label="Bucket List"
+            icon={<Star className="w-4 h-4" />}
             badge={bucketList.length > 0 ? bucketList.length : null}
-            onClick={(id) => { setFeedTab(id); }}
-            onLongPress={() => setShowBucketList(true)}
+            onClick={setFeedTab}
+            onEditClick={() => setShowBucketList(true)}
           />
-          <FeedTab id="nearby" active={feedTab} label="Near Me" icon={<MapPin className="w-3.5 h-3.5" />} color="#00FF87" onClick={setFeedTab} />
-          <FeedTab id="friends" active={feedTab} label="Friends" icon={<Users className="w-3.5 h-3.5" />} color="#BF5FFF" onClick={setFeedTab} />
-
-          {/* Bucket List edit button */}
-          <button
-            onClick={() => setShowBucketList(true)}
-            className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all ml-auto"
-            style={{ background: 'rgba(255,230,0,0.08)', border: '1px solid rgba(255,230,0,0.2)', color: '#FFE600' }}
-          >
-            <Star className="w-3 h-3" />
-            Edit
-          </button>
+          <FeedTab id="nearby" active={feedTab} label="Near Me" icon={<MapPin className="w-4 h-4" />} onClick={setFeedTab} />
+          <FeedTab id="friends" active={feedTab} label="Friends" icon={<Users className="w-4 h-4" />} onClick={setFeedTab} />
         </div>
 
-        {/* Contextual hint */}
+        {/* Contextual sub-label */}
         {feedTab === 'bucket' && bucketList.length === 0 && !loading && (
-          <p className="text-xs text-muted-foreground mt-2 px-1">
-            Add artists & venues to your Bucket List to filter posts here.
+          <p className="text-xs text-muted-foreground px-1">
+            Add artists & venues to your Bucket List to filter posts here.{' '}
+            <button className="underline" style={{ color: '#FFE600' }} onClick={() => setShowBucketList(true)}>Add now</button>
           </p>
+        )}
+        {feedTab === 'nearby' && !userLocation && (
+          <p className="text-xs text-muted-foreground px-1">Allow location access to see posts near you.</p>
+        )}
+        {feedTab === 'nearby' && userLocation && (
+          <p className="text-xs px-1" style={{ color: '#00FF87' }}>📍 Showing posts within 80 km of your location</p>
         )}
         {feedTab === 'friends' && (
-          <p className="text-xs text-muted-foreground mt-2 px-1">
-            Posts from people who reacted to the same things as you.
-          </p>
-        )}
-        {feedTab === 'nearby' && (
-          <p className="text-xs text-muted-foreground mt-2 px-1">
-            Posts tagged to a specific city or venue.
-          </p>
+          <p className="text-xs text-muted-foreground px-1">People who've reacted to the same posts as you.</p>
         )}
       </div>
 
@@ -389,30 +410,39 @@ export default function FanZone() {
 }
 
 const TAB_STYLES = {
-  trending: { active: 'rgba(255,153,204,0.15)', border: 'rgba(255,153,204,0.4)', color: '#FF99CC' },
-  bucket:   { active: 'rgba(255,230,0,0.15)',   border: 'rgba(255,230,0,0.4)',   color: '#FFE600' },
-  nearby:   { active: 'rgba(0,255,135,0.12)',   border: 'rgba(0,255,135,0.4)',   color: '#00FF87' },
-  friends:  { active: 'rgba(191,95,255,0.15)',  border: 'rgba(191,95,255,0.4)',  color: '#BF5FFF' },
+  trending: { active: 'rgba(255,153,204,0.12)', border: 'rgba(255,153,204,0.35)', color: '#FF99CC' },
+  bucket:   { active: 'rgba(255,230,0,0.12)',   border: 'rgba(255,230,0,0.35)',   color: '#FFE600' },
+  nearby:   { active: 'rgba(0,255,135,0.10)',   border: 'rgba(0,255,135,0.35)',   color: '#00FF87' },
+  friends:  { active: 'rgba(191,95,255,0.12)',  border: 'rgba(191,95,255,0.35)',  color: '#BF5FFF' },
 };
 
-function FeedTab({ id, active, label, icon, badge, onClick }) {
+function FeedTab({ id, active, label, icon, badge, onClick, onEditClick }) {
   const isActive = active === id;
   const s = TAB_STYLES[id];
   return (
     <button
       onClick={() => onClick(id)}
-      className="flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold transition-all"
+      className="relative flex items-center gap-2 px-4 py-3 rounded-2xl text-sm font-bold transition-all w-full"
       style={isActive
         ? { background: s.active, border: `1px solid ${s.border}`, color: s.color }
-        : { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', color: 'rgba(255,255,255,0.45)' }
+        : { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.4)' }
       }
     >
-      {icon}
+      <span style={{ color: isActive ? s.color : 'rgba(255,255,255,0.35)' }}>{icon}</span>
       <span>{label}</span>
       {badge && (
-        <span className="text-[9px] font-black px-1 py-0.5 rounded-full"
-          style={{ background: isActive ? s.border : 'rgba(255,255,255,0.12)', color: isActive ? '#000' : 'rgba(255,255,255,0.6)' }}>
+        <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full ml-auto"
+          style={{ background: isActive ? s.border : 'rgba(255,255,255,0.1)', color: isActive ? '#000' : 'rgba(255,255,255,0.5)' }}>
           {badge}
+        </span>
+      )}
+      {onEditClick && isActive && (
+        <span
+          onClick={e => { e.stopPropagation(); onEditClick(); }}
+          className="ml-auto text-[10px] font-black px-2 py-0.5 rounded-full cursor-pointer"
+          style={{ background: 'rgba(255,230,0,0.2)', color: '#FFE600' }}
+        >
+          Edit
         </span>
       )}
     </button>
