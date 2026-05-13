@@ -298,7 +298,7 @@ export default function FanZone() {
       {fab === 'post' && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeAll} />
-          <div className="relative z-10 rounded-t-3xl px-5 pt-5 pb-10"
+          <div className="relative z-10 rounded-t-3xl px-5 pt-5 pb-28 overflow-y-auto max-h-[85vh]"
             style={{ background: 'hsl(255 12% 9%)', border: '1px solid rgba(255,255,255,0.1)' }}>
             <div className="w-10 h-1 rounded-full mx-auto mb-5" style={{ background: 'rgba(255,255,255,0.2)' }} />
             <div className="flex items-center justify-between mb-4">
