@@ -358,48 +358,48 @@ export default function Me() {
 
           <Link
             to="/my-tickets"
-            className="flex items-center gap-4 px-5 py-4 rounded-2xl transition-all active:scale-[0.98] dark:bg-[rgba(0,200,255,0.06)] dark:border-[1px_solid_rgba(0,200,255,0.16)]"
-            style={{ background: '#f0f5fa', border: '1px solid #d0e8f0' }}
+            className="flex items-center gap-4 px-5 py-4 rounded-2xl transition-all active:scale-[0.98]"
+            style={{ background: 'rgba(0,200,255,0.1)', border: '1px solid rgba(0,200,255,0.25)' }}
           >
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 dark:bg-[rgba(0,200,255,0.12)]"
-              style={{ background: '#e0f0f8' }}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+              style={{ background: 'rgba(0,200,255,0.2)' }}>
               <Ticket className="w-5 h-5 dark:drop-shadow-[0_0_8px_rgba(0,200,255,0.8)]" style={{ color: '#00C8FF' }} />
             </div>
             <div className="flex-1">
-              <div className="font-bold text-foreground text-sm">My Tickets</div>
-              <div className="text-xs text-muted-foreground">View your purchases</div>
+              <div className="font-bold text-sm" style={{ color: '#00C8FF' }}>My Tickets</div>
+              <div className="text-xs" style={{ color: 'rgba(0,200,255,0.6)' }}>View your purchases</div>
             </div>
             <ChevronRight className="w-4 h-4 text-muted-foreground" />
           </Link>
 
           <Link
             to="/my-sales"
-            className="flex items-center gap-4 px-5 py-4 rounded-2xl transition-all active:scale-[0.98] dark:bg-[rgba(191,95,255,0.06)] dark:border-[1px_solid_rgba(191,95,255,0.16)]"
-            style={{ background: '#faf5f0', border: '1px solid #f0d0e8' }}
+            className="flex items-center gap-4 px-5 py-4 rounded-2xl transition-all active:scale-[0.98]"
+            style={{ background: 'rgba(191,95,255,0.1)', border: '1px solid rgba(191,95,255,0.25)' }}
           >
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 dark:bg-[rgba(191,95,255,0.12)]"
-              style={{ background: '#f0e8f8' }}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+              style={{ background: 'rgba(191,95,255,0.2)' }}>
               <TrendingUp className="w-5 h-5 dark:drop-shadow-[0_0_8px_rgba(191,95,255,0.8)]" style={{ color: '#BF5FFF' }} />
             </div>
             <div className="flex-1">
-              <div className="font-bold text-foreground text-sm">My Sales</div>
-              <div className="text-xs text-muted-foreground">Track your listings</div>
+              <div className="font-bold text-sm" style={{ color: '#BF5FFF' }}>My Sales</div>
+              <div className="text-xs" style={{ color: 'rgba(191,95,255,0.6)' }}>Track your listings</div>
             </div>
             <ChevronRight className="w-4 h-4 text-muted-foreground" />
           </Link>
 
           <Link
             to="/create-listing"
-            className="flex items-center gap-4 px-5 py-4 rounded-2xl transition-all active:scale-[0.98] dark:bg-[rgba(0,255,135,0.05)] dark:border-[1px_solid_rgba(0,255,135,0.15)]"
-            style={{ background: '#f0faf5', border: '1px solid #d0f0d8' }}
+            className="flex items-center gap-4 px-5 py-4 rounded-2xl transition-all active:scale-[0.98]"
+            style={{ background: 'rgba(0,255,135,0.1)', border: '1px solid rgba(0,255,135,0.25)' }}
           >
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 dark:bg-[rgba(0,255,135,0.1)]"
-              style={{ background: '#e8f8f0' }}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+              style={{ background: 'rgba(0,255,135,0.2)' }}>
               <Zap className="w-5 h-5 dark:drop-shadow-[0_0_8px_rgba(0,255,135,0.8)]" style={{ color: '#00FF87' }} />
             </div>
             <div className="flex-1">
-              <div className="font-bold text-foreground text-sm">Sell Tickets</div>
-              <div className="text-xs text-muted-foreground">List seats you want to move</div>
+              <div className="font-bold text-sm" style={{ color: '#00FF87' }}>Sell Tickets</div>
+              <div className="text-xs" style={{ color: 'rgba(0,255,135,0.6)' }}>List seats you want to move</div>
             </div>
             <ChevronRight className="w-4 h-4 text-muted-foreground" />
           </Link>
@@ -407,16 +407,16 @@ export default function Me() {
           {user.role === 'admin' && (
             <Link
               to="/admin"
-              className="flex items-center gap-4 px-5 py-4 rounded-2xl transition-all active:scale-[0.98] dark:bg-[rgba(255,230,0,0.05)] dark:border-[1px_solid_rgba(255,230,0,0.15)]"
-              style={{ background: '#faf8f0', border: '1px solid #f0e8d0' }}
+              className="flex items-center gap-4 px-5 py-4 rounded-2xl transition-all active:scale-[0.98]"
+              style={{ background: 'rgba(255,230,0,0.1)', border: '1px solid rgba(255,230,0,0.25)' }}
             >
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 dark:bg-[rgba(255,230,0,0.1)]"
-                style={{ background: '#f8f8e8' }}>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{ background: 'rgba(255,230,0,0.2)' }}>
                 <Shield className="w-5 h-5 dark:drop-shadow-[0_0_8px_rgba(255,230,0,0.8)]" style={{ color: '#FFE600' }} />
               </div>
               <div className="flex-1">
-                <div className="font-bold text-foreground text-sm">Admin Panel</div>
-                <div className="text-xs text-muted-foreground">Manage events and listings</div>
+                <div className="font-bold text-sm" style={{ color: '#FFE600' }}>Admin Panel</div>
+                <div className="text-xs" style={{ color: 'rgba(255,230,0,0.6)' }}>Manage events and listings</div>
               </div>
               <ChevronRight className="w-4 h-4 text-muted-foreground" />
             </Link>
