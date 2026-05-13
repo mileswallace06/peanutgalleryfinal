@@ -80,7 +80,7 @@ export default function SeatFlexSheet({ user, onClose, onPosted }) {
 
   return (
     <div
-      className="relative z-10 rounded-t-3xl px-5 pt-5 pb-10 max-h-[85vh] flex flex-col"
+      className="relative z-10 rounded-t-3xl px-5 pt-5 pb-28 max-h-[85vh] flex flex-col"
       style={{ background: 'hsl(255 12% 9%)', border: '1px solid rgba(255,255,255,0.1)' }}
     >
       {/* Handle */}
