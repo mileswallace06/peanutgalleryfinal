@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { formatDistanceToNow } from 'date-fns';
-import { Plus, X, ImagePlus, Filter, ChevronDown, Search } from 'lucide-react';
+import { Plus, X, ImagePlus, Filter, ChevronDown } from 'lucide-react';
 import SeatFlexSheet from '@/components/fanzone/SeatFlexSheet';
+import TMSearchAutocomplete from '@/components/fanzone/TMSearchAutocomplete';
 
 const REACTIONS = [
   { key: 'fire', emoji: '🔥' },
@@ -170,18 +171,12 @@ export default function FanZone() {
         {showFilters && (
           <div className="mt-2 space-y-3 p-3 rounded-2xl"
             style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-            {/* Search */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="Artist, team, venue, band…"
-                value={filterSearch}
-                onChange={e => setFilterSearch(e.target.value)}
-                className="w-full pl-8 pr-4 py-2.5 rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
-                style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}
-              />
-            </div>
+            {/* Search with TM autocomplete */}
+            <TMSearchAutocomplete
+              value={filterSearch}
+              onChange={setFilterSearch}
+              placeholder="Artist, team, venue, band…"
+            />
             <div>
               <p className="text-[10px] font-black tracking-widest uppercase mb-1.5 text-muted-foreground">Event</p>
               <select
