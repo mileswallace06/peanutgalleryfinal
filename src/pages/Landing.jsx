@@ -64,7 +64,7 @@ export default function Landing() {
       ))}
 
       {/* Logo — top left */}
-      <div className="absolute top-5 left-4 z-20">
+      <div className="absolute z-20" style={{ top: 'calc(1.25rem + env(safe-area-inset-top))', left: 'calc(1rem + env(safe-area-inset-left))' }}>
         <img
           src="https://media.base44.com/images/public/69ef9900cf3862dc0ea39734/9022a5431_ChatGPTImageMay1202601_29_27PM.png"
           alt="Peanut Gallery"
