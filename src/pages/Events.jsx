@@ -2,7 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { MapPin, Calendar, Search, ChevronRight, LocateFixed, X } from 'lucide-react';
+import { MapPin, Calendar, Search, ChevronRight, LocateFixed, X, RefreshCw } from 'lucide-react';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 
 export default function Events() {
   const [events, setEvents] = useState([]);
@@ -168,8 +169,19 @@ export default function Events() {
     );
   });
 
+  const { containerRef, pulling } = usePullToRefresh(() => {
+    fetchEvents(latlongRef.current || null, locationLabelRef.current && locationLabelRef.current !== 'Near me' ? locationLabelRef.current : null, searchRef.current || null);
+  });
+
   return (
-    <div className="pb-32">
+    <div ref={containerRef} className="pb-32 transition-transform duration-200">
+      {pulling && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-4 py-2 rounded-full"
+          style={{ background: 'rgba(191,95,255,0.15)', border: '1px solid rgba(191,95,255,0.3)' }}>
+          <RefreshCw className="w-3.5 h-3.5 animate-spin" style={{ color: '#BF5FFF' }} />
+          <span className="text-xs font-semibold" style={{ color: '#BF5FFF' }}>Refreshing…</span>
+        </div>
+      )}
 
       {/* ── Hero ── */}
       <div className="relative h-56 overflow-hidden">

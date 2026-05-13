@@ -1,7 +1,8 @@
 import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
-import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes, useLocation } from 'react-router-dom';
+import { AnimatePresence, motion } from 'framer-motion';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
@@ -24,6 +25,7 @@ import EventDetailTM from '@/pages/EventDetailTM';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, checkAppState } = useAuth();
+  const location = useLocation();
 
   // Branded loading spinner
   if (isLoadingPublicSettings || isLoadingAuth) {
@@ -47,35 +49,41 @@ const AuthenticatedApp = () => {
     } else if (authError.type === 'auth_required') {
       // Not logged in — show the branded landing page instead of redirecting to Base44 login
       return (
-        <Routes>
-          <Route path="/" element={<Landing />} />
-          <Route path="*" element={<Landing />} />
-        </Routes>
+        <AnimatePresence mode="wait">
+          <Routes key={location.pathname}>
+            <Route path="/" element={<Landing />} />
+            <Route path="*" element={<Landing />} />
+          </Routes>
+        </AnimatePresence>
       );
     }
   }
 
   return (
-    <Routes>
-      {/* Authenticated root → straight to events */}
-      <Route path="/" element={<Navigate to="/events" replace />} />
-      <Route element={<Layout />}>
-        <Route path="/events" element={<Events />} />
-        <Route path="/events/:id" element={<EventDetail />} />
-        <Route path="/purchase/:id" element={<PurchaseSuccess />} />
-        <Route path="/admin" element={<AdminMode />} />
-        <Route path="/my-sales" element={<MySales />} />
-        <Route path="/my-tickets" element={<MyTickets />} />
-        <Route path="/create-listing" element={<CreateListing />} />
-        <Route path="/fan-zone" element={<FanZone />} />
-        <Route path="/me" element={<Me />} />
-        <Route path="/upgrades" element={<Upgrades />} />
-        <Route path="/upgrades/:id" element={<EventDetailUpgrade />} />
-        <Route path="/sell" element={<Sell />} />
-        <Route path="/events/tm/:tmId" element={<EventDetailTM />} />
-      </Route>
-      <Route path="*" element={<PageNotFound />} />
-    </Routes>
+    <AnimatePresence mode="wait">
+      <motion.div key={location.pathname}>
+        <Routes>
+          {/* Authenticated root → straight to events */}
+          <Route path="/" element={<Navigate to="/events" replace />} />
+          <Route element={<Layout />}>
+            <Route path="/events" element={<Events />} />
+            <Route path="/events/:id" element={<EventDetail />} />
+            <Route path="/purchase/:id" element={<PurchaseSuccess />} />
+            <Route path="/admin" element={<AdminMode />} />
+            <Route path="/my-sales" element={<MySales />} />
+            <Route path="/my-tickets" element={<MyTickets />} />
+            <Route path="/create-listing" element={<CreateListing />} />
+            <Route path="/fan-zone" element={<FanZone />} />
+            <Route path="/me" element={<Me />} />
+            <Route path="/upgrades" element={<Upgrades />} />
+            <Route path="/upgrades/:id" element={<EventDetailUpgrade />} />
+            <Route path="/sell" element={<Sell />} />
+            <Route path="/events/tm/:tmId" element={<EventDetailTM />} />
+          </Route>
+          <Route path="*" element={<PageNotFound />} />
+        </Routes>
+      </motion.div>
+    </AnimatePresence>
   );
 };
 

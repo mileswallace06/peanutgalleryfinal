@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { Ticket, TrendingUp, Shield, LogIn, Edit2, Check, X, Tag, Zap, ChevronRight, LogOut, Camera, ImagePlus, Users, UserPlus, UserCheck } from 'lucide-react';
+import { Ticket, TrendingUp, Shield, LogIn, Edit2, Check, X, Tag, Zap, ChevronRight, LogOut, Camera, ImagePlus, Users, UserPlus, UserCheck, Trash2 } from 'lucide-react';
+import DeleteAccountModal from '@/components/DeleteAccountModal';
 
 export default function Me() {
   const [user, setUser] = useState(null);
@@ -16,6 +17,7 @@ export default function Me() {
   const [followers, setFollowers] = useState([]);
   const [following, setFollowing] = useState([]);
   const [socialTab, setSocialTab] = useState('following'); // 'following' | 'followers'
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   useEffect(() => {
     base44.auth.me().then(u => {
@@ -429,7 +431,19 @@ export default function Me() {
         >
           <LogOut className="w-4 h-4" /> Sign Out
         </button>
+
+        {/* Delete Account */}
+        <button
+          onClick={() => setShowDeleteModal(true)}
+          className="w-full flex items-center justify-center gap-2 mt-3 py-3.5 rounded-2xl text-sm font-semibold transition-all"
+          style={{ background: 'rgba(255,45,120,0.1)', border: '1px solid rgba(255,45,120,0.25)', color: '#FF2D78' }}
+        >
+          <Trash2 className="w-4 h-4" /> Delete Account
+        </button>
       </div>
+
+      {/* Delete Account Modal */}
+      <DeleteAccountModal user={user} isOpen={showDeleteModal} onClose={() => setShowDeleteModal(false)} />
     </div>
   );
 }

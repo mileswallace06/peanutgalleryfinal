@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { formatDistanceToNow } from 'date-fns';
-import { Plus, X, ImagePlus, Star, MapPin, Users, TrendingUp, Search, ChevronDown } from 'lucide-react';
+import { Plus, X, ImagePlus, Star, MapPin, Users, TrendingUp, Search, ChevronDown, RefreshCw } from 'lucide-react';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import SeatFlexSheet from '@/components/fanzone/SeatFlexSheet';
 import BucketListSheet from '@/components/fanzone/BucketListSheet';
 
@@ -169,8 +170,19 @@ export default function FanZone() {
     return posts;
   })();
 
+  const { containerRef, pulling } = usePullToRefresh(() => {
+    loadPosts();
+  });
+
   return (
-    <div className="pb-32">
+    <div ref={containerRef} className="pb-32 transition-transform duration-200">
+      {pulling && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-4 py-2 rounded-full"
+          style={{ background: 'rgba(102,255,255,0.15)', border: '1px solid rgba(102,255,255,0.3)' }}>
+          <RefreshCw className="w-3.5 h-3.5 animate-spin" style={{ color: '#66FFFF' }} />
+          <span className="text-xs font-semibold" style={{ color: '#66FFFF' }}>Refreshing…</span>
+        </div>
+      )}
       {/* Hero */}
       <div className="relative h-52 overflow-hidden">
         <img
