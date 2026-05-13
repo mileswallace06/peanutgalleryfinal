@@ -22,7 +22,7 @@ export default function ThemeToggle() {
           : '1.5px solid rgba(255,255,255,0.8)',
         boxShadow: theme === 'dark'
           ? '0 0 16px rgba(191,95,255,0.25)'
-          : '0 0 24px rgba(255,255,255,0.6), 0 0 40px rgba(255,255,255,0.3)'
+          : '0 0 12px rgba(255,255,255,0.5)'
       }}
       title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
     >
