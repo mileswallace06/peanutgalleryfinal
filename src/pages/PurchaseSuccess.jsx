@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { CheckCircle, Clock, XCircle, AlertTriangle, ArrowLeft, Ticket, Upload, FileText, ExternalLink, RefreshCw } from 'lucide-react';
 import DisputeModal from '@/components/purchase/DisputeModal';
+import { createOptimisticPurchaseUpdate } from '@/lib/optimisticUI';
 
 // ── Progress bar ────────────────────────────────────────────────────────────
 const STEPS = ['Payment Authorized', 'Seller Sending', 'Buyer Confirmed', 'Complete'];
@@ -378,13 +379,54 @@ export default function PurchaseSuccess() {
   const handleConfirm = async (role) => {
     setActionLoading(true);
     setError('');
-    const res = await base44.functions.invoke('capturePayment', {
-      purchase_id: purchase.id,
-      confirming_role: role,
-    });
-    if (res.data.error) setError(res.data.error);
-    else await load();
-    setActionLoading(false);
+    
+    // 1. Create optimistic update
+    const optimisticUpdate = createOptimisticPurchaseUpdate(purchase.id, role);
+    
+    // 2. Update UI immediately
+    setPurchase(prev => ({
+      ...prev,
+      ...optimisticUpdate
+    }));
+    
+    try {
+      // 3. Submit to backend
+      const res = await base44.functions.invoke('capturePayment', {
+        purchase_id: purchase.id,
+        confirming_role: role,
+      });
+      if (res.data.error) {
+        setError(res.data.error);
+        // 5. Revert optimistic update on error
+        setPurchase(prev => ({
+          ...prev,
+          _optimistic: false,
+          _updating: false,
+          buyer_confirmed: role === 'buyer' ? false : prev.buyer_confirmed,
+          seller_confirmed: role === 'seller' ? false : prev.seller_confirmed
+        }));
+      } else {
+        // 4. Confirm with server response
+        setPurchase(prev => ({
+          ...prev,
+          ...res.data,
+          _optimistic: false,
+          _updating: false
+        }));
+      }
+    } catch (error) {
+      setError(error.message || 'Confirmation failed');
+      // 5. Revert optimistic update on error
+      setPurchase(prev => ({
+        ...prev,
+        _optimistic: false,
+        _updating: false,
+        buyer_confirmed: role === 'buyer' ? false : prev.buyer_confirmed,
+        seller_confirmed: role === 'seller' ? false : prev.seller_confirmed
+      }));
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const handleCancel = async () => {
