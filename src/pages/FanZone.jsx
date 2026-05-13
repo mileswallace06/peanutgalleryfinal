@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { formatDistanceToNow } from 'date-fns';
-import { Plus, X, ImagePlus, Filter, ChevronDown, Star } from 'lucide-react';
+import { Plus, X, ImagePlus, Star, MapPin, Users, TrendingUp } from 'lucide-react';
 import SeatFlexSheet from '@/components/fanzone/SeatFlexSheet';
-import TMSearchAutocomplete from '@/components/fanzone/TMSearchAutocomplete';
 import BucketListSheet from '@/components/fanzone/BucketListSheet';
 
 const REACTIONS = [
@@ -30,13 +29,10 @@ export default function FanZone() {
   const [submitting, setSubmitting] = useState(false);
 
   // Filter state
-  const [filterEventId, setFilterEventId] = useState('');
-  const [filterCity, setFilterCity] = useState('');
-  const [filterSearch, setFilterSearch] = useState('');
-  const [showFilters, setShowFilters] = useState(false);
+  const [feedTab, setFeedTab] = useState('trending'); // 'trending' | 'bucket' | 'nearby' | 'friends'
   const [bucketList, setBucketList] = useState([]);
-  const [filterBucketList, setFilterBucketList] = useState(false);
   const [showBucketList, setShowBucketList] = useState(false);
+  const [userLocation, setUserLocation] = useState(null);
 
   useEffect(() => {
     base44.auth.me().then(u => {
@@ -105,29 +101,55 @@ export default function FanZone() {
     setReactingId(null);
   };
 
-  // Get unique cities from posts for filter
-  const cities = [...new Set(posts.map(p => p.event_city).filter(Boolean))];
-
   // Bucket list names for matching
   const bucketNames = bucketList.map(b => b.name.toLowerCase());
 
-  // Filter posts
-  const filtered = posts.filter(p => {
-    if (filterEventId && p.event_id !== filterEventId) return false;
-    if (filterCity && p.event_city !== filterCity) return false;
-    if (filterSearch) {
-      const q = filterSearch.toLowerCase();
-      const haystack = [p.event_title, p.event_city, p.text, p.author_name].join(' ').toLowerCase();
-      if (!haystack.includes(q)) return false;
-    }
-    if (filterBucketList && bucketNames.length > 0) {
-      const haystack = [p.event_title, p.text].join(' ').toLowerCase();
-      if (!bucketNames.some(name => haystack.includes(name))) return false;
-    }
-    return true;
+  // Trending: sort by total reaction count
+  const withScore = posts.map(p => {
+    const r = p.reactions || {};
+    const score = (r.fire?.length || 0) + (r.eyes?.length || 0) + (r.peanut?.length || 0);
+    return { ...p, _score: score };
   });
 
-  const hasFilters = filterEventId || filterCity || filterSearch || filterBucketList;
+  const filtered = (() => {
+    if (feedTab === 'trending') {
+      return [...withScore].sort((a, b) => b._score - a._score);
+    }
+    if (feedTab === 'bucket') {
+      if (bucketNames.length === 0) return posts;
+      return posts.filter(p => {
+        const haystack = [p.event_title, p.text].join(' ').toLowerCase();
+        return bucketNames.some(name => haystack.includes(name));
+      });
+    }
+    if (feedTab === 'nearby') {
+      // Filter posts that have a city matching any event city near the user
+      // For now: show posts that have an event_city tagged
+      return posts.filter(p => !!p.event_city);
+    }
+    if (feedTab === 'friends') {
+      // Show posts by people who have also reacted to any of the same posts as the current user
+      if (!user) return posts;
+      const myReactedPostIds = new Set(
+        posts.filter(p => {
+          const r = p.reactions || {};
+          return Object.values(r).some(arr => Array.isArray(arr) && arr.includes(user.email));
+        }).map(p => p.id)
+      );
+      // Collect emails of "friends" (people who reacted to same posts)
+      const friendEmails = new Set();
+      posts.forEach(p => {
+        if (!myReactedPostIds.has(p.id)) return;
+        const r = p.reactions || {};
+        Object.values(r).forEach(arr => {
+          if (Array.isArray(arr)) arr.forEach(e => { if (e !== user.email) friendEmails.add(e); });
+        });
+      });
+      if (friendEmails.size === 0) return posts;
+      return posts.filter(p => friendEmails.has(p.author_email));
+    }
+    return posts;
+  })();
 
   return (
     <div className="pb-32">
@@ -163,132 +185,46 @@ export default function FanZone() {
         </div>
       </div>
 
-      {/* Filter bar */}
-      <div className="px-4 mt-4 mb-2">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowFilters(v => !v)}
-            className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold transition-all"
-            style={{
-              background: hasFilters ? 'rgba(191,95,255,0.12)' : 'rgba(255,255,255,0.05)',
-              border: hasFilters ? '1px solid rgba(191,95,255,0.35)' : '1px solid rgba(255,255,255,0.09)',
-              color: hasFilters ? '#BF5FFF' : 'rgba(255,255,255,0.6)',
-            }}
-          >
-            <Filter className="w-3.5 h-3.5" />
-            <span>{hasFilters ? 'Filtered' : 'Filter'}</span>
-            {hasFilters && (
-              <span className="flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-black"
-                style={{ background: '#BF5FFF', color: '#fff' }}>
-                {(filterEventId ? 1 : 0) + (filterCity ? 1 : 0) + (filterSearch ? 1 : 0) + (filterBucketList ? 1 : 0)}
-              </span>
-            )}
-            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
-          </button>
+      {/* Feed tabs */}
+      <div className="px-4 mt-4 mb-4">
+        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+          <FeedTab id="trending" active={feedTab} label="Trending" icon={<TrendingUp className="w-3.5 h-3.5" />} color="#FF99CC" onClick={setFeedTab} />
+          <FeedTab id="bucket" active={feedTab} label="Bucket List" icon={<Star className="w-3.5 h-3.5" />} color="#FFE600"
+            badge={bucketList.length > 0 ? bucketList.length : null}
+            onClick={(id) => { setFeedTab(id); }}
+            onLongPress={() => setShowBucketList(true)}
+          />
+          <FeedTab id="nearby" active={feedTab} label="Near Me" icon={<MapPin className="w-3.5 h-3.5" />} color="#00FF87" onClick={setFeedTab} />
+          <FeedTab id="friends" active={feedTab} label="Friends" icon={<Users className="w-3.5 h-3.5" />} color="#BF5FFF" onClick={setFeedTab} />
 
-          {/* Bucket List quick button */}
+          {/* Bucket List edit button */}
           <button
             onClick={() => setShowBucketList(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold transition-all"
-            style={{
-              background: 'rgba(255,230,0,0.08)',
-              border: '1px solid rgba(255,230,0,0.2)',
-              color: '#FFE600',
-            }}
+            className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all ml-auto"
+            style={{ background: 'rgba(255,230,0,0.08)', border: '1px solid rgba(255,230,0,0.2)', color: '#FFE600' }}
           >
-            <Star className="w-3.5 h-3.5" />
-            <span>Bucket List</span>
-            {bucketList.length > 0 && (
-              <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full"
-                style={{ background: 'rgba(255,230,0,0.2)', color: '#FFE600' }}>
-                {bucketList.length}
-              </span>
-            )}
+            <Star className="w-3 h-3" />
+            Edit
           </button>
         </div>
 
-        {showFilters && (
-          <div className="mt-2 space-y-3 p-3 rounded-2xl"
-            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-            {/* Search with TM autocomplete */}
-            <TMSearchAutocomplete
-              value={filterSearch}
-              onChange={setFilterSearch}
-              placeholder="Artist, team, venue, band…"
-            />
-            <div>
-              <p className="text-[10px] font-black tracking-widest uppercase mb-1.5 text-muted-foreground">Event</p>
-              <select
-                value={filterEventId}
-                onChange={e => setFilterEventId(e.target.value)}
-                className="w-full text-sm px-3 py-2.5 rounded-xl focus:outline-none"
-                style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', color: filterEventId ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))' }}
-              >
-                <option value="">All events</option>
-                {events.map(ev => <option key={ev.id} value={ev.id}>{ev.title}</option>)}
-              </select>
-            </div>
-            {cities.length > 0 && (
-              <div>
-                <p className="text-[10px] font-black tracking-widest uppercase mb-1.5 text-muted-foreground">City</p>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => setFilterCity('')}
-                    className="px-3 py-1.5 rounded-full text-xs font-bold transition-all"
-                    style={{
-                      background: !filterCity ? 'rgba(191,95,255,0.2)' : 'rgba(255,255,255,0.05)',
-                      border: !filterCity ? '1px solid rgba(191,95,255,0.4)' : '1px solid rgba(255,255,255,0.1)',
-                      color: !filterCity ? '#BF5FFF' : 'rgba(255,255,255,0.5)',
-                    }}
-                  >All</button>
-                  {cities.map(city => (
-                    <button
-                      key={city}
-                      onClick={() => setFilterCity(city === filterCity ? '' : city)}
-                      className="px-3 py-1.5 rounded-full text-xs font-bold transition-all"
-                      style={{
-                        background: filterCity === city ? 'rgba(191,95,255,0.2)' : 'rgba(255,255,255,0.05)',
-                        border: filterCity === city ? '1px solid rgba(191,95,255,0.4)' : '1px solid rgba(255,255,255,0.1)',
-                        color: filterCity === city ? '#BF5FFF' : 'rgba(255,255,255,0.5)',
-                      }}
-                    >{city}</button>
-                  ))}
-                </div>
-              </div>
-            )}
-            {/* Bucket List filter toggle */}
-            {bucketList.length > 0 && (
-              <div>
-                <button
-                  onClick={() => setFilterBucketList(v => !v)}
-                  className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold w-full transition-all"
-                  style={filterBucketList
-                    ? { background: 'rgba(255,230,0,0.15)', color: '#FFE600', border: '1px solid rgba(255,230,0,0.35)' }
-                    : { background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.09)' }
-                  }
-                >
-                  <Star className="w-3.5 h-3.5" />
-                  {filterBucketList ? 'Showing Bucket List posts only' : 'Filter by my Bucket List'}
-                </button>
-              </div>
-            )}
-
-            {hasFilters && (
-              <button
-                onClick={() => { setFilterEventId(''); setFilterCity(''); setFilterSearch(''); setFilterBucketList(false); }}
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >Clear filters</button>
-            )}
-          </div>
+        {/* Contextual hint */}
+        {feedTab === 'bucket' && bucketList.length === 0 && !loading && (
+          <p className="text-xs text-muted-foreground mt-2 px-1">
+            Add artists & venues to your Bucket List to filter posts here.
+          </p>
+        )}
+        {feedTab === 'friends' && (
+          <p className="text-xs text-muted-foreground mt-2 px-1">
+            Posts from people who reacted to the same things as you.
+          </p>
+        )}
+        {feedTab === 'nearby' && (
+          <p className="text-xs text-muted-foreground mt-2 px-1">
+            Posts tagged to a specific city or venue.
+          </p>
         )}
       </div>
-
-      {/* Post count */}
-      {!loading && (
-        <div className="px-4 mb-3">
-          <p className="text-xs text-muted-foreground">{filtered.length} post{filtered.length !== 1 ? 's' : ''}</p>
-        </div>
-      )}
 
       {/* Feed */}
       <div className="px-4 space-y-3">
@@ -298,9 +234,18 @@ export default function FanZone() {
           ))
         ) : filtered.length === 0 ? (
           <div className="text-center py-24 space-y-3">
-            <p className="text-4xl">🎤</p>
-            <p className="font-bold text-foreground">{hasFilters ? 'No posts match your filters' : 'No fan posts yet'}</p>
-            <p className="text-sm text-muted-foreground">{hasFilters ? 'Try clearing your filters' : 'Be the first to start the conversation'}</p>
+            <p className="text-4xl">{feedTab === 'bucket' ? '⭐' : feedTab === 'nearby' ? '📍' : feedTab === 'friends' ? '👥' : '🎤'}</p>
+            <p className="font-bold text-foreground">
+              {feedTab === 'bucket' ? 'No posts match your Bucket List' :
+               feedTab === 'nearby' ? 'No nearby posts yet' :
+               feedTab === 'friends' ? 'No friend posts yet' :
+               'No fan posts yet'}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {feedTab === 'bucket' ? 'Try adding more artists or venues' :
+               feedTab === 'friends' ? 'React to posts to discover your crew' :
+               'Be the first to start the conversation'}
+            </p>
           </div>
         ) : (
           filtered.map(post => (
@@ -440,6 +385,37 @@ export default function FanZone() {
         </div>
       )}
     </div>
+  );
+}
+
+const TAB_STYLES = {
+  trending: { active: 'rgba(255,153,204,0.15)', border: 'rgba(255,153,204,0.4)', color: '#FF99CC' },
+  bucket:   { active: 'rgba(255,230,0,0.15)',   border: 'rgba(255,230,0,0.4)',   color: '#FFE600' },
+  nearby:   { active: 'rgba(0,255,135,0.12)',   border: 'rgba(0,255,135,0.4)',   color: '#00FF87' },
+  friends:  { active: 'rgba(191,95,255,0.15)',  border: 'rgba(191,95,255,0.4)',  color: '#BF5FFF' },
+};
+
+function FeedTab({ id, active, label, icon, badge, onClick }) {
+  const isActive = active === id;
+  const s = TAB_STYLES[id];
+  return (
+    <button
+      onClick={() => onClick(id)}
+      className="flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold transition-all"
+      style={isActive
+        ? { background: s.active, border: `1px solid ${s.border}`, color: s.color }
+        : { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', color: 'rgba(255,255,255,0.45)' }
+      }
+    >
+      {icon}
+      <span>{label}</span>
+      {badge && (
+        <span className="text-[9px] font-black px-1 py-0.5 rounded-full"
+          style={{ background: isActive ? s.border : 'rgba(255,255,255,0.12)', color: isActive ? '#000' : 'rgba(255,255,255,0.6)' }}>
+          {badge}
+        </span>
+      )}
+    </button>
   );
 }
 
