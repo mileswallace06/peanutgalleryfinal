@@ -1,0 +1,53 @@
+{
+  "name": "FanPost",
+  "type": "object",
+  "properties": {
+    "author_email": {
+      "type": "string",
+      "description": "Email of the poster (set to created_by)"
+    },
+    "author_name": {
+      "type": "string",
+      "description": "Display name of the poster"
+    },
+    "text": {
+      "type": "string",
+      "description": "Post content"
+    },
+    "event_id": {
+      "type": "string",
+      "description": "Optional FK to Event"
+    },
+    "event_title": {
+      "type": "string",
+      "description": "Cached event title for display"
+    },
+    "reactions": {
+      "type": "object",
+      "description": "Map of emoji to array of user emails who reacted",
+      "properties": {
+        "fire": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "eyes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "peanut": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "text"
+  ]
+}
