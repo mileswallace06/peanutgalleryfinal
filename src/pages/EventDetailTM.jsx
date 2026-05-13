@@ -17,27 +17,47 @@ export default function EventDetailTM() {
   const [creatingEvent, setCreatingEvent] = useState(false);
 
   useEffect(() => {
-    Promise.all([
-      base44.functions.invoke('getTicketmasterEvents', { size: 100 }),
-      base44.entities.Event.filter({ tm_id: tmId }),
-    ]).then(([tmRes, localEvents]) => {
-      const tmEvents = tmRes?.data?.events || [];
-      const found = tmEvents.find(e => e.tm_id === tmId);
-      if (found) setEvent(found);
+    // First, fetch local Event by tm_id to get synced event data + ID
+    base44.entities.Event.filter({ tm_id: tmId }).then(localEvents => {
+      let eventData = null;
+      let eventId = null;
 
-      // Check if a local event already exists for this tm_id
       if (localEvents.length > 0) {
         const localEv = localEvents[0];
-        setLocalEventId(localEv.id);
+        eventId = localEv.id;
+        // Use locally synced TM event data
+        eventData = {
+          tm_id: localEv.tm_id,
+          title: localEv.title,
+          venue: localEv.venue,
+          city: localEv.city,
+          state: localEv.state,
+          date: localEv.date || localEv.event_start_local,
+          image_url: localEv.image_url,
+          tm_url: localEv.tm_url,
+        };
+        setLocalEventId(eventId);
+        setEvent(eventData);
+        
         // Load listings for this local event
-        return base44.entities.Listing.filter({ event_id: localEv.id, status: 'active', proof_status: 'approved' });
+        return base44.entities.Listing.filter({ event_id: eventId, status: 'active', proof_status: 'approved' });
       }
-      return [];
+
+      // Fallback: fetch from TM API to construct event object
+      return base44.functions.invoke('getTicketmasterEvents', { size: 100 }).then(tmRes => {
+        const tmEvents = tmRes?.data?.events || [];
+        const found = tmEvents.find(e => e.tm_id === tmId);
+        if (found) {
+          setEvent(found);
+        }
+        return []; // no listings if no local event
+      });
     }).then(rawListings => {
-      const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
-      const real = rawListings.filter(l => !l.notes?.startsWith('[DEMO]'));
-      setListings(real.length > 0 ? real : rawListings);
-      if (!adminUnlocked) setListings(rl => rl); // no time filter needed for pre-event tickets
+      if (Array.isArray(rawListings) && rawListings.length > 0) {
+        const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
+        const real = rawListings.filter(l => !l.notes?.startsWith('[DEMO]'));
+        setListings(real.length > 0 ? real : rawListings);
+      }
     }).catch(console.error).finally(() => setLoading(false));
   }, [tmId]);
 
