@@ -249,8 +249,8 @@ export default function Events() {
                 placeholder="City or zip code…"
                 value={locationInput}
                 onChange={e => setLocationInput(e.target.value)}
-                className="w-full pl-9 pr-3 py-2.5 rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
-                style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.14)' }}
+                className="w-full pl-9 pr-3 py-2.5 rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 dark:bg-[rgba(255,255,255,0.07)] dark:border-[rgba(255,255,255,0.14)]"
+                style={{ background: '#f0f0f0', border: '1px solid #d0d0d0' }}
               />
             </div>
             <button
@@ -277,10 +277,10 @@ export default function Events() {
           </form>
         ) : (
           <button
-            onClick={() => { setLocationInput(locationLabel === 'Near me' ? '' : locationLabel); setEditingLocation(true); }}
-            className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-xl"
-            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', color: 'rgba(255,255,255,0.7)' }}
-          >
+             onClick={() => { setLocationInput(locationLabel === 'Near me' ? '' : locationLabel); setEditingLocation(true); }}
+             className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-xl dark:text-[rgba(255,255,255,0.7)]"
+             style={{ background: 'var(--background)', border: '1px solid var(--border)', color: 'var(--foreground)' }}
+           >
             {detectingLocation
               ? <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
               : <MapPin className="w-3.5 h-3.5" style={{ color: '#00C8FF' }} />
@@ -300,8 +300,8 @@ export default function Events() {
             placeholder="Search events, venues, cities..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 rounded-2xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
-            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}
+            className="w-full pl-10 pr-4 py-3 rounded-2xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 dark:bg-[rgba(255,255,255,0.06)] dark:border-[rgba(255,255,255,0.10)]"
+            style={{ background: '#f5f5f5', border: '1px solid #e0e0e0' }}
           />
         </div>
       </div>
@@ -345,11 +345,11 @@ function EventRow({ event }) {
 
   return (
     <div
-      className="rounded-2xl overflow-hidden flex items-stretch"
+      className="rounded-2xl overflow-hidden flex items-stretch dark:border-[rgba(255,255,255,0.09)]"
       style={{
-        background: 'linear-gradient(135deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.03) 100%)',
-        border: '1px solid rgba(255,255,255,0.09)',
-        boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
+        background: 'var(--card)',
+        border: '1px solid var(--border)',
+        boxShadow: '0 4px 24px rgba(0,0,0,0.1)',
       }}
     >
       {/* Thumbnail */}
