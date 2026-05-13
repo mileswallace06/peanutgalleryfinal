@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { formatDistanceToNow } from 'date-fns';
-import { Plus, X, ImagePlus, Filter, ChevronDown } from 'lucide-react';
+import { Plus, X, ImagePlus, Filter, ChevronDown, Star } from 'lucide-react';
 import SeatFlexSheet from '@/components/fanzone/SeatFlexSheet';
 import TMSearchAutocomplete from '@/components/fanzone/TMSearchAutocomplete';
+import BucketListSheet from '@/components/fanzone/BucketListSheet';
 
 const REACTIONS = [
   { key: 'fire', emoji: '🔥' },
@@ -33,9 +34,18 @@ export default function FanZone() {
   const [filterCity, setFilterCity] = useState('');
   const [filterSearch, setFilterSearch] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [bucketList, setBucketList] = useState([]);
+  const [filterBucketList, setFilterBucketList] = useState(false);
+  const [showBucketList, setShowBucketList] = useState(false);
 
   useEffect(() => {
-    base44.auth.me().then(setUser).catch(() => {});
+    base44.auth.me().then(u => {
+      setUser(u);
+      if (u?.email) {
+        base44.entities.BucketListItem.filter({ user_email: u.email })
+          .then(setBucketList).catch(() => {});
+      }
+    }).catch(() => {});
     loadPosts();
     base44.entities.Event.list('date', 50)
       .then(data => setEvents(data.filter(e => e.status !== 'ended')))
@@ -98,6 +108,9 @@ export default function FanZone() {
   // Get unique cities from posts for filter
   const cities = [...new Set(posts.map(p => p.event_city).filter(Boolean))];
 
+  // Bucket list names for matching
+  const bucketNames = bucketList.map(b => b.name.toLowerCase());
+
   // Filter posts
   const filtered = posts.filter(p => {
     if (filterEventId && p.event_id !== filterEventId) return false;
@@ -107,10 +120,14 @@ export default function FanZone() {
       const haystack = [p.event_title, p.event_city, p.text, p.author_name].join(' ').toLowerCase();
       if (!haystack.includes(q)) return false;
     }
+    if (filterBucketList && bucketNames.length > 0) {
+      const haystack = [p.event_title, p.text].join(' ').toLowerCase();
+      if (!bucketNames.some(name => haystack.includes(name))) return false;
+    }
     return true;
   });
 
-  const hasFilters = filterEventId || filterCity || filterSearch;
+  const hasFilters = filterEventId || filterCity || filterSearch || filterBucketList;
 
   return (
     <div className="pb-32">
@@ -148,25 +165,47 @@ export default function FanZone() {
 
       {/* Filter bar */}
       <div className="px-4 mt-4 mb-2">
-        <button
-          onClick={() => setShowFilters(v => !v)}
-          className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold transition-all"
-          style={{
-            background: hasFilters ? 'rgba(191,95,255,0.12)' : 'rgba(255,255,255,0.05)',
-            border: hasFilters ? '1px solid rgba(191,95,255,0.35)' : '1px solid rgba(255,255,255,0.09)',
-            color: hasFilters ? '#BF5FFF' : 'rgba(255,255,255,0.6)',
-          }}
-        >
-          <Filter className="w-3.5 h-3.5" />
-          <span>{hasFilters ? 'Filtered' : 'Filter'}</span>
-          {hasFilters && (
-            <span className="flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-black"
-              style={{ background: '#BF5FFF', color: '#fff' }}>
-              {(filterEventId ? 1 : 0) + (filterCity ? 1 : 0)}
-            </span>
-          )}
-          <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowFilters(v => !v)}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold transition-all"
+            style={{
+              background: hasFilters ? 'rgba(191,95,255,0.12)' : 'rgba(255,255,255,0.05)',
+              border: hasFilters ? '1px solid rgba(191,95,255,0.35)' : '1px solid rgba(255,255,255,0.09)',
+              color: hasFilters ? '#BF5FFF' : 'rgba(255,255,255,0.6)',
+            }}
+          >
+            <Filter className="w-3.5 h-3.5" />
+            <span>{hasFilters ? 'Filtered' : 'Filter'}</span>
+            {hasFilters && (
+              <span className="flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-black"
+                style={{ background: '#BF5FFF', color: '#fff' }}>
+                {(filterEventId ? 1 : 0) + (filterCity ? 1 : 0) + (filterSearch ? 1 : 0) + (filterBucketList ? 1 : 0)}
+              </span>
+            )}
+            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
+          </button>
+
+          {/* Bucket List quick button */}
+          <button
+            onClick={() => setShowBucketList(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold transition-all"
+            style={{
+              background: 'rgba(255,230,0,0.08)',
+              border: '1px solid rgba(255,230,0,0.2)',
+              color: '#FFE600',
+            }}
+          >
+            <Star className="w-3.5 h-3.5" />
+            <span>Bucket List</span>
+            {bucketList.length > 0 && (
+              <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full"
+                style={{ background: 'rgba(255,230,0,0.2)', color: '#FFE600' }}>
+                {bucketList.length}
+              </span>
+            )}
+          </button>
+        </div>
 
         {showFilters && (
           <div className="mt-2 space-y-3 p-3 rounded-2xl"
@@ -217,9 +256,26 @@ export default function FanZone() {
                 </div>
               </div>
             )}
+            {/* Bucket List filter toggle */}
+            {bucketList.length > 0 && (
+              <div>
+                <button
+                  onClick={() => setFilterBucketList(v => !v)}
+                  className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold w-full transition-all"
+                  style={filterBucketList
+                    ? { background: 'rgba(255,230,0,0.15)', color: '#FFE600', border: '1px solid rgba(255,230,0,0.35)' }
+                    : { background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.09)' }
+                  }
+                >
+                  <Star className="w-3.5 h-3.5" />
+                  {filterBucketList ? 'Showing Bucket List posts only' : 'Filter by my Bucket List'}
+                </button>
+              </div>
+            )}
+
             {hasFilters && (
               <button
-                onClick={() => { setFilterEventId(''); setFilterCity(''); setFilterSearch(''); }}
+                onClick={() => { setFilterEventId(''); setFilterCity(''); setFilterSearch(''); setFilterBucketList(false); }}
                 className="text-xs text-muted-foreground hover:text-foreground transition-colors"
               >Clear filters</button>
             )}
@@ -362,6 +418,24 @@ export default function FanZone() {
             user={user}
             onClose={closeAll}
             onPosted={async () => { closeAll(); await loadPosts(); }}
+          />
+        </div>
+      )}
+
+      {/* Bucket List sheet */}
+      {showBucketList && (
+        <div className="fixed inset-0 z-50 flex flex-col justify-end">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowBucketList(false)} />
+          <BucketListSheet
+            user={user}
+            onClose={() => {
+              setShowBucketList(false);
+              // Refresh bucket list after editing
+              if (user?.email) {
+                base44.entities.BucketListItem.filter({ user_email: user.email })
+                  .then(setBucketList).catch(() => {});
+              }
+            }}
           />
         </div>
       )}

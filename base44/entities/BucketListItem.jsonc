@@ -1,0 +1,40 @@
+{
+  "name": "BucketListItem",
+  "type": "object",
+  "properties": {
+    "user_email": {
+      "type": "string",
+      "description": "Email of the user who followed this item"
+    },
+    "tm_id": {
+      "type": "string",
+      "description": "Ticketmaster attraction/venue ID"
+    },
+    "name": {
+      "type": "string",
+      "description": "Display name of the artist, band, team, or venue"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "attraction",
+        "venue"
+      ],
+      "description": "Type of entity from Ticketmaster"
+    },
+    "image_url": {
+      "type": "string",
+      "description": "Image URL from Ticketmaster"
+    },
+    "genre": {
+      "type": "string",
+      "description": "Genre or sport/category"
+    }
+  },
+  "required": [
+    "user_email",
+    "tm_id",
+    "name",
+    "type"
+  ]
+}
