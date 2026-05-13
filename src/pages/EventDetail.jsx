@@ -68,7 +68,7 @@ export default function EventDetail() {
     <div className="pb-32">
 
       {/* ── Hero ── */}
-      <div className="relative h-72 sm:h-80 overflow-hidden">
+      <div className="relative h-72 sm:h-80 overflow-hidden" style={{ marginTop: 'env(safe-area-inset-top)' }}>
         {event.image_url ? (
           <img src={event.image_url} alt={event.title} className="w-full h-full object-cover" />
         ) : (

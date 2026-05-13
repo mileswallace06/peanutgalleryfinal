@@ -11,7 +11,21 @@ import {
 export function Toaster() {
   const { toasts } = useToast();
 
-  return null;
+  return (
+    <ToastProvider>
+      {toasts.map(({ id, title, description, action, open, onOpenChange, ...props }) => (
+        <Toast key={id} onOpenChange={onOpenChange} open={open} {...props}>
+          <div className="grid gap-1">
+            {title && <ToastTitle>{title}</ToastTitle>}
+            {description && <ToastDescription>{description}</ToastDescription>}
+          </div>
+          {action}
+          <ToastClose />
+        </Toast>
+      ))}
+      <ToastViewport />
+    </ToastProvider>
+  );
 
 
 

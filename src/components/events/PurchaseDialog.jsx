@@ -238,17 +238,17 @@ export default function PurchaseDialog({ event, listing, onClose, mode = 'ticket
           </button>
         </div>
         {/* Scrollable body */}
-        <div className="flex-1 overflow-y-auto p-5 pb-8">
-          {!stripePromise ? (
-            <div className="flex justify-center py-8">
-              <span className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-            </div>
-          ) : (
-            <Elements stripe={stripePromise}>
-              <CheckoutForm event={event} listing={listing} buyerEmail={user?.email} onClose={handleClose} onReserved={setReservedListingId} />
-            </Elements>
-          )}
-        </div>
+         <div className="flex-1 overflow-y-auto p-5" style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))' }}>
+           {!stripePromise ? (
+             <div className="flex justify-center py-8">
+               <span className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+             </div>
+           ) : (
+             <Elements stripe={stripePromise}>
+               <CheckoutForm event={event} listing={listing} buyerEmail={user?.email} onClose={handleClose} onReserved={setReservedListingId} />
+             </Elements>
+           )}
+         </div>
       </div>
     </div>
   );

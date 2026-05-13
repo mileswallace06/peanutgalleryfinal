@@ -59,9 +59,9 @@ export default function Layout() {
   }
 
   return (
-    <div className="min-h-screen bg-background font-sans dark:rave-bg" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+    <div className="min-h-screen bg-background font-sans dark:rave-bg">
       {!user && (
-        <div className="fixed top-4 right-4 z-[99]">
+        <div className="fixed top-4 right-4 z-[99]" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
           <button
             onClick={() => base44.auth.redirectToLogin()}
             className="text-sm font-bold px-4 py-1.5 rounded-full"
@@ -72,7 +72,7 @@ export default function Layout() {
       )}
 
       {/* Stack-preserved tab containers */}
-      <div className="relative w-full max-w-lg mx-auto pb-24">
+      <div className="relative w-full max-w-lg mx-auto pb-24" style={{ overscrollBehavior: 'none' }}>
         {NAV.map(({ to, key }) => (
           <div
             key={key}
@@ -80,7 +80,7 @@ export default function Layout() {
             className={`overflow-y-auto transition-opacity duration-200 ${
               currentTab === key ? 'opacity-100 relative' : 'opacity-0 absolute inset-0 pointer-events-none'
             }`}
-            style={{ height: '100vh' }}>
+            style={{ height: '100vh', overscrollBehavior: 'none' }}>
             {currentTab === key && <Outlet />}
           </div>
         ))}
