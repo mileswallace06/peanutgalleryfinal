@@ -265,18 +265,16 @@ function FabOption({ label, emoji, color, delay = '0s', onClick }) {
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-3 pl-4 pr-5 py-3.5 rounded-2xl"
+      className="flex items-center gap-2.5 pl-3.5 pr-4 py-2.5 rounded-2xl"
       style={{
-        background: `linear-gradient(135deg, ${color}22, ${color}0a)`,
-        border: `1px solid ${color}55`,
-        boxShadow: `0 0 20px ${color}22, 0 8px 32px rgba(0,0,0,0.5)`,
-        backdropFilter: 'blur(20px)',
+        background: 'hsl(255 12% 11%)',
+        border: `1.5px solid ${color}`,
+        boxShadow: `0 0 16px ${color}55, 0 4px 20px rgba(0,0,0,0.7)`,
         animation: `fabItemIn 0.22s cubic-bezier(0.34,1.56,0.64,1) ${delay} both`,
-        minWidth: 180,
       }}
     >
-      <span className="text-2xl leading-none">{emoji}</span>
-      <span className="text-base font-black tracking-tight" style={{ color }}>{label}</span>
+      <span className="text-lg leading-none">{emoji}</span>
+      <span className="text-sm font-black tracking-tight" style={{ color }}>{label}</span>
     </button>
   );
 }
