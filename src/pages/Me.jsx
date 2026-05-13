@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { Ticket, TrendingUp, Shield, LogIn, Edit2, Check, X, Tag, Zap, ChevronRight, LogOut, Camera, ImagePlus } from 'lucide-react';
+import { Ticket, TrendingUp, Shield, LogIn, Edit2, Check, X, Tag, Zap, ChevronRight, LogOut, Camera, ImagePlus, Users, UserPlus, UserCheck } from 'lucide-react';
 
 export default function Me() {
   const [user, setUser] = useState(null);
@@ -13,13 +13,30 @@ export default function Me() {
   const [uploadingBanner, setUploadingBanner] = useState(false);
   const avatarInputRef = useRef(null);
   const bannerInputRef = useRef(null);
+  const [followers, setFollowers] = useState([]);
+  const [following, setFollowing] = useState([]);
+  const [socialTab, setSocialTab] = useState('following'); // 'following' | 'followers'
 
   useEffect(() => {
     base44.auth.me().then(u => {
       setUser(u);
       setBio(u?.bio || '');
+      if (u?.email) {
+        Promise.all([
+          base44.entities.Follow.filter({ follower_email: u.email }),
+          base44.entities.Follow.filter({ following_email: u.email }),
+        ]).then(([fwing, fwers]) => {
+          setFollowing(fwing);
+          setFollowers(fwers);
+        }).catch(() => {});
+      }
     }).catch(() => {});
   }, []);
+
+  const handleUnfollow = async (followRecord) => {
+    await base44.entities.Follow.delete(followRecord.id);
+    setFollowing(prev => prev.filter(f => f.id !== followRecord.id));
+  };
 
   const handleAvatarUpload = async (e) => {
     const file = e.target.files[0];
@@ -232,6 +249,104 @@ export default function Me() {
             <Tag className="w-3 h-3" /> Add a bio…
           </button>
         )}
+
+        {/* Followers / Following */}
+        <div className="mb-5">
+          {/* Stats row */}
+          <div className="flex gap-4 mb-3">
+            <button
+              onClick={() => setSocialTab('following')}
+              className="flex flex-col items-center px-4 py-2.5 rounded-2xl transition-all"
+              style={socialTab === 'following'
+                ? { background: 'rgba(191,95,255,0.12)', border: '1px solid rgba(191,95,255,0.3)', color: '#BF5FFF' }
+                : { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)' }
+              }
+            >
+              <span className="font-black text-lg leading-none text-foreground">{following.length}</span>
+              <span className="text-[10px] font-semibold mt-0.5">Following</span>
+            </button>
+            <button
+              onClick={() => setSocialTab('followers')}
+              className="flex flex-col items-center px-4 py-2.5 rounded-2xl transition-all"
+              style={socialTab === 'followers'
+                ? { background: 'rgba(191,95,255,0.12)', border: '1px solid rgba(191,95,255,0.3)', color: '#BF5FFF' }
+                : { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)' }
+              }
+            >
+              <span className="font-black text-lg leading-none text-foreground">{followers.length}</span>
+              <span className="text-[10px] font-semibold mt-0.5">Followers</span>
+            </button>
+          </div>
+
+          {/* List */}
+          {socialTab === 'following' && (
+            following.length === 0
+              ? <p className="text-xs text-muted-foreground px-1">You're not following anyone yet. React to posts to find fans, or follow from their profile.</p>
+              : <div className="space-y-2">
+                  {following.map(f => (
+                    <div key={f.id} className="flex items-center gap-3 px-3 py-2.5 rounded-2xl"
+                      style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                      <div className="w-9 h-9 rounded-full flex items-center justify-center font-black text-sm flex-shrink-0"
+                        style={{ background: 'linear-gradient(135deg, #BF5FFF, #FF2D78)', color: '#fff' }}>
+                        {f.following_avatar_url
+                          ? <img src={f.following_avatar_url} alt="" className="w-full h-full object-cover rounded-full" />
+                          : (f.following_name || f.following_email || '?')[0].toUpperCase()
+                        }
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-foreground truncate">{f.following_name || f.following_email}</p>
+                        <p className="text-[10px] text-muted-foreground truncate">{f.following_email}</p>
+                      </div>
+                      <button
+                        onClick={() => handleUnfollow(f)}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold"
+                        style={{ background: 'rgba(255,45,120,0.1)', color: '#FF2D78', border: '1px solid rgba(255,45,120,0.2)' }}
+                      >
+                        <UserCheck className="w-3 h-3" /> Unfollow
+                      </button>
+                    </div>
+                  ))}
+                </div>
+          )}
+          {socialTab === 'followers' && (
+            followers.length === 0
+              ? <p className="text-xs text-muted-foreground px-1">No followers yet.</p>
+              : <div className="space-y-2">
+                  {followers.map(f => {
+                    const alreadyFollowing = following.some(fw => fw.following_email === f.follower_email);
+                    return (
+                      <div key={f.id} className="flex items-center gap-3 px-3 py-2.5 rounded-2xl"
+                        style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                        <div className="w-9 h-9 rounded-full flex items-center justify-center font-black text-sm flex-shrink-0"
+                          style={{ background: 'linear-gradient(135deg, #00C8FF, #00FF87)', color: '#0a0510' }}>
+                          {(f.follower_email || '?')[0].toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-foreground truncate">{f.follower_email}</p>
+                        </div>
+                        {!alreadyFollowing && (
+                          <button
+                            onClick={async () => {
+                              const created = await base44.entities.Follow.create({
+                                follower_email: user.email,
+                                following_email: f.follower_email,
+                                following_name: null,
+                                following_avatar_url: null,
+                              });
+                              setFollowing(prev => [...prev, created]);
+                            }}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold"
+                            style={{ background: 'rgba(191,95,255,0.12)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.3)' }}
+                          >
+                            <UserPlus className="w-3 h-3" /> Follow Back
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+          )}
+        </div>
 
         {/* Divider */}
         <div className="h-px mb-5" style={{ background: 'rgba(255,255,255,0.07)' }} />

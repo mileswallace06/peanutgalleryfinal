@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { formatDistanceToNow } from 'date-fns';
 import { Plus, X, ImagePlus, Star, MapPin, Users, TrendingUp } from 'lucide-react';
@@ -33,6 +34,7 @@ export default function FanZone() {
   const [bucketList, setBucketList] = useState([]);
   const [showBucketList, setShowBucketList] = useState(false);
   const [userLocation, setUserLocation] = useState(null);
+  const [followingEmails, setFollowingEmails] = useState([]);
 
   useEffect(() => {
     base44.auth.me().then(u => {
@@ -40,6 +42,9 @@ export default function FanZone() {
       if (u?.email) {
         base44.entities.BucketListItem.filter({ user_email: u.email })
           .then(setBucketList).catch(() => {});
+        base44.entities.Follow.filter({ follower_email: u.email })
+          .then(rows => setFollowingEmails(rows.map(r => r.following_email)))
+          .catch(() => {});
       }
     }).catch(() => {});
     loadPosts();
@@ -155,25 +160,8 @@ export default function FanZone() {
       return posts.filter(p => nearbyEventIds.has(p.event_id) || (p.event_city && nearbyCities.has(p.event_city)));
     }
     if (feedTab === 'friends') {
-      // Show posts by people who have also reacted to any of the same posts as the current user
-      if (!user) return posts;
-      const myReactedPostIds = new Set(
-        posts.filter(p => {
-          const r = p.reactions || {};
-          return Object.values(r).some(arr => Array.isArray(arr) && arr.includes(user.email));
-        }).map(p => p.id)
-      );
-      // Collect emails of "friends" (people who reacted to same posts)
-      const friendEmails = new Set();
-      posts.forEach(p => {
-        if (!myReactedPostIds.has(p.id)) return;
-        const r = p.reactions || {};
-        Object.values(r).forEach(arr => {
-          if (Array.isArray(arr)) arr.forEach(e => { if (e !== user.email) friendEmails.add(e); });
-        });
-      });
-      if (friendEmails.size === 0) return posts;
-      return posts.filter(p => friendEmails.has(p.author_email));
+      if (!user || followingEmails.length === 0) return [];
+      return posts.filter(p => followingEmails.includes(p.author_email));
     }
     return posts;
   })();
@@ -242,8 +230,8 @@ export default function FanZone() {
         {feedTab === 'nearby' && userLocation && (
           <p className="text-xs px-1" style={{ color: '#00FF87' }}>📍 Showing posts within 80 km of your location</p>
         )}
-        {feedTab === 'friends' && (
-          <p className="text-xs text-muted-foreground px-1">People who've reacted to the same posts as you.</p>
+        {feedTab === 'friends' && followingEmails.length === 0 && (
+          <p className="text-xs text-muted-foreground px-1">Follow people from your <Link to="/me" className="underline" style={{ color: '#BF5FFF' }}>profile</Link> to see their posts here.</p>
         )}
       </div>
 
@@ -259,12 +247,12 @@ export default function FanZone() {
             <p className="font-bold text-foreground">
               {feedTab === 'bucket' ? 'No posts match your Bucket List' :
                feedTab === 'nearby' ? 'No nearby posts yet' :
-               feedTab === 'friends' ? 'No friend posts yet' :
+               feedTab === 'friends' ? 'No posts from people you follow' :
                'No fan posts yet'}
             </p>
             <p className="text-sm text-muted-foreground">
               {feedTab === 'bucket' ? 'Try adding more artists or venues' :
-               feedTab === 'friends' ? 'React to posts to discover your crew' :
+               feedTab === 'friends' ? 'Follow fans from your profile to see their posts here' :
                'Be the first to start the conversation'}
             </p>
           </div>
