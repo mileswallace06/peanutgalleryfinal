@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, CheckCircle, Upload, Zap, Search, Star } from 'lucide-react';
+import { getEventLiveStatus } from '@/lib/eventTiming';
 
 const STEPS = ['Event', 'Seats', 'Price', 'Done'];
 
@@ -72,8 +73,8 @@ export default function CreateListing() {
   // For TM events, store the selected event object (not just id)
   const [selectedTmEvent, setSelectedTmEvent] = useState(null);
   const [selectingTmId, setSelectingTmId] = useState(null);
-  // Nearby recommended events from TM
-  const [nearbyEvents, setNearbyEvents] = useState([]);
+  // Recommended events (same logic as Upgrades)
+  const [allRecEvents, setAllRecEvents] = useState([]);
   const [nearbyLoading, setNearbyLoading] = useState(true);
 
   const [form, setForm] = useState({
@@ -96,22 +97,31 @@ export default function CreateListing() {
       .catch(console.error)
       .finally(() => setLoadingEvents(false));
 
-    // Fetch nearby events via geolocation for the Recommended tab
+    // Fetch recommended events (same logic as Upgrades tab)
     setNearbyLoading(true);
+    const loadRecommended = (ll) => {
+      const tmParams = { size: 40 };
+      if (ll) { tmParams.latlong = ll; tmParams.radius = '50'; }
+      Promise.all([
+        base44.entities.Event.list('date', 200),
+        base44.functions.invoke('getTicketmasterEvents', tmParams),
+      ]).then(([localData, tmRes]) => {
+        let pgEvents = localData.filter(e => e.status !== 'ended');
+        if (ll) {
+          const tmCities = new Set((tmRes?.data?.events || []).map(e => e.city?.toLowerCase()).filter(Boolean));
+          if (tmCities.size > 0) pgEvents = pgEvents.filter(e => !e.city || tmCities.has(e.city.toLowerCase()));
+        }
+        const pgMapped = pgEvents.map(e => ({ ...e, source: 'pg' }));
+        const tmEvents = (tmRes?.data?.events || []).map(e => ({ ...e, id: `tm_${e.tm_id}`, source: 'ticketmaster' }));
+        const pgTmIds = new Set(pgMapped.map(e => e.tm_id).filter(Boolean));
+        const uniqueTM = tmEvents.filter(e => !pgTmIds.has(e.tm_id));
+        setAllRecEvents([...pgMapped, ...uniqueTM]);
+      }).catch(console.error).finally(() => setNearbyLoading(false));
+    };
+
     navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const ll = `${pos.coords.latitude},${pos.coords.longitude}`;
-        try {
-          const res = await base44.functions.invoke('getTicketmasterEvents', { latlong: ll, radius: '50', size: 20 });
-          const now = Date.now();
-          const soon = (res.data.events || [])
-            .filter(e => e.date && new Date(e.date).getTime() > now)
-            .sort((a, b) => new Date(a.date) - new Date(b.date));
-          setNearbyEvents(soon);
-        } catch {}
-        setNearbyLoading(false);
-      },
-      () => setNearbyLoading(false),
+      (pos) => loadRecommended(`${pos.coords.latitude},${pos.coords.longitude}`),
+      () => loadRecommended(null),
       { timeout: 8000, enableHighAccuracy: false, maximumAge: 60000 }
     );
   }, []);
@@ -282,47 +292,78 @@ export default function CreateListing() {
             </button>
           </div>
 
-          {/* Recommended Tab — nearby events via geolocation */}
+          {/* Recommended Tab — same logic as Upgrades */}
           {eventTab === 'recommended' && (
-            <div className="space-y-2">
+            <div className="space-y-4">
               {nearbyLoading ? (
-                <>
-                  {[1,2,3].map(i => <div key={i} className="h-14 rounded-2xl animate-pulse" style={{ background: 'rgba(255,255,255,0.05)' }} />)}
-                </>
-              ) : nearbyEvents.length === 0 ? (
-                <div className="text-center py-8 space-y-2">
-                  <p className="text-sm text-muted-foreground">No nearby events found.</p>
-                  <button onClick={() => setEventTab('search')} className="text-xs font-bold" style={{ color: '#BF5FFF' }}>
-                    Search for your event →
-                  </button>
-                </div>
-              ) : (
-                nearbyEvents.map(ev => (
-                  <button
-                    key={ev.tm_id}
-                    onClick={() => handleSelectTmEvent(ev)}
-                    disabled={!!selectingTmId}
-                    className="w-full text-left px-4 py-3.5 rounded-2xl transition-all flex items-center gap-3 disabled:opacity-60"
-                    style={{
-                      background: selectingTmId === ev.tm_id ? 'rgba(191,95,255,0.12)' : 'rgba(255,255,255,0.04)',
-                      border: selectingTmId === ev.tm_id ? '1px solid rgba(191,95,255,0.4)' : '1px solid rgba(255,255,255,0.08)',
-                      boxShadow: selectingTmId === ev.tm_id ? '0 0 16px rgba(191,95,255,0.15)' : 'none',
-                    }}
-                  >
-                    {ev.image_url && <img src={ev.image_url} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />}
-                    <div className="min-w-0 flex-1">
-                      <div className="font-bold text-sm text-foreground truncate">{ev.title}</div>
-                      <div className="text-xs text-muted-foreground mt-0.5 truncate">
-                        {ev.venue}{ev.city ? `, ${ev.city}` : ''}
-                        {ev.date && <> · {new Date(ev.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</>}
+                <>{[1,2,3].map(i => <div key={i} className="h-14 rounded-2xl animate-pulse" style={{ background: 'rgba(255,255,255,0.05)' }} />)}</>
+              ) : (() => {
+                const nowMs = Date.now();
+                const liveEvs = allRecEvents.filter(e => getEventLiveStatus(e, nowMs).status === 'live');
+                const soonEvs = allRecEvents.filter(e => getEventLiveStatus(e, nowMs).status === 'soon');
+                const upcomingEvs = allRecEvents
+                  .filter(e => getEventLiveStatus(e, nowMs).status === 'upcoming')
+                  .sort((a, b) => new Date(a.event_start_utc || a.date || 0) - new Date(b.event_start_utc || b.date || 0));
+
+                const renderEvent = (ev) => {
+                  const isTM = ev.source === 'ticketmaster' || String(ev.id || '').startsWith('tm_');
+                  const key = ev.tm_id || ev.id;
+                  const isSelected = (isTM ? selectingTmId === ev.tm_id : form.event_id === ev.id);
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => isTM ? handleSelectTmEvent(ev) : (set('event_id', ev.id), setSelectedTmEvent(null))}
+                      disabled={!!selectingTmId}
+                      className="w-full text-left px-4 py-3 rounded-2xl transition-all flex items-center gap-3 disabled:opacity-60"
+                      style={{
+                        background: isSelected ? 'rgba(191,95,255,0.12)' : 'rgba(255,255,255,0.04)',
+                        border: isSelected ? '1px solid rgba(191,95,255,0.4)' : '1px solid rgba(255,255,255,0.08)',
+                      }}
+                    >
+                      {ev.image_url && <img src={ev.image_url} alt="" className="w-9 h-9 rounded-lg object-cover flex-shrink-0" />}
+                      <div className="min-w-0 flex-1">
+                        <div className="font-bold text-sm text-foreground truncate">{ev.title}</div>
+                        <div className="text-xs text-muted-foreground mt-0.5 truncate">
+                          {ev.venue}{ev.city ? `, ${ev.city}` : ''}
+                          {ev.date && <> · {new Date(ev.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</>}
+                        </div>
                       </div>
-                    </div>
-                    {selectingTmId === ev.tm_id && (
-                      <span className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                      {isSelected && isTM && <span className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin flex-shrink-0" />}
+                    </button>
+                  );
+                };
+
+                return (
+                  <>
+                    {liveEvs.length > 0 && (
+                      <div>
+                        <p className="text-[10px] font-black tracking-widest uppercase mb-2 flex items-center gap-1.5" style={{ color: '#FF2D78' }}>
+                          <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse inline-block" /> Live Now
+                        </p>
+                        <div className="space-y-2">{liveEvs.map(renderEvent)}</div>
+                      </div>
                     )}
-                  </button>
-                ))
-              )}
+                    {soonEvs.length > 0 && (
+                      <div>
+                        <p className="text-[10px] font-black tracking-widest uppercase mb-2" style={{ color: '#FFE600' }}>⚡ Starting Soon</p>
+                        <div className="space-y-2">{soonEvs.map(renderEvent)}</div>
+                      </div>
+                    )}
+                    {upcomingEvs.length > 0 && (
+                      <div>
+                        <p className="text-[10px] font-black tracking-widest uppercase mb-2" style={{ color: '#BF5FFF' }}>Upcoming Near You</p>
+                        <div className="space-y-2">{upcomingEvs.map(renderEvent)}</div>
+                      </div>
+                    )}
+                    {liveEvs.length === 0 && soonEvs.length === 0 && upcomingEvs.length === 0 && (
+                      <div className="text-center py-8 space-y-2">
+                        <p className="text-sm text-muted-foreground">No events found.</p>
+                        <button onClick={() => setEventTab('search')} className="text-xs font-bold" style={{ color: '#BF5FFF' }}>Search for your event →</button>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           )}
 
