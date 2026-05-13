@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { formatDistanceToNow } from 'date-fns';
+import { Plus, X } from 'lucide-react';
 
 const REACTIONS = [
   { key: 'fire', emoji: '🔥' },
@@ -13,11 +14,15 @@ export default function FanZone() {
   const [posts, setPosts] = useState([]);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
+  const [reactingId, setReactingId] = useState(null);
+
+  // FAB state: null | 'menu' | 'post' | 'flex'
+  const [fab, setFab] = useState(null);
+
+  // Compose state
   const [text, setText] = useState('');
   const [selectedEventId, setSelectedEventId] = useState('');
-  const [showCompose, setShowCompose] = useState(false);
-  const [reactingId, setReactingId] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => {});
@@ -34,6 +39,8 @@ export default function FanZone() {
     setLoading(false);
   };
 
+  const closeAll = () => { setFab(null); setText(''); setSelectedEventId(''); };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!text.trim()) return;
@@ -47,9 +54,7 @@ export default function FanZone() {
       event_title: event?.title || null,
       reactions: { fire: [], eyes: [], peanut: [] },
     });
-    setText('');
-    setSelectedEventId('');
-    setShowCompose(false);
+    closeAll();
     await loadPosts();
     setSubmitting(false);
   };
@@ -62,14 +67,14 @@ export default function FanZone() {
     const already = arr.includes(user.email);
     const updated = {
       ...current,
-      [reactionKey]: already
-        ? arr.filter(e => e !== user.email)
-        : [...arr, user.email],
+      [reactionKey]: already ? arr.filter(e => e !== user.email) : [...arr, user.email],
     };
     await base44.entities.FanPost.update(post.id, { reactions: updated });
     setPosts(prev => prev.map(p => p.id === post.id ? { ...p, reactions: updated } : p));
     setReactingId(null);
   };
+
+  const sheetOpen = fab === 'post' || fab === 'flex';
 
   return (
     <div className="pb-32">
@@ -113,80 +118,146 @@ export default function FanZone() {
         </div>
       </div>
 
-      {/* Compose trigger */}
-      <div className="px-4 mt-5 mb-4">
-        {!showCompose ? (
-          <button
-            onClick={() => setShowCompose(true)}
-            className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-left"
-            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}
-          >
-            <span className="text-xl">🎤</span>
-            <span className="text-sm text-muted-foreground">Share a moment with the crowd…</span>
-          </button>
-        ) : (
-          <form onSubmit={handleSubmit} className="rounded-2xl p-4 space-y-3"
-            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(0,200,255,0.2)' }}>
-            <textarea
-              autoFocus
-              value={text}
-              onChange={e => setText(e.target.value)}
-              placeholder="What's happening at the show?"
-              maxLength={280}
-              rows={3}
-              className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none"
-            />
-            <div className="flex items-center gap-2 flex-wrap">
-              <select
-                value={selectedEventId}
-                onChange={e => setSelectedEventId(e.target.value)}
-                className="flex-1 min-w-0 text-xs px-3 py-2 rounded-xl focus:outline-none"
-                style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', color: selectedEventId ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))' }}
-              >
-                <option value="">No event (general)</option>
-                {events.map(ev => (
-                  <option key={ev.id} value={ev.id}>{ev.title}</option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={() => { setShowCompose(false); setText(''); setSelectedEventId(''); }}
-                className="px-3 py-2 rounded-xl text-xs font-semibold"
-                style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)' }}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={!text.trim() || submitting}
-                className="px-4 py-2 rounded-xl text-xs font-bold disabled:opacity-40"
-                style={{ background: 'rgba(0,200,255,0.2)', color: '#00C8FF', border: '1px solid rgba(0,200,255,0.35)' }}
-              >
-                {submitting ? 'Posting…' : 'Post'}
-              </button>
-            </div>
-            <div className="text-right text-[10px] text-muted-foreground">{280 - text.length} left</div>
-          </form>
-        )}
-      </div>
-
       {/* Feed */}
-      <div className="px-4 space-y-3">
+      <div className="px-4 mt-5 space-y-3">
         {loading ? (
           [...Array(3)].map((_, i) => (
             <div key={i} className="rounded-2xl h-24 animate-pulse" style={{ background: 'rgba(255,255,255,0.04)' }} />
           ))
         ) : posts.length === 0 ? (
-          <div className="text-center py-20 space-y-3">
+          <div className="text-center py-24 space-y-3">
             <p className="text-4xl">🎤</p>
             <p className="font-bold text-foreground">No fan posts yet</p>
             <p className="text-sm text-muted-foreground">Be the first to start the conversation</p>
           </div>
         ) : (
-          posts.map(post => <PostCard key={post.id} post={post} user={user} onReact={handleReact} reactingId={reactingId} />)
+          posts.map(post => (
+            <PostCard key={post.id} post={post} user={user} onReact={handleReact} reactingId={reactingId} />
+          ))
         )}
       </div>
+
+      {/* FAB */}
+      <button
+        onClick={() => setFab(fab === 'menu' ? null : 'menu')}
+        className="fixed bottom-24 right-5 z-40 w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform active:scale-95"
+        style={{
+          background: 'linear-gradient(135deg, #FF99CC, #66FFFF)',
+          boxShadow: '0 0 24px rgba(0,200,255,0.4), 0 4px 24px rgba(0,0,0,0.5)',
+        }}
+      >
+        <Plus
+          className="w-7 h-7 transition-transform duration-200"
+          style={{
+            color: '#0a0510',
+            transform: fab === 'menu' ? 'rotate(45deg)' : 'rotate(0deg)',
+          }}
+        />
+      </button>
+
+      {/* FAB mini-menu */}
+      {fab === 'menu' && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={closeAll} />
+          <div className="fixed bottom-40 right-5 z-40 flex flex-col items-end gap-2.5">
+            <FabOption
+              label="Seat Flex"
+              emoji="💺"
+              color="#FFE600"
+              onClick={() => setFab('flex')}
+            />
+            <FabOption
+              label="Create a post"
+              emoji="🎤"
+              color="#00C8FF"
+              onClick={() => setFab('post')}
+            />
+          </div>
+        </>
+      )}
+
+      {/* Bottom sheet overlay */}
+      {sheetOpen && (
+        <div className="fixed inset-0 z-50 flex flex-col justify-end">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeAll} />
+          <div
+            className="relative z-10 rounded-t-3xl px-5 pt-5 pb-10"
+            style={{ background: 'hsl(255 12% 9%)', border: '1px solid rgba(255,255,255,0.1)' }}
+          >
+            {/* Handle */}
+            <div className="w-10 h-1 rounded-full mx-auto mb-5" style={{ background: 'rgba(255,255,255,0.2)' }} />
+
+            {fab === 'post' && (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="font-bold text-base text-foreground">Create a post</h2>
+                  <button onClick={closeAll}><X className="w-5 h-5 text-muted-foreground" /></button>
+                </div>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <textarea
+                    autoFocus
+                    value={text}
+                    onChange={e => setText(e.target.value)}
+                    placeholder="What's happening at the show?"
+                    maxLength={280}
+                    rows={4}
+                    className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none leading-relaxed"
+                  />
+                  <div className="h-px" style={{ background: 'rgba(255,255,255,0.08)' }} />
+                  <div className="flex items-center gap-3">
+                    <select
+                      value={selectedEventId}
+                      onChange={e => setSelectedEventId(e.target.value)}
+                      className="flex-1 text-xs px-3 py-2.5 rounded-xl focus:outline-none"
+                      style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', color: selectedEventId ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))' }}
+                    >
+                      <option value="">🎫 Tag an event (optional)</option>
+                      {events.map(ev => <option key={ev.id} value={ev.id}>{ev.title}</option>)}
+                    </select>
+                    <span className="text-[10px] text-muted-foreground flex-shrink-0">{280 - text.length}</span>
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={!text.trim() || submitting}
+                    className="w-full py-3 rounded-2xl font-bold text-sm disabled:opacity-40 transition-opacity"
+                    style={{ background: 'linear-gradient(135deg, rgba(0,200,255,0.3), rgba(191,95,255,0.3))', color: '#fff', border: '1px solid rgba(0,200,255,0.3)' }}
+                  >
+                    {submitting ? 'Posting…' : 'Post'}
+                  </button>
+                </form>
+              </>
+            )}
+
+            {fab === 'flex' && (
+              <div className="text-center py-6 space-y-3">
+                <p className="text-4xl">💺</p>
+                <p className="font-bold text-foreground">Seat Flex</p>
+                <p className="text-sm text-muted-foreground max-w-[240px] mx-auto leading-relaxed">
+                  Show off your seats — photos and seat comparisons coming soon.
+                </p>
+                <button onClick={closeAll} className="mt-2 text-xs font-semibold px-4 py-2 rounded-full"
+                  style={{ background: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.6)' }}>
+                  Got it
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+function FabOption({ label, emoji, color, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-3 px-4 py-2.5 rounded-2xl shadow-lg"
+      style={{ background: 'hsl(255 12% 12%)', border: `1px solid ${color}33` }}
+    >
+      <span className="text-base">{emoji}</span>
+      <span className="text-sm font-semibold" style={{ color }}>{label}</span>
+    </button>
   );
 }
 
@@ -201,7 +272,7 @@ function PostCard({ post, user, onReact, reactingId }) {
       }}>
 
       {/* Author row */}
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-xs"
             style={{ background: 'rgba(0,200,255,0.15)', color: '#00C8FF', border: '1px solid rgba(0,200,255,0.25)' }}>
@@ -210,13 +281,11 @@ function PostCard({ post, user, onReact, reactingId }) {
           <div>
             <p className="text-xs font-semibold text-foreground leading-none">{post.author_name || post.author_email}</p>
             {post.event_title && (
-              <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1">
-                <span style={{ color: '#BF5FFF' }}>🎫</span> {post.event_title}
-              </p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">🎫 {post.event_title}</p>
             )}
           </div>
         </div>
-        <span className="text-[10px] text-muted-foreground flex-shrink-0">
+        <span className="text-[10px] text-muted-foreground flex-shrink-0 mt-0.5">
           {post.created_date ? formatDistanceToNow(new Date(post.created_date), { addSuffix: true }) : ''}
         </span>
       </div>
@@ -225,21 +294,20 @@ function PostCard({ post, user, onReact, reactingId }) {
       <p className="text-sm text-foreground leading-relaxed">{post.text}</p>
 
       {/* Reactions */}
-      <div className="flex items-center gap-2 pt-1">
+      <div className="flex items-center gap-2">
         {REACTIONS.map(({ key, emoji }) => {
           const arr = reactions[key] || [];
           const reacted = user && arr.includes(user.email);
-          const busy = reactingId === post.id + key;
           return (
             <button
               key={key}
               onClick={() => onReact(post, key)}
-              disabled={!user || busy}
+              disabled={!user || !!reactingId}
               className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-all disabled:opacity-50"
               style={{
                 background: reacted ? 'rgba(0,200,255,0.15)' : 'rgba(255,255,255,0.05)',
-                border: reacted ? '1px solid rgba(0,200,255,0.3)' : '1px solid rgba(255,255,255,0.1)',
-                color: reacted ? '#00C8FF' : 'rgba(255,255,255,0.6)',
+                border: reacted ? '1px solid rgba(0,200,255,0.3)' : '1px solid rgba(255,255,255,0.08)',
+                color: reacted ? '#00C8FF' : 'rgba(255,255,255,0.5)',
               }}
             >
               <span>{emoji}</span>
