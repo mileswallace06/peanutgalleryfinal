@@ -166,13 +166,13 @@ function ListingRow({ listing }) {
     pending_transfer: '#FFE600',
     sold: '#00C8FF',
     cancelled: '#FF2D78',
-    expired: 'rgba(255,255,255,0.3)',
+    expired: 'rgba(100,100,100,0.6)',
   };
   const color = STATUS_COLOR[listing.status] || 'rgba(255,255,255,0.3)';
 
   return (
-    <div className="rounded-2xl px-4 py-4 flex items-center justify-between gap-3"
-      style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)' }}>
+    <div className="rounded-2xl px-4 py-4 flex items-center justify-between gap-3 border dark:border-white/10 border-black/20"
+      style={{ background: 'rgba(255,255,255,0.05)' }}>
       <div className="flex-1 min-w-0">
         <div className="font-bold text-sm text-foreground truncate">
           Sec {listing.section}{listing.row ? ` · Row ${listing.row}` : ''}

@@ -41,6 +41,25 @@
     --sidebar-ring: 270 100% 45%;
   }
 
+  /* Light mode: darken neon/accent colors so they're readable on white */
+  :root {
+    --neon-green: #007a3d;
+    --neon-cyan: #006080;
+    --neon-purple: #6a1fbf;
+    --neon-pink: #b01050;
+    --neon-yellow: #7a6800;
+    --neon-orange: #b05a00;
+  }
+
+  .dark {
+    --neon-green: #00FF87;
+    --neon-cyan: #00C8FF;
+    --neon-purple: #BF5FFF;
+    --neon-pink: #FF2D78;
+    --neon-yellow: #FFE600;
+    --neon-orange: #FF8C00;
+  }
+
   .dark {
     /* Dark mode — true black */
     --background: 0 0% 0%;
@@ -91,6 +110,21 @@
   button, [role="button"], svg {
     user-select: none;
     -webkit-user-select: none;
+  }
+}
+
+/* Light mode: global readable overrides for neon-on-white */
+@layer base {
+  :root:not(.dark) {
+    --primary: 270 80% 38%;
+    --accent: 145 90% 24%;
+  }
+
+  /* Darken gradient text in light mode so it reads on white bg */
+  :root:not(.dark) .gradient-text-rave,
+  :root:not(.dark) .gradient-text-green,
+  :root:not(.dark) .gradient-text-purple {
+    filter: brightness(0.55) saturate(1.4);
   }
 }
 
