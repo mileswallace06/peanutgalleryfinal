@@ -254,7 +254,7 @@ export default function FanZone() {
       <div className="px-4 space-y-3">
         {loading ? (
           [...Array(3)].map((_, i) => (
-            <div key={i} className="rounded-2xl h-40 animate-pulse" style={{ background: 'rgba(255,255,255,0.04)' }} />
+            <div key={i} className="rounded-2xl h-40 animate-pulse bg-muted" />
           ))
         ) : filtered.length === 0 ? (
           <div className="text-center py-24 space-y-3">
@@ -483,14 +483,14 @@ function FeedTab({ id, active, label, icon, badge, onClick, onEditClick }) {
       className="relative flex items-center gap-2 px-4 py-3 rounded-2xl text-sm font-bold transition-all w-full"
       style={isActive
         ? { background: s.active, border: `1px solid ${s.border}`, color: s.color }
-        : { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.4)' }
+        : { background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--muted-foreground))' }
       }
     >
-      <span style={{ color: isActive ? s.color : 'rgba(255,255,255,0.35)' }}>{icon}</span>
+      <span style={{ color: isActive ? s.color : 'hsl(var(--muted-foreground))' }}>{icon}</span>
       <span>{label}</span>
       {badge && (
         <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full ml-auto"
-          style={{ background: isActive ? s.border : 'rgba(255,255,255,0.1)', color: isActive ? '#000' : 'rgba(255,255,255,0.5)' }}>
+          style={{ background: isActive ? s.border : 'hsl(var(--muted))', color: isActive ? '#000' : 'hsl(var(--muted-foreground))' }}>
           {badge}
         </span>
       )}
@@ -547,8 +547,8 @@ function PostCard({ post, user, onReact, reactingId }) {
   return (
     <div className="rounded-2xl overflow-hidden"
       style={{
-        background: 'linear-gradient(160deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.02) 100%)',
-        border: isSeatFlex ? '1px solid rgba(102,255,255,0.2)' : '1px solid rgba(255,255,255,0.09)',
+        background: 'hsl(var(--card))',
+        border: isSeatFlex ? '1px solid rgba(102,255,255,0.2)' : '1px solid hsl(var(--border))',
         boxShadow: isSeatFlex ? '0 0 20px rgba(102,255,255,0.06)' : 'none',
       }}>
 
@@ -585,7 +585,7 @@ function PostCard({ post, user, onReact, reactingId }) {
         {/* Event tag — always show if present */}
         {post.event_title && (
           <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl w-fit"
-            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)' }}>
+            style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}>
             <span className="text-[10px]">🎫</span>
             <span className="text-[11px] font-semibold text-muted-foreground">{post.event_title}</span>
             {post.event_city && <span className="text-[10px] text-muted-foreground opacity-60">· {post.event_city}</span>}
@@ -595,7 +595,7 @@ function PostCard({ post, user, onReact, reactingId }) {
         {/* Seat move badge */}
         {isSeatFlex && hasSeatMove && (
           <div className="flex items-center gap-2 px-3 py-2 rounded-xl"
-            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+            style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}>
             <div className="flex items-center gap-1.5">
               <span className="text-[10px] font-black" style={{ color: '#FF99CC' }}>
                 Sec {post.from_section || '?'}{post.from_row ? ` Row ${post.from_row}` : ''}
@@ -640,7 +640,7 @@ function PostCard({ post, user, onReact, reactingId }) {
         <p className="text-sm text-foreground leading-relaxed">{post.text}</p>
 
         {/* Divider */}
-        <div className="h-px" style={{ background: 'rgba(255,255,255,0.06)' }} />
+        <div className="h-px" style={{ background: 'hsl(var(--border))' }} />
 
         {/* Reactions */}
         <div className="flex items-center gap-2">
@@ -654,9 +654,9 @@ function PostCard({ post, user, onReact, reactingId }) {
                 disabled={!user || !!reactingId}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all active:scale-95 disabled:opacity-50"
                 style={{
-                  background: reacted ? 'rgba(255,153,204,0.18)' : 'rgba(255,255,255,0.05)',
-                  border: reacted ? '1px solid rgba(255,153,204,0.4)' : '1px solid rgba(255,255,255,0.08)',
-                  color: reacted ? '#FF99CC' : 'rgba(255,255,255,0.55)',
+                  background: reacted ? 'rgba(255,153,204,0.18)' : 'hsl(var(--muted))',
+                  border: reacted ? '1px solid rgba(255,153,204,0.4)' : '1px solid hsl(var(--border))',
+                  color: reacted ? '#FF99CC' : 'hsl(var(--muted-foreground))',
                   boxShadow: reacted ? '0 0 10px rgba(255,153,204,0.15)' : 'none',
                 }}
               >
