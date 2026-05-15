@@ -241,7 +241,7 @@ export default function Upgrades() {
             style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
           >
             <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ background: 'rgba(0,255,135,0.12)', border: '1px solid rgba(0,255,135,0.2)' }}>
+              style={{ background: 'rgba(0,180,90,0.25)', border: '1px solid rgba(0,180,90,0.4)' }}>
               {detectingLocation
                 ? <span className="w-3.5 h-3.5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#00FF87', borderTopColor: 'transparent' }} />
                 : <MapPin className="w-4 h-4" style={{ color: '#00FF87' }} />
