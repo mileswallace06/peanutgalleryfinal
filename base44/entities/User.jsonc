@@ -11,16 +11,26 @@
       "default": "user"
     },
     "bio": {
-      "type": "string",
-      "description": "Short user bio"
+      "type": "string"
     },
     "avatar_url": {
-      "type": "string",
-      "description": "Profile picture URL"
+      "type": "string"
     },
     "banner_url": {
+      "type": "string"
+    },
+    "strike_count": {
+      "type": "number",
+      "default": 0
+    },
+    "stripe_account_id": {
       "type": "string",
-      "description": "Profile banner image URL"
+      "description": "Stripe Connect Express account ID (acct_xxx) assigned after onboarding"
+    },
+    "stripe_onboarding_complete": {
+      "type": "boolean",
+      "default": false,
+      "description": "True once Stripe reports charges_enabled on the connected account"
     }
   }
 }

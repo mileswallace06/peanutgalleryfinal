@@ -55,6 +55,11 @@ Deno.serve(async (req) => {
   const isAdmin = user.role === 'admin';
   const isTest = body.is_test === true;
 
+  // Block non-admin sellers who haven't completed Stripe Connect onboarding
+  if (!isAdmin && !user.stripe_onboarding_complete) {
+    return Response.json({ error: 'Payout account required. Please complete Stripe onboarding before listing.' }, { status: 403 });
+  }
+
   // Admin/test listings skip the suspicious check and are auto-approved
   const { flagged, reason } = isAdmin || isTest
     ? { flagged: false, reason: null }

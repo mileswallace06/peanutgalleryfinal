@@ -1,24 +1,54 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { Plus, Tag, TrendingUp, LogIn, Zap } from 'lucide-react';
+import { Plus, Tag, TrendingUp, LogIn, Zap, BadgeCheck, ExternalLink, Loader2, AlertCircle } from 'lucide-react';
 
 export default function Sell() {
   const [user, setUser] = useState(null);
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [onboardingLoading, setOnboardingLoading] = useState(false);
+  const [onboardingChecking, setOnboardingChecking] = useState(false);
+  const [searchParams] = useSearchParams();
+
+  const loadUser = async () => {
+    const me = await base44.auth.me();
+    setUser(me);
+    return me;
+  };
 
   useEffect(() => {
-    base44.auth.me()
+    loadUser()
       .then(async (me) => {
-        setUser(me);
         const myListings = await base44.entities.Listing.filter({ seller_email: me.email });
         setListings(myListings.sort((a, b) => new Date(b.created_date) - new Date(a.created_date)));
+
+        // Returned from Stripe onboarding — check if complete
+        const param = searchParams.get('onboarding');
+        if ((param === 'complete' || param === 'refresh') && !me.stripe_onboarding_complete) {
+          setOnboardingChecking(true);
+          const res = await base44.functions.invoke('checkSellerOnboarding', {});
+          if (res.data.complete) {
+            // Re-fetch user to get updated stripe_onboarding_complete
+            await loadUser();
+          }
+          setOnboardingChecking(false);
+        }
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  const handleStartOnboarding = async () => {
+    setOnboardingLoading(true);
+    const res = await base44.functions.invoke('onboardSeller', {});
+    if (res.data.url) {
+      window.location.href = res.data.url;
+    } else {
+      setOnboardingLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -94,14 +124,66 @@ export default function Sell() {
 
       <div className="px-4 pt-6 space-y-6">
 
-        {/* Primary CTA */}
-        <Link
-          to="/create-listing"
-          className="flex items-center justify-center gap-2 w-full py-4 rounded-full font-black text-sm"
-          style={{ background: 'linear-gradient(135deg, #FF2D78, #BF5FFF)', color: '#fff', boxShadow: '0 0 20px rgba(191,95,255,0.25)' }}
-        >
-          <Plus className="w-4 h-4" /> List My Tickets
-        </Link>
+        {/* Stripe Onboarding Gate */}
+        {onboardingChecking ? (
+          <div className="flex items-center justify-center gap-3 py-5 rounded-2xl"
+            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+            <Loader2 className="w-4 h-4 animate-spin text-primary" />
+            <span className="text-sm font-medium text-muted-foreground">Verifying payout account…</span>
+          </div>
+        ) : user.role === 'admin' || user.stripe_onboarding_complete ? (
+          /* Primary CTA — onboarding done or admin bypass */
+          <Link
+            to="/create-listing"
+            className="flex items-center justify-center gap-2 w-full py-4 rounded-full font-black text-sm"
+            style={{ background: 'linear-gradient(135deg, #FF2D78, #BF5FFF)', color: '#fff', boxShadow: '0 0 20px rgba(191,95,255,0.25)' }}
+          >
+            <Plus className="w-4 h-4" /> List My Tickets
+          </Link>
+        ) : (
+          /* Onboarding CTA — required before listing */
+          <div className="rounded-2xl overflow-hidden"
+            style={{ border: '1px solid rgba(255,140,0,0.35)', background: 'rgba(255,140,0,0.06)' }}>
+            <div className="px-5 py-4" style={{ borderBottom: '1px solid rgba(255,140,0,0.2)' }}>
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5"
+                  style={{ background: 'rgba(255,140,0,0.15)', border: '1px solid rgba(255,140,0,0.3)' }}>
+                  <AlertCircle className="w-4 h-4" style={{ color: '#FF8C00' }} />
+                </div>
+                <div>
+                  <p className="font-black text-sm text-foreground">Connect Your Payout Account</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                    To list tickets and receive payouts, you need to connect a bank account via Stripe. Takes under 2 minutes.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <div className="grid grid-cols-3 gap-2 text-center text-[11px] text-muted-foreground">
+                {['Secure & encrypted', 'Instant payouts', 'Industry standard'].map(t => (
+                  <div key={t} className="flex flex-col items-center gap-1">
+                    <BadgeCheck className="w-3.5 h-3.5 text-primary" />
+                    {t}
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={handleStartOnboarding}
+                disabled={onboardingLoading}
+                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-full font-black text-sm transition-all disabled:opacity-60"
+                style={{ background: 'linear-gradient(135deg, #FF8C00, #FF2D78)', color: '#fff', boxShadow: '0 0 18px rgba(255,140,0,0.25)' }}
+              >
+                {onboardingLoading
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Redirecting to Stripe…</>
+                  : <><ExternalLink className="w-4 h-4" /> Set Up Payouts with Stripe</>
+                }
+              </button>
+              <p className="text-[10px] text-center text-muted-foreground">
+                Powered by Stripe Connect. Your bank details are never stored by Peanut Gallery.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Stats row */}
         <div className="grid grid-cols-3 gap-3">
