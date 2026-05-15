@@ -171,8 +171,8 @@ function ListingRow({ listing }) {
   const color = STATUS_COLOR[listing.status] || 'rgba(255,255,255,0.3)';
 
   return (
-    <div className="rounded-2xl px-4 py-4 flex items-center justify-between gap-3 border dark:border-white/10 border-black/20"
-      style={{ background: 'rgba(255,255,255,0.05)' }}>
+    <div className="rounded-2xl px-4 py-4 flex items-center justify-between gap-3"
+      style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
       <div className="flex-1 min-w-0">
         <div className="font-bold text-sm text-foreground truncate">
           Sec {listing.section}{listing.row ? ` · Row ${listing.row}` : ''}
