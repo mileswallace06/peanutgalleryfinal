@@ -32,5 +32,6 @@
       "default": false,
       "description": "True once Stripe reports charges_enabled on the connected account"
     }
-  }
+  },
+  "required": []
 }
