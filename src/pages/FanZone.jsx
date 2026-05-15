@@ -483,10 +483,10 @@ function FeedTab({ id, active, label, icon, badge, onClick, onEditClick }) {
       className="relative flex items-center gap-2 px-4 py-3 rounded-2xl text-sm font-bold transition-all w-full"
       style={isActive
         ? { background: s.active, border: `1px solid ${s.border}`, color: s.color }
-        : { background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--muted-foreground))' }
+        : { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--foreground))' }
       }
     >
-      <span style={{ color: isActive ? s.color : 'hsl(var(--muted-foreground))' }}>{icon}</span>
+      <span style={{ color: isActive ? s.color : 'hsl(var(--foreground))' }}>{icon}</span>
       <span>{label}</span>
       {badge && (
         <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full ml-auto"
