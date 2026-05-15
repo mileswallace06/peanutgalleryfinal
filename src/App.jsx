@@ -24,7 +24,7 @@ import Sell from '@/pages/Sell';
 import EventDetailTM from '@/pages/EventDetailTM';
 
 const AuthenticatedApp = () => {
-  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, checkAppState } = useAuth();
+  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, checkAppState, isAuthenticated, user } = useAuth();
   const location = useLocation();
 
   // Branded loading spinner
@@ -43,7 +43,9 @@ const AuthenticatedApp = () => {
     );
   }
 
-  if (authError) {
+  // Only show auth error screens if the user is genuinely not authenticated.
+  // If we already have a user session, ignore transient auth errors (network blips, rate limits, etc.)
+  if (authError && !isAuthenticated && !user) {
     if (authError.type === 'user_not_registered') {
       return <UserNotRegisteredError onRetry={checkAppState} />;
     } else if (authError.type === 'auth_required') {
