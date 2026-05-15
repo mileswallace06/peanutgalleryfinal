@@ -106,12 +106,12 @@ export default function Sell() {
         {/* Stats row */}
         <div className="grid grid-cols-3 gap-3">
           {[
-            { label: 'Active', value: active.length, color: 'var(--neon-green)' },
-            { label: 'Sold', value: sold.length, color: 'var(--neon-cyan)' },
-            { label: 'Total', value: listings.length, color: 'var(--neon-purple)' },
-          ].map(({ label, value, color }) => (
+            { label: 'Active', value: active.length, color: 'var(--neon-green)', bg: 'rgba(0,255,135,0.08)', border: 'rgba(0,255,135,0.2)' },
+            { label: 'Sold', value: sold.length, color: 'var(--neon-cyan)', bg: 'rgba(0,200,255,0.08)', border: 'rgba(0,200,255,0.2)' },
+            { label: 'Total', value: listings.length, color: 'var(--neon-purple)', bg: 'rgba(191,95,255,0.08)', border: 'rgba(191,95,255,0.2)' },
+          ].map(({ label, value, color, bg, border }) => (
             <div key={label} className="rounded-2xl px-4 py-3 text-center"
-              style={{ background: `${color}0f`, border: `1px solid ${color}25` }}>
+              style={{ background: bg, border: `1px solid ${border}` }}>
               <div className="font-display text-2xl" style={{ color }}>{value}</div>
               <div className="text-[11px] text-muted-foreground font-medium mt-0.5">{label}</div>
             </div>
