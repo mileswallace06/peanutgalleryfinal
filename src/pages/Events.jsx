@@ -236,63 +236,66 @@ export default function Events() {
         </div>
       </div>
 
-      {/* ── Location bar ── */}
-      <div className="px-4 mt-4 mb-2">
+      {/* ── Location + Search ── */}
+      <div className="px-4 mt-4 mb-4 space-y-2">
         {editingLocation ? (
           <form onSubmit={handleLocationSubmit} className="flex gap-2">
             <div className="relative flex-1">
-              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#00C8FF' }} />
               <input
                 ref={locationInputRef}
                 autoFocus
                 type="text"
-                placeholder="City or zip code…"
+                placeholder="City, e.g. Phoenix…"
                 value={locationInput}
                 onChange={e => setLocationInput(e.target.value)}
-                className="w-full pl-9 pr-3 py-2.5 rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 dark:bg-[rgba(255,255,255,0.07)] dark:border-[rgba(255,255,255,0.14)]"
-                style={{ background: '#f0f0f0', border: '1px solid #d0d0d0' }}
+                className="w-full pl-9 pr-3 py-3 rounded-2xl text-sm font-medium text-foreground placeholder:text-muted-foreground focus:outline-none"
+                style={{ background: 'hsl(var(--card))', border: '1px solid rgba(0,200,255,0.35)', boxShadow: '0 0 0 3px rgba(0,200,255,0.08)' }}
               />
             </div>
-            <button
-              type="button"
-              onClick={handleDetectAgain}
-              title="Use my location"
-              className="flex items-center justify-center w-10 h-10 rounded-xl flex-shrink-0"
-              style={{ background: 'rgba(0,200,255,0.12)', border: '1px solid rgba(0,200,255,0.25)', color: '#00C8FF' }}
-            >
+            <button type="button" onClick={handleDetectAgain} title="Use my location"
+              className="flex items-center justify-center w-11 h-11 rounded-2xl flex-shrink-0 transition-all active:scale-95"
+              style={{ background: 'rgba(0,200,255,0.12)', border: '1px solid rgba(0,200,255,0.3)', color: '#00C8FF' }}>
               <LocateFixed className="w-4 h-4" />
             </button>
-            <button
-              type="button"
-              onClick={() => setEditingLocation(false)}
-              className="flex items-center justify-center w-10 h-10 rounded-xl flex-shrink-0"
-              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)' }}
-            >
+            <button type="button" onClick={() => setEditingLocation(false)}
+              className="flex items-center justify-center w-11 h-11 rounded-2xl flex-shrink-0 transition-all active:scale-95"
+              style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--muted-foreground))' }}>
               <X className="w-4 h-4" />
             </button>
-            <button type="submit" className="px-4 py-2.5 rounded-xl font-bold text-sm flex-shrink-0"
-              style={{ background: 'rgba(0,200,255,0.15)', color: '#00C8FF', border: '1px solid rgba(0,200,255,0.3)' }}>
+            <button type="submit"
+              className="px-4 py-3 rounded-2xl font-black text-sm flex-shrink-0 transition-all active:scale-95"
+              style={{ background: 'linear-gradient(135deg, #00C8FF, #BF5FFF)', color: '#fff' }}>
               Go
             </button>
           </form>
         ) : (
           <button
-             onClick={() => { setLocationInput(locationLabel === 'Near me' ? '' : locationLabel); setEditingLocation(true); }}
-             className="flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-xl dark:text-[rgba(255,255,255,0.7)]"
-             style={{ background: 'var(--background)', border: '1px solid var(--border)', color: 'var(--foreground)' }}
-           >
-            {detectingLocation
-              ? <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-              : <MapPin className="w-3.5 h-3.5" style={{ color: '#00C8FF' }} />
-            }
-            <span>{detectingLocation ? 'Detecting location…' : locationLabel || 'Set location'}</span>
-            <span className="text-[10px] text-muted-foreground ml-1">· change</span>
+            onClick={() => { setLocationInput(locationLabel === 'Near me' ? '' : locationLabel); setEditingLocation(true); }}
+            className="flex items-center gap-3 w-full px-4 py-3 rounded-2xl transition-all active:scale-[0.98]"
+            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+          >
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+              style={{ background: 'rgba(0,200,255,0.15)', border: '1px solid rgba(0,200,255,0.3)' }}>
+              {detectingLocation
+                ? <span className="w-3.5 h-3.5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#00C8FF', borderTopColor: 'transparent' }} />
+                : <MapPin className="w-4 h-4" style={{ color: '#00C8FF' }} />
+              }
+            </div>
+            <div className="text-left flex-1 min-w-0">
+              <p className="text-[10px] font-black tracking-widest uppercase text-muted-foreground">Showing events near</p>
+              <p className="text-sm font-bold text-foreground truncate">
+                {detectingLocation ? 'Detecting location…' : locationLabel || 'Set location'}
+              </p>
+            </div>
+            <span className="text-xs font-bold px-2.5 py-1 rounded-full flex-shrink-0"
+              style={{ background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' }}>
+              Change
+            </span>
           </button>
         )}
-      </div>
 
-      {/* ── Search bar ── */}
-      <div className="px-4 mt-2 mb-4">
+        {/* Search bar */}
         <div className="relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
@@ -300,8 +303,8 @@ export default function Events() {
             placeholder="Search events, venues, cities..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 rounded-2xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 dark:bg-[rgba(255,255,255,0.06)] dark:border-[rgba(255,255,255,0.10)]"
-            style={{ background: '#f5f5f5', border: '1px solid #e0e0e0' }}
+            className="w-full pl-10 pr-4 py-3 rounded-2xl text-sm font-medium text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
           />
         </div>
       </div>
@@ -393,24 +396,22 @@ function EventRow({ event }) {
 
         {/* List your seats tag — only for PG events */}
         {!isTM && (
-          <div className="mt-2.5">
-            <Link
-              to="/create-listing"
-              className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full"
-              style={{ background: 'rgba(191,95,255,0.12)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.25)' }}
-              onClick={e => e.stopPropagation()}
-            >
-              🥜 List your seats
-            </Link>
-          </div>
+        <div className="mt-2.5">
+          <Link
+            to="/create-listing"
+            className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full bg-muted text-muted-foreground border border-border"
+            onClick={e => e.stopPropagation()}
+          >
+            🥜 List your seats
+          </Link>
+        </div>
         )}
         {isTM && (
-          <div className="mt-2.5">
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full"
-              style={{ background: 'rgba(0,200,255,0.08)', color: 'rgba(0,200,255,0.7)', border: '1px solid rgba(0,200,255,0.15)' }}>
-              🎟️ Official tickets
-            </span>
-          </div>
+        <div className="mt-2.5">
+          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full bg-muted text-muted-foreground border border-border">
+            🎟️ Official tickets
+          </span>
+        </div>
         )}
       </div>
 
@@ -420,11 +421,7 @@ function EventRow({ event }) {
           <Link
             to={`/events/tm/${event.tm_id || String(event.id).replace('tm_', '')}`}
             className="flex items-center gap-1 px-3 py-2 rounded-xl font-bold text-xs whitespace-nowrap"
-            style={{
-              background: 'rgba(0,200,255,0.15)',
-              color: '#00C8FF',
-              border: '1px solid rgba(0,200,255,0.25)',
-            }}
+            style={{ background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}
           >
             View <ChevronRight className="w-3.5 h-3.5" />
           </Link>
@@ -432,11 +429,7 @@ function EventRow({ event }) {
           <Link
             to={`/events/${event.id}`}
             className="flex items-center gap-1 px-3 py-2 rounded-xl font-bold text-xs whitespace-nowrap"
-            style={{
-              background: 'rgba(0,200,255,0.15)',
-              color: '#00C8FF',
-              border: '1px solid rgba(0,200,255,0.25)',
-            }}
+            style={{ background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}
           >
             View <ChevronRight className="w-3.5 h-3.5" />
           </Link>
