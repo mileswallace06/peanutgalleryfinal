@@ -200,8 +200,8 @@ export default function CreateListing() {
     return (
       <div className="max-w-md mx-auto px-4 py-16 text-center">
         {isAdminUser && (
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black mb-4"
-            style={{ background: 'rgba(255,200,80,0.12)', color: '#FFE600', border: '1px solid rgba(255,200,80,0.3)' }}>
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black mb-4 dark:text-[#FFE600] text-[#7a6000]"
+            style={{ background: 'rgba(255,200,80,0.12)', border: '1px solid rgba(255,200,80,0.3)' }}>
             🧪 Test Listing
           </div>
         )}
@@ -211,13 +211,13 @@ export default function CreateListing() {
         >
           <CheckCircle className="w-10 h-10" style={{ color: '#00FF87' }} />
         </div>
-        <h1 className="font-display text-4xl mb-2" style={{ background: 'linear-gradient(135deg, #00FF87, #00C8FF)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+        <h1 className="font-display text-4xl mb-2 dark:[filter:none] [filter:brightness(0.45)_saturate(1.5)]" style={{ background: 'linear-gradient(135deg, #00FF87, #00C8FF)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
           {flagged ? 'Pending Verification' : 'Listing Live'}
         </h1>
         <p className="text-muted-foreground text-sm mb-1 mt-2">
           {flagged ? 'Your listing is being reviewed and will go live shortly.' : 'Your listing is now live and visible to buyers.'}
         </p>
-        <p className="text-xs mb-8" style={{ color: flagged ? 'rgba(255,200,80,0.7)' : 'rgba(0,255,135,0.7)' }}>
+        <p className="text-xs mb-8 dark:opacity-70" style={{ color: flagged ? '#a07000' : '#007a3d' }}>
           {flagged ? 'Usually approved within minutes.' : 'Buyers can see it right now ⚡'}
         </p>
         <div className="flex flex-col gap-3">
