@@ -275,7 +275,7 @@ export default function Upgrades() {
             <section>
               <div className="flex items-center gap-2 mb-3">
                 <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                <h2 className="text-sm font-black tracking-widest uppercase" style={{ color: '#FF2D78' }}>Live Now</h2>
+                <h2 className="text-sm font-black tracking-widest uppercase text-foreground">Live Now</h2>
               </div>
               {liveEvents.length === 0 ? (
                 <div className="rounded-2xl px-4 py-5 text-center"
@@ -296,10 +296,9 @@ export default function Upgrades() {
             {soonEvents.length > 0 && (
               <section>
                 <div className="flex items-center gap-2 mb-3">
-                  <Clock className="w-3.5 h-3.5" style={{ color: 'var(--neon-yellow)' }} />
-                  <h2 className="text-sm font-black tracking-widest uppercase" style={{ color: 'var(--neon-yellow)' }}>Starting Soon</h2>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full font-bold"
-                    style={{ background: 'rgba(255,230,0,0.12)', color: 'var(--neon-yellow)', border: '1px solid rgba(255,230,0,0.3)' }}>
+                  <Clock className="w-3.5 h-3.5 text-foreground" />
+                  <h2 className="text-sm font-black tracking-widest uppercase text-foreground">Starting Soon</h2>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-muted text-muted-foreground border border-border">
                     within {SOON_WINDOW_MINUTES} min
                   </span>
                 </div>
@@ -314,8 +313,8 @@ export default function Upgrades() {
             {/* UPCOMING */}
             <section>
               <div className="flex items-center gap-2 mb-3">
-                <Clock className="w-3.5 h-3.5" style={{ color: '#BF5FFF' }} />
-                <h2 className="text-sm font-black tracking-widest uppercase" style={{ color: '#BF5FFF' }}>Upcoming Near You</h2>
+                <Clock className="w-3.5 h-3.5 text-foreground" />
+                <h2 className="text-sm font-black tracking-widest uppercase text-foreground">Upcoming Near You</h2>
               </div>
               {upcomingEvents.length === 0 ? (
                 <div className="rounded-2xl px-4 py-5 text-center"
@@ -390,8 +389,7 @@ function EventCard({ event, mode }) {
           <span>{event.date ? format(new Date(event.date), 'EEE, MMM d · h:mm a') : 'TBD'}</span>
         </div>
         {!isLive && !isTM && (
-          <span className="inline-flex items-center gap-1 mt-1.5 text-[9px] font-bold px-2 py-0.5 rounded-full"
-            style={{ background: 'rgba(191,95,255,0.12)', color: 'var(--neon-purple)', border: '1px solid rgba(191,95,255,0.25)' }}>
+          <span className="inline-flex items-center gap-1 mt-1.5 text-[9px] font-bold px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
             <Clock className="w-2.5 h-2.5" /> Upgrades unlock at showtime
           </span>
         )}
@@ -402,10 +400,10 @@ function EventCard({ event, mode }) {
           to={linkTo}
           className="flex items-center gap-1 px-3 py-2 rounded-xl font-bold text-xs whitespace-nowrap"
           style={isLive
-            ? { background: 'rgba(0,255,135,0.15)', color: 'var(--neon-green)', border: '1px solid rgba(0,255,135,0.3)' }
+            ? { background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }
             : isSoon
-            ? { background: 'rgba(255,230,0,0.12)', color: 'var(--neon-yellow)', border: '1px solid rgba(255,230,0,0.3)' }
-            : { background: 'rgba(191,95,255,0.12)', color: 'var(--neon-purple)', border: '1px solid rgba(191,95,255,0.25)' }
+            ? { background: 'hsl(var(--foreground))', color: 'hsl(var(--background))' }
+            : { background: 'hsl(var(--secondary))', color: 'hsl(var(--secondary-foreground))', border: '1px solid hsl(var(--border))' }
           }
         >
           {linkLabel} <ChevronRight className="w-3.5 h-3.5" />
