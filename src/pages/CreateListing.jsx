@@ -249,7 +249,7 @@ export default function CreateListing() {
   const canSubmit = !!form.asking_price && parseFloat(form.asking_price) > 0;
 
   return (
-    <div className="max-w-lg mx-auto px-4 py-8 pb-32" style={{ paddingTop: 'calc(2rem + env(safe-area-inset-top))' }}>
+    <div className="max-w-lg mx-auto px-4 py-8" style={{ paddingTop: 'calc(2rem + env(safe-area-inset-top))', paddingBottom: 'calc(7rem + env(safe-area-inset-bottom))' }}>
       <Link to="/my-sales" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-6 transition-colors">
         <ArrowLeft className="w-3.5 h-3.5" /> Back
       </Link>
@@ -590,8 +590,8 @@ export default function CreateListing() {
       )}
 
       {/* Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 px-4 pb-6 pt-3 flex gap-3"
-        style={{ background: 'linear-gradient(to top, hsl(var(--background)) 70%, transparent)', paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
+      <div className="fixed bottom-0 left-0 right-0 z-50 px-4 pt-4 flex gap-3 max-w-lg mx-auto"
+        style={{ background: 'linear-gradient(to top, hsl(var(--background)) 60%, transparent)', paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom))' }}>
         {step > 0 && (
           <button
             onClick={() => setStep(s => s - 1)}
