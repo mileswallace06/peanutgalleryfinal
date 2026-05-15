@@ -106,9 +106,9 @@ export default function Sell() {
         {/* Stats row */}
         <div className="grid grid-cols-3 gap-3">
           {[
-            { label: 'Active', value: active.length, color: '#00FF87' },
-            { label: 'Sold', value: sold.length, color: '#00C8FF' },
-            { label: 'Total', value: listings.length, color: '#BF5FFF' },
+            { label: 'Active', value: active.length, color: 'var(--neon-green)' },
+            { label: 'Sold', value: sold.length, color: 'var(--neon-cyan)' },
+            { label: 'Total', value: listings.length, color: 'var(--neon-purple)' },
           ].map(({ label, value, color }) => (
             <div key={label} className="rounded-2xl px-4 py-3 text-center"
               style={{ background: `${color}0f`, border: `1px solid ${color}25` }}>
@@ -162,13 +162,13 @@ export default function Sell() {
 
 function ListingRow({ listing }) {
   const STATUS_COLOR = {
-    active: '#00FF87',
-    pending_transfer: '#FFE600',
-    sold: '#00C8FF',
-    cancelled: '#FF2D78',
-    expired: 'rgba(100,100,100,0.6)',
+    active: 'var(--neon-green)',
+    pending_transfer: 'var(--neon-yellow)',
+    sold: 'var(--neon-cyan)',
+    cancelled: 'var(--neon-pink)',
+    expired: 'hsl(var(--muted-foreground))',
   };
-  const color = STATUS_COLOR[listing.status] || 'rgba(255,255,255,0.3)';
+  const color = STATUS_COLOR[listing.status] || 'hsl(var(--muted-foreground))';
 
   return (
     <div className="rounded-2xl px-4 py-4 flex items-center justify-between gap-3"
