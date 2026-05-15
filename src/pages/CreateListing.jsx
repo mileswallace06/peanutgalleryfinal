@@ -590,7 +590,8 @@ export default function CreateListing() {
       )}
 
       {/* Navigation */}
-      <div className="flex gap-3 mt-8">
+      <div className="fixed bottom-0 left-0 right-0 z-50 px-4 pb-6 pt-3 flex gap-3"
+        style={{ background: 'linear-gradient(to top, hsl(var(--background)) 70%, transparent)', paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
         {step > 0 && (
           <button
             onClick={() => setStep(s => s - 1)}
