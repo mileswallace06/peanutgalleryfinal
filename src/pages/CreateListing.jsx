@@ -19,9 +19,9 @@ function StepBar({ current }) {
               <div
                 className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black flex-shrink-0"
                 style={{
-                  background: done ? '#00FF87' : active ? 'rgba(191,95,255,0.3)' : 'rgba(255,255,255,0.07)',
-                  color: done ? '#0D0B14' : active ? '#BF5FFF' : 'rgba(255,255,255,0.3)',
-                  border: active ? '1px solid rgba(191,95,255,0.5)' : done ? 'none' : '1px solid rgba(255,255,255,0.1)',
+                  background: done ? '#00FF87' : active ? 'rgba(191,95,255,0.3)' : 'hsl(var(--muted))',
+                  color: done ? '#0D0B14' : active ? '#BF5FFF' : 'hsl(var(--muted-foreground))',
+                  border: active ? '1px solid rgba(191,95,255,0.5)' : done ? 'none' : '1px solid hsl(var(--border))',
                   boxShadow: active ? '0 0 10px rgba(191,95,255,0.4)' : 'none',
                 }}
               >
@@ -29,7 +29,7 @@ function StepBar({ current }) {
               </div>
               <span
                 className="text-[11px] font-semibold"
-                style={{ color: active ? '#fff' : done ? '#00FF87' : 'rgba(255,255,255,0.3)' }}
+                style={{ color: active ? 'hsl(var(--foreground))' : done ? '#00FF87' : 'hsl(var(--muted-foreground))' }}
               >
                 {label}
               </span>
@@ -37,7 +37,7 @@ function StepBar({ current }) {
             {i < 2 && (
               <div
                 className="h-px flex-1 mx-1"
-                style={{ background: done ? '#00FF8740' : 'rgba(255,255,255,0.08)' }}
+                style={{ background: done ? '#00FF8740' : 'hsl(var(--border))' }}
               />
             )}
           </div>
@@ -49,8 +49,8 @@ function StepBar({ current }) {
 
 const inputClass = `w-full px-4 py-3.5 rounded-2xl text-sm font-medium text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40`;
 const inputStyle = {
-  background: 'rgba(255,255,255,0.06)',
-  border: '1px solid rgba(255,255,255,0.12)',
+  background: 'hsl(var(--input))',
+  border: '1px solid hsl(var(--border))',
 };
 
 export default function CreateListing() {
@@ -235,7 +235,7 @@ export default function CreateListing() {
               setSelectedTmEvent(null); setTmResults([]); setTmQuery(''); setTmSearched(false); setSelectingTmId(null);
             }}
             className="inline-flex items-center justify-center gap-2 py-3 rounded-full font-semibold text-sm"
-            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)' }}
+            style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--muted-foreground))' }}
           >
             List Another
           </button>
@@ -267,13 +267,13 @@ export default function CreateListing() {
       {step === 0 && (
         <div className="space-y-3">
           {/* Tabs */}
-          <div className="flex rounded-2xl p-1 gap-1" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <div className="flex rounded-2xl p-1 gap-1" style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}>
             <button
               onClick={() => setEventTab('recommended')}
               className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all"
               style={{
                 background: eventTab === 'recommended' ? 'rgba(191,95,255,0.2)' : 'transparent',
-                color: eventTab === 'recommended' ? '#BF5FFF' : 'rgba(255,255,255,0.4)',
+                color: eventTab === 'recommended' ? '#BF5FFF' : 'hsl(var(--muted-foreground))',
                 border: eventTab === 'recommended' ? '1px solid rgba(191,95,255,0.35)' : '1px solid transparent',
               }}
             >
@@ -284,7 +284,7 @@ export default function CreateListing() {
               className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all"
               style={{
                 background: eventTab === 'search' ? 'rgba(191,95,255,0.2)' : 'transparent',
-                color: eventTab === 'search' ? '#BF5FFF' : 'rgba(255,255,255,0.4)',
+                color: eventTab === 'search' ? '#BF5FFF' : 'hsl(var(--muted-foreground))',
                 border: eventTab === 'search' ? '1px solid rgba(191,95,255,0.35)' : '1px solid transparent',
               }}
             >
@@ -296,7 +296,7 @@ export default function CreateListing() {
           {eventTab === 'recommended' && (
             <div className="space-y-4">
               {nearbyLoading ? (
-                <>{[1,2,3].map(i => <div key={i} className="h-14 rounded-2xl animate-pulse" style={{ background: 'rgba(255,255,255,0.05)' }} />)}</>
+                <>{[1,2,3].map(i => <div key={i} className="h-14 rounded-2xl animate-pulse bg-muted" />)}</>
               ) : (() => {
                 const nowMs = Date.now();
                 const liveEvs = allRecEvents.filter(e => getEventLiveStatus(e, nowMs).status === 'live');
@@ -316,8 +316,8 @@ export default function CreateListing() {
                       disabled={!!selectingTmId}
                       className="w-full text-left px-4 py-3 rounded-2xl transition-all flex items-center gap-3 disabled:opacity-60"
                       style={{
-                        background: isSelected ? 'rgba(191,95,255,0.12)' : 'rgba(255,255,255,0.04)',
-                        border: isSelected ? '1px solid rgba(191,95,255,0.4)' : '1px solid rgba(255,255,255,0.08)',
+                        background: isSelected ? 'rgba(191,95,255,0.12)' : 'hsl(var(--card))',
+                        border: isSelected ? '1px solid rgba(191,95,255,0.4)' : '1px solid hsl(var(--border))',
                       }}
                     >
                       {ev.image_url && <img src={ev.image_url} alt="" className="w-9 h-9 rounded-lg object-cover flex-shrink-0" />}
@@ -345,7 +345,7 @@ export default function CreateListing() {
                     )}
                     {soonEvs.length > 0 && (
                       <div>
-                        <p className="text-[10px] font-black tracking-widest uppercase mb-2" style={{ color: '#FFE600' }}>⚡ Starting Soon</p>
+                        <p className="text-[10px] font-black tracking-widest uppercase mb-2 dark:text-[#FFE600] text-[#7a6000]">⚡ Starting Soon</p>
                         <div className="space-y-2">{soonEvs.map(renderEvent)}</div>
                       </div>
                     )}
@@ -380,7 +380,7 @@ export default function CreateListing() {
                     onKeyDown={e => e.key === 'Enter' && handleTmSearch()}
                     placeholder="Artist, team, or event name…"
                     className="w-full pl-9 pr-4 py-3 rounded-2xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
-                    style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }}
+                    style={{ background: 'hsl(var(--input))', border: '1px solid hsl(var(--border))' }}
                   />
                 </div>
                 <button
@@ -395,7 +395,7 @@ export default function CreateListing() {
 
               {tmLoading && (
                 <div className="space-y-2">
-                  {[1,2,3].map(i => <div key={i} className="h-14 rounded-2xl animate-pulse" style={{ background: 'rgba(255,255,255,0.05)' }} />)}
+                  {[1,2,3].map(i => <div key={i} className="h-14 rounded-2xl animate-pulse bg-muted" />)}
                 </div>
               )}
 
@@ -410,8 +410,8 @@ export default function CreateListing() {
                   disabled={!!selectingTmId}
                   className="w-full text-left px-4 py-3.5 rounded-2xl transition-all flex items-center gap-3 disabled:opacity-60"
                   style={{
-                    background: selectingTmId === ev.tm_id ? 'rgba(191,95,255,0.12)' : 'rgba(255,255,255,0.04)',
-                    border: selectingTmId === ev.tm_id ? '1px solid rgba(191,95,255,0.4)' : '1px solid rgba(255,255,255,0.08)',
+                    background: selectingTmId === ev.tm_id ? 'rgba(191,95,255,0.12)' : 'hsl(var(--card))',
+                    border: selectingTmId === ev.tm_id ? '1px solid rgba(191,95,255,0.4)' : '1px solid hsl(var(--border))',
                     boxShadow: selectingTmId === ev.tm_id ? '0 0 16px rgba(191,95,255,0.15)' : 'none',
                   }}
                 >
@@ -438,7 +438,7 @@ export default function CreateListing() {
         <div className="space-y-4">
           {selectedEvent && (
             <div className="px-4 py-2.5 rounded-2xl text-xs text-muted-foreground mb-1"
-              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+              style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}>
               🎫 {selectedEvent.title}
             </div>
           )}
@@ -467,9 +467,9 @@ export default function CreateListing() {
                     onClick={() => set('quantity', String(n))}
                     className="flex-1 py-3 rounded-xl text-xs font-bold transition-all"
                     style={{
-                      background: form.quantity === String(n) ? 'rgba(191,95,255,0.15)' : 'rgba(255,255,255,0.04)',
-                      border: form.quantity === String(n) ? '1px solid rgba(191,95,255,0.4)' : '1px solid rgba(255,255,255,0.08)',
-                      color: form.quantity === String(n) ? '#BF5FFF' : 'rgba(255,255,255,0.55)',
+                      background: form.quantity === String(n) ? 'rgba(191,95,255,0.15)' : 'hsl(var(--muted))',
+                      border: form.quantity === String(n) ? '1px solid rgba(191,95,255,0.4)' : '1px solid hsl(var(--border))',
+                      color: form.quantity === String(n) ? '#BF5FFF' : 'hsl(var(--muted-foreground))',
                     }}
                   >
                     {n}
@@ -491,9 +491,9 @@ export default function CreateListing() {
                 <button key={t} type="button" onClick={() => set('tier', form.tier === t ? '' : t)}
                   className="py-2.5 rounded-xl text-xs font-bold capitalize transition-all"
                   style={{
-                    background: form.tier === t ? 'rgba(191,95,255,0.15)' : 'rgba(255,255,255,0.04)',
-                    border: form.tier === t ? '1px solid rgba(191,95,255,0.4)' : '1px solid rgba(255,255,255,0.08)',
-                    color: form.tier === t ? '#BF5FFF' : 'rgba(255,255,255,0.45)',
+                    background: form.tier === t ? 'rgba(191,95,255,0.15)' : 'hsl(var(--muted))',
+                    border: form.tier === t ? '1px solid rgba(191,95,255,0.4)' : '1px solid hsl(var(--border))',
+                    color: form.tier === t ? '#BF5FFF' : 'hsl(var(--muted-foreground))',
                   }}
                 >
                   {t}
@@ -523,7 +523,7 @@ export default function CreateListing() {
                   paddingTop: '1rem', paddingBottom: '1rem',
                   background: 'rgba(0,255,135,0.05)',
                   border: '1px solid rgba(0,255,135,0.25)',
-                  color: '#fff',
+                  color: 'hsl(var(--foreground))',
                   letterSpacing: '-0.02em',
                 }}
               />
@@ -555,7 +555,7 @@ export default function CreateListing() {
               </div>
             ) : (
               <label className={`flex flex-col items-center justify-center gap-2 rounded-2xl px-4 py-6 cursor-pointer transition-all ${uploadingProof ? 'opacity-70' : ''}`}
-                style={{ border: '1.5px dashed rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.03)' }}>
+                style={{ border: '1.5px dashed hsl(var(--border))', background: 'hsl(var(--muted))' }}>
                 {uploadingProof
                   ? <span className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                   : <Upload className="w-5 h-5 text-muted-foreground" />}
@@ -576,9 +576,9 @@ export default function CreateListing() {
                 <button key={opt.value} type="button" onClick={() => set('transfer_method', opt.value)}
                   className="w-full text-left px-4 py-3.5 rounded-2xl transition-all"
                   style={{
-                    background: form.transfer_method === opt.value ? 'rgba(191,95,255,0.1)' : 'rgba(255,255,255,0.04)',
-                    border: form.transfer_method === opt.value ? '1px solid rgba(191,95,255,0.35)' : '1px solid rgba(255,255,255,0.08)',
-                    color: form.transfer_method === opt.value ? '#fff' : 'rgba(255,255,255,0.55)',
+                    background: form.transfer_method === opt.value ? 'rgba(191,95,255,0.1)' : 'hsl(var(--card))',
+                    border: form.transfer_method === opt.value ? '1px solid rgba(191,95,255,0.35)' : '1px solid hsl(var(--border))',
+                    color: form.transfer_method === opt.value ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))',
                   }}
                 >
                   <span className="text-sm font-semibold">{opt.label}</span>
@@ -595,7 +595,7 @@ export default function CreateListing() {
           <button
             onClick={() => setStep(s => s - 1)}
             className="flex items-center gap-1.5 px-5 py-3 rounded-full text-sm font-semibold transition-colors"
-            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)' }}
+            style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--muted-foreground))' }}
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
