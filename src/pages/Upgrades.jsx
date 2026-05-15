@@ -23,6 +23,9 @@ export default function Upgrades() {
   const setLatlongSync = (val) => { latlongRef.current = val; setLatlong(val); };
 
   const fetchEvents = useCallback((ll, cityOverride) => {
+    // Don't fetch until we have a location or city
+    if (!ll && !cityOverride) return;
+
     setLoading(true);
     const tmParams = { size: 40 };
     if (ll) { tmParams.latlong = ll; tmParams.radius = '50'; }
@@ -48,13 +51,14 @@ export default function Upgrades() {
         );
         if (tmCities.size > 0) {
           pgEvents = pgEvents.filter(e => !e.city || tmCities.has(e.city.toLowerCase()));
+        } else {
+          pgEvents = [];
         }
       }
 
       const pgMapped = pgEvents.map(e => ({ ...e, source: 'pg' }));
       const tmEvents = (tmRes?.data?.events || []).map(e => ({ ...e, id: `tm_${e.tm_id}`, source: 'ticketmaster' }));
 
-      // Merge: prefer PG events, deduplicate TM events that already exist locally by tm_id
       const pgTmIds = new Set(pgMapped.map(e => e.tm_id).filter(Boolean));
       const uniqueTM = tmEvents.filter(e => !pgTmIds.has(e.tm_id));
 
@@ -74,9 +78,10 @@ export default function Upgrades() {
         fetchEvents(ll, null);
       },
       () => {
+        // Location denied — do NOT fetch national results; prompt user to enter city
         setDetectingLocation(false);
         setLocationDenied(true);
-        fetchEvents(null, null);
+        setLoading(false);
       },
       { timeout: 8000, enableHighAccuracy: true, maximumAge: 0 }
     );
@@ -263,13 +268,21 @@ export default function Upgrades() {
 
       {/* Content */}
       <div className="px-4 space-y-8">
+        {!loading && !latlong && !locationLabel && (
+          <div className="rounded-2xl px-4 py-8 text-center"
+            style={{ background: 'rgba(0,200,255,0.05)', border: '1px solid rgba(0,200,255,0.15)' }}>
+            <p className="text-3xl mb-3">📍</p>
+            <p className="text-sm font-bold text-foreground">Location access needed</p>
+            <p className="text-xs text-muted-foreground mt-1">Enter your city above to see live and upcoming events near you</p>
+          </div>
+        )}
         {loading ? (
           <div className="space-y-3">
             {[...Array(4)].map((_, i) => (
               <div key={i} className="rounded-2xl h-24 animate-pulse dark:bg-[rgba(255,255,255,0.05)]" style={{ background: '#f0f0f0' }} />
             ))}
           </div>
-        ) : (
+        ) : (latlong || locationLabel) && (
           <>
             {/* LIVE NOW */}
             <section>

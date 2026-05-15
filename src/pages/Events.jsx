@@ -27,6 +27,9 @@ export default function Events() {
   const setLocationLabelSync = (val) => { locationLabelRef.current = val; setLocationLabel(val); };
 
   const fetchEvents = useCallback((ll, cityOverride, keyword) => {
+    // Don't fetch until we have a location, city, or keyword
+    if (!ll && !cityOverride && !keyword) return;
+
     setLoading(true);
     const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
     const now = Date.now();
@@ -53,6 +56,7 @@ export default function Events() {
         );
       }
       if (ll) {
+        // Filter local PG events by the cities TM returned (geo-nearby cities)
         const tmCities = new Set(
           (tmRes?.data?.events || []).map(e => e.city?.toLowerCase()).filter(Boolean)
         );
@@ -60,6 +64,9 @@ export default function Events() {
           pgFiltered = pgFiltered.filter(e =>
             !e.city || tmCities.has(e.city.toLowerCase())
           );
+        } else {
+          // TM returned nothing nearby — show no PG events either (truly nothing nearby)
+          pgFiltered = [];
         }
       }
 
@@ -79,7 +86,7 @@ export default function Events() {
           image_url: e.image_url,
           tm_url: e.tm_url,
           category: e.category || null,
-        }).catch(() => {}); // fire-and-forget, don't block UI
+        }).catch(() => {});
       });
     }).catch(console.error).finally(() => setLoading(false));
   }, []);
@@ -96,32 +103,34 @@ export default function Events() {
         fetchEvents(ll, null, searchRef.current || null);
       },
       () => {
+        // Location denied — do NOT fetch national results; prompt user to enter city
         setDetectingLocation(false);
-        fetchEvents(null, null, searchRef.current || null);
+        setLoading(false);
       },
       { timeout: 8000, enableHighAccuracy: true, maximumAge: 0 }
     );
   }, [fetchEvents]);
 
-  // Search debounce — if user typed a keyword, drop geo filter so TM searches globally
+  // Search debounce — keyword search drops geo so TM searches nationally by keyword
   useEffect(() => {
     searchRef.current = search;
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
     searchDebounceRef.current = setTimeout(() => {
       const keyword = search.trim();
       const hasKeyword = keyword.length > 0;
-      // When keyword is active, ignore geo so results aren't geo-restricted
-      const ll = hasKeyword ? null : (latlongRef.current || null);
-      const city = hasKeyword ? null : (locationLabelRef.current && locationLabelRef.current !== 'Near me'
-        ? locationLabelRef.current : null);
-      // Update the top location label to reflect what's being searched
+
       if (hasKeyword) {
+        // Keyword search: no geo restriction, search nationally
         setLocationLabel(`"${keyword}"`);
+        fetchEvents(null, null, keyword);
       } else {
-        // Restore the real location label from ref (which was never overwritten)
+        // Keyword cleared: restore geo or city filter
         setLocationLabel(locationLabelRef.current);
+        const ll = latlongRef.current || null;
+        const city = !ll && locationLabelRef.current && locationLabelRef.current !== 'Near me'
+          ? locationLabelRef.current : null;
+        fetchEvents(ll, city, null);
       }
-      fetchEvents(ll, city, keyword || null);
     }, 400);
     return () => clearTimeout(searchDebounceRef.current);
   }, [search, fetchEvents]);
@@ -325,11 +334,17 @@ export default function Events() {
             <div key={i} className="rounded-2xl h-28 animate-pulse" style={{ background: 'rgba(255,255,255,0.05)' }} />
           ))}
         </div>
+      ) : !loading && !latlong && !locationLabel && !search ? (
+        <div className="text-center py-20 text-muted-foreground px-4">
+          <p className="text-4xl mb-3">📍</p>
+          <p className="font-medium text-foreground">Location access needed</p>
+          <p className="text-sm mt-1 opacity-70">Enter your city above to find events near you</p>
+        </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-20 text-muted-foreground px-4">
           <p className="text-4xl mb-3">🥜</p>
-          <p className="font-medium">No events found</p>
-          <p className="text-sm mt-1 opacity-70">Try adjusting your search</p>
+          <p className="font-medium">No events found nearby</p>
+          <p className="text-sm mt-1 opacity-70">Try a different city or search term</p>
         </div>
       ) : (
         <div className="px-4 space-y-3">
