@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from 'react';
 import { MapPin, Zap, Tag, Flame, User } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 import Onboarding from '@/components/Onboarding';
-import ThemeToggle from '@/components/ThemeToggle';
 
 const NAV = [
   { to: '/events', label: 'Tickets', icon: MapPin, color: '#BF5FFF', key: 'events' },

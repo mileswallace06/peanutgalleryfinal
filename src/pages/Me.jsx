@@ -1,9 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { Ticket, TrendingUp, Shield, LogIn, Edit2, Check, X, Tag, Zap, ChevronRight, LogOut, Camera, ImagePlus, Users, UserPlus, UserCheck, Trash2 } from 'lucide-react';
-import DeleteAccountModal from '@/components/DeleteAccountModal';
-import ThemeToggle from '@/components/ThemeToggle';
+import { Ticket, TrendingUp, Shield, LogIn, Edit2, Check, X, Tag, Zap, ChevronRight, Camera, ImagePlus, UserPlus, UserCheck, Settings } from 'lucide-react';
+import AccountSettings from '@/components/me/AccountSettings';
 
 export default function Me() {
   const [user, setUser] = useState(null);
@@ -18,7 +17,8 @@ export default function Me() {
   const [followers, setFollowers] = useState([]);
   const [following, setFollowing] = useState([]);
   const [socialTab, setSocialTab] = useState('following'); // 'following' | 'followers'
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [mainTab, setMainTab] = useState('profile'); // 'profile' | 'settings'
+  const [purchases, setPurchases] = useState([]);
 
   useEffect(() => {
     base44.auth.me().then(u => {
@@ -28,9 +28,11 @@ export default function Me() {
         Promise.all([
           base44.entities.Follow.filter({ follower_email: u.email }),
           base44.entities.Follow.filter({ following_email: u.email }),
-        ]).then(([fwing, fwers]) => {
+          base44.entities.Purchase.filter({ buyer_email: u.email }),
+        ]).then(([fwing, fwers, purch]) => {
           setFollowing(fwing);
           setFollowers(fwers);
+          setPurchases(purch.sort((a, b) => new Date(b.created_date) - new Date(a.created_date)));
         }).catch(() => {});
       }
     }).catch(() => {});
@@ -108,9 +110,6 @@ export default function Me() {
 
   return (
     <div className="min-h-screen pb-32 dark:rave-bg relative" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
-      <div className="absolute top-4 right-4 z-[99]" style={{ paddingTop: 'env(safe-area-inset-top)', paddingRight: 'env(safe-area-inset-right)' }}>
-        <ThemeToggle />
-      </div>
 
       {/* Hero banner */}
       <div className="relative h-40 overflow-hidden group/banner">
@@ -230,6 +229,31 @@ export default function Me() {
           )}
         </div>
 
+        {/* Tab switcher */}
+        <div className="flex gap-2 mb-5">
+          {[{ key: 'profile', label: 'Profile' }, { key: 'settings', label: 'Settings', icon: Settings }].map(t => (
+            <button
+              key={t.key}
+              onClick={() => setMainTab(t.key)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all"
+              style={mainTab === t.key
+                ? { background: 'rgba(191,95,255,0.15)', border: '1px solid rgba(191,95,255,0.4)', color: '#BF5FFF' }
+                : { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--muted-foreground))' }
+              }
+            >
+              {t.icon && <t.icon className="w-3.5 h-3.5" />}
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {mainTab === 'settings' && (
+          <AccountSettings user={user} purchases={purchases} />
+        )}
+
+        {/* Profile tab content */}
+        {mainTab === 'profile' && (
+        <>
         {/* Bio */}
         {editing ? (
           <div className="mb-6">
@@ -427,27 +451,9 @@ export default function Me() {
           )}
         </div>
 
-        {/* Sign out */}
-        <button
-          onClick={() => base44.auth.logout('/')}
-          className="w-full flex items-center justify-center gap-2 mt-6 py-3.5 rounded-2xl text-sm font-semibold transition-all dark:bg-[rgba(255,45,120,0.07)] dark:border-[rgba(255,45,120,0.15)] dark:text-[rgba(255,100,140,0.8)]"
-          style={{ background: '#faf0f5', border: '1px solid #f0d0d8', color: '#a04050' }}
-        >
-          <LogOut className="w-4 h-4" /> Sign Out
-        </button>
-
-        {/* Delete Account */}
-        <button
-          onClick={() => setShowDeleteModal(true)}
-          className="w-full flex items-center justify-center gap-2 mt-3 py-3.5 rounded-2xl text-sm font-semibold transition-all dark:bg-[rgba(255,45,120,0.1)] dark:border-[rgba(255,45,120,0.25)]"
-          style={{ background: '#f8e8f0', border: '1px solid #f0d0d8', color: '#a04050' }}
-        >
-          <Trash2 className="w-4 h-4" /> Delete Account
-        </button>
+        </>
+        )}
       </div>
-
-      {/* Delete Account Modal */}
-      <DeleteAccountModal user={user} isOpen={showDeleteModal} onClose={() => setShowDeleteModal(false)} />
     </div>
   );
 }

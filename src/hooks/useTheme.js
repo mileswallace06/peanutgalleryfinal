@@ -11,11 +11,9 @@ export function useTheme() {
       setTheme(saved);
       applyTheme(saved);
     } else {
-      // Check system preference
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      const detected = prefersDark ? 'dark' : 'light';
-      setTheme(detected);
-      applyTheme(detected);
+      // Default to dark mode
+      setTheme('dark');
+      applyTheme('dark');
     }
     setMounted(true);
   }, []);
