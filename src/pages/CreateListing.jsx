@@ -155,11 +155,11 @@ export default function CreateListing() {
         loadRecommended(`${pos.coords.latitude},${pos.coords.longitude}`, null);
       },
       () => {
-        // Geo denied — don't fetch nationally, show city prompt
+        // Geo denied — show city prompt
         setNearbyLoading(false);
         setRecLocationDenied(true);
       },
-      { timeout: 8000, enableHighAccuracy: false, maximumAge: 60000 }
+      { timeout: 15000, enableHighAccuracy: false, maximumAge: 300000 }
     );
 
     // Store loadRecommended for city fallback
