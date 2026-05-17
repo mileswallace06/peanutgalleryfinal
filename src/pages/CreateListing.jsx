@@ -97,7 +97,7 @@ export default function CreateListing() {
   });
 
   useEffect(() => {
-    base44.auth.me().then(setUser).catch(() => {});
+    base44.auth.me({ fresh: true }).catch(() => base44.auth.me()).then(setUser).catch(() => {});
     base44.entities.Event.filter({ status: 'upcoming' })
       .then(res => setEvents(res.filter(e => e.status !== 'ended')))
       .catch(console.error)
@@ -246,8 +246,41 @@ export default function CreateListing() {
 
   const selectedEvent = events.find(e => e.id === form.event_id) || selectedTmEvent;
 
-  // ── Success screen ────────────────────────────────────────────────────────
+  // ── Onboarding gate ───────────────────────────────────────────────────────
   const isAdminUser = user?.role === 'admin';
+  const onboardingComplete =
+    isAdminUser ||
+    user?.stripe_onboarding_complete === true ||
+    user?.stripe_onboarding_complete === 'true';
+
+  if (user && !onboardingComplete) {
+    return (
+      <div className="max-w-md mx-auto px-4 py-16 flex flex-col items-center text-center gap-6">
+        <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
+          style={{ background: 'rgba(255,140,0,0.12)', border: '1px solid rgba(255,140,0,0.3)' }}>
+          <span className="text-3xl">🏦</span>
+        </div>
+        <div>
+          <h2 className="font-display text-3xl mb-2" style={{ color: '#FF8C00' }}>Payout Account Required</h2>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            To list tickets on Peanut Gallery, you need to connect your bank account via Stripe. It takes under 2 minutes.
+          </p>
+        </div>
+        <Link
+          to="/sell"
+          className="w-full flex items-center justify-center gap-2 py-4 rounded-full font-black text-sm"
+          style={{ background: 'linear-gradient(135deg, #FF8C00, #FF2D78)', color: '#fff', boxShadow: '0 0 18px rgba(255,140,0,0.25)' }}
+        >
+          Set Up Payouts →
+        </Link>
+        <Link to="/sell" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+          ← Back to Sell
+        </Link>
+      </div>
+    );
+  }
+
+  // ── Success screen ────────────────────────────────────────────────────────
 
   if (done) {
     return (

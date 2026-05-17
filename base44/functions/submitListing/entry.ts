@@ -55,9 +55,20 @@ Deno.serve(async (req) => {
   const isAdmin = user.role === 'admin';
   const isTest = body.is_test === true;
 
-  // Block non-admin sellers who haven't completed Stripe Connect onboarding
-  if (!isAdmin && !user.stripe_onboarding_complete) {
-    return Response.json({ error: 'Payout account required. Please complete Stripe onboarding before listing.' }, { status: 403 });
+  // Re-fetch the user from DB to get the live stripe_onboarding_complete value,
+  // bypassing any stale session token data.
+  if (!isAdmin) {
+    const freshUsers = await base44.asServiceRole.entities.User.filter({ email: user.email });
+    const freshUser = freshUsers[0];
+    const onboardingComplete =
+      freshUser?.stripe_onboarding_complete === true ||
+      freshUser?.stripe_onboarding_complete === 'true';
+    if (!onboardingComplete) {
+      return Response.json(
+        { error: 'Connect your payout account before listing tickets.' },
+        { status: 403 }
+      );
+    }
   }
 
   // Admin/test listings skip the suspicious check and are auto-approved
