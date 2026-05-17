@@ -122,23 +122,24 @@ export default function CreateListing() {
 
       Promise.all([
         base44.entities.Event.list('date', 200),
-        fetchTMEvents(base44, tmParams),
+        fetchTMEvents(base44, tmParams).catch(() => ({ events: [] })),
       ]).then(([localData, { events: tmEventsRaw }]) => {
         let pgEvents = localData.filter(e => e.status !== 'ended');
 
-        if (ll) {
-          // Geo mode: filter PG events to cities TM returned nearby
-          const tmCities = new Set(tmEventsRaw.map(e => e.city?.toLowerCase()).filter(Boolean));
-          if (tmCities.size > 0) {
-            pgEvents = pgEvents.filter(e => !e.city || tmCities.has(e.city.toLowerCase()));
-          }
-        } else if (cityOverride) {
+        if (cityOverride) {
           // City mode: filter PG events by city name
           const q = cityOverride.toLowerCase();
           pgEvents = pgEvents.filter(e =>
             e.city?.toLowerCase().includes(q) ||
             e.venue?.toLowerCase().includes(q)
           );
+        }
+        // For geo mode: only filter PG events by TM cities if TM returned results
+        if (ll && tmEventsRaw.length > 0) {
+          const tmCities = new Set(tmEventsRaw.map(e => e.city?.toLowerCase()).filter(Boolean));
+          if (tmCities.size > 0) {
+            pgEvents = pgEvents.filter(e => !e.city || tmCities.has(e.city.toLowerCase()));
+          }
         }
 
         const pgMapped = pgEvents.map(e => ({ ...e, source: 'pg' }));
