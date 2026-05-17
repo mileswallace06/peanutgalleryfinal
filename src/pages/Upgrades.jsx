@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 import { MapPin, Calendar, Zap, ChevronRight, LocateFixed, X, Clock, RefreshCw } from 'lucide-react';
 import { getEventLiveStatus, SOON_WINDOW_MINUTES } from '@/lib/eventTiming';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
+import { fetchTMEvents, bustTMCache } from '@/lib/tmCache';
 
 export default function Upgrades() {
   const [allEvents, setAllEvents] = useState([]);
@@ -22,33 +23,37 @@ export default function Upgrades() {
   const setLocationLabelSync = (val) => { locationLabelRef.current = val; setLocationLabel(val); };
   const setLatlongSync = (val) => { latlongRef.current = val; setLatlong(val); };
 
-  const fetchEvents = useCallback((ll, cityOverride) => {
-    // Don't fetch until we have a location or city
+  const [tmError, setTmError] = useState(false);
+
+  const fetchEvents = useCallback(async (ll, cityOverride, bust = false) => {
     if (!ll && !cityOverride) return;
 
     setLoading(true);
+    setTmError(false);
     const tmParams = { size: 40 };
     if (ll) { tmParams.latlong = ll; tmParams.radius = '50'; }
     else if (cityOverride) { tmParams.city = cityOverride; }
 
-    Promise.all([
-      base44.entities.Event.list('date', 200),
-      base44.functions.invoke('getTicketmasterEvents', tmParams),
-    ]).then(([localData, tmRes]) => {
-      let pgEvents = localData.filter((e) => e.status !== 'ended');
+    if (bust) bustTMCache(tmParams);
+
+    try {
+      const [localData, { events: tmEventsRaw }] = await Promise.all([
+        base44.entities.Event.list('date', 200),
+        fetchTMEvents(base44, tmParams),
+      ]);
+
+      let pgEvents = localData.filter(e => e.status !== 'ended');
 
       if (cityOverride && !ll) {
         const q = cityOverride.toLowerCase();
-        pgEvents = pgEvents.filter((e) =>
+        pgEvents = pgEvents.filter(e =>
           e.city?.toLowerCase().includes(q) ||
           e.state?.toLowerCase().includes(q) ||
           e.venue?.toLowerCase().includes(q)
         );
       }
       if (ll) {
-        const tmCities = new Set(
-          (tmRes?.data?.events || []).map(e => e.city?.toLowerCase()).filter(Boolean)
-        );
+        const tmCities = new Set(tmEventsRaw.map(e => e.city?.toLowerCase()).filter(Boolean));
         if (tmCities.size > 0) {
           pgEvents = pgEvents.filter(e => !e.city || tmCities.has(e.city.toLowerCase()));
         } else {
@@ -57,13 +62,17 @@ export default function Upgrades() {
       }
 
       const pgMapped = pgEvents.map(e => ({ ...e, source: 'pg' }));
-      const tmEvents = (tmRes?.data?.events || []).map(e => ({ ...e, id: `tm_${e.tm_id}`, source: 'ticketmaster' }));
-
+      const tmEvents = tmEventsRaw.map(e => ({ ...e, id: `tm_${e.tm_id}`, source: 'ticketmaster' }));
       const pgTmIds = new Set(pgMapped.map(e => e.tm_id).filter(Boolean));
       const uniqueTM = tmEvents.filter(e => !pgTmIds.has(e.tm_id));
 
       setAllEvents([...pgMapped, ...uniqueTM]);
-    }).catch(console.error).finally(() => setLoading(false));
+    } catch (err) {
+      if (err?.response?.status === 429) setTmError(true);
+      else console.error(err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -78,12 +87,11 @@ export default function Upgrades() {
         fetchEvents(ll, null);
       },
       () => {
-        // Location denied — do NOT fetch national results; prompt user to enter city
         setDetectingLocation(false);
         setLocationDenied(true);
         setLoading(false);
       },
-      { timeout: 8000, enableHighAccuracy: true, maximumAge: 0 }
+      { timeout: 8000, enableHighAccuracy: false, maximumAge: 60000 }
     );
   }, [fetchEvents]);
 
@@ -138,7 +146,11 @@ export default function Upgrades() {
     });
 
   const { containerRef, pulling } = usePullToRefresh(() => {
-    fetchEvents(latlongRef.current || null, locationLabelRef.current !== 'Near me' ? locationLabelRef.current : null);
+    fetchEvents(
+      latlongRef.current || null,
+      locationLabelRef.current !== 'Near me' ? locationLabelRef.current : null,
+      true // bust cache on manual refresh
+    );
   });
 
   return (
@@ -265,6 +277,14 @@ export default function Upgrades() {
           </button>
         )}
       </div>
+
+      {/* Rate limit error */}
+      {tmError && (
+        <div className="mx-4 mb-3 px-4 py-3 rounded-2xl text-sm font-medium"
+          style={{ background: 'rgba(255,140,0,0.1)', border: '1px solid rgba(255,140,0,0.3)', color: '#FF8C00' }}>
+          Too many requests right now. Please wait a moment and try again.
+        </div>
+      )}
 
       {/* Content */}
       <div className="px-4 space-y-8">

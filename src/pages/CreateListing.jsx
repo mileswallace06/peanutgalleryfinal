@@ -4,6 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, CheckCircle, Upload, Zap, Search, Star } from 'lucide-react';
 import { getEventLiveStatus } from '@/lib/eventTiming';
+import { fetchTMEvents } from '@/lib/tmCache';
 
 const STEPS = ['Event', 'Seats', 'Price', 'Done'];
 
@@ -121,10 +122,9 @@ export default function CreateListing() {
 
       Promise.all([
         base44.entities.Event.list('date', 200),
-        base44.functions.invoke('getTicketmasterEvents', tmParams),
-      ]).then(([localData, tmRes]) => {
+        fetchTMEvents(base44, tmParams),
+      ]).then(([localData, { events: tmEventsRaw }]) => {
         let pgEvents = localData.filter(e => e.status !== 'ended');
-        const tmEventsRaw = tmRes?.data?.events || [];
 
         if (ll) {
           // Geo mode: filter PG events to cities TM returned nearby
@@ -208,8 +208,8 @@ export default function CreateListing() {
     setTmSearched(true);
     setTmRateLimited(false);
     try {
-      const res = await base44.functions.invoke('getTicketmasterEvents', { keyword: tmQuery });
-      setTmResults(res.data.events || []);
+      const { events } = await fetchTMEvents(base44, { keyword: tmQuery });
+      setTmResults(events);
     } catch (err) {
       if (err?.response?.status === 429) {
         setTmRateLimited(true);

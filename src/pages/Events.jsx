@@ -4,6 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 import { MapPin, Calendar, Search, ChevronRight, LocateFixed, X, RefreshCw } from 'lucide-react';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
+import { fetchTMEvents, bustTMCache } from '@/lib/tmCache';
 
 export default function Events() {
   const [events, setEvents] = useState([]);
@@ -26,11 +27,14 @@ export default function Events() {
   const setLatlongSync = (val) => { latlongRef.current = val; setLatlong(val); };
   const setLocationLabelSync = (val) => { locationLabelRef.current = val; setLocationLabel(val); };
 
-  const fetchEvents = useCallback((ll, cityOverride, keyword) => {
+  const [tmError, setTmError] = useState(false);
+
+  const fetchEvents = useCallback(async (ll, cityOverride, keyword, bust = false) => {
     // Don't fetch until we have a location, city, or keyword
     if (!ll && !cityOverride && !keyword) return;
 
     setLoading(true);
+    setTmError(false);
     const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
     const now = Date.now();
     const tmParams = { size: 40 };
@@ -38,10 +42,14 @@ export default function Events() {
     else if (cityOverride) { tmParams.city = cityOverride; }
     if (keyword) { tmParams.keyword = keyword; }
 
-    Promise.all([
-      base44.entities.Event.list('date', 50),
-      base44.functions.invoke('getTicketmasterEvents', tmParams),
-    ]).then(([localData, tmRes]) => {
+    if (bust) bustTMCache(tmParams);
+
+    try {
+      const [localData, { events: tmEventsRaw }] = await Promise.all([
+        base44.entities.Event.list('date', 50),
+        fetchTMEvents(base44, tmParams),
+      ]);
+
       const eligible = localData.filter(e => e.status !== 'ended');
       const pgEvents = adminUnlocked
         ? eligible
@@ -56,42 +64,35 @@ export default function Events() {
         );
       }
       if (ll) {
-        // Filter local PG events by the cities TM returned (geo-nearby cities)
-        const tmCities = new Set(
-          (tmRes?.data?.events || []).map(e => e.city?.toLowerCase()).filter(Boolean)
-        );
+        const tmCities = new Set(tmEventsRaw.map(e => e.city?.toLowerCase()).filter(Boolean));
         if (tmCities.size > 0) {
-          pgFiltered = pgFiltered.filter(e =>
-            !e.city || tmCities.has(e.city.toLowerCase())
-          );
+          pgFiltered = pgFiltered.filter(e => !e.city || tmCities.has(e.city.toLowerCase()));
         } else {
-          // TM returned nothing nearby — show no PG events either (truly nothing nearby)
           pgFiltered = [];
         }
       }
 
       const pgMapped = pgFiltered.map(e => ({ ...e, source: 'pg' }));
-      const tmEvents = (tmRes?.data?.events || []).map(e => ({ ...e, id: `tm_${e.tm_id}` }));
+      const tmEvents = tmEventsRaw.map(e => ({ ...e, id: `tm_${e.tm_id}` }));
       setEvents([...pgMapped, ...tmEvents]);
 
       // Persist TM events locally so they survive past start time
-      (tmRes?.data?.events || []).forEach(e => {
+      tmEventsRaw.forEach(e => {
         base44.functions.invoke('syncTMEvent', {
-          tm_id: e.tm_id,
-          title: e.title,
-          venue: e.venue,
-          city: e.city,
-          state: e.state,
-          date: e.date,
-          image_url: e.image_url,
-          tm_url: e.tm_url,
-          category: e.category || null,
+          tm_id: e.tm_id, title: e.title, venue: e.venue, city: e.city,
+          state: e.state, date: e.date, image_url: e.image_url,
+          tm_url: e.tm_url, category: e.category || null,
         }).catch(() => {});
       });
-    }).catch(console.error).finally(() => setLoading(false));
+    } catch (err) {
+      if (err?.response?.status === 429) setTmError(true);
+      else console.error(err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  // Auto-detect location on mount
+  // Auto-detect location on mount — use maximumAge to avoid refiring on re-render
   useEffect(() => {
     setDetectingLocation(true);
     navigator.geolocation.getCurrentPosition(
@@ -103,15 +104,14 @@ export default function Events() {
         fetchEvents(ll, null, searchRef.current || null);
       },
       () => {
-        // Location denied — do NOT fetch national results; prompt user to enter city
         setDetectingLocation(false);
         setLoading(false);
       },
-      { timeout: 8000, enableHighAccuracy: true, maximumAge: 0 }
+      { timeout: 8000, enableHighAccuracy: false, maximumAge: 60000 }
     );
   }, [fetchEvents]);
 
-  // Search debounce — keyword search drops geo so TM searches nationally by keyword
+  // Search debounce — 600ms to reduce TM calls while typing
   useEffect(() => {
     searchRef.current = search;
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
@@ -120,18 +120,16 @@ export default function Events() {
       const hasKeyword = keyword.length > 0;
 
       if (hasKeyword) {
-        // Keyword search: no geo restriction, search nationally
         setLocationLabel(`"${keyword}"`);
         fetchEvents(null, null, keyword);
       } else {
-        // Keyword cleared: restore geo or city filter
         setLocationLabel(locationLabelRef.current);
         const ll = latlongRef.current || null;
         const city = !ll && locationLabelRef.current && locationLabelRef.current !== 'Near me'
           ? locationLabelRef.current : null;
         fetchEvents(ll, city, null);
       }
-    }, 400);
+    }, 600);
     return () => clearTimeout(searchDebounceRef.current);
   }, [search, fetchEvents]);
 
@@ -179,7 +177,12 @@ export default function Events() {
   });
 
   const { containerRef, pulling } = usePullToRefresh(() => {
-    fetchEvents(latlongRef.current || null, locationLabelRef.current && locationLabelRef.current !== 'Near me' ? locationLabelRef.current : null, searchRef.current || null);
+    fetchEvents(
+      latlongRef.current || null,
+      locationLabelRef.current && locationLabelRef.current !== 'Near me' ? locationLabelRef.current : null,
+      searchRef.current || null,
+      true // bust cache on manual refresh
+    );
   });
 
   return (
@@ -317,6 +320,14 @@ export default function Events() {
           />
         </div>
       </div>
+
+      {/* ── Rate limit error ── */}
+      {tmError && (
+        <div className="mx-4 mb-3 px-4 py-3 rounded-2xl text-sm font-medium"
+          style={{ background: 'rgba(255,140,0,0.1)', border: '1px solid rgba(255,140,0,0.3)', color: '#FF8C00' }}>
+          Too many requests right now. Please wait a moment and try again.
+        </div>
+      )}
 
       {/* ── Event count ── */}
       {!loading && (
