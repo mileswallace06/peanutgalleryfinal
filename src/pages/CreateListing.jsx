@@ -76,6 +76,9 @@ export default function CreateListing() {
   // Recommended events (same logic as Upgrades)
   const [allRecEvents, setAllRecEvents] = useState([]);
   const [nearbyLoading, setNearbyLoading] = useState(true);
+  const [recLocationDenied, setRecLocationDenied] = useState(false);
+  const [recCityInput, setRecCityInput] = useState('');
+  const [recCitySubmitted, setRecCitySubmitted] = useState(false);
 
   const [form, setForm] = useState({
     event_id: preselectedEventId || '',
@@ -97,22 +100,47 @@ export default function CreateListing() {
       .catch(console.error)
       .finally(() => setLoadingEvents(false));
 
-    // Fetch recommended events (same logic as Upgrades tab)
+    // Fetch recommended events using geo or city
     setNearbyLoading(true);
-    const loadRecommended = (ll) => {
+    const loadRecommended = (ll, cityOverride) => {
+      // Require at least one location signal — no national blind fetch
       const tmParams = { size: 40 };
-      if (ll) { tmParams.latlong = ll; tmParams.radius = '50'; }
+      if (ll) {
+        tmParams.latlong = ll;
+        tmParams.radius = '50';
+      } else if (cityOverride) {
+        tmParams.city = cityOverride;
+      } else {
+        // No location available — show empty with prompt
+        setNearbyLoading(false);
+        setRecLocationDenied(true);
+        return;
+      }
+
       Promise.all([
         base44.entities.Event.list('date', 200),
         base44.functions.invoke('getTicketmasterEvents', tmParams),
       ]).then(([localData, tmRes]) => {
         let pgEvents = localData.filter(e => e.status !== 'ended');
+        const tmEventsRaw = tmRes?.data?.events || [];
+
         if (ll) {
-          const tmCities = new Set((tmRes?.data?.events || []).map(e => e.city?.toLowerCase()).filter(Boolean));
-          if (tmCities.size > 0) pgEvents = pgEvents.filter(e => !e.city || tmCities.has(e.city.toLowerCase()));
+          // Geo mode: filter PG events to cities TM returned nearby
+          const tmCities = new Set(tmEventsRaw.map(e => e.city?.toLowerCase()).filter(Boolean));
+          if (tmCities.size > 0) {
+            pgEvents = pgEvents.filter(e => !e.city || tmCities.has(e.city.toLowerCase()));
+          }
+        } else if (cityOverride) {
+          // City mode: filter PG events by city name
+          const q = cityOverride.toLowerCase();
+          pgEvents = pgEvents.filter(e =>
+            e.city?.toLowerCase().includes(q) ||
+            e.venue?.toLowerCase().includes(q)
+          );
         }
+
         const pgMapped = pgEvents.map(e => ({ ...e, source: 'pg' }));
-        const tmEvents = (tmRes?.data?.events || []).map(e => ({ ...e, id: `tm_${e.tm_id}`, source: 'ticketmaster' }));
+        const tmEvents = tmEventsRaw.map(e => ({ ...e, id: `tm_${e.tm_id}`, source: 'ticketmaster' }));
         const pgTmIds = new Set(pgMapped.map(e => e.tm_id).filter(Boolean));
         const uniqueTM = tmEvents.filter(e => !pgTmIds.has(e.tm_id));
         setAllRecEvents([...pgMapped, ...uniqueTM]);
@@ -120,10 +148,20 @@ export default function CreateListing() {
     };
 
     navigator.geolocation.getCurrentPosition(
-      (pos) => loadRecommended(`${pos.coords.latitude},${pos.coords.longitude}`),
-      () => loadRecommended(null),
+      (pos) => {
+        setRecLocationDenied(false);
+        loadRecommended(`${pos.coords.latitude},${pos.coords.longitude}`, null);
+      },
+      () => {
+        // Geo denied — don't fetch nationally, show city prompt
+        setNearbyLoading(false);
+        setRecLocationDenied(true);
+      },
       { timeout: 8000, enableHighAccuracy: false, maximumAge: 60000 }
     );
+
+    // Store loadRecommended for city fallback
+    window.__pgLoadRecommended = loadRecommended;
   }, []);
 
   const set = (field, value) => setForm(f => ({ ...f, [field]: value }));
@@ -295,8 +333,46 @@ export default function CreateListing() {
           {/* Recommended Tab — same logic as Upgrades */}
           {eventTab === 'recommended' && (
             <div className="space-y-4">
+              {/* City fallback when geo is denied */}
+              {recLocationDenied && !recCitySubmitted && (
+                <form
+                  onSubmit={e => {
+                    e.preventDefault();
+                    const city = recCityInput.trim();
+                    if (!city) return;
+                    setRecCitySubmitted(true);
+                    setNearbyLoading(true);
+                    setRecLocationDenied(false);
+                    window.__pgLoadRecommended?.(null, city);
+                  }}
+                  className="flex gap-2"
+                >
+                  <input
+                    type="text"
+                    placeholder="Enter your city…"
+                    value={recCityInput}
+                    onChange={e => setRecCityInput(e.target.value)}
+                    className="flex-1 px-4 py-2.5 rounded-2xl text-sm font-medium text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    style={{ background: 'hsl(var(--input))', border: '1px solid hsl(var(--border))' }}
+                  />
+                  <button
+                    type="submit"
+                    disabled={!recCityInput.trim()}
+                    className="px-4 py-2.5 rounded-2xl font-bold text-sm disabled:opacity-40"
+                    style={{ background: 'linear-gradient(135deg, #BF5FFF, #FF2D78)', color: '#fff' }}
+                  >
+                    Go
+                  </button>
+                </form>
+              )}
+
               {nearbyLoading ? (
                 <>{[1,2,3].map(i => <div key={i} className="h-14 rounded-2xl animate-pulse bg-muted" />)}</>
+              ) : recLocationDenied ? (
+                <div className="text-center py-8 space-y-2">
+                  <p className="text-2xl">📍</p>
+                  <p className="text-sm text-muted-foreground">Enter your city above to see nearby events</p>
+                </div>
               ) : (() => {
                 const nowMs = Date.now();
                 const liveEvs = allRecEvents.filter(e => getEventLiveStatus(e, nowMs).status === 'live');
@@ -357,7 +433,7 @@ export default function CreateListing() {
                     )}
                     {liveEvs.length === 0 && soonEvs.length === 0 && upcomingEvs.length === 0 && (
                       <div className="text-center py-8 space-y-2">
-                        <p className="text-sm text-muted-foreground">No events found.</p>
+                        <p className="text-sm text-muted-foreground">No events found nearby.</p>
                         <button onClick={() => setEventTab('search')} className="text-xs font-bold" style={{ color: '#BF5FFF' }}>Search for your event →</button>
                       </div>
                     )}
