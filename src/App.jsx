@@ -22,6 +22,8 @@ import Upgrades from '@/pages/Upgrades';
 import EventDetailUpgrade from '@/pages/EventDetailUpgrade';
 import Sell from '@/pages/Sell';
 import EventDetailTM from '@/pages/EventDetailTM';
+import AccountSettingsPage from '@/pages/AccountSettingsPage';
+import EditPersona from '@/pages/EditPersona';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, checkAppState, isAuthenticated, user } = useAuth();
@@ -81,6 +83,8 @@ const AuthenticatedApp = () => {
             <Route path="/upgrades/:id" element={<EventDetailUpgrade />} />
             <Route path="/sell" element={<Sell />} />
             <Route path="/events/tm/:tmId" element={<EventDetailTM />} />
+            <Route path="/account-settings" element={<AccountSettingsPage />} />
+            <Route path="/edit-persona" element={<EditPersona />} />
           </Route>
           <Route path="*" element={<PageNotFound />} />
         </Routes>

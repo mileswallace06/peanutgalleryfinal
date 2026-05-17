@@ -1,38 +1,29 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { Ticket, TrendingUp, Shield, LogIn, Edit2, Check, X, Tag, Zap, ChevronRight, Camera, ImagePlus, UserPlus, UserCheck, Settings } from 'lucide-react';
-import AccountSettings from '@/components/me/AccountSettings';
+import { Ticket, TrendingUp, Shield, LogIn, Edit2, Tag, Zap, ChevronRight, Camera, ImagePlus, UserPlus, UserCheck, Settings } from 'lucide-react';
 
 export default function Me() {
+  const navigate = useNavigate();
   const [user, setUser] = useState(null);
-  const [editing, setEditing] = useState(false);
-  const [bio, setBio] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
   const avatarInputRef = useRef(null);
   const bannerInputRef = useRef(null);
   const [followers, setFollowers] = useState([]);
   const [following, setFollowing] = useState([]);
-  const [socialTab, setSocialTab] = useState('following'); // 'following' | 'followers'
-  const [mainTab, setMainTab] = useState('profile'); // 'profile' | 'settings'
-  const [purchases, setPurchases] = useState([]);
+  const [socialTab, setSocialTab] = useState('following');
 
   useEffect(() => {
     base44.auth.me().then(u => {
       setUser(u);
-      setBio(u?.bio || '');
       if (u?.email) {
         Promise.all([
           base44.entities.Follow.filter({ follower_email: u.email }),
           base44.entities.Follow.filter({ following_email: u.email }),
-          base44.entities.Purchase.filter({ buyer_email: u.email }),
-        ]).then(([fwing, fwers, purch]) => {
+        ]).then(([fwing, fwers]) => {
           setFollowing(fwing);
           setFollowers(fwers);
-          setPurchases(purch.sort((a, b) => new Date(b.created_date) - new Date(a.created_date)));
         }).catch(() => {});
       }
     }).catch(() => {});
@@ -66,21 +57,6 @@ export default function Me() {
   const initials = user?.full_name
     ? user.full_name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
     : '?';
-
-  const handleSave = async () => {
-    setSaving(true);
-    await base44.auth.updateMe({ bio: bio.trim() });
-    setUser(u => ({ ...u, bio: bio.trim() }));
-    setSaving(false);
-    setSaved(true);
-    setEditing(false);
-    setTimeout(() => setSaved(false), 2000);
-  };
-
-  const handleCancel = () => {
-    setBio(user?.bio || '');
-    setEditing(false);
-  };
 
   if (!user) {
     return (
@@ -168,55 +144,24 @@ export default function Me() {
             <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
           </div>
 
-          {/* Edit / Save buttons */}
-          {!editing ? (
-            <button
-              onClick={() => setEditing(true)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all dark:text-[rgba(255,255,255,0.7)] dark:bg-[rgba(255,255,255,0.07)] dark:border-[rgba(255,255,255,0.12)]"
-              style={{ background: '#f0f0f0', border: '1px solid #d0d0d0', color: '#000' }}
-            >
-              <Edit2 className="w-3.5 h-3.5" /> Edit Profile
-            </button>
-          ) : (
-            <div className="flex gap-2">
-              <button
-                onClick={handleCancel}
-                className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold dark:text-[rgba(255,255,255,0.5)] dark:bg-[rgba(255,255,255,0.06)] dark:border-[rgba(255,255,255,0.1)]"
-                style={{ background: '#f0f0f0', border: '1px solid #d0d0d0', color: '#666' }}
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black disabled:opacity-50"
-                style={{ background: 'linear-gradient(135deg, #00E87A, #00B8E8)', color: '#0D0B14' }}
-              >
-                {saving
-                  ? <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  : <Check className="w-3.5 h-3.5" />
-                }
-                Save
-              </button>
-            </div>
-          )}
+          {/* Edit Persona button */}
+          <button
+            onClick={() => navigate('/edit-persona')}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all active:scale-95 dark:text-[rgba(255,255,255,0.7)] dark:bg-[rgba(255,255,255,0.07)] dark:border-[rgba(255,255,255,0.12)]"
+            style={{ background: '#f0f0f0', border: '1px solid #d0d0d0', color: '#000' }}
+          >
+            <Edit2 className="w-3.5 h-3.5" /> Edit Persona
+          </button>
         </div>
 
         {/* Name + badges */}
         <div className="mb-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h2 className="font-display text-2xl text-foreground">{user.full_name || 'Fan'}</h2>
-            {saved && (
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full dark:bg-[rgba(0,255,135,0.15)] dark:border-[rgba(0,255,135,0.3)]" style={{ background: '#e8f8f0', color: '#00FF87', border: '1px solid #d0f0d8' }}>
-                ✓ Saved
-              </span>
-            )}
-          </div>
+          <h2 className="font-display text-2xl text-foreground">{user.full_name || 'Fan'}</h2>
           <p className="text-xs text-muted-foreground mt-0.5">{user.email}</p>
         </div>
 
-        {/* Role badges */}
-        <div className="flex items-center gap-2 mb-4 flex-wrap">
+        {/* Role badges + Account Settings button */}
+        <div className="flex items-center gap-2 mb-5 flex-wrap">
           <span className="text-[10px] font-bold px-2.5 py-1 rounded-full dark:bg-[rgba(0,200,255,0.25)] dark:border-[rgba(0,200,255,0.5)] dark:text-[#00FFFF]"
             style={{ background: '#e0f0f8', color: '#00C8FF', border: '1px solid #d0e8f0' }}>
             🥜 Fan
@@ -227,58 +172,29 @@ export default function Me() {
               ✦ Admin
             </span>
           )}
+          <button
+            onClick={() => navigate('/account-settings')}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold transition-all active:scale-95"
+            style={{ background: 'rgba(191,95,255,0.1)', border: '1px solid rgba(191,95,255,0.3)', color: '#BF5FFF' }}
+          >
+            <Settings className="w-3 h-3" /> Account Settings
+          </button>
         </div>
 
-        {/* Tab switcher */}
-        <div className="flex gap-2 mb-5">
-          {[{ key: 'profile', label: 'Profile' }, { key: 'settings', label: 'Settings', icon: Settings }].map(t => (
-            <button
-              key={t.key}
-              onClick={() => setMainTab(t.key)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all"
-              style={mainTab === t.key
-                ? { background: 'rgba(191,95,255,0.15)', border: '1px solid rgba(191,95,255,0.4)', color: '#BF5FFF' }
-                : { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--muted-foreground))' }
-              }
-            >
-              {t.icon && <t.icon className="w-3.5 h-3.5" />}
-              {t.label}
-            </button>
-          ))}
-        </div>
-
-        {mainTab === 'settings' && (
-          <AccountSettings user={user} purchases={purchases} />
-        )}
-
-        {/* Profile tab content */}
-        {mainTab === 'profile' && (
-        <>
         {/* Bio */}
-        {editing ? (
-          <div className="mb-6">
-            <label className="block text-xs text-muted-foreground mb-1.5">Bio <span className="opacity-50">(optional)</span></label>
-            <textarea
-              value={bio}
-              onChange={e => setBio(e.target.value)}
-              placeholder="Tell the crowd who you are…"
-              rows={3}
-              maxLength={160}
-              className="w-full px-4 py-3 rounded-2xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none dark:bg-[rgba(255,255,255,0.06)] dark:border-[rgba(255,255,255,0.12)]"
-              style={{ background: '#f5f5f5', border: '1px solid #e0e0e0' }}
-            />
-            <p className="text-[10px] text-muted-foreground text-right mt-1">{bio.length}/160</p>
-          </div>
-        ) : user.bio ? (
+        {user.bio ? (
           <p className="text-sm text-muted-foreground mb-6 leading-relaxed">{user.bio}</p>
         ) : (
           <button
-            onClick={() => setEditing(true)}
+            onClick={() => navigate('/edit-persona')}
             className="text-xs text-muted-foreground mb-6 italic flex items-center gap-1 hover:text-foreground transition-colors"
           >
             <Tag className="w-3 h-3" /> Add a bio…
           </button>
         )}
+
+        {/* Profile content */}
+        <>
 
         {/* Followers / Following */}
         <div className="mb-5">
@@ -452,7 +368,6 @@ export default function Me() {
         </div>
 
         </>
-        )}
       </div>
     </div>
   );
