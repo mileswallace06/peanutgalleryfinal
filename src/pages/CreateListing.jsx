@@ -70,6 +70,8 @@ export default function CreateListing() {
   const [tmResults, setTmResults] = useState([]);
   const [tmLoading, setTmLoading] = useState(false);
   const [tmSearched, setTmSearched] = useState(false);
+  const tmLastSearchRef = useRef(0);
+  const [tmRateLimited, setTmRateLimited] = useState(false);
   // For TM events, store the selected event object (not just id)
   const [selectedTmEvent, setSelectedTmEvent] = useState(null);
   const [selectingTmId, setSelectingTmId] = useState(null);
@@ -198,11 +200,24 @@ export default function CreateListing() {
 
   const handleTmSearch = async () => {
     if (!tmQuery.trim()) return;
+    // Rate limit: enforce 2s cooldown between searches
+    const now = Date.now();
+    if (now - tmLastSearchRef.current < 2000) return;
+    tmLastSearchRef.current = now;
     setTmLoading(true);
     setTmSearched(true);
-    const res = await base44.functions.invoke('getTicketmasterEvents', { keyword: tmQuery });
-    setTmResults(res.data.events || []);
-    setTmLoading(false);
+    setTmRateLimited(false);
+    try {
+      const res = await base44.functions.invoke('getTicketmasterEvents', { keyword: tmQuery });
+      setTmResults(res.data.events || []);
+    } catch (err) {
+      if (err?.response?.status === 429) {
+        setTmRateLimited(true);
+        setTmResults([]);
+      }
+    } finally {
+      setTmLoading(false);
+    }
   };
 
   const handleSelectTmEvent = async (tmEvent) => {
@@ -476,7 +491,9 @@ export default function CreateListing() {
               )}
 
               {!tmLoading && tmSearched && tmResults.length === 0 && (
-                <p className="text-sm text-muted-foreground text-center py-6">No events found. Try a different search.</p>
+                <p className="text-sm text-muted-foreground text-center py-6">
+                  {tmRateLimited ? 'Too many requests — please wait a moment and try again.' : 'No events found. Try a different search.'}
+                </p>
               )}
 
               {!tmLoading && tmResults.map(ev => (
