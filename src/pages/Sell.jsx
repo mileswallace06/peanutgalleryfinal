@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { Plus, Tag, TrendingUp, LogIn, Zap, BadgeCheck, ExternalLink, Loader2, AlertCircle } from 'lucide-react';
+import { Plus, Tag, TrendingUp, LogIn, BadgeCheck, ExternalLink, Loader2, AlertCircle, MapPin, Calendar, ChevronRight } from 'lucide-react';
+import { fetchTMEvents } from '@/lib/tmCache';
 
 export default function Sell() {
   const [user, setUser] = useState(null);
@@ -12,12 +13,43 @@ export default function Sell() {
   const [onboardingChecking, setOnboardingChecking] = useState(false);
   const [searchParams] = useSearchParams();
 
+  // Nearby events state
+  const [nearbyEvents, setNearbyEvents] = useState([]);
+  const [nearbyLoading, setNearbyLoading] = useState(true);
+
   const loadUser = async () => {
     // Pass { fresh: true } to bypass any SDK-level cache
     const me = await base44.auth.me({ fresh: true }).catch(() => base44.auth.me());
     setUser(me);
     return me;
   };
+
+  // Fetch nearby events via geolocation
+  useEffect(() => {
+    setNearbyLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const ll = `${pos.coords.latitude},${pos.coords.longitude}`;
+        try {
+          const [localData, { events: tmEventsRaw }] = await Promise.all([
+            base44.entities.Event.list('date', 50),
+            fetchTMEvents(base44, { latlong: ll, radius: '50', size: 20 }),
+          ]);
+          const tmCities = new Set(tmEventsRaw.map(e => e.city?.toLowerCase()).filter(Boolean));
+          const pgEvents = localData
+            .filter(e => e.status !== 'ended')
+            .filter(e => !e.city || tmCities.has(e.city.toLowerCase()))
+            .map(e => ({ ...e, source: 'pg' }));
+          const tmEvents = tmEventsRaw.map(e => ({ ...e, id: `tm_${e.tm_id}`, source: 'ticketmaster' }));
+          const pgTmIds = new Set(pgEvents.map(e => e.tm_id).filter(Boolean));
+          setNearbyEvents([...pgEvents, ...tmEvents.filter(e => !pgTmIds.has(e.tm_id))].slice(0, 8));
+        } catch (_) {}
+        setNearbyLoading(false);
+      },
+      () => setNearbyLoading(false),
+      { timeout: 8000, enableHighAccuracy: false, maximumAge: 60000 }
+    );
+  }, []);
 
   useEffect(() => {
     loadUser()
@@ -200,6 +232,55 @@ export default function Sell() {
             </div>
           ))}
         </div>
+
+        {/* Recommended Events Near You */}
+        <section>
+          <h2 className="font-bold text-sm text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
+            <MapPin className="w-3.5 h-3.5" style={{ color: '#00C8FF' }} /> Events Near You
+          </h2>
+          {nearbyLoading ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map(i => <div key={i} className="h-14 rounded-2xl animate-pulse" style={{ background: 'hsl(var(--muted))' }} />)}
+            </div>
+          ) : nearbyEvents.length === 0 ? (
+            <div className="rounded-2xl px-4 py-5 text-center text-sm text-muted-foreground"
+              style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+              📍 Allow location access to see events near you
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {nearbyEvents.map(ev => {
+                const isTM = ev.source === 'ticketmaster';
+                return (
+                  <Link
+                    key={ev.id}
+                    to={`/create-listing?event_id=${isTM ? '' : ev.id}`}
+                    onClick={isTM ? e => e.preventDefault() : undefined}
+                    className="flex items-center gap-3 px-4 py-3 rounded-2xl transition-all active:scale-[0.98]"
+                    style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+                  >
+                    {ev.image_url
+                      ? <img src={ev.image_url} alt="" className="w-9 h-9 rounded-lg object-cover flex-shrink-0" />
+                      : <div className="w-9 h-9 rounded-lg flex items-center justify-center text-lg flex-shrink-0" style={{ background: 'hsl(var(--muted))' }}>🎫</div>
+                    }
+                    <div className="flex-1 min-w-0">
+                      <div className="font-bold text-sm text-foreground truncate">{ev.title}</div>
+                      <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
+                        <span className="truncate">{ev.venue}{ev.city ? `, ${ev.city}` : ''}</span>
+                        {ev.date && <span className="flex-shrink-0">· {format(new Date(ev.date), 'MMM d')}</span>}
+                      </div>
+                    </div>
+                    {!isTM && <ChevronRight className="w-4 h-4 flex-shrink-0 text-muted-foreground" />}
+                    {isTM && (
+                      <span className="text-[9px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
+                        style={{ background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' }}>TM</span>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </section>
 
         {/* Active listings */}
         {active.length > 0 && (
