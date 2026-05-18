@@ -28,6 +28,9 @@ export default function Events() {
   const setLocationLabelSync = (val) => { locationLabelRef.current = val; setLocationLabel(val); };
 
   const [tmError, setTmError] = useState(false);
+  const [networkError, setNetworkError] = useState(false);
+  // Track which TM IDs we've already synced this session to avoid duplicate calls
+  const syncedTmIds = useRef(new Set());
 
   const fetchEvents = useCallback(async (ll, cityOverride, keyword, bust = false) => {
     // Don't fetch until we have a location, city, or keyword
@@ -35,6 +38,7 @@ export default function Events() {
 
     setLoading(true);
     setTmError(false);
+    setNetworkError(false);
     const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
     const now = Date.now();
     const tmParams = { size: 40 };
@@ -77,16 +81,26 @@ export default function Events() {
       setEvents([...pgMapped, ...tmEvents]);
 
       // Persist TM events locally so they survive past start time
-      tmEventsRaw.forEach(e => {
-        base44.functions.invoke('syncTMEvent', {
-          tm_id: e.tm_id, title: e.title, venue: e.venue, city: e.city,
-          state: e.state, date: e.date, image_url: e.image_url,
-          tm_url: e.tm_url, category: e.category || null,
-        }).catch(() => {});
-      });
+      // Only sync IDs we haven't already synced this session
+      tmEventsRaw
+        .filter(e => e.tm_id && !syncedTmIds.current.has(e.tm_id))
+        .forEach(e => {
+          syncedTmIds.current.add(e.tm_id);
+          base44.functions.invoke('syncTMEvent', {
+            tm_id: e.tm_id, title: e.title, venue: e.venue, city: e.city,
+            state: e.state, date: e.date, image_url: e.image_url,
+            tm_url: e.tm_url, category: e.category || null,
+          }).catch(syncErr => console.warn('[Events] syncTMEvent failed for', e.tm_id, syncErr?.message));
+        });
     } catch (err) {
-      if (err?.response?.status === 429) setTmError(true);
-      else console.error(err);
+      const status = err?.response?.status || err?.status;
+      if (status === 429) {
+        setTmError(true);
+        console.warn('[Events] Ticketmaster rate-limited (429)');
+      } else {
+        console.error('[Events] fetchEvents failed:', status, err?.message, err);
+        setNetworkError(true);
+      }
     } finally {
       setLoading(false);
     }
@@ -321,11 +335,25 @@ export default function Events() {
         </div>
       </div>
 
-      {/* ── Rate limit error ── */}
+      {/* ── Rate limit / network error ── */}
       {tmError && (
-        <div className="mx-4 mb-3 px-4 py-3 rounded-2xl text-sm font-medium"
+        <div className="mx-4 mb-3 px-4 py-3 rounded-2xl text-sm font-medium flex items-center justify-between gap-3"
           style={{ background: 'rgba(255,140,0,0.1)', border: '1px solid rgba(255,140,0,0.3)', color: '#FF8C00' }}>
-          Too many requests right now. Please wait a moment and try again.
+          <span>Too many requests right now. Please wait a moment.</span>
+          <button onClick={() => fetchEvents(latlongRef.current || null, null, searchRef.current || null, true)}
+            className="flex items-center gap-1 text-xs font-bold underline underline-offset-2 flex-shrink-0">
+            <RefreshCw className="w-3 h-3" /> Retry
+          </button>
+        </div>
+      )}
+      {networkError && !tmError && (
+        <div className="mx-4 mb-3 px-4 py-3 rounded-2xl text-sm font-medium flex items-center justify-between gap-3"
+          style={{ background: 'rgba(255,45,120,0.1)', border: '1px solid rgba(255,45,120,0.3)', color: '#FF2D78' }}>
+          <span>Failed to load events. Check your connection.</span>
+          <button onClick={() => fetchEvents(latlongRef.current || null, null, searchRef.current || null, true)}
+            className="flex items-center gap-1 text-xs font-bold underline underline-offset-2 flex-shrink-0">
+            <RefreshCw className="w-3 h-3" /> Retry
+          </button>
         </div>
       )}
 

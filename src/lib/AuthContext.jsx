@@ -108,17 +108,22 @@ export const AuthProvider = ({ children }) => {
       setIsLoadingAuth(false);
       setAuthChecked(true);
     } catch (error) {
-      console.error('User auth check failed:', error);
+      const status = error?.status || error?.response?.status;
+      console.error('[Auth] checkUserAuth failed — status:', status, '| message:', error?.message, '| full error:', error);
       setIsLoadingAuth(false);
       setIsAuthenticated(false);
       setAuthChecked(true);
       
       // Only redirect to login if we don't already have a cached user (avoids sign-out on transient errors)
-      if (!user && (error.status === 401 || error.status === 403)) {
+      if (!user && (status === 401 || status === 403)) {
+        console.warn('[Auth] Redirecting to login — no cached user and got', status);
         setAuthError({
           type: 'auth_required',
           message: 'Authentication required'
         });
+      } else if (!user) {
+        // Transient network error — don't sign out but log clearly
+        console.warn('[Auth] Non-auth error during checkUserAuth (status:', status, ') — not signing out, treating as network blip');
       }
     }
   };

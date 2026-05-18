@@ -50,6 +50,8 @@ export async function fetchTMEvents(base44, params) {
     })
     .catch(err => {
       inFlight.delete(key);
+      const status = err?.response?.status || err?.status;
+      console.error('[tmCache] getTicketmasterEvents failed — status:', status, '| key:', key, '| message:', err?.message);
       throw err;
     });
 

@@ -1,34 +1,49 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { Ticket, Clock, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Ticket, Clock, CheckCircle, AlertTriangle, RefreshCw } from 'lucide-react';
 
 export default function MyTickets() {
   const [user, setUser] = useState(null);
   const [purchases, setPurchases] = useState([]);
   const [events, setEvents] = useState({});
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const load = async () => {
-    const me = await base44.auth.me();
-    setUser(me);
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const me = await base44.auth.me();
+      if (!me) {
+        console.warn('[MyTickets] auth.me() returned null — user not authenticated');
+        setLoading(false);
+        return;
+      }
+      setUser(me);
 
-    const myPurchases = await base44.entities.Purchase.filter({ buyer_email: me.email });
-    setPurchases(myPurchases);
+      const myPurchases = await base44.entities.Purchase.filter({ buyer_email: me.email });
+      setPurchases(myPurchases);
 
-    const eventIds = [...new Set(myPurchases.map(p => p.event_id).filter(Boolean))];
-    const eventMap = {};
-    await Promise.all(eventIds.map(async (eid) => {
-      const res = await base44.entities.Event.filter({ id: eid });
-      if (res[0]) eventMap[eid] = res[0];
-    }));
-    setEvents(eventMap);
-  };
+      const eventIds = [...new Set(myPurchases.map(p => p.event_id).filter(Boolean))];
+      const eventMap = {};
+      await Promise.all(eventIds.map(async (eid) => {
+        const res = await base44.entities.Event.filter({ id: eid });
+        if (res[0]) eventMap[eid] = res[0];
+      }));
+      setEvents(eventMap);
+    } catch (err) {
+      console.error('[MyTickets] load failed:', err?.status, err?.message, err);
+      setError(err?.message || 'Failed to load tickets');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    load().catch(console.error).finally(() => setLoading(false));
-  }, []);
+    load();
+  }, [load]);
 
   if (loading) {
     return (
@@ -38,10 +53,27 @@ export default function MyTickets() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-12 text-center space-y-4">
+        <p className="text-4xl">⚠️</p>
+        <p className="text-foreground font-semibold">Failed to load tickets</p>
+        <p className="text-sm text-muted-foreground">{error}</p>
+        <button onClick={load} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm">
+          <RefreshCw className="w-4 h-4" /> Try Again
+        </button>
+      </div>
+    );
+  }
+
   if (!user) {
     return (
-      <div className="max-w-3xl mx-auto px-4 py-12 text-center text-muted-foreground">
-        <p>Please sign in to view your tickets.</p>
+      <div className="max-w-3xl mx-auto px-4 py-12 text-center text-muted-foreground space-y-3">
+        <p className="text-4xl">🔒</p>
+        <p className="font-medium text-foreground">Sign in to view your tickets</p>
+        <button onClick={() => base44.auth.redirectToLogin()} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm">
+          Sign In
+        </button>
       </div>
     );
   }

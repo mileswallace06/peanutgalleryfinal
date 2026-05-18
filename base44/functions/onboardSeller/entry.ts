@@ -10,6 +10,7 @@ Deno.serve(async (req) => {
 
   const secretKey = Deno.env.get('STRIPE_SECRET_KEY');
   if (!secretKey) {
+    console.error('[onboardSeller] STRIPE_SECRET_KEY not set');
     return Response.json({ error: 'Stripe not configured' }, { status: 500 });
   }
 
@@ -20,28 +21,37 @@ Deno.serve(async (req) => {
   const returnUrl  = `${origin}/sell?onboarding=complete`;
   const refreshUrl = `${origin}/sell?onboarding=refresh`;
 
-  // Reuse existing account or create a new Express account
-  let accountId = user.stripe_account_id;
-  if (!accountId) {
-    const account = await stripe.accounts.create({
-      type: 'express',
-      email: user.email,
-      capabilities: {
-        transfers: { requested: true },
-      },
+  try {
+    // Reuse existing account or create a new Express account
+    let accountId = user.stripe_account_id;
+    if (!accountId) {
+      console.log('[onboardSeller] Creating new Stripe Express account for', user.email);
+      const account = await stripe.accounts.create({
+        type: 'express',
+        email: user.email,
+        capabilities: {
+          transfers: { requested: true },
+        },
+      });
+      accountId = account.id;
+      console.log('[onboardSeller] Created Stripe account:', accountId, 'for', user.email);
+      // Persist to user record immediately
+      await base44.auth.updateMe({ stripe_account_id: accountId });
+    } else {
+      console.log('[onboardSeller] Reusing existing Stripe account:', accountId, 'for', user.email);
+    }
+
+    // Create a fresh onboarding link each time
+    const accountLink = await stripe.accountLinks.create({
+      account: accountId,
+      refresh_url: refreshUrl,
+      return_url: returnUrl,
+      type: 'account_onboarding',
     });
-    accountId = account.id;
-    // Persist to user record immediately
-    await base44.auth.updateMe({ stripe_account_id: accountId });
+
+    return Response.json({ url: accountLink.url });
+  } catch (err) {
+    console.error('[onboardSeller] Stripe error for', user.email, '—', err?.type, err?.message, err?.code);
+    return Response.json({ error: err?.message || 'Stripe onboarding failed' }, { status: 500 });
   }
-
-  // Create a fresh onboarding link each time
-  const accountLink = await stripe.accountLinks.create({
-    account: accountId,
-    refresh_url: refreshUrl,
-    return_url: returnUrl,
-    type: 'account_onboarding',
-  });
-
-  return Response.json({ url: accountLink.url });
 });

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { MapPin, Zap, Tag, Flame, User } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 import Onboarding from '@/components/Onboarding';
+import { useAuth } from '@/lib/AuthContext';
 
 const NAV = [
   { to: '/events', label: 'Tickets', icon: MapPin, color: '#BF5FFF', key: 'events' },
@@ -14,7 +15,8 @@ const NAV = [
 ];
 
 export default function Layout() {
-  const [user, setUser] = useState(null);
+  // Use AuthContext user instead of a separate auth.me() call to avoid duplicate requests
+  const { user } = useAuth();
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('pg_onboarded'));
   const location = useLocation();
   const scrollPositions = useRef({});
@@ -49,12 +51,12 @@ export default function Layout() {
     }
   }, [currentTab]);
 
+  // Log when user auth state resolves in Layout (debug only)
   useEffect(() => {
-    base44.auth.me({ fresh: true }).then(u => {
-      console.log('[Layout] email:', u?.email, '| role:', u?.role, '| isAdmin:', u?.role === 'admin');
-      setUser(u);
-    }).catch(() => {});
-  }, []);
+    if (user) {
+      console.log('[Layout] user resolved from AuthContext — email:', user.email, '| role:', user.role);
+    }
+  }, [user]);
 
   if (showOnboarding) {
     return <Onboarding onDone={() => setShowOnboarding(false)} />;
@@ -63,7 +65,7 @@ export default function Layout() {
   return (
     <div className="min-h-screen bg-background font-sans dark:rave-bg">
       {!user && (
-        <div className="fixed top-4 right-4 z-[99]" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+        <div className="fixed right-4 z-[99]" style={{ top: 'calc(1rem + env(safe-area-inset-top))' }}>
           <button
             onClick={() => base44.auth.redirectToLogin()}
             className="text-sm font-bold px-4 py-1.5 rounded-full"

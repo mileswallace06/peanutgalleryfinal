@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { Ticket, Clock, CheckCircle, Package, Rocket, ArrowRight, Plus } from 'lucide-react';
+import { Ticket, Clock, CheckCircle, Package, Rocket, ArrowRight, Plus, RefreshCw } from 'lucide-react';
 import SellerMetrics from '@/components/sales/SellerMetrics';
 
 export default function MySales() {
@@ -11,36 +11,50 @@ export default function MySales() {
   const [purchases, setPurchases] = useState([]);
   const [events, setEvents] = useState({});
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const load = async () => {
-    const me = await base44.auth.me();
-    setUser(me);
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const me = await base44.auth.me();
+      if (!me) {
+        console.warn('[MySales] auth.me() returned null — user not authenticated');
+        setLoading(false);
+        return;
+      }
+      setUser(me);
 
-    const [myListings, allPurchases] = await Promise.all([
-      base44.entities.Listing.filter({ seller_email: me.email }),
-      base44.entities.Purchase.filter({ seller_email: me.email }),
-    ]);
+      const [myListings, allPurchases] = await Promise.all([
+        base44.entities.Listing.filter({ seller_email: me.email }),
+        base44.entities.Purchase.filter({ seller_email: me.email }),
+      ]);
 
-    setListings(myListings);
-    setPurchases(allPurchases);
+      setListings(myListings);
+      setPurchases(allPurchases);
 
-    // Fetch events for all listings
-    const eventIds = [...new Set([
-      ...myListings.map(l => l.event_id),
-      ...allPurchases.map(p => p.event_id),
-    ])].filter(Boolean);
+      const eventIds = [...new Set([
+        ...myListings.map(l => l.event_id),
+        ...allPurchases.map(p => p.event_id),
+      ])].filter(Boolean);
 
-    const eventMap = {};
-    await Promise.all(eventIds.map(async (eid) => {
-      const res = await base44.entities.Event.filter({ id: eid });
-      if (res[0]) eventMap[eid] = res[0];
-    }));
-    setEvents(eventMap);
-  };
+      const eventMap = {};
+      await Promise.all(eventIds.map(async (eid) => {
+        const res = await base44.entities.Event.filter({ id: eid });
+        if (res[0]) eventMap[eid] = res[0];
+      }));
+      setEvents(eventMap);
+    } catch (err) {
+      console.error('[MySales] load failed:', err?.status, err?.message, err);
+      setError(err?.message || 'Failed to load sales');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    load().catch(console.error).finally(() => setLoading(false));
-  }, []);
+    load();
+  }, [load]);
 
   if (loading) {
     return (
@@ -50,10 +64,27 @@ export default function MySales() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-12 text-center space-y-4">
+        <p className="text-4xl">⚠️</p>
+        <p className="text-foreground font-semibold">Failed to load sales</p>
+        <p className="text-sm text-muted-foreground">{error}</p>
+        <button onClick={load} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm">
+          <RefreshCw className="w-4 h-4" /> Try Again
+        </button>
+      </div>
+    );
+  }
+
   if (!user) {
     return (
-      <div className="max-w-3xl mx-auto px-4 py-12 text-center text-muted-foreground">
-        <p>Please sign in to view your sales.</p>
+      <div className="max-w-3xl mx-auto px-4 py-12 text-center space-y-3">
+        <p className="text-4xl">🔒</p>
+        <p className="font-medium text-foreground">Sign in to view your sales</p>
+        <button onClick={() => base44.auth.redirectToLogin()} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm">
+          Sign In
+        </button>
       </div>
     );
   }

@@ -18,13 +18,22 @@ Deno.serve(async (req) => {
   }
 
   const stripe = new Stripe(secretKey);
-  const account = await stripe.accounts.retrieve(user.stripe_account_id);
+
+  let account;
+  try {
+    account = await stripe.accounts.retrieve(user.stripe_account_id);
+  } catch (err) {
+    console.error('[checkSellerOnboarding] Failed to retrieve Stripe account', user.stripe_account_id, 'for', user.email, '—', err?.type, err?.message);
+    return Response.json({ error: 'Failed to retrieve Stripe account', complete: false }, { status: 500 });
+  }
 
   const complete = account.charges_enabled === true;
+  console.log('[checkSellerOnboarding]', user.email, '| charges_enabled:', account.charges_enabled, '| details_submitted:', account.details_submitted, '| complete:', complete);
 
   // Update user record if newly complete
   if (complete && !user.stripe_onboarding_complete) {
     await base44.auth.updateMe({ stripe_onboarding_complete: true });
+    console.log('[checkSellerOnboarding] Marked stripe_onboarding_complete=true for', user.email);
   }
 
   return Response.json({
