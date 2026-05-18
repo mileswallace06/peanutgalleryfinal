@@ -29,6 +29,7 @@ export default function Events() {
 
   const [tmError, setTmError] = useState(false);
   const [networkError, setNetworkError] = useState(false);
+  const [locationDenied, setLocationDenied] = useState(false);
   // Track which TM IDs we've already synced this session to avoid duplicate calls
   const syncedTmIds = useRef(new Set());
 
@@ -115,10 +116,12 @@ export default function Events() {
         setLatlongSync(ll);
         setLocationLabelSync('Near me');
         setDetectingLocation(false);
+        setLocationDenied(false);
         fetchEvents(ll, null, searchRef.current || null);
       },
       () => {
         setDetectingLocation(false);
+        setLocationDenied(true);
         setLoading(false);
       },
       { timeout: 8000, enableHighAccuracy: false, maximumAge: 60000 }
@@ -174,6 +177,7 @@ export default function Events() {
         setLocationLabelSync('Near me');
         setDetectingLocation(false);
         setDetectError(false);
+        setLocationDenied(false);
         setEditingLocation(false);
         fetchEvents(ll, null, searchRef.current || null);
       },
@@ -181,6 +185,7 @@ export default function Events() {
         console.warn('[Events] geolocation error:', err.code, err.message);
         setDetectingLocation(false);
         setDetectError(true);
+        setLocationDenied(true);
       },
       { timeout: 10000, enableHighAccuracy: false, maximumAge: 0 }
     );
@@ -394,10 +399,26 @@ export default function Events() {
           ))}
         </div>
       ) : !loading && !latlong && !locationLabel && !search ? (
-        <div className="text-center py-20 text-muted-foreground px-4">
-          <p className="text-4xl mb-3">📍</p>
-          <p className="font-medium text-foreground">Location access needed</p>
-          <p className="text-sm mt-1 opacity-70">Enter your city above to find events near you</p>
+        <div className="text-center py-16 text-muted-foreground px-4 space-y-4">
+          <p className="text-4xl">📍</p>
+          <div>
+            <p className="font-medium text-foreground">Location access needed</p>
+            <p className="text-sm mt-1 opacity-70">Allow location or enter your city to find events near you</p>
+          </div>
+          {locationDenied && (
+            <button
+              onClick={() => { setDetectError(false); handleDetectAgain(); }}
+              disabled={detectingLocation}
+              className="flex items-center gap-2 mx-auto px-5 py-3 rounded-full font-bold text-sm transition-all active:scale-95 disabled:opacity-60"
+              style={{ background: 'rgba(0,200,255,0.12)', border: '1px solid rgba(0,200,255,0.3)', color: '#00C8FF' }}
+            >
+              {detectingLocation
+                ? <span className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#00C8FF', borderTopColor: 'transparent' }} />
+                : <LocateFixed className="w-4 h-4" />
+              }
+              Allow Location Access
+            </button>
+          )}
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-20 text-muted-foreground px-4">

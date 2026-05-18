@@ -256,20 +256,32 @@ export default function Upgrades() {
           )}
           </form>
         ) : locationDenied && !locationLabel ? (
-          <button
-            onClick={() => { setLocationInput(''); setEditingLocation(true); }}
-            className="flex items-center gap-3 px-4 py-3.5 rounded-2xl w-full transition-all active:scale-[0.98]"
-            style={{ background: 'rgba(255,165,0,0.08)', border: '1px solid rgba(255,165,0,0.25)' }}
-          >
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ background: 'rgba(255,165,0,0.15)' }}>
-              <MapPin className="w-4 h-4" style={{ color: '#FF8C00' }} />
-            </div>
-            <div className="text-left">
-              <p className="text-xs font-black" style={{ color: '#FF8C00' }}>Set your location</p>
-              <p className="text-[11px] text-muted-foreground">Tap to enter your city and find nearby events</p>
-            </div>
-          </button>
+          <div className="space-y-2">
+            <button
+              onClick={handleDetectAgain}
+              disabled={detectingLocation}
+              className="flex items-center gap-3 px-4 py-3.5 rounded-2xl w-full transition-all active:scale-[0.98] disabled:opacity-60"
+              style={{ background: 'rgba(0,200,255,0.08)', border: '1px solid rgba(0,200,255,0.25)' }}
+            >
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{ background: 'rgba(0,200,255,0.15)' }}>
+                {detectingLocation
+                  ? <span className="w-3.5 h-3.5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#00C8FF', borderTopColor: 'transparent' }} />
+                  : <LocateFixed className="w-4 h-4" style={{ color: '#00C8FF' }} />
+                }
+              </div>
+              <div className="text-left">
+                <p className="text-xs font-black" style={{ color: '#00C8FF' }}>Allow location access</p>
+                <p className="text-[11px] text-muted-foreground">Tap to re-prompt for location permission</p>
+              </div>
+            </button>
+            <button
+              onClick={() => { setLocationInput(''); setEditingLocation(true); }}
+              className="text-xs text-muted-foreground underline underline-offset-2 px-1"
+            >
+              Or enter your city manually
+            </button>
+          </div>
         ) : (
           <button
             onClick={() => { setLocationInput(locationLabel === 'Near me' ? '' : locationLabel); setEditingLocation(true); }}
