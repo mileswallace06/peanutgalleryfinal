@@ -353,17 +353,26 @@ export default function Events() {
                 <MapPin className="w-4 h-4" /> Search by city
               </button>
             </>
-          ) : locationStatus === 'unavailable' ? (
+          ) : (locationStatus === 'unavailable' || locationStatus === 'timeout') ? (
             <>
               <div>
-                <p className="font-medium text-foreground">Couldn't get your location</p>
+                <p className="font-medium text-foreground">
+                  {locationStatus === 'timeout' ? 'Location timed out' : "Couldn't get your location"}
+                </p>
                 <p className="text-sm mt-1 opacity-70">Try again or enter your city manually.</p>
               </div>
-              <button onClick={requestLocation} disabled={locationStatus === 'requesting'}
-                className="mx-auto flex items-center gap-2 px-5 py-3 rounded-full font-bold text-sm"
-                style={{ background: 'rgba(0,200,255,0.12)', border: '1px solid rgba(0,200,255,0.3)', color: '#00C8FF' }}>
-                <LocateFixed className="w-4 h-4" /> Try again
-              </button>
+              <div className="flex gap-3 justify-center">
+                <button onClick={requestLocation}
+                  className="flex items-center gap-2 px-5 py-3 rounded-full font-bold text-sm"
+                  style={{ background: 'rgba(0,200,255,0.12)', border: '1px solid rgba(0,200,255,0.3)', color: '#00C8FF' }}>
+                  <LocateFixed className="w-4 h-4" /> Try again
+                </button>
+                <button onClick={() => setEditingLocation(true)}
+                  className="flex items-center gap-2 px-5 py-3 rounded-full font-bold text-sm"
+                  style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+                  <MapPin className="w-4 h-4" /> Enter city
+                </button>
+              </div>
             </>
           ) : (
             <>

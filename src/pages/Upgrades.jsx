@@ -203,9 +203,11 @@ export default function Upgrades() {
                 Location access is blocked. Enable it in your browser settings or type your city above.
               </p>
             )}
-            {locationStatus === 'unavailable' && (
+            {(locationStatus === 'unavailable' || locationStatus === 'timeout') && (
               <p className="text-[11px] px-1" style={{ color: '#FF8C00' }}>
-                Couldn't get your location. Try again or enter your city above.
+                {locationStatus === 'timeout'
+                  ? "Location timed out. Try again or enter your city above."
+                  : "Couldn't get your location. Try again or enter your city above."}
               </p>
             )}
           </div>
@@ -298,7 +300,7 @@ export default function Upgrades() {
               <div key={i} className="rounded-2xl h-24 animate-pulse dark:bg-[rgba(255,255,255,0.05)]" style={{ background: '#f0f0f0' }} />
             ))}
           </div>
-        ) : (locationStatus === 'granted') && (
+        ) : (locationStatus === 'granted' || locationLabel) && (
           <>
             {/* LIVE NOW */}
             <section>
