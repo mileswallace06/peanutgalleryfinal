@@ -164,7 +164,7 @@ export default function Sell() {
             <Loader2 className="w-4 h-4 animate-spin text-primary" />
             <span className="text-sm font-medium text-muted-foreground">Verifying payout account…</span>
           </div>
-        ) : user.role === 'admin' || user.stripe_onboarding_complete === true || user.stripe_onboarding_complete === 'true' ? (
+        ) : user.role === 'admin' /* STRICT: only explicit admin role */ || user.stripe_onboarding_complete === true || user.stripe_onboarding_complete === 'true' ? (
           /* Primary CTA — onboarding done or admin bypass */
           <Link
             to="/create-listing"

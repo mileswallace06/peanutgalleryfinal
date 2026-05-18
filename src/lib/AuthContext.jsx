@@ -101,6 +101,8 @@ export const AuthProvider = ({ children }) => {
       // Now check if the user is authenticated
       setIsLoadingAuth(true);
       const currentUser = await base44.auth.me({ fresh: true });
+      // DEBUG: log auth state to catch stale/incorrect role assignments
+      console.log('[Auth] user.id:', currentUser?.id, '| email:', currentUser?.email, '| role:', currentUser?.role, '| isAdmin:', currentUser?.role === 'admin');
       setUser(currentUser);
       setIsAuthenticated(true);
       setIsLoadingAuth(false);

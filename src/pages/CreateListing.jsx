@@ -248,7 +248,8 @@ export default function CreateListing() {
   const selectedEvent = events.find(e => e.id === form.event_id) || selectedTmEvent;
 
   // ── Onboarding gate ───────────────────────────────────────────────────────
-  const isAdminUser = user?.role === 'admin';
+  const isAdminUser = user?.role === 'admin'; // STRICT: only explicit 'admin' role
+  console.log('[CreateListing] user.email:', user?.email, '| role:', user?.role, '| isAdmin:', isAdminUser);
   const onboardingComplete =
     isAdminUser ||
     user?.stripe_onboarding_complete === true ||

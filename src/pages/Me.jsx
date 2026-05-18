@@ -16,6 +16,7 @@ export default function Me() {
 
   useEffect(() => {
     base44.auth.me({ fresh: true }).then(u => {
+      console.log('[Me] user.email:', u?.email, '| role:', u?.role, '| isAdmin:', u?.role === 'admin');
       setUser(u);
       if (u?.email) {
         Promise.all([
