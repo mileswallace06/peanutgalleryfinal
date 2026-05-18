@@ -15,7 +15,7 @@ export default function Me() {
   const [socialTab, setSocialTab] = useState('following');
 
   useEffect(() => {
-    base44.auth.me().then(u => {
+    base44.auth.me({ fresh: true }).then(u => {
       setUser(u);
       if (u?.email) {
         Promise.all([
