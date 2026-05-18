@@ -119,9 +119,12 @@ export default function Events() {
         setLocationDenied(false);
         fetchEvents(ll, null, searchRef.current || null);
       },
-      () => {
+      (err) => {
         setDetectingLocation(false);
-        setLocationDenied(true);
+        // code 1 = PERMISSION_DENIED, code 2 = POSITION_UNAVAILABLE, code 3 = TIMEOUT
+        if (err.code === 1) {
+          setLocationDenied(true);
+        }
         setLoading(false);
       },
       { timeout: 8000, enableHighAccuracy: false, maximumAge: 60000 }
@@ -184,8 +187,13 @@ export default function Events() {
       (err) => {
         console.warn('[Events] geolocation error:', err.code, err.message);
         setDetectingLocation(false);
-        setDetectError(true);
-        setLocationDenied(true);
+        if (err.code === 1) {
+          setDetectError(true);
+          setLocationDenied(true);
+        } else {
+          // Position unavailable or timeout — permission was granted, just couldn't get a fix
+          setDetectError(true);
+        }
       },
       { timeout: 10000, enableHighAccuracy: false, maximumAge: 0 }
     );

@@ -86,9 +86,11 @@ export default function Upgrades() {
         setLocationDenied(false);
         fetchEvents(ll, null);
       },
-      () => {
+      (err) => {
         setDetectingLocation(false);
-        setLocationDenied(true);
+        if (err.code === 1) {
+          setLocationDenied(true);
+        }
         setLoading(false);
       },
       { timeout: 8000, enableHighAccuracy: false, maximumAge: 60000 }
@@ -129,8 +131,12 @@ export default function Upgrades() {
       (err) => {
         console.warn('[Upgrades] geolocation error:', err.code, err.message);
         setDetectingLocation(false);
-        setLocationDenied(true);
-        setDetectError(true);
+        if (err.code === 1) {
+          setLocationDenied(true);
+          setDetectError(true);
+        } else {
+          setDetectError(true);
+        }
       },
       { timeout: 10000, enableHighAccuracy: false, maximumAge: 0 }
     );
