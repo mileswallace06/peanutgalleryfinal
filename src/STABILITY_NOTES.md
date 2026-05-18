@@ -1,5 +1,5 @@
 # Peanut Gallery — Stability Notes
-_Last updated: 2026-05-06_
+_Last updated: 2026-05-18_
 
 ---
 
@@ -58,13 +58,54 @@ _Last updated: 2026-05-06_
 
 ---
 
+## ✅ Stripe Connect Marketplace Verification — Completed _(2026-05-18)_
+
+> **Payment infrastructure is stable and verified. Do not modify payment architecture casually moving forward.**
+
+### Verified Systems
+- Stripe Connect Express onboarding (Phase 1 + Phase 2)
+- Non-admin seller payout onboarding gate (`submitListing` + `createPaymentIntent` both enforce)
+- `transfer_data.destination` payout routing to seller's connected Express account
+- `application_fee_amount` platform fee retention by Peanut Gallery
+- Manual capture escrow flow preserved (`capture_method: manual` — unchanged)
+- Dual-confirmation capture flow preserved (`capturePayment` unchanged)
+- Seller payout blocking for non-onboarded users (402 returned, listing not reserved)
+- Admin/test listing fallback behavior (no Connect split, warning logged)
+
+### Verified Fee Structure
+| Party | Amount |
+|---|---|
+| Buyer pays | subtotal + 5% fee |
+| Seller receives | subtotal (via `transfer_data.destination` on capture) |
+| Peanut Gallery keeps | 5% (via `application_fee_amount`) |
+
+**Example:** 2 tickets @ $50 → buyer pays $105.00, seller receives $100.00, PG keeps $5.00.
+
+### Verified Behaviors
+- Uncaptured auth before dual confirmation — payment held in escrow, not charged
+- Successful Stripe capture after dual confirmation routes payout to connected account
+- Connected account destination transfer confirmed on PaymentIntent (`acct_1TYXagIkbrKeayd4`)
+- Cancellation before capture safely voids the authorization (no charge)
+- Admin permissions hardened — `isAdmin()` checks `user.role === 'admin'` strictly, no fallbacks
+- Non-admin users blocked from bypassing onboarding at both frontend and backend layers
+- Safety gate blocks real seller purchases if `stripe_account_id` is missing (402, not 500)
+
+### Test Run Results (2026-05-18)
+- `createPaymentIntent` with real seller + no `stripe_account_id` → **402 BLOCKED** ✅
+- `createPaymentIntent` with admin/test listing → **200, Connect fields present** ✅
+- `application_fee_amount: 245` cents ($2.45 on $49 subtotal) confirmed in Stripe ✅
+- `transfer_data.destination: acct_1TYXagIkbrKeayd4` confirmed in Stripe ✅
+- `capturePayment` code unchanged — zero modifications during Phase 2 ✅
+
+---
+
 ## 🔒 Do Not Touch Without Clear Reason
 
 | File/Function | Why Protected |
 |---|---|
 | `functions/submitListing.js` | Fraud checks; listing creation; proof status logic |
-| `functions/createPaymentIntent.js` | Core escrow logic; listing reservation; Stripe PI creation |
-| `functions/capturePayment.js` | Dual-confirm gate; Stripe capture; listing finalization |
+| `functions/createPaymentIntent.js` | Core escrow logic; listing reservation; Stripe PI creation; **Connect split via `transfer_data` + `application_fee_amount`** |
+| `functions/capturePayment.js` | Dual-confirm gate; Stripe capture; listing finalization; **triggers destination transfer on capture** |
 | `functions/cancelPurchase.js` | Refund logic; listing restoration; allows admin refund on disputed records |
 | `components/events/PurchaseDialog.jsx` | Checkout form; reservation tracking; navigate-on-success |
 | `pages/PurchaseSuccess.jsx` | Full transfer UX; seller/buyer role logic; proof upload |
@@ -91,4 +132,5 @@ Only the following categories of work should proceed unless explicitly decided o
 3. **Dispute resolution is manual** — Admin Dispute Queue in AdminMode provides Refund, Release, and Strike actions, but there is no automated escalation or SLA enforcement.
 4. **Auto-expiry not implemented** — Purchases don't auto-expire if seller never confirms; requires manual admin action.
 5. **MySales confirm button skips proof** — "Mark Tickets as Sent" button in MySales bypasses the proof upload UX. Inconsistent with PurchaseSuccess flow. Fix: link to `/purchase/:id` instead.
-6. **Stripe test mode only** — STRIPE_SECRET_KEY and publishable key are test keys; not production-ready.
+6. **Stripe test mode only** — STRIPE_SECRET_KEY and publishable key are test keys; not production-ready. To go live, replace both with `sk_live_` / `pk_live_` keys and verify seller accounts are fully activated in Stripe Dashboard.
+7. **No seller notification on purchase** — Seller has no push/email alert when a purchase is created; they must check MySales manually.
