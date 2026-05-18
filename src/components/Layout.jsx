@@ -50,7 +50,10 @@ export default function Layout() {
   }, [currentTab]);
 
   useEffect(() => {
-    base44.auth.me().then(setUser).catch(() => {});
+    base44.auth.me({ fresh: true }).then(u => {
+      console.log('[Layout] email:', u?.email, '| role:', u?.role, '| isAdmin:', u?.role === 'admin');
+      setUser(u);
+    }).catch(() => {});
   }, []);
 
   if (showOnboarding) {

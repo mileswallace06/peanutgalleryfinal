@@ -5,6 +5,7 @@ import { useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, CheckCircle, Upload, Zap, Search, Star } from 'lucide-react';
 import { getEventLiveStatus } from '@/lib/eventTiming';
 import { fetchTMEvents } from '@/lib/tmCache';
+import { isAdmin as checkIsAdmin } from '@/lib/isAdmin';
 
 const STEPS = ['Event', 'Seats', 'Price', 'Done'];
 
@@ -180,7 +181,6 @@ export default function CreateListing() {
 
   const handleSubmit = async () => {
     setSubmitting(true);
-    const isAdmin = user?.role === 'admin';
     const res = await base44.functions.invoke('submitListing', {
       event_id: form.event_id,
       section: form.section,
@@ -192,7 +192,7 @@ export default function CreateListing() {
       original_price: form.original_price ? parseFloat(form.original_price) : undefined,
       transfer_method: form.transfer_method,
       proof_url: form.proof_url || undefined,
-      is_test: isAdmin,
+      is_test: isAdminUser,
     });
     setFlagged(res.data.flagged);
     setSubmitting(false);
@@ -248,8 +248,7 @@ export default function CreateListing() {
   const selectedEvent = events.find(e => e.id === form.event_id) || selectedTmEvent;
 
   // ── Onboarding gate ───────────────────────────────────────────────────────
-  const isAdminUser = user?.role === 'admin'; // STRICT: only explicit 'admin' role
-  console.log('[CreateListing] user.email:', user?.email, '| role:', user?.role, '| isAdmin:', isAdminUser);
+  const isAdminUser = checkIsAdmin(user);
   const onboardingComplete =
     isAdminUser ||
     user?.stripe_onboarding_complete === true ||

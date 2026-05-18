@@ -3,6 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { Shield, Database, CheckCircle, XCircle, RefreshCw, Lock, AlertTriangle, FileText, CreditCard } from 'lucide-react';
 import { format } from 'date-fns';
 import EventTimingDebug from '@/components/admin/EventTimingDebug';
+import { isAdmin } from '@/lib/isAdmin';
 
 const ADMIN_PASSWORD = 'peanut2026';
 
@@ -30,7 +31,16 @@ export default function AdminMode() {
 
   useEffect(() => {
     if (unlocked) {
-      base44.auth.me().then(setUser).catch(() => {});
+      base44.auth.me({ fresh: true }).then(u => {
+        console.log('[AdminMode] email:', u?.email, '| role:', u?.role, '| isAdmin:', isAdmin(u));
+        setUser(u);
+        if (!isAdmin(u)) {
+          // Non-admin got the password — lock them back out
+          sessionStorage.removeItem('pg_admin_unlocked');
+          setUnlocked(false);
+          setPwError('Your account does not have admin privileges.');
+        }
+      }).catch(() => {});
       loadData();
       loadStripeMode();
     }

@@ -4,6 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 import { Plus, Tag, TrendingUp, LogIn, BadgeCheck, ExternalLink, Loader2, AlertCircle, MapPin, Calendar, ChevronRight } from 'lucide-react';
 import { fetchTMEvents } from '@/lib/tmCache';
+import { isAdmin } from '@/lib/isAdmin';
 
 export default function Sell() {
   const [user, setUser] = useState(null);
@@ -164,7 +165,7 @@ export default function Sell() {
             <Loader2 className="w-4 h-4 animate-spin text-primary" />
             <span className="text-sm font-medium text-muted-foreground">Verifying payout account…</span>
           </div>
-        ) : user.role === 'admin' /* STRICT: only explicit admin role */ || user.stripe_onboarding_complete === true || user.stripe_onboarding_complete === 'true' ? (
+        ) : isAdmin(user) || user.stripe_onboarding_complete === true || user.stripe_onboarding_complete === 'true' ? (
           /* Primary CTA — onboarding done or admin bypass */
           <Link
             to="/create-listing"

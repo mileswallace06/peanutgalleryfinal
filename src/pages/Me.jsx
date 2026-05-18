@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { Ticket, TrendingUp, Shield, LogIn, Edit2, Tag, Zap, ChevronRight, Camera, ImagePlus, UserPlus, UserCheck, Settings } from 'lucide-react';
+import { isAdmin } from '@/lib/isAdmin';
 
 export default function Me() {
   const navigate = useNavigate();
@@ -167,7 +168,7 @@ export default function Me() {
             style={{ background: '#e0f0f8', color: '#00C8FF', border: '1px solid #d0e8f0' }}>
             🥜 Fan
           </span>
-          {user.role === 'admin' && (
+          {isAdmin(user) && (
             <span className="text-[10px] font-bold px-2.5 py-1 rounded-full dark:bg-[rgba(255,230,0,0.25)] dark:border-[rgba(255,230,0,0.5)] dark:text-[#FFFF00]"
               style={{ background: '#f8f8e8', color: '#FFE600', border: '1px solid #f0e8d0' }}>
               ✦ Admin
@@ -349,7 +350,7 @@ export default function Me() {
             <ChevronRight className="w-4 h-4 text-muted-foreground" />
           </Link>
 
-          {user.role === 'admin' && (
+          {isAdmin(user) && (
             <Link
               to="/admin"
               className="flex items-center gap-4 px-5 py-4 rounded-2xl transition-all active:scale-[0.98]"
