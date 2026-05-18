@@ -1,7 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import Stripe from 'npm:stripe@14.21.0';
 
-const PLATFORM_FEE_PCT = 0.10; // 10% platform fee
+const PLATFORM_FEE_PCT = 0.05; // 5% — seller keeps 95%
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
@@ -38,20 +38,50 @@ Deno.serve(async (req) => {
     return Response.json({ error: 'You cannot purchase your own listing' }, { status: 400 });
   }
 
-  // Fee breakdown
+  // Fetch seller to get stripe_account_id
+  const sellerUsers = await base44.asServiceRole.entities.User.filter({ email: listing.seller_email });
+  const seller = sellerUsers[0];
+  const sellerStripeAccountId = seller?.stripe_account_id || null;
+  const isTestOrAdminListing = listing.notes?.includes('[TEST]') || seller?.role === 'admin';
+
+  // Safety: block real seller purchases if no connected Stripe account
+  if (!sellerStripeAccountId && !isTestOrAdminListing) {
+    console.error('[createPaymentIntent] BLOCKED: seller has no stripe_account_id', listing.seller_email);
+    return Response.json(
+      { error: 'Seller has not completed payout onboarding. Purchase blocked.' },
+      { status: 402 }
+    );
+  }
+
+  if (!sellerStripeAccountId && isTestOrAdminListing) {
+    console.warn('[createPaymentIntent] WARNING: No connected seller account — admin/test listing, proceeding without split payout.');
+  }
+
+  // Fee math
+  // buyer pays: subtotal + platform fee
+  // seller receives: subtotal (sent via transfer_data)
+  // Peanut Gallery keeps: platform fee (application_fee_amount)
   const subtotal = listing.asking_price * (listing.quantity || 1);
   const platformFee = Math.round(subtotal * PLATFORM_FEE_PCT * 100) / 100;
   const buyerTotal = subtotal + platformFee;
-  const sellerPayout = subtotal; // seller always receives original asking price
+  const sellerPayout = subtotal;
 
-  const amountCents = Math.round(buyerTotal * 100); // charge buyer the full total including fee
+  const amountCents = Math.round(buyerTotal * 100);
+  const applicationFeeCents = Math.round(platformFee * 100);
+  const sellerPayoutCents = Math.round(sellerPayout * 100);
+
+  console.log('[createPaymentIntent] fee math:', {
+    subtotal, platformFee, buyerTotal, sellerPayout,
+    amountCents, applicationFeeCents,
+    sellerStripeAccountId: sellerStripeAccountId || 'NONE (test/admin)',
+  });
 
   // Reserve the listing
   await base44.asServiceRole.entities.Listing.update(listing.id, { status: 'pending_transfer' });
 
   let paymentIntent;
   try {
-    paymentIntent = await stripe.paymentIntents.create({
+    const piParams = {
       amount: amountCents,
       currency: 'usd',
       capture_method: 'manual',
@@ -60,14 +90,29 @@ Deno.serve(async (req) => {
         event_id: listing.event_id,
         buyer_email: buyer_email || user.email,
         seller_email: listing.seller_email,
+        seller_stripe_account_id: sellerStripeAccountId || 'none',
         subtotal: subtotal.toString(),
         platform_fee: platformFee.toString(),
-        seller_payout: sellerPayout.toString()
+        seller_payout: sellerPayout.toString(),
       },
-      description: `Peanut Gallery: Section ${listing.section} Row ${listing.row}`
-    });
+      description: `Peanut Gallery: Section ${listing.section} Row ${listing.row}`,
+    };
+
+    // Add Connect split only when seller has a connected account
+    if (sellerStripeAccountId) {
+      piParams.application_fee_amount = applicationFeeCents;
+      piParams.transfer_data = {
+        destination: sellerStripeAccountId,
+      };
+      console.log('[createPaymentIntent] Connect split configured:', {
+        application_fee_amount: applicationFeeCents,
+        transfer_data_destination: sellerStripeAccountId,
+      });
+    }
+
+    paymentIntent = await stripe.paymentIntents.create(piParams);
   } catch (err) {
-    // Rollback listing
+    // Rollback listing reservation
     await base44.asServiceRole.entities.Listing.update(listing.id, { status: 'active' });
     return Response.json({ error: err.message }, { status: 500 });
   }
@@ -78,6 +123,6 @@ Deno.serve(async (req) => {
     subtotal,
     platformFee,
     buyerTotal,
-    sellerPayout
+    sellerPayout,
   });
 });
