@@ -19,19 +19,28 @@
     "banner_url": {
       "type": "string"
     },
-    "strike_count": {
-      "type": "number",
-      "default": 0
-    },
     "stripe_account_id": {
-      "type": "string",
-      "description": "Stripe Connect Express account ID (acct_xxx) assigned after onboarding"
+      "type": "string"
     },
     "stripe_onboarding_complete": {
       "type": "boolean",
-      "default": false,
-      "description": "True once Stripe reports charges_enabled on the connected account"
+      "default": false
+    },
+    "strikes": {
+      "type": "number",
+      "default": 0
+    },
+    "notification_new_message": {
+      "type": "boolean",
+      "default": true
+    },
+    "notification_sale": {
+      "type": "boolean",
+      "default": true
+    },
+    "notification_price_drop": {
+      "type": "boolean",
+      "default": false
     }
-  },
-  "required": []
+  }
 }
