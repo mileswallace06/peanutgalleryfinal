@@ -5,33 +5,27 @@ import { format } from 'date-fns';
 import { MapPin, Calendar, Search, ChevronRight, LocateFixed, X, RefreshCw } from 'lucide-react';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { fetchTMEvents, bustTMCache } from '@/lib/tmCache';
+import { useLocationDetect } from '@/hooks/useLocationDetect';
 
 export default function Events() {
   const [events, setEvents] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const searchDebounceRef = useRef(null);
+  const searchRef = useRef('');
 
-  // Location state — use refs to always have fresh values in callbacks
-  const [locationLabel, setLocationLabel] = useState('');
-  const [latlong, setLatlong] = useState('');
-  const latlongRef = useRef('');
-  const locationLabelRef = useRef('');
   const [locationInput, setLocationInput] = useState('');
   const [editingLocation, setEditingLocation] = useState(false);
-  const [detectingLocation, setDetectingLocation] = useState(false);
-  const searchRef = useRef('');
   const locationInputRef = useRef(null);
-
-  // Keep refs in sync
-  const setLatlongSync = (val) => { latlongRef.current = val; setLatlong(val); };
-  const setLocationLabelSync = (val) => { locationLabelRef.current = val; setLocationLabel(val); };
 
   const [tmError, setTmError] = useState(false);
   const [networkError, setNetworkError] = useState(false);
-  const [locationDenied, setLocationDenied] = useState(false);
   // Track which TM IDs we've already synced this session to avoid duplicate calls
   const syncedTmIds = useRef(new Set());
+
+  const { locationStatus, latlong, latlongRef, locationLabel, locationLabelRef, requestLocation, setManualCity, setLocationLabelSync, setLatlongSync } = useLocationDetect({
+    onSuccess: (ll) => fetchEvents(ll, null, searchRef.current || null),
+  });
 
   const fetchEvents = useCallback(async (ll, cityOverride, keyword, bust = false) => {
     // Don't fetch until we have a location, city, or keyword
@@ -107,29 +101,7 @@ export default function Events() {
     }
   }, []);
 
-  // Auto-detect location on mount — use maximumAge to avoid refiring on re-render
-  useEffect(() => {
-    setDetectingLocation(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const ll = `${pos.coords.latitude},${pos.coords.longitude}`;
-        setLatlongSync(ll);
-        setLocationLabelSync('Near me');
-        setDetectingLocation(false);
-        setLocationDenied(false);
-        fetchEvents(ll, null, searchRef.current || null);
-      },
-      (err) => {
-        setDetectingLocation(false);
-        // code 1 = PERMISSION_DENIED, code 2 = POSITION_UNAVAILABLE, code 3 = TIMEOUT
-        if (err.code === 1) {
-          setLocationDenied(true);
-        }
-        setLoading(false);
-      },
-      { timeout: 8000, enableHighAccuracy: false, maximumAge: 60000 }
-    );
-  }, [fetchEvents]);
+
 
   // Search debounce — 600ms to reduce TM calls while typing
   useEffect(() => {
@@ -140,10 +112,10 @@ export default function Events() {
       const hasKeyword = keyword.length > 0;
 
       if (hasKeyword) {
-        setLocationLabel(`"${keyword}"`);
+        setLocationLabelSync(`"${keyword}"`);
         fetchEvents(null, null, keyword);
       } else {
-        setLocationLabel(locationLabelRef.current);
+        setLocationLabelSync(locationLabelRef.current);
         const ll = latlongRef.current || null;
         const city = !ll && locationLabelRef.current && locationLabelRef.current !== 'Near me'
           ? locationLabelRef.current : null;
@@ -157,46 +129,14 @@ export default function Events() {
     e.preventDefault();
     const val = locationInput.trim();
     if (!val) return;
-    setLatlongSync('');
-    setLocationLabelSync(val);
+    setManualCity(val);
     setEditingLocation(false);
     fetchEvents(null, val, searchRef.current || null);
   };
 
-  const [detectError, setDetectError] = useState(false);
-
-  const handleDetectAgain = () => {
-    setDetectingLocation(true);
-    setDetectError(false);
-    if (!navigator.geolocation) {
-      setDetectingLocation(false);
-      setDetectError(true);
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const ll = `${pos.coords.latitude},${pos.coords.longitude}`;
-        setLatlongSync(ll);
-        setLocationLabelSync('Near me');
-        setDetectingLocation(false);
-        setDetectError(false);
-        setLocationDenied(false);
-        setEditingLocation(false);
-        fetchEvents(ll, null, searchRef.current || null);
-      },
-      (err) => {
-        console.warn('[Events] geolocation error:', err.code, err.message);
-        setDetectingLocation(false);
-        if (err.code === 1) {
-          setDetectError(true);
-          setLocationDenied(true);
-        } else {
-          // Position unavailable or timeout — permission was granted, just couldn't get a fix
-          setDetectError(true);
-        }
-      },
-      { timeout: 10000, enableHighAccuracy: false, maximumAge: 0 }
-    );
+  const handleNearMe = () => {
+    setEditingLocation(false);
+    requestLocation();
   };
 
   // Local filter handles PG events; TM events are already filtered server-side by keyword
@@ -215,12 +155,9 @@ export default function Events() {
   });
 
   const { containerRef, pulling } = usePullToRefresh(() => {
-    fetchEvents(
-      latlongRef.current || null,
-      locationLabelRef.current && locationLabelRef.current !== 'Near me' ? locationLabelRef.current : null,
-      searchRef.current || null,
-      true // bust cache on manual refresh
-    );
+    const ll = latlongRef.current || null;
+    const city = !ll && locationLabelRef.current && locationLabelRef.current !== 'Near me' ? locationLabelRef.current : null;
+    fetchEvents(ll, city, searchRef.current || null, true);
   });
 
   return (
@@ -288,7 +225,7 @@ export default function Events() {
 
       {/* ── Location + Search ── */}
       <div className="px-4 mt-4 mb-4 space-y-2">
-        {editingLocation && (
+        {editingLocation ? (
           <form onSubmit={handleLocationSubmit} className="flex gap-2">
             <div className="relative flex-1">
               <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#00C8FF' }} />
@@ -303,10 +240,10 @@ export default function Events() {
                 style={{ background: 'hsl(var(--card))', border: '1px solid rgba(0,200,255,0.35)', boxShadow: '0 0 0 3px rgba(0,200,255,0.08)' }}
               />
             </div>
-            <button type="button" onClick={handleDetectAgain} disabled={detectingLocation} title="Use my location"
+            <button type="button" onClick={handleNearMe} disabled={locationStatus === 'requesting'} title="Use my location"
               className="flex items-center justify-center w-11 h-11 rounded-2xl flex-shrink-0 transition-all active:scale-95 disabled:opacity-60"
-              style={{ background: detectError ? 'rgba(255,45,120,0.12)' : 'rgba(0,200,255,0.12)', border: `1px solid ${detectError ? 'rgba(255,45,120,0.3)' : 'rgba(0,200,255,0.3)'}`, color: detectError ? '#FF2D78' : '#00C8FF' }}>
-              {detectingLocation
+              style={{ background: 'rgba(0,200,255,0.12)', border: '1px solid rgba(0,200,255,0.3)', color: '#00C8FF' }}>
+              {locationStatus === 'requesting'
                 ? <span className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#00C8FF', borderTopColor: 'transparent' }} />
                 : <LocateFixed className="w-4 h-4" />
               }
@@ -322,13 +259,7 @@ export default function Events() {
               Go
             </button>
           </form>
-        )}
-        {editingLocation && detectError && (
-          <p className="text-[11px] mt-1.5 px-1" style={{ color: '#FF2D78' }}>
-            Location access denied. Check your browser/device settings, or type your city above.
-          </p>
-        )}
-        {!editingLocation && (
+        ) : (
           <button
             onClick={() => { setLocationInput(locationLabel === 'Near me' ? '' : locationLabel); setEditingLocation(true); }}
             className="flex items-center gap-3 w-full px-4 py-3 rounded-2xl transition-all active:scale-[0.98]"
@@ -336,7 +267,7 @@ export default function Events() {
           >
             <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
               style={{ background: 'rgba(0,200,255,0.15)', border: '1px solid rgba(0,200,255,0.3)' }}>
-              {detectingLocation
+              {locationStatus === 'requesting'
                 ? <span className="w-3.5 h-3.5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#00C8FF', borderTopColor: 'transparent' }} />
                 : <MapPin className="w-4 h-4" style={{ color: '#00C8FF' }} />
               }
@@ -344,12 +275,12 @@ export default function Events() {
             <div className="text-left flex-1 min-w-0">
               <p className="text-[10px] font-black tracking-widest uppercase text-muted-foreground">Showing events near</p>
               <p className="text-sm font-bold text-foreground truncate">
-                {detectingLocation ? 'Detecting location…' : locationLabel || 'Set location'}
+                {locationStatus === 'requesting' ? 'Detecting location…' : locationLabel || 'Set location'}
               </p>
             </div>
             <span className="text-xs font-bold px-2.5 py-1 rounded-full flex-shrink-0"
               style={{ background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' }}>
-              Change
+              {locationLabel ? 'Change' : 'Set'}
             </span>
           </button>
         )}
@@ -409,16 +340,50 @@ export default function Events() {
       ) : !loading && !latlong && !locationLabel && !search ? (
         <div className="text-center py-16 text-muted-foreground px-4 space-y-4">
           <p className="text-4xl">📍</p>
-          <div>
-            <p className="font-medium text-foreground">Location access needed</p>
-            <p className="text-sm mt-1 opacity-70">Allow location or enter your city to find events near you</p>
-          </div>
-          {locationDenied && (
-            <div className="text-left px-4 py-3 rounded-2xl mx-auto max-w-xs"
-              style={{ background: 'rgba(255,140,0,0.08)', border: '1px solid rgba(255,140,0,0.25)' }}>
-              <p className="text-xs font-black" style={{ color: '#FF8C00' }}>Location access blocked</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">Go to your browser or device <strong>Settings → Site permissions → Location</strong> and allow this site, then refresh.</p>
-            </div>
+          {locationStatus === 'denied' ? (
+            <>
+              <div>
+                <p className="font-medium text-foreground">Location access is blocked</p>
+                <p className="text-sm mt-1 opacity-70">Enable location permissions in your browser or search by city.</p>
+              </div>
+              <button
+                onClick={() => setEditingLocation(true)}
+                className="mx-auto flex items-center gap-2 px-5 py-3 rounded-full font-bold text-sm"
+                style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+                <MapPin className="w-4 h-4" /> Search by city
+              </button>
+            </>
+          ) : locationStatus === 'unavailable' ? (
+            <>
+              <div>
+                <p className="font-medium text-foreground">Couldn't get your location</p>
+                <p className="text-sm mt-1 opacity-70">Try again or enter your city manually.</p>
+              </div>
+              <button onClick={requestLocation} disabled={locationStatus === 'requesting'}
+                className="mx-auto flex items-center gap-2 px-5 py-3 rounded-full font-bold text-sm"
+                style={{ background: 'rgba(0,200,255,0.12)', border: '1px solid rgba(0,200,255,0.3)', color: '#00C8FF' }}>
+                <LocateFixed className="w-4 h-4" /> Try again
+              </button>
+            </>
+          ) : (
+            <>
+              <div>
+                <p className="font-medium text-foreground">Find events near you</p>
+                <p className="text-sm mt-1 opacity-70">Tap Near Me or search by city.</p>
+              </div>
+              <div className="flex gap-3 justify-center">
+                <button onClick={requestLocation}
+                  className="flex items-center gap-2 px-5 py-3 rounded-full font-bold text-sm"
+                  style={{ background: 'rgba(0,200,255,0.12)', border: '1px solid rgba(0,200,255,0.3)', color: '#00C8FF' }}>
+                  <LocateFixed className="w-4 h-4" /> Near Me
+                </button>
+                <button onClick={() => setEditingLocation(true)}
+                  className="flex items-center gap-2 px-5 py-3 rounded-full font-bold text-sm"
+                  style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+                  <MapPin className="w-4 h-4" /> Enter city
+                </button>
+              </div>
+            </>
           )}
         </div>
       ) : filtered.length === 0 ? (

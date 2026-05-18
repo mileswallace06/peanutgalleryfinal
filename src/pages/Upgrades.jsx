@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
@@ -6,24 +6,20 @@ import { MapPin, Calendar, Zap, ChevronRight, LocateFixed, X, Clock, RefreshCw }
 import { getEventLiveStatus, SOON_WINDOW_MINUTES } from '@/lib/eventTiming';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { fetchTMEvents, bustTMCache } from '@/lib/tmCache';
+import { useLocationDetect } from '@/hooks/useLocationDetect';
 
 export default function Upgrades() {
   const [allEvents, setAllEvents] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [locationLabel, setLocationLabel] = useState('');
+  const [loading, setLoading] = useState(false);
   const [locationInput, setLocationInput] = useState('');
   const [editingLocation, setEditingLocation] = useState(false);
-  const [detectingLocation, setDetectingLocation] = useState(false);
-  const [locationDenied, setLocationDenied] = useState(false);
-  const [latlong, setLatlong] = useState('');
-  const locationLabelRef = useRef('');
-  const latlongRef = useRef('');
   const locationInputRef = useRef(null);
 
-  const setLocationLabelSync = (val) => { locationLabelRef.current = val; setLocationLabel(val); };
-  const setLatlongSync = (val) => { latlongRef.current = val; setLatlong(val); };
-
   const [tmError, setTmError] = useState(false);
+
+  const { locationStatus, latlong, latlongRef, locationLabel, locationLabelRef, requestLocation, setManualCity } = useLocationDetect({
+    onSuccess: (ll) => fetchEvents(ll, null),
+  });
 
   const fetchEvents = useCallback(async (ll, cityOverride, bust = false) => {
     if (!ll && !cityOverride) return;
@@ -75,71 +71,18 @@ export default function Upgrades() {
     }
   }, []);
 
-  useEffect(() => {
-    setDetectingLocation(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const ll = `${pos.coords.latitude},${pos.coords.longitude}`;
-        setLatlongSync(ll);
-        setLocationLabelSync('Near me');
-        setDetectingLocation(false);
-        setLocationDenied(false);
-        fetchEvents(ll, null);
-      },
-      (err) => {
-        setDetectingLocation(false);
-        if (err.code === 1) {
-          setLocationDenied(true);
-        }
-        setLoading(false);
-      },
-      { timeout: 8000, enableHighAccuracy: false, maximumAge: 60000 }
-    );
-  }, [fetchEvents]);
-
   const handleLocationSubmit = (e) => {
     e.preventDefault();
     const val = locationInput.trim();
     if (!val) return;
-    setLatlongSync('');
-    setLocationLabelSync(val);
+    setManualCity(val);
     setEditingLocation(false);
     fetchEvents(null, val);
   };
 
-  const [detectError, setDetectError] = useState(false);
-
-  const handleDetectAgain = () => {
-    setDetectingLocation(true);
-    setLocationDenied(false);
-    setDetectError(false);
-    if (!navigator.geolocation) {
-      setDetectingLocation(false);
-      setDetectError(true);
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const ll = `${pos.coords.latitude},${pos.coords.longitude}`;
-        setLatlongSync(ll);
-        setLocationLabelSync('Near me');
-        setDetectingLocation(false);
-        setDetectError(false);
-        setEditingLocation(false);
-        fetchEvents(ll, null);
-      },
-      (err) => {
-        console.warn('[Upgrades] geolocation error:', err.code, err.message);
-        setDetectingLocation(false);
-        if (err.code === 1) {
-          setLocationDenied(true);
-          setDetectError(true);
-        } else {
-          setDetectError(true);
-        }
-      },
-      { timeout: 10000, enableHighAccuracy: false, maximumAge: 0 }
-    );
+  const handleNearMe = () => {
+    setEditingLocation(false);
+    requestLocation();
   };
 
   const nowMs = Date.now();
@@ -163,11 +106,9 @@ export default function Upgrades() {
     });
 
   const { containerRef, pulling } = usePullToRefresh(() => {
-    fetchEvents(
-      latlongRef.current || null,
-      locationLabelRef.current !== 'Near me' ? locationLabelRef.current : null,
-      true // bust cache on manual refresh
-    );
+    const ll = latlongRef.current || null;
+    const city = !ll && locationLabelRef.current && locationLabelRef.current !== 'Near me' ? locationLabelRef.current : null;
+    fetchEvents(ll, city, true);
   });
 
   return (
@@ -223,45 +164,52 @@ export default function Upgrades() {
       {/* Location bar */}
       <div className="px-4 mt-4 mb-5">
         {editingLocation ? (
-          <form onSubmit={handleLocationSubmit} className="flex gap-2">
-            <div className="relative flex-1">
-              <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#00FF87' }} />
-              <input
-                ref={locationInputRef}
-                autoFocus
-                type="text"
-                placeholder="City, e.g. Phoenix…"
-                value={locationInput}
-                onChange={(e) => setLocationInput(e.target.value)}
-                className="w-full pl-9 pr-3 py-3 rounded-2xl text-sm font-medium text-foreground placeholder:text-muted-foreground focus:outline-none"
-                style={{ background: 'hsl(var(--card))', border: '1px solid rgba(0,255,135,0.35)', boxShadow: '0 0 0 3px rgba(0,255,135,0.08)' }}
-              />
-            </div>
-            <button type="button" onClick={handleDetectAgain} disabled={detectingLocation} title="Use my location"
-              className="flex items-center justify-center w-11 h-11 rounded-2xl flex-shrink-0 transition-all active:scale-95 disabled:opacity-60"
-              style={{ background: detectError ? 'rgba(255,45,120,0.12)' : 'rgba(0,200,255,0.12)', border: `1px solid ${detectError ? 'rgba(255,45,120,0.3)' : 'rgba(0,200,255,0.3)'}`, color: detectError ? '#FF2D78' : '#00C8FF' }}>
-              {detectingLocation
-                ? <span className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#00C8FF', borderTopColor: 'transparent' }} />
-                : <LocateFixed className="w-4 h-4" />
-              }
-            </button>
-            <button type="button" onClick={() => setEditingLocation(false)}
-              className="flex items-center justify-center w-11 h-11 rounded-2xl flex-shrink-0 transition-all active:scale-95"
-              style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--muted-foreground))' }}>
-              <X className="w-4 h-4" />
-            </button>
-            <button type="submit"
-              className="px-4 py-3 rounded-2xl font-black text-sm flex-shrink-0 transition-all active:scale-95"
-              style={{ background: 'linear-gradient(135deg, #00FF87, #00C8FF)', color: '#0a0510' }}>
-              Go
-            </button>
-          {detectError && (
-            <p className="text-[11px] mt-1.5 px-1" style={{ color: '#FF2D78' }}>
-              Location access denied. Check your browser/device settings, or type your city above.
-            </p>
-          )}
-          </form>
-        ) : locationDenied && !locationLabel ? (
+          <div className="space-y-2">
+            <form onSubmit={handleLocationSubmit} className="flex gap-2">
+              <div className="relative flex-1">
+                <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#00FF87' }} />
+                <input
+                  ref={locationInputRef}
+                  autoFocus
+                  type="text"
+                  placeholder="City, e.g. Phoenix…"
+                  value={locationInput}
+                  onChange={(e) => setLocationInput(e.target.value)}
+                  className="w-full pl-9 pr-3 py-3 rounded-2xl text-sm font-medium text-foreground placeholder:text-muted-foreground focus:outline-none"
+                  style={{ background: 'hsl(var(--card))', border: '1px solid rgba(0,255,135,0.35)', boxShadow: '0 0 0 3px rgba(0,255,135,0.08)' }}
+                />
+              </div>
+              <button type="button" onClick={handleNearMe} disabled={locationStatus === 'requesting'} title="Use my location"
+                className="flex items-center justify-center w-11 h-11 rounded-2xl flex-shrink-0 transition-all active:scale-95 disabled:opacity-60"
+                style={{ background: 'rgba(0,200,255,0.12)', border: '1px solid rgba(0,200,255,0.3)', color: '#00C8FF' }}>
+                {locationStatus === 'requesting'
+                  ? <span className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#00C8FF', borderTopColor: 'transparent' }} />
+                  : <LocateFixed className="w-4 h-4" />
+                }
+              </button>
+              <button type="button" onClick={() => setEditingLocation(false)}
+                className="flex items-center justify-center w-11 h-11 rounded-2xl flex-shrink-0 transition-all active:scale-95"
+                style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--muted-foreground))' }}>
+                <X className="w-4 h-4" />
+              </button>
+              <button type="submit"
+                className="px-4 py-3 rounded-2xl font-black text-sm flex-shrink-0 transition-all active:scale-95"
+                style={{ background: 'linear-gradient(135deg, #00FF87, #00C8FF)', color: '#0a0510' }}>
+                Go
+              </button>
+            </form>
+            {locationStatus === 'denied' && (
+              <p className="text-[11px] px-1" style={{ color: '#FF8C00' }}>
+                Location access is blocked. Enable it in your browser settings or type your city above.
+              </p>
+            )}
+            {locationStatus === 'unavailable' && (
+              <p className="text-[11px] px-1" style={{ color: '#FF8C00' }}>
+                Couldn't get your location. Try again or enter your city above.
+              </p>
+            )}
+          </div>
+        ) : locationStatus === 'denied' && !locationLabel ? (
           <div className="space-y-2">
             <div className="flex items-start gap-3 px-4 py-3.5 rounded-2xl"
               style={{ background: 'rgba(255,140,0,0.08)', border: '1px solid rgba(255,140,0,0.25)' }}>
@@ -270,8 +218,8 @@ export default function Upgrades() {
                 <MapPin className="w-4 h-4" style={{ color: '#FF8C00' }} />
               </div>
               <div className="text-left flex-1">
-                <p className="text-xs font-black" style={{ color: '#FF8C00' }}>Location access blocked</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">To enable, go to your browser or device <strong>Settings → Site permissions → Location</strong> and allow this site.</p>
+                <p className="text-xs font-black" style={{ color: '#FF8C00' }}>Location access is blocked</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">Enable location permissions in your browser or search by city.</p>
               </div>
             </div>
             <button
@@ -280,7 +228,25 @@ export default function Upgrades() {
               style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
             >
               <MapPin className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm font-bold text-foreground">Enter your city instead</span>
+              <span className="text-sm font-bold text-foreground">Search by city instead</span>
+            </button>
+          </div>
+        ) : !locationLabel ? (
+          /* idle — prompt user to set location */
+          <div className="flex gap-2">
+            <button onClick={requestLocation} disabled={locationStatus === 'requesting'}
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-sm transition-all active:scale-[0.98] disabled:opacity-60"
+              style={{ background: 'rgba(0,255,135,0.12)', border: '1px solid rgba(0,255,135,0.3)', color: '#00FF87' }}>
+              {locationStatus === 'requesting'
+                ? <span className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#00FF87', borderTopColor: 'transparent' }} />
+                : <LocateFixed className="w-4 h-4" />
+              }
+              Near Me
+            </button>
+            <button onClick={() => { setLocationInput(''); setEditingLocation(true); }}
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-sm transition-all active:scale-[0.98]"
+              style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+              <MapPin className="w-4 h-4 text-muted-foreground" /> Enter city
             </button>
           </div>
         ) : (
@@ -291,16 +257,14 @@ export default function Upgrades() {
           >
             <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
               style={{ background: 'rgba(0,180,90,0.25)', border: '1px solid rgba(0,180,90,0.4)' }}>
-              {detectingLocation
+              {locationStatus === 'requesting'
                 ? <span className="w-3.5 h-3.5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#00FF87', borderTopColor: 'transparent' }} />
                 : <MapPin className="w-4 h-4" style={{ color: '#00a855' }} />
               }
             </div>
             <div className="text-left flex-1 min-w-0">
               <p className="text-[10px] font-black tracking-widest uppercase text-muted-foreground">Showing events near</p>
-              <p className="text-sm font-bold text-foreground truncate">
-                {detectingLocation ? 'Detecting location…' : locationLabel || 'Set location'}
-              </p>
+              <p className="text-sm font-bold text-foreground truncate">{locationLabel}</p>
             </div>
             <span className="text-xs font-bold px-2.5 py-1 rounded-full flex-shrink-0"
               style={{ background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' }}>
@@ -320,12 +284,12 @@ export default function Upgrades() {
 
       {/* Content */}
       <div className="px-4 space-y-8">
-        {!loading && !latlong && !locationLabel && (
+        {!loading && locationStatus === 'idle' && !locationLabel && (
           <div className="rounded-2xl px-4 py-8 text-center"
             style={{ background: 'rgba(0,200,255,0.05)', border: '1px solid rgba(0,200,255,0.15)' }}>
             <p className="text-3xl mb-3">📍</p>
-            <p className="text-sm font-bold text-foreground">Location access needed</p>
-            <p className="text-xs text-muted-foreground mt-1">Enter your city above to see live and upcoming events near you</p>
+            <p className="text-sm font-bold text-foreground">Set your location to get started</p>
+            <p className="text-xs text-muted-foreground mt-1">Tap "Near Me" or enter a city above</p>
           </div>
         )}
         {loading ? (
@@ -334,7 +298,7 @@ export default function Upgrades() {
               <div key={i} className="rounded-2xl h-24 animate-pulse dark:bg-[rgba(255,255,255,0.05)]" style={{ background: '#f0f0f0' }} />
             ))}
           </div>
-        ) : (latlong || locationLabel) && (
+        ) : (locationStatus === 'granted') && (
           <>
             {/* LIVE NOW */}
             <section>
@@ -385,9 +349,7 @@ export default function Upgrades() {
                 <div className="rounded-2xl px-4 py-5 text-center"
                   style={{ background: 'rgba(191,95,255,0.05)', border: '1px solid rgba(191,95,255,0.15)' }}>
                   <p className="text-sm font-medium text-foreground/70">No upcoming events found</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {locationDenied && !locationLabel ? 'Enter your city above to find nearby events.' : 'New events are added regularly — check back soon.'}
-                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">New events are added regularly — check back soon.</p>
                 </div>
               ) : (
                 <div className="space-y-3">
