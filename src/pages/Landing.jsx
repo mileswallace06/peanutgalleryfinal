@@ -63,35 +63,44 @@ export default function Landing() {
         />
       ))}
 
-      {/* Logo — top left */}
-      <div className="absolute z-20" style={{ top: 'calc(1.25rem + env(safe-area-inset-top))', left: 'calc(1rem + env(safe-area-inset-left))' }}>
-        <img
-          src="https://media.base44.com/images/public/69ef9900cf3862dc0ea39734/9022a5431_ChatGPTImageMay1202601_29_27PM.png"
-          alt="Peanut Gallery"
-          className="h-20 w-auto rounded-2xl"
-        />
-      </div>
-
-      {/* Main content */}
-      <div className="relative z-10 flex flex-col justify-end flex-1 px-6 pb-10">
-        {/* Tag */}
-        <motion.span
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.1 }}
-          className="text-[11px] font-black tracking-[0.25em] px-3 py-1 rounded-full w-fit mb-5"
-          style={{
-            background: 'rgba(0,0,0,0.55)',
-            color: '#fff',
-            border: '1px solid rgba(191,95,255,0.5)',
-            boxShadow: '0 0 10px rgba(191,95,255,0.4)',
-          }}
+      {/* Main content — full height flex column with proper top padding */}
+      <div
+        className="relative z-10 flex flex-col flex-1 px-6"
+        style={{
+          paddingTop: 'calc(1.5rem + env(safe-area-inset-top))',
+          paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))',
+        }}
+      >
+        {/* Logo + brand pill — top of flow */}
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 }}
+          className="flex items-center gap-3 mb-auto"
         >
-          🥜 PEANUT GALLERY
-        </motion.span>
+          <img
+            src="https://media.base44.com/images/public/69ef9900cf3862dc0ea39734/9022a5431_ChatGPTImageMay1202601_29_27PM.png"
+            alt="Peanut Gallery"
+            className="h-12 w-auto rounded-xl flex-shrink-0"
+          />
+          <span
+            className="text-[11px] font-black tracking-[0.2em] px-3 py-1.5 rounded-full"
+            style={{
+              background: 'rgba(0,0,0,0.55)',
+              color: 'rgba(255,255,255,0.9)',
+              border: '1px solid rgba(191,95,255,0.45)',
+              boxShadow: '0 0 10px rgba(191,95,255,0.3)',
+            }}
+          >
+            🥜 PEANUT GALLERY
+          </span>
+        </motion.div>
+
+        {/* Spacer — pushes content to lower half */}
+        <div className="flex-1" style={{ minHeight: '6vh', maxHeight: '14vh' }} />
 
         {/* Headline */}
-        <div className="font-display leading-[0.92] mb-6" style={{ fontSize: 'clamp(3.2rem, 14vw, 5rem)' }}>
+        <div className="font-display leading-[0.9] mb-5" style={{ fontSize: 'clamp(2.8rem, 12vw, 4.4rem)' }}>
           {[
             { text: 'Buy.', grad: 'linear-gradient(90deg, #00FF87, #00C8FF)', glow: '#00FF87' },
             { text: 'Upgrade.', grad: 'linear-gradient(90deg, #BF5FFF, #FF2D78)', glow: '#BF5FFF' },
@@ -115,36 +124,42 @@ export default function Landing() {
           ))}
         </div>
 
+        {/* Subheadline */}
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.45 }}
+          className="text-base leading-relaxed mb-5"
+          style={{ color: 'rgba(255,255,255,0.85)' }}
+        >
+          Buy tickets before the event.{' '}
+          <span style={{ color: '#00FF87', fontWeight: 700 }}>Upgrade your seats</span> after it starts.
+        </motion.p>
+
         {/* Value props */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-          className="mb-8 space-y-2"
+          transition={{ delay: 0.55 }}
+          className="flex flex-col gap-2.5 mb-7"
         >
-          <p className="text-base leading-relaxed" style={{ color: 'rgba(255,255,255,0.78)' }}>
-            Buy tickets before the event.{' '}
-            <span style={{ color: '#00FF87', fontWeight: 700 }}>Upgrade your seats</span> after it starts.
-          </p>
-          <div className="flex flex-col gap-1.5 mt-3">
-            {[
-              { icon: '🔒', text: 'Escrow protection — seller paid only after you confirm' },
-              { icon: '📍', text: 'Location-locked upgrades — real fans only, no scalpers' },
-              { icon: '⚡', text: 'Instant transfers — 60-second listing, live payouts' },
-            ].map(({ icon, text }) => (
-              <div key={text} className="flex items-center gap-2 text-sm" style={{ color: 'rgba(255,255,255,0.55)' }}>
-                <span>{icon}</span>
-                <span>{text}</span>
-              </div>
-            ))}
-          </div>
+          {[
+            { icon: '🔒', text: 'Escrow protection — seller paid only after you confirm' },
+            { icon: '📍', text: 'Location-locked upgrades — real fans only, no scalpers' },
+            { icon: '⚡', text: 'Instant transfers — 60-second listing, live payouts' },
+          ].map(({ icon, text }) => (
+            <div key={text} className="flex items-start gap-2.5 text-sm font-medium" style={{ color: 'rgba(255,255,255,0.75)' }}>
+              <span className="text-base leading-none mt-0.5">{icon}</span>
+              <span className="leading-snug">{text}</span>
+            </div>
+          ))}
         </motion.div>
 
         {/* CTA buttons */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.65 }}
+          transition={{ delay: 0.7 }}
           className="flex flex-col gap-3"
         >
           <button
@@ -153,7 +168,7 @@ export default function Landing() {
             style={{
               background: 'linear-gradient(135deg, #00FF87, #00C8FF)',
               color: '#0D0B14',
-              boxShadow: '0 0 20px rgba(0,255,135,0.35)',
+              boxShadow: '0 0 24px rgba(0,255,135,0.4)',
             }}
           >
             Create Account
@@ -164,14 +179,14 @@ export default function Landing() {
             style={{
               background: 'rgba(255,255,255,0.08)',
               color: '#fff',
-              border: '1px solid rgba(255,255,255,0.18)',
+              border: '1px solid rgba(255,255,255,0.2)',
             }}
           >
             Log In
           </button>
         </motion.div>
 
-        <p className="text-[11px] text-center mt-5" style={{ color: 'rgba(255,255,255,0.2)' }}>
+        <p className="text-[11px] text-center mt-4" style={{ color: 'rgba(255,255,255,0.28)' }}>
           By continuing you agree to our Terms of Service and Privacy Policy.
         </p>
       </div>
