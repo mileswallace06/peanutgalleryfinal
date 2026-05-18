@@ -257,29 +257,24 @@ export default function Upgrades() {
           </form>
         ) : locationDenied && !locationLabel ? (
           <div className="space-y-2">
-            <button
-              onClick={handleDetectAgain}
-              disabled={detectingLocation}
-              className="flex items-center gap-3 px-4 py-3.5 rounded-2xl w-full transition-all active:scale-[0.98] disabled:opacity-60"
-              style={{ background: 'rgba(0,200,255,0.08)', border: '1px solid rgba(0,200,255,0.25)' }}
-            >
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{ background: 'rgba(0,200,255,0.15)' }}>
-                {detectingLocation
-                  ? <span className="w-3.5 h-3.5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#00C8FF', borderTopColor: 'transparent' }} />
-                  : <LocateFixed className="w-4 h-4" style={{ color: '#00C8FF' }} />
-                }
+            <div className="flex items-start gap-3 px-4 py-3.5 rounded-2xl"
+              style={{ background: 'rgba(255,140,0,0.08)', border: '1px solid rgba(255,140,0,0.25)' }}>
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5"
+                style={{ background: 'rgba(255,140,0,0.15)' }}>
+                <MapPin className="w-4 h-4" style={{ color: '#FF8C00' }} />
               </div>
-              <div className="text-left">
-                <p className="text-xs font-black" style={{ color: '#00C8FF' }}>Allow location access</p>
-                <p className="text-[11px] text-muted-foreground">Tap to re-prompt for location permission</p>
+              <div className="text-left flex-1">
+                <p className="text-xs font-black" style={{ color: '#FF8C00' }}>Location access blocked</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">To enable, go to your browser or device <strong>Settings → Site permissions → Location</strong> and allow this site.</p>
               </div>
-            </button>
+            </div>
             <button
               onClick={() => { setLocationInput(''); setEditingLocation(true); }}
-              className="text-xs text-muted-foreground underline underline-offset-2 px-1"
+              className="flex items-center gap-2 w-full px-4 py-3 rounded-2xl transition-all active:scale-[0.98]"
+              style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
             >
-              Or enter your city manually
+              <MapPin className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm font-bold text-foreground">Enter your city instead</span>
             </button>
           </div>
         ) : (

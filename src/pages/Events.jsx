@@ -406,18 +406,11 @@ export default function Events() {
             <p className="text-sm mt-1 opacity-70">Allow location or enter your city to find events near you</p>
           </div>
           {locationDenied && (
-            <button
-              onClick={() => { setDetectError(false); handleDetectAgain(); }}
-              disabled={detectingLocation}
-              className="flex items-center gap-2 mx-auto px-5 py-3 rounded-full font-bold text-sm transition-all active:scale-95 disabled:opacity-60"
-              style={{ background: 'rgba(0,200,255,0.12)', border: '1px solid rgba(0,200,255,0.3)', color: '#00C8FF' }}
-            >
-              {detectingLocation
-                ? <span className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#00C8FF', borderTopColor: 'transparent' }} />
-                : <LocateFixed className="w-4 h-4" />
-              }
-              Allow Location Access
-            </button>
+            <div className="text-left px-4 py-3 rounded-2xl mx-auto max-w-xs"
+              style={{ background: 'rgba(255,140,0,0.08)', border: '1px solid rgba(255,140,0,0.25)' }}>
+              <p className="text-xs font-black" style={{ color: '#FF8C00' }}>Location access blocked</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Go to your browser or device <strong>Settings → Site permissions → Location</strong> and allow this site, then refresh.</p>
+            </div>
           )}
         </div>
       ) : filtered.length === 0 ? (
