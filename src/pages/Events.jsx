@@ -157,21 +157,32 @@ export default function Events() {
     fetchEvents(null, val, searchRef.current || null);
   };
 
+  const [detectError, setDetectError] = useState(false);
+
   const handleDetectAgain = () => {
     setDetectingLocation(true);
+    setDetectError(false);
+    if (!navigator.geolocation) {
+      setDetectingLocation(false);
+      setDetectError(true);
+      return;
+    }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const ll = `${pos.coords.latitude},${pos.coords.longitude}`;
         setLatlongSync(ll);
         setLocationLabelSync('Near me');
         setDetectingLocation(false);
+        setDetectError(false);
         setEditingLocation(false);
         fetchEvents(ll, null, searchRef.current || null);
       },
-      () => {
+      (err) => {
+        console.warn('[Events] geolocation error:', err.code, err.message);
         setDetectingLocation(false);
+        setDetectError(true);
       },
-      { timeout: 8000, enableHighAccuracy: true, maximumAge: 0 }
+      { timeout: 10000, enableHighAccuracy: false, maximumAge: 0 }
     );
   };
 
@@ -264,7 +275,7 @@ export default function Events() {
 
       {/* ── Location + Search ── */}
       <div className="px-4 mt-4 mb-4 space-y-2">
-        {editingLocation ? (
+        {editingLocation && (
           <form onSubmit={handleLocationSubmit} className="flex gap-2">
             <div className="relative flex-1">
               <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#00C8FF' }} />
@@ -279,10 +290,13 @@ export default function Events() {
                 style={{ background: 'hsl(var(--card))', border: '1px solid rgba(0,200,255,0.35)', boxShadow: '0 0 0 3px rgba(0,200,255,0.08)' }}
               />
             </div>
-            <button type="button" onClick={handleDetectAgain} title="Use my location"
-              className="flex items-center justify-center w-11 h-11 rounded-2xl flex-shrink-0 transition-all active:scale-95"
-              style={{ background: 'rgba(0,200,255,0.12)', border: '1px solid rgba(0,200,255,0.3)', color: '#00C8FF' }}>
-              <LocateFixed className="w-4 h-4" />
+            <button type="button" onClick={handleDetectAgain} disabled={detectingLocation} title="Use my location"
+              className="flex items-center justify-center w-11 h-11 rounded-2xl flex-shrink-0 transition-all active:scale-95 disabled:opacity-60"
+              style={{ background: detectError ? 'rgba(255,45,120,0.12)' : 'rgba(0,200,255,0.12)', border: `1px solid ${detectError ? 'rgba(255,45,120,0.3)' : 'rgba(0,200,255,0.3)'}`, color: detectError ? '#FF2D78' : '#00C8FF' }}>
+              {detectingLocation
+                ? <span className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#00C8FF', borderTopColor: 'transparent' }} />
+                : <LocateFixed className="w-4 h-4" />
+              }
             </button>
             <button type="button" onClick={() => setEditingLocation(false)}
               className="flex items-center justify-center w-11 h-11 rounded-2xl flex-shrink-0 transition-all active:scale-95"
@@ -295,7 +309,13 @@ export default function Events() {
               Go
             </button>
           </form>
-        ) : (
+        )}
+        {editingLocation && detectError && (
+          <p className="text-[11px] mt-1.5 px-1" style={{ color: '#FF2D78' }}>
+            Location access denied. Check your browser/device settings, or type your city above.
+          </p>
+        )}
+        {!editingLocation && (
           <button
             onClick={() => { setLocationInput(locationLabel === 'Near me' ? '' : locationLabel); setEditingLocation(true); }}
             className="flex items-center gap-3 w-full px-4 py-3 rounded-2xl transition-all active:scale-[0.98]"

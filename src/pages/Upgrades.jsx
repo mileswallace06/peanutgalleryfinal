@@ -105,23 +105,34 @@ export default function Upgrades() {
     fetchEvents(null, val);
   };
 
+  const [detectError, setDetectError] = useState(false);
+
   const handleDetectAgain = () => {
     setDetectingLocation(true);
     setLocationDenied(false);
+    setDetectError(false);
+    if (!navigator.geolocation) {
+      setDetectingLocation(false);
+      setDetectError(true);
+      return;
+    }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const ll = `${pos.coords.latitude},${pos.coords.longitude}`;
         setLatlongSync(ll);
         setLocationLabelSync('Near me');
         setDetectingLocation(false);
+        setDetectError(false);
         setEditingLocation(false);
         fetchEvents(ll, null);
       },
-      () => {
+      (err) => {
+        console.warn('[Upgrades] geolocation error:', err.code, err.message);
         setDetectingLocation(false);
         setLocationDenied(true);
+        setDetectError(true);
       },
-      { timeout: 8000, enableHighAccuracy: true, maximumAge: 0 }
+      { timeout: 10000, enableHighAccuracy: false, maximumAge: 0 }
     );
   };
 
@@ -220,10 +231,13 @@ export default function Upgrades() {
                 style={{ background: 'hsl(var(--card))', border: '1px solid rgba(0,255,135,0.35)', boxShadow: '0 0 0 3px rgba(0,255,135,0.08)' }}
               />
             </div>
-            <button type="button" onClick={handleDetectAgain} title="Use my location"
-              className="flex items-center justify-center w-11 h-11 rounded-2xl flex-shrink-0 transition-all active:scale-95"
-              style={{ background: 'rgba(0,200,255,0.12)', border: '1px solid rgba(0,200,255,0.3)', color: '#00C8FF' }}>
-              <LocateFixed className="w-4 h-4" />
+            <button type="button" onClick={handleDetectAgain} disabled={detectingLocation} title="Use my location"
+              className="flex items-center justify-center w-11 h-11 rounded-2xl flex-shrink-0 transition-all active:scale-95 disabled:opacity-60"
+              style={{ background: detectError ? 'rgba(255,45,120,0.12)' : 'rgba(0,200,255,0.12)', border: `1px solid ${detectError ? 'rgba(255,45,120,0.3)' : 'rgba(0,200,255,0.3)'}`, color: detectError ? '#FF2D78' : '#00C8FF' }}>
+              {detectingLocation
+                ? <span className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#00C8FF', borderTopColor: 'transparent' }} />
+                : <LocateFixed className="w-4 h-4" />
+              }
             </button>
             <button type="button" onClick={() => setEditingLocation(false)}
               className="flex items-center justify-center w-11 h-11 rounded-2xl flex-shrink-0 transition-all active:scale-95"
@@ -235,6 +249,11 @@ export default function Upgrades() {
               style={{ background: 'linear-gradient(135deg, #00FF87, #00C8FF)', color: '#0a0510' }}>
               Go
             </button>
+          {detectError && (
+            <p className="text-[11px] mt-1.5 px-1" style={{ color: '#FF2D78' }}>
+              Location access denied. Check your browser/device settings, or type your city above.
+            </p>
+          )}
           </form>
         ) : locationDenied && !locationLabel ? (
           <button
