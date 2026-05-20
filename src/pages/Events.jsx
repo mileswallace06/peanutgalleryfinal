@@ -103,18 +103,25 @@ export default function Events() {
 
 
 
-  // Search debounce — 600ms to reduce TM calls while typing
+  // Search debounce — only fires when user has typed enough OR cleared the field
   useEffect(() => {
     searchRef.current = search;
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-    searchDebounceRef.current = setTimeout(() => {
-      const keyword = search.trim();
-      const hasKeyword = keyword.length > 0;
 
-      if (hasKeyword) {
+    const keyword = search.trim();
+
+    // Don't fetch on short partial input — wait for user to commit (3+ chars minimum)
+    if (keyword.length > 0 && keyword.length < 3) {
+      // Keep existing results visible while user is still typing
+      return;
+    }
+
+    searchDebounceRef.current = setTimeout(() => {
+      if (keyword.length >= 3) {
         setLocationLabelSync(`"${keyword}"`);
         fetchEvents(null, null, keyword);
       } else {
+        // Cleared or empty — restore location-based results
         setLocationLabelSync(locationLabelRef.current);
         const ll = latlongRef.current || null;
         const city = !ll && locationLabelRef.current && locationLabelRef.current !== 'Near me'
@@ -296,7 +303,7 @@ export default function Events() {
       )}
 
       {/* ── Event count ── */}
-      {!loading && (
+      {!loading && !editingLocation && (search.trim().length === 0 || search.trim().length >= 3) && (
         <div className="px-4 mb-3">
           <p className="text-xs text-muted-foreground font-medium">
             {filtered.length} event{filtered.length !== 1 ? 's' : ''} near you
@@ -369,7 +376,7 @@ export default function Events() {
             </>
           )}
         </div>
-      ) : filtered.length === 0 ? (
+      ) : filtered.length === 0 && !editingLocation && (search.trim().length === 0 || search.trim().length >= 3) ? (
         <div className="text-center py-20 text-muted-foreground px-4">
           <p className="text-4xl mb-3">🥜</p>
           <p className="font-medium">No events found nearby</p>
