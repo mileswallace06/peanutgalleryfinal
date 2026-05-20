@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { MapPin, Calendar, Search, ChevronRight, LocateFixed, X, RefreshCw } from 'lucide-react';
+import { MapPin, Calendar, ChevronRight, LocateFixed, RefreshCw } from 'lucide-react';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { fetchTMEvents, bustTMCache } from '@/lib/tmCache';
 import { useLocationDetect } from '@/hooks/useLocationDetect';
@@ -11,10 +11,6 @@ import LocationAutocomplete from '@/components/LocationAutocomplete';
 export default function Events() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [search, setSearch] = useState('');
-  const searchDebounceRef = useRef(null);
-  const searchRef = useRef('');
-
   const [locationInput, setLocationInput] = useState('');
   const [editingLocation, setEditingLocation] = useState(false);
 
@@ -24,7 +20,7 @@ export default function Events() {
   const syncedTmIds = useRef(new Set());
 
   const { locationStatus, latlong, latlongRef, locationLabel, locationLabelRef, requestLocation, setManualCity, setLocationLabelSync, setLatlongSync } = useLocationDetect({
-    onSuccess: (ll) => fetchEvents(ll, null, searchRef.current || null),
+    onSuccess: (ll) => fetchEvents(ll, null, null),
   });
 
   const fetchEvents = useCallback(async (ll, cityOverride, keyword, bust = false) => {
@@ -103,59 +99,17 @@ export default function Events() {
 
 
 
-  // Search debounce — only fires when user has typed enough OR cleared the field
-  useEffect(() => {
-    searchRef.current = search;
-    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-
-    const keyword = search.trim();
-
-    // Don't fetch on short partial input — wait for user to commit (3+ chars minimum)
-    if (keyword.length > 0 && keyword.length < 3) {
-      // Keep existing results visible while user is still typing
-      return;
-    }
-
-    searchDebounceRef.current = setTimeout(() => {
-      if (keyword.length >= 3) {
-        setLocationLabelSync(`"${keyword}"`);
-        fetchEvents(null, null, keyword);
-      } else {
-        // Cleared or empty — restore location-based results
-        setLocationLabelSync(locationLabelRef.current);
-        const ll = latlongRef.current || null;
-        const city = !ll && locationLabelRef.current && locationLabelRef.current !== 'Near me'
-          ? locationLabelRef.current : null;
-        fetchEvents(ll, city, null);
-      }
-    }, 600);
-    return () => clearTimeout(searchDebounceRef.current);
-  }, [search, fetchEvents]);
-
   const handleNearMe = () => {
     setEditingLocation(false);
     requestLocation();
   };
 
-  // Local filter handles PG events; TM events are already filtered server-side by keyword
-  const filtered = events.filter(e => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    // TM events were already filtered by keyword in the API call — always show them
-    if (e.source === 'ticketmaster') return true;
-    return (
-      e.title?.toLowerCase().includes(q) ||
-      e.city?.toLowerCase().includes(q) ||
-      e.state?.toLowerCase().includes(q) ||
-      e.venue?.toLowerCase().includes(q) ||
-      e.artist?.toLowerCase().includes(q)
-    );
-  });
+  const filtered = events;
 
   const { containerRef, pulling } = usePullToRefresh(() => {
     const ll = latlongRef.current || null;
     const city = !ll && locationLabelRef.current && locationLabelRef.current !== 'Near me' ? locationLabelRef.current : null;
-    fetchEvents(ll, city, searchRef.current || null, true);
+    fetchEvents(ll, city, null, true);
   });
 
   return (
@@ -223,61 +177,44 @@ export default function Events() {
 
       {/* ── Location + Search ── */}
       <div className="px-4 mt-4 mb-4 space-y-2">
-        {editingLocation ? (
-          <div className="flex gap-2">
-            <LocationAutocomplete
-              value={locationInput}
-              onChange={setLocationInput}
-              onSelect={(s) => { setManualCity(s.label); setEditingLocation(false); fetchEvents(null, s.label, searchRef.current || null); }}
-              onSubmit={(val) => { setManualCity(val); setEditingLocation(false); fetchEvents(null, val, searchRef.current || null); }}
-              onNearMe={handleNearMe}
-              nearMeLoading={locationStatus === 'requesting'}
-              autoFocus
-            />
-            <button type="button" onClick={() => setEditingLocation(false)}
-              className="flex items-center justify-center w-11 h-11 rounded-2xl flex-shrink-0 transition-all active:scale-95"
-              style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--muted-foreground))' }}>
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        ) : (
+        {/* Location chip — shows current location, tap to change */}
+        {locationLabel && !editingLocation && (
           <button
             onClick={() => { setLocationInput(locationLabel === 'Near me' ? '' : locationLabel); setEditingLocation(true); }}
-            className="flex items-center gap-3 w-full px-4 py-3 rounded-2xl transition-all active:scale-[0.98]"
+            className="flex items-center gap-2 px-3 py-2 rounded-2xl transition-all active:scale-[0.98]"
             style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
           >
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ background: 'rgba(0,200,255,0.15)', border: '1px solid rgba(0,200,255,0.3)' }}>
-              {locationStatus === 'requesting'
-                ? <span className="w-3.5 h-3.5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#00C8FF', borderTopColor: 'transparent' }} />
-                : <MapPin className="w-4 h-4" style={{ color: '#00C8FF' }} />
-              }
-            </div>
-            <div className="text-left flex-1 min-w-0">
-              <p className="text-[10px] font-black tracking-widest uppercase text-muted-foreground">Showing events near</p>
-              <p className="text-sm font-bold text-foreground truncate">
-                {locationStatus === 'requesting' ? 'Detecting location…' : locationLabel || 'Set location'}
-              </p>
-            </div>
-            <span className="text-xs font-bold px-2.5 py-1 rounded-full flex-shrink-0"
+            <MapPin className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#00C8FF' }} />
+            <span className="text-xs font-semibold text-foreground truncate max-w-[160px]">
+              {locationStatus === 'requesting' ? 'Detecting…' : locationLabel}
+            </span>
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-1 flex-shrink-0"
               style={{ background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' }}>
-              {locationLabel ? 'Change' : 'Set'}
+              Change
             </span>
           </button>
         )}
 
-        {/* Search bar */}
-        <div className="relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search events, venues, cities..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 rounded-2xl text-sm font-medium text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
-            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
-          />
-        </div>
+        {/* City search with autocomplete dropdown */}
+        <LocationAutocomplete
+          value={locationInput}
+          onChange={setLocationInput}
+          onSelect={(s) => {
+            console.log('[Events] city selected:', s.label);
+            setManualCity(s.label);
+            setEditingLocation(false);
+            fetchEvents(null, s.label, null);
+          }}
+          onSubmit={(val) => {
+            console.log('[Events] city submitted:', val);
+            setManualCity(val);
+            setEditingLocation(false);
+            fetchEvents(null, val, null);
+          }}
+          onNearMe={handleNearMe}
+          nearMeLoading={locationStatus === 'requesting'}
+          placeholder="Search city or event…"
+        />
       </div>
 
       {/* ── Rate limit / network error ── */}
@@ -285,7 +222,7 @@ export default function Events() {
         <div className="mx-4 mb-3 px-4 py-3 rounded-2xl text-sm font-medium flex items-center justify-between gap-3"
           style={{ background: 'rgba(255,140,0,0.1)', border: '1px solid rgba(255,140,0,0.3)', color: '#FF8C00' }}>
           <span>Too many requests right now. Please wait a moment.</span>
-          <button onClick={() => fetchEvents(latlongRef.current || null, null, searchRef.current || null, true)}
+          <button onClick={() => fetchEvents(latlongRef.current || null, null, null, true)}
             className="flex items-center gap-1 text-xs font-bold underline underline-offset-2 flex-shrink-0">
             <RefreshCw className="w-3 h-3" /> Retry
           </button>
@@ -295,7 +232,7 @@ export default function Events() {
         <div className="mx-4 mb-3 px-4 py-3 rounded-2xl text-sm font-medium flex items-center justify-between gap-3"
           style={{ background: 'rgba(255,45,120,0.1)', border: '1px solid rgba(255,45,120,0.3)', color: '#FF2D78' }}>
           <span>Failed to load events. Check your connection.</span>
-          <button onClick={() => fetchEvents(latlongRef.current || null, null, searchRef.current || null, true)}
+          <button onClick={() => fetchEvents(latlongRef.current || null, null, null, true)}
             className="flex items-center gap-1 text-xs font-bold underline underline-offset-2 flex-shrink-0">
             <RefreshCw className="w-3 h-3" /> Retry
           </button>
@@ -303,7 +240,7 @@ export default function Events() {
       )}
 
       {/* ── Event count ── */}
-      {!loading && !editingLocation && (search.trim().length === 0 || search.trim().length >= 3) && (
+      {!loading && events.length > 0 && (
         <div className="px-4 mb-3">
           <p className="text-xs text-muted-foreground font-medium">
             {filtered.length} event{filtered.length !== 1 ? 's' : ''} near you
@@ -318,7 +255,7 @@ export default function Events() {
             <div key={i} className="rounded-2xl h-28 animate-pulse" style={{ background: 'rgba(255,255,255,0.05)' }} />
           ))}
         </div>
-      ) : !loading && !latlong && !locationLabel && !search ? (
+      ) : !loading && !latlong && !locationLabel ? (
         <div className="text-center py-16 text-muted-foreground px-4 space-y-4">
           <p className="text-4xl">📍</p>
           {locationStatus === 'denied' ? (
@@ -376,7 +313,7 @@ export default function Events() {
             </>
           )}
         </div>
-      ) : filtered.length === 0 && !editingLocation && (search.trim().length === 0 || search.trim().length >= 3) ? (
+      ) : filtered.length === 0 ? (
         <div className="text-center py-20 text-muted-foreground px-4">
           <p className="text-4xl mb-3">🥜</p>
           <p className="font-medium">No events found nearby</p>
