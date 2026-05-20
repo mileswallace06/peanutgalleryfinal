@@ -10,6 +10,7 @@ import TransactionHistorySection from '@/components/account/TransactionHistorySe
 import NotificationsSection from '@/components/account/NotificationsSection';
 import SupportLegalSection from '@/components/account/SupportLegalSection';
 import SessionSection from '@/components/account/SessionSection';
+import VerificationStatusSection from '@/components/account/VerificationStatusSection';
 import DeleteAccountModal from '@/components/DeleteAccountModal';
 
 export default function AccountSettingsPage() {
@@ -65,10 +66,11 @@ export default function AccountSettingsPage() {
 
       <div className="px-4 pt-5 space-y-6 pb-10">
         <ProfileIdentitySection user={user} />
-        <SecuritySection user={user} />
+        <VerificationStatusSection user={user} stripeStatus={stripeStatus} />
         <StripePayoutSection user={user} stripeStatus={stripeStatus} loading={loadingStripe} />
         <TransactionHistorySection purchases={purchases} sales={sales} />
         <NotificationsSection user={user} onUpdate={updated => setUser(u => ({ ...u, ...updated }))} />
+        <SecuritySection user={user} />
         <SupportLegalSection />
         <SessionSection onDeleteRequest={() => setShowDeleteModal(true)} theme={theme} toggleTheme={toggleTheme} />
       </div>

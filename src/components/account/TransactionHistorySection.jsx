@@ -2,12 +2,22 @@ import { useState } from 'react';
 import { CreditCard, TrendingUp, ChevronDown, ChevronUp } from 'lucide-react';
 import { format } from 'date-fns';
 
-const statusColor = (s) => {
-  if (s === 'completed') return '#00FF87';
-  if (s === 'disputed') return '#FF2D78';
-  if (s === 'expired') return '#FF8C00';
-  return '#BF5FFF';
+const STATUS_CONFIG = {
+  completed:        { label: 'Transfer Complete', color: '#00FF87' },
+  pending_transfer: { label: 'Pending Transfer', color: '#BF5FFF' },
+  disputed:         { label: 'Dispute Open', color: '#FF2D78' },
+  expired:          { label: 'Expired', color: '#FF8C00' },
 };
+
+function statusBadge(s) {
+  const cfg = STATUS_CONFIG[s] || { label: (s || 'Unknown').replace(/_/g, ' '), color: '#BF5FFF' };
+  return (
+    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full capitalize"
+      style={{ background: `${cfg.color}18`, color: cfg.color, border: `1px solid ${cfg.color}33` }}>
+      {cfg.label}
+    </span>
+  );
+}
 
 function PurchaseRow({ p, type }) {
   const label = type === 'purchase' ? `Bought · #${p.id?.slice(-6)}` : `Sold · #${p.id?.slice(-6)}`;
@@ -23,10 +33,10 @@ function PurchaseRow({ p, type }) {
       }
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-foreground truncate">{label}</p>
-        <p className="text-[11px] text-muted-foreground capitalize">
-          {p.transfer_status?.replace(/_/g, ' ')}
-          {p.created_date ? ` · ${format(new Date(p.created_date), 'MMM d')}` : ''}
-        </p>
+        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+          {statusBadge(p.transfer_status)}
+          {p.created_date && <span className="text-[10px] text-muted-foreground">{format(new Date(p.created_date), 'MMM d')}</span>}
+        </div>
       </div>
       <span className="text-sm font-bold" style={{ color }}>
         {sign}${(amount || 0).toFixed(2)}
@@ -87,13 +97,21 @@ export default function TransactionHistorySection({ purchases, sales }) {
             <div className="divide-y divide-border">
               {tab === 'purchases' && (
                 purchases.length === 0
-                  ? <p className="px-4 py-4 text-xs text-muted-foreground">No purchases yet.</p>
-                  : purchases.slice(0, 8).map(p => <PurchaseRow key={p.id} p={p} type="purchase" />)
+                  ? <div className="px-4 py-6 text-center">
+                      <p className="text-2xl mb-2">🎟️</p>
+                      <p className="text-sm font-medium text-foreground">No purchases yet</p>
+                      <p className="text-xs text-muted-foreground mt-1">Your ticket purchases will appear here.</p>
+                    </div>
+                  : purchases.slice(0, 10).map(p => <PurchaseRow key={p.id} p={p} type="purchase" />)
               )}
               {tab === 'sales' && (
                 sales.length === 0
-                  ? <p className="px-4 py-4 text-xs text-muted-foreground">No sales yet.</p>
-                  : sales.slice(0, 8).map(p => <PurchaseRow key={p.id} p={p} type="sale" />)
+                  ? <div className="px-4 py-6 text-center">
+                      <p className="text-2xl mb-2">💸</p>
+                      <p className="text-sm font-medium text-foreground">No sales yet</p>
+                      <p className="text-xs text-muted-foreground mt-1">Your sold tickets and payouts will appear here.</p>
+                    </div>
+                  : sales.slice(0, 10).map(p => <PurchaseRow key={p.id} p={p} type="sale" />)
               )}
             </div>
           </div>

@@ -3,8 +3,10 @@ import { base44 } from '@/api/base44Client';
 import { Bell } from 'lucide-react';
 
 const PREFS = [
-  { key: 'notif_upgrade_alerts', label: 'Upgrade Alerts', desc: 'When a matching seat upgrade is available' },
+  { key: 'notif_listing_sold', label: 'Listing Sold', desc: 'When someone buys your tickets' },
   { key: 'notif_transfer_updates', label: 'Transfer Updates', desc: 'Buyer/seller confirms your ticket transfer' },
+  { key: 'notif_upgrade_alerts', label: 'Live Upgrades', desc: 'When a matching seat upgrade becomes available' },
+  { key: 'notif_nearby_events', label: 'Nearby Events', desc: 'New events added near your location' },
   { key: 'notif_fan_zone', label: 'Fan Zone Activity', desc: 'Reactions and new posts from people you follow' },
 ];
 
@@ -25,8 +27,10 @@ function Toggle({ on, onToggle }) {
 
 export default function NotificationsSection({ user, onUpdate }) {
   const [prefs, setPrefs] = useState({
-    notif_upgrade_alerts: user?.notif_upgrade_alerts ?? true,
+    notif_listing_sold: user?.notif_listing_sold ?? true,
     notif_transfer_updates: user?.notif_transfer_updates ?? true,
+    notif_upgrade_alerts: user?.notif_upgrade_alerts ?? true,
+    notif_nearby_events: user?.notif_nearby_events ?? false,
     notif_fan_zone: user?.notif_fan_zone ?? false,
   });
 

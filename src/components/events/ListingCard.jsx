@@ -1,4 +1,5 @@
 import { ArrowUpRight, Flame, ShieldCheck, Clock, Zap } from 'lucide-react';
+import TrustBadge from '@/components/TrustBadge';
 
 const TIER_STYLES = {
   floor: { color: '#FF2D78', bg: '#FF2D7815', label: 'Floor' },
@@ -161,9 +162,10 @@ export default function ListingCard({ listing, onUpgrade, isCheapest, mode = 'up
             {sellerLabel === 'New seller' && <span className="opacity-50">New seller</span>}
           </span>
         </div>
-        <p className="text-center text-[10px] text-muted-foreground -mt-2">
-          Instant purchase · Escrow protected 🛡️
-        </p>
+        <div className="flex items-center justify-center gap-2 -mt-2 flex-wrap">
+          <TrustBadge variant="protected" />
+          <TrustBadge variant="escrow" />
+        </div>
       </div>
     </div>
   );

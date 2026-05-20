@@ -18,7 +18,7 @@ export default function StripePayoutSection({ user, stripeStatus, loading }) {
 
   return (
     <section>
-      <h3 className="text-xs font-black tracking-widest uppercase text-muted-foreground mb-3">Stripe Payout</h3>
+      <h3 className="text-xs font-black tracking-widest uppercase text-muted-foreground mb-3">Payout Account</h3>
       <div className="rounded-2xl overflow-hidden" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
         {/* Status row */}
         <button
@@ -67,6 +67,12 @@ export default function StripePayoutSection({ user, stripeStatus, loading }) {
                 <p className="text-muted-foreground">Charges enabled · Payouts routed automatically after transfer confirmation.</p>
               </div>
             )}
+            {/* Trust note */}
+            <div className="flex items-start gap-2 px-1">
+              <span className="text-[10px] text-muted-foreground leading-relaxed">
+                🔒 Secured via Stripe · Your banking info is never stored by Peanut Gallery
+              </span>
+            </div>
           </div>
         )}
       </div>
