@@ -1,11 +1,45 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { MapPin, LocateFixed, Loader2 } from 'lucide-react';
+import { MapPin, LocateFixed, Loader2, Clock } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 
+const RECENT_KEY = 'pg_recent_cities';
+const MAX_RECENT = 5;
+
+function getRecentCities() {
+  try { return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); } catch { return []; }
+}
+
+function saveRecentCity(suggestion) {
+  try {
+    const existing = getRecentCities().filter(c => c.label !== suggestion.label);
+    localStorage.setItem(RECENT_KEY, JSON.stringify([suggestion, ...existing].slice(0, MAX_RECENT)));
+  } catch { /* ignore */ }
+}
+
+/** Highlights the matching prefix/substring in bold */
+function HighlightMatch({ text, query }) {
+  if (!query) return <span>{text}</span>;
+  const idx = text.toLowerCase().indexOf(query.toLowerCase());
+  if (idx === -1) return <span>{text}</span>;
+  return (
+    <span>
+      {text.slice(0, idx)}
+      <span className="font-black text-foreground">{text.slice(idx, idx + query.length)}</span>
+      {text.slice(idx + query.length)}
+    </span>
+  );
+}
+
 /**
- * City autocomplete input.
- * Dropdown renders via a portal (fixed position) so it's never clipped by overflow-hidden parents.
+ * City autocomplete input with:
+ * - Arrow key navigation + Enter selection
+ * - Highlighted match text
+ * - Loading spinner
+ * - Recent cities (localStorage)
+ * - Max-height scrollable dropdown via portal
+ * - Tap/click outside closes
+ * - Scroll/resize tracking keeps dropdown attached
  */
 export default function LocationAutocomplete({
   value,
@@ -20,23 +54,27 @@ export default function LocationAutocomplete({
   const [suggestions, setSuggestions] = useState([]);
   const [suggestLoading, setSuggestLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
   const [dropdownRect, setDropdownRect] = useState(null);
+  const [showRecent, setShowRecent] = useState(false);
+
   const debounceRef = useRef(null);
   const inputRef = useRef(null);
   const inputWrapRef = useRef(null);
+  const listRef = useRef(null);
 
-  // Auto focus
   useEffect(() => {
-    if (autoFocus) {
-      setTimeout(() => inputRef.current?.focus(), 50);
-    }
+    if (autoFocus) setTimeout(() => inputRef.current?.focus(), 50);
   }, [autoFocus]);
 
-  // Close dropdown on outside click
+  // Close on outside click/touch
   useEffect(() => {
     const handler = (e) => {
       if (inputWrapRef.current && !inputWrapRef.current.contains(e.target)) {
-        setOpen(false);
+        // also check portal dropdown
+        const portal = document.getElementById('pg-city-dropdown');
+        if (portal && portal.contains(e.target)) return;
+        closeDropdown();
       }
     };
     document.addEventListener('mousedown', handler);
@@ -47,46 +85,52 @@ export default function LocationAutocomplete({
     };
   }, []);
 
-  // Recompute dropdown position whenever it opens or on scroll/resize
+  // Recompute dropdown anchor on scroll/resize
   const updateRect = useCallback(() => {
-    if (open && inputWrapRef.current) {
-      const rect = inputWrapRef.current.getBoundingClientRect();
-      setDropdownRect(rect);
+    if (inputWrapRef.current) {
+      setDropdownRect(inputWrapRef.current.getBoundingClientRect());
     }
-  }, [open]);
+  }, []);
 
   useEffect(() => {
+    if (!open && !showRecent) return;
     updateRect();
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
     window.addEventListener('scroll', updateRect, true);
     window.addEventListener('resize', updateRect);
     return () => {
       window.removeEventListener('scroll', updateRect, true);
       window.removeEventListener('resize', updateRect);
     };
-  }, [open, updateRect]);
+  }, [open, showRecent, updateRect]);
+
+  // Scroll active item into view
+  useEffect(() => {
+    if (activeIndex >= 0 && listRef.current) {
+      const item = listRef.current.children[activeIndex];
+      item?.scrollIntoView({ block: 'nearest' });
+    }
+  }, [activeIndex]);
+
+  const closeDropdown = () => {
+    setOpen(false);
+    setShowRecent(false);
+    setActiveIndex(-1);
+  };
 
   const fetchSuggestions = useCallback(async (keyword) => {
     if (keyword.length < 2) {
       setSuggestions([]);
       setOpen(false);
-      console.log('[LocationAutocomplete] too short, clearing suggestions');
       return;
     }
     setSuggestLoading(true);
-    console.log('[LocationAutocomplete] fetching suggestions for:', keyword);
     try {
       const res = await base44.functions.invoke('suggestCities', { keyword });
       const cities = res?.data?.cities || [];
-      console.log('[LocationAutocomplete] suggestions received:', cities.map(c => c.label));
       setSuggestions(cities);
       setOpen(cities.length > 0);
-      console.log('[LocationAutocomplete] dropdown open:', cities.length > 0);
-    } catch (err) {
-      console.error('[LocationAutocomplete] suggestCities error:', err);
+      setActiveIndex(-1);
+    } catch {
       setSuggestions([]);
       setOpen(false);
     } finally {
@@ -96,29 +140,54 @@ export default function LocationAutocomplete({
 
   const handleChange = (e) => {
     const val = e.target.value;
-    console.log('[LocationAutocomplete] input value:', val);
     onChange(val);
+    setShowRecent(false);
+    setActiveIndex(-1);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => fetchSuggestions(val.trim()), 400);
+    debounceRef.current = setTimeout(() => fetchSuggestions(val.trim()), 300);
   };
 
   const handleSelect = (suggestion) => {
-    console.log('[LocationAutocomplete] selected city:', suggestion.label);
-    setOpen(false);
+    saveRecentCity(suggestion);
+    closeDropdown();
     setSuggestions([]);
     onChange(suggestion.label);
     onSelect(suggestion);
   };
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter') {
+    const items = open ? suggestions : showRecent ? getRecentCities() : [];
+    if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setOpen(false);
-      if (value.trim()) onSubmit(value.trim());
+      setActiveIndex(i => Math.min(i + 1, items.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveIndex(i => Math.max(i - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (activeIndex >= 0 && items[activeIndex]) {
+        handleSelect(items[activeIndex]);
+      } else if (value.trim()) {
+        closeDropdown();
+        onSubmit(value.trim());
+      }
     } else if (e.key === 'Escape') {
-      setOpen(false);
+      closeDropdown();
     }
   };
+
+  const handleFocus = () => {
+    updateRect();
+    if (suggestions.length > 0) {
+      setOpen(true);
+    } else if (!value.trim()) {
+      const recent = getRecentCities();
+      if (recent.length > 0) setShowRecent(true);
+    }
+  };
+
+  const displayItems = open ? suggestions : showRecent ? getRecentCities() : [];
+  const isDropdownVisible = (open || showRecent) && displayItems.length > 0 && dropdownRect;
 
   return (
     <div ref={inputWrapRef} className="relative flex-1">
@@ -133,18 +202,9 @@ export default function LocationAutocomplete({
             value={value}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
-            onFocus={() => {
-              if (suggestions.length > 0) {
-                const rect = inputWrapRef.current?.getBoundingClientRect();
-                if (rect) setDropdownRect(rect);
-                setOpen(true);
-              }
-            }}
+            onFocus={handleFocus}
             className="w-full pl-9 pr-10 py-3 rounded-2xl text-sm font-medium text-foreground placeholder:text-muted-foreground focus:outline-none"
-            style={{
-              background: 'hsl(var(--card))',
-              border: '1px solid hsl(var(--border))',
-            }}
+            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
           />
           {suggestLoading && (
             <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-muted-foreground" />
@@ -168,9 +228,11 @@ export default function LocationAutocomplete({
         )}
       </div>
 
-      {/* Dropdown — rendered via portal at body level to escape any overflow:hidden parents */}
-      {open && suggestions.length > 0 && dropdownRect && createPortal(
+      {/* Dropdown via portal */}
+      {isDropdownVisible && createPortal(
         <div
+          id="pg-city-dropdown"
+          ref={listRef}
           style={{
             position: 'fixed',
             top: dropdownRect.bottom + 6,
@@ -178,28 +240,44 @@ export default function LocationAutocomplete({
             width: dropdownRect.width,
             zIndex: 9999,
             borderRadius: '1rem',
-            overflow: 'hidden',
+            overflow: 'hidden auto',
+            maxHeight: '240px',
             boxShadow: '0 8px 32px rgba(0,0,0,0.35)',
             background: 'hsl(var(--card))',
             border: '1px solid hsl(var(--border))',
           }}
         >
-          {suggestions.map((s, i) => (
-            <button
-              key={i}
-              type="button"
-              onMouseDown={(e) => { e.preventDefault(); handleSelect(s); }}
-              onTouchEnd={(e) => { e.preventDefault(); handleSelect(s); }}
-              className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-white/5 active:bg-white/10"
-              style={{ borderBottom: i < suggestions.length - 1 ? '1px solid hsl(var(--border))' : 'none' }}
-            >
-              <MapPin className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground" />
-              <div>
-                <span className="text-sm font-semibold text-foreground">{s.city}</span>
-                {s.state && <span className="text-xs text-muted-foreground ml-1">{s.state}</span>}
-              </div>
-            </button>
-          ))}
+          {showRecent && (
+            <div className="px-4 pt-2.5 pb-1 text-[10px] font-black tracking-widest uppercase text-muted-foreground">
+              Recent
+            </div>
+          )}
+          {displayItems.map((s, i) => {
+            const isActive = i === activeIndex;
+            return (
+              <button
+                key={i}
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); handleSelect(s); }}
+                onTouchEnd={(e) => { e.preventDefault(); handleSelect(s); }}
+                onMouseEnter={() => setActiveIndex(i)}
+                className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors"
+                style={{
+                  background: isActive ? 'rgba(255,255,255,0.07)' : 'transparent',
+                  borderBottom: i < displayItems.length - 1 ? '1px solid hsl(var(--border))' : 'none',
+                }}
+              >
+                {showRecent
+                  ? <Clock className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground" />
+                  : <MapPin className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground" />
+                }
+                <div className="text-sm text-muted-foreground">
+                  <HighlightMatch text={s.city} query={value.trim()} />
+                  {s.state && <span className="ml-1 text-xs opacity-60">{s.state}</span>}
+                </div>
+              </button>
+            );
+          })}
         </div>,
         document.body
       )}
