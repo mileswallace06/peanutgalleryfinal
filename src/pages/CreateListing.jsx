@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, CheckCircle, Upload, Zap, Search, Star } from 'lucide-react';
+import LocationAutocomplete from '@/components/LocationAutocomplete';
 import { getEventLiveStatus } from '@/lib/eventTiming';
 import { fetchTMEvents } from '@/lib/tmCache';
 import { isAdmin as checkIsAdmin } from '@/lib/isAdmin';
@@ -384,35 +385,23 @@ export default function CreateListing() {
             <div className="space-y-4">
               {/* City fallback when geo is denied */}
               {recLocationDenied && !recCitySubmitted && (
-                <form
-                  onSubmit={e => {
-                    e.preventDefault();
-                    const city = recCityInput.trim();
-                    if (!city) return;
+                <LocationAutocomplete
+                  value={recCityInput}
+                  onChange={setRecCityInput}
+                  placeholder="Enter your city…"
+                  onSelect={(s) => {
                     setRecCitySubmitted(true);
                     setNearbyLoading(true);
                     setRecLocationDenied(false);
-                    window.__pgLoadRecommended?.(null, city);
+                    window.__pgLoadRecommended?.(null, s.label);
                   }}
-                  className="flex gap-2"
-                >
-                  <input
-                    type="text"
-                    placeholder="Enter your city…"
-                    value={recCityInput}
-                    onChange={e => setRecCityInput(e.target.value)}
-                    className="flex-1 px-4 py-2.5 rounded-2xl text-sm font-medium text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
-                    style={{ background: 'hsl(var(--input))', border: '1px solid hsl(var(--border))' }}
-                  />
-                  <button
-                    type="submit"
-                    disabled={!recCityInput.trim()}
-                    className="px-4 py-2.5 rounded-2xl font-bold text-sm disabled:opacity-40"
-                    style={{ background: 'linear-gradient(135deg, #BF5FFF, #FF2D78)', color: '#fff' }}
-                  >
-                    Go
-                  </button>
-                </form>
+                  onSubmit={(val) => {
+                    setRecCitySubmitted(true);
+                    setNearbyLoading(true);
+                    setRecLocationDenied(false);
+                    window.__pgLoadRecommended?.(null, val);
+                  }}
+                />
               )}
 
               {nearbyLoading ? (

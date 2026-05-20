@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 import { MapPin, Calendar, Zap, ChevronRight, LocateFixed, X, Clock, RefreshCw } from 'lucide-react';
+import LocationAutocomplete from '@/components/LocationAutocomplete';
 import { getEventLiveStatus, SOON_WINDOW_MINUTES } from '@/lib/eventTiming';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { fetchTMEvents, bustTMCache } from '@/lib/tmCache';
@@ -13,7 +14,6 @@ export default function Upgrades() {
   const [loading, setLoading] = useState(false);
   const [locationInput, setLocationInput] = useState('');
   const [editingLocation, setEditingLocation] = useState(false);
-  const locationInputRef = useRef(null);
 
   const [tmError, setTmError] = useState(false);
 
@@ -70,15 +70,6 @@ export default function Upgrades() {
       setLoading(false);
     }
   }, []);
-
-  const handleLocationSubmit = (e) => {
-    e.preventDefault();
-    const val = locationInput.trim();
-    if (!val) return;
-    setManualCity(val);
-    setEditingLocation(false);
-    fetchEvents(null, val);
-  };
 
   const handleNearMe = () => {
     setEditingLocation(false);
@@ -165,39 +156,22 @@ export default function Upgrades() {
       <div className="px-4 mt-4 mb-5">
         {editingLocation ? (
           <div className="space-y-2">
-            <form onSubmit={handleLocationSubmit} className="flex gap-2">
-              <div className="relative flex-1">
-                <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#00FF87' }} />
-                <input
-                  ref={locationInputRef}
-                  autoFocus
-                  type="text"
-                  placeholder="City, e.g. Phoenix…"
-                  value={locationInput}
-                  onChange={(e) => setLocationInput(e.target.value)}
-                  className="w-full pl-9 pr-3 py-3 rounded-2xl text-sm font-medium text-foreground placeholder:text-muted-foreground focus:outline-none"
-                  style={{ background: 'hsl(var(--card))', border: '1px solid rgba(0,255,135,0.35)', boxShadow: '0 0 0 3px rgba(0,255,135,0.08)' }}
-                />
-              </div>
-              <button type="button" onClick={handleNearMe} disabled={locationStatus === 'requesting'} title="Use my location"
-                className="flex items-center justify-center w-11 h-11 rounded-2xl flex-shrink-0 transition-all active:scale-95 disabled:opacity-60"
-                style={{ background: 'rgba(0,200,255,0.12)', border: '1px solid rgba(0,200,255,0.3)', color: '#00C8FF' }}>
-                {locationStatus === 'requesting'
-                  ? <span className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#00C8FF', borderTopColor: 'transparent' }} />
-                  : <LocateFixed className="w-4 h-4" />
-                }
-              </button>
+            <div className="flex gap-2">
+              <LocationAutocomplete
+                value={locationInput}
+                onChange={setLocationInput}
+                onSelect={(s) => { setManualCity(s.label); setEditingLocation(false); fetchEvents(null, s.label); }}
+                onSubmit={(val) => { setManualCity(val); setEditingLocation(false); fetchEvents(null, val); }}
+                onNearMe={handleNearMe}
+                nearMeLoading={locationStatus === 'requesting'}
+                autoFocus
+              />
               <button type="button" onClick={() => setEditingLocation(false)}
                 className="flex items-center justify-center w-11 h-11 rounded-2xl flex-shrink-0 transition-all active:scale-95"
                 style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--muted-foreground))' }}>
                 <X className="w-4 h-4" />
               </button>
-              <button type="submit"
-                className="px-4 py-3 rounded-2xl font-black text-sm flex-shrink-0 transition-all active:scale-95"
-                style={{ background: 'linear-gradient(135deg, #00FF87, #00C8FF)', color: '#0a0510' }}>
-                Go
-              </button>
-            </form>
+            </div>
             {locationStatus === 'denied' && (
               <p className="text-[11px] px-1" style={{ color: '#FF8C00' }}>
                 Location access is blocked. Enable it in your browser settings or type your city above.
