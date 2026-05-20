@@ -47,13 +47,27 @@ export default function LocationAutocomplete({
     };
   }, []);
 
-  // Recompute dropdown position whenever it opens
-  useEffect(() => {
+  // Recompute dropdown position whenever it opens or on scroll/resize
+  const updateRect = useCallback(() => {
     if (open && inputWrapRef.current) {
       const rect = inputWrapRef.current.getBoundingClientRect();
       setDropdownRect(rect);
     }
   }, [open]);
+
+  useEffect(() => {
+    updateRect();
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    window.addEventListener('scroll', updateRect, true);
+    window.addEventListener('resize', updateRect);
+    return () => {
+      window.removeEventListener('scroll', updateRect, true);
+      window.removeEventListener('resize', updateRect);
+    };
+  }, [open, updateRect]);
 
   const fetchSuggestions = useCallback(async (keyword) => {
     if (keyword.length < 2) {
