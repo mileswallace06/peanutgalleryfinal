@@ -187,7 +187,10 @@ export default function Landing() {
         </motion.div>
 
         <p className="text-[11px] text-center mt-4" style={{ color: 'rgba(255,255,255,0.28)' }}>
-          By continuing you agree to our Terms of Service and Privacy Policy.
+          By continuing you agree to our{' '}
+          <a href="/terms" className="underline underline-offset-2" style={{ color: 'rgba(255,255,255,0.45)' }}>Terms of Service</a>
+          {' '}and{' '}
+          <a href="/privacy" className="underline underline-offset-2" style={{ color: 'rgba(255,255,255,0.45)' }}>Privacy Policy</a>.
         </p>
       </div>
     </div>

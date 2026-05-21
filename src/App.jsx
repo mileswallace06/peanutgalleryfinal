@@ -25,6 +25,8 @@ import EventDetailTM from '@/pages/EventDetailTM';
 import AccountSettingsPage from '@/pages/AccountSettingsPage';
 import EditPersona from '@/pages/EditPersona';
 import BetaQA from '@/pages/BetaQA';
+import TermsOfService from '@/pages/TermsOfService';
+import PrivacyPolicy from '@/pages/PrivacyPolicy';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, checkAppState, isAuthenticated, user } = useAuth();
@@ -87,6 +89,8 @@ const AuthenticatedApp = () => {
             <Route path="/account-settings" element={<AccountSettingsPage />} />
             <Route path="/edit-persona" element={<EditPersona />} />
             <Route path="/beta-qa" element={<BetaQA />} />
+            <Route path="/terms" element={<TermsOfService />} />
+            <Route path="/privacy" element={<PrivacyPolicy />} />
           </Route>
           <Route path="*" element={<PageNotFound />} />
         </Routes>
