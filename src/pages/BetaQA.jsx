@@ -45,7 +45,12 @@ export default function BetaQA() {
           setUnlocked(false);
           setPwError('Admin privileges required.');
         }
-      }).catch(() => {});
+      }).catch(() => {
+        // Network error — revoke access to be safe
+        sessionStorage.removeItem('pg_admin_unlocked');
+        setUnlocked(false);
+        setPwError('Could not verify admin status. Please try again.');
+      });
     }
   }, [unlocked]);
 

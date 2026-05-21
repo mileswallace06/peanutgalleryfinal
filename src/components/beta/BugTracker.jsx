@@ -75,9 +75,14 @@ export default function BugTracker() {
     const file = e.target.files[0];
     if (!file) return;
     setUploading(true);
-    const { file_url } = await base44.integrations.Core.UploadFile({ file });
-    setForm(f => ({ ...f, screenshot_url: file_url }));
-    setUploading(false);
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      setForm(f => ({ ...f, screenshot_url: file_url }));
+    } catch {
+      // Upload failed — form still submittable without screenshot
+    } finally {
+      setUploading(false);
+    }
   };
 
   const filtered = filterStatus === 'all' ? bugs : bugs.filter(b => b.status === filterStatus);

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { CheckCircle2, XCircle, Circle, ChevronDown, ChevronUp, RotateCcw } from 'lucide-react';
+import { CheckCircle2, XCircle, Circle, ChevronDown, ChevronUp } from 'lucide-react';
 
 const CHECKLIST = [
   { category: 'Auth / Login', items: ['Login flow completes', 'Session persists on reload', 'Me tab shows correct user', 'Logout works cleanly'] },

@@ -67,7 +67,6 @@ export default function BetaFeedbackForm() {
   const [submitted, setSubmitted] = useState(false);
   const [allFeedback, setAllFeedback] = useState([]);
   const [expandedId, setExpandedId] = useState(null);
-  const [showHistory, setShowHistory] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
