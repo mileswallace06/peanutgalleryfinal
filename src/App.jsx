@@ -24,6 +24,7 @@ import Sell from '@/pages/Sell';
 import EventDetailTM from '@/pages/EventDetailTM';
 import AccountSettingsPage from '@/pages/AccountSettingsPage';
 import EditPersona from '@/pages/EditPersona';
+import BetaQA from '@/pages/BetaQA';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, checkAppState, isAuthenticated, user } = useAuth();
@@ -85,6 +86,7 @@ const AuthenticatedApp = () => {
             <Route path="/events/tm/:tmId" element={<EventDetailTM />} />
             <Route path="/account-settings" element={<AccountSettingsPage />} />
             <Route path="/edit-persona" element={<EditPersona />} />
+            <Route path="/beta-qa" element={<BetaQA />} />
           </Route>
           <Route path="*" element={<PageNotFound />} />
         </Routes>

@@ -1,0 +1,38 @@
+{
+  "name": "QAChecklistItem",
+  "type": "object",
+  "properties": {
+    "category": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "result": {
+      "type": "string",
+      "enum": [
+        "untested",
+        "pass",
+        "fail"
+      ],
+      "default": "untested"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "tester_name": {
+      "type": "string"
+    },
+    "device": {
+      "type": "string"
+    },
+    "session_id": {
+      "type": "string",
+      "description": "Groups items by test session"
+    }
+  },
+  "required": [
+    "category",
+    "title"
+  ]
+}

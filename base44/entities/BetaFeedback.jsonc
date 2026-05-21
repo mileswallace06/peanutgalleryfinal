@@ -1,0 +1,39 @@
+{
+  "name": "BetaFeedback",
+  "type": "object",
+  "properties": {
+    "tester_name": {
+      "type": "string"
+    },
+    "device": {
+      "type": "string"
+    },
+    "confusing": {
+      "type": "string",
+      "description": "What felt confusing?"
+    },
+    "trust": {
+      "type": "string",
+      "description": "Would you trust this app with real tickets?"
+    },
+    "blocker": {
+      "type": "string",
+      "description": "What almost stopped you from buying?"
+    },
+    "coolest": {
+      "type": "string",
+      "description": "What feature felt coolest?"
+    },
+    "overall_rating": {
+      "type": "number",
+      "description": "1-5 overall rating"
+    },
+    "extra": {
+      "type": "string",
+      "description": "Any other thoughts"
+    }
+  },
+  "required": [
+    "tester_name"
+  ]
+}

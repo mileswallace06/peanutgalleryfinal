@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Shield, Database, CheckCircle, XCircle, RefreshCw, Lock, AlertTriangle, FileText, CreditCard } from 'lucide-react';
+import { Shield, Database, CheckCircle, XCircle, RefreshCw, Lock, AlertTriangle, FileText, CreditCard, FlaskConical } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import EventTimingDebug from '@/components/admin/EventTimingDebug';
 import { isAdmin } from '@/lib/isAdmin';
@@ -203,6 +204,22 @@ export default function AdminMode() {
         >
           <RefreshCw className={`w-4 h-4 text-muted-foreground ${dataLoading ? 'animate-spin' : ''}`} />
         </button>
+      </div>
+
+      {/* Beta QA link */}
+      <div className="bg-card border border-border rounded-2xl p-5 mb-6 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <FlaskConical className="w-5 h-5" style={{ color: '#BF5FFF' }} />
+          <div>
+            <h2 className="font-bold">Beta QA Dashboard</h2>
+            <p className="text-sm text-muted-foreground mt-0.5">Checklists, bug tracking, feedback, and operational risks.</p>
+          </div>
+        </div>
+        <Link to="/beta-qa"
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm whitespace-nowrap"
+          style={{ background: 'rgba(191,95,255,0.12)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.3)' }}>
+          Open QA →
+        </Link>
       </div>
 
       {/* Stripe Mode Status */}
