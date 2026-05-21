@@ -3,10 +3,14 @@ import { Link, useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { Ticket, TrendingUp, Shield, LogIn, Edit2, Tag, Zap, ChevronRight, Camera, ImagePlus, UserPlus, UserCheck, Settings } from 'lucide-react';
 import { isAdmin } from '@/lib/isAdmin';
+import { useAuth } from '@/lib/AuthContext';
 
 export default function Me() {
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
+  const { user: authUser } = useAuth();
+  // Seed with the already-resolved AuthContext user to avoid the sign-in flash,
+  // then refresh in the background to pick up any profile updates.
+  const [user, setUser] = useState(authUser || null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
   const avatarInputRef = useRef(null);
@@ -15,9 +19,13 @@ export default function Me() {
   const [following, setFollowing] = useState([]);
   const [socialTab, setSocialTab] = useState('following');
 
+  // Keep local user in sync if AuthContext resolves after initial render
+  useEffect(() => {
+    if (authUser && !user) setUser(authUser);
+  }, [authUser]);
+
   useEffect(() => {
     base44.auth.me({ fresh: true }).then(u => {
-      console.log('[Me] user.email:', u?.email, '| role:', u?.role, '| isAdmin:', u?.role === 'admin');
       setUser(u);
       if (u?.email) {
         Promise.all([
