@@ -25,10 +25,10 @@ export default function Layout() {
   // Initialize theme hook at top level
   useTheme();
 
-  // Get current tab key
+  // Get current tab key — returns null for sub-pages not owned by any nav tab
   const getCurrentTab = () => {
     const path = location.pathname;
-    return NAV.find(n => path === n.to || path.startsWith(n.to + '/'))?.key || 'events';
+    return NAV.find(n => path === n.to || path.startsWith(n.to + '/'))?.key || null;
   };
 
   const currentTab = getCurrentTab();
@@ -77,6 +77,12 @@ export default function Layout() {
 
       {/* Stack-preserved tab containers */}
       <div className="relative w-full max-w-lg mx-auto pb-24" style={{ overscrollBehavior: 'none' }}>
+        {/* Sub-pages not owned by any tab (e.g. /create-listing, /account-settings) */}
+        {currentTab === null && (
+          <div className="overflow-y-auto" style={{ height: '100vh', overscrollBehavior: 'none' }}>
+            <Outlet />
+          </div>
+        )}
         {NAV.map(({ to, key }) => (
           <div
             key={key}
