@@ -6,7 +6,7 @@ Deno.serve(async (req) => {
   if (!user) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  const key = Deno.env.get('STRIPE_PUBLISHABLE_KEY');
+  const key = Deno.env.get('STRIPELIVEPUBLISHABLEKEY');
   if (!key || (!key.startsWith('pk_test_') && !key.startsWith('pk_live_'))) {
     return Response.json({ error: 'Stripe publishable key misconfigured' }, { status: 500 });
   }

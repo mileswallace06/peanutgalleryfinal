@@ -11,8 +11,8 @@ Deno.serve(async (req) => {
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     if (user.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: 403 });
 
-    const secretKey = Deno.env.get('STRIPE_SECRET_KEY') || '';
-    const publishableKey = Deno.env.get('STRIPE_PUBLISHABLE_KEY') || '';
+    const secretKey = Deno.env.get('STRIPELIVESECRETKEY') || '';
+    const publishableKey = Deno.env.get('STRIPELIVEPUBLISHABLEKEY') || '';
 
     const secretMode = secretKey.startsWith('sk_live_') ? 'live'
       : secretKey.startsWith('sk_test_') ? 'test'

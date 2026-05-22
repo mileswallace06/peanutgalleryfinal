@@ -10,7 +10,7 @@ Deno.serve(async (req) => {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const secretKey = Deno.env.get('STRIPE_SECRET_KEY');
+  const secretKey = Deno.env.get('STRIPELIVESECRETKEY');
   if (!secretKey || (!secretKey.startsWith('sk_test_') && !secretKey.startsWith('sk_live_'))) {
     return Response.json({ error: 'Stripe secret key misconfigured' }, { status: 500 });
   }

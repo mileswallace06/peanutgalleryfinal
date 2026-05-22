@@ -8,7 +8,7 @@ Deno.serve(async (req) => {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const secretKey = Deno.env.get('STRIPE_SECRET_KEY');
+  const secretKey = Deno.env.get('STRIPELIVESECRETKEY');
   if (!secretKey) {
     return Response.json({ error: 'Stripe not configured' }, { status: 500 });
   }
