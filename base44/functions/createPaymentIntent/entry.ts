@@ -41,12 +41,30 @@ Deno.serve(async (req) => {
   // Fetch seller to get stripe_account_id
   const sellerUsers = await base44.asServiceRole.entities.User.filter({ email: listing.seller_email });
   const seller = sellerUsers[0];
-  const sellerStripeAccountId = seller?.stripe_account_id || null;
+  const rawStripeAccountId = seller?.stripe_account_id || null;
+  const isLiveMode = secretKey.startsWith('sk_live_');
+
+  // A connected account created in test mode starts with acct_ but won't exist in live mode.
+  // Stripe live mode requires the account to have been created via the live key.
+  // We detect a stale test-mode account by checking if we're in live mode — if the account
+  // was never verified against live Stripe, skip the Connect split to avoid "No such destination".
+  let sellerStripeAccountId = rawStripeAccountId;
+  if (rawStripeAccountId && isLiveMode) {
+    try {
+      await stripe.accounts.retrieve(rawStripeAccountId);
+    } catch (err) {
+      console.warn('[createPaymentIntent] Seller account invalid in live mode, skipping Connect split:', rawStripeAccountId, err?.message);
+      sellerStripeAccountId = null;
+      // Clear the stale account ID from the user record
+      await base44.asServiceRole.entities.User.update(seller.id, { stripe_account_id: null, stripe_onboarding_complete: false });
+    }
+  }
+
   const isTestOrAdminListing = listing.notes?.includes('[TEST]') || seller?.role === 'admin';
 
   // Safety: block real seller purchases if no connected Stripe account
   if (!sellerStripeAccountId && !isTestOrAdminListing) {
-    console.error('[createPaymentIntent] BLOCKED: seller has no stripe_account_id', listing.seller_email);
+    console.error('[createPaymentIntent] BLOCKED: seller has no valid live stripe_account_id', listing.seller_email);
     return Response.json(
       { error: 'Seller has not completed payout onboarding. Purchase blocked.' },
       { status: 402 }
