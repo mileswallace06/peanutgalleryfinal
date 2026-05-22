@@ -24,7 +24,10 @@ Deno.serve(async (req) => {
     account = await stripe.accounts.retrieve(user.stripe_account_id);
   } catch (err) {
     console.error('[checkSellerOnboarding] Failed to retrieve Stripe account', user.stripe_account_id, 'for', user.email, '—', err?.type, err?.message);
-    return Response.json({ error: 'Failed to retrieve Stripe account', complete: false }, { status: 500 });
+    // Stale/invalid account (e.g. test-mode account, wrong Connect platform) — clear it so user can re-onboard
+    await base44.auth.updateMe({ stripe_account_id: null, stripe_onboarding_complete: false });
+    console.warn('[checkSellerOnboarding] Cleared stale stripe_account_id for', user.email);
+    return Response.json({ complete: false, charges_enabled: false, details_submitted: false, stale_account_cleared: true });
   }
 
   const complete = account.charges_enabled === true;
