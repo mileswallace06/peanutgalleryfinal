@@ -58,13 +58,17 @@ export default function Sell() {
         const myListings = await base44.entities.Listing.filter({ seller_email: me.email });
         setListings(myListings.sort((a, b) => new Date(b.created_date) - new Date(a.created_date)));
 
-        // Returned from Stripe onboarding — check if complete
         const param = searchParams.get('onboarding');
-        if ((param === 'complete' || param === 'refresh') && !me.stripe_onboarding_complete) {
+        const needsCheck =
+          // Returned from Stripe onboarding flow
+          (param === 'complete' || param === 'refresh') ||
+          // Has a stripe account but flag is stale/missing — re-sync against Stripe
+          (me.stripe_account_id && !me.stripe_onboarding_complete);
+
+        if (needsCheck) {
           setOnboardingChecking(true);
           const res = await base44.functions.invoke('checkSellerOnboarding', {});
           if (res.data.complete) {
-            // Re-fetch user to get updated stripe_onboarding_complete
             await loadUser();
           }
           setOnboardingChecking(false);
