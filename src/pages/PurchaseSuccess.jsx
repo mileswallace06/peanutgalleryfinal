@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { CheckCircle, Clock, XCircle, AlertTriangle, ArrowLeft, Ticket, Upload, FileText, ExternalLink, RefreshCw } from 'lucide-react';
+import { CheckCircle, Clock, XCircle, AlertTriangle, ArrowLeft, Ticket, Upload, FileText, ExternalLink, RefreshCw, Sparkles, Send } from 'lucide-react';
 import DisputeModal from '@/components/purchase/DisputeModal';
 import { createOptimisticPurchaseUpdate } from '@/lib/optimisticUI';
 
@@ -18,22 +18,23 @@ function ProgressBar({ purchase }) {
     : 1;
 
   return (
-    <div className="mb-8">
+    <div className="mb-6">
       <div className="flex items-center">
         {STEPS.map((label, i) => (
           <div key={label} className="flex items-center flex-1 last:flex-none">
             <div className="flex flex-col items-center">
               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all ${
-                i < step ? 'bg-green-500 border-green-500 text-white'
-                : i === step ? 'bg-primary border-primary text-white animate-pulse'
-                : 'border-border text-muted-foreground'
-              }`}>
+                i < step ? 'border-transparent text-black' :
+                i === step ? 'border-primary text-primary animate-pulse' :
+                'border-border text-muted-foreground'
+              }`} style={i < step ? { background: 'linear-gradient(135deg, #00FF87, #00C8FF)' } : {}}>
                 {i < step ? '✓' : i + 1}
               </div>
               <span className="text-[9px] text-muted-foreground mt-1 text-center w-14 leading-tight hidden sm:block">{label}</span>
             </div>
             {i < STEPS.length - 1 && (
-              <div className={`flex-1 h-0.5 mx-1 mb-4 sm:mb-0 transition-all ${i < step ? 'bg-green-400' : 'bg-border'}`} />
+              <div className={`flex-1 h-0.5 mx-1 mb-4 sm:mb-0 transition-all ${i < step ? '' : 'bg-border'}`}
+                style={i < step ? { background: 'linear-gradient(90deg, #00FF87, #00C8FF)' } : {}} />
             )}
           </div>
         ))}
@@ -42,13 +43,11 @@ function ProgressBar({ purchase }) {
   );
 }
 
-
-
 // ── Transfer platform buttons ────────────────────────────────────────────────
 const PLATFORMS = [
-  { label: 'Ticketmaster', url: 'https://www.ticketmaster.com/member', color: 'bg-blue-600 hover:bg-blue-700' },
-  { label: 'SeatGeek',     url: 'https://seatgeek.com/account/orders', color: 'bg-green-600 hover:bg-green-700' },
-  { label: 'StubHub',      url: 'https://www.stubhub.com/selling',     color: 'bg-orange-500 hover:bg-orange-600' },
+  { label: 'Ticketmaster', url: 'https://www.ticketmaster.com/member', color: '#006AFF' },
+  { label: 'SeatGeek',     url: 'https://seatgeek.com/account/orders', color: '#00A651' },
+  { label: 'StubHub',      url: 'https://www.stubhub.com/selling',     color: '#FF5C00' },
 ];
 
 // ── Seller View ──────────────────────────────────────────────────────────────
@@ -72,34 +71,52 @@ function SellerPanel({ purchase, onConfirm, actionLoading, error, setError }) {
     await onConfirm({ proofUrl, proofNote: proofNote.trim() });
   };
 
+  // Seller confirmed — waiting on buyer
   if (purchase.seller_confirmed) {
     return (
-      <div className="rounded-2xl p-5" style={{ background: 'rgba(0,255,135,0.08)', border: '1px solid rgba(0,255,135,0.25)' }}>
-        <div className="flex items-center gap-3 mb-3">
-          <CheckCircle className="w-6 h-6 flex-shrink-0" style={{ color: '#00FF87' }} />
-          <div>
-            <div className="font-bold text-foreground">Tickets Sent ✓</div>
-            <div className="text-sm text-muted-foreground">Waiting for buyer to confirm receipt.</div>
+      <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(0,200,255,0.3)', background: 'rgba(0,200,255,0.06)' }}>
+        {/* Hero state */}
+        <div className="px-5 pt-6 pb-5 text-center" style={{ borderBottom: '1px solid rgba(0,200,255,0.15)' }}>
+          <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3"
+            style={{ background: 'linear-gradient(135deg, #00C8FF33, #BF5FFF33)', border: '2px solid rgba(0,200,255,0.4)' }}>
+            <Send className="w-6 h-6" style={{ color: '#00C8FF' }} />
           </div>
+          <h2 className="font-display text-2xl text-foreground mb-1">Tickets Sent 🚀</h2>
+          <p className="text-sm text-muted-foreground">We're waiting for the buyer to confirm receipt.</p>
         </div>
-        {(purchase.transfer_notes || purchase.transfer_proof_url) && (
-          <div className="rounded-xl p-3 text-sm space-y-2" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
-            <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Your Proof Submitted</div>
-            {purchase.transfer_notes && <p className="text-foreground">{purchase.transfer_notes}</p>}
-            {purchase.transfer_proof_url && (
-              <a href={purchase.transfer_proof_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-primary hover:underline text-xs font-medium">
-                <FileText className="w-3.5 h-3.5" /> View screenshot
-              </a>
-            )}
+
+        {/* Status pill */}
+        <div className="px-5 py-4 flex flex-col items-center gap-3">
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold"
+            style={{ background: 'rgba(0,200,255,0.12)', border: '1px solid rgba(0,200,255,0.3)', color: '#00C8FF' }}>
+            <Clock className="w-4 h-4 animate-pulse" /> Waiting on buyer confirmation
           </div>
-        )}
+          <p className="text-xs text-center text-muted-foreground">
+            Your payout is released once the buyer confirms.
+          </p>
+
+          {/* Proof submitted */}
+          {(purchase.transfer_notes || purchase.transfer_proof_url) && (
+            <div className="w-full rounded-xl p-3 text-sm space-y-2 mt-1"
+              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
+              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Your Proof Submitted</div>
+              {purchase.transfer_notes && <p className="text-foreground text-xs">{purchase.transfer_notes}</p>}
+              {purchase.transfer_proof_url && (
+                <a href={purchase.transfer_proof_url} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-primary hover:underline text-xs font-medium">
+                  <FileText className="w-3.5 h-3.5" /> View screenshot
+                </a>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     );
   }
 
+  // Seller needs to send tickets
   return (
     <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}>
-      {/* Header */}
       <div className="px-5 py-4" style={{ background: 'rgba(191,95,255,0.1)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
         <h2 className="font-bold text-lg text-foreground">Send Your Tickets Now</h2>
         <p className="text-sm text-muted-foreground mt-0.5">Transfer your tickets using your ticket app, then return here to confirm. You will be paid after the buyer confirms receipt.</p>
@@ -126,7 +143,8 @@ function SellerPanel({ purchase, onConfirm, actionLoading, error, setError }) {
               <div className="flex flex-wrap gap-2">
                 {PLATFORMS.map(p => (
                   <a key={p.label} href={p.url} target="_blank" rel="noopener noreferrer"
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-white text-xs font-semibold transition-colors ${p.color}`}>
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-white text-xs font-semibold"
+                    style={{ background: p.color }}>
                     {p.label} <ExternalLink className="w-3 h-3" />
                   </a>
                 ))}
@@ -197,119 +215,178 @@ function SellerPanel({ purchase, onConfirm, actionLoading, error, setError }) {
 
 // ── Buyer View ───────────────────────────────────────────────────────────────
 function BuyerPanel({ purchase, onConfirm, onDispute, onCancel, actionLoading }) {
+  // Buyer confirmed — complete
   if (purchase.buyer_confirmed) {
     return (
-      <div className="flex items-center gap-3 rounded-2xl p-5" style={{ background: 'rgba(0,255,135,0.08)', border: '1px solid rgba(0,255,135,0.25)' }}>
-        <CheckCircle className="w-6 h-6 flex-shrink-0" style={{ color: '#00FF87' }} />
-        <div>
-          <div className="font-bold text-foreground">You confirmed receipt ✓</div>
-          <div className="text-sm text-muted-foreground">Payment has been released to the seller.</div>
+      <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(0,255,135,0.35)', background: 'rgba(0,255,135,0.07)' }}>
+        <div className="px-5 pt-6 pb-5 text-center">
+          <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3"
+            style={{ background: 'linear-gradient(135deg, #00FF8733, #00C8FF33)', border: '2px solid rgba(0,255,135,0.5)' }}>
+            <CheckCircle className="w-6 h-6" style={{ color: '#00FF87' }} />
+          </div>
+          <h2 className="font-display text-2xl text-foreground mb-1">Upgrade Confirmed 🎟️</h2>
+          <p className="text-sm text-muted-foreground">Your tickets are confirmed. Payment has been released to the seller.</p>
+          <div className="flex flex-col gap-2 mt-4 text-xs text-center">
+            <span className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full font-semibold mx-auto"
+              style={{ background: 'rgba(0,255,135,0.15)', color: '#00FF87', border: '1px solid rgba(0,255,135,0.3)' }}>
+              ✓ Transfer complete
+            </span>
+            <span className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full font-semibold mx-auto"
+              style={{ background: 'rgba(0,200,255,0.12)', color: '#00C8FF', border: '1px solid rgba(0,200,255,0.3)' }}>
+              ✓ Payment captured
+            </span>
+            <span className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full font-semibold mx-auto"
+              style={{ background: 'rgba(191,95,255,0.12)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.3)' }}>
+              ✓ Payout processing to seller
+            </span>
+          </div>
         </div>
       </div>
     );
   }
 
+  // Waiting on seller to send
   if (!purchase.seller_confirmed) {
     return (
-      <div className="rounded-2xl p-5 space-y-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}>
-        {/* Waiting banner */}
-        <div className="rounded-xl p-4 flex items-start gap-3" style={{ background: 'rgba(0,200,255,0.08)', border: '1px solid rgba(0,200,255,0.2)' }}>
-          <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(0,200,255,0.15)' }}>
-            <Clock className="w-4 h-4 animate-pulse" style={{ color: '#00C8FF' }} />
+      <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(0,200,255,0.25)', background: 'rgba(0,200,255,0.05)' }}>
+        {/* Hero */}
+        <div className="px-5 pt-6 pb-5 text-center" style={{ borderBottom: '1px solid rgba(0,200,255,0.15)' }}>
+          <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3"
+            style={{ background: 'linear-gradient(135deg, #00FF8733, #00C8FF33)', border: '2px solid rgba(0,200,255,0.4)' }}>
+            <Sparkles className="w-6 h-6" style={{ color: '#00C8FF' }} />
           </div>
-          <div>
-            <div className="font-bold text-foreground text-sm">Waiting for Seller to Transfer</div>
-            <div className="text-xs text-muted-foreground mt-0.5">The seller has been notified and is processing your tickets.</div>
-          </div>
+          <h2 className="font-display text-2xl text-foreground mb-1">You're In 🎉</h2>
+          <p className="text-sm text-muted-foreground">Your payment is protected. The seller is sending your tickets now.</p>
         </div>
 
-        <div className="space-y-2 text-sm">
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
-            Average transfer time is <span className="font-semibold text-foreground mx-1">under 5 minutes</span>
+        {/* Status */}
+        <div className="px-5 py-4 space-y-4">
+          <div className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold"
+            style={{ background: 'rgba(0,200,255,0.12)', border: '1px solid rgba(0,200,255,0.3)', color: '#00C8FF' }}>
+            <Clock className="w-4 h-4 animate-pulse" /> Waiting on seller transfer
           </div>
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
-            Your payment is held in escrow — fully protected
-          </div>
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
-            This page refreshes automatically every 15 seconds
-          </div>
-        </div>
 
-        <div className="rounded-xl p-3 text-xs text-muted-foreground text-center" style={{ background: 'rgba(255,255,255,0.05)' }}>
-          Check your email — the ticket transfer invite may arrive before this page updates.
-        </div>
+          <div className="space-y-2 text-sm">
+            {[
+              'Average transfer time is under 5 minutes',
+              'You won\'t be charged until the transfer is confirmed.',
+              'This page refreshes automatically every 15 seconds',
+            ].map(t => (
+              <div key={t} className="flex items-start gap-2 text-muted-foreground">
+                <div className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ background: '#00FF87' }} />
+                <span>{t}</span>
+              </div>
+            ))}
+          </div>
 
-        <button
-          onClick={onCancel}
-          disabled={actionLoading}
-          className="w-full py-2.5 rounded-xl text-sm text-muted-foreground transition-colors disabled:opacity-60"
-          style={{ border: '1px solid rgba(255,255,255,0.12)' }}
-        >
-          Cancel Purchase & Refund
-        </button>
+          <div className="rounded-xl p-3 text-xs text-muted-foreground text-center"
+            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
+            Check your email — the ticket transfer invite may arrive before this page updates.
+          </div>
+
+          <button
+            onClick={onCancel}
+            disabled={actionLoading}
+            className="w-full py-2.5 rounded-xl text-sm text-muted-foreground transition-colors disabled:opacity-60"
+            style={{ border: '1px solid rgba(255,255,255,0.12)' }}
+          >
+            Cancel Purchase & Refund
+          </button>
+        </div>
       </div>
     );
   }
 
-  // Seller has confirmed — prompt buyer to verify
+  // Seller confirmed — buyer needs to verify
   return (
-    <div className="rounded-2xl p-5 space-y-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}>
-      <div className="rounded-xl p-4" style={{ background: 'rgba(0,255,135,0.08)', border: '1px solid rgba(0,255,135,0.2)' }}>
-        <div className="font-bold text-foreground text-sm mb-1">🎟 Seller has sent your tickets!</div>
+    <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(0,255,135,0.3)', background: 'rgba(0,255,135,0.05)' }}>
+      <div className="px-5 py-4" style={{ borderBottom: '1px solid rgba(0,255,135,0.15)' }}>
+        <div className="font-bold text-foreground text-base mb-0.5">🎟 Seller has sent your tickets!</div>
         <div className="text-xs text-muted-foreground">Check your email and the ticket platform for the transfer invite.</div>
       </div>
 
-      {/* Seller's proof */}
-      {(purchase.transfer_notes || purchase.transfer_proof_url) && (
-        <div className="rounded-xl p-3 text-sm space-y-2" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
-          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Seller's Transfer Proof</div>
-          {purchase.transfer_notes && <p className="text-foreground">{purchase.transfer_notes}</p>}
-          {purchase.transfer_proof_url && (
-            <a href={purchase.transfer_proof_url} target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-primary hover:underline text-xs font-medium">
-              <FileText className="w-3.5 h-3.5" /> View screenshot
-            </a>
-          )}
+      <div className="p-5 space-y-4">
+        {/* Seller's proof */}
+        {(purchase.transfer_notes || purchase.transfer_proof_url) && (
+          <div className="rounded-xl p-3 text-sm space-y-2"
+            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
+            <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Seller's Transfer Proof</div>
+            {purchase.transfer_notes && <p className="text-foreground text-xs">{purchase.transfer_notes}</p>}
+            {purchase.transfer_proof_url && (
+              <a href={purchase.transfer_proof_url} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-primary hover:underline text-xs font-medium">
+                <FileText className="w-3.5 h-3.5" /> View screenshot
+              </a>
+            )}
+          </div>
+        )}
+
+        <button
+          onClick={() => onConfirm('buyer')}
+          disabled={actionLoading}
+          className="w-full py-3.5 rounded-full font-black text-sm transition-all disabled:opacity-40 flex items-center justify-center gap-2"
+          style={{ background: 'linear-gradient(135deg, #00E87A, #00B8E8)', color: '#0D0B14' }}
+        >
+          {actionLoading
+            ? <><span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> Processing…</>
+            : <><CheckCircle className="w-4 h-4" /> I Received My Tickets</>
+          }
+        </button>
+
+        <div className="flex gap-2">
+          <button onClick={onDispute} disabled={actionLoading}
+            className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors disabled:opacity-60"
+            style={{ background: 'rgba(255,200,0,0.1)', border: '1px solid rgba(255,200,0,0.3)', color: '#FFE600' }}>
+            Open Dispute
+          </button>
+          <button onClick={onCancel} disabled={actionLoading}
+            className="flex-1 py-2.5 rounded-xl text-sm text-muted-foreground transition-colors disabled:opacity-60"
+            style={{ border: '1px solid rgba(255,255,255,0.12)' }}>
+            Cancel & Refund
+          </button>
         </div>
-      )}
 
-      <button
-        onClick={() => onConfirm('buyer')}
-        disabled={actionLoading}
-        className="w-full py-3.5 rounded-full font-black text-sm transition-all disabled:opacity-40 flex items-center justify-center gap-2"
-        style={{ background: 'linear-gradient(135deg, #00E87A, #00B8E8)', color: '#0D0B14' }}
-      >
-        {actionLoading
-          ? <><span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> Processing…</>
-          : <><CheckCircle className="w-4 h-4" /> I Received My Tickets</>
-        }
-      </button>
-
-      <div className="flex gap-2">
-        <button
-          onClick={onDispute}
-          disabled={actionLoading}
-          className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors disabled:opacity-60"
-          style={{ background: 'rgba(255,200,0,0.1)', border: '1px solid rgba(255,200,0,0.3)', color: '#FFE600' }}
-        >
-          Open Dispute
-        </button>
-        <button
-          onClick={onCancel}
-          disabled={actionLoading}
-          className="flex-1 py-2.5 rounded-xl text-sm text-muted-foreground transition-colors disabled:opacity-60"
-          style={{ border: '1px solid rgba(255,255,255,0.12)' }}
-        >
-          Cancel & Refund
-        </button>
+        <p className="text-xs text-center text-muted-foreground">
+          Only confirm once you've accepted the ticket transfer.
+        </p>
       </div>
+    </div>
+  );
+}
 
-      <p className="text-xs text-center text-muted-foreground">
-        Only confirm once you've accepted the ticket transfer.
-      </p>
+// ── Completed state (role-specific) ─────────────────────────────────────────
+function CompletedBanner({ isSeller }) {
+  return (
+    <div className="rounded-2xl overflow-hidden mb-5" style={{
+      border: '1px solid rgba(0,255,135,0.35)',
+      background: 'linear-gradient(135deg, rgba(0,255,135,0.08), rgba(0,200,255,0.06))'
+    }}>
+      <div className="px-5 pt-6 pb-5 text-center">
+        <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3"
+          style={{ background: 'linear-gradient(135deg, #00FF8733, #00C8FF33)', border: '2px solid rgba(0,255,135,0.5)' }}>
+          <CheckCircle className="w-6 h-6" style={{ color: '#00FF87' }} />
+        </div>
+        <h2 className="font-display text-2xl text-foreground mb-1">
+          {isSeller ? 'Sale Complete 💸' : 'Upgrade Confirmed 🎟️'}
+        </h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          {isSeller ? 'Great work. Your payout is on its way.' : 'Enjoy the show! Payment has been released to the seller.'}
+        </p>
+        <div className="flex flex-col gap-2 items-center text-xs">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full font-semibold"
+            style={{ background: 'rgba(0,255,135,0.15)', color: '#00FF87', border: '1px solid rgba(0,255,135,0.3)' }}>
+            ✓ Transfer complete
+          </span>
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full font-semibold"
+            style={{ background: 'rgba(0,200,255,0.12)', color: '#00C8FF', border: '1px solid rgba(0,200,255,0.3)' }}>
+            ✓ Payment captured
+          </span>
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full font-semibold"
+            style={{ background: 'rgba(191,95,255,0.12)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.3)' }}>
+            ✓ {isSeller ? 'Payout processing' : 'Payout released to seller'}
+          </span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -379,50 +456,35 @@ export default function PurchaseSuccess() {
   const handleConfirm = async (role) => {
     setActionLoading(true);
     setError('');
-    
-    // 1. Create optimistic update
+
     const optimisticUpdate = createOptimisticPurchaseUpdate(purchase.id, role);
-    
-    // 2. Update UI immediately
-    setPurchase(prev => ({
-      ...prev,
-      ...optimisticUpdate
-    }));
-    
+    setPurchase(prev => ({ ...prev, ...optimisticUpdate }));
+
     try {
-      // 3. Submit to backend
       const res = await base44.functions.invoke('capturePayment', {
         purchase_id: purchase.id,
         confirming_role: role,
       });
       if (res.data.error) {
         setError(res.data.error);
-        // 5. Revert optimistic update on error
         setPurchase(prev => ({
           ...prev,
           _optimistic: false,
           _updating: false,
           buyer_confirmed: role === 'buyer' ? false : prev.buyer_confirmed,
-          seller_confirmed: role === 'seller' ? false : prev.seller_confirmed
+          seller_confirmed: role === 'seller' ? false : prev.seller_confirmed,
         }));
       } else {
-        // 4. Confirm with server response
-        setPurchase(prev => ({
-          ...prev,
-          ...res.data,
-          _optimistic: false,
-          _updating: false
-        }));
+        setPurchase(prev => ({ ...prev, ...res.data, _optimistic: false, _updating: false }));
       }
-    } catch (error) {
-      setError(error.message || 'Confirmation failed');
-      // 5. Revert optimistic update on error
+    } catch (err) {
+      setError(err.message || 'Confirmation failed');
       setPurchase(prev => ({
         ...prev,
         _optimistic: false,
         _updating: false,
         buyer_confirmed: role === 'buyer' ? false : prev.buyer_confirmed,
-        seller_confirmed: role === 'seller' ? false : prev.seller_confirmed
+        seller_confirmed: role === 'seller' ? false : prev.seller_confirmed,
       }));
     } finally {
       setActionLoading(false);
@@ -469,7 +531,6 @@ export default function PurchaseSuccess() {
     );
   }
 
-  // Seller email is the authoritative signal — check it first
   const isSeller = user?.email === purchase.seller_email;
   const isBuyer = !isSeller && (user?.email === purchase.buyer_email || user?.email === purchase.created_by);
   const isCompleted = purchase.transfer_status === 'completed';
@@ -484,17 +545,11 @@ export default function PurchaseSuccess() {
       </Link>
 
       {/* Terminal status banners */}
-      {isCompleted && (
-        <div className="flex items-center gap-3 rounded-2xl p-4 mb-5" style={{ background: 'rgba(0,255,135,0.1)', border: '1px solid rgba(0,255,135,0.3)' }}>
-          <CheckCircle className="w-7 h-7 flex-shrink-0" style={{ color: '#00FF87' }} />
-          <div>
-            <div className="font-bold text-foreground">Transfer Complete! 🎉</div>
-            <div className="text-sm text-muted-foreground mt-0.5">Payment released. Enjoy the upgrade!</div>
-          </div>
-        </div>
-      )}
+      {isCompleted && <CompletedBanner isSeller={isSeller} />}
+
       {isExpired && (
-        <div className="flex items-center gap-3 rounded-2xl p-4 mb-5" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
+        <div className="flex items-center gap-3 rounded-2xl p-4 mb-5"
+          style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
           <XCircle className="w-6 h-6 text-muted-foreground flex-shrink-0" />
           <div>
             <div className="font-semibold text-foreground">Purchase Cancelled</div>
@@ -502,8 +557,10 @@ export default function PurchaseSuccess() {
           </div>
         </div>
       )}
+
       {isDisputed && (
-        <div className="flex items-center gap-3 rounded-2xl p-4 mb-5" style={{ background: 'rgba(255,200,0,0.1)', border: '1px solid rgba(255,200,0,0.3)' }}>
+        <div className="flex items-center gap-3 rounded-2xl p-4 mb-5"
+          style={{ background: 'rgba(255,200,0,0.1)', border: '1px solid rgba(255,200,0,0.3)' }}>
           <AlertTriangle className="w-6 h-6 flex-shrink-0" style={{ color: '#FFE600' }} />
           <div>
             <div className="font-bold text-foreground">Dispute Open</div>
@@ -513,26 +570,30 @@ export default function PurchaseSuccess() {
       )}
 
       {/* Order summary card */}
-      <div className="rounded-2xl overflow-hidden mb-5" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
-        <div className="px-5 py-3.5 flex items-center justify-between" style={{ background: 'rgba(255,255,255,0.05)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+      <div className="rounded-2xl overflow-hidden mb-5"
+        style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
+        <div className="px-5 py-3.5 flex items-center justify-between"
+          style={{ background: 'rgba(255,255,255,0.05)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
           <div className="flex items-center gap-2">
             <Ticket className="w-4 h-4 text-primary" />
-            <span className="font-bold text-sm">{event?.title || 'Your Upgrade'}</span>
+            <span className="font-bold text-sm text-foreground">{event?.title || 'Your Upgrade'}</span>
           </div>
           {isBuyer && isPending && (
-            <button onClick={() => load().catch(console.error)} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors">
+            <button onClick={() => load().catch(console.error)}
+              className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors">
               <RefreshCw className="w-3 h-3" /> Refresh
             </button>
           )}
         </div>
         {listing && (
           <div className="px-5 py-4 grid grid-cols-3 gap-3 text-sm">
-            <div><div className="text-xs text-muted-foreground">Section</div><div className="font-bold">{listing.section}</div></div>
-            <div><div className="text-xs text-muted-foreground">Row</div><div className="font-bold">{listing.row}</div></div>
-            <div><div className="text-xs text-muted-foreground">Qty</div><div className="font-bold">{purchase.quantity}</div></div>
+            <div><div className="text-xs text-muted-foreground">Section</div><div className="font-bold text-foreground">{listing.section}</div></div>
+            <div><div className="text-xs text-muted-foreground">Row</div><div className="font-bold text-foreground">{listing.row}</div></div>
+            <div><div className="text-xs text-muted-foreground">Qty</div><div className="font-bold text-foreground">{purchase.quantity}</div></div>
           </div>
         )}
-        <div className="px-5 py-3 flex justify-between font-bold text-sm text-foreground" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+        <div className="px-5 py-3 flex justify-between font-bold text-sm text-foreground"
+          style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
           <span>Total Paid</span>
           <span style={{ color: '#00FF87' }}>${purchase.amount?.toFixed(2)}</span>
         </div>

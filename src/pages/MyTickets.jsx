@@ -16,11 +16,7 @@ export default function MyTickets() {
     setError(null);
     try {
       const me = await base44.auth.me();
-      if (!me) {
-        console.warn('[MyTickets] auth.me() returned null — user not authenticated');
-        setLoading(false);
-        return;
-      }
+      if (!me) { setLoading(false); return; }
       setUser(me);
 
       const myPurchases = await base44.entities.Purchase.filter({ buyer_email: me.email });
@@ -34,16 +30,13 @@ export default function MyTickets() {
       }));
       setEvents(eventMap);
     } catch (err) {
-      console.error('[MyTickets] load failed:', err?.status, err?.message, err);
       setError(err?.message || 'Failed to load tickets');
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
 
   if (loading) {
     return (
@@ -71,7 +64,8 @@ export default function MyTickets() {
       <div className="max-w-3xl mx-auto px-4 py-12 text-center text-muted-foreground space-y-3">
         <p className="text-4xl">🔒</p>
         <p className="font-medium text-foreground">Sign in to view your tickets</p>
-        <button onClick={() => base44.auth.redirectToLogin()} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm">
+        <button onClick={() => base44.auth.redirectToLogin()}
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm">
           Sign In
         </button>
       </div>
@@ -82,48 +76,59 @@ export default function MyTickets() {
   const completed = purchases.filter(p => p.transfer_status === 'completed');
   const disputed = purchases.filter(p => p.transfer_status === 'disputed');
 
+  const cardStyle = { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' };
+
   const StatusBadge = ({ p }) => {
-    if (p.transfer_status === 'completed') return <span className="text-xs bg-green-100 text-green-700 border border-green-200 px-2 py-0.5 rounded-full font-medium">Received ✓</span>;
-    if (p.transfer_status === 'disputed') return <span className="text-xs bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full font-medium">Disputed</span>;
-    if (!p.seller_confirmed) return <span className="text-xs bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full font-medium">Waiting on seller</span>;
-    return <span className="text-xs bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full font-medium">Confirm receipt</span>;
+    if (p.transfer_status === 'completed')
+      return <span className="text-xs font-bold px-2.5 py-1 rounded-full"
+        style={{ background: 'rgba(0,255,135,0.12)', color: 'var(--neon-green)', border: '1px solid rgba(0,255,135,0.25)' }}>Received ✓</span>;
+    if (p.transfer_status === 'disputed')
+      return <span className="text-xs font-bold px-2.5 py-1 rounded-full"
+        style={{ background: 'rgba(255,200,0,0.12)', color: 'var(--neon-yellow)', border: '1px solid rgba(255,200,0,0.25)' }}>Disputed</span>;
+    if (!p.seller_confirmed)
+      return <span className="text-xs font-bold px-2.5 py-1 rounded-full"
+        style={{ background: 'rgba(0,200,255,0.12)', color: 'var(--neon-cyan)', border: '1px solid rgba(0,200,255,0.25)' }}>Waiting on seller</span>;
+    return <span className="text-xs font-bold px-2.5 py-1 rounded-full"
+      style={{ background: 'rgba(255,140,0,0.12)', color: 'var(--neon-orange)', border: '1px solid rgba(255,140,0,0.25)' }}>Confirm receipt</span>;
   };
 
   const PurchaseRow = ({ p }) => {
     const event = events[p.event_id];
     const needsConfirm = p.transfer_status === 'pending_transfer' && p.seller_confirmed && !p.buyer_confirmed;
     return (
-      <div className={`bg-white border rounded-xl p-4 flex items-center justify-between gap-3 flex-wrap text-sm ${needsConfirm ? 'border-amber-300' : 'border-border'}`}>
+      <div className="rounded-2xl p-4 flex items-center justify-between gap-3 flex-wrap text-sm"
+        style={needsConfirm
+          ? { background: 'rgba(255,140,0,0.07)', border: '1px solid rgba(255,140,0,0.3)' }
+          : cardStyle}>
         <div className="flex-1 min-w-0">
-          <div className="font-semibold truncate">{event?.title || 'Event'}</div>
+          <div className="font-semibold text-foreground truncate">{event?.title || 'Event'}</div>
           <div className="text-xs text-muted-foreground mt-0.5">
             {event?.date ? format(new Date(event.date), 'EEE, MMM d · h:mm a') : ''}
             {event?.venue ? ` · ${event.venue}` : ''}
           </div>
           <div className="text-xs text-muted-foreground mt-0.5">
-            ${p.amount?.toFixed(2)} · Qty: {p.quantity}
+            <span className="font-semibold text-foreground">${p.amount?.toFixed(2)}</span> · Qty: {p.quantity}
             {p.created_date && <> · Purchased {format(new Date(p.created_date), 'MMM d')}</>}
           </div>
           <div className="mt-1.5"><StatusBadge p={p} /></div>
         </div>
         <Link
           to={`/purchase/${p.id}`}
-          className={`text-sm font-semibold px-4 py-2 rounded-lg transition-colors flex-shrink-0 ${
-            needsConfirm
-              ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-              : 'border border-border text-foreground hover:bg-muted'
-          }`}
+          className="text-sm font-bold px-4 py-2 rounded-xl transition-colors flex-shrink-0"
+          style={needsConfirm
+            ? { background: 'linear-gradient(135deg, #00E87A, #00B8E8)', color: '#0D0B14' }
+            : { background: 'hsl(var(--muted))', color: 'hsl(var(--foreground))' }}
         >
-          {needsConfirm ? 'Confirm Receipt →' : 'View Details →'}
+          {needsConfirm ? 'Confirm Receipt →' : 'View →'}
         </Link>
       </div>
     );
   };
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8" style={{ paddingTop: 'calc(2rem + env(safe-area-inset-top))' }}>
+    <div className="max-w-3xl mx-auto px-4 pb-12" style={{ paddingTop: 'calc(2rem + env(safe-area-inset-top))' }}>
       <div className="mb-8">
-        <h1 className="text-2xl font-bold flex items-center gap-2">
+        <h1 className="text-2xl font-bold flex items-center gap-2 text-foreground">
           <Ticket className="w-6 h-6 text-primary" /> My Tickets
         </h1>
         <p className="text-sm text-muted-foreground mt-1">{user.email}</p>
@@ -132,17 +137,19 @@ export default function MyTickets() {
       {purchases.length === 0 ? (
         <div className="text-center py-20 text-muted-foreground">
           <p className="text-4xl mb-3">🎫</p>
-          <p className="font-medium">No purchases yet</p>
+          <p className="font-medium text-foreground">No purchases yet</p>
           <Link to="/events" className="text-primary text-sm mt-2 inline-block hover:underline">Browse events →</Link>
         </div>
       ) : (
         <>
-          {/* Needs action */}
+          {/* Needs action — confirm receipt */}
           {pending.filter(p => p.seller_confirmed && !p.buyer_confirmed).length > 0 && (
             <section className="mb-8">
-              <h2 className="font-semibold text-lg mb-3 flex items-center gap-2">
-                <Clock className="w-5 h-5 text-amber-500" /> Action Required
-                <span className="bg-amber-100 text-amber-700 text-xs font-bold px-2 py-0.5 rounded-full">
+              <h2 className="font-semibold text-base mb-3 flex items-center gap-2 text-foreground">
+                <Clock className="w-5 h-5" style={{ color: '#FF8C00' }} />
+                Action Required
+                <span className="text-xs font-bold px-2 py-0.5 rounded-full"
+                  style={{ background: 'rgba(255,140,0,0.15)', color: '#FF8C00', border: '1px solid rgba(255,140,0,0.3)' }}>
                   {pending.filter(p => p.seller_confirmed && !p.buyer_confirmed).length}
                 </span>
               </h2>
@@ -155,8 +162,9 @@ export default function MyTickets() {
           {/* Waiting on seller */}
           {pending.filter(p => !p.seller_confirmed).length > 0 && (
             <section className="mb-8">
-              <h2 className="font-semibold text-lg mb-3 flex items-center gap-2">
-                <Clock className="w-5 h-5 text-blue-500" /> Awaiting Transfer ({pending.filter(p => !p.seller_confirmed).length})
+              <h2 className="font-semibold text-base mb-3 flex items-center gap-2 text-foreground">
+                <Clock className="w-5 h-5" style={{ color: 'var(--neon-cyan)' }} />
+                Awaiting Transfer ({pending.filter(p => !p.seller_confirmed).length})
               </h2>
               <div className="space-y-3">
                 {pending.filter(p => !p.seller_confirmed).map(p => <PurchaseRow key={p.id} p={p} />)}
@@ -167,8 +175,9 @@ export default function MyTickets() {
           {/* Disputed */}
           {disputed.length > 0 && (
             <section className="mb-8">
-              <h2 className="font-semibold text-lg mb-3 flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-amber-500" /> Disputed ({disputed.length})
+              <h2 className="font-semibold text-base mb-3 flex items-center gap-2 text-foreground">
+                <AlertTriangle className="w-5 h-5" style={{ color: 'var(--neon-yellow)' }} />
+                Disputed ({disputed.length})
               </h2>
               <div className="space-y-3">
                 {disputed.map(p => <PurchaseRow key={p.id} p={p} />)}
@@ -179,8 +188,9 @@ export default function MyTickets() {
           {/* Completed */}
           {completed.length > 0 && (
             <section>
-              <h2 className="font-semibold text-lg mb-3 flex items-center gap-2">
-                <CheckCircle className="w-5 h-5 text-green-600" /> Completed ({completed.length})
+              <h2 className="font-semibold text-base mb-3 flex items-center gap-2 text-foreground">
+                <CheckCircle className="w-5 h-5" style={{ color: 'var(--neon-green)' }} />
+                Completed ({completed.length})
               </h2>
               <div className="space-y-3">
                 {completed.map(p => <PurchaseRow key={p.id} p={p} />)}
