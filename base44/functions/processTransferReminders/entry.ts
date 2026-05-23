@@ -91,7 +91,7 @@ Deno.serve(async (req) => {
             purchase_id: purchase.id,
           });
           await base44.asServiceRole.entities.Purchase.update(purchase.id, {
-            reminder_flags: { ...flags, seller_r1: true, seller_r2: true },
+            reminder_flags: { ...flags, seller_r2: true },
           });
           sent++;
         } catch (err) {
@@ -136,7 +136,7 @@ Deno.serve(async (req) => {
             purchase_id: purchase.id,
           });
           await base44.asServiceRole.entities.Purchase.update(purchase.id, {
-            reminder_flags: { ...flags, buyer_r1: true, buyer_r2: true },
+            reminder_flags: { ...flags, buyer_r2: true },
           });
           sent++;
         } catch (err) {

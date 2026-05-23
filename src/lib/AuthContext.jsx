@@ -109,7 +109,7 @@ export const AuthProvider = ({ children }) => {
       setIsAuthenticated(true);
       setIsLoadingAuth(false);
       setAuthChecked(true);
-      loginOneSignalUser(currentUser?.email);
+      await loginOneSignalUser(currentUser?.email);
     } catch (error) {
       const status = error?.status || error?.response?.status;
       console.error('[Auth] checkUserAuth failed — status:', status, '| message:', error?.message, '| full error:', error);

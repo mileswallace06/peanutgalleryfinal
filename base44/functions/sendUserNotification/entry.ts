@@ -84,9 +84,8 @@ Deno.serve(async (req) => {
 
   const results = { push: null, email: null };
 
-  // ── 1. Look up user preferences + push token ──────────────────────────────
-  let pushToken = null;
-  let prefKey = null;
+  // ── 1. Look up user preferences ───────────────────────────────────────────
+  // Push routing uses external_id (email) via OneSignal — no push_token lookup needed.
   const prefMap = {
     sale_created:    'notif_listing_sold',
     seller_reminder: 'notif_transfer_updates',
@@ -94,18 +93,14 @@ Deno.serve(async (req) => {
     buyer_reminder:  'notif_transfer_updates',
     sale_complete:   'notif_listing_sold',
   };
-  prefKey = prefMap[type] || null;
+  const prefKey = prefMap[type] || null;
 
   try {
     const users = await base44.asServiceRole.entities.User.filter({ email: user_email });
     const u = users[0];
-    if (u) {
-      // Respect notification preferences — if pref is explicitly false, skip entirely
-      if (prefKey && u[prefKey] === false) {
-        console.log('[sendUserNotification] user', user_email, 'has disabled pref', prefKey, '— skipping');
-        return Response.json({ skipped: true, reason: 'user_preference' });
-      }
-      pushToken = u.push_token || null;
+    if (u && prefKey && u[prefKey] === false) {
+      console.log('[sendUserNotification] user', user_email, 'has disabled pref', prefKey, '— skipping');
+      return Response.json({ skipped: true, reason: 'user_preference' });
     }
   } catch (err) {
     console.warn('[sendUserNotification] could not load user prefs:', err?.message);
