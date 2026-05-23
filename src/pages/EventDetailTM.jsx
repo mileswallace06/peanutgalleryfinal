@@ -269,7 +269,7 @@ export default function EventDetailTM() {
 
       {selectedListing && (
         <PurchaseDialog
-          event={event}
+          event={{ ...event, id: localEventId }}
           listing={selectedListing}
           onClose={() => setSelectedListing(null)}
           mode="ticket"
