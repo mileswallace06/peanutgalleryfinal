@@ -25,25 +25,39 @@ export default function Sell() {
     return me;
   };
 
-  // Fetch nearby events via geolocation
+  // Fetch nearby events via geolocation — same logic as Events page
   useEffect(() => {
     setNearbyLoading(true);
+    const now = Date.now();
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const ll = `${pos.coords.latitude},${pos.coords.longitude}`;
         try {
           const [localData, { events: tmEventsRaw }] = await Promise.all([
             base44.entities.Event.list('date', 50),
-            fetchTMEvents(base44, { latlong: ll, radius: '50', size: 20 }),
+            fetchTMEvents(base44, { latlong: ll, radius: '50', size: 40 }),
           ]);
+
           const tmCities = new Set(tmEventsRaw.map(e => e.city?.toLowerCase()).filter(Boolean));
-          const pgEvents = localData
+
+          let pgFiltered = localData
             .filter(e => e.status !== 'ended')
-            .filter(e => !e.city || tmCities.has(e.city.toLowerCase()))
-            .map(e => ({ ...e, source: 'pg' }));
-          const tmEvents = tmEventsRaw.map(e => ({ ...e, id: `tm_${e.tm_id}`, source: 'ticketmaster' }));
+            .filter(e => !e.date || now < new Date(e.date).getTime())
+            .filter(e => !e.is_beta_live);
+
+          if (tmCities.size > 0) {
+            pgFiltered = pgFiltered.filter(e => !e.city || tmCities.has(e.city.toLowerCase()));
+          } else {
+            pgFiltered = [];
+          }
+
+          const pgEvents = pgFiltered.map(e => ({ ...e, source: 'pg' }));
           const pgTmIds = new Set(pgEvents.map(e => e.tm_id).filter(Boolean));
-          setNearbyEvents([...pgEvents, ...tmEvents.filter(e => !pgTmIds.has(e.tm_id))].slice(0, 8));
+          const tmEvents = tmEventsRaw
+            .filter(e => !pgTmIds.has(e.tm_id))
+            .map(e => ({ ...e, id: `tm_${e.tm_id}`, source: 'ticketmaster' }));
+
+          setNearbyEvents([...pgEvents, ...tmEvents].slice(0, 8));
         } catch (_) {}
         setNearbyLoading(false);
       },
