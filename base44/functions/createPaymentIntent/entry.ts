@@ -135,6 +135,16 @@ Deno.serve(async (req) => {
     return Response.json({ error: err.message }, { status: 500 });
   }
 
+  // ── Email: notify seller their ticket sold ───────────────────────────────
+  // Fire-and-forget: email failure must NOT break the payment flow
+  const buyerName = buyer_name || buyer_email || user.email;
+  const sellerEmail = listing.seller_email;
+  base44.asServiceRole.functions.invoke('sendNotificationEmail', {
+    to: sellerEmail,
+    subject: 'Your ticket sold on Peanut Gallery 🎉',
+    body: `Hi,\n\nGreat news — someone just purchased your tickets!\n\nBuyer: ${buyerName} (${buyer_email || user.email})\nSection ${listing.section}, Row ${listing.row} · ${listing.quantity || 1} ticket(s) · $${buyerTotal.toFixed(2)}\n\nNext step:\nOpen the Peanut Gallery app → My Sales → Send Tickets.\nTransfer the tickets to the buyer's email and confirm within the app.\n\nYour payout of $${sellerPayout.toFixed(2)} is held in escrow and released once the buyer confirms receipt.\n\n— Peanut Gallery`,
+  }).catch(err => console.error('[createPaymentIntent] email notify seller failed:', err?.message));
+
   return Response.json({
     clientSecret: paymentIntent.client_secret,
     paymentIntentId: paymentIntent.id,

@@ -1,6 +1,15 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import Stripe from 'npm:stripe@14.21.0';
 
+// Fire-and-forget email helper — never throws
+async function sendEmail(base44, to, subject, body) {
+  try {
+    await base44.asServiceRole.functions.invoke('sendNotificationEmail', { to, subject, body });
+  } catch (err) {
+    console.error('[capturePayment] email failed to', to, '|', err?.message);
+  }
+}
+
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
   const user = await base44.auth.me();
@@ -68,7 +77,26 @@ Deno.serve(async (req) => {
     });
     await base44.asServiceRole.entities.Listing.update(purchase.listing_id, { status: 'sold' });
 
+    // ── Email: sale complete → notify seller ────────────────────────────────
+    sendEmail(
+      base44,
+      purchase.seller_email,
+      'Sale complete — your payout is processing 💸',
+      `Hi,\n\nYour sale on Peanut Gallery is complete!\n\nBuyer: ${purchase.buyer_name || purchase.buyer_email}\nPurchase ID: ${purchase.id}\nAmount: $${purchase.amount?.toFixed(2)}\n\nThe buyer confirmed receipt of their tickets. Your payout of $${purchase.seller_payout?.toFixed(2)} is now processing via Stripe.\n\nPayouts typically arrive in 2–5 business days depending on your Stripe Express settings.\n\n— Peanut Gallery`
+    );
+
     return Response.json({ status: 'completed', payment_captured: true, optimistic_id: optimistic_id });
+  }
+
+  // ── Email: mid-flow notifications ───────────────────────────────────────
+  if (confirming_role === 'seller') {
+    // Seller just confirmed transfer → notify buyer to check their email/app
+    sendEmail(
+      base44,
+      purchase.buyer_email,
+      'Your tickets were sent 🎟️',
+      `Hi ${purchase.buyer_name || ''},\n\nGood news — the seller just confirmed they've transferred your tickets!\n\nCheck your email and your ticket app (Ticketmaster, SeatGeek, StubHub, etc.) for the transfer invite.\n\nOnce you've received the tickets, open the Peanut Gallery app and tap "I Received My Tickets" to release payment to the seller.\n\nPurchase ID: ${purchase.id}\n\nQuestions? Reply to this email.\n\n— Peanut Gallery`
+    );
   }
 
   return Response.json({
