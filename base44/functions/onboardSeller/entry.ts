@@ -24,6 +24,19 @@ Deno.serve(async (req) => {
   try {
     // Reuse existing account or create a new Express account
     let accountId = user.stripe_account_id;
+
+    // Validate existing account against current Stripe mode — clear stale test/sandbox accounts
+    if (accountId) {
+      try {
+        await stripe.accounts.retrieve(accountId);
+        console.log('[onboardSeller] Reusing existing Stripe account:', accountId, 'for', user.email);
+      } catch (err) {
+        console.warn('[onboardSeller] Stale/invalid account', accountId, '— clearing and re-creating. Reason:', err?.message);
+        accountId = null;
+        await base44.auth.updateMe({ stripe_account_id: null, stripe_onboarding_complete: false });
+      }
+    }
+
     if (!accountId) {
       console.log('[onboardSeller] Creating new Stripe Express account for', user.email);
       const account = await stripe.accounts.create({
@@ -35,10 +48,7 @@ Deno.serve(async (req) => {
       });
       accountId = account.id;
       console.log('[onboardSeller] Created Stripe account:', accountId, 'for', user.email);
-      // Persist to user record immediately
       await base44.auth.updateMe({ stripe_account_id: accountId });
-    } else {
-      console.log('[onboardSeller] Reusing existing Stripe account:', accountId, 'for', user.email);
     }
 
     // Create a fresh onboarding link each time
