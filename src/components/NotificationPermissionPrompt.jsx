@@ -11,7 +11,7 @@
 
 import { useState, useEffect } from 'react';
 import { Bell, X } from 'lucide-react';
-import { base44 } from '@/api/base44Client';
+import { requestPushPermission } from '@/lib/oneSignal';
 
 const DISMISSED_KEY = 'pg_notif_prompt_dismissed';
 
@@ -24,8 +24,9 @@ export default function NotificationPermissionPrompt({ trigger }) {
     if (localStorage.getItem(DISMISSED_KEY)) return;
     // Don't show if notifications not supported
     if (!('Notification' in window)) return;
-    // Don't show if already granted or denied
-    if (Notification.permission !== 'default') return;
+    // Don't show if already denied (no point asking again) or already granted via OneSignal
+    if (Notification.permission === 'denied') return;
+    if (Notification.permission === 'granted') return;
 
     // Show after a short delay so it doesn't feel jarring
     const t = setTimeout(() => setVisible(true), 1200);
@@ -35,21 +36,8 @@ export default function NotificationPermissionPrompt({ trigger }) {
   const handleAllow = async () => {
     setAsking(true);
     try {
-      const permission = await Notification.requestPermission();
-      if (permission === 'granted') {
-        // Web Push: register service worker + get subscription
-        // For Expo/native: use Notifications.getExpoPushTokenAsync() instead
-        if ('serviceWorker' in navigator && 'PushManager' in window) {
-          try {
-            const reg = await navigator.serviceWorker.ready;
-            // VAPID public key — replace with real key when setting up web push
-            // const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: VAPID_PUBLIC_KEY });
-            // await base44.auth.updateMe({ push_token: JSON.stringify(sub), push_token_updated_at: new Date().toISOString() });
-            console.log('[NotifPrompt] Web Push supported but VAPID key not configured — token not stored yet.');
-          } catch (_) {}
-        }
-        console.log('[NotifPrompt] Notification permission granted ✅');
-      }
+      const result = await requestPushPermission();
+      console.log('[NotifPrompt] Permission result:', result);
     } catch (err) {
       console.warn('[NotifPrompt] Permission request failed:', err?.message);
     }
