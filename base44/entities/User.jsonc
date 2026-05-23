@@ -41,6 +41,34 @@
     "notification_price_drop": {
       "type": "boolean",
       "default": false
+    },
+    "notif_listing_sold": {
+      "type": "boolean",
+      "default": true
+    },
+    "notif_transfer_updates": {
+      "type": "boolean",
+      "default": true
+    },
+    "notif_upgrade_alerts": {
+      "type": "boolean",
+      "default": true
+    },
+    "notif_nearby_events": {
+      "type": "boolean",
+      "default": false
+    },
+    "notif_fan_zone": {
+      "type": "boolean",
+      "default": false
+    },
+    "push_token": {
+      "type": "string",
+      "description": "Device push token for FCM/APNs/Expo. Stored after user grants notification permission."
+    },
+    "push_token_updated_at": {
+      "type": "string",
+      "description": "ISO timestamp of when push_token was last set"
     }
   },
   "required": []

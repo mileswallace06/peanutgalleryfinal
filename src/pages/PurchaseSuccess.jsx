@@ -4,6 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { CheckCircle, Clock, XCircle, AlertTriangle, ArrowLeft, Ticket, Upload, FileText, ExternalLink, RefreshCw, Sparkles, Send } from 'lucide-react';
 import DisputeModal from '@/components/purchase/DisputeModal';
 import { createOptimisticPurchaseUpdate } from '@/lib/optimisticUI';
+import NotificationPermissionPrompt from '@/components/NotificationPermissionPrompt';
 
 // ── Progress bar ────────────────────────────────────────────────────────────
 const STEPS = ['Payment Authorized', 'Seller Sending', 'Buyer Confirmed', 'Complete'];
@@ -637,6 +638,9 @@ export default function PurchaseSuccess() {
           loading={actionLoading}
         />
       )}
+
+      {/* Prompt for push notifications — shown once after landing on this page */}
+      <NotificationPermissionPrompt trigger="purchase" />
 
       {!isPending && error && (
         <div className="mt-4 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">

@@ -7,6 +7,7 @@ import LocationAutocomplete from '@/components/LocationAutocomplete';
 import { getEventLiveStatus } from '@/lib/eventTiming';
 import { fetchTMEvents } from '@/lib/tmCache';
 import { isAdmin as checkIsAdmin } from '@/lib/isAdmin';
+import NotificationPermissionPrompt from '@/components/NotificationPermissionPrompt';
 
 const STEPS = ['Event', 'Seats', 'Price', 'Done'];
 
@@ -328,6 +329,8 @@ export default function CreateListing() {
             List Another
           </button>
         </div>
+        {/* Prompt for push notifications after successful listing */}
+        <NotificationPermissionPrompt trigger="listing" />
       </div>
     );
   }

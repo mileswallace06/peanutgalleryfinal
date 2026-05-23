@@ -68,6 +68,10 @@
       "type": "boolean",
       "default": false
     },
+    "seller_confirmed_at": {
+      "type": "string",
+      "description": "ISO timestamp when seller confirmed transfer \u2014 used for buyer reminder cadence"
+    },
     "transfer_notes": {
       "type": "string"
     },
@@ -86,6 +90,24 @@
     "location_verified": {
       "type": "boolean",
       "default": false
+    },
+    "reminder_flags": {
+      "type": "object",
+      "description": "Tracks which reminder notifications have been sent to prevent duplicates",
+      "properties": {
+        "seller_r1": {
+          "type": "boolean"
+        },
+        "seller_r2": {
+          "type": "boolean"
+        },
+        "buyer_r1": {
+          "type": "boolean"
+        },
+        "buyer_r2": {
+          "type": "boolean"
+        }
+      }
     }
   },
   "required": [
