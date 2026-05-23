@@ -189,9 +189,13 @@ export default function Sell() {
                   <AlertCircle className="w-4 h-4" style={{ color: '#FF8C00' }} />
                 </div>
                 <div>
-                  <p className="font-black text-sm text-foreground">Connect Your Payout Account</p>
+                  <p className="font-black text-sm text-foreground">
+                    {user.stripe_account_id ? 'Finish Your Payout Setup' : 'Connect Your Payout Account'}
+                  </p>
                   <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-                    To list tickets and receive payouts, you need to connect a bank account via Stripe. Takes under 2 minutes.
+                    {user.stripe_account_id
+                      ? 'Your Stripe account was started but not completed. Finish setup to activate payouts and start listing.'
+                      : 'To list tickets and receive payouts, you need to connect a bank account via Stripe. Takes under 2 minutes.'}
                   </p>
                 </div>
               </div>
@@ -213,7 +217,7 @@ export default function Sell() {
               >
                 {onboardingLoading
                   ? <><Loader2 className="w-4 h-4 animate-spin" /> Redirecting to Stripe…</>
-                  : <><ExternalLink className="w-4 h-4" /> Set Up Payouts with Stripe</>
+                  : <><ExternalLink className="w-4 h-4" /> {user.stripe_account_id ? 'Finish Payout Setup' : 'Set Up Payouts with Stripe'}</>
                 }
               </button>
               <p className="text-[10px] text-center text-muted-foreground">
