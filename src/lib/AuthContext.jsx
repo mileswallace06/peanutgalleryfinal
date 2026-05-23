@@ -2,6 +2,7 @@ import React, { createContext, useState, useContext, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { appParams } from '@/lib/app-params';
 import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
+import { initOneSignal, loginOneSignalUser, logoutOneSignalUser } from '@/lib/oneSignal';
 
 const AuthContext = createContext();
 
@@ -15,6 +16,7 @@ export const AuthProvider = ({ children }) => {
   const [appPublicSettings, setAppPublicSettings] = useState(null); // Contains only { id, public_settings }
 
   useEffect(() => {
+    initOneSignal();
     checkAppState();
   }, []);
 
@@ -107,6 +109,7 @@ export const AuthProvider = ({ children }) => {
       setIsAuthenticated(true);
       setIsLoadingAuth(false);
       setAuthChecked(true);
+      loginOneSignalUser(currentUser?.email);
     } catch (error) {
       const status = error?.status || error?.response?.status;
       console.error('[Auth] checkUserAuth failed — status:', status, '| message:', error?.message, '| full error:', error);
@@ -131,6 +134,7 @@ export const AuthProvider = ({ children }) => {
   const logout = (shouldRedirect = true) => {
     setUser(null);
     setIsAuthenticated(false);
+    logoutOneSignalUser();
     
     if (shouldRedirect) {
       // Use the SDK's logout method which handles token cleanup and redirect

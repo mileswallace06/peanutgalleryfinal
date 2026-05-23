@@ -35,18 +35,42 @@ function buildEmail(title, body, type, purchaseId) {
   };
 }
 
-// ─── Push stub ───────────────────────────────────────────────────────────────
-// Replace this function body when a push provider is integrated.
-// Expected: return { sent: true } on success, throw on failure.
-async function sendPush(pushToken, title, body, data) {
-  // TODO: Replace with real push provider, e.g.:
-  //   Expo:     POST https://exp.host/--/api/v2/push/send
-  //   FCM:      POST https://fcm.googleapis.com/v1/projects/{projectId}/messages:send
-  //   OneSignal: POST https://onesignal.com/api/v1/notifications
-  //
-  // For now, log and return { sent: false, stub: true } so email fallback always fires.
-  console.log('[sendUserNotification] PUSH STUB — token:', pushToken?.slice(0, 20) + '…', '| title:', title);
-  return { sent: false, stub: true };
+// ─── OneSignal push ───────────────────────────────────────────────────────────
+const ONESIGNAL_APP_ID = '8c9896d6-d4d6-4cdf-a094-3ba25bdd4585';
+
+async function sendOneSignalPush(userEmail, title, body, data) {
+  const apiKey = Deno.env.get('ONESIGNAL_REST_API_KEY');
+  if (!apiKey) {
+    console.warn('[sendUserNotification] ONESIGNAL_REST_API_KEY not set — skipping push');
+    return { sent: false, reason: 'no_api_key' };
+  }
+
+  const payload = {
+    app_id: ONESIGNAL_APP_ID,
+    include_aliases: { external_id: [userEmail] },
+    target_channel: 'push',
+    headings: { en: title },
+    contents: { en: body },
+    data: data || {},
+  };
+
+  const res = await fetch('https://onesignal.com/api/v1/notifications', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Key ${apiKey}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const json = await res.json();
+  if (!res.ok || json.errors) {
+    console.warn('[sendUserNotification] OneSignal push failed:', JSON.stringify(json));
+    return { sent: false, error: json.errors || json };
+  }
+
+  console.log('[sendUserNotification] ✅ OneSignal push sent to', userEmail, '| id:', json.id);
+  return { sent: true, id: json.id };
 }
 
 Deno.serve(async (req) => {
@@ -87,20 +111,13 @@ Deno.serve(async (req) => {
     console.warn('[sendUserNotification] could not load user prefs:', err?.message);
   }
 
-  // ── 2. Try push ───────────────────────────────────────────────────────────
-  if (pushToken) {
-    try {
-      const pushResult = await sendPush(pushToken, title, body, { type, purchase_id });
-      results.push = pushResult;
-      if (pushResult.sent) {
-        console.log('[sendUserNotification] ✅ push sent to', user_email);
-        // Push delivered — still send email for now during beta
-        // When push is confirmed reliable, add `return Response.json({ ...results })` here
-      }
-    } catch (err) {
-      console.error('[sendUserNotification] push failed:', err?.message);
-      results.push = { sent: false, error: err?.message };
-    }
+  // ── 2. Try OneSignal push (by external_id = email) ───────────────────────
+  try {
+    const pushResult = await sendOneSignalPush(user_email, title, body, { type, purchase_id });
+    results.push = pushResult;
+  } catch (err) {
+    console.error('[sendUserNotification] push failed:', err?.message);
+    results.push = { sent: false, error: err?.message };
   }
 
   // ── 3. Email fallback (always during beta) ────────────────────────────────
