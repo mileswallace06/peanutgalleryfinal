@@ -271,7 +271,7 @@ export default function Upgrades() {
         {loading ? (
           <div className="space-y-3">
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="rounded-2xl h-24 animate-pulse dark:bg-[rgba(255,255,255,0.05)]" style={{ background: '#f0f0f0' }} />
+              <div key={i} className="rounded-2xl h-24 animate-pulse bg-muted" />
             ))}
           </div>
         ) : (locationStatus === 'granted' || locationLabel) && (
@@ -365,8 +365,7 @@ function EventCard({ event, mode }) {
         {event.image_url ? (
           <img src={event.image_url} alt={event.title} className="w-full h-full object-cover absolute inset-0" />
         ) : (
-          <div className="w-full h-full absolute inset-0 flex items-center justify-center text-3xl dark:bg-[rgba(255,255,255,0.04)]"
-            style={{ background: '#f5f5f5' }}>🎫</div>
+          <div className="w-full h-full absolute inset-0 flex items-center justify-center text-3xl bg-muted">🎫</div>
         )}
         <span className="absolute top-1.5 left-1.5 text-[8px] font-black px-1.5 py-0.5 rounded-full"
           style={{

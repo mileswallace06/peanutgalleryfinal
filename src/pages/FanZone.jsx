@@ -19,6 +19,7 @@ export default function FanZone() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [reactingId, setReactingId] = useState(null);
+  const [loadError, setLoadError] = useState(false);
 
   // FAB state
   const [fab, setFab] = useState(null);
@@ -70,9 +71,15 @@ export default function FanZone() {
 
   const loadPosts = async () => {
     setLoading(true);
-    const data = await base44.entities.FanPost.list('-created_date', 100);
-    setPosts(data);
-    setLoading(false);
+    setLoadError(false);
+    try {
+      const data = await base44.entities.FanPost.list('-created_date', 100);
+      setPosts(data);
+    } catch (_) {
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const closeAll = () => { setFab(null); setText(''); setSelectedEventId(''); setEventQuery(''); setShowEventPicker(false); setPhotoUrl(''); };
@@ -252,7 +259,20 @@ export default function FanZone() {
 
       {/* Feed */}
       <div className="px-4 space-y-3">
-        {loading ? (
+        {loadError ? (
+          <div className="text-center py-16 space-y-3">
+            <p className="text-3xl">😵</p>
+            <p className="font-bold text-foreground">Couldn't load posts</p>
+            <p className="text-sm text-muted-foreground">Check your connection and try again.</p>
+            <button
+              onClick={loadPosts}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-sm"
+              style={{ background: 'rgba(0,200,255,0.12)', border: '1px solid rgba(0,200,255,0.3)', color: '#00C8FF' }}
+            >
+              <RefreshCw className="w-4 h-4" /> Retry
+            </button>
+          </div>
+        ) : loading ? (
           [...Array(3)].map((_, i) => (
             <div key={i} className="rounded-2xl h-40 animate-pulse bg-muted" />
           ))
@@ -278,9 +298,9 @@ export default function FanZone() {
         )}
       </div>
 
-      {/* FAB */}
+      {/* FAB — only shown to authenticated users */}
        <button
-         onClick={() => setFab(fab === 'menu' ? null : 'menu')}
+         onClick={() => user ? setFab(fab === 'menu' ? null : 'menu') : base44.auth.redirectToLogin()}
          className="fixed right-5 z-40 w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform active:scale-95"
          style={{
            background: 'linear-gradient(135deg, #FF99CC, #66FFFF)',

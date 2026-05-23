@@ -106,7 +106,7 @@ export default function Layout() {
                 key={to}
                 to={to}
                 className="flex-1 flex flex-col items-center justify-center gap-0.5 py-3 relative transition-all"
-                style={{ color: active ? color : 'rgba(255,255,255,0.38)' }}>
+                style={{ color: active ? color : 'hsl(var(--muted-foreground))' }}>
                 {active && (
                   <span
                     className="absolute top-0 left-1/2 -translate-x-1/2 h-0.5 w-8 rounded-b"
