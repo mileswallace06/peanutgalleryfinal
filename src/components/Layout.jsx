@@ -115,7 +115,10 @@ export default function Layout() {
               pointerEvents: currentTab === key ? 'auto' : 'none',
               position: currentTab === key ? 'relative' : 'absolute',
               inset: currentTab === key ? 'auto' : 0,
-              transition: 'opacity 0.15s ease',
+              // Crossfade: fade in active tab, but don't animate the outgoing tab
+              // (it's hidden via visibility so it can't flicker)
+              transition: currentTab === key ? 'opacity 0.18s ease' : 'none',
+              willChange: 'opacity',
               contain: 'paint layout',
             }}>
             {/* Only render Outlet for active tab — but once mounted keep it */}

@@ -9,10 +9,20 @@ import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { fetchTMEvents, bustTMCache } from '@/lib/tmCache';
 import { useLocationDetect } from '@/hooks/useLocationDetect';
 
+// ── sessionStorage helpers ────────────────────────────────────────────────
+const SS_KEY = 'pg_upgrades_location';
+function readSS() {
+  try { return JSON.parse(sessionStorage.getItem(SS_KEY) || 'null'); } catch { return null; }
+}
+function writeSS(data) {
+  try { sessionStorage.setItem(SS_KEY, JSON.stringify(data)); } catch {}
+}
+
 export default function Upgrades() {
+  const _ss = readSS();
   const [allEvents, setAllEvents] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [locationInput, setLocationInput] = useState('');
+  const [locationInput, setLocationInput] = useState(_ss?.locationInput || '');
   const [editingLocation, setEditingLocation] = useState(false);
 
   const [tmError, setTmError] = useState(false);
@@ -25,6 +35,16 @@ export default function Upgrades() {
 
   useEffect(() => {
     return () => abortRef.current?.abort();
+  }, []);
+
+  // Restore last city on hard refresh
+  useEffect(() => {
+    const ss = readSS();
+    if (ss?.city && !latlong) {
+      setManualCity(ss.city);
+      fetchEvents(null, ss.city);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchEvents = useCallback(async (ll, cityOverride, bust = false) => {
@@ -172,8 +192,8 @@ export default function Upgrades() {
               <LocationAutocomplete
                 value={locationInput}
                 onChange={setLocationInput}
-                onSelect={(s) => { setManualCity(s.label); setEditingLocation(false); fetchEvents(null, s.label); }}
-                onSubmit={(val) => { setManualCity(val); setEditingLocation(false); fetchEvents(null, val); }}
+                onSelect={(s) => { setManualCity(s.label); setEditingLocation(false); writeSS({ city: s.label, locationInput: s.label }); fetchEvents(null, s.label); }}
+                onSubmit={(val) => { setManualCity(val); setEditingLocation(false); writeSS({ city: val, locationInput: val }); fetchEvents(null, val); }}
                 onNearMe={handleNearMe}
                 nearMeLoading={locationStatus === 'requesting'}
                 autoFocus
@@ -269,6 +289,15 @@ export default function Upgrades() {
           Too many requests right now. Please wait a moment and try again.
         </div>
       )}
+
+      {/* Screen-reader result count announcement */}
+      <div aria-live="polite" aria-atomic="true" className="sr-only">
+        {!loading && locationLabel && (
+          allEvents.length === 0
+            ? `No upgrades found near ${locationLabel}`
+            : `${allEvents.length} upgrade${allEvents.length !== 1 ? 's' : ''} found near ${locationLabel}`
+        )}
+      </div>
 
       {/* Content */}
       <div className="px-4 space-y-8">

@@ -8,10 +8,20 @@ import { fetchTMEvents, bustTMCache } from '@/lib/tmCache';
 import { useLocationDetect } from '@/hooks/useLocationDetect';
 import LocationAutocomplete from '@/components/LocationAutocomplete';
 
+// ── sessionStorage helpers ────────────────────────────────────────────────
+const SS_KEY = 'pg_events_location';
+function readSS() {
+  try { return JSON.parse(sessionStorage.getItem(SS_KEY) || 'null'); } catch { return null; }
+}
+function writeSS(data) {
+  try { sessionStorage.setItem(SS_KEY, JSON.stringify(data)); } catch {}
+}
+
 export default function Events() {
+  const _ss = readSS();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [locationInput, setLocationInput] = useState('');
+  const [locationInput, setLocationInput] = useState(_ss?.locationInput || '');
   const [editingLocation, setEditingLocation] = useState(false);
 
   const [tmError, setTmError] = useState(false);
@@ -28,6 +38,16 @@ export default function Events() {
 
   useEffect(() => {
     return () => abortRef.current?.abort();
+  }, []);
+
+  // Restore last city on hard refresh
+  useEffect(() => {
+    const ss = readSS();
+    if (ss?.city && !latlong) {
+      setManualCity(ss.city);
+      fetchEvents(null, ss.city, null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchEvents = useCallback(async (ll, cityOverride, keyword, bust = false) => {
@@ -217,12 +237,14 @@ export default function Events() {
             console.log('[Events] city selected:', s.label);
             setManualCity(s.label);
             setEditingLocation(false);
+            writeSS({ city: s.label, locationInput: s.label });
             fetchEvents(null, s.label, null);
           }}
           onSubmit={(val) => {
             console.log('[Events] city submitted:', val);
             setManualCity(val);
             setEditingLocation(false);
+            writeSS({ city: val, locationInput: val });
             fetchEvents(null, val, null);
           }}
           onNearMe={handleNearMe}
@@ -253,14 +275,20 @@ export default function Events() {
         </div>
       )}
 
-      {/* ── Event count ── */}
-      {!loading && events.length > 0 && (
-        <div className="px-4 mb-3">
+      {/* ── Event count + aria-live announcement ── */}
+      <div
+        aria-live="polite"
+        aria-atomic="true"
+        className="px-4 mb-3"
+      >
+        {!loading && (locationLabel || latlong) && (
           <p className="text-xs text-muted-foreground font-medium">
-            {filtered.length} event{filtered.length !== 1 ? 's' : ''} near you
+            {filtered.length === 0
+              ? `No events found${locationLabel ? ` for ${locationLabel}` : ''}`
+              : `${filtered.length} event${filtered.length !== 1 ? 's' : ''}${locationLabel ? ` near ${locationLabel}` : ''}`}
           </p>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* ── List ── */}
       {loading ? (

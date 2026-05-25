@@ -83,7 +83,8 @@ export default function CreateListing() {
   const [allRecEvents, setAllRecEvents] = useState([]);
   const [nearbyLoading, setNearbyLoading] = useState(true);
   const [recLocationDenied, setRecLocationDenied] = useState(false);
-  const [recCityInput, setRecCityInput] = useState('');
+  const _recSS = (() => { try { return JSON.parse(sessionStorage.getItem('pg_upgrades_location') || 'null'); } catch { return null; } })();
+  const [recCityInput, setRecCityInput] = useState(_recSS?.locationInput || '');
   const [recCitySubmitted, setRecCitySubmitted] = useState(false);
 
   const [form, setForm] = useState({
@@ -159,9 +160,15 @@ export default function CreateListing() {
         loadRecommended(`${pos.coords.latitude},${pos.coords.longitude}`, null);
       },
       () => {
-        // Geo denied — show city prompt
-        setNearbyLoading(false);
-        setRecLocationDenied(true);
+        // Geo denied — try saved city from sessionStorage before showing prompt
+        const savedCity = _recSS?.city;
+        if (savedCity) {
+          setRecCitySubmitted(true);
+          loadRecommended(null, savedCity);
+        } else {
+          setNearbyLoading(false);
+          setRecLocationDenied(true);
+        }
       },
       { timeout: 15000, enableHighAccuracy: false, maximumAge: 300000 }
     );
