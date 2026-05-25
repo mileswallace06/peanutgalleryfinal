@@ -347,6 +347,10 @@ function EventCard({ event, mode }) {
   const isSoon = mode === 'soon';
   const isTM = event.source === 'ticketmaster' || String(event.id || '').startsWith('tm_');
   const tmId = event.tm_id || String(event.id || '').replace('tm_', '');
+  const validTmLink = isTM && tmId && tmId !== 'undefined';
+  const validPgLink = !isTM && !!event.id;
+  const hasValidLink = isTM ? validTmLink : validPgLink;
+  if (isTM && !validTmLink) console.warn('[EventCard] TM event missing tm_id — suppressing link', event);
   const linkTo = isTM ? `/events/tm/${tmId}` : `/upgrades/${event.id}`;
   const linkLabel = isTM
     ? 'View'
@@ -398,18 +402,24 @@ function EventCard({ event, mode }) {
       </div>
 
       <div className="pr-3 flex-shrink-0">
-        <Link
-          to={linkTo}
-          className="flex items-center gap-1 px-3 py-2 rounded-xl font-bold text-xs whitespace-nowrap"
-          style={isLive
-            ? { background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }
-            : isSoon
-            ? { background: 'hsl(var(--foreground))', color: 'hsl(var(--background))' }
-            : { background: 'hsl(var(--secondary))', color: 'hsl(var(--secondary-foreground))', border: '1px solid hsl(var(--border))' }
-          }
-        >
-          {linkLabel} <ChevronRight className="w-3.5 h-3.5" />
-        </Link>
+        {hasValidLink ? (
+          <Link
+            to={linkTo}
+            className="flex items-center gap-1 px-3 py-2 rounded-xl font-bold text-xs whitespace-nowrap"
+            style={isLive
+              ? { background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }
+              : isSoon
+              ? { background: 'hsl(var(--foreground))', color: 'hsl(var(--background))' }
+              : { background: 'hsl(var(--secondary))', color: 'hsl(var(--secondary-foreground))', border: '1px solid hsl(var(--border))' }
+            }
+          >
+            {linkLabel} <ChevronRight className="w-3.5 h-3.5" />
+          </Link>
+        ) : (
+          <span className="px-3 py-2 rounded-xl text-xs text-muted-foreground opacity-60 whitespace-nowrap">
+            Unavailable
+          </span>
+        )}
       </div>
     </div>
   );

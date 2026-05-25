@@ -195,7 +195,11 @@ export default function MySales() {
           <Ticket className="w-5 h-5 text-primary" /> Active Listings ({activeListings.length})
         </h2>
         {activeListings.length === 0 ? (
-          <p className="text-sm text-muted-foreground rounded-2xl p-5" style={cardStyle}>No active listings.</p>
+          <div className="rounded-2xl p-8 text-center" style={cardStyle}>
+            <p className="text-2xl mb-2">🥜</p>
+            <p className="text-sm font-semibold text-foreground">No active listings</p>
+            <p className="text-xs text-muted-foreground mt-1">List tickets to start selling.</p>
+          </div>
         ) : (
           <div className="space-y-2">
             {activeListings.map(l => {
@@ -241,18 +245,38 @@ export default function MySales() {
           <CheckCircle className="w-5 h-5" style={{ color: 'var(--neon-green)' }} /> Completed Sales ({completedSales.length})
         </h2>
         {completedSales.length === 0 ? (
-          <p className="text-sm text-muted-foreground rounded-2xl p-5" style={cardStyle}>No completed sales yet.</p>
+          <div className="rounded-2xl p-8 text-center" style={cardStyle}>
+            <p className="text-2xl mb-2">🎟️</p>
+            <p className="text-sm font-semibold text-foreground">No completed sales yet</p>
+            <p className="text-xs text-muted-foreground mt-1">When a buyer confirms receipt, your sale appears here.</p>
+          </div>
         ) : (
           <div className="space-y-2">
             {completedSales.map(p => {
               const ev = events[p.event_id];
+              const eventDate = ev?.event_start_local || ev?.date;
+              const payoutState = p.payment_captured ? 'paid out' : 'pending payout';
+              const payoutColor = p.payment_captured ? 'var(--neon-green)' : '#FF8C00';
               return (
-                <div key={p.id} className="rounded-2xl p-4 flex items-center justify-between gap-3 flex-wrap text-sm" style={cardStyle}>
-                  <div className="min-w-0">
-                    <div className="font-medium text-foreground truncate">{ev?.title || 'Event'}</div>
-                    <div className="text-xs text-muted-foreground mt-0.5">
-                      {p.buyer_email} · <span className="font-semibold" style={{ color: 'var(--neon-green)' }}>${p.amount?.toFixed(2)}</span>
-                      {p.created_date && <> · {format(new Date(p.created_date), 'MMM d, yyyy')}</>}
+                <div key={p.id} className="rounded-2xl p-4 flex items-start justify-between gap-3 flex-wrap text-sm" style={cardStyle}>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-semibold text-foreground truncate">{ev?.title || 'Event'}</div>
+                    {eventDate && (
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        {format(new Date(eventDate), 'EEE, MMM d, yyyy')}
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      <span className="text-xs font-bold" style={{ color: 'var(--neon-green)' }}>
+                        ${p.seller_payout != null ? p.seller_payout.toFixed(2) : p.amount?.toFixed(2)}
+                      </span>
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                        style={{ background: p.payment_captured ? 'rgba(0,255,135,0.1)' : 'rgba(255,140,0,0.1)', color: payoutColor, border: `1px solid ${payoutColor}44` }}>
+                        {payoutState}
+                      </span>
+                      {p.created_date && (
+                        <span className="text-xs text-muted-foreground">· {format(new Date(p.created_date), 'MMM d, yyyy')}</span>
+                      )}
                     </div>
                   </div>
                   <Link to={`/purchase/${p.id}`}

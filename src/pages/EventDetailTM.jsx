@@ -3,6 +3,22 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 import { MapPin, Calendar, ArrowLeft, Ticket, ExternalLink, Plus } from 'lucide-react';
+
+/** Infer vendor label + homepage from a ticket URL domain */
+function inferVendor(url) {
+  if (!url) return { label: 'Official Tickets', homepage: null };
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    if (host.includes('ticketmaster')) return { label: 'Ticketmaster', homepage: 'https://www.ticketmaster.com' };
+    if (host.includes('ticketweb')) return { label: 'TicketWeb', homepage: 'https://www.ticketweb.com' };
+    if (host.includes('axs')) return { label: 'AXS', homepage: 'https://www.axs.com' };
+    if (host.includes('seatgeek')) return { label: 'SeatGeek', homepage: 'https://seatgeek.com' };
+    if (host.includes('stubhub')) return { label: 'StubHub', homepage: 'https://www.stubhub.com' };
+    return { label: host.replace(/^www\./, ''), homepage: `https://${host}` };
+  } catch {
+    return { label: 'Official Tickets', homepage: null };
+  }
+}
 import ListingCard from '@/components/events/ListingCard';
 import PurchaseDialog from '@/components/events/PurchaseDialog';
 
@@ -131,18 +147,22 @@ export default function EventDetailTM() {
           <ArrowLeft className="w-4 h-4" /> Events
         </Link>
 
-        {/* TM badge + external link */}
-        {event.tm_url && (
-          <a
-            href={event.tm_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="absolute top-4 right-4 flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full"
-            style={{ background: 'rgba(0,0,0,0.5)', color: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.15)' }}
-          >
-            Ticketmaster <ExternalLink className="w-3 h-3" />
-          </a>
-        )}
+        {/* Vendor badge + external link — label always matches URL domain */}
+        {event.tm_url && (() => {
+          const { label } = inferVendor(event.tm_url);
+          return (
+            <a
+              href={event.tm_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`View on ${label} (opens in new tab)`}
+              className="absolute top-4 right-4 flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full"
+              style={{ background: 'rgba(0,0,0,0.5)', color: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.15)' }}
+            >
+              {label} <ExternalLink className="w-3 h-3" />
+            </a>
+          );
+        })()}
 
         <div className="absolute bottom-0 left-0 right-0 px-5 pb-5">
           <h1 className="font-display text-foreground leading-tight mb-2"
@@ -174,20 +194,26 @@ export default function EventDetailTM() {
             <ExternalLink className="w-4 h-4" style={{ color: '#00C8FF' }} />
             <h2 className="font-bold text-foreground text-base">Official Tickets</h2>
           </div>
-          <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
-            Primary marketplace tickets sold directly by Ticketmaster. Opens externally.
-          </p>
-          {event.tm_url ? (
-            <a
-              href={event.tm_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 font-bold text-sm px-5 py-2.5 rounded-full transition-opacity hover:opacity-80"
-              style={{ background: 'rgba(0,200,255,0.15)', color: '#00C8FF', border: '1px solid rgba(0,200,255,0.3)' }}
-            >
-              View on Ticketmaster <ExternalLink className="w-3.5 h-3.5" />
-            </a>
-          ) : (
+          {event.tm_url ? (() => {
+            const { label, homepage } = inferVendor(event.tm_url);
+            return (
+              <>
+                <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
+                  Primary marketplace tickets via {label}. Opens externally.
+                </p>
+                <a
+                  href={event.tm_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`View on ${label} (opens in new tab)`}
+                  className="inline-flex items-center gap-2 font-bold text-sm px-5 py-2.5 rounded-full transition-opacity hover:opacity-80"
+                  style={{ background: 'rgba(0,200,255,0.15)', color: '#00C8FF', border: '1px solid rgba(0,200,255,0.3)' }}
+                >
+                  View on {label} <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </>
+            );
+          })() : (
             <p className="text-xs text-muted-foreground italic">No official link available.</p>
           )}
         </div>

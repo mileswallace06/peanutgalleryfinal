@@ -1,7 +1,25 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { Ticket, TrendingUp, Shield, LogIn, Edit2, Tag, Zap, ChevronRight, Camera, ImagePlus, UserPlus, UserCheck, Settings } from 'lucide-react';
+import { Ticket, TrendingUp, Shield, LogIn, Edit2, Tag, Zap, ChevronRight, Camera, ImagePlus, UserPlus, UserCheck, Settings, Eye, EyeOff } from 'lucide-react';
+
+/** Privacy-first email display — hidden by default, reveal on tap */
+function EmailDisplay({ email }) {
+  const [shown, setShown] = useState(false);
+  if (!email) return null;
+  return (
+    <button
+      onClick={() => setShown(v => !v)}
+      aria-label={shown ? 'Hide email address' : 'Show email address'}
+      className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5 hover:text-foreground transition-colors group"
+    >
+      {shown
+        ? <><Eye className="w-3 h-3 opacity-60" /><span>{email}</span></>
+        : <><EyeOff className="w-3 h-3 opacity-40" /><span className="opacity-60">Show email</span></>
+      }
+    </button>
+  );
+}
 import { isAdmin } from '@/lib/isAdmin';
 import { useAuth } from '@/lib/AuthContext';
 
@@ -109,6 +127,7 @@ export default function Me() {
         <button
           onClick={() => bannerInputRef.current?.click()}
           disabled={uploadingBanner}
+          aria-label="Change profile banner"
           className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/banner:opacity-100 transition-opacity"
           style={{ background: 'rgba(0,0,0,0.4)' }}
         >
@@ -143,6 +162,7 @@ export default function Me() {
             <button
               onClick={() => avatarInputRef.current?.click()}
               disabled={uploadingAvatar}
+              aria-label="Change profile photo"
               className="absolute inset-0 rounded-full flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity"
               style={{ background: 'rgba(0,0,0,0.55)' }}
             >
@@ -167,7 +187,7 @@ export default function Me() {
         {/* Name + badges */}
         <div className="mb-1">
           <h2 className="font-display text-2xl text-foreground">{user.full_name || 'Fan'}</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">{user.email}</p>
+          <EmailDisplay email={user.email} />
         </div>
 
         {/* Role badges + Account Settings button */}

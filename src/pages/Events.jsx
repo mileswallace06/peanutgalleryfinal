@@ -406,21 +406,46 @@ function EventRow({ event }) {
       {/* View button */}
       <div className="flex items-center pr-3 pl-1">
         {isTM ? (
-          <Link
-            to={`/events/tm/${event.tm_id || String(event.id).replace('tm_', '')}`}
-            className="flex items-center gap-1 px-3 py-2 rounded-xl font-bold text-xs whitespace-nowrap"
-            style={{ background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}
-          >
-            View <ChevronRight className="w-3.5 h-3.5" />
-          </Link>
+          (() => {
+            const tmId = event.tm_id || String(event.id || '').replace('tm_', '');
+            if (!tmId || tmId === 'undefined') {
+              console.warn('[EventRow] TM event missing tm_id — suppressing View link', event);
+              return (
+                <span className="px-3 py-2 rounded-xl text-xs text-muted-foreground opacity-60 whitespace-nowrap">
+                  Unavailable
+                </span>
+              );
+            }
+            return (
+              <Link
+                to={`/events/tm/${tmId}`}
+                className="flex items-center gap-1 px-3 py-2 rounded-xl font-bold text-xs whitespace-nowrap"
+                style={{ background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}
+              >
+                View <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
+            );
+          })()
         ) : (
-          <Link
-            to={`/events/${event.id}`}
-            className="flex items-center gap-1 px-3 py-2 rounded-xl font-bold text-xs whitespace-nowrap"
-            style={{ background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}
-          >
-            View <ChevronRight className="w-3.5 h-3.5" />
-          </Link>
+          (() => {
+            if (!event.id) {
+              console.warn('[EventRow] PG event missing id — suppressing View link', event);
+              return (
+                <span className="px-3 py-2 rounded-xl text-xs text-muted-foreground opacity-60 whitespace-nowrap">
+                  Unavailable
+                </span>
+              );
+            }
+            return (
+              <Link
+                to={`/events/${event.id}`}
+                className="flex items-center gap-1 px-3 py-2 rounded-xl font-bold text-xs whitespace-nowrap"
+                style={{ background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}
+              >
+                View <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
+            );
+          })()
         )}
       </div>
     </div>

@@ -288,7 +288,7 @@ export default function FanZone() {
             <p className="text-sm text-muted-foreground">
               {feedTab === 'bucket' ? 'Try adding more artists or venues' :
                feedTab === 'friends' ? 'Follow fans from your profile to see their posts here' :
-               'Be the first to start the conversation'}
+               'Be the first to share something — tap the + button to create a post'}
             </p>
           </div>
         ) : (
@@ -301,6 +301,8 @@ export default function FanZone() {
       {/* FAB — only shown to authenticated users */}
        <button
          onClick={() => user ? setFab(fab === 'menu' ? null : 'menu') : base44.auth.redirectToLogin()}
+         aria-label={fab === 'menu' ? 'Close post menu' : 'Create post'}
+         aria-expanded={fab === 'menu'}
          className="fixed right-5 z-40 w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform active:scale-95"
          style={{
            background: 'linear-gradient(135deg, #FF99CC, #66FFFF)',
