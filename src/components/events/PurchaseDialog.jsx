@@ -170,6 +170,7 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
         </label>
         <div className="px-3 py-3 rounded-xl" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)' }}>
           <CardElement options={{
+            hidePostalCode: false,
             style: {
               base: { fontSize: '14px', color: '#ffffff', '::placeholder': { color: 'rgba(255,255,255,0.35)' }, iconColor: '#BF5FFF' },
               invalid: { color: '#FF2D78' }
