@@ -62,6 +62,8 @@ export default function LocationAutocomplete({
   const inputRef = useRef(null);
   const inputWrapRef = useRef(null);
   const listRef = useRef(null);
+  // Ref to close fn so cleanup effect doesn't need it in deps
+  const closeDropdownRef = useRef(null);
 
   useEffect(() => {
     if (autoFocus) setTimeout(() => inputRef.current?.focus(), 50);
@@ -111,11 +113,22 @@ export default function LocationAutocomplete({
     }
   }, [activeIndex]);
 
-  const closeDropdown = () => {
+  const closeDropdown = useCallback(() => {
     setOpen(false);
     setShowRecent(false);
     setActiveIndex(-1);
-  };
+  }, []);
+
+  // Keep ref up-to-date
+  closeDropdownRef.current = closeDropdown;
+
+  // Clean up debounce and close dropdown on unmount (e.g. route change mid-typing)
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      closeDropdownRef.current?.();
+    };
+  }, []);
 
   const fetchSuggestions = useCallback(async (keyword) => {
     if (keyword.length < 2) {
@@ -203,6 +216,11 @@ export default function LocationAutocomplete({
             onChange={handleChange}
             onKeyDown={handleKeyDown}
             onFocus={handleFocus}
+            aria-label={placeholder}
+            aria-autocomplete="list"
+            aria-expanded={isDropdownVisible || false}
+            role="combobox"
+            autoComplete="off"
             className="w-full pl-9 pr-10 py-3 rounded-2xl text-sm font-medium text-foreground placeholder:text-muted-foreground focus:outline-none"
             style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
           />
@@ -216,6 +234,7 @@ export default function LocationAutocomplete({
             type="button"
             onClick={onNearMe}
             disabled={nearMeLoading}
+            aria-label="Use my current location"
             title="Near Me"
             className="flex items-center justify-center w-11 h-11 rounded-2xl flex-shrink-0 transition-all active:scale-95 disabled:opacity-60"
             style={{ background: 'rgba(0,200,255,0.12)', border: '1px solid rgba(0,200,255,0.3)', color: '#00C8FF' }}
@@ -228,11 +247,13 @@ export default function LocationAutocomplete({
         )}
       </div>
 
-      {/* Dropdown via portal */}
+      {/* Dropdown via portal — renders above nav bar, closes on outside tap */}
       {isDropdownVisible && createPortal(
         <div
           id="pg-city-dropdown"
           ref={listRef}
+          role="listbox"
+          aria-label="City suggestions"
           style={{
             position: 'fixed',
             top: dropdownRect.bottom + 6,
@@ -245,8 +266,10 @@ export default function LocationAutocomplete({
             boxShadow: '0 8px 32px rgba(0,0,0,0.35)',
             background: 'hsl(var(--card))',
             border: '1px solid hsl(var(--border))',
+            animation: 'pgDropIn 0.12s ease-out both',
           }}
         >
+          <style>{`@keyframes pgDropIn{from{opacity:0;transform:translateY(-4px) scale(0.98)}to{opacity:1;transform:none}}`}</style>
           {showRecent && (
             <div className="px-4 pt-2.5 pb-1 text-[10px] font-black tracking-widest uppercase text-muted-foreground">
               Recent
@@ -258,6 +281,8 @@ export default function LocationAutocomplete({
               <button
                 key={i}
                 type="button"
+                role="option"
+                aria-selected={isActive}
                 onMouseDown={(e) => { e.preventDefault(); handleSelect(s); }}
                 onTouchEnd={(e) => { e.preventDefault(); handleSelect(s); }}
                 onMouseEnter={() => setActiveIndex(i)}

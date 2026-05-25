@@ -23,9 +23,21 @@ export default function Events() {
     onSuccess: (ll) => fetchEvents(ll, null, null),
   });
 
+  // Abort controller ref — cancel in-flight fetch when a new one starts or component unmounts
+  const abortRef = useRef(null);
+
+  useEffect(() => {
+    return () => abortRef.current?.abort();
+  }, []);
+
   const fetchEvents = useCallback(async (ll, cityOverride, keyword, bust = false) => {
     // Don't fetch until we have a location, city, or keyword
     if (!ll && !cityOverride && !keyword) return;
+
+    // Cancel any previous in-flight fetch
+    abortRef.current?.abort();
+    abortRef.current = new AbortController();
+    const signal = abortRef.current.signal;
 
     setLoading(true);
     setTmError(false);
@@ -67,6 +79,7 @@ export default function Events() {
         }
       }
 
+      if (signal.aborted) return;
       const pgMapped = pgFiltered.map(e => ({ ...e, source: 'pg' }));
       const tmEvents = tmEventsRaw.map(e => ({ ...e, id: `tm_${e.tm_id}` }));
       setEvents([...pgMapped, ...tmEvents]);
@@ -84,6 +97,7 @@ export default function Events() {
           }).catch(syncErr => console.warn('[Events] syncTMEvent failed for', e.tm_id, syncErr?.message));
         });
     } catch (err) {
+      if (signal.aborted) return; // stale response — discard silently
       const status = err?.response?.status || err?.status;
       if (status === 429) {
         setTmError(true);
@@ -93,7 +107,7 @@ export default function Events() {
         setNetworkError(true);
       }
     } finally {
-      setLoading(false);
+      if (!signal.aborted) setLoading(false);
     }
   }, []);
 

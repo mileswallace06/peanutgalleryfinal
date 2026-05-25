@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
@@ -21,8 +21,18 @@ export default function Upgrades() {
     onSuccess: (ll) => fetchEvents(ll, null),
   });
 
+  const abortRef = useRef(null);
+
+  useEffect(() => {
+    return () => abortRef.current?.abort();
+  }, []);
+
   const fetchEvents = useCallback(async (ll, cityOverride, bust = false) => {
     if (!ll && !cityOverride) return;
+
+    abortRef.current?.abort();
+    abortRef.current = new AbortController();
+    const signal = abortRef.current.signal;
 
     setLoading(true);
     setTmError(false);
@@ -62,12 +72,14 @@ export default function Upgrades() {
       const pgTmIds = new Set(pgMapped.map(e => e.tm_id).filter(Boolean));
       const uniqueTM = tmEvents.filter(e => !pgTmIds.has(e.tm_id));
 
+      if (signal.aborted) return;
       setAllEvents([...pgMapped, ...uniqueTM]);
     } catch (err) {
+      if (signal.aborted) return;
       if (err?.response?.status === 429) setTmError(true);
       else console.error(err);
     } finally {
-      setLoading(false);
+      if (!signal.aborted) setLoading(false);
     }
   }, []);
 

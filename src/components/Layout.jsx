@@ -6,6 +6,17 @@ import { useTheme } from '@/hooks/useTheme';
 import Onboarding from '@/components/Onboarding';
 import { useAuth } from '@/lib/AuthContext';
 
+/**
+ * Once a tab has been activated, keep its Outlet mounted permanently.
+ * This prevents remounts / state resets on tab switches.
+ */
+function MountedTab({ tabKey, activeKey }) {
+  const mountedRef = useRef(false);
+  if (activeKey === tabKey) mountedRef.current = true;
+  if (!mountedRef.current) return null;
+  return <Outlet />;
+}
+
 const NAV = [
   { to: '/events', label: 'Tickets', icon: MapPin, color: '#BF5FFF', key: 'events' },
   { to: '/upgrades', label: 'Upgrades', icon: Zap, color: '#00FF87', key: 'upgrades' },
@@ -33,22 +44,27 @@ export default function Layout() {
 
   const currentTab = getCurrentTab();
 
-  // Save scroll position before switching tabs
+  // Save scroll on every pathname change (before the tab switches visually)
+  const prevTabRef = useRef(currentTab);
   useEffect(() => {
-    const container = containerRefs.current[currentTab];
-    if (container) {
-      scrollPositions.current[currentTab] = container.scrollTop;
+    const prevTab = prevTabRef.current;
+    if (prevTab && prevTab !== currentTab) {
+      const prev = containerRefs.current[prevTab];
+      if (prev) scrollPositions.current[prevTab] = prev.scrollTop;
     }
-  }, [location.pathname, currentTab]);
+    prevTabRef.current = currentTab;
+  }, [currentTab]);
 
-  // Restore scroll position when tab is selected
+  // Restore scroll position when switching TO a tab (after paint)
   useEffect(() => {
+    if (!currentTab) return;
     const container = containerRefs.current[currentTab];
-    if (container) {
-      setTimeout(() => {
-        container.scrollTop = scrollPositions.current[currentTab] || 0;
-      }, 0);
-    }
+    if (!container) return;
+    const saved = scrollPositions.current[currentTab];
+    // rAF ensures the container is visible before we set scrollTop
+    requestAnimationFrame(() => {
+      container.scrollTop = saved || 0;
+    });
   }, [currentTab]);
 
   // Log when user auth state resolves in Layout (debug only)
@@ -83,15 +99,27 @@ export default function Layout() {
             <Outlet />
           </div>
         )}
-        {NAV.map(({ to, key }) => (
+        {/* Each tab container persists in the DOM (no remount on switch) — hidden via visibility+pointer-events */}
+        {NAV.map(({ key }) => (
           <div
             key={key}
             ref={el => containerRefs.current[key] = el}
-            className={`overflow-y-auto transition-opacity duration-200 ${
-              currentTab === key ? 'opacity-100 relative' : 'opacity-0 absolute inset-0 pointer-events-none'
-            }`}
-            style={{ height: '100vh', overscrollBehavior: 'none' }}>
-            {currentTab === key && <Outlet />}
+            className="overflow-y-auto"
+            style={{
+              height: '100vh',
+              overscrollBehavior: 'none',
+              // Use visibility+opacity rather than display:none so scroll position is preserved
+              // and React doesn't unmount/remount the subtree on every tab switch
+              visibility: currentTab === key ? 'visible' : 'hidden',
+              opacity: currentTab === key ? 1 : 0,
+              pointerEvents: currentTab === key ? 'auto' : 'none',
+              position: currentTab === key ? 'relative' : 'absolute',
+              inset: currentTab === key ? 'auto' : 0,
+              transition: 'opacity 0.15s ease',
+              contain: 'paint layout',
+            }}>
+            {/* Only render Outlet for active tab — but once mounted keep it */}
+            <MountedTab tabKey={key} activeKey={currentTab} />
           </div>
         ))}
       </div>
@@ -105,7 +133,9 @@ export default function Layout() {
               <Link
                 key={to}
                 to={to}
-                className="flex-1 flex flex-col items-center justify-center gap-0.5 py-3 relative transition-all"
+                aria-label={label}
+                aria-current={active ? 'page' : undefined}
+                className="flex-1 flex flex-col items-center justify-center gap-0.5 py-3 relative transition-all active:scale-95"
                 style={{ color: active ? color : 'hsl(var(--muted-foreground))' }}>
                 {active && (
                   <span
