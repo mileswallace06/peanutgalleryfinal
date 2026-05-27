@@ -1,6 +1,196 @@
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
 
+const SECTIONS = [
+  {
+    num: '1', title: 'Information We Collect',
+    content: (
+      <div className="space-y-3 text-muted-foreground">
+        <div>
+          <p className="font-semibold text-foreground mb-1">Account Information</p>
+          <ul className="list-disc pl-5 space-y-1">
+            <li>name;</li>
+            <li>email address;</li>
+            <li>username;</li>
+            <li>profile information;</li>
+            <li>authentication credentials.</li>
+          </ul>
+        </div>
+        <div>
+          <p className="font-semibold text-foreground mb-1">Transaction Information</p>
+          <ul className="list-disc pl-5 space-y-1">
+            <li>ticket listings;</li>
+            <li>purchases;</li>
+            <li>transfers;</li>
+            <li>payout status;</li>
+            <li>marketplace interactions.</li>
+          </ul>
+        </div>
+        <div>
+          <p className="font-semibold text-foreground mb-1">Payment Information</p>
+          <p>Payment and payout information may be processed by third-party providers such as Stripe. We generally do not store full banking credentials or full payment card numbers.</p>
+        </div>
+        <div>
+          <p className="font-semibold text-foreground mb-1">Device and Technical Data</p>
+          <ul className="list-disc pl-5 space-y-1">
+            <li>IP address;</li>
+            <li>browser type;</li>
+            <li>operating system;</li>
+            <li>app/device identifiers;</li>
+            <li>usage data;</li>
+            <li>crash/error logs.</li>
+          </ul>
+        </div>
+        <div>
+          <p className="font-semibold text-foreground mb-1">Location Information</p>
+          <p>We may collect location information for event verification, seat donation eligibility, live upgrade systems, and fraud prevention. Location collection may depend on device permissions.</p>
+        </div>
+        <div>
+          <p className="font-semibold text-foreground mb-1">User Content</p>
+          <p>messages; listings; posts; reviews; uploaded media; donation messages.</p>
+        </div>
+      </div>
+    ),
+  },
+  {
+    num: '2', title: 'How We Use Information',
+    content: (
+      <div className="text-muted-foreground">
+        <p className="mb-2">We may use information to:</p>
+        <ul className="list-disc pl-5 space-y-1">
+          <li>operate the Services;</li>
+          <li>process transactions;</li>
+          <li>facilitate transfers;</li>
+          <li>prevent fraud;</li>
+          <li>enforce policies;</li>
+          <li>improve products;</li>
+          <li>personalize experiences;</li>
+          <li>communicate with users;</li>
+          <li>verify event attendance;</li>
+          <li>manage donation systems;</li>
+          <li>administer Peanut Points and trust systems;</li>
+          <li>comply with legal obligations.</li>
+        </ul>
+      </div>
+    ),
+  },
+  {
+    num: '3', title: 'Sharing of Information',
+    content: (
+      <div className="space-y-3 text-muted-foreground">
+        <div>
+          <p className="font-semibold text-foreground mb-1">Service Providers</p>
+          <p>Including payment processors, hosting providers, analytics providers, fraud prevention vendors, and customer support vendors.</p>
+        </div>
+        <div>
+          <p className="font-semibold text-foreground mb-1">Other Users</p>
+          <p>Certain profile or transaction information may be visible to other users. We attempt to minimize unnecessary exposure of sensitive information.</p>
+        </div>
+        <div>
+          <p className="font-semibold text-foreground mb-1">Legal Compliance</p>
+          <p>We may disclose information to comply with law, in response to legal requests, to protect rights and safety, or to investigate fraud or abuse.</p>
+        </div>
+        <div>
+          <p className="font-semibold text-foreground mb-1">Business Transfers</p>
+          <p>Information may transfer in connection with mergers, acquisitions, financing, or asset sales.</p>
+        </div>
+      </div>
+    ),
+  },
+  {
+    num: '4', title: 'Cookies and Tracking',
+    content: (
+      <div className="text-muted-foreground">
+        <p>We may use cookies, analytics tools, session storage, and tracking technologies to maintain sessions, improve performance, analyze usage, and personalize experiences. Users may manage cookies through browser/device settings.</p>
+      </div>
+    ),
+  },
+  {
+    num: '5', title: 'Data Retention',
+    content: (
+      <div className="text-muted-foreground">
+        <p>We retain information as reasonably necessary for operating the Services, fraud prevention, legal compliance, dispute resolution, and enforcing agreements. Retention periods may vary.</p>
+      </div>
+    ),
+  },
+  {
+    num: '6', title: 'Security',
+    content: (
+      <div className="text-muted-foreground">
+        <p>We implement reasonable security measures. However, no system is completely secure. We cannot guarantee absolute security of accounts, transmissions, or stored information. Users are responsible for safeguarding account credentials.</p>
+      </div>
+    ),
+  },
+  {
+    num: '7', title: 'User Rights',
+    content: (
+      <div className="space-y-2 text-muted-foreground">
+        <p>Depending on jurisdiction, users may have rights to:</p>
+        <ul className="list-disc pl-5 space-y-1">
+          <li>access information;</li>
+          <li>correct information;</li>
+          <li>request deletion;</li>
+          <li>object to processing;</li>
+          <li>request portability.</li>
+        </ul>
+        <p>We may require verification before fulfilling requests. Some information may be retained for legal or operational reasons.</p>
+      </div>
+    ),
+  },
+  {
+    num: '8', title: "Children's Privacy",
+    content: (
+      <div className="text-muted-foreground">
+        <p>Peanut Gallery is not intended for children under 13. We do not knowingly collect personal information from children under 13.</p>
+      </div>
+    ),
+  },
+  {
+    num: '9', title: 'Third-Party Services',
+    content: (
+      <div className="text-muted-foreground">
+        <p>Peanut Gallery may link to or integrate with third-party services. We are not responsible for third-party privacy or security practices. Users should review applicable third-party policies.</p>
+      </div>
+    ),
+  },
+  {
+    num: '10', title: 'International Users',
+    content: (
+      <div className="text-muted-foreground">
+        <p>Information may be processed and stored in jurisdictions different from your own. By using the Services, you consent to such transfers.</p>
+      </div>
+    ),
+  },
+  {
+    num: '11', title: 'California Privacy Rights',
+    content: (
+      <div className="text-muted-foreground">
+        <p>California residents may have additional rights under applicable law. We do not sell personal information in the traditional sense. Users may contact us regarding applicable rights requests.</p>
+      </div>
+    ),
+  },
+  {
+    num: '12', title: 'Changes to Privacy Policy',
+    content: (
+      <div className="text-muted-foreground">
+        <p>We may update this Privacy Policy. Continued use of Peanut Gallery after updates constitutes acceptance.</p>
+      </div>
+    ),
+  },
+  {
+    num: '13', title: 'Contact',
+    content: (
+      <div className="text-muted-foreground">
+        <p>Peanut Gallery<br />
+          <a href="mailto:support@peanutgallery.store" className="underline" style={{ color: '#00FF87' }}>
+            support@peanutgallery.store
+          </a>
+        </p>
+      </div>
+    ),
+  },
+];
+
 export default function PrivacyPolicy() {
   const navigate = useNavigate();
 
@@ -21,181 +211,22 @@ export default function PrivacyPolicy() {
 
       <div className="px-5 py-6 pb-32 max-w-2xl mx-auto space-y-6 text-sm text-foreground leading-relaxed">
 
-        {/* Legal disclaimer banner */}
-        <div className="px-4 py-3 rounded-2xl text-xs font-medium"
-          style={{ background: 'rgba(255,140,0,0.1)', border: '1px solid rgba(255,140,0,0.3)', color: '#FF8C00' }}>
-          ⚠️ These starter policies should be reviewed by legal counsel before public launch.
-        </div>
+        <p className="text-muted-foreground text-xs">Last Updated: May 27, 2026</p>
 
-        <p className="text-muted-foreground text-xs">Last updated: May 2026</p>
+        <p className="text-muted-foreground">
+          This Privacy Policy explains how Peanut Gallery ("PG," "we," "our," or "us") collects, uses, stores, and shares information. By using Peanut Gallery, you consent to this Privacy Policy.
+        </p>
 
-        <section className="space-y-2">
-          <h2 className="font-black text-base">1. Who We Are</h2>
-          <p className="text-muted-foreground">
-            Peanut Gallery ("we," "us," or "our") operates a fan-to-fan ticket marketplace. This Privacy Policy
-            explains what information we collect, how we use it, and your rights regarding your data.
-          </p>
-        </section>
+        {SECTIONS.map(s => (
+          <section key={s.num} className="space-y-2">
+            <h2 className="font-black text-base">{s.num}. {s.title}</h2>
+            {s.content}
+          </section>
+        ))}
 
-        <section className="space-y-2">
-          <h2 className="font-black text-base">2. Information We Collect</h2>
-          <p className="text-muted-foreground font-semibold">Account Information</p>
-          <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
-            <li>Name and email address (provided at registration or via Google Sign-In)</li>
-            <li>Profile photo (optional)</li>
-            <li>Phone number (optional, used for transfer coordination)</li>
-          </ul>
-          <p className="text-muted-foreground font-semibold mt-3">Transaction Information</p>
-          <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
-            <li>Ticket listings you create (event, section, row, price)</li>
-            <li>Purchases and sales history</li>
-            <li>Transfer status and confirmation records</li>
-          </ul>
-          <p className="text-muted-foreground font-semibold mt-3">Payment Information</p>
-          <p className="text-muted-foreground">
-            We do not store your payment card details. Payments are processed by Stripe. If you connect
-            a Stripe seller account, Stripe collects and stores your banking and identity information
-            under their own Privacy Policy.
-          </p>
-          <p className="text-muted-foreground font-semibold mt-3">Location Information</p>
-          <p className="text-muted-foreground">
-            With your permission, we collect your device's GPS coordinates to show nearby events and
-            to verify your physical proximity to a venue for in-venue seat upgrades. Location is used
-            only during an active session and is not stored long-term.
-          </p>
-          <p className="text-muted-foreground font-semibold mt-3">Usage Data</p>
-          <p className="text-muted-foreground">
-            We may collect anonymized usage data (pages visited, features used, error logs) to improve
-            the app. This data is not linked to your identity.
-          </p>
-        </section>
-
-        <section className="space-y-2">
-          <h2 className="font-black text-base">3. How We Use Your Information</h2>
-          <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
-            <li>To operate the marketplace and process ticket transactions.</li>
-            <li>To verify your identity and prevent fraud.</li>
-            <li>To facilitate ticket transfers between buyers and sellers.</li>
-            <li>To show you relevant events based on your location.</li>
-            <li>To send transactional emails (purchase confirmations, transfer notifications).</li>
-            <li>To resolve disputes between buyers and sellers.</li>
-            <li>To comply with legal obligations.</li>
-          </ul>
-        </section>
-
-        <section className="space-y-2">
-          <h2 className="font-black text-base">4. How We Share Your Information</h2>
-          <p className="text-muted-foreground">
-            We do not sell your personal data. We share information only as follows:
-          </p>
-          <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
-            <li>
-              <strong>With the other party in a transaction:</strong> Buyers and sellers may see each
-              other's display name and contact details as needed to complete a ticket transfer.
-            </li>
-            <li>
-              <strong>With Stripe:</strong> To process payments and manage seller payouts via Stripe Connect.
-            </li>
-            <li>
-              <strong>With Ticketmaster:</strong> Event search queries are sent to the Ticketmaster API.
-              No personal data is shared.
-            </li>
-            <li>
-              <strong>With service providers:</strong> Infrastructure and analytics providers who process
-              data on our behalf under strict confidentiality agreements.
-            </li>
-            <li>
-              <strong>As required by law:</strong> To comply with legal process, court orders, or
-              government requests.
-            </li>
-          </ul>
-        </section>
-
-        <section className="space-y-2">
-          <h2 className="font-black text-base">5. Location Data</h2>
-          <p className="text-muted-foreground">
-            Location access is requested only when you use features that require it (finding nearby events,
-            in-venue upgrades). You can deny location access at any time in your device settings. Location
-            coordinates are used only for the current session and are not stored on our servers beyond what
-            is necessary to complete the transaction.
-          </p>
-        </section>
-
-        <section className="space-y-2">
-          <h2 className="font-black text-base">6. Data Retention</h2>
-          <p className="text-muted-foreground">
-            We retain your account and transaction data for as long as your account is active or as needed
-            to comply with legal obligations. You may request deletion of your account and associated data
-            at any time from Account Settings.
-          </p>
-        </section>
-
-        <section className="space-y-2">
-          <h2 className="font-black text-base">7. Your Rights</h2>
-          <p className="text-muted-foreground">Depending on your jurisdiction, you may have the right to:</p>
-          <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
-            <li>Access the personal data we hold about you.</li>
-            <li>Correct inaccurate data.</li>
-            <li>Request deletion of your data ("right to be forgotten").</li>
-            <li>Object to or restrict certain processing.</li>
-            <li>Port your data to another service.</li>
-          </ul>
-          <p className="text-muted-foreground">
-            To exercise these rights, contact us at{' '}
-            <a href="mailto:support@peanutgallery.app" className="underline" style={{ color: '#00FF87' }}>
-              support@peanutgallery.app
-            </a>
-          </p>
-        </section>
-
-        <section className="space-y-2">
-          <h2 className="font-black text-base">8. Security</h2>
-          <p className="text-muted-foreground">
-            We use industry-standard security measures including encrypted connections (HTTPS), access
-            controls, and third-party payment security (Stripe PCI-DSS compliance). No system is 100%
-            secure. If you suspect unauthorized access to your account, contact us immediately.
-          </p>
-        </section>
-
-        <section className="space-y-2">
-          <h2 className="font-black text-base">9. Children's Privacy</h2>
-          <p className="text-muted-foreground">
-            Peanut Gallery is not intended for users under 18. We do not knowingly collect personal
-            information from minors. If we become aware that a minor has created an account, we will
-            delete their information promptly.
-          </p>
-        </section>
-
-        <section className="space-y-2">
-          <h2 className="font-black text-base">10. Third-Party Links</h2>
-          <p className="text-muted-foreground">
-            The app may display links to third-party sites (e.g., Ticketmaster event pages). We are not
-            responsible for the privacy practices of those sites. Please review their policies directly.
-          </p>
-        </section>
-
-        <section className="space-y-2">
-          <h2 className="font-black text-base">11. Changes to This Policy</h2>
-          <p className="text-muted-foreground">
-            We may update this Privacy Policy from time to time. We will notify you of material changes
-            by posting the new policy in-app. Your continued use of Peanut Gallery after changes are
-            posted constitutes acceptance of the updated policy.
-          </p>
-        </section>
-
-        <section className="space-y-2">
-          <h2 className="font-black text-base">12. Contact</h2>
-          <p className="text-muted-foreground">
-            Questions or concerns about your privacy? Email us at{' '}
-            <a href="mailto:support@peanutgallery.app" className="underline" style={{ color: '#00FF87' }}>
-              support@peanutgallery.app
-            </a>
-          </p>
-        </section>
-
-        <div className="pt-4 px-4 py-3 rounded-2xl text-xs text-muted-foreground"
+        <div className="px-4 py-3 rounded-2xl text-xs text-muted-foreground"
           style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
-          ⚠️ These starter policies should be reviewed by legal counsel before public launch.
+          ⚠️ This document is a general business/platform draft intended for early-stage operational protection. It is not legal advice. Peanut Gallery should have these terms reviewed by a licensed attorney before large-scale public deployment.
         </div>
       </div>
     </div>

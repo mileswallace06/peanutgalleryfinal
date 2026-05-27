@@ -1,6 +1,218 @@
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
 
+const SECTIONS = [
+  {
+    num: '1', title: 'Eligibility',
+    content: (
+      <div className="space-y-2 text-muted-foreground">
+        <p>You must:</p>
+        <ul className="list-disc pl-5 space-y-1">
+          <li>be at least 18 years old or the age of majority in your jurisdiction;</li>
+          <li>have the legal authority to enter into these Terms;</li>
+          <li>provide accurate account information;</li>
+          <li>comply with all applicable laws.</li>
+        </ul>
+        <p>By using Peanut Gallery, you represent and warrant that you satisfy these requirements.</p>
+        <p>We reserve the right to suspend or terminate accounts that violate eligibility requirements.</p>
+      </div>
+    ),
+  },
+  {
+    num: '2', title: 'Nature of the Platform',
+    content: (
+      <div className="space-y-2 text-muted-foreground">
+        <p>Peanut Gallery is a technology platform and marketplace that facilitates: fan-to-fan ticket listings; live seat upgrades; instant transfer inventory; community seat donations; event-related engagement systems; loyalty/reputation systems; and related marketplace interactions.</p>
+        <p>Except where Peanut Gallery explicitly takes custody of tickets through designated "Instant Transfer" flows, Peanut Gallery is not the seller, owner, issuer, venue operator, promoter, artist, sports team, or organizer of listed tickets.</p>
+        <p>Users are solely responsible for listings, ticket ownership, transfer completion, account activity, compliance with venue/event restrictions, applicable taxes, and legal obligations.</p>
+        <p>Peanut Gallery does not guarantee ticket availability, event admission, seat quality, event accuracy, uninterrupted Services, successful resale, successful upgrades, or donation eligibility.</p>
+      </div>
+    ),
+  },
+  {
+    num: '3', title: 'Accounts',
+    content: (
+      <div className="space-y-2 text-muted-foreground">
+        <p>You are responsible for maintaining account security, safeguarding credentials, and all activity under your account.</p>
+        <p>You agree not to impersonate others, create fraudulent accounts, share accounts improperly, bypass suspensions, or manipulate marketplace systems.</p>
+        <p>We may suspend, restrict, or terminate accounts at our sole discretion for fraud, abuse, chargebacks, suspicious activity, policy violations, legal compliance, or risk mitigation.</p>
+      </div>
+    ),
+  },
+  {
+    num: '4', title: 'Ticket Listings',
+    content: (
+      <div className="space-y-2 text-muted-foreground">
+        <p>By creating a listing, you represent and warrant that you legally possess the ticket(s), have authority to transfer them, the listing information is accurate, the tickets are valid and transferable, and transfer does not violate applicable law or event restrictions.</p>
+        <p>You may not list fake tickets, list speculative inventory you do not possess, manipulate prices fraudulently, intentionally misrepresent seating, or engage in scalping prohibited by law.</p>
+        <p>Peanut Gallery reserves the right to remove listings, reject transfers, request verification, require proof of ownership, freeze payouts, or cancel suspicious activity.</p>
+      </div>
+    ),
+  },
+  {
+    num: '5', title: 'Instant Transfer Inventory',
+    content: (
+      <div className="space-y-2 text-muted-foreground">
+        <p>Certain listings may use Peanut Gallery's "Instant Transfer" system. Under Instant Transfer, users may voluntarily transfer tickets into Peanut Gallery-managed custody workflows. Peanut Gallery may verify, hold, or facilitate later fulfillment and may reject or remove inventory at any time.</p>
+        <p>Peanut Gallery does not guarantee transfer timing, sale success, uninterrupted availability, or immediate verification. Users remain responsible for ensuring tickets are valid and transferable.</p>
+      </div>
+    ),
+  },
+  {
+    num: '6', title: 'Seat Donations',
+    content: (
+      <div className="space-y-2 text-muted-foreground">
+        <p>Peanut Gallery may offer community donation systems allowing users to donate seats or upgrades to other users. Seat donations are voluntary, have no cash value, are not guaranteed, and may use weighted selection systems with eligibility requirements.</p>
+        <p>Peanut Gallery reserves sole discretion regarding recipient selection, eligibility, distribution logic, donation cancellation, and fraud prevention. Donation systems are promotional/community features and may be suspended or discontinued at any time.</p>
+      </div>
+    ),
+  },
+  {
+    num: '7', title: 'Peanut Points / Reputation Systems',
+    content: (
+      <div className="space-y-2 text-muted-foreground">
+        <p>Peanut Gallery may provide Peanut Points, trust scores, badges, rankings, leaderboards, and reputation systems. These systems have no monetary value, are not transferable, are revocable, and are promotional only.</p>
+        <p>Peanut Gallery may modify scoring, revoke points, remove badges, reset rankings, or suspend users from rewards systems at any time. Users have no ownership interest in Peanut Points or related systems.</p>
+      </div>
+    ),
+  },
+  {
+    num: '8', title: 'Payments and Payouts',
+    content: (
+      <div className="space-y-2 text-muted-foreground">
+        <p>Payments and payouts may be processed through third-party providers including Stripe. By using Peanut Gallery, you authorize payment processing, payout routing, transaction verification, escrow-style workflows, and fraud checks.</p>
+        <p>Peanut Gallery may hold funds, delay payouts, reverse transactions, freeze balances, investigate disputes, or comply with legal requests. Payout timing is not guaranteed.</p>
+        <p>Users are solely responsible for tax obligations, banking accuracy, and compliance with financial regulations. Peanut Gallery does not store full banking credentials. Third-party providers may impose separate terms.</p>
+      </div>
+    ),
+  },
+  {
+    num: '9', title: 'Fees',
+    content: (
+      <div className="space-y-2 text-muted-foreground">
+        <p>Peanut Gallery may charge service fees, marketplace fees, processing fees, seller fees, and upgrade-related fees. Fees may change at any time. Users authorize Peanut Gallery to deduct applicable fees from transactions. Except where legally required, fees are non-refundable.</p>
+      </div>
+    ),
+  },
+  {
+    num: '10', title: 'Event Changes and Cancellations',
+    content: (
+      <div className="space-y-2 text-muted-foreground">
+        <p>Events may change, move, postpone, or cancel. Peanut Gallery is not responsible for event cancellations, venue policies, artist/team changes, weather, admission denial, or seating changes.</p>
+        <p>Refund eligibility may depend on issuer policies, venue policies, marketplace rules, and payment provider rules.</p>
+      </div>
+    ),
+  },
+  {
+    num: '11', title: 'Prohibited Conduct',
+    content: (
+      <div className="space-y-2 text-muted-foreground">
+        <p>You agree not to: violate laws; infringe intellectual property; engage in fraud; harass users; manipulate pricing; exploit bugs; reverse engineer the Services; scrape data; spam; use bots without authorization; circumvent security; abuse donation systems; or abuse rewards systems.</p>
+        <p>We may investigate and cooperate with law enforcement.</p>
+      </div>
+    ),
+  },
+  {
+    num: '12', title: 'User Content',
+    content: (
+      <div className="space-y-2 text-muted-foreground">
+        <p>You retain ownership of content you submit. However, you grant Peanut Gallery a worldwide, non-exclusive, royalty-free license to host, display, reproduce, distribute, modify, promote, operate, and improve the Services using your content.</p>
+        <p>You represent that you possess all rights necessary to grant this license.</p>
+      </div>
+    ),
+  },
+  {
+    num: '13', title: 'Intellectual Property',
+    content: (
+      <div className="space-y-2 text-muted-foreground">
+        <p>All Peanut Gallery branding, software, design, trademarks, logos, interfaces, and systems are owned by Peanut Gallery or its licensors. You may not copy, distribute, reverse engineer, reproduce, create derivative works from, or commercially exploit the Services without permission.</p>
+      </div>
+    ),
+  },
+  {
+    num: '14', title: 'Privacy',
+    content: (
+      <div className="space-y-2 text-muted-foreground">
+        <p>Your use of Peanut Gallery is also governed by our Privacy Policy. By using the Services, you consent to data collection, processing, storage, and sharing as described in the Privacy Policy.</p>
+      </div>
+    ),
+  },
+  {
+    num: '15', title: 'Disclaimers',
+    content: (
+      <div className="space-y-2 text-muted-foreground">
+        <p className="font-semibold text-foreground">THE SERVICES ARE PROVIDED "AS IS" AND "AS AVAILABLE."</p>
+        <p>TO THE MAXIMUM EXTENT PERMITTED BY LAW, PEANUT GALLERY DISCLAIMS ALL WARRANTIES, INCLUDING WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, UNINTERRUPTED AVAILABILITY, ACCURACY, AND RELIABILITY.</p>
+        <p>Peanut Gallery does not guarantee successful transactions, event admission, platform uptime, error-free operation, uninterrupted service, or transfer completion.</p>
+      </div>
+    ),
+  },
+  {
+    num: '16', title: 'Limitation of Liability',
+    content: (
+      <div className="space-y-2 text-muted-foreground">
+        <p className="font-semibold text-foreground">TO THE MAXIMUM EXTENT PERMITTED BY LAW, PEANUT GALLERY SHALL NOT BE LIABLE FOR INDIRECT, INCIDENTAL, CONSEQUENTIAL, OR SPECIAL DAMAGES, LOST PROFITS, REPUTATIONAL HARM, LOST DATA, OR EVENT-RELATED LOSSES.</p>
+        <p>IN NO EVENT SHALL PEANUT GALLERY'S TOTAL LIABILITY EXCEED THE GREATER OF $100 USD OR THE AMOUNT OF FEES PAID TO PEANUT GALLERY BY YOU IN THE PRIOR 12 MONTHS.</p>
+        <p>Some jurisdictions may not allow certain limitations.</p>
+      </div>
+    ),
+  },
+  {
+    num: '17', title: 'Indemnification',
+    content: (
+      <div className="space-y-2 text-muted-foreground">
+        <p>You agree to defend, indemnify, and hold harmless Peanut Gallery and its affiliates, officers, employees, contractors, and agents from claims arising from your use of the Services, your listings, your violations of law, your violations of these Terms, or your fraud or misconduct.</p>
+      </div>
+    ),
+  },
+  {
+    num: '18', title: 'Arbitration and Class Action Waiver',
+    content: (
+      <div className="space-y-2 text-muted-foreground">
+        <p className="font-semibold text-foreground">PLEASE READ THIS SECTION CAREFULLY.</p>
+        <p>You agree that disputes shall be resolved through binding individual arbitration, except where prohibited by law. You waive jury trials, class actions, class arbitration, and representative actions.</p>
+        <p>Arbitration shall occur in Arizona unless otherwise required by law. Either party may seek small claims relief where permitted.</p>
+      </div>
+    ),
+  },
+  {
+    num: '19', title: 'Governing Law',
+    content: (
+      <div className="space-y-2 text-muted-foreground">
+        <p>These Terms shall be governed by the laws of the State of Arizona, without regard to conflict-of-law principles.</p>
+      </div>
+    ),
+  },
+  {
+    num: '20', title: 'Changes to Terms',
+    content: (
+      <div className="space-y-2 text-muted-foreground">
+        <p>We may modify these Terms at any time. Continued use of the Services after updates constitutes acceptance.</p>
+      </div>
+    ),
+  },
+  {
+    num: '21', title: 'Termination',
+    content: (
+      <div className="space-y-2 text-muted-foreground">
+        <p>We may suspend or terminate access immediately for violations of these Terms, fraud, abuse, legal risk, or operational/security concerns. Sections intended to survive termination shall survive.</p>
+      </div>
+    ),
+  },
+  {
+    num: '22', title: 'Contact',
+    content: (
+      <div className="text-muted-foreground">
+        <p>Peanut Gallery<br />
+          <a href="mailto:support@peanutgallery.store" className="underline" style={{ color: '#BF5FFF' }}>
+            support@peanutgallery.store
+          </a>
+        </p>
+      </div>
+    ),
+  },
+];
+
 export default function TermsOfService() {
   const navigate = useNavigate();
 
@@ -21,181 +233,28 @@ export default function TermsOfService() {
 
       <div className="px-5 py-6 pb-32 max-w-2xl mx-auto space-y-6 text-sm text-foreground leading-relaxed">
 
-        {/* Legal disclaimer banner */}
-        <div className="px-4 py-3 rounded-2xl text-xs font-medium"
-          style={{ background: 'rgba(255,140,0,0.1)', border: '1px solid rgba(255,140,0,0.3)', color: '#FF8C00' }}>
-          ⚠️ These starter policies should be reviewed by legal counsel before public launch.
+        {/* Important notice */}
+        <div className="px-4 py-3 rounded-2xl text-xs font-semibold"
+          style={{ background: 'rgba(255,45,120,0.08)', border: '1px solid rgba(255,45,120,0.25)', color: '#FF2D78' }}>
+          ⚠️ IMPORTANT: THESE TERMS CONTAIN DISCLAIMERS, LIABILITY LIMITATIONS, ARBITRATION PROVISIONS, CLASS ACTION WAIVERS, AND OTHER LEGAL TERMS THAT AFFECT YOUR RIGHTS.
         </div>
 
-        <p className="text-muted-foreground text-xs">Last updated: May 2026</p>
+        <p className="text-muted-foreground text-xs">Last Updated: May 27, 2026</p>
 
-        <section className="space-y-2">
-          <h2 className="font-black text-base">1. About Peanut Gallery</h2>
-          <p className="text-muted-foreground">
-            Peanut Gallery ("we," "us," or "our") is a fan-to-fan ticket marketplace that allows users to buy,
-            sell, and upgrade event tickets — including live in-venue seat upgrades during an event. By accessing
-            or using Peanut Gallery, you agree to these Terms of Service.
-          </p>
-        </section>
+        <p className="text-muted-foreground">
+          These Terms of Service ("Terms") govern your access to and use of Peanut Gallery, including our websites, mobile applications, services, marketplaces, live event tools, seat upgrade systems, donation systems, and related features (collectively, the "Services"). By accessing or using Peanut Gallery, you agree to these Terms. If you do not agree, do not use the Services.
+        </p>
 
-        <section className="space-y-2">
-          <h2 className="font-black text-base">2. Eligibility</h2>
-          <p className="text-muted-foreground">
-            You must be at least 18 years old to use Peanut Gallery. By creating an account, you represent that
-            you are 18 or older and have the legal capacity to enter into binding agreements.
-          </p>
-        </section>
+        {SECTIONS.map(s => (
+          <section key={s.num} className="space-y-2">
+            <h2 className="font-black text-base">{s.num}. {s.title}</h2>
+            {s.content}
+          </section>
+        ))}
 
-        <section className="space-y-2">
-          <h2 className="font-black text-base">3. The Marketplace</h2>
-          <p className="text-muted-foreground">
-            Peanut Gallery is a peer-to-peer marketplace. We do not own or sell tickets ourselves. All listings
-            are created by individual sellers. We are not responsible for the accuracy of listing descriptions,
-            seat locations, or event details provided by sellers.
-          </p>
-        </section>
-
-        <section className="space-y-2">
-          <h2 className="font-black text-base">4. Seller Responsibilities</h2>
-          <p className="text-muted-foreground">
-            As a seller, you agree to:
-          </p>
-          <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
-            <li>Only list tickets you legally own and have the right to sell.</li>
-            <li>Accurately describe the tickets, section, row, and seat numbers.</li>
-            <li>Transfer the tickets to the buyer promptly after a confirmed sale.</li>
-            <li>Connect a valid Stripe account to receive payouts.</li>
-            <li>Not list counterfeit, invalid, or duplicate tickets.</li>
-          </ul>
-          <p className="text-muted-foreground">
-            Sellers who fail to transfer tickets or list fraudulent tickets may be permanently banned and subject
-            to legal action.
-          </p>
-        </section>
-
-        <section className="space-y-2">
-          <h2 className="font-black text-base">5. Buyer Responsibilities</h2>
-          <p className="text-muted-foreground">
-            As a buyer, you agree to:
-          </p>
-          <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
-            <li>Pay the full listed price plus any applicable platform fees.</li>
-            <li>Confirm receipt of tickets after the transfer is completed.</li>
-            <li>Use tickets only for personal, lawful use.</li>
-          </ul>
-        </section>
-
-        <section className="space-y-2">
-          <h2 className="font-black text-base">6. Payments and Escrow</h2>
-          <p className="text-muted-foreground">
-            All payments are processed by Stripe. When you purchase a ticket, your payment is held in an
-            escrow-style flow. The seller is not paid until both parties confirm the transfer is complete.
-            A platform fee is deducted from the seller's payout.
-          </p>
-          <p className="text-muted-foreground">
-            Peanut Gallery does not store your payment card information. All financial data is handled directly
-            by Stripe in accordance with PCI-DSS standards.
-          </p>
-        </section>
-
-        <section className="space-y-2">
-          <h2 className="font-black text-base">7. Seller Payouts</h2>
-          <p className="text-muted-foreground">
-            Sellers receive payouts via Stripe Connect after the buyer confirms receipt of the tickets. Stripe
-            may impose standard payout delays (typically 2–7 business days for new accounts). Peanut Gallery
-            is not liable for delays caused by Stripe's standard processing timelines.
-          </p>
-        </section>
-
-        <section className="space-y-2">
-          <h2 className="font-black text-base">8. Ticket Transfers</h2>
-          <p className="text-muted-foreground">
-            Tickets may be transferred via platform transfer (e.g., Ticketmaster), email transfer, or
-            in-person. The method is specified by the seller at the time of listing. Sellers must initiate
-            the transfer within 48 hours of a confirmed sale. Failure to do so may result in a full refund to
-            the buyer and removal of the listing.
-          </p>
-        </section>
-
-        <section className="space-y-2">
-          <h2 className="font-black text-base">9. Seat Upgrades</h2>
-          <p className="text-muted-foreground">
-            The Upgrades feature allows users physically at a venue to purchase better seats from other
-            attendees. Location verification may be used to confirm proximity to the venue. Upgrades are
-            subject to the same payment, escrow, and transfer rules as standard purchases.
-          </p>
-        </section>
-
-        <section className="space-y-2">
-          <h2 className="font-black text-base">10. Disputes and Refunds</h2>
-          <p className="text-muted-foreground">
-            If you believe a seller has failed to transfer tickets, you may open a dispute within the app.
-            Peanut Gallery will review the dispute and may issue a full or partial refund at our discretion.
-            Disputes must be raised before the event ends. We reserve the right to freeze funds pending
-            dispute resolution.
-          </p>
-        </section>
-
-        <section className="space-y-2">
-          <h2 className="font-black text-base">11. Location Data</h2>
-          <p className="text-muted-foreground">
-            Peanut Gallery requests your device location to show nearby events and to verify proximity for
-            in-venue seat upgrades. Location data is used only within the app session and is not stored
-            permanently or shared with third parties. You may deny location access, but some features
-            (including Upgrades) will be unavailable.
-          </p>
-        </section>
-
-        <section className="space-y-2">
-          <h2 className="font-black text-base">12. Prohibited Conduct</h2>
-          <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
-            <li>Listing tickets you do not own.</li>
-            <li>Manipulating prices to exploit buyers.</li>
-            <li>Creating fake or duplicate accounts.</li>
-            <li>Attempting to circumvent escrow or payment processes.</li>
-            <li>Harassing other users or Peanut Gallery staff.</li>
-          </ul>
-        </section>
-
-        <section className="space-y-2">
-          <h2 className="font-black text-base">13. Account Deletion</h2>
-          <p className="text-muted-foreground">
-            You may delete your account at any time from Account Settings. Upon deletion, your profile and
-            personal data will be removed. Active listings will be cancelled and pending purchases will be
-            resolved before deletion is finalized.
-          </p>
-        </section>
-
-        <section className="space-y-2">
-          <h2 className="font-black text-base">14. Limitation of Liability</h2>
-          <p className="text-muted-foreground">
-            Peanut Gallery is provided "as is." To the maximum extent permitted by law, we are not liable for
-            any indirect, incidental, or consequential damages arising from your use of the platform, including
-            losses related to ticket transfers, event cancellations, or payment processing.
-          </p>
-        </section>
-
-        <section className="space-y-2">
-          <h2 className="font-black text-base">15. Changes to These Terms</h2>
-          <p className="text-muted-foreground">
-            We may update these Terms at any time. Continued use of Peanut Gallery after changes are posted
-            constitutes acceptance of the revised Terms.
-          </p>
-        </section>
-
-        <section className="space-y-2">
-          <h2 className="font-black text-base">16. Contact</h2>
-          <p className="text-muted-foreground">
-            Questions about these Terms? Email us at{' '}
-            <a href="mailto:support@peanutgallery.app" className="underline" style={{ color: '#BF5FFF' }}>
-              support@peanutgallery.app
-            </a>
-          </p>
-        </section>
-
-        <div className="pt-4 px-4 py-3 rounded-2xl text-xs text-muted-foreground"
+        <div className="px-4 py-3 rounded-2xl text-xs text-muted-foreground"
           style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
-          ⚠️ These starter policies should be reviewed by legal counsel before public launch.
+          ⚠️ This document is a general business/platform draft intended for early-stage operational protection. It is not legal advice. Peanut Gallery should have these terms reviewed by a licensed attorney before large-scale public deployment.
         </div>
       </div>
     </div>
