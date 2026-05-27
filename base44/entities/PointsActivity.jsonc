@@ -9,17 +9,35 @@
     "action": {
       "type": "string",
       "enum": [
-        "purchase",
+        "profile_completed",
+        "stripe_connected",
         "first_purchase",
+        "first_sale",
+        "first_instant_listing",
+        "purchase",
         "sale_completed",
         "instant_listing_verified",
-        "quick_buyer_confirm",
-        "quick_seller_fulfill",
-        "referral_success",
-        "live_event_activity",
+        "instant_listing_sold",
+        "live_upgrade_purchase",
+        "live_upgrade_sale",
+        "seller_transfer_15min",
+        "seller_transfer_1hr",
+        "buyer_confirm_15min",
+        "buyer_confirm_1hr",
+        "instant_fulfillment_clean",
         "feedback_left",
+        "fan_zone_post",
+        "beta_bug_report",
+        "critical_bug_report",
+        "referral_signup",
+        "referral_first_transaction",
+        "referral_verified_seller",
+        "failed_transfer",
+        "confirmed_fraud",
+        "seller_dispute",
+        "repeated_cancellation",
+        "abusive_behavior",
         "achievement_unlock",
-        "dispute_penalty",
         "trust_bonus"
       ],
       "description": "Type of action that triggered this points event"
@@ -42,9 +60,26 @@
         "purchase",
         "listing",
         "event",
-        "referral"
+        "referral",
+        "profile",
+        "feedback",
+        "post",
+        "bug_report"
       ],
       "description": "Type of the related entity"
+    },
+    "source": {
+      "type": "string",
+      "description": "System component that triggered this event (e.g. capturePayment, awardPoints)"
+    },
+    "is_reversal": {
+      "type": "boolean",
+      "default": false,
+      "description": "True if this entry reverses a prior award"
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Optional extra context (e.g. transfer time, dispute reason)"
     }
   },
   "required": [

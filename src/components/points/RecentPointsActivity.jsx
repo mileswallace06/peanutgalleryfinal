@@ -1,20 +1,52 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Zap } from 'lucide-react';
 
 const ACTION_META = {
-  purchase:                  { emoji: '🎟️', label: 'Bought tickets' },
-  first_purchase:            { emoji: '🌟', label: 'First purchase bonus' },
-  sale_completed:            { emoji: '💸', label: 'Sale completed' },
-  instant_listing_verified:  { emoji: '⚡', label: 'Instant listing verified' },
-  quick_buyer_confirm:       { emoji: '⚡', label: 'Quick confirm bonus' },
-  quick_seller_fulfill:      { emoji: '🚀', label: 'Fast fulfillment bonus' },
-  referral_success:          { emoji: '🔗', label: 'Referral bonus' },
-  live_event_activity:       { emoji: '🎶', label: 'Live event activity' },
-  feedback_left:             { emoji: '📝', label: 'Feedback left' },
-  achievement_unlock:        { emoji: '🏆', label: 'Achievement unlocked' },
-  dispute_penalty:           { emoji: '⚠️', label: 'Dispute penalty' },
-  trust_bonus:               { emoji: '🛡️', label: 'Trust milestone' },
+  // Setup
+  profile_completed:           { emoji: '👤', label: 'Profile completed' },
+  stripe_connected:            { emoji: '🏦', label: 'Stripe payouts connected' },
+
+  // One-time bonuses
+  first_purchase:              { emoji: '🌟', label: 'First purchase bonus' },
+  first_sale:                  { emoji: '🌟', label: 'First sale bonus' },
+  first_instant_listing:       { emoji: '🌟', label: 'First Instant Listing bonus' },
+
+  // Marketplace
+  purchase:                    { emoji: '🎟️', label: 'Ticket purchase' },
+  sale_completed:              { emoji: '💸', label: 'Sale completed' },
+  instant_listing_verified:    { emoji: '⚡', label: 'Instant Listing verified' },
+  instant_listing_sold:        { emoji: '⚡', label: 'Instant Listing sold' },
+  live_upgrade_purchase:       { emoji: '📈', label: 'Live upgrade bought' },
+  live_upgrade_sale:           { emoji: '📈', label: 'Live upgrade sold' },
+
+  // Speed
+  seller_transfer_15min:       { emoji: '🚀', label: 'Lightning transfer (15 min)' },
+  seller_transfer_1hr:         { emoji: '⚡', label: 'Fast transfer (1 hr)' },
+  buyer_confirm_15min:         { emoji: '🚀', label: 'Quick confirm (15 min)' },
+  buyer_confirm_1hr:           { emoji: '⚡', label: 'Fast confirm (1 hr)' },
+  instant_fulfillment_clean:   { emoji: '✅', label: 'PG instant fulfillment' },
+
+  // Community
+  feedback_left:               { emoji: '📝', label: 'Helpful feedback' },
+  fan_zone_post:               { emoji: '📸', label: 'Fan Zone post' },
+  beta_bug_report:             { emoji: '🐛', label: 'Bug report (verified)' },
+  critical_bug_report:         { emoji: '🐛', label: 'Critical bug report' },
+
+  // Referrals
+  referral_signup:             { emoji: '🔗', label: 'Referral signed up' },
+  referral_first_transaction:  { emoji: '🔗', label: 'Referral first transaction' },
+  referral_verified_seller:    { emoji: '🔗', label: 'Referral became seller' },
+
+  // Penalties
+  failed_transfer:             { emoji: '⚠️', label: 'Failed transfer' },
+  confirmed_fraud:             { emoji: '🚫', label: 'Fraud confirmed' },
+  seller_dispute:              { emoji: '⚠️', label: 'Seller dispute' },
+  repeated_cancellation:       { emoji: '⚠️', label: 'Repeated cancellation' },
+  abusive_behavior:            { emoji: '🚫', label: 'Abusive behavior' },
+
+  // Special
+  achievement_unlock:          { emoji: '🏆', label: 'Achievement unlocked' },
+  trust_bonus:                 { emoji: '🛡️', label: 'Trust milestone' },
 };
 
 function timeAgo(iso) {

@@ -11,16 +11,13 @@
       "default": "user"
     },
     "bio": {
-      "type": "string",
-      "description": "User bio / persona description"
+      "type": "string"
     },
     "avatar_url": {
-      "type": "string",
-      "description": "Profile photo URL"
+      "type": "string"
     },
     "banner_url": {
-      "type": "string",
-      "description": "Profile banner URL"
+      "type": "string"
     },
     "favorite_team": {
       "type": "string"
@@ -28,49 +25,44 @@
     "peanut_points": {
       "type": "number",
       "default": 0,
-      "description": "Current Peanut Points balance (can change with activity)"
+      "description": "Current spendable/displayed balance"
     },
     "lifetime_points": {
       "type": "number",
       "default": 0,
-      "description": "All-time accumulated points \u2014 used for level/rank calculation"
+      "description": "All-time accumulated \u2014 used for rank calculation, never decrements"
     },
     "peanut_level": {
       "type": "number",
-      "default": 1,
-      "description": "Current fan level (1\u201310)"
+      "default": 1
     },
     "peanut_rank": {
       "type": "string",
-      "default": "Rookie Fan",
-      "description": "Current fan rank label"
+      "default": "Rookie Fan"
     },
     "trust_score": {
       "type": "number",
       "default": 50,
-      "description": "Trust score 0\u2013100, affects trust badges"
+      "description": "0\u2013100 marketplace reliability score"
     },
     "trust_badges": {
       "type": "array",
       "items": {
         "type": "string"
-      },
-      "description": "Earned trust badge keys e.g. trusted_seller, fast_fulfillment"
+      }
     },
     "achievements": {
       "type": "array",
       "items": {
         "type": "string"
-      },
-      "description": "Unlocked achievement keys"
+      }
     },
     "referral_code": {
-      "type": "string",
-      "description": "Unique referral code for this user"
+      "type": "string"
     },
     "referred_by": {
       "type": "string",
-      "description": "Email of user who referred this user"
+      "description": "Email of referrer"
     },
     "total_purchases": {
       "type": "number",
@@ -84,10 +76,44 @@
       "type": "number",
       "default": 0
     },
+    "total_live_upgrades": {
+      "type": "number",
+      "default": 0
+    },
+    "total_fast_transfers": {
+      "type": "number",
+      "default": 0,
+      "description": "Seller transfers completed within 1 hour"
+    },
+    "total_disputes": {
+      "type": "number",
+      "default": 0
+    },
+    "total_failed_transfers": {
+      "type": "number",
+      "default": 0
+    },
+    "total_cancelled_sales": {
+      "type": "number",
+      "default": 0
+    },
+    "confirmed_fraud_count": {
+      "type": "number",
+      "default": 0
+    },
+    "false_dispute_count": {
+      "type": "number",
+      "default": 0
+    },
     "seller_streak": {
       "type": "number",
       "default": 0,
-      "description": "Consecutive successful sales without disputes"
+      "description": "Consecutive sales without disputes"
+    },
+    "is_founding_fan": {
+      "type": "boolean",
+      "default": false,
+      "description": "Early beta user flag"
     },
     "points_last_updated": {
       "type": "string",
