@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Shield, Zap, CheckCircle, X, Users, Star, Lock, TrendingUp, Heart } from 'lucide-react';
+import { ArrowLeft, Shield, Zap, CheckCircle, X, Users, Lock, TrendingUp, Heart } from 'lucide-react';
 import FaqAccordion from '@/components/education/FaqAccordion';
 
 const GREEN = '#00FF87';
@@ -100,11 +100,6 @@ const FEATURES = [
   },
 ];
 
-const TESTIMONIALS = [
-  { name: 'Taylor M.', city: 'Phoenix, AZ', text: 'First time I\'ve bought resale tickets without anxiety. Knew the ticket was real and in PG\'s hands before I paid. Incredible.' },
-  { name: 'Jordan K.', city: 'Los Angeles, CA', text: 'Sold 4 floor tickets I couldn\'t use. Listed them Friday, sold Saturday, funds cleared Tuesday. Smooth from start to finish.' },
-  { name: 'Alex P.', city: 'Chicago, IL', text: 'Used to dread resale markets. PG feels different — like both sides actually want the deal to work out.' },
-];
 
 const FAQS = [
   { q: 'What happens if the ticket turns out to be fake?', a: 'All listings go through a verification process. For Instant listings, we physically hold the ticket. If a ticket is ever found to be fraudulent, the buyer receives a full refund and the seller\'s account is permanently suspended. Escrow means nobody gets paid until delivery is confirmed.' },
@@ -237,22 +232,6 @@ export default function WhyPeanutGallery() {
         </div>
       </div>
 
-      {/* Testimonials */}
-      <div className="mb-10">
-        <SectionLabel color={PURPLE}>What Fans Are Saying</SectionLabel>
-        <div className="space-y-3">
-          {TESTIMONIALS.map((t, i) => (
-            <div key={i} className="rounded-2xl p-4"
-              style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
-              <div className="flex gap-0.5 mb-2">
-                {[1,2,3,4,5].map(s => <Star key={s} className="w-3 h-3" style={{ fill: '#FFE600', color: '#FFE600' }} />)}
-              </div>
-              <p className="text-sm text-foreground leading-relaxed mb-3">"{t.text}"</p>
-              <div className="text-xs text-muted-foreground font-medium">{t.name} · {t.city}</div>
-            </div>
-          ))}
-        </div>
-      </div>
 
       {/* Fan-first callout */}
       <div className="mb-10 rounded-2xl p-5 text-center"
