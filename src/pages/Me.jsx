@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { Ticket, TrendingUp, Shield, LogIn, Edit2, Tag, Zap, ChevronRight, Camera, ImagePlus, UserPlus, UserCheck, Settings, Eye, EyeOff, HelpCircle } from 'lucide-react';
+import { Ticket, TrendingUp, Shield, LogIn, Edit2, Tag, Zap, ChevronRight, Camera, ImagePlus, UserPlus, UserCheck, Settings, Eye, EyeOff } from 'lucide-react';
+import PeanutPointsCard from '@/components/points/PeanutPointsCard';
+import RecentPointsActivity from '@/components/points/RecentPointsActivity';
 
 /** Privacy-first email display — hidden by default, reveal on tap */
 function EmailDisplay({ email }) {
@@ -225,6 +227,21 @@ export default function Me() {
 
         {/* Profile content */}
         <>
+
+        {/* Peanut Points */}
+        <PeanutPointsCard user={user} />
+
+        {/* Recent point activity */}
+        <div className="mb-5">
+          <p className="text-[10px] font-black tracking-widest uppercase text-muted-foreground mb-3 flex items-center gap-1.5">
+            <span className="w-4 h-px inline-block bg-current opacity-50" />
+            Recent Activity
+          </p>
+          <RecentPointsActivity userEmail={user.email} />
+        </div>
+
+        {/* Divider */}
+        <div className="h-px mb-5" style={{ background: 'var(--border)' }} />
 
         {/* Followers / Following */}
         <div className="mb-5">

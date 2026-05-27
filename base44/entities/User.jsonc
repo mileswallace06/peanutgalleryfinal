@@ -11,65 +11,87 @@
       "default": "user"
     },
     "bio": {
-      "type": "string"
+      "type": "string",
+      "description": "User bio / persona description"
     },
     "avatar_url": {
-      "type": "string"
+      "type": "string",
+      "description": "Profile photo URL"
     },
     "banner_url": {
+      "type": "string",
+      "description": "Profile banner URL"
+    },
+    "favorite_team": {
       "type": "string"
     },
-    "stripe_account_id": {
-      "type": "string"
+    "peanut_points": {
+      "type": "number",
+      "default": 0,
+      "description": "Current Peanut Points balance (can change with activity)"
     },
-    "stripe_onboarding_complete": {
-      "type": "boolean",
-      "default": false
+    "lifetime_points": {
+      "type": "number",
+      "default": 0,
+      "description": "All-time accumulated points \u2014 used for level/rank calculation"
     },
-    "strikes": {
+    "peanut_level": {
+      "type": "number",
+      "default": 1,
+      "description": "Current fan level (1\u201310)"
+    },
+    "peanut_rank": {
+      "type": "string",
+      "default": "Rookie Fan",
+      "description": "Current fan rank label"
+    },
+    "trust_score": {
+      "type": "number",
+      "default": 50,
+      "description": "Trust score 0\u2013100, affects trust badges"
+    },
+    "trust_badges": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Earned trust badge keys e.g. trusted_seller, fast_fulfillment"
+    },
+    "achievements": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Unlocked achievement keys"
+    },
+    "referral_code": {
+      "type": "string",
+      "description": "Unique referral code for this user"
+    },
+    "referred_by": {
+      "type": "string",
+      "description": "Email of user who referred this user"
+    },
+    "total_purchases": {
       "type": "number",
       "default": 0
     },
-    "notification_new_message": {
-      "type": "boolean",
-      "default": true
+    "total_sales": {
+      "type": "number",
+      "default": 0
     },
-    "notification_sale": {
-      "type": "boolean",
-      "default": true
+    "total_instant_listings": {
+      "type": "number",
+      "default": 0
     },
-    "notification_price_drop": {
-      "type": "boolean",
-      "default": false
+    "seller_streak": {
+      "type": "number",
+      "default": 0,
+      "description": "Consecutive successful sales without disputes"
     },
-    "notif_listing_sold": {
-      "type": "boolean",
-      "default": true
-    },
-    "notif_transfer_updates": {
-      "type": "boolean",
-      "default": true
-    },
-    "notif_upgrade_alerts": {
-      "type": "boolean",
-      "default": true
-    },
-    "notif_nearby_events": {
-      "type": "boolean",
-      "default": false
-    },
-    "notif_fan_zone": {
-      "type": "boolean",
-      "default": false
-    },
-    "push_token": {
+    "points_last_updated": {
       "type": "string",
-      "description": "Device push token for FCM/APNs/Expo. Stored after user grants notification permission."
-    },
-    "push_token_updated_at": {
-      "type": "string",
-      "description": "ISO timestamp of when push_token was last set"
+      "description": "ISO timestamp of last points activity"
     }
-  },
-  "required": []
+  }
 }

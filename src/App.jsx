@@ -30,6 +30,7 @@ import PrivacyPolicy from '@/pages/PrivacyPolicy';
 import InstantListingsGuide from '@/pages/InstantListingsGuide';
 import SellerPayoutGuide from '@/pages/SellerPayoutGuide';
 import WhyPeanutGallery from '@/pages/WhyPeanutGallery';
+import Leaderboard from '@/pages/Leaderboard';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, checkAppState, isAuthenticated, user } = useAuth();
@@ -97,6 +98,7 @@ const AuthenticatedApp = () => {
             <Route path="/instant-listings" element={<InstantListingsGuide />} />
             <Route path="/seller-payout-guide" element={<SellerPayoutGuide />} />
             <Route path="/why-peanut-gallery" element={<WhyPeanutGallery />} />
+            <Route path="/leaderboard" element={<Leaderboard />} />
           </Route>
           <Route path="*" element={<PageNotFound />} />
         </Routes>

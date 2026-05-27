@@ -1,0 +1,55 @@
+{
+  "name": "PointsActivity",
+  "type": "object",
+  "properties": {
+    "user_email": {
+      "type": "string",
+      "description": "Email of the user who earned/lost points"
+    },
+    "action": {
+      "type": "string",
+      "enum": [
+        "purchase",
+        "first_purchase",
+        "sale_completed",
+        "instant_listing_verified",
+        "quick_buyer_confirm",
+        "quick_seller_fulfill",
+        "referral_success",
+        "live_event_activity",
+        "feedback_left",
+        "achievement_unlock",
+        "dispute_penalty",
+        "trust_bonus"
+      ],
+      "description": "Type of action that triggered this points event"
+    },
+    "points": {
+      "type": "number",
+      "description": "Points awarded (positive) or deducted (negative)"
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable description of the activity"
+    },
+    "reference_id": {
+      "type": "string",
+      "description": "ID of related entity (purchase_id, listing_id, etc.)"
+    },
+    "reference_type": {
+      "type": "string",
+      "enum": [
+        "purchase",
+        "listing",
+        "event",
+        "referral"
+      ],
+      "description": "Type of the related entity"
+    }
+  },
+  "required": [
+    "user_email",
+    "action",
+    "points"
+  ]
+}

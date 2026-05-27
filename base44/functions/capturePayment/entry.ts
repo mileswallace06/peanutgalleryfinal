@@ -1,6 +1,20 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import Stripe from 'npm:stripe@14.21.0';
 
+// Fire-and-forget points award helper — never throws
+async function awardPoints(base44, userEmail, action, referenceId, referenceType) {
+  try {
+    await base44.asServiceRole.functions.invoke('awardPoints', {
+      action,
+      reference_id: referenceId,
+      reference_type: referenceType,
+      target_email: userEmail,
+    });
+  } catch (err) {
+    console.error('[capturePayment] awardPoints failed for', userEmail, '|', err?.message);
+  }
+}
+
 // Fire-and-forget notification helper — never throws
 async function notify(base44, userEmail, title, body, type, purchaseId) {
   try {
@@ -83,19 +97,38 @@ Deno.serve(async (req) => {
     });
     await base44.asServiceRole.entities.Listing.update(purchase.listing_id, { status: 'sold' });
 
+    // Award points: seller sale completed + buyer purchase
+    awardPoints(base44, purchase.seller_email, 'sale_completed', purchase.id, 'purchase');
+    awardPoints(base44, purchase.buyer_email, 'purchase', purchase.id, 'purchase');
+
     // Notify seller: sale complete
     notify(base44, purchase.seller_email, 'Sale complete 💸', 'Your payout is now processing.', 'sale_complete', purchase.id);
 
     return Response.json({ status: 'completed', payment_captured: true, optimistic_id: optimistic_id });
   }
 
-  // ── Mid-flow: seller just confirmed transfer → notify buyer ───────────────
+  // ── Mid-flow: seller just confirmed transfer → notify buyer + award quick-fulfill points ──
   if (confirming_role === 'seller') {
     // Stamp the confirmation time for buyer reminder cadence
     await base44.asServiceRole.entities.Purchase.update(purchase.id, {
       seller_confirmed_at: new Date().toISOString(),
     });
+    // Quick fulfillment bonus: if seller confirms within 4 hours of purchase
+    const purchasedAt = new Date(purchase.created_date).getTime();
+    const hoursElapsed = (Date.now() - purchasedAt) / 3600000;
+    if (hoursElapsed <= 4) {
+      awardPoints(base44, purchase.seller_email, 'quick_seller_fulfill', purchase.id, 'purchase');
+    }
     notify(base44, purchase.buyer_email, 'Tickets sent 🚀', 'Check your ticket app or email, then confirm receipt.', 'tickets_sent', purchase.id);
+  }
+
+  // Quick buyer confirm bonus: if buyer confirms within 2 hours of seller sending
+  if (confirming_role === 'buyer' && purchase.seller_confirmed_at) {
+    const sentAt = new Date(purchase.seller_confirmed_at).getTime();
+    const hoursElapsed = (Date.now() - sentAt) / 3600000;
+    if (hoursElapsed <= 2) {
+      awardPoints(base44, purchase.buyer_email, 'quick_buyer_confirm', purchase.id, 'purchase');
+    }
   }
 
   return Response.json({
