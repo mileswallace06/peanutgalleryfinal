@@ -11,6 +11,7 @@ const POINT_VALUES = {
   referral_success:          100,
   live_event_activity:        20,
   feedback_left:               5,
+  achievement_unlock:          0,
   dispute_penalty:           -30,
   trust_bonus:                20,
 };
@@ -121,9 +122,9 @@ Deno.serve(async (req) => {
       return Response.json({ success: false, reason: 'duplicate_action' });
     }
 
-    // Determine base points
-    let pts = POINT_VALUES[action] ?? 0;
-    if (pts === 0 && action !== 'achievement_unlock') {
+    // Determine base points — undefined means unknown action, 0 is valid (achievement_unlock)
+    const pts = POINT_VALUES[action];
+    if (pts === undefined) {
       return Response.json({ error: `Unknown action: ${action}` }, { status: 400 });
     }
 
@@ -143,11 +144,11 @@ Deno.serve(async (req) => {
     };
     const description = customDesc || DEFAULT_DESCS[action] || action;
 
-    // Compute new totals
+    // Compute new totals — lifetime never decrements on penalties
     const currentPts = recipient.peanut_points || 0;
     const currentLifetime = recipient.lifetime_points || 0;
     const newPts = Math.max(0, currentPts + pts);
-    const newLifetime = pts > 0 ? currentLifetime + pts : currentLifetime; // lifetime never goes down
+    const newLifetime = pts > 0 ? currentLifetime + pts : currentLifetime;
 
     // Check for achievement unlocks
     const achievements = [...(recipient.achievements || [])];

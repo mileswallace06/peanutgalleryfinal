@@ -93,5 +93,6 @@
       "type": "string",
       "description": "ISO timestamp of last points activity"
     }
-  }
+  },
+  "required": []
 }
