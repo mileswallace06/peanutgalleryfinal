@@ -33,7 +33,7 @@ const COMPARE = [
     feature: 'Instant Transfer option',
     pg: true,
     them: false,
-    detail: 'PG holds the ticket before listing — no waiting on the seller after purchase.',
+    detail: 'Peanut Gallery holds the ticket before listing — no waiting on the seller after purchase.',
   },
   {
     feature: 'No last-minute seller ghosting',
@@ -45,7 +45,7 @@ const COMPARE = [
     feature: 'Anti-scalper focused',
     pg: true,
     them: false,
-    detail: 'PG is built for real fans who have real tickets. Not bulk-buyback scalper bots.',
+    detail: 'Peanut Gallery is built for real fans who have real tickets. Not bulk-buyback scalper bots.',
   },
   {
     feature: 'Self-service dispute resolution',
@@ -78,7 +78,7 @@ const FEATURES = [
     icon: <Zap className="w-5 h-5" />,
     color: PURPLE,
     title: 'Instant Transfer',
-    desc: 'With Instant listings, the ticket is already in PG\'s hands before the listing goes live. Buyers get guaranteed instant delivery.',
+    desc: 'With Instant listings, the ticket is already in Peanut Gallery\'s hands before the listing goes live. Buyers get guaranteed instant delivery.',
   },
   {
     icon: <Users className="w-5 h-5" />,
@@ -104,11 +104,11 @@ const FEATURES = [
 const FAQS = [
   { q: 'What happens if the ticket turns out to be fake?', a: 'All listings go through a verification process. For Instant listings, we physically hold the ticket. If a ticket is ever found to be fraudulent, the buyer receives a full refund and the seller\'s account is permanently suspended. Escrow means nobody gets paid until delivery is confirmed.' },
   { q: 'Can I trust a seller I\'ve never heard of?', a: 'You don\'t have to. Our escrow system means you pay upfront but the seller doesn\'t receive a cent until you confirm the ticket was delivered. If anything goes wrong, you can dispute — and we hold the funds until it\'s resolved.' },
-  { q: 'Is Peanut Gallery for season ticket holders?', a: 'Yes — and it\'s ideal. Season ticket holders often have games or shows they can\'t attend. PG gives them a safe, fan-friendly way to sell individual games without worrying about getting ghosted by buyers or not getting paid.' },
-  { q: 'How does PG prevent scalping?', a: 'We can\'t prevent all resale, but we\'re not built for scalpers. There are no bulk-listing tools, no bot-friendly APIs, and the verification process creates friction for anyone trying to list fake or duplicate inventory.' },
+  { q: 'Is Peanut Gallery for season ticket holders?', a: 'Yes — and it\'s ideal. Season ticket holders often have games or shows they can\'t attend. Peanut Gallery gives them a safe, fan-friendly way to sell individual games without worrying about getting ghosted by buyers or not getting paid.' },
+  { q: 'How does Peanut Gallery prevent scalping?', a: 'We can\'t prevent all resale, but we\'re not built for scalpers. There are no bulk-listing tools, no bot-friendly APIs, and the verification process creates friction for anyone trying to list fake or duplicate inventory.' },
   { q: 'What if the seller cancels after I pay?', a: 'Funds are in escrow — the seller can\'t take them. If a seller backs out after a purchase, the buyer receives a full refund and the seller is penalized or removed from the platform.' },
-  { q: 'Does PG take a big cut?', a: 'Just 5% (minimum $1). That\'s it. No listing fee, no withdrawal fee, no payment processing fee on top. Compare that to StubHub\'s 15–25% combined buyer/seller fees.' },
-  { q: 'Is my payment info secure?', a: 'Yes. All payments are processed by Stripe, which is PCI DSS Level 1 certified — the highest level of card security. PG never stores your card number or banking details.' },
+  { q: 'Does Peanut Gallery take a big cut?', a: 'Just 5% (minimum $1). That\'s it. No listing fee, no withdrawal fee, no payment processing fee on top. Compare that to StubHub\'s 15–25% combined buyer/seller fees.' },
+  { q: 'Is my payment info secure?', a: 'Yes. All payments are processed by Stripe, which is PCI DSS Level 1 certified — the highest level of card security. Peanut Gallery never stores your card number or banking details.' },
   { q: 'What\'s the Fan Zone?', a: 'The Fan Zone is a social feed for fans — share seat upgrades, show off your row, and connect with other fans at the same events. It\'s the community layer on top of the marketplace.' },
 ];
 
@@ -134,7 +134,7 @@ export default function WhyPeanutGallery() {
           Why Peanut<br />Gallery?
         </h1>
         <p className="text-sm text-muted-foreground leading-relaxed max-w-sm">
-          The resale market is broken. Fans get burned every day by fake tickets, ghosted sellers, and opaque fees. We built PG to fix that.
+          The resale market is broken. Fans get burned every day by fake tickets, ghosted sellers, and opaque fees. We built Peanut Gallery to fix that.
         </p>
       </div>
 
@@ -161,7 +161,7 @@ export default function WhyPeanutGallery() {
 
       {/* How PG is different */}
       <div className="mb-10">
-        <SectionLabel color={GREEN}>How PG Is Different</SectionLabel>
+        <SectionLabel color={GREEN}>How Peanut Gallery Is Different</SectionLabel>
         <div className="space-y-3">
           {FEATURES.map((f, i) => (
             <div key={i} className="flex items-start gap-4 px-4 py-4 rounded-2xl"
@@ -181,13 +181,13 @@ export default function WhyPeanutGallery() {
 
       {/* Comparison */}
       <div className="mb-10">
-        <SectionLabel color={CYAN}>PG vs. Traditional Resale</SectionLabel>
+        <SectionLabel color={CYAN}>Peanut Gallery vs. Traditional Resale</SectionLabel>
         <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid hsl(var(--border))' }}>
           {/* Header */}
           <div className="grid grid-cols-3 px-4 py-3 text-xs font-black"
             style={{ background: 'hsl(var(--muted))', borderBottom: '1px solid hsl(var(--border))' }}>
             <div className="text-muted-foreground">Feature</div>
-            <div className="text-center" style={{ color: GREEN }}>🥜 PG</div>
+            <div className="text-center" style={{ color: GREEN }}>🥜 Peanut Gallery</div>
             <div className="text-center text-muted-foreground">Others</div>
           </div>
           {COMPARE.map((row, i) => (
