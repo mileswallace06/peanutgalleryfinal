@@ -116,6 +116,16 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
         </p>
       </div>
 
+      {/* Instant transfer notice */}
+      {listing.listing_mode === 'instant' && listing.custody_status === 'verified' && (
+        <div className="flex items-start gap-3 rounded-2xl p-3" style={{ background: 'rgba(0,200,255,0.08)', border: '1px solid rgba(0,200,255,0.3)' }}>
+          <span className="text-lg flex-shrink-0">⚡</span>
+          <div className="text-xs" style={{ color: 'rgba(200,240,255,0.9)' }}>
+            <strong style={{ color: '#00C8FF' }}>Instant Transfer:</strong> Peanut Gallery already has this ticket ready. After purchase, we'll transfer it to you directly — no waiting on the seller.
+          </div>
+        </div>
+      )}
+
       {/* Escrow notice */}
       <div className="flex items-start gap-3 rounded-2xl p-3" style={{ background: 'rgba(0,255,135,0.08)', border: '1px solid rgba(0,255,135,0.25)' }}>
         <Shield className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: '#00FF87' }} />

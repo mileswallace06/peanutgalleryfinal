@@ -4,6 +4,7 @@ import { Shield, Database, CheckCircle, XCircle, RefreshCw, Lock, AlertTriangle,
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import EventTimingDebug from '@/components/admin/EventTimingDebug';
+import InstantListingsQueue from '@/components/admin/InstantListingsQueue';
 import { isAdmin } from '@/lib/isAdmin';
 
 const ADMIN_PASSWORD = 'peanut2026';
@@ -363,6 +364,9 @@ export default function AdminMode() {
           </div>
         )}
       </div>
+
+      {/* Instant Listings Queue */}
+      <InstantListingsQueue listings={listings} user={user} onRefresh={loadData} />
 
       {/* Proof Review */}
       <div className="bg-card border border-border rounded-2xl p-5 mb-6">

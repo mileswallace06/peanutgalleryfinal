@@ -612,7 +612,7 @@ export default function PurchaseSuccess() {
       {isPending && <ProgressBar purchase={purchase} />}
 
       {/* Role-specific panels */}
-      {isPending && isSeller && (
+      {isPending && isSeller && listing?.listing_mode !== 'instant' && (
         <SellerPanel
           purchase={purchase}
           onConfirm={handleSellerConfirm}
@@ -621,7 +621,55 @@ export default function PurchaseSuccess() {
           setError={setError}
         />
       )}
-      {isPending && isBuyer && (
+      {isPending && isSeller && listing?.listing_mode === 'instant' && (
+        <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(0,200,255,0.3)', background: 'rgba(0,200,255,0.06)' }}>
+          <div className="px-5 pt-6 pb-5 text-center">
+            <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3"
+              style={{ background: 'linear-gradient(135deg, #00C8FF33, #BF5FFF33)', border: '2px solid rgba(0,200,255,0.4)' }}>
+              <span className="text-2xl">⚡</span>
+            </div>
+            <h2 className="font-display text-2xl text-foreground mb-1">Instant Listing Sold</h2>
+            <p className="text-sm text-muted-foreground">
+              Peanut Gallery is managing the ticket transfer to the buyer. You don't need to do anything — we'll handle it.
+            </p>
+          </div>
+          <div className="px-5 pb-5 space-y-3 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold justify-center"
+              style={{ background: 'rgba(0,200,255,0.12)', border: '1px solid rgba(0,200,255,0.3)', color: '#00C8FF' }}>
+              🎟 PG-managed transfer in progress
+            </div>
+            <p className="text-center text-xs">Your payout will be released once the buyer confirms receipt.</p>
+          </div>
+        </div>
+      )}
+      {isPending && isBuyer && listing?.listing_mode === 'instant' && !purchase.seller_confirmed && (
+        <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(0,200,255,0.25)', background: 'rgba(0,200,255,0.05)' }}>
+          <div className="px-5 pt-6 pb-5 text-center" style={{ borderBottom: '1px solid rgba(0,200,255,0.15)' }}>
+            <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3"
+              style={{ background: 'linear-gradient(135deg, #00FF8733, #00C8FF33)', border: '2px solid rgba(0,200,255,0.4)' }}>
+              <span className="text-2xl">⚡</span>
+            </div>
+            <h2 className="font-display text-2xl text-foreground mb-1">You're In 🎉</h2>
+            <p className="text-sm text-muted-foreground">Peanut Gallery already has this ticket and is transferring it to you now. Check your email shortly.</p>
+          </div>
+          <div className="px-5 py-4 space-y-3">
+            <div className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold"
+              style={{ background: 'rgba(0,200,255,0.12)', border: '1px solid rgba(0,200,255,0.3)', color: '#00C8FF' }}>
+              <Clock className="w-4 h-4 animate-pulse" /> PG-managed transfer in progress
+            </div>
+            <div className="rounded-xl p-3 text-xs text-muted-foreground text-center"
+              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
+              Check your email — the ticket transfer invite will arrive from Peanut Gallery.
+            </div>
+            <button onClick={handleCancel} disabled={actionLoading}
+              className="w-full py-2.5 rounded-xl text-sm text-muted-foreground transition-colors disabled:opacity-60"
+              style={{ border: '1px solid rgba(255,255,255,0.12)' }}>
+              Cancel Purchase & Refund
+            </button>
+          </div>
+        </div>
+      )}
+      {isPending && isBuyer && !(listing?.listing_mode === 'instant' && !purchase.seller_confirmed) && (
         <BuyerPanel
           purchase={purchase}
           onConfirm={handleConfirm}

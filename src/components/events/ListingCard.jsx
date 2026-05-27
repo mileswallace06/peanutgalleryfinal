@@ -32,6 +32,7 @@ function getSignals(listing) {
 export default function ListingCard({ listing, onUpgrade, isCheapest, mode = 'upgrade' }) {
   const isDemo = listing.notes?.startsWith('[DEMO]');
   const isVerified = !!listing.proof_url && !isDemo;
+  const isInstant = listing.listing_mode === 'instant' && listing.custody_status === 'verified';
   const tier = TIER_STYLES[listing.tier];
   const savings = listing.original_price
     ? Math.round(((listing.original_price - listing.asking_price) / listing.original_price) * 100)
@@ -89,6 +90,12 @@ export default function ListingCard({ listing, onUpgrade, isCheapest, mode = 'up
             <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full"
               style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.08)' }}>
               Available
+            </span>
+          )}
+          {isInstant && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full"
+              style={{ background: 'rgba(0,200,255,0.12)', color: '#00C8FF', border: '1px solid rgba(0,200,255,0.3)' }}>
+              ⚡ Instant Transfer
             </span>
           )}
           {demandLabel && (

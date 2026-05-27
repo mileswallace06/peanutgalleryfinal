@@ -79,9 +79,46 @@
         "pending_transfer",
         "sold",
         "cancelled",
-        "expired"
+        "expired",
+        "pending_verification"
       ],
       "default": "active"
+    },
+    "listing_mode": {
+      "type": "string",
+      "enum": [
+        "standard",
+        "instant"
+      ],
+      "default": "standard",
+      "description": "standard = seller transfers after purchase; instant = PG holds ticket before listing goes live"
+    },
+    "custody_status": {
+      "type": "string",
+      "enum": [
+        "none",
+        "pending_pg_verification",
+        "verified",
+        "rejected"
+      ],
+      "default": "none",
+      "description": "Tracks whether PG has verified custody of the ticket for instant listings"
+    },
+    "pg_transfer_proof_url": {
+      "type": "string",
+      "description": "Proof seller transferred ticket to PG (instant listings)"
+    },
+    "pg_transfer_notes": {
+      "type": "string",
+      "description": "Seller notes on the PG transfer"
+    },
+    "pg_fulfilled_at": {
+      "type": "string",
+      "description": "ISO timestamp when PG fulfilled the transfer to buyer"
+    },
+    "pg_fulfilled_by": {
+      "type": "string",
+      "description": "Admin email who marked fulfillment"
     }
   },
   "required": [
