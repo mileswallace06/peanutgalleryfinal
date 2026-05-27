@@ -1,5 +1,5 @@
 # Peanut Gallery — Stability Notes
-_Last updated: 2026-05-18_
+_Last updated: 2026-05-27_
 
 ---
 
@@ -99,6 +99,35 @@ _Last updated: 2026-05-18_
 
 ---
 
+## ✅ Instant Listings MVP — Verified _(2026-05-27)_
+
+> **Instant Listing flow is stable and verified. Do not modify listing mode / custody logic without full regression testing.**
+
+### What Was Built
+- Sellers can choose **Instant Transfer** mode at listing time, pre-transferring the ticket to PG custody before the listing goes live
+- Admin verifies custody via **Instant Listings Queue** in AdminMode before the listing appears to buyers
+- Buyers see an ⚡ Instant Transfer badge and PG-managed fulfillment messaging throughout checkout and PurchaseSuccess
+
+### Verified Data Flow
+| Stage | Fields Set |
+|---|---|
+| Seller submits instant listing | `listing_mode: 'instant'`, `custody_status: 'pending_pg_verification'`, `status: 'pending_verification'`, `proof_status: 'pending_review'` |
+| Admin verifies custody | `custody_status: 'verified'`, `status: 'active'`, `proof_status: 'approved'` |
+| Admin rejects custody | `custody_status: 'rejected'`, `status: 'cancelled'`, `proof_status: 'rejected'` |
+| Admin marks fulfilled | `pg_fulfilled_at`, `pg_fulfilled_by`, Purchase `seller_confirmed: true` |
+
+### Verified Behaviors
+- Instant listings with `pending_verification` status are invisible to buyers in both EventDetail and EventDetailUpgrade ✅
+- Rejected instant listings are invisible to buyers (`status: 'cancelled'`) ✅
+- `⚡ Instant Transfer` badge only shows when `listing_mode === 'instant' && custody_status === 'verified'` ✅
+- PurchaseDialog Instant Transfer notice conditioned on verified custody only ✅
+- Seller sees PG-managed panel (no manual transfer flow) for instant purchases ✅
+- Buyer sees PG fulfillment status instead of "waiting on seller" for instant purchases ✅
+- Standard listing and checkout flow is completely unchanged ✅
+- `capturePayment` function is untouched — dual-confirm gate and Stripe Connect split unaffected ✅
+
+---
+
 ## 🔒 Do Not Touch Without Clear Reason
 
 | File/Function | Why Protected |
@@ -112,6 +141,9 @@ _Last updated: 2026-05-18_
 | Listing `status` enum values | `active → pending_transfer → sold/cancelled` — order matters throughout |
 | Purchase `transfer_status` enum values | `pending_transfer → completed/expired/disputed` — drives all UI states |
 | Dispute logic in `capturePayment` / `cancelPurchase` | Verified with real Stripe test PIs — do not modify without full regression testing |
+| `Listing.listing_mode` + `custody_status` fields | Drive instant listing visibility, badge display, and PurchaseSuccess branching — do not rename or repurpose |
+| `components/admin/InstantListingsQueue.jsx` | Custody verification + fulfillment actions — directly mutates listing/purchase state |
+| Instant listing branching in `pages/PurchaseSuccess.jsx` | `listing_mode === 'instant'` gates seller panel suppression and buyer PG-status view |
 
 ---
 
