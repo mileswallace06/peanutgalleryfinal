@@ -5,6 +5,8 @@ import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import EventTimingDebug from '@/components/admin/EventTimingDebug';
 import InstantFulfillmentCenter from '@/components/admin/InstantFulfillmentCenter';
+import FeeSimulator from '@/components/admin/FeeSimulator';
+import TransactionAnalytics from '@/components/admin/TransactionAnalytics';
 import { isAdmin } from '@/lib/isAdmin';
 
 const ADMIN_PASSWORD = 'peanut2026';
@@ -520,6 +522,12 @@ export default function AdminMode() {
           </div>
         )}
       </div>
+
+      {/* Fee Simulator */}
+      <FeeSimulator />
+
+      {/* Transaction Economics */}
+      <TransactionAnalytics purchases={purchases} />
 
       {/* Event Timing Debug */}
       <EventTimingDebug />
