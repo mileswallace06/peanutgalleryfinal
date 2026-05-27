@@ -204,8 +204,8 @@ const SECTIONS = [
     content: (
       <div className="text-muted-foreground">
         <p>Peanut Gallery<br />
-          <a href="mailto:support@peanutgallery.store" className="underline" style={{ color: '#BF5FFF' }}>
-            support@peanutgallery.store
+          <a href="mailto:experience@peanutgallery.store" className="underline" style={{ color: '#BF5FFF' }}>
+            experience@peanutgallery.store
           </a>
         </p>
       </div>
