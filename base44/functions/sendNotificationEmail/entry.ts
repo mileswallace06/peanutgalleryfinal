@@ -14,7 +14,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
 const FROM_NAME = 'Peanut Gallery';
-const SUPPORT_EMAIL = 'support@peanutgallery.app'; // update to real support inbox
+const SUPPORT_EMAIL = 'experience@peanutgallery.com';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);

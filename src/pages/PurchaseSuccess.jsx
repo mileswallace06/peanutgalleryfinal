@@ -512,7 +512,7 @@ export default function PurchaseSuccess() {
 
     // Notify support — fire-and-forget, never block the dispute flow
     base44.functions.invoke('sendNotificationEmail', {
-      to: 'support@peanutgallery.app',
+      to: 'experience@peanutgallery.com',
       subject: `⚠️ Dispute opened — Purchase ${purchase.id}`,
       body: `A dispute has been opened on Peanut Gallery.\n\nPurchase ID: ${purchase.id}\nBuyer: ${purchase.buyer_email}${purchase.buyer_name ? ` (${purchase.buyer_name})` : ''}\nSeller: ${purchase.seller_email}\nAmount: $${purchase.amount?.toFixed(2)}\nReason: ${reason}\n\nReview in the admin panel and resolve promptly.\n\n— Peanut Gallery`,
     }).catch(err => console.error('[dispute] email notify failed:', err?.message));
