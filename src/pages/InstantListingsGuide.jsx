@@ -173,6 +173,95 @@ export default function InstantListingsGuide() {
         </p>
       </div>
 
+      {/* Recommended Listing Timeline */}
+      <div className="mb-10">
+        <SectionLabel color="#FFE600">When should you list?</SectionLabel>
+        <p className="text-sm text-muted-foreground leading-relaxed mb-5">
+          The earlier you list, the better your chances of selling. Here's what we've seen from real sales data:
+        </p>
+
+        <div className="space-y-3">
+          {[
+            {
+              window: '7+ days before',
+              badge: '🟢 Best',
+              badgeColor: GREEN,
+              badgeBg: 'rgba(0,255,135,0.12)',
+              title: 'Maximum chance of a sale',
+              desc: 'Buyers have time to browse, decide, and plan. You get full exposure to everyone looking at that event. This is the sweet spot.',
+              tip: 'List the moment you know you\'re not going.',
+            },
+            {
+              window: '2–6 days before',
+              badge: '🟡 Good',
+              badgeColor: '#FFE600',
+              badgeBg: 'rgba(255,230,0,0.1)',
+              title: 'Still a solid window',
+              desc: 'Plenty of buyers are still shopping. Instant listings especially do well here — buyers want reliability as the event gets closer.',
+              tip: 'Price competitively to stand out.',
+            },
+            {
+              window: 'Day before',
+              badge: '🟠 Getting tight',
+              badgeColor: '#FF8C00',
+              badgeBg: 'rgba(255,140,0,0.1)',
+              title: 'Last-minute demand spikes',
+              desc: 'Demand actually jumps the day before — but so does competition. Instant Transfer listings have a big advantage here since buyers don\'t want to risk a slow seller response.',
+              tip: 'Instant Transfer is especially valuable here.',
+            },
+            {
+              window: 'Day of the event',
+              badge: '🔴 High urgency',
+              badgeColor: '#FF2D78',
+              badgeBg: 'rgba(255,45,120,0.1)',
+              title: 'Last chance — but it happens',
+              desc: 'Day-of sales do happen, but the window is short. List as early in the day as possible. Standard listings are risky here — buyers want Instant Transfer only.',
+              tip: 'Instant Transfer only. List by morning.',
+            },
+            {
+              window: 'After the event starts',
+              badge: '⛔ Too late',
+              badgeColor: 'hsl(var(--muted-foreground))',
+              badgeBg: 'hsl(var(--muted))',
+              title: 'Unsellable',
+              desc: 'Once the event has started, ticket demand drops to zero. Don\'t wait — list the moment you know.',
+              tip: null,
+            },
+          ].map((row, i) => (
+            <div key={i} className="rounded-2xl p-4"
+              style={{ background: 'hsl(var(--card))', border: `1px solid ${row.badgeColor}25` }}>
+              <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
+                <span className="font-black text-xs" style={{ color: 'hsl(var(--muted-foreground))' }}>{row.window}</span>
+                <span className="text-[10px] font-black px-2.5 py-1 rounded-full"
+                  style={{ background: row.badgeBg, color: row.badgeColor, border: `1px solid ${row.badgeColor}30` }}>
+                  {row.badge}
+                </span>
+              </div>
+              <p className="font-bold text-sm text-foreground mb-1">{row.title}</p>
+              <p className="text-xs text-muted-foreground leading-relaxed">{row.desc}</p>
+              {row.tip && (
+                <div className="mt-2.5 px-3 py-2 rounded-xl text-xs font-semibold"
+                  style={{ background: `${row.badgeColor}10`, border: `1px solid ${row.badgeColor}25`, color: row.badgeColor }}>
+                  💡 {row.tip}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* CTA nudge */}
+        <div className="mt-5 rounded-2xl p-4 text-center"
+          style={{ background: 'rgba(0,200,255,0.06)', border: '1px solid rgba(0,200,255,0.2)' }}>
+          <p className="font-black text-sm text-foreground mb-1">📅 Just found out you can't make it?</p>
+          <p className="text-xs text-muted-foreground mb-3 leading-relaxed">List right now — every hour you wait is a potential buyer you miss.</p>
+          <Link to="/create-listing"
+            className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full font-black text-xs"
+            style={{ background: `linear-gradient(135deg, ${CYAN}, ${GREEN})`, color: '#0D0B14' }}>
+            <Zap className="w-3.5 h-3.5" /> List My Tickets Now
+          </Link>
+        </div>
+      </div>
+
       {/* FAQ */}
       <div className="mb-10">
         <SectionLabel color={CYAN}>Frequently Asked Questions</SectionLabel>
