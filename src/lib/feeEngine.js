@@ -18,16 +18,16 @@ export const STRIPE_ASSUMPTIONS = {
 // ── ACTIVE FEE MODEL — single switch to change live pricing ─────────────────
 // Change this string to instantly switch the checkout fee model.
 // Options: any key in FEE_MODELS below.
-// Current: 'current_5pct' (live production model)
-// Candidate: 'pct5_min1'  (5% + $1 minimum — pending approval)
-export const ACTIVE_FEE_MODEL_ID = 'current_5pct';
+// Activated 2026-05-27: 5% + $1 minimum (approved beta pricing)
+// Rollback: change back to 'current_5pct'
+export const ACTIVE_FEE_MODEL_ID = 'pct5_min1';
 
 // ── Minimum listing price configuration ─────────────────────────────────────
 // Set to null to disable. Set to a number to enforce a floor.
 // This is configurable in admin — not enforced by default.
 export const MIN_LISTING_PRICE_CONFIG = {
-  enabled: false,
-  threshold: 10, // dollars — default proposal
+  enabled: true,
+  threshold: 10, // dollars — enforced 2026-05-27
 };
 
 // ── Fee Models ───────────────────────────────────────────────────────────────

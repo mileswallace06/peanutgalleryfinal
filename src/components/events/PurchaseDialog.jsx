@@ -99,25 +99,27 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
       {/* Order summary */}
       <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
         <div className="font-semibold text-sm text-foreground mb-3">Order Summary</div>
-        <div className="flex justify-between text-sm mb-1.5">
-          <span className="text-muted-foreground">Section {listing.section} · Row {listing.row} × {listing.quantity || 1}</span>
-          <span className="text-foreground">${subtotal.toFixed(2)}</span>
-        </div>
-        <div className="flex justify-between text-sm mb-1.5">
-          <span className="text-muted-foreground flex items-center gap-1">
-            🔒 Service fee
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(191,95,255,0.12)', color: '#BF5FFF' }}>
-              {FEE_MODELS[ACTIVE_FEE_MODEL_ID]?.shortLabel}
+        <div className="space-y-1.5 text-sm">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">{estimatedBreakdown.subtotalLabel}</span>
+            <span className="text-foreground">${(feeBreakdown?.subtotal ?? estimatedBreakdown.subtotal).toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground flex items-center gap-1.5">
+              Service fee
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(191,95,255,0.12)', color: '#BF5FFF' }}>
+                {FEE_MODELS[ACTIVE_FEE_MODEL_ID]?.shortLabel}
+              </span>
             </span>
-          </span>
-          <span className="text-foreground">${(feeBreakdown?.platformFee ?? estimatedFee).toFixed(2)}</span>
+            <span className="text-foreground">${(feeBreakdown?.platformFee ?? estimatedBreakdown.fee).toFixed(2)}</span>
+          </div>
         </div>
         <div className="mt-3 pt-2.5 flex justify-between font-black text-base" style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
           <span className="text-foreground">Total</span>
           <span style={{ color: '#00FF87' }}>${total.toFixed(2)}</span>
         </div>
         <p className="text-[10px] text-muted-foreground mt-1.5 leading-relaxed">
-          Fee covers escrow protection, fraud prevention & platform support.
+          Payment held in escrow until you confirm ticket receipt.
         </p>
       </div>
 

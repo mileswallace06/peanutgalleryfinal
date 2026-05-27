@@ -8,6 +8,7 @@ import { getEventLiveStatus } from '@/lib/eventTiming';
 import { fetchTMEvents } from '@/lib/tmCache';
 import { isAdmin as checkIsAdmin } from '@/lib/isAdmin';
 import NotificationPermissionPrompt from '@/components/NotificationPermissionPrompt';
+import { MIN_LISTING_PRICE_CONFIG, formatFeeBreakdown, ACTIVE_FEE_MODEL_ID, FEE_MODELS } from '@/lib/feeEngine';
 
 const STEPS = ['Event', 'Seats', 'Price', 'Done'];
 
@@ -204,6 +205,18 @@ export default function CreateListing() {
 
   const handleSubmit = async () => {
     setSubmitting(true);
+    // Rollout logging — fee model + listing economics
+    base44.analytics.track({
+      eventName: 'listing_submitted',
+      properties: {
+        fee_model: ACTIVE_FEE_MODEL_ID,
+        asking_price: parseFloat(form.asking_price) || 0,
+        quantity: parseInt(form.quantity) || 1,
+        listing_mode: listingMode,
+        buyer_total: feePreview?.total || 0,
+        pg_fee: feePreview?.fee || 0,
+      },
+    });
 
     if (listingMode === 'instant') {
       // Instant listing: create directly with pending_pg_verification status
@@ -388,8 +401,14 @@ export default function CreateListing() {
 
   const canNext0 = !!form.event_id;
   const canNext1 = !!form.section && !!form.row;
-  const canSubmit = !!form.asking_price && parseFloat(form.asking_price) > 0
+  const priceVal = parseFloat(form.asking_price) || 0;
+  const minPrice = MIN_LISTING_PRICE_CONFIG.enabled ? MIN_LISTING_PRICE_CONFIG.threshold : 0;
+  const priceTooLow = MIN_LISTING_PRICE_CONFIG.enabled && priceVal > 0 && priceVal < minPrice;
+  const canSubmit = !!form.asking_price && priceVal >= (minPrice || 1)
     && (listingMode === 'standard' || pgTransferProofUrl || pgTransferNotes.trim());
+
+  // Fee preview for step 2
+  const feePreview = priceVal > 0 ? formatFeeBreakdown(priceVal, parseInt(form.quantity) || 1) : null;
 
   return (
     <div className="max-w-lg mx-auto px-4 py-8" style={{ paddingTop: 'calc(2rem + env(safe-area-inset-top))', paddingBottom: 'calc(7rem + env(safe-area-inset-bottom))' }}>
@@ -785,6 +804,30 @@ export default function CreateListing() {
                 }}
               />
             </div>
+            {priceTooLow && (
+              <div className="mt-2 flex items-start gap-2 px-3 py-2.5 rounded-xl text-xs font-medium"
+                style={{ background: 'rgba(255,45,120,0.08)', border: '1px solid rgba(255,45,120,0.25)', color: '#FF2D78' }}>
+                <span className="flex-shrink-0 mt-0.5">🚫</span>
+                Listings must be at least ${minPrice} to ensure secure transfers and payment processing.
+              </div>
+            )}
+            {feePreview && !priceTooLow && (
+              <div className="mt-2 px-3 py-2.5 rounded-xl text-xs space-y-1"
+                style={{ background: 'rgba(0,255,135,0.05)', border: '1px solid rgba(0,255,135,0.15)' }}>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>{feePreview.subtotalLabel}</span>
+                  <span>${feePreview.subtotal.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Service fee ({FEE_MODELS[ACTIVE_FEE_MODEL_ID]?.shortLabel})</span>
+                  <span>${feePreview.fee.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between font-bold pt-1 border-t" style={{ borderColor: 'rgba(0,255,135,0.15)', color: '#00FF87' }}>
+                  <span>Buyer pays</span>
+                  <span>${feePreview.total.toFixed(2)}</span>
+                </div>
+              </div>
+            )}
             <p className="text-[11px] text-muted-foreground mt-1.5">Buyers see the total at checkout.</p>
           </div>
 
