@@ -44,6 +44,12 @@ const ACTION_META = {
   repeated_cancellation:       { emoji: '⚠️', label: 'Repeated cancellation' },
   abusive_behavior:            { emoji: '🚫', label: 'Abusive behavior' },
 
+  // Seat Donations
+  seat_donation_created:       { emoji: '🥜', label: 'Donated seats to the community' },
+  donation_accepted:           { emoji: '💜', label: 'Donation was accepted' },
+  live_event_donation:         { emoji: '⚡', label: 'Live event donation bonus' },
+  donation_received:           { emoji: '🎉', label: 'Received donated seats' },
+
   // Special
   achievement_unlock:          { emoji: '🏆', label: 'Achievement unlocked' },
   trust_bonus:                 { emoji: '🛡️', label: 'Trust milestone' },

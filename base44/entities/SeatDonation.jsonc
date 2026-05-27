@@ -1,0 +1,95 @@
+{
+  "name": "SeatDonation",
+  "type": "object",
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "description": "FK to Event"
+    },
+    "event_title": {
+      "type": "string",
+      "description": "Cached event title"
+    },
+    "event_venue": {
+      "type": "string"
+    },
+    "event_city": {
+      "type": "string"
+    },
+    "donor_email": {
+      "type": "string"
+    },
+    "donor_name": {
+      "type": "string"
+    },
+    "is_anonymous": {
+      "type": "boolean",
+      "default": false
+    },
+    "donor_message": {
+      "type": "string",
+      "description": "Optional message to recipient"
+    },
+    "section": {
+      "type": "string"
+    },
+    "row": {
+      "type": "string"
+    },
+    "seats": {
+      "type": "string",
+      "description": "Comma-separated seat numbers or description"
+    },
+    "quantity": {
+      "type": "number",
+      "default": 1
+    },
+    "donation_status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "drawn",
+        "accepted",
+        "declined_rerolling",
+        "expired",
+        "completed"
+      ],
+      "default": "active",
+      "description": "Current state of the donation"
+    },
+    "winner_email": {
+      "type": "string"
+    },
+    "winner_name": {
+      "type": "string"
+    },
+    "drawn_at": {
+      "type": "string",
+      "description": "ISO timestamp when winner was drawn"
+    },
+    "accepted_at": {
+      "type": "string"
+    },
+    "expires_at": {
+      "type": "string",
+      "description": "ISO \u2014 donation expires if unclaimed"
+    },
+    "reroll_count": {
+      "type": "number",
+      "default": 0,
+      "description": "How many times re-rolled after decline"
+    },
+    "source_purchase_id": {
+      "type": "string",
+      "description": "Purchase ID that triggered this donation"
+    },
+    "source_listing_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "event_id",
+    "donor_email",
+    "section"
+  ]
+}

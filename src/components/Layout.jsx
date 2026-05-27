@@ -5,6 +5,7 @@ import { MapPin, Zap, Tag, Flame, User } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 import Onboarding from '@/components/Onboarding';
 import { useAuth } from '@/lib/AuthContext';
+import DonationWinNotification from '@/components/donations/DonationWinNotification';
 
 /**
  * Once a tab has been activated, keep its Outlet mounted permanently.
@@ -80,6 +81,8 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen bg-background font-sans dark:rave-bg">
+      {/* Global donation win notification — polls quietly in background */}
+      {user?.email && <DonationWinNotification userEmail={user.email} />}
       {!user && (
         <div className="fixed right-4 z-[99]" style={{ top: 'calc(1rem + env(safe-area-inset-top))' }}>
           <button

@@ -3,8 +3,7 @@
   "type": "object",
   "properties": {
     "user_email": {
-      "type": "string",
-      "description": "Email of the user who earned/lost points"
+      "type": "string"
     },
     "action": {
       "type": "string",
@@ -32,6 +31,10 @@
         "referral_signup",
         "referral_first_transaction",
         "referral_verified_seller",
+        "seat_donation_created",
+        "donation_accepted",
+        "live_event_donation",
+        "donation_received",
         "failed_transfer",
         "confirmed_fraud",
         "seller_dispute",
@@ -39,20 +42,16 @@
         "abusive_behavior",
         "achievement_unlock",
         "trust_bonus"
-      ],
-      "description": "Type of action that triggered this points event"
+      ]
     },
     "points": {
-      "type": "number",
-      "description": "Points awarded (positive) or deducted (negative)"
+      "type": "number"
     },
     "description": {
-      "type": "string",
-      "description": "Human-readable description of the activity"
+      "type": "string"
     },
     "reference_id": {
-      "type": "string",
-      "description": "ID of related entity (purchase_id, listing_id, etc.)"
+      "type": "string"
     },
     "reference_type": {
       "type": "string",
@@ -64,22 +63,19 @@
         "profile",
         "feedback",
         "post",
-        "bug_report"
-      ],
-      "description": "Type of the related entity"
+        "bug_report",
+        "donation"
+      ]
     },
     "source": {
-      "type": "string",
-      "description": "System component that triggered this event (e.g. capturePayment, awardPoints)"
+      "type": "string"
     },
     "is_reversal": {
       "type": "boolean",
-      "default": false,
-      "description": "True if this entry reverses a prior award"
+      "default": false
     },
     "metadata": {
-      "type": "object",
-      "description": "Optional extra context (e.g. transfer time, dispute reason)"
+      "type": "object"
     }
   },
   "required": [

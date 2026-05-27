@@ -49,6 +49,13 @@ const POINT_VALUES = {
   referral_first_transaction:    150,
   referral_verified_seller:      100,
 
+  // Seat Donations
+  seat_donation_created:         150,   // donor creates a donation
+  donation_accepted:              75,   // donor's donation was accepted
+  live_event_donation:            50,   // bonus for donating during live event
+  first_donation:                  0,   // achievement — bonus handled by ACHIEVEMENT_DEFS
+  donation_received:              10,   // recipient receives donated seats
+
   // Penalties
   failed_transfer:               -75,
   confirmed_fraud:              -250,
@@ -60,6 +67,9 @@ const POINT_VALUES = {
   achievement_unlock:              0,
   trust_bonus:                    20,
 };
+
+// Donation achievements
+// (added to ACHIEVEMENT_DEFS below)
 
 // ─── Daily caps ───────────────────────────────────────────────────────────────
 const DAILY_CAPS = {
@@ -110,6 +120,10 @@ const ACHIEVEMENT_DEFS = {
   streak_10:                { bonus: 150 },
   hall_of_fame_entry:       { bonus: 500 },
   critical_bug_hunter:      { bonus: 0 },
+  // Donation achievements
+  fan_hero:                 { bonus: 100 },   // first donation
+  community_mvp:            { bonus: 200 },   // 5 donations
+  upgrade_angel:            { bonus: 350 },   // 10 donations
 };
 
 // ─── Trust Score ──────────────────────────────────────────────────────────────
@@ -314,6 +328,12 @@ Deno.serve(async (req) => {
     check('stripe_onboarded',      action === 'stripe_connected');
     check('referral_starter',      action === 'referral_signup');
     check('critical_bug_hunter',   action === 'critical_bug_report');
+
+    // Donation achievements — need donation totals from DB (lightweight check via reference counts)
+    const newDonations = (recipient.total_donations_made || 0) + (action === 'seat_donation_created' ? 1 : 0);
+    check('fan_hero',      newDonations >= 1);
+    check('community_mvp', newDonations >= 5);
+    check('upgrade_angel', newDonations >= 10);
     check('five_sales',            newSales >= 5);
     check('ten_sales',             newSales >= 10);
     check('twenty_sales',          newSales >= 20);
@@ -399,6 +419,8 @@ Deno.serve(async (req) => {
     const trustBadges  = computeTrustBadges({ ...finalProjected, trust_score: trustScore });
 
     // ── Persist user update
+    const newDonationsMade = (recipient.total_donations_made || 0) + (action === 'seat_donation_created' ? 1 : 0);
+
     await base44.asServiceRole.entities.User.update(recipient.id, {
       peanut_points:          trulyFinalPts,
       lifetime_points:        trulyFinalLifetime,
@@ -417,6 +439,7 @@ Deno.serve(async (req) => {
       total_failed_transfers: totalFailures,
       total_cancelled_sales:  totalCancels,
       confirmed_fraud_count:  fraudCount,
+      total_donations_made:   newDonationsMade,
       points_last_updated:    new Date().toISOString(),
     });
 

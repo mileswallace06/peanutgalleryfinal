@@ -24,13 +24,12 @@
     },
     "peanut_points": {
       "type": "number",
-      "default": 0,
-      "description": "Current spendable/displayed balance"
+      "default": 0
     },
     "lifetime_points": {
       "type": "number",
       "default": 0,
-      "description": "All-time accumulated \u2014 used for rank calculation, never decrements"
+      "description": "All-time \u2014 used for rank"
     },
     "peanut_level": {
       "type": "number",
@@ -42,8 +41,7 @@
     },
     "trust_score": {
       "type": "number",
-      "default": 50,
-      "description": "0\u2013100 marketplace reliability score"
+      "default": 50
     },
     "trust_badges": {
       "type": "array",
@@ -61,8 +59,7 @@
       "type": "string"
     },
     "referred_by": {
-      "type": "string",
-      "description": "Email of referrer"
+      "type": "string"
     },
     "total_purchases": {
       "type": "number",
@@ -82,8 +79,7 @@
     },
     "total_fast_transfers": {
       "type": "number",
-      "default": 0,
-      "description": "Seller transfers completed within 1 hour"
+      "default": 0
     },
     "total_disputes": {
       "type": "number",
@@ -107,17 +103,19 @@
     },
     "seller_streak": {
       "type": "number",
+      "default": 0
+    },
+    "total_donations_made": {
+      "type": "number",
       "default": 0,
-      "description": "Consecutive sales without disputes"
+      "description": "Lifetime seat donations"
     },
     "is_founding_fan": {
       "type": "boolean",
-      "default": false,
-      "description": "Early beta user flag"
+      "default": false
     },
     "points_last_updated": {
-      "type": "string",
-      "description": "ISO timestamp of last points activity"
+      "type": "string"
     }
   },
   "required": []

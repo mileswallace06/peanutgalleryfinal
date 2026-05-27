@@ -4,6 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { Ticket, TrendingUp, Shield, LogIn, Edit2, Tag, Zap, ChevronRight, Camera, ImagePlus, UserPlus, UserCheck, Settings, Eye, EyeOff } from 'lucide-react';
 import PeanutPointsCard from '@/components/points/PeanutPointsCard';
 import RecentPointsActivity from '@/components/points/RecentPointsActivity';
+import CommunityImpactCard from '@/components/donations/CommunityImpactCard';
 
 /** Privacy-first email display — hidden by default, reveal on tap */
 function EmailDisplay({ email }) {
@@ -230,6 +231,9 @@ export default function Me() {
 
         {/* Peanut Points */}
         <PeanutPointsCard user={user} />
+
+        {/* Community Impact */}
+        <CommunityImpactCard userEmail={user.email} />
 
         {/* Recent point activity */}
         <div className="mb-5">

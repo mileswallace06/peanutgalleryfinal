@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { Ticket, Clock, CheckCircle, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Ticket, Clock, CheckCircle, AlertTriangle, RefreshCw, Heart } from 'lucide-react';
+import DonateSeatSheet from '@/components/donations/DonateSeatSheet';
 
 export default function MyTickets() {
   const [user, setUser] = useState(null);
@@ -10,6 +11,7 @@ export default function MyTickets() {
   const [events, setEvents] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [donatingPurchase, setDonatingPurchase] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -112,21 +114,39 @@ export default function MyTickets() {
           </div>
           <div className="mt-1.5"><StatusBadge p={p} /></div>
         </div>
-        <Link
-          to={`/purchase/${p.id}`}
-          className="text-sm font-bold px-4 py-2 rounded-xl transition-colors flex-shrink-0"
-          style={needsConfirm
-            ? { background: 'linear-gradient(135deg, #00E87A, #00B8E8)', color: '#0D0B14' }
-            : { background: 'hsl(var(--muted))', color: 'hsl(var(--foreground))' }}
-        >
-          {needsConfirm ? 'Confirm Receipt →' : 'View →'}
-        </Link>
+        <div className="flex flex-col gap-1.5 flex-shrink-0">
+          <Link
+            to={`/purchase/${p.id}`}
+            className="text-sm font-bold px-4 py-2 rounded-xl transition-colors text-center"
+            style={needsConfirm
+              ? { background: 'linear-gradient(135deg, #00E87A, #00B8E8)', color: '#0D0B14' }
+              : { background: 'hsl(var(--muted))', color: 'hsl(var(--foreground))' }}
+          >
+            {needsConfirm ? 'Confirm →' : 'View →'}
+          </Link>
+          {p.transfer_status === 'completed' && event && (
+            <button
+              onClick={() => setDonatingPurchase({ purchase: p, event })}
+              className="flex items-center justify-center gap-1 text-xs font-bold px-3 py-1.5 rounded-xl transition-colors"
+              style={{ background: 'rgba(191,95,255,0.1)', border: '1px solid rgba(191,95,255,0.3)', color: '#BF5FFF' }}>
+              <Heart className="w-3 h-3" /> Donate
+            </button>
+          )}
+        </div>
       </div>
     );
   };
 
   return (
     <div className="max-w-3xl mx-auto px-4 pb-12" style={{ paddingTop: 'calc(2rem + env(safe-area-inset-top))' }}>
+      {donatingPurchase && (
+        <DonateSeatSheet
+          event={donatingPurchase.event}
+          purchase={donatingPurchase.purchase}
+          onClose={() => setDonatingPurchase(null)}
+          onDonated={() => setDonatingPurchase(null)}
+        />
+      )}
       <div className="mb-8">
         <h1 className="text-2xl font-bold flex items-center gap-2 text-foreground">
           <Ticket className="w-6 h-6 text-primary" /> My Tickets

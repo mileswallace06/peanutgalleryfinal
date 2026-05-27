@@ -1,0 +1,41 @@
+{
+  "name": "DonationOptIn",
+  "type": "object",
+  "properties": {
+    "event_id": {
+      "type": "string"
+    },
+    "user_email": {
+      "type": "string"
+    },
+    "opted_in_at": {
+      "type": "string",
+      "description": "ISO timestamp"
+    },
+    "location_verified": {
+      "type": "boolean",
+      "default": false
+    },
+    "purchase_id": {
+      "type": "string",
+      "description": "Verified purchase for this event"
+    },
+    "draw_weight": {
+      "type": "number",
+      "description": "Computed weighted probability"
+    },
+    "recent_win_count": {
+      "type": "number",
+      "default": 0,
+      "description": "Donations won in last 30 days \u2014 reduces weight"
+    },
+    "last_win_at": {
+      "type": "string",
+      "description": "ISO timestamp of last donation win"
+    }
+  },
+  "required": [
+    "event_id",
+    "user_email"
+  ]
+}
