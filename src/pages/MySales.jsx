@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { Ticket, Clock, CheckCircle, Package, Rocket, ArrowRight, Plus, RefreshCw } from 'lucide-react';
+import { Ticket, Clock, CheckCircle, Package, ArrowRight, Plus, RefreshCw } from 'lucide-react';
 import SellerMetrics from '@/components/sales/SellerMetrics';
 
 export default function MySales() {
@@ -223,21 +223,77 @@ export default function MySales() {
         )}
       </section>
 
-      {/* Roadmap */}
-      <section className="mb-8">
-        <div className="rounded-2xl p-5" style={cardStyle}>
-          <h2 className="font-semibold text-base flex items-center gap-2 mb-2 text-foreground">
-            <Rocket className="w-4 h-4 text-primary" /> Coming Soon: Instant Listings
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            Pre-verify your tickets once and get an <span className="font-medium text-foreground">⚡ Instant Listing</span> badge — buyers see your tickets as immediately transferable, boosting your sell rate and trust score.
-          </p>
-          <span className="inline-block mt-3 text-xs font-bold px-2.5 py-1 rounded-full"
-            style={{ background: 'rgba(255,140,0,0.12)', color: '#FF8C00', border: '1px solid rgba(255,140,0,0.25)' }}>
-            Roadmap · Not yet available
-          </span>
-        </div>
-      </section>
+      {/* Instant Listings — pending verification */}
+      {(() => {
+        const instantPending = listings.filter(l => l.listing_mode === 'instant' && l.status === 'pending_verification');
+        const instantActive = listings.filter(l => l.listing_mode === 'instant' && l.status === 'active' && l.custody_status === 'verified');
+        const instantSold = purchases.filter(p => {
+          const l = listings.find(ll => ll.id === p.listing_id);
+          return l?.listing_mode === 'instant' && p.transfer_status === 'pending_transfer';
+        });
+        if (instantPending.length === 0 && instantActive.length === 0 && instantSold.length === 0) return null;
+        return (
+          <section className="mb-8">
+            <h2 className="font-semibold text-base mb-3 flex items-center gap-2 text-foreground">
+              <span style={{ color: '#00C8FF' }}>⚡</span>
+              <span>Instant Listings</span>
+            </h2>
+            <div className="space-y-2">
+              {instantPending.map(l => {
+                const ev = events[l.event_id];
+                return (
+                  <div key={l.id} className="rounded-2xl p-4 flex items-center justify-between gap-3 flex-wrap text-sm"
+                    style={{ background: 'rgba(255,140,0,0.07)', border: '1px solid rgba(255,140,0,0.25)' }}>
+                    <div className="min-w-0">
+                      <div className="font-semibold text-foreground truncate">{ev?.title || 'Event'}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">Sec {l.section} · Row {l.row} · ${l.asking_price}/ea</div>
+                    </div>
+                    <span className="text-xs font-bold px-2.5 py-1 rounded-full flex-shrink-0"
+                      style={{ background: 'rgba(255,140,0,0.12)', color: '#FF8C00', border: '1px solid rgba(255,140,0,0.3)' }}>
+                      ⏳ Pending Verification
+                    </span>
+                  </div>
+                );
+              })}
+              {instantActive.map(l => {
+                const ev = events[l.event_id];
+                return (
+                  <div key={l.id} className="rounded-2xl p-4 flex items-center justify-between gap-3 flex-wrap text-sm"
+                    style={{ background: 'rgba(0,200,255,0.06)', border: '1px solid rgba(0,200,255,0.2)' }}>
+                    <div className="min-w-0">
+                      <div className="font-semibold text-foreground truncate">{ev?.title || 'Event'}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">Sec {l.section} · Row {l.row} · ${l.asking_price}/ea</div>
+                    </div>
+                    <span className="text-xs font-bold px-2.5 py-1 rounded-full flex-shrink-0"
+                      style={{ background: 'rgba(0,200,255,0.12)', color: '#00C8FF', border: '1px solid rgba(0,200,255,0.3)' }}>
+                      ⚡ Live — Instant
+                    </span>
+                  </div>
+                );
+              })}
+              {instantSold.map(p => {
+                const ev = events[p.event_id];
+                const fsLabel = p.fulfillment_status === 'transfer_in_progress' ? 'Transfer In Progress'
+                  : p.fulfillment_status === 'fulfilled' ? 'Ticket Delivered'
+                  : 'Sold — PG Handling Fulfillment';
+                return (
+                  <div key={p.id} className="rounded-2xl p-4 flex items-center justify-between gap-3 flex-wrap text-sm"
+                    style={{ background: 'rgba(0,255,135,0.06)', border: '1px solid rgba(0,255,135,0.2)' }}>
+                    <div className="min-w-0">
+                      <div className="font-semibold text-foreground truncate">{ev?.title || 'Event'}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">${p.amount?.toFixed(2)} · Qty: {p.quantity}</div>
+                    </div>
+                    <span className="text-xs font-bold px-2.5 py-1 rounded-full flex-shrink-0"
+                      style={{ background: 'rgba(0,255,135,0.1)', color: '#00FF87', border: '1px solid rgba(0,255,135,0.25)' }}>
+                      {fsLabel}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        );
+      })()}
 
       {/* Completed Sales */}
       <section>

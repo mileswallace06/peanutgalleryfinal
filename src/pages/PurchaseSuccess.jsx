@@ -650,12 +650,38 @@ export default function PurchaseSuccess() {
               <span className="text-2xl">⚡</span>
             </div>
             <h2 className="font-display text-2xl text-foreground mb-1">You're In 🎉</h2>
-            <p className="text-sm text-muted-foreground">Peanut Gallery already has this ticket and is transferring it to you now. Check your email shortly.</p>
+            <p className="text-sm text-muted-foreground">
+              {purchase.fulfillment_status === 'transfer_in_progress'
+                ? 'Peanut Gallery is actively transferring your ticket right now. Check your email for the invite.'
+                : purchase.fulfillment_status === 'fulfilled'
+                ? 'Your ticket has been sent! Check your email or ticket app to accept the transfer.'
+                : 'Peanut Gallery already has this ticket in custody and is preparing your transfer.'}
+            </p>
           </div>
           <div className="px-5 py-4 space-y-3">
+            {/* Dynamic fulfillment status steps */}
+            <div className="space-y-1.5">
+              {[
+                { key: null, label: 'PG preparing your transfer', done: !!purchase.fulfillment_status },
+                { key: 'transfer_in_progress', label: 'Transfer in progress', done: purchase.fulfillment_status === 'transfer_in_progress' || purchase.fulfillment_status === 'fulfilled' },
+                { key: 'fulfilled', label: 'Ticket delivered — check your email', done: purchase.fulfillment_status === 'fulfilled' },
+              ].map(({ label, done }, i) => (
+                <div key={i} className="flex items-center gap-2.5 text-xs">
+                  <div className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 text-[9px] font-black ${done ? '' : 'opacity-30'}`}
+                    style={{ background: done ? '#00C8FF' : 'rgba(255,255,255,0.1)' }}>
+                    {done ? '✓' : i + 1}
+                  </div>
+                  <span className={done ? 'text-foreground font-medium' : 'text-muted-foreground'}>{label}</span>
+                </div>
+              ))}
+            </div>
+
             <div className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold"
               style={{ background: 'rgba(0,200,255,0.12)', border: '1px solid rgba(0,200,255,0.3)', color: '#00C8FF' }}>
-              <Clock className="w-4 h-4 animate-pulse" /> PG-managed transfer in progress
+              <Clock className="w-4 h-4 animate-pulse" />
+              {purchase.fulfillment_status === 'transfer_in_progress' ? 'Transfer in progress'
+                : purchase.fulfillment_status === 'fulfilled' ? 'Ticket delivered — confirm receipt below'
+                : 'PG preparing transfer'}
             </div>
             <div className="rounded-xl p-3 text-xs text-muted-foreground text-center"
               style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>

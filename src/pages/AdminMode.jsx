@@ -4,7 +4,7 @@ import { Shield, Database, CheckCircle, XCircle, RefreshCw, Lock, AlertTriangle,
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import EventTimingDebug from '@/components/admin/EventTimingDebug';
-import InstantListingsQueue from '@/components/admin/InstantListingsQueue';
+import InstantFulfillmentCenter from '@/components/admin/InstantFulfillmentCenter';
 import { isAdmin } from '@/lib/isAdmin';
 
 const ADMIN_PASSWORD = 'peanut2026';
@@ -365,8 +365,8 @@ export default function AdminMode() {
         )}
       </div>
 
-      {/* Instant Listings Queue */}
-      <InstantListingsQueue listings={listings} user={user} onRefresh={loadData} />
+      {/* Instant Fulfillment Center */}
+      <InstantFulfillmentCenter listings={listings} purchases={purchases} events={events} user={user} onRefresh={loadData} loading={dataLoading} />
 
       {/* Proof Review */}
       <div className="bg-card border border-border rounded-2xl p-5 mb-6">

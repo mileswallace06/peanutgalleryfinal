@@ -108,6 +108,33 @@
           "type": "boolean"
         }
       }
+    },
+    "fulfillment_status": {
+      "type": "string",
+      "enum": [
+        "awaiting_pg_transfer",
+        "transfer_in_progress",
+        "fulfilled",
+        "buyer_confirmed",
+        "issue_reported"
+      ],
+      "description": "Tracks PG fulfillment state for instant listing purchases"
+    },
+    "fulfillment_proof_url": {
+      "type": "string",
+      "description": "Admin-uploaded proof of ticket transfer to buyer"
+    },
+    "fulfillment_notes": {
+      "type": "string",
+      "description": "Admin notes on fulfillment action"
+    },
+    "fulfillment_started_at": {
+      "type": "string",
+      "description": "ISO timestamp when PG marked transfer started"
+    },
+    "fulfillment_completed_at": {
+      "type": "string",
+      "description": "ISO timestamp when PG marked transfer complete"
     }
   },
   "required": [
