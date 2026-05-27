@@ -245,8 +245,6 @@ const DEFAULT_DESCS = {
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
-    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await req.json();
     const {
@@ -256,9 +254,24 @@ Deno.serve(async (req) => {
       target_email,
       description: customDesc,
       metadata = {},
+      _internal_service_call = false, // trusted internal calls from other backend functions
     } = body;
 
     if (!action) return Response.json({ error: 'action required' }, { status: 400 });
+
+    // Internal service-role calls (e.g. from seatDonation) bypass auth.me() requirement
+    // but MUST supply target_email and cannot use admin-only actions
+    let user = null;
+    let isAdmin = false;
+
+    if (_internal_service_call) {
+      if (!target_email) return Response.json({ error: 'target_email required for internal calls' }, { status: 400 });
+      // Internal calls are trusted — treat like a non-admin with explicit target_email
+    } else {
+      user = await base44.auth.me();
+      if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+      isAdmin = user.role === 'admin';
+    }
 
     // Validate action
     const basePts = POINT_VALUES[action];
@@ -266,15 +279,16 @@ Deno.serve(async (req) => {
       return Response.json({ error: `Unknown action: ${action}` }, { status: 400 });
     }
 
-    // Only admins can award points to other users or apply admin-only actions
-    const isAdmin = user.role === 'admin';
-    const recipientEmail = (target_email && isAdmin) ? target_email : user.email;
-
-    // Admin-only actions: bug reports, fraud, abuse
+    // Admin-only actions: bug reports, fraud, abuse — blocked for internal calls too
     const adminOnlyActions = ['beta_bug_report', 'critical_bug_report', 'confirmed_fraud', 'abusive_behavior'];
     if (adminOnlyActions.includes(action) && !isAdmin) {
       return Response.json({ error: 'Admin only action' }, { status: 403 });
     }
+
+    // Resolve recipient email
+    const recipientEmail = _internal_service_call
+      ? target_email
+      : (target_email && isAdmin) ? target_email : user.email;
 
     // Fetch recipient
     const [recipient] = await base44.asServiceRole.entities.User.filter({ email: recipientEmail });

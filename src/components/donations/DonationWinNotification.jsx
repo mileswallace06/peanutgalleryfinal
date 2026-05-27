@@ -48,15 +48,21 @@ export default function DonationWinNotification({ userEmail }) {
   const handleRespond = async (accept) => {
     if (!donation || responding) return;
     setResponding(true);
-    await base44.functions.invoke('seatDonation', {
-      action: 'respond',
-      donation_id: donation.id,
-      accepted: accept,
-    }).catch(() => {});
-    setAccepted(accept);
-    setResponding(false);
-    if (!accept) {
-      setTimeout(() => setDonation(null), 3000);
+    try {
+      await base44.functions.invoke('seatDonation', {
+        action: 'respond',
+        donation_id: donation.id,
+        accepted: accept,
+      });
+      setAccepted(accept);
+      if (!accept) {
+        setTimeout(() => setDonation(null), 3000);
+      }
+    } catch {
+      // Any failure — clear overlay so user is never trapped
+      setDonation(null);
+    } finally {
+      setResponding(false);
     }
   };
 

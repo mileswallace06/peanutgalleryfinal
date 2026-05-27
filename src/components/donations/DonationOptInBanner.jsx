@@ -11,14 +11,17 @@ export default function DonationOptInBanner({ event, purchase, userLat, userLng,
   const [status, setStatus] = useState('idle'); // idle | loading | opted_in | ineligible | dismissed
   const [reason, setReason] = useState('');
 
-  // Check if already opted in
+  // Check if current user is already opted in — must filter by BOTH event_id AND user email
   useEffect(() => {
     if (!event?.id) return;
-    base44.entities.DonationOptIn.filter({ event_id: event.id })
-      .then(rows => {
-        if (rows.length > 0) setStatus('opted_in');
-      })
-      .catch(() => {});
+    base44.auth.me().then(me => {
+      if (!me?.email) return;
+      base44.entities.DonationOptIn.filter({ event_id: event.id, user_email: me.email })
+        .then(rows => {
+          if (rows.length > 0) setStatus('opted_in');
+        })
+        .catch(() => {});
+    }).catch(() => {});
   }, [event?.id]);
 
   const handleOptIn = async () => {

@@ -121,11 +121,17 @@ Deno.serve(async (req) => {
         locationVerified = true;
       }
 
-      // Check already opted in
+      // Rate limiting: if opted in very recently (< 30s), reject to prevent spam
       const existing = await base44.asServiceRole.entities.DonationOptIn.filter({
         event_id,
         user_email: user.email,
       });
+      if (existing.length > 0 && existing[0].opted_in_at) {
+        const secsSinceOptIn = (Date.now() - new Date(existing[0].opted_in_at).getTime()) / 1000;
+        if (secsSinceOptIn < 30) {
+          return Response.json({ success: true, opted_in: true, location_verified: existing[0].location_verified, draw_weight: existing[0].draw_weight, cached: true });
+        }
+      }
 
       // Compute initial draw weight
       const tempOptIn = { recent_win_count: 0, last_win_at: null };
@@ -169,6 +175,18 @@ Deno.serve(async (req) => {
         return Response.json({ error: 'You must have a ticket to donate seats' }, { status: 403 });
       }
 
+      // Rate limiting: max 2 active donations per user per event
+      const existingDonations = await base44.asServiceRole.entities.SeatDonation.filter({
+        donor_email: user.email,
+        event_id,
+      });
+      const activeDonations = existingDonations.filter(d =>
+        ['active', 'drawn', 'declined_rerolling'].includes(d.donation_status)
+      );
+      if (activeDonations.length >= 2) {
+        return Response.json({ error: 'You already have active donations for this event. Wait for them to resolve.' }, { status: 429 });
+      }
+
       const [event] = await base44.asServiceRole.entities.Event.filter({ id: event_id });
       const expiresAt = new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(); // 4 hour expiry
 
@@ -191,8 +209,9 @@ Deno.serve(async (req) => {
         source_purchase_id: source_purchase_id || null,
       });
 
-      // Award donor points via awardPoints function
+      // Award donor points via awardPoints function (internal trusted call)
       await base44.asServiceRole.functions.invoke('awardPoints', {
+        _internal_service_call: true,
         action: 'seat_donation_created',
         reference_id: donation.id,
         reference_type: 'listing',
@@ -243,23 +262,25 @@ Deno.serve(async (req) => {
           });
         }
 
-        // Award small points to recipient
-        await base44.asServiceRole.functions.invoke('awardPoints', {
-          action: 'donation_received',
-          reference_id: donation_id,
-          reference_type: 'listing',
-          description: `${donation.is_anonymous ? 'A fan' : (donation.donor_name || 'A fan')} upgraded your night`,
-          target_email: user.email,
-        }).catch(() => {});
-
-        // Award accepted bonus to donor
-        await base44.asServiceRole.functions.invoke('awardPoints', {
-          action: 'donation_accepted',
-          reference_id: donation_id + '_accepted',
-          reference_type: 'listing',
-          description: 'Your seat donation was accepted',
-          target_email: donation.donor_email,
-        }).catch(() => {});
+        // Award points to both recipient and donor in parallel (internal trusted calls)
+        await Promise.all([
+          base44.asServiceRole.functions.invoke('awardPoints', {
+            _internal_service_call: true,
+            action: 'donation_received',
+            reference_id: donation_id,
+            reference_type: 'listing',
+            description: `${donation.is_anonymous ? 'A fan' : (donation.donor_name || 'A fan')} upgraded your night`,
+            target_email: user.email,
+          }).catch(() => {}),
+          base44.asServiceRole.functions.invoke('awardPoints', {
+            _internal_service_call: true,
+            action: 'donation_accepted',
+            reference_id: donation_id + '_accepted',
+            reference_type: 'listing',
+            description: 'Your seat donation was accepted',
+            target_email: donation.donor_email,
+          }).catch(() => {}),
+        ]);
 
         return Response.json({ success: true, status: 'accepted' });
       } else {
@@ -311,13 +332,18 @@ async function runDraw(base44, donationId, excludeEmail) {
     return { winner: null, reason: 'no_eligible_fans' };
   }
 
-  // Fetch user data for weight calculation
+  // Fetch all user data in parallel (was serial — O(n) sequential reads)
+  const userResults = await Promise.all(
+    eligible.map(optIn => base44.asServiceRole.entities.User.filter({ email: optIn.user_email })
+      .then(([u]) => ({ optIn, user: u }))
+      .catch(() => ({ optIn, user: null }))
+    )
+  );
+
   const entries = [];
-  for (const optIn of eligible) {
-    const [u] = await base44.asServiceRole.entities.User.filter({ email: optIn.user_email });
+  for (const { optIn, user: u } of userResults) {
     if (!u) continue;
     if ((u.confirmed_fraud_count || 0) > 0) continue; // exclude fraud accounts
-
     const weight = calcDrawWeight(u, optIn, donation.event_id);
     entries.push({ optIn, user: u, weight });
   }

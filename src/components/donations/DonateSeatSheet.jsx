@@ -211,13 +211,13 @@ export default function DonateSeatSheet({ event, purchase, onClose, onDonated })
                 </motion.div>
                 <h2 className="font-display text-3xl mb-2" style={{ color: '#BF5FFF' }}>You're a Fan Hero</h2>
                 <p className="text-sm text-muted-foreground mb-4 leading-relaxed">
-                  Your seats are in the pool. A lucky fan will be selected and notified. You've earned{' '}
-                  <span className="font-black text-foreground">+150 Peanut Points</span> for your generosity.
+                  Your seats are in the pool. A lucky fan will be selected and notified. You're earning{' '}
+                  <span className="font-black text-foreground">🥜 Peanut Points</span> for your generosity.
                 </p>
                 <div className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-full mx-auto w-fit mb-6"
                   style={{ background: 'rgba(191,95,255,0.12)', border: '1px solid rgba(191,95,255,0.3)' }}>
                   <Zap className="w-3.5 h-3.5" style={{ color: '#BF5FFF' }} />
-                  <span className="text-xs font-black" style={{ color: '#BF5FFF' }}>+150 pts · Fan Hero progress</span>
+                  <span className="text-xs font-black" style={{ color: '#BF5FFF' }}>Peanut Points awarded · Fan Hero progress</span>
                 </div>
                 <button onClick={onClose}
                   className="w-full py-3.5 rounded-full font-black text-sm"
