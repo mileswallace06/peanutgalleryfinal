@@ -1,15 +1,16 @@
 /**
- * stripeWebhook — INV-2: Handle Stripe failure events
+ * stripeWebhook — Public Stripe webhook handler (no auth required)
  *
- * Listens for:
- *   - payout.failed         → notify seller, flag for admin
- *   - transfer.failed       → notify seller, flag for admin
- *   - payment_intent.payment_failed → notify buyer
+ * PUBLIC endpoint — no Base44 auth.me() call. Stripe calls this directly.
+ * Verifies Stripe signature using STRIPE_WEBHOOK_SECRET.
  *
- * Register this endpoint URL in your Stripe dashboard:
- *   Dashboard → Developers → Webhooks → Add endpoint
- *   URL: <your-function-url>/stripeWebhook
- *   Events: payout.failed, transfer.failed, payment_intent.payment_failed
+ * Handles:
+ *   payment_intent.payment_failed
+ *   payment_intent.succeeded
+ *   payout.failed
+ *   transfer.failed
+ *   charge.dispute.created
+ *   charge.refunded
  */
 
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
@@ -20,7 +21,7 @@ Deno.serve(async (req) => {
   const secretKey = Deno.env.get('STRIPELIVESECRETKEY');
   const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET');
 
-  if (!secretKey) {
+  if (!secretKey || !webhookSecret) {
     return Response.json({ error: 'Stripe not configured' }, { status: 500 });
   }
 
@@ -28,22 +29,16 @@ Deno.serve(async (req) => {
   const body = await req.text();
   const sig = req.headers.get('stripe-signature');
 
+  if (!sig) {
+    return new Response('Missing stripe-signature header', { status: 400 });
+  }
+
   let event;
-  if (webhookSecret && sig) {
-    try {
-      event = await stripe.webhooks.constructEventAsync(body, sig, webhookSecret);
-    } catch (err) {
-      console.error('[stripeWebhook] Signature verification failed:', err.message);
-      return Response.json({ error: 'Invalid signature' }, { status: 400 });
-    }
-  } else {
-    // No webhook secret configured — parse raw (dev/test only)
-    try {
-      event = JSON.parse(body);
-    } catch {
-      return Response.json({ error: 'Invalid JSON' }, { status: 400 });
-    }
-    console.warn('[stripeWebhook] No STRIPE_WEBHOOK_SECRET set — skipping signature verification (unsafe in production)');
+  try {
+    event = await stripe.webhooks.constructEventAsync(body, sig, webhookSecret);
+  } catch (err) {
+    console.error('[stripeWebhook] Signature verification failed:', err.message);
+    return new Response('Invalid signature', { status: 400 });
   }
 
   const type = event.type;
@@ -77,7 +72,6 @@ Deno.serve(async (req) => {
 
     if (type === 'payment_intent.payment_failed') {
       const piId = data.id;
-      // Find the purchase with this PI
       const purchases = await base44.asServiceRole.entities.Purchase.filter({ payment_intent_id: piId }).catch(() => []);
       const purchase = purchases[0];
 
@@ -97,6 +91,50 @@ Deno.serve(async (req) => {
         }
       }
     }
+
+    if (type === 'payment_intent.succeeded') {
+      const piId = data.id;
+      const purchases = await base44.asServiceRole.entities.Purchase.filter({ payment_intent_id: piId }).catch(() => []);
+      const purchase = purchases[0];
+      if (purchase && !purchase.payment_captured) {
+        await base44.asServiceRole.entities.Purchase.update(purchase.id, { payment_captured: true }).catch(() => {});
+      }
+      console.log('[stripeWebhook] payment_intent.succeeded:', piId);
+    }
+
+    if (type === 'charge.dispute.created') {
+      const chargeId = data.payment_intent;
+      const purchases = await base44.asServiceRole.entities.Purchase.filter({ payment_intent_id: chargeId }).catch(() => []);
+      const purchase = purchases[0];
+      const buyerEmail = purchase?.buyer_email || 'unknown';
+      const amount = data.amount ? '$' + (data.amount / 100).toFixed(2) : 'unknown';
+
+      await base44.asServiceRole.functions.invoke('sendNotificationEmail', {
+        to: 'experience@peanutgallery.store',
+        subject: `🚨 Stripe Dispute Created — ${buyerEmail}`,
+        body: `A chargeback dispute was created.\nBuyer: ${buyerEmail}\nAmount: ${amount}\nReason: ${data.reason || 'unknown'}\nDispute ID: ${data.id}\nPayment Intent: ${chargeId}\n\nReview in Stripe dashboard immediately.`,
+      }).catch(() => {});
+
+      if (purchase) {
+        await base44.asServiceRole.entities.Purchase.update(purchase.id, { transfer_status: 'disputed', dispute_reason: data.reason || 'chargeback' }).catch(() => {});
+      }
+      console.log('[stripeWebhook] dispute created:', data.id);
+    }
+
+    if (type === 'charge.refunded') {
+      const piId = data.payment_intent;
+      const purchases = await base44.asServiceRole.entities.Purchase.filter({ payment_intent_id: piId }).catch(() => []);
+      const purchase = purchases[0];
+      if (purchase) {
+        await base44.asServiceRole.functions.invoke('sendNotificationEmail', {
+          to: 'experience@peanutgallery.store',
+          subject: `💸 Stripe Refund — ${purchase.buyer_email}`,
+          body: `A refund was issued.\nBuyer: ${purchase.buyer_email}\nAmount: $${(data.amount_refunded / 100).toFixed(2)}\nPayment Intent: ${piId}`,
+        }).catch(() => {});
+      }
+      console.log('[stripeWebhook] charge.refunded:', data.id);
+    }
+
   } catch (err) {
     console.error('[stripeWebhook] handler error:', err.message);
     // Return 200 to prevent Stripe retries for non-retriable errors
