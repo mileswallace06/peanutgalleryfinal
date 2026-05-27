@@ -338,14 +338,12 @@ function BuyerPanel({ purchase, onConfirm, onDispute, onCancel, actionLoading })
           <button onClick={onDispute} disabled={actionLoading}
             className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors disabled:opacity-60"
             style={{ background: 'rgba(255,200,0,0.1)', border: '1px solid rgba(255,200,0,0.3)', color: '#FFE600' }}>
-            Open Dispute
-          </button>
-          <button onClick={onCancel} disabled={actionLoading}
-            className="flex-1 py-2.5 rounded-xl text-sm text-muted-foreground transition-colors disabled:opacity-60"
-            style={{ border: '1px solid rgba(255,255,255,0.12)' }}>
-            Cancel & Refund
+            I Haven't Received Tickets
           </button>
         </div>
+        <p className="text-xs text-center text-muted-foreground">
+          Seller has confirmed transfer — to dispute, use the button above.
+        </p>
 
         <p className="text-xs text-center text-muted-foreground">
           Only confirm once you've accepted the ticket transfer.
@@ -371,8 +369,16 @@ function CompletedBanner({ isSeller }) {
           {isSeller ? 'Sale Complete 💸' : 'Upgrade Confirmed 🎟️'}
         </h2>
         <p className="text-sm text-muted-foreground mb-4">
-          {isSeller ? 'Great work. Your payout is on its way.' : 'Enjoy the show! Payment has been released to the seller.'}
+          {isSeller
+            ? 'Great work. Your payout is being processed by Stripe.'
+            : 'Enjoy the show! Payment has been released to the seller.'}
         </p>
+        {isSeller && (
+          <div className="text-xs text-muted-foreground px-3 py-2 rounded-xl mb-2"
+            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
+            💳 Stripe typically deposits in <strong className="text-foreground">2–7 business days</strong>. First-time payouts may take up to <strong className="text-foreground">14 days</strong> while Stripe verifies your account.
+          </div>
+        )}
         <div className="flex flex-col gap-2 items-center text-xs">
           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full font-semibold"
             style={{ background: 'rgba(0,255,135,0.15)', color: '#00FF87', border: '1px solid rgba(0,255,135,0.3)' }}>
@@ -512,7 +518,7 @@ export default function PurchaseSuccess() {
 
     // Notify support — fire-and-forget, never block the dispute flow
     base44.functions.invoke('sendNotificationEmail', {
-      to: 'experience@peanutgallery.com',
+      to: 'experience@peanutgallery.store',
       subject: `⚠️ Dispute opened — Purchase ${purchase.id}`,
       body: `A dispute has been opened on Peanut Gallery.\n\nPurchase ID: ${purchase.id}\nBuyer: ${purchase.buyer_email}${purchase.buyer_name ? ` (${purchase.buyer_name})` : ''}\nSeller: ${purchase.seller_email}\nAmount: $${purchase.amount?.toFixed(2)}\nReason: ${reason}\n\nReview in the admin panel and resolve promptly.\n\n— Peanut Gallery`,
     }).catch(err => console.error('[dispute] email notify failed:', err?.message));

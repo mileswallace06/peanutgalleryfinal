@@ -119,6 +119,18 @@
     "pg_fulfilled_by": {
       "type": "string",
       "description": "Admin email who marked fulfillment"
+    },
+    "reservation_token": {
+      "type": "string",
+      "description": "UUID set when a buyer begins checkout \u2014 prevents double-sell"
+    },
+    "reservation_expires_at": {
+      "type": "string",
+      "description": "ISO timestamp \u2014 reservation auto-expires after 10 minutes"
+    },
+    "reserved_by_email": {
+      "type": "string",
+      "description": "Email of buyer who holds the current reservation"
     }
   },
   "required": [

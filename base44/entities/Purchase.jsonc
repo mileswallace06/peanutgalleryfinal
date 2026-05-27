@@ -50,6 +50,11 @@
       "type": "boolean",
       "default": false
     },
+    "payment_capture_failed": {
+      "type": "boolean",
+      "default": false,
+      "description": "Set true if Stripe capture attempt failed \u2014 requires admin retry"
+    },
     "transfer_status": {
       "type": "string",
       "enum": [
@@ -106,8 +111,20 @@
         },
         "buyer_r2": {
           "type": "boolean"
+        },
+        "stale_pi_warned": {
+          "type": "boolean"
         }
       }
+    },
+    "auto_review_flagged": {
+      "type": "boolean",
+      "default": false,
+      "description": "Set true when buyer is inactive 24h after seller confirms \u2014 requires admin review before capture"
+    },
+    "auto_review_flagged_at": {
+      "type": "string",
+      "description": "ISO timestamp when auto_review_flagged was set"
     },
     "fulfillment_status": {
       "type": "string",

@@ -333,7 +333,10 @@ export default function MySales() {
                       </span>
                       {/* UX-1: Payout ETA clarity */}
                       {p.payment_captured && (
-                        <span className="text-[10px] text-muted-foreground">· Stripe deposits in 2–7 business days</span>
+                        <span className="text-[10px] text-muted-foreground">· Stripe deposits 2–7 days (up to 14 days first payout)</span>
+                      )}
+                      {p.payment_capture_failed && (
+                        <span className="text-[10px] font-bold" style={{ color: '#FF2D78' }}>· ⚠️ Capture failed — contact support</span>
                       )}
                       {p.created_date && (
                         <span className="text-xs text-muted-foreground">· {format(new Date(p.created_date), 'MMM d, yyyy')}</span>

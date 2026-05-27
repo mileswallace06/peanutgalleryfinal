@@ -12,7 +12,7 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
   const navigate = useNavigate();
 
   const [name, setName] = useState('');
-  const [email, setEmail] = useState(buyerEmail || '');
+  const [email] = useState(buyerEmail || ''); // HIGH-1: locked to authenticated user email
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -156,15 +156,14 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1">Email</label>
+          <label className="block text-xs font-medium text-muted-foreground mb-1">Email <span className="text-[10px] text-muted-foreground">(tickets sent here)</span></label>
           <input
             type="email"
             required
             value={email}
-            onChange={e => setEmail(e.target.value)}
-            className="w-full px-3 py-2.5 rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
-            style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)' }}
-            placeholder="you@example.com"
+            readOnly
+            className="w-full px-3 py-2.5 rounded-xl text-sm text-foreground opacity-70 cursor-not-allowed"
+            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
           />
         </div>
         <div>

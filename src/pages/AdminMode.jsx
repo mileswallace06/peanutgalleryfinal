@@ -193,6 +193,7 @@ export default function AdminMode() {
   const pendingProof = listings.filter(l => l.proof_status === 'pending_review');
   const activePurchases = purchases.filter(p => p.transfer_status === 'pending_transfer');
   const disputedPurchases = purchases.filter(p => p.transfer_status === 'disputed');
+  const autoReviewQueue = purchases.filter(p => p.auto_review_flagged && p.transfer_status === 'pending_transfer');
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
@@ -424,6 +425,59 @@ export default function AdminMode() {
           </div>
         )}
       </div>
+
+      {/* CRITICAL-B: Auto-Review Queue — buyer inactive 24h after seller confirms */}
+      {autoReviewQueue.length > 0 && (
+        <div className="bg-card border-2 rounded-2xl p-5 mb-6" style={{ borderColor: 'rgba(255,45,120,0.5)', background: 'rgba(255,45,120,0.06)' }}>
+          <div className="flex items-center gap-2 mb-4">
+            <AlertTriangle className="w-5 h-5" style={{ color: '#FF2D78' }} />
+            <h2 className="font-bold text-lg text-foreground">🚨 Auto-Review Queue ({autoReviewQueue.length})</h2>
+            <span className="text-xs px-2 py-0.5 rounded-full font-bold" style={{ background: 'rgba(255,45,120,0.15)', color: '#FF2D78', border: '1px solid rgba(255,45,120,0.4)' }}>Action Required</span>
+          </div>
+          <p className="text-xs text-muted-foreground mb-4">Buyer inactive 24h after seller confirmed. Review each case before approving payout capture. Do NOT approve if transfer is unverified.</p>
+          <div className="space-y-4">
+            {autoReviewQueue.map(p => {
+              const event = events[p.event_id];
+              return (
+                <div key={p.id} className="rounded-xl p-4 text-sm space-y-3" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,45,120,0.3)' }}>
+                  <div className="flex items-start justify-between gap-2 flex-wrap">
+                    <div>
+                      <div className="font-semibold text-foreground">{event?.title || p.event_id}</div>
+                      <div className="text-xs text-muted-foreground">Buyer: {p.buyer_email} · Seller: {p.seller_email}</div>
+                      <div className="text-xs text-muted-foreground">Amount: ${p.amount?.toFixed(2)} · Flagged: {p.auto_review_flagged_at ? format(new Date(p.auto_review_flagged_at), 'MMM d h:mm a') : '—'}</div>
+                    </div>
+                  </div>
+                  {(p.transfer_proof_url || p.transfer_notes) ? (
+                    <div className="rounded-lg p-2.5 text-xs space-y-1" style={{ background: 'rgba(0,255,135,0.06)', border: '1px solid rgba(0,255,135,0.2)' }}>
+                      <div className="text-xs font-bold text-muted-foreground uppercase tracking-wide">Seller Proof</div>
+                      {p.transfer_notes && <p className="text-foreground">{p.transfer_notes}</p>}
+                      {p.transfer_proof_url && <a href={p.transfer_proof_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">View screenshot ↗</a>}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">⚠️ No transfer proof submitted — do NOT approve capture.</div>
+                  )}
+                  <div className="flex flex-wrap gap-2 pt-1 border-t" style={{ borderColor: 'rgba(255,45,120,0.2)' }}>
+                    <button
+                      onClick={() => handleCaptureAdmin(p)}
+                      disabled={!!actionLoading || !p.transfer_proof_url}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-40"
+                      style={{ background: 'rgba(0,255,135,0.12)', color: '#00FF87', border: '1px solid rgba(0,255,135,0.3)' }}>
+                      <CheckCircle className="w-3.5 h-3.5" /> Approve Capture
+                    </button>
+                    <button
+                      onClick={() => handleDisputeAction(p, 'refund_buyer')}
+                      disabled={!!actionLoading}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
+                      style={{ background: 'rgba(0,200,255,0.1)', color: '#00C8FF', border: '1px solid rgba(0,200,255,0.3)' }}>
+                      <XCircle className="w-3.5 h-3.5" /> Refund Buyer
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Dispute Queue */}
       <div className="bg-card border border-border rounded-2xl p-5 mb-6">

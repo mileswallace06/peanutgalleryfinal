@@ -44,7 +44,7 @@ const POINT_VALUES = {
   beta_bug_report:                25,
   critical_bug_report:            75,
 
-  // Referrals
+  // Referrals — kept for schema compatibility but gated by disabled check below
   referral_signup:               100,
   referral_first_transaction:    150,
   referral_verified_seller:      100,
@@ -285,14 +285,20 @@ Deno.serve(async (req) => {
       isAdmin = user.role === 'admin';
     }
 
+    // Referral actions are disabled until the referral system is built
+    const disabledActions = ['referral_signup', 'referral_first_transaction', 'referral_verified_seller'];
+    if (disabledActions.includes(action)) {
+      return Response.json({ success: false, reason: 'referral_system_not_yet_live' });
+    }
+
     // Validate action
     const basePts = POINT_VALUES[action];
     if (basePts === undefined) {
       return Response.json({ error: `Unknown action: ${action}` }, { status: 400 });
     }
 
-    // Admin-only actions: bug reports, fraud, abuse — blocked for internal calls too
-    const adminOnlyActions = ['beta_bug_report', 'critical_bug_report', 'confirmed_fraud', 'abusive_behavior'];
+    // Admin-only actions: bug reports, fraud, abuse, and negative manual actions
+    const adminOnlyActions = ['beta_bug_report', 'critical_bug_report', 'confirmed_fraud', 'abusive_behavior', 'failed_transfer', 'seller_dispute', 'repeated_cancellation'];
     if (adminOnlyActions.includes(action) && !isAdmin) {
       return Response.json({ error: 'Admin only action' }, { status: 403 });
     }
