@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { base44 } from '@/api/base44Client';
+import { formatFeeBreakdown, ACTIVE_FEE_MODEL_ID, FEE_MODELS } from '@/lib/feeEngine';
 import { X, Lock, Shield, ArrowRight } from 'lucide-react';
 
 function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
@@ -17,9 +18,11 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
   const [error, setError] = useState('');
   const [feeBreakdown, setFeeBreakdown] = useState(null);
 
-  const subtotal = listing.asking_price * (listing.quantity || 1);
-  const estimatedFee = Math.round(subtotal * 0.10 * 100) / 100;
-  const total = feeBreakdown ? feeBreakdown.buyerTotal : subtotal + estimatedFee;
+  const qty = listing.quantity || 1;
+  const subtotal = listing.asking_price * qty;
+  const estimatedBreakdown = formatFeeBreakdown(listing.asking_price, qty);
+  const estimatedFee = estimatedBreakdown.fee;
+  const total = feeBreakdown ? feeBreakdown.buyerTotal : estimatedBreakdown.total;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -102,8 +105,10 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
         </div>
         <div className="flex justify-between text-sm mb-1.5">
           <span className="text-muted-foreground flex items-center gap-1">
-            🔒 Protected Transfer Fee
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(191,95,255,0.12)', color: '#BF5FFF' }}>10%</span>
+            🔒 Service fee
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(191,95,255,0.12)', color: '#BF5FFF' }}>
+              {FEE_MODELS[ACTIVE_FEE_MODEL_ID]?.shortLabel}
+            </span>
           </span>
           <span className="text-foreground">${(feeBreakdown?.platformFee ?? estimatedFee).toFixed(2)}</span>
         </div>
