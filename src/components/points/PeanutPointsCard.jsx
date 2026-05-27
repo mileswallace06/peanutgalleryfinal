@@ -190,17 +190,20 @@ export default function PeanutPointsCard({ user }) {
               <Star className="w-3 h-3 inline mr-1" />Achievements ({achievements.length})
             </p>
             <div className="flex flex-wrap gap-1.5">
-              {achievements.map(key => {
-                const def = ACHIEVEMENT_DEFS[key];
-                if (!def) return null;
-                return (
-                  <span key={key} title={def.desc}
-                    className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold cursor-default"
-                    style={{ background: 'rgba(255,230,0,0.08)', border: '1px solid rgba(255,230,0,0.25)', color: '#FFE600' }}>
-                    {def.emoji} {def.label}
-                  </span>
-                );
-              })}
+              {achievements
+                // INV-1: Hide referral achievements until referral system is built
+                .filter(key => !['referral_starter'].includes(key))
+                .map(key => {
+                  const def = ACHIEVEMENT_DEFS[key];
+                  if (!def) return null;
+                  return (
+                    <span key={key} title={def.desc}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold cursor-default"
+                      style={{ background: 'rgba(255,230,0,0.08)', border: '1px solid rgba(255,230,0,0.25)', color: '#FFE600' }}>
+                      {def.emoji} {def.label}
+                    </span>
+                  );
+                })}
             </div>
           </div>
         </>

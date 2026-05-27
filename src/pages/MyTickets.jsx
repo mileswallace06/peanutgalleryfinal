@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { Ticket, Clock, CheckCircle, AlertTriangle, RefreshCw, Heart } from 'lucide-react';
+import { Ticket, Clock, CheckCircle, AlertTriangle, RefreshCw, Heart, Zap } from 'lucide-react';
 import DonateSeatSheet from '@/components/donations/DonateSeatSheet';
 
 export default function MyTickets() {
@@ -25,11 +25,12 @@ export default function MyTickets() {
       setPurchases(myPurchases);
 
       const eventIds = [...new Set(myPurchases.map(p => p.event_id).filter(Boolean))];
+      // SCALE-2: Batch event fetches in parallel instead of sequential per-event queries
+      const eventResults = await Promise.all(
+        eventIds.map(eid => base44.entities.Event.filter({ id: eid }).then(r => r[0]).catch(() => null))
+      );
       const eventMap = {};
-      await Promise.all(eventIds.map(async (eid) => {
-        const res = await base44.entities.Event.filter({ id: eid });
-        if (res[0]) eventMap[eid] = res[0];
-      }));
+      eventIds.forEach((eid, i) => { if (eventResults[i]) eventMap[eid] = eventResults[i]; });
       setEvents(eventMap);
     } catch (err) {
       setError(err?.message || 'Failed to load tickets');
@@ -105,7 +106,7 @@ export default function MyTickets() {
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-foreground truncate">{event?.title || 'Event'}</div>
           <div className="text-xs text-muted-foreground mt-0.5">
-            {event?.date ? format(new Date(event.date), 'EEE, MMM d · h:mm a') : ''}
+            {(event?.event_start_utc || event?.date) ? format(new Date(event.event_start_utc || event.date), 'EEE, MMM d · h:mm a') : ''}
             {event?.venue ? ` · ${event.venue}` : ''}
           </div>
           <div className="text-xs text-muted-foreground mt-0.5">
@@ -125,12 +126,20 @@ export default function MyTickets() {
             {needsConfirm ? 'Confirm →' : 'View →'}
           </Link>
           {p.transfer_status === 'completed' && event && (
-            <button
-              onClick={() => setDonatingPurchase({ purchase: p, event })}
-              className="flex items-center justify-center gap-1 text-xs font-bold px-3 py-1.5 rounded-xl transition-colors"
-              style={{ background: 'rgba(191,95,255,0.1)', border: '1px solid rgba(191,95,255,0.3)', color: '#BF5FFF' }}>
-              <Heart className="w-3 h-3" /> Donate
-            </button>
+            <div className="flex gap-1.5">
+              <Link
+                to={`/upgrades/${p.event_id}`}
+                className="flex items-center justify-center gap-1 text-xs font-bold px-3 py-1.5 rounded-xl transition-colors"
+                style={{ background: 'rgba(0,200,255,0.1)', border: '1px solid rgba(0,200,255,0.3)', color: '#00C8FF' }}>
+                <Zap className="w-3 h-3" /> Upgrade
+              </Link>
+              <button
+                onClick={() => setDonatingPurchase({ purchase: p, event })}
+                className="flex items-center justify-center gap-1 text-xs font-bold px-3 py-1.5 rounded-xl transition-colors"
+                style={{ background: 'rgba(191,95,255,0.1)', border: '1px solid rgba(191,95,255,0.3)', color: '#BF5FFF' }}>
+                <Heart className="w-3 h-3" /> Donate
+              </button>
+            </div>
           )}
         </div>
       </div>

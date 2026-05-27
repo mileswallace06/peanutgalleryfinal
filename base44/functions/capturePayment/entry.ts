@@ -5,6 +5,7 @@ import Stripe from 'npm:stripe@14.21.0';
 async function awardPoints(base44, userEmail, action, referenceId, referenceType) {
   try {
     await base44.asServiceRole.functions.invoke('awardPoints', {
+      _internal_service_call: true,
       action,
       reference_id: referenceId,
       reference_type: referenceType,
@@ -63,6 +64,21 @@ Deno.serve(async (req) => {
     return Response.json({ error: 'Cannot capture payment on a disputed purchase' }, { status: 409 });
   }
 
+  // FRAUD-3: Block buyer confirmation before seller has confirmed
+  if (confirming_role === 'buyer' && !purchase.seller_confirmed) {
+    return Response.json({ error: 'Cannot confirm receipt before seller confirms transfer' }, { status: 409 });
+  }
+
+  // CRITICAL-3: Block point awards on self-purchase (alt-account farming)
+  const isSelfPurchase = purchase.seller_email === purchase.buyer_email;
+  if (isSelfPurchase) {
+    console.warn('[capturePayment] SELF-PURCHASE DETECTED — blocking point awards:', {
+      seller: purchase.seller_email,
+      buyer: purchase.buyer_email,
+      purchase_id: purchase.id,
+    });
+  }
+
   // Update the confirming party
   const update = {};
   if (confirming_role === 'seller') {
@@ -85,21 +101,35 @@ Deno.serve(async (req) => {
   const updatedSellerConfirmed = confirming_role === 'seller' ? true : purchase.seller_confirmed;
 
   if (updatedBuyerConfirmed && updatedSellerConfirmed) {
+    // CRITICAL-6: Atomic capture guard — set payment_captured first, then capture Stripe.
+    // Re-fetch to check if another concurrent request already captured.
+    const [freshPurchase] = await base44.asServiceRole.entities.Purchase.filter({ id: purchase.id });
+    if (freshPurchase?.payment_captured === true || freshPurchase?.transfer_status === 'completed') {
+      return Response.json({ status: 'already_completed' });
+    }
+
+    // Mark captured in DB first (idempotency lock) before hitting Stripe
+    await base44.asServiceRole.entities.Purchase.update(purchase.id, {
+      transfer_status: 'completed',
+      payment_captured: true,
+    });
+
     // Capture the payment
     const pi = await stripe.paymentIntents.retrieve(purchase.payment_intent_id);
     if (pi.status === 'requires_capture') {
-      await stripe.paymentIntents.capture(purchase.payment_intent_id);
+      await stripe.paymentIntents.capture(purchase.payment_intent_id, {
+        idempotencyKey: `capture-${purchase.id}`,
+      });
     }
 
-    await base44.asServiceRole.entities.Purchase.update(purchase.id, {
-      transfer_status: 'completed',
-      payment_captured: true
-    });
+    // Mark listing sold
     await base44.asServiceRole.entities.Listing.update(purchase.listing_id, { status: 'sold' });
 
-    // Award points: seller sale completed + buyer purchase
-    awardPoints(base44, purchase.seller_email, 'sale_completed', purchase.id, 'purchase');
-    awardPoints(base44, purchase.buyer_email, 'purchase', purchase.id, 'purchase');
+    // Award points only if not a self-purchase (anti-farming guard)
+    if (!isSelfPurchase) {
+      awardPoints(base44, purchase.seller_email, 'sale_completed', purchase.id, 'purchase');
+      awardPoints(base44, purchase.buyer_email, 'purchase', purchase.id, 'purchase');
+    }
 
     // Notify seller: sale complete
     notify(base44, purchase.seller_email, 'Sale complete 💸', 'Your payout is now processing.', 'sale_complete', purchase.id);

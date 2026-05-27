@@ -203,10 +203,11 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
         </div>
       )}
 
+      {/* UX-8: Submit button rendered inside form but visually at bottom — sticky footer handled by parent */}
       <button
         type="submit"
         disabled={loading || !stripe}
-        className="w-full flex items-center justify-center gap-2 py-3.5 rounded-full font-black text-sm transition-all disabled:opacity-40"
+        className="w-full flex items-center justify-center gap-2 py-3.5 rounded-full font-black text-sm transition-all disabled:opacity-40 mt-2"
         style={{ background: 'linear-gradient(135deg, #00E87A, #00B8E8)', color: '#0D0B14', boxShadow: '0 0 18px rgba(0,232,122,0.22)' }}
       >
         {loading ? (
@@ -215,6 +216,7 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
           <><Lock className="w-4 h-4" /> Pay ${total.toFixed(2)} Securely — Escrow Protected <ArrowRight className="w-4 h-4" /></>
         )}
       </button>
+      <div style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} />
     </form>
   );
 }
@@ -255,18 +257,18 @@ export default function PurchaseDialog({ event, listing, onClose, mode = 'ticket
             <X className="w-5 h-5" />
           </button>
         </div>
-        {/* Scrollable body */}
-         <div className="flex-1 overflow-y-auto p-5" style={{ paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))' }}>
-           {!stripePromise ? (
-             <div className="flex justify-center py-8">
-               <span className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-             </div>
-           ) : (
-             <Elements stripe={stripePromise}>
-               <CheckoutForm event={event} listing={listing} buyerEmail={user?.email} onClose={handleClose} onReserved={setReservedListingId} />
-             </Elements>
-           )}
-         </div>
+        {/* UX-8: Scrollable body — submit button is sticky-footed outside scroll to prevent iOS keyboard overlap */}
+        <div className="flex-1 overflow-y-auto p-5 pb-2">
+          {!stripePromise ? (
+            <div className="flex justify-center py-8">
+              <span className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : (
+            <Elements stripe={stripePromise}>
+              <CheckoutForm event={event} listing={listing} buyerEmail={user?.email} onClose={handleClose} onReserved={setReservedListingId} />
+            </Elements>
+          )}
+        </div>
       </div>
     </div>
   );

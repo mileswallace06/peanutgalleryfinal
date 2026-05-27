@@ -1,7 +1,12 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import Stripe from 'npm:stripe@14.21.0';
 
-const PLATFORM_FEE_PCT = 0.05; // 5% — seller keeps 95%
+// ── Fee engine (mirrors feeEngine.js ACTIVE_FEE_MODEL_ID = 'pct5_min1') ──────
+// MUST stay in sync with lib/feeEngine.js — single source of truth is the model ID.
+// Active model: pct5_min1 — 5% of subtotal with a $1.00 minimum.
+function calcPlatformFee(subtotal) {
+  return Math.max(1.00, Math.round(subtotal * 0.05 * 100) / 100);
+}
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
@@ -80,8 +85,8 @@ Deno.serve(async (req) => {
   // seller receives: subtotal (sent via transfer_data)
   // Peanut Gallery keeps: platform fee (application_fee_amount)
   const subtotal = listing.asking_price * (listing.quantity || 1);
-  const platformFee = Math.round(subtotal * PLATFORM_FEE_PCT * 100) / 100;
-  const buyerTotal = subtotal + platformFee;
+  const platformFee = calcPlatformFee(subtotal);
+  const buyerTotal = Math.round((subtotal + platformFee) * 100) / 100;
   const sellerPayout = subtotal;
 
   const amountCents = Math.round(buyerTotal * 100);
@@ -94,8 +99,26 @@ Deno.serve(async (req) => {
     sellerStripeAccountId: sellerStripeAccountId || 'NONE (test/admin)',
   });
 
-  // Reserve the listing
+  // CRITICAL-5: Atomic listing reservation — re-check status after update to prevent double-sell.
+  // Pattern: update first, then re-fetch and verify the update "won" (optimistic lock).
   await base44.asServiceRole.entities.Listing.update(listing.id, { status: 'pending_transfer' });
+
+  // Re-fetch to verify we own the reservation (another request may have beaten us)
+  const [reservedListing] = await base44.asServiceRole.entities.Listing.filter({ id: listing.id });
+  if (!reservedListing || reservedListing.status !== 'pending_transfer') {
+    return Response.json({ error: 'Listing was just reserved by another buyer. Please try another listing.' }, { status: 409 });
+  }
+  // Extra safety: if another PaymentIntent already exists for this listing in pending state,
+  // another buyer got here first — abort and restore.
+  const existingPurchases = await base44.asServiceRole.entities.Purchase.filter({
+    listing_id: listing.id,
+    transfer_status: 'pending_transfer',
+  });
+  if (existingPurchases.length > 0) {
+    // Another buyer already has a pending purchase — restore and reject
+    await base44.asServiceRole.entities.Listing.update(listing.id, { status: 'active' });
+    return Response.json({ error: 'This listing was just purchased by another buyer.' }, { status: 409 });
+  }
 
   let paymentIntent;
   try {

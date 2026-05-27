@@ -19,11 +19,17 @@
  */
 
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import Stripe from 'npm:stripe@14.21.0';
 
 const SELLER_REMINDER_1_MS  =  5 * 60 * 1000;  //  5 min
 const SELLER_REMINDER_2_MS  = 15 * 60 * 1000;  // 15 min
 const BUYER_REMINDER_1_MS   =  5 * 60 * 1000;  //  5 min
 const BUYER_REMINDER_2_MS   = 15 * 60 * 1000;  // 15 min
+
+// CRITICAL-2: Escrow timeout — expire stale purchases before Stripe's 7-day auto-cancel
+// 48 hours for seller to confirm; 24 hours for buyer to confirm after seller
+const SELLER_EXPIRY_MS      = 48 * 60 * 60 * 1000;  // 48 hours
+const BUYER_EXPIRY_MS       = 24 * 60 * 60 * 1000;  // 24 hours after seller confirmed
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
@@ -146,6 +152,89 @@ Deno.serve(async (req) => {
     }
 
     if (!sent) skipped++;
+
+    // ── CRITICAL-2: Escrow timeout — auto-expire stale purchases ─────────────
+    const elapsedTotal = now - createdMs;
+
+    // Case A: Seller never confirmed within 48h
+    if (!purchase.seller_confirmed && elapsedTotal >= SELLER_EXPIRY_MS) {
+      try {
+        const secretKey = Deno.env.get('STRIPELIVESECRETKEY');
+        if (secretKey) {
+          const stripe = new Stripe(secretKey);
+          try {
+            const pi = await stripe.paymentIntents.retrieve(purchase.payment_intent_id);
+            if (pi.status === 'requires_capture') {
+              await stripe.paymentIntents.cancel(purchase.payment_intent_id);
+            }
+          } catch (stripeErr) {
+            console.error('[reminders] stripe cancel failed for', purchase.id, stripeErr?.message);
+          }
+        }
+        await base44.asServiceRole.entities.Purchase.update(purchase.id, { transfer_status: 'expired' });
+        await base44.asServiceRole.entities.Listing.update(purchase.listing_id, { status: 'active' });
+        await base44.asServiceRole.functions.invoke('sendUserNotification', {
+          user_email: purchase.buyer_email,
+          title: 'Purchase expired — refund issued',
+          body: 'The seller did not transfer your tickets in time. Your payment was not captured.',
+          type: 'purchase_expired',
+          purchase_id: purchase.id,
+        }).catch(() => {});
+        await base44.asServiceRole.functions.invoke('sendUserNotification', {
+          user_email: purchase.seller_email,
+          title: 'Your listing expired',
+          body: 'You did not confirm the transfer within 48 hours. The listing has been restored.',
+          type: 'listing_expired',
+          purchase_id: purchase.id,
+        }).catch(() => {});
+        console.log('[reminders] AUTO-EXPIRED purchase (seller no-show):', purchase.id);
+        sent++;
+      } catch (err) {
+        console.error('[reminders] expiry failed for', purchase.id, err?.message);
+      }
+      continue;
+    }
+
+    // Case B: Seller confirmed but buyer never confirmed within 24h
+    if (purchase.seller_confirmed && !purchase.buyer_confirmed && sellerConfirmedAt) {
+      const elapsedSinceTransfer = now - sellerConfirmedAt;
+      if (elapsedSinceTransfer >= BUYER_EXPIRY_MS) {
+        try {
+          // Auto-complete on buyer's behalf after 24h (seller transferred, buyer just didn't tap confirm)
+          await base44.asServiceRole.entities.Purchase.update(purchase.id, {
+            transfer_status: 'completed',
+            buyer_confirmed: true,
+            payment_captured: true,
+            transfer_notes: (purchase.transfer_notes || '') + ' [Auto-confirmed after 24h buyer inactivity]',
+          });
+          await base44.asServiceRole.entities.Listing.update(purchase.listing_id, { status: 'sold' });
+          // Note: Stripe capture should have been attempted by the seller confirm step.
+          // If not yet captured, attempt now.
+          const secretKey = Deno.env.get('STRIPELIVESECRETKEY');
+          if (secretKey && !purchase.payment_captured) {
+            const stripe = new Stripe(secretKey);
+            const pi = await stripe.paymentIntents.retrieve(purchase.payment_intent_id).catch(() => null);
+            if (pi?.status === 'requires_capture') {
+              await stripe.paymentIntents.capture(purchase.payment_intent_id, {
+                idempotencyKey: `autocapture-${purchase.id}`,
+              }).catch(err => console.error('[reminders] auto-capture failed:', err?.message));
+            }
+          }
+          await base44.asServiceRole.functions.invoke('sendUserNotification', {
+            user_email: purchase.seller_email,
+            title: 'Sale auto-completed 💸',
+            body: 'Your transfer was auto-confirmed after 24 hours. Payout is processing.',
+            type: 'sale_complete',
+            purchase_id: purchase.id,
+          }).catch(() => {});
+          console.log('[reminders] AUTO-COMPLETED purchase (buyer inactivity):', purchase.id);
+          sent++;
+        } catch (err) {
+          console.error('[reminders] auto-complete failed for', purchase.id, err?.message);
+        }
+        continue;
+      }
+    }
   }
 
   console.log(`[processTransferReminders] done. sent=${sent} skipped=${skipped} total=${pending.length}`);

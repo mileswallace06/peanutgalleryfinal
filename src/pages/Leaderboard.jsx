@@ -90,7 +90,12 @@ export default function Leaderboard() {
       ) : users.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
           <div className="text-5xl mb-3">🥜</div>
-          <p className="text-sm">No rankings yet — be the first!</p>
+          <p className="text-sm font-semibold text-foreground mb-1">No rankings yet — be the first!</p>
+          {/* UX-7: Contextual CTAs per leaderboard tab */}
+          {tab === 'points' && <Link to="/events" className="text-xs text-primary underline mt-2 inline-block">Browse Events →</Link>}
+          {tab === 'sellers' && <Link to="/create-listing" className="text-xs text-primary underline mt-2 inline-block">Create a Listing →</Link>}
+          {tab === 'instant' && <Link to="/instant-listings" className="text-xs text-primary underline mt-2 inline-block">Learn about Instant Listings →</Link>}
+          {tab === 'upgrades' && <Link to="/upgrades" className="text-xs text-primary underline mt-2 inline-block">Find Live Events →</Link>}
         </div>
       ) : (
         <div className="space-y-2">

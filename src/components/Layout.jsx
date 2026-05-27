@@ -29,6 +29,8 @@ const NAV = [
 export default function Layout() {
   // Use AuthContext user instead of a separate auth.me() call to avoid duplicate requests
   const { user } = useAuth();
+  // UX-5: Persist onboarding state on User entity so it survives device/browser changes.
+  // Falls back to localStorage for unauthenticated users / instant render.
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('pg_onboarded'));
   const location = useLocation();
   const scrollPositions = useRef({});
@@ -68,6 +70,15 @@ export default function Layout() {
     });
   }, [currentTab]);
 
+  // UX-5: Sync onboarding state with User entity
+  useEffect(() => {
+    if (!user) return;
+    if (user.has_seen_onboarding) {
+      localStorage.setItem('pg_onboarded', '1');
+      setShowOnboarding(false);
+    }
+  }, [user?.has_seen_onboarding]);
+
   // Log when user auth state resolves in Layout (debug only)
   useEffect(() => {
     if (user) {
@@ -75,8 +86,15 @@ export default function Layout() {
     }
   }, [user]);
 
+  const handleOnboardingDone = () => {
+    localStorage.setItem('pg_onboarded', '1');
+    setShowOnboarding(false);
+    // Persist to user entity so it survives new devices
+    base44.auth.updateMe({ has_seen_onboarding: true }).catch(() => {});
+  };
+
   if (showOnboarding) {
-    return <Onboarding onDone={() => setShowOnboarding(false)} />;
+    return <Onboarding onDone={handleOnboardingDone} />;
   }
 
   return (

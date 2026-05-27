@@ -13,19 +13,33 @@ export default function DonationWinNotification({ userEmail }) {
   const [accepted, setAccepted] = useState(null);
   const [countdown, setCountdown] = useState(120); // 2 min to respond
 
-  // Poll for pending donations where user is winner
+  // SCALE-1: Replace polling with real-time subscription
   useEffect(() => {
     if (!userEmail) return;
-    const check = async () => {
-      const donations = await base44.entities.SeatDonation.filter({
-        winner_email: userEmail,
-        donation_status: 'drawn',
-      }).catch(() => []);
+
+    // Initial load
+    base44.entities.SeatDonation.filter({
+      winner_email: userEmail,
+      donation_status: 'drawn',
+    }).then(donations => {
       if (donations.length > 0) setDonation(donations[0]);
-    };
-    check();
-    const interval = setInterval(check, 15000); // check every 15s
-    return () => clearInterval(interval);
+    }).catch(() => {});
+
+    // Real-time subscription — fires on any SeatDonation change
+    const unsubscribe = base44.entities.SeatDonation.subscribe((event) => {
+      const d = event.data;
+      if (!d) return;
+      if (d.winner_email === userEmail && d.donation_status === 'drawn') {
+        setDonation(d);
+        // UX-2: Haptic feedback on donation win (mobile)
+        if (navigator?.vibrate) navigator.vibrate([300, 100, 300, 100, 500]);
+      } else if (d.winner_email === userEmail && d.donation_status !== 'drawn') {
+        // Donation resolved — clear if we still have it showing
+        setDonation(prev => (prev?.id === d.id ? null : prev));
+      }
+    });
+
+    return () => unsubscribe();
   }, [userEmail]);
 
   // Countdown timer

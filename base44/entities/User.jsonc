@@ -22,6 +22,18 @@
     "favorite_team": {
       "type": "string"
     },
+    "has_seen_onboarding": {
+      "type": "boolean",
+      "default": false,
+      "description": "Persisted onboarding completion \u2014 survives new devices"
+    },
+    "stripe_account_id": {
+      "type": "string"
+    },
+    "stripe_onboarding_complete": {
+      "type": "boolean",
+      "default": false
+    },
     "peanut_points": {
       "type": "number",
       "default": 0
@@ -116,6 +128,10 @@
     },
     "points_last_updated": {
       "type": "string"
+    },
+    "strike_count": {
+      "type": "number",
+      "default": 0
     }
   },
   "required": []

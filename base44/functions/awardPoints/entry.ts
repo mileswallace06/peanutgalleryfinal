@@ -73,8 +73,10 @@ const POINT_VALUES = {
 
 // ─── Daily caps ───────────────────────────────────────────────────────────────
 const DAILY_CAPS = {
-  feedback_left:  10,
-  fan_zone_post:   9,
+  feedback_left:          10,
+  fan_zone_post:           9,
+  seat_donation_created: 450,  // FRAUD-2: max 3 donations/day can earn points (3×150=450)
+  donation_accepted:     225,  // max 3 accepted/day
 };
 
 // ─── Ranks ────────────────────────────────────────────────────────────────────
@@ -185,15 +187,18 @@ function computeTrustBadges(user) {
 }
 
 // ─── Daily cap check ──────────────────────────────────────────────────────────
+// SCALE-3: Use server-side date filter + limit to avoid full history scan
 async function getDailyPointsForAction(base44, userEmail, action) {
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
+  const todayIso = todayStart.toISOString();
+  // Filter at query level — only fetch today's records for this action
   const logs = await base44.asServiceRole.entities.PointsActivity.filter({
     user_email: userEmail,
     action,
-  });
-  const todayLogs = logs.filter(l => new Date(l.created_date) >= todayStart);
-  return todayLogs.reduce((sum, l) => sum + (l.points || 0), 0);
+    created_date: { $gte: todayIso },
+  }, '-created_date', 100).catch(() => []);
+  return logs.reduce((sum, l) => sum + (l.points || 0), 0);
 }
 
 // ─── Duplicate guard ──────────────────────────────────────────────────────────
@@ -266,7 +271,14 @@ Deno.serve(async (req) => {
 
     if (_internal_service_call) {
       if (!target_email) return Response.json({ error: 'target_email required for internal calls' }, { status: 400 });
-      // Internal calls are trusted — treat like a non-admin with explicit target_email
+      // CRITICAL-4: Validate internal calls come from service-role context, not a browser client.
+      // Service-role requests from other backend functions carry a Base44-injected trusted header.
+      // Direct browser requests cannot forge this header (CORS + server-only header).
+      const serviceHeader = req.headers.get('x-base44-service-role');
+      if (!serviceHeader || serviceHeader !== 'true') {
+        console.warn('[awardPoints] _internal_service_call attempted without service-role header — BLOCKED');
+        return Response.json({ error: 'Unauthorized' }, { status: 401 });
+      }
     } else {
       user = await base44.auth.me();
       if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });

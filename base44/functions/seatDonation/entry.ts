@@ -107,6 +107,7 @@ Deno.serve(async (req) => {
 
       // Geo verification if coordinates provided and event has venue coords
       let locationVerified = false;
+      let geoSuspicious = false;
       if (user_lat && user_lng && event.venue_lat && event.venue_lng) {
         const R = 6371000; // Earth radius meters
         const φ1 = user_lat * Math.PI / 180;
@@ -116,9 +117,32 @@ Deno.serve(async (req) => {
         const a = Math.sin(Δφ/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(Δλ/2)**2;
         const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         locationVerified = dist <= (event.geo_radius_meters || 1000);
+        // FRAUD-1: Flag suspiciously exact coordinates (possible spoof — lat/lng with >8 decimal places
+        // or coordinates that exactly match venue to within 1 meter)
+        const latStr = String(user_lat);
+        const lngStr = String(user_lng);
+        const latDecimals = (latStr.split('.')[1] || '').length;
+        const lngDecimals = (lngStr.split('.')[1] || '').length;
+        if (latDecimals > 8 || lngDecimals > 8) {
+          geoSuspicious = true;
+          console.warn('[seatDonation] Suspicious geo precision — possible spoof:', { user_email: user.email, user_lat, user_lng });
+        }
+        if (dist < 1 && event.venue_lat !== null) {
+          geoSuspicious = true;
+          console.warn('[seatDonation] Suspiciously exact venue coordinates — possible spoof:', { user_email: user.email, dist });
+        }
+        // Suspicious: location verified but user has no active purchases (belt + suspenders with ticket check)
+        if (locationVerified && !purchase) {
+          geoSuspicious = true;
+        }
       } else {
         // If no venue coords set, allow with ticket only
         locationVerified = true;
+      }
+      // Suspicious accounts get location_verified=false regardless
+      if (geoSuspicious) {
+        locationVerified = false;
+        console.warn('[seatDonation] Geo suspicious flag set — location_verified forced false for:', user.email);
       }
 
       // Rate limiting: if opted in very recently (< 30s), reject to prevent spam

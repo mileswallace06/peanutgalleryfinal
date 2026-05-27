@@ -76,6 +76,24 @@ Deno.serve(async (req) => {
     ? { flagged: false, reason: null }
     : await checkSuspicious(base44, user.email, askingPrice);
 
+  // FRAUD-4: Proof image hash deduplication — flag if same proof URL used by multiple listings
+  let proofDuplicate = false;
+  if (body.proof_url && !isAdmin && !isTest) {
+    const existingWithProof = await base44.asServiceRole.entities.Listing.filter({
+      proof_url: body.proof_url,
+    }).catch(() => []);
+    // Filter out the current seller's own prior listings (legitimate reuse unlikely but possible for multi-listing)
+    const otherSellerMatches = existingWithProof.filter(l => l.seller_email !== user.email);
+    if (otherSellerMatches.length > 0) {
+      proofDuplicate = true;
+      console.warn('[submitListing] DUPLICATE PROOF detected:', {
+        proof_url: body.proof_url,
+        seller: user.email,
+        matched_sellers: otherSellerMatches.map(l => l.seller_email),
+      });
+    }
+  }
+
   const listing = await base44.entities.Listing.create({
     event_id: body.event_id,
     seller_email: user.email,
@@ -88,8 +106,8 @@ Deno.serve(async (req) => {
     original_price: body.original_price || undefined,
     transfer_method: body.transfer_method || 'email_transfer',
     proof_url: body.proof_url || undefined,
-    proof_status: flagged ? 'pending_review' : 'approved',
-    proof_rejection_reason: flagged ? reason : undefined,
+    proof_status: (flagged || proofDuplicate) ? 'pending_review' : 'approved',
+    proof_rejection_reason: flagged ? reason : proofDuplicate ? 'Duplicate proof image detected — requires manual review' : undefined,
     status: 'active',
     notes: (isAdmin || isTest) ? '[TEST] Admin/demo listing' : undefined,
   });

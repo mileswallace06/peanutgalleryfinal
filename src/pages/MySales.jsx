@@ -34,11 +34,12 @@ export default function MySales() {
         ...allPurchases.map(p => p.event_id),
       ])].filter(Boolean);
 
+      // SCALE-2: Batch event fetches in parallel
+      const eventResults = await Promise.all(
+        eventIds.map(eid => base44.entities.Event.filter({ id: eid }).then(r => r[0]).catch(() => null))
+      );
       const eventMap = {};
-      await Promise.all(eventIds.map(async (eid) => {
-        const res = await base44.entities.Event.filter({ id: eid });
-        if (res[0]) eventMap[eid] = res[0];
-      }));
+      eventIds.forEach((eid, i) => { if (eventResults[i]) eventMap[eid] = eventResults[i]; });
       setEvents(eventMap);
     } catch (err) {
       setError(err?.message || 'Failed to load sales');
@@ -330,6 +331,10 @@ export default function MySales() {
                         style={{ background: p.payment_captured ? 'rgba(0,255,135,0.1)' : 'rgba(255,140,0,0.1)', color: payoutColor, border: `1px solid ${payoutColor}44` }}>
                         {payoutState}
                       </span>
+                      {/* UX-1: Payout ETA clarity */}
+                      {p.payment_captured && (
+                        <span className="text-[10px] text-muted-foreground">· Stripe deposits in 2–7 business days</span>
+                      )}
                       {p.created_date && (
                         <span className="text-xs text-muted-foreground">· {format(new Date(p.created_date), 'MMM d, yyyy')}</span>
                       )}

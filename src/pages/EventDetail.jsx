@@ -105,7 +105,7 @@ export default function EventDetail() {
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-1.5 text-xs text-white/70">
               <Calendar className="w-3.5 h-3.5" />
-              {event.date ? format(new Date(event.date), 'EEEE, MMMM d, yyyy · h:mm a') : 'TBD'}
+              {(event.event_start_utc || event.date) ? format(new Date(event.event_start_utc || event.date), 'EEEE, MMMM d, yyyy · h:mm a') : 'TBD'}
             </div>
             <div className="flex items-center gap-1.5 text-xs text-white/70">
               <MapPin className="w-3.5 h-3.5" />
