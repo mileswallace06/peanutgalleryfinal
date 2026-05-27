@@ -237,6 +237,11 @@ export default function Sell() {
               <p className="text-[10px] text-center text-muted-foreground">
                 Powered by Stripe Connect. Your bank details are never stored by Peanut Gallery.
               </p>
+              <Link to="/seller-payout-guide"
+                className="block text-center text-xs font-semibold transition-colors"
+                style={{ color: '#FF8C00' }}>
+                📖 How does payout setup work? →
+              </Link>
             </div>
           </div>
         )}
@@ -331,7 +336,7 @@ export default function Sell() {
 
         {/* Empty state */}
         {listings.length === 0 && (
-          <div className="text-center py-16 glass-card rounded-2xl">
+          <div className="text-center py-12 glass-card rounded-2xl px-6">
             <p className="text-4xl mb-3">🎟️</p>
             <p className="font-bold text-foreground">No listings yet</p>
             <p className="text-sm text-muted-foreground mt-1 mb-5">Got seats you can't use? List them now.</p>
@@ -339,6 +344,10 @@ export default function Sell() {
               className="inline-flex items-center gap-2 font-bold px-6 py-3 rounded-full"
               style={{ background: '#FF2D78', color: '#fff' }}>
               <Plus className="w-4 h-4" /> Create Listing
+            </Link>
+            <Link to="/why-peanut-gallery"
+              className="block mt-4 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors">
+              🥜 Why Peanut Gallery? How we protect fans →
             </Link>
           </div>
         )}

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { Ticket, TrendingUp, Shield, LogIn, Edit2, Tag, Zap, ChevronRight, Camera, ImagePlus, UserPlus, UserCheck, Settings, Eye, EyeOff } from 'lucide-react';
+import { Ticket, TrendingUp, Shield, LogIn, Edit2, Tag, Zap, ChevronRight, Camera, ImagePlus, UserPlus, UserCheck, Settings, Eye, EyeOff, HelpCircle } from 'lucide-react';
 
 /** Privacy-first email display — hidden by default, reveal on tap */
 function EmailDisplay({ email }) {
@@ -377,6 +377,26 @@ export default function Me() {
             </div>
             <ChevronRight className="w-4 h-4 text-muted-foreground" />
           </Link>
+
+          {/* Trust & Education links */}
+          <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid hsl(var(--border))' }}>
+            {[
+              { to: '/why-peanut-gallery', label: 'Why Peanut Gallery?', sub: 'How PG protects fans', emoji: '🥜' },
+              { to: '/instant-listings', label: 'Instant Transfer Guide', sub: 'How instant listings work', emoji: '⚡' },
+              { to: '/seller-payout-guide', label: 'Seller Payout Guide', sub: 'Stripe setup & payouts', emoji: '🏦' },
+            ].map((item, i, arr) => (
+              <Link key={item.to} to={item.to}
+                className="flex items-center gap-3 px-4 py-3.5 transition-all active:scale-[0.98]"
+                style={{ borderBottom: i < arr.length - 1 ? '1px solid hsl(var(--border))' : 'none', background: 'hsl(var(--card))' }}>
+                <span className="text-lg w-7 text-center flex-shrink-0">{item.emoji}</span>
+                <div className="flex-1">
+                  <div className="text-sm font-bold text-foreground">{item.label}</div>
+                  <div className="text-[10px] text-muted-foreground">{item.sub}</div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              </Link>
+            ))}
+          </div>
 
           {isAdmin(user) && (
             <Link

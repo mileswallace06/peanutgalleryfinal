@@ -27,6 +27,9 @@ import EditPersona from '@/pages/EditPersona';
 import BetaQA from '@/pages/BetaQA';
 import TermsOfService from '@/pages/TermsOfService';
 import PrivacyPolicy from '@/pages/PrivacyPolicy';
+import InstantListingsGuide from '@/pages/InstantListingsGuide';
+import SellerPayoutGuide from '@/pages/SellerPayoutGuide';
+import WhyPeanutGallery from '@/pages/WhyPeanutGallery';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, checkAppState, isAuthenticated, user } = useAuth();
@@ -91,6 +94,9 @@ const AuthenticatedApp = () => {
             <Route path="/beta-qa" element={<BetaQA />} />
             <Route path="/terms" element={<TermsOfService />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
+            <Route path="/instant-listings" element={<InstantListingsGuide />} />
+            <Route path="/seller-payout-guide" element={<SellerPayoutGuide />} />
+            <Route path="/why-peanut-gallery" element={<WhyPeanutGallery />} />
           </Route>
           <Route path="*" element={<PageNotFound />} />
         </Routes>
