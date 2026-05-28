@@ -13,6 +13,7 @@ import Events from '@/pages/Events';
 import EventDetail from '@/pages/EventDetail';
 import PurchaseSuccess from '@/pages/PurchaseSuccess';
 import AdminMode from '@/pages/AdminMode';
+import AdminCommandCenter from '@/pages/AdminCommandCenter';
 import MySales from '@/pages/MySales';
 import MyTickets from '@/pages/MyTickets';
 import CreateListing from '@/pages/CreateListing';
@@ -80,7 +81,8 @@ const AuthenticatedApp = () => {
             <Route path="/events" element={<Events />} />
             <Route path="/events/:id" element={<EventDetail />} />
             <Route path="/purchase/:id" element={<PurchaseSuccess />} />
-            <Route path="/admin" element={<AdminMode />} />
+            <Route path="/admin" element={<AdminCommandCenter />} />
+            <Route path="/admin-legacy" element={<AdminMode />} />
             <Route path="/my-sales" element={<MySales />} />
             <Route path="/my-tickets" element={<MyTickets />} />
             <Route path="/create-listing" element={<CreateListing />} />
