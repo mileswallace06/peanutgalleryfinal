@@ -120,7 +120,7 @@
     "auto_review_flagged": {
       "type": "boolean",
       "default": false,
-      "description": "Set true when buyer is inactive 24h after seller confirms \u2014 requires admin review before capture"
+      "description": "Set true when buyer is inactive 24h after seller confirms OR AI flags suspicious proof"
     },
     "auto_review_flagged_at": {
       "type": "string",
@@ -152,6 +152,104 @@
     "fulfillment_completed_at": {
       "type": "string",
       "description": "ISO timestamp when PG marked transfer complete"
+    },
+    "ai_proof_status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "processing",
+        "verified_high_confidence",
+        "verified_medium_confidence",
+        "needs_human_review",
+        "rejected_suspicious",
+        "failed_processing"
+      ],
+      "default": "pending",
+      "description": "AI verification status of seller's transfer proof"
+    },
+    "ai_confidence_score": {
+      "type": "number",
+      "description": "AI confidence score 0-100"
+    },
+    "ai_review_notes": {
+      "type": "string",
+      "description": "AI plain-language summary of the verification decision"
+    },
+    "ai_detected_platform": {
+      "type": "string",
+      "enum": [
+        "ticketmaster",
+        "seatgeek",
+        "axs",
+        "stubhub",
+        "apple_wallet",
+        "vivid",
+        "screenshot_unknown",
+        "other"
+      ],
+      "description": "Ticketing platform detected in the screenshot"
+    },
+    "ai_extracted_event_name": {
+      "type": "string",
+      "description": "Event name extracted from screenshot"
+    },
+    "ai_extracted_recipient": {
+      "type": "string",
+      "description": "Recipient email or name extracted from screenshot"
+    },
+    "ai_extracted_transfer_time": {
+      "type": "string",
+      "description": "Transfer timestamp extracted from screenshot"
+    },
+    "ai_extracted_section": {
+      "type": "string"
+    },
+    "ai_extracted_row": {
+      "type": "string"
+    },
+    "ai_extracted_seats": {
+      "type": "string"
+    },
+    "ai_flags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of AI-detected suspicion flags"
+    },
+    "ai_processed_at": {
+      "type": "string",
+      "description": "ISO timestamp when AI processed the proof"
+    },
+    "ai_processed_by_model": {
+      "type": "string",
+      "description": "AI model used for verification"
+    },
+    "fraud_risk_score": {
+      "type": "number",
+      "description": "Computed fraud risk score 0-100. Higher = more suspicious."
+    },
+    "admin_override_status": {
+      "type": "string",
+      "enum": [
+        "approved",
+        "rejected",
+        "escalated",
+        "marked_fraudulent"
+      ],
+      "description": "Admin override of AI decision"
+    },
+    "admin_override_reason": {
+      "type": "string",
+      "description": "Admin's reason for overriding AI decision"
+    },
+    "admin_override_by": {
+      "type": "string",
+      "description": "Email of admin who performed the override"
+    },
+    "admin_override_at": {
+      "type": "string",
+      "description": "ISO timestamp of admin override"
     }
   },
   "required": [

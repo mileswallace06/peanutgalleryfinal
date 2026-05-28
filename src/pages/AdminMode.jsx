@@ -10,6 +10,7 @@ import TransactionAnalytics from '@/components/admin/TransactionAnalytics';
 import FeeComparisonReport from '@/components/admin/FeeComparisonReport';
 import MinListingPriceConfig from '@/components/admin/MinListingPriceConfig';
 import { isAdmin } from '@/lib/isAdmin';
+import AIVerificationQueue from '@/components/admin/AIVerificationQueue';
 
 const ADMIN_PASSWORD = 'peanut2026';
 
@@ -372,6 +373,9 @@ export default function AdminMode() {
 
       {/* Instant Fulfillment Center */}
       <InstantFulfillmentCenter listings={listings} purchases={purchases} events={events} user={user} onRefresh={loadData} loading={dataLoading} />
+
+      {/* AI Transfer Verification Queue */}
+      <AIVerificationQueue purchases={purchases} events={events} listings={listings} onRefresh={loadData} />
 
       {/* Proof Review */}
       <div className="bg-card border border-border rounded-2xl p-5 mb-6">

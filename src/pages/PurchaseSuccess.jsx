@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { CheckCircle, Clock, XCircle, AlertTriangle, ArrowLeft, Ticket, Upload, FileText, ExternalLink, RefreshCw, Sparkles, Send } from 'lucide-react';
 import DisputeModal from '@/components/purchase/DisputeModal';
+import AIVerificationStatus from '@/components/purchase/AIVerificationStatus';
 import { createOptimisticPurchaseUpdate } from '@/lib/optimisticUI';
 import NotificationPermissionPrompt from '@/components/NotificationPermissionPrompt';
 
@@ -52,7 +53,7 @@ const PLATFORMS = [
 ];
 
 // ── Seller View ──────────────────────────────────────────────────────────────
-function SellerPanel({ purchase, onConfirm, actionLoading, error, setError }) {
+function SellerPanel({ purchase, onConfirm, actionLoading, error, setError, user }) {
   const [proofNote, setProofNote] = useState('');
   const [proofFile, setProofFile] = useState(null);
   const [proofUploading, setProofUploading] = useState(false);
@@ -95,6 +96,9 @@ function SellerPanel({ purchase, onConfirm, actionLoading, error, setError }) {
           <p className="text-xs text-center text-muted-foreground">
             Your payout is released once the buyer confirms.
           </p>
+
+          {/* AI Verification Status */}
+          <AIVerificationStatus purchase={purchase} role="seller" />
 
           {/* Proof submitted */}
           {(purchase.transfer_notes || purchase.transfer_proof_url) && (
@@ -307,6 +311,9 @@ function BuyerPanel({ purchase, onConfirm, onDispute, onCancel, actionLoading })
       </div>
 
       <div className="p-5 space-y-4">
+        {/* AI verification status for buyer */}
+        <AIVerificationStatus purchase={purchase} role="buyer" />
+
         {/* Seller's proof */}
         {(purchase.transfer_notes || purchase.transfer_proof_url) && (
           <div className="rounded-xl p-3 text-sm space-y-2"
@@ -448,15 +455,25 @@ export default function PurchaseSuccess() {
     setActionLoading(true);
     setError('');
     await base44.entities.Purchase.update(purchase.id, {
-      ...(proofUrl ? { transfer_proof_url: proofUrl } : {}),
+      ...(proofUrl ? { transfer_proof_url: proofUrl, ai_proof_status: 'pending' } : {}),
       ...(proofNote ? { transfer_notes: proofNote } : {}),
     });
     const res = await base44.functions.invoke('capturePayment', {
       purchase_id: purchase.id,
       confirming_role: 'seller',
     });
-    if (res.data.error) setError(res.data.error);
-    else await load();
+    if (res.data.error) {
+      setError(res.data.error);
+    } else {
+      // Trigger AI verification async — fire-and-forget, non-blocking
+      if (proofUrl) {
+        base44.functions.invoke('verifyTransferProof', {
+          purchase_id: purchase.id,
+          proof_url: proofUrl,
+        }).catch(err => console.warn('[AI verify] failed to trigger:', err?.message));
+      }
+      await load();
+    }
     setActionLoading(false);
   };
 
