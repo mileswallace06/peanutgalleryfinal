@@ -70,9 +70,10 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Not authorized for this purchase' }, { status: 403 });
     }
 
-    // Skip if already verified at high confidence (unless forced)
-    if (!force_reprocess && purchase.ai_proof_status === 'verified_high_confidence') {
-      return Response.json({ skipped: true, reason: 'already_verified', ai_proof_status: purchase.ai_proof_status });
+    // Skip if already processing or verified at high confidence (prevents duplicate LLM runs / credit waste)
+    if (!force_reprocess && ['processing', 'verified_high_confidence'].includes(purchase.ai_proof_status)) {
+      console.warn(`[verifyTransferProof] duplicate trigger blocked — purchase=${purchase_id} status=${purchase.ai_proof_status} triggered_by=${user.email}`);
+      return Response.json({ skipped: true, reason: 'already_processing_or_verified', ai_proof_status: purchase.ai_proof_status });
     }
 
     // Mark as processing

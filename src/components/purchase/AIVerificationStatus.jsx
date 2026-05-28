@@ -7,13 +7,13 @@
 import { Brain, CheckCircle, Clock, AlertTriangle, ShieldCheck } from 'lucide-react';
 
 const SELLER_STATUS_MAP = {
-  pending:                    { label: 'Proof queued for AI review',   color: '#888',    bg: 'rgba(255,255,255,0.05)', icon: Clock, pulse: false },
-  processing:                 { label: 'AI reviewing screenshot…',     color: '#BF5FFF', bg: 'rgba(191,95,255,0.08)', icon: Brain, pulse: true },
-  verified_high_confidence:   { label: 'Transfer verified ✓',          color: '#00FF87', bg: 'rgba(0,255,135,0.08)',  icon: ShieldCheck, pulse: false },
-  verified_medium_confidence: { label: 'Transfer looks valid',         color: '#00C8FF', bg: 'rgba(0,200,255,0.08)',  icon: ShieldCheck, pulse: false },
-  needs_human_review:         { label: 'Additional review in progress',color: '#FF8C00', bg: 'rgba(255,140,0,0.08)',  icon: Clock, pulse: true },
-  rejected_suspicious:        { label: 'Proof flagged — support reviewing', color: '#FF2D78', bg: 'rgba(255,45,120,0.08)', icon: AlertTriangle, pulse: false },
-  failed_processing:          { label: 'AI review failed — manual review queued', color: '#FFE600', bg: 'rgba(255,230,0,0.08)', icon: AlertTriangle, pulse: false },
+  pending:                    { label: 'Proof queued for review',                          color: '#888',    bg: 'rgba(255,255,255,0.05)', icon: Clock,       pulse: false },
+  processing:                 { label: 'Reviewing your transfer screenshot…',               color: '#BF5FFF', bg: 'rgba(191,95,255,0.08)', icon: Brain,       pulse: true  },
+  verified_high_confidence:   { label: 'Transfer verified ✓',                              color: '#00FF87', bg: 'rgba(0,255,135,0.08)',  icon: ShieldCheck, pulse: false },
+  verified_medium_confidence: { label: 'Transfer looks good',                              color: '#00C8FF', bg: 'rgba(0,200,255,0.08)',  icon: ShieldCheck, pulse: false },
+  needs_human_review:         { label: 'Support is reviewing your transfer confirmation',  color: '#FF8C00', bg: 'rgba(255,140,0,0.08)',  icon: Clock,       pulse: true  },
+  rejected_suspicious:        { label: 'Additional verification may be required',         color: '#FF8C00', bg: 'rgba(255,140,0,0.08)',  icon: Clock,       pulse: false },
+  failed_processing:          { label: 'Manual review queued — support will follow up',   color: '#888',    bg: 'rgba(255,255,255,0.05)', icon: Clock,       pulse: false },
 };
 
 // Buyer only ever sees these 3 simplified states
@@ -53,13 +53,22 @@ export default function AIVerificationStatus({ purchase, role = 'seller' }) {
   if (!cfg) return null;
   const StatusIcon = cfg.icon;
 
+  // Only show AI review notes for safe statuses — never expose raw internal moderation language
+  const SAFE_TO_SHOW_NOTES = ['verified_medium_confidence', 'needs_human_review'];
+  const showNotes = SAFE_TO_SHOW_NOTES.includes(purchase.ai_proof_status) && purchase.ai_review_notes;
+
   return (
     <div className="rounded-xl px-3 py-2.5 space-y-1" style={{ background: cfg.bg, border: `1px solid ${cfg.color}30` }}>
       <div className="flex items-center gap-2 text-xs font-semibold" style={{ color: cfg.color }}>
         <StatusIcon className={`w-3.5 h-3.5 flex-shrink-0 ${cfg.pulse ? 'animate-pulse' : ''}`} />
         {cfg.label}
       </div>
-      {purchase.ai_review_notes && purchase.ai_proof_status !== 'verified_high_confidence' && (
+      {purchase.ai_proof_status === 'processing' && (
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          This usually completes in under a minute. No need to re-upload your screenshot.
+        </p>
+      )}
+      {showNotes && (
         <p className="text-xs text-muted-foreground leading-relaxed">{purchase.ai_review_notes}</p>
       )}
       {purchase.admin_override_status && (

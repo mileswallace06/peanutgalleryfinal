@@ -230,46 +230,56 @@ function AIVerificationCard({ purchase, event, listing, onOverride, actionLoadin
 
 export default function AIVerificationQueue({ purchases, events, listings, onRefresh }) {
   const [actionLoading, setActionLoading] = useState('');
-  const [filter, setFilter] = useState('all');
+  const [filter, setFilter] = useState('needs_human_review');
 
   // Purchases that have a proof URL and some AI status
   const verifiedPurchases = purchases.filter(p =>
     p.transfer_proof_url && p.ai_proof_status && p.ai_proof_status !== 'pending'
   );
 
-  const filtered = filter === 'all' ? verifiedPurchases : verifiedPurchases.filter(p => p.ai_proof_status === filter);
+  const filtered = (filter === 'all' ? verifiedPurchases : verifiedPurchases.filter(p => p.ai_proof_status === filter))
+    .sort((a, b) => {
+      // Prioritize unreviewed items
+      const aReviewed = !!a.admin_override_status;
+      const bReviewed = !!b.admin_override_status;
+      if (aReviewed !== bReviewed) return aReviewed ? 1 : -1;
+      return new Date(b.ai_processed_at || 0) - new Date(a.ai_processed_at || 0);
+    });
 
   // Stats
+  const todayStart = new Date(); todayStart.setHours(0,0,0,0);
   const stats = {
     total: verifiedPurchases.length,
     high: verifiedPurchases.filter(p => p.ai_proof_status === 'verified_high_confidence').length,
     medium: verifiedPurchases.filter(p => p.ai_proof_status === 'verified_medium_confidence').length,
     review: verifiedPurchases.filter(p => p.ai_proof_status === 'needs_human_review').length,
     suspicious: verifiedPurchases.filter(p => p.ai_proof_status === 'rejected_suspicious').length,
+    failed: verifiedPurchases.filter(p => p.ai_proof_status === 'failed_processing').length,
+    processing: purchases.filter(p => p.ai_proof_status === 'processing').length,
+    verifiedToday: verifiedPurchases.filter(p =>
+      p.ai_processed_at && new Date(p.ai_processed_at) >= todayStart &&
+      (p.ai_proof_status === 'verified_high_confidence' || p.ai_proof_status === 'verified_medium_confidence')
+    ).length,
+    overridden: verifiedPurchases.filter(p => p.admin_override_status).length,
+    needsAttention: verifiedPurchases.filter(p =>
+      ['needs_human_review', 'rejected_suspicious', 'failed_processing'].includes(p.ai_proof_status) && !p.admin_override_status
+    ).length,
   };
 
   const handleOverride = async (purchaseId, action, reason) => {
     setActionLoading(purchaseId);
-    const me = await base44.auth.me().catch(() => null);
-    await base44.entities.Purchase.update(purchaseId, {
-      admin_override_status: action,
-      admin_override_reason: reason,
-      admin_override_by: me?.email || 'admin',
-      admin_override_at: new Date().toISOString(),
-      // If approved, mark as high confidence; if rejected, mark suspicious
-      ...(action === 'approved' ? { ai_proof_status: 'verified_high_confidence' } : {}),
-      ...(action === 'rejected' || action === 'marked_fraudulent' ? { ai_proof_status: 'rejected_suspicious', auto_review_flagged: true } : {}),
-    });
+    await base44.functions.invoke('adminOverrideAIVerification', { purchase_id: purchaseId, action, reason });
     await onRefresh();
     setActionLoading('');
   };
 
   const FILTER_TABS = [
+    { key: 'needs_human_review',        label: `Needs Review (${stats.review})`,    color: '#FF8C00' },
+    { key: 'rejected_suspicious',       label: `Suspicious (${stats.suspicious})`,  color: '#FF2D78' },
+    { key: 'failed_processing',         label: `Failed (${stats.failed})`,          color: '#FFE600' },
     { key: 'all',                       label: `All (${stats.total})` },
-    { key: 'needs_human_review',        label: `Needs Review (${stats.review})`, color: '#FF8C00' },
-    { key: 'rejected_suspicious',       label: `Suspicious (${stats.suspicious})`, color: '#FF2D78' },
-    { key: 'verified_high_confidence',  label: `Verified (${stats.high})`, color: '#00FF87' },
-    { key: 'verified_medium_confidence',label: `Likely Valid (${stats.medium})`, color: '#00C8FF' },
+    { key: 'verified_high_confidence',  label: `Verified (${stats.high})`,          color: '#00FF87' },
+    { key: 'verified_medium_confidence',label: `Likely Valid (${stats.medium})`,    color: '#00C8FF' },
   ];
 
   return (
@@ -284,20 +294,26 @@ export default function AIVerificationQueue({ purchases, events, listings, onRef
         )}
       </div>
 
-      {/* Stats overview */}
-      <div className="grid grid-cols-4 gap-2 mb-5">
+      {/* Operational metrics */}
+      <div className="grid grid-cols-4 gap-2 mb-3">
         {[
-          { label: 'Verified',  value: stats.high,       color: '#00FF87' },
-          { label: 'Likely OK', value: stats.medium,     color: '#00C8FF' },
-          { label: 'Review',    value: stats.review,     color: '#FF8C00' },
-          { label: 'Suspicious',value: stats.suspicious, color: '#FF2D78' },
+          { label: 'Needs Attention', value: stats.needsAttention, color: '#FF8C00' },
+          { label: 'Suspicious',      value: stats.suspicious,     color: '#FF2D78' },
+          { label: 'Failed',          value: stats.failed,         color: '#FFE600' },
+          { label: 'Verified Today',  value: stats.verifiedToday,  color: '#00FF87' },
         ].map(s => (
           <div key={s.label} className="rounded-xl p-3 text-center"
-            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+            style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${s.value > 0 && s.color !== '#00FF87' ? s.color + '40' : 'rgba(255,255,255,0.08)'}` }}>
             <div className="text-xl font-black" style={{ color: s.color }}>{s.value}</div>
             <div className="text-[10px] text-muted-foreground mt-0.5">{s.label}</div>
           </div>
         ))}
+      </div>
+      {/* Secondary metrics row */}
+      <div className="flex gap-3 text-xs text-muted-foreground mb-5 flex-wrap">
+        <span>Total processed: <strong className="text-foreground">{stats.total}</strong></span>
+        {stats.processing > 0 && <span style={{ color: '#BF5FFF' }}>⏳ {stats.processing} processing now</span>}
+        {stats.overridden > 0 && <span>Admin overridden: <strong className="text-foreground">{stats.overridden}</strong></span>}
       </div>
 
       {/* Filter tabs */}
