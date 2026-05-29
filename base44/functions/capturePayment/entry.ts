@@ -178,8 +178,10 @@ Deno.serve(async (req) => {
     // Quick fulfillment bonus: if seller confirms within 4 hours of purchase
     const purchasedAt = new Date(purchase.created_date).getTime();
     const hoursElapsed = (Date.now() - purchasedAt) / 3600000;
-    if (hoursElapsed <= 4) {
-      awardPoints(base44, purchase.seller_email, 'quick_seller_fulfill', purchase.id, 'purchase');
+    if (hoursElapsed <= 1) {
+      awardPoints(base44, purchase.seller_email, 'seller_transfer_1hr', purchase.id, 'purchase');
+    } else if (hoursElapsed <= 4) {
+      // no bonus tier for >1hr but still within same-day — no action
     }
     notify(base44, purchase.buyer_email, 'Tickets sent 🚀', 'Your seller has sent the tickets! Check your email and ticket app (Ticketmaster, SeatGeek, etc.), then confirm receipt in the app to release payment.', 'tickets_sent', purchase.id);
   }
@@ -188,8 +190,8 @@ Deno.serve(async (req) => {
   if (confirming_role === 'buyer' && purchase.seller_confirmed_at) {
     const sentAt = new Date(purchase.seller_confirmed_at).getTime();
     const hoursElapsed = (Date.now() - sentAt) / 3600000;
-    if (hoursElapsed <= 2) {
-      awardPoints(base44, purchase.buyer_email, 'quick_buyer_confirm', purchase.id, 'purchase');
+    if (hoursElapsed <= 1) {
+      awardPoints(base44, purchase.buyer_email, 'buyer_confirm_1hr', purchase.id, 'purchase');
     }
   }
 

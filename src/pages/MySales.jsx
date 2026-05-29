@@ -4,7 +4,6 @@ import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 import { Ticket, Clock, CheckCircle, Package, ArrowRight, Plus, RefreshCw } from 'lucide-react';
 import SellerMetrics from '@/components/sales/SellerMetrics';
-import VerifyTransferButton from '@/components/listings/VerifyTransferButton';
 import TransferStatusBadge from '@/components/listings/TransferStatusBadge';
 import ListingStatusBanner from '@/components/listings/ListingStatusBanner';
 import { isVerificationExpired } from '@/lib/transferConfidence';
@@ -92,6 +91,9 @@ export default function MySales() {
   const awaitingBuyer = purchases.filter(p => p.transfer_status === 'pending_transfer' && p.seller_confirmed && !p.buyer_confirmed);
   const completedSales = purchases.filter(p => p.transfer_status === 'completed');
   const activeListings = listings.filter(l => l.status === 'active');
+  const hiddenOrRejectedListings = listings.filter(l =>
+    l.status === 'hidden' || l.proof_status === 'rejected'
+  );
 
   const cardStyle = { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' };
 
@@ -234,6 +236,39 @@ export default function MySales() {
           </div>
         )}
       </section>
+
+      {/* Hidden / Rejected Listings */}
+      {hiddenOrRejectedListings.length > 0 && (
+        <section className="mb-8">
+          <h2 className="font-semibold text-base mb-3 flex items-center gap-2 text-foreground">
+            <span style={{ color: '#FF2D78' }}>🚫</span>
+            <span>Needs Attention</span>
+            <span className="text-xs font-bold px-2 py-0.5 rounded-full"
+              style={{ background: 'rgba(255,45,120,0.12)', color: '#FF2D78', border: '1px solid rgba(255,45,120,0.3)' }}>
+              {hiddenOrRejectedListings.length}
+            </span>
+          </h2>
+          <div className="space-y-3">
+            {hiddenOrRejectedListings.map(l => {
+              const ev = events[l.event_id];
+              return (
+                <div key={l.id} className="rounded-2xl p-4 space-y-3 text-sm"
+                  style={{ background: 'rgba(255,45,120,0.05)', border: '1px solid rgba(255,45,120,0.2)' }}>
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className="min-w-0">
+                      <div className="font-medium text-foreground truncate">{ev?.title || 'Event'}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        Section {l.section} · Row {l.row} · {l.quantity} seat{l.quantity !== 1 ? 's' : ''} · ${l.asking_price}/ea
+                      </div>
+                    </div>
+                  </div>
+                  <ListingStatusBanner listing={l} event={ev} onRefresh={load} />
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* Instant Listings — pending verification */}
       {(() => {

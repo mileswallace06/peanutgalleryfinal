@@ -32,6 +32,14 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
 
+    // Only callable from authenticated users or service-role (other backend functions).
+    // Prevents unauthenticated actors from injecting notifications for arbitrary users.
+    const caller = await base44.auth.me().catch(() => null);
+    const isServiceRole = req.headers.get('x-base44-service-role') === 'true';
+    if (!caller && !isServiceRole) {
+      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const {
       user_email, type, title, body,
       reference_id, reference_type, action_url,

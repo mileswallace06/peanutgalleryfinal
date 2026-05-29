@@ -173,9 +173,21 @@ export default function PendingReviewQueue({ onRefresh }) {
 
   const handleApprove = async (listing) => {
     setActionLoading(listing.id);
+    const user = await base44.auth.me().catch(() => null);
     await base44.entities.Listing.update(listing.id, {
       proof_status: 'approved',
       status: 'active',
+    }).catch(() => {});
+
+    // Audit log
+    base44.entities.BetaTransferLog.create({
+      log_type: 'listing_restored',
+      actor_email: user?.email || 'admin',
+      actor_role: 'admin',
+      listing_id: listing.id,
+      before_state: { proof_status: 'pending_review', status: listing.status },
+      after_state: { proof_status: 'approved', status: 'active' },
+      notes: 'Admin approved listing via Review Queue',
     }).catch(() => {});
 
     // Notify seller
@@ -196,11 +208,23 @@ export default function PendingReviewQueue({ onRefresh }) {
 
   const handleReject = async (listing, reason) => {
     setActionLoading(listing.id);
+    const user = await base44.auth.me().catch(() => null);
     await base44.entities.Listing.update(listing.id, {
       proof_status: 'rejected',
       status: 'hidden',
       hidden_reason: 'admin_disabled',
       proof_rejection_reason: reason,
+    }).catch(() => {});
+
+    // Audit log
+    base44.entities.BetaTransferLog.create({
+      log_type: 'listing_hidden',
+      actor_email: user?.email || 'admin',
+      actor_role: 'admin',
+      listing_id: listing.id,
+      before_state: { proof_status: 'pending_review', status: listing.status },
+      after_state: { proof_status: 'rejected', status: 'hidden', hidden_reason: 'admin_disabled' },
+      notes: `Admin rejected listing. Reason: ${reason}`,
     }).catch(() => {});
 
     // Notify seller

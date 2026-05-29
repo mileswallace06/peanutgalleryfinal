@@ -533,7 +533,25 @@ export default function PurchaseSuccess() {
       dispute_reason: reason,
     });
 
-    // Notify support — fire-and-forget, never block the dispute flow
+    // Notify buyer, seller, and support — fire-and-forget
+    base44.functions.invoke('recordNotification', {
+      user_email: purchase.buyer_email,
+      type: 'dispute_opened',
+      title: 'Dispute submitted ⚖️',
+      body: `Your dispute has been received. Our team will review and resolve it promptly. Reason: ${reason}`,
+      reference_id: purchase.id,
+      reference_type: 'purchase',
+      action_url: `/purchase/${purchase.id}`,
+    }).catch(() => {});
+    base44.functions.invoke('recordNotification', {
+      user_email: purchase.seller_email,
+      type: 'dispute_opened',
+      title: 'Buyer opened a dispute ⚖️',
+      body: `The buyer disputed this transaction. Reason: ${reason}. Our team will review and reach out.`,
+      reference_id: purchase.id,
+      reference_type: 'purchase',
+      action_url: `/purchase/${purchase.id}`,
+    }).catch(() => {});
     base44.functions.invoke('sendNotificationEmail', {
       to: 'experience@peanutgallery.store',
       subject: `⚠️ Dispute opened — Purchase ${purchase.id}`,
@@ -563,8 +581,32 @@ export default function PurchaseSuccess() {
     );
   }
 
+  // Access control — only buyer, seller, or admin may view purchase details
   const isSeller = user?.email === purchase.seller_email;
   const isBuyer = !isSeller && (user?.email === purchase.buyer_email || user?.email === purchase.created_by);
+  const isAdminViewer = user?.role === 'admin';
+
+  if (!user) {
+    return (
+      <div className="max-w-lg mx-auto px-4 py-16 text-center space-y-4">
+        <p className="text-4xl">🔒</p>
+        <p className="font-semibold text-foreground">Sign in to view this purchase</p>
+        <button onClick={() => base44.auth.redirectToLogin()}
+          className="px-6 py-2.5 rounded-full bg-primary text-primary-foreground font-bold text-sm">
+          Sign In
+        </button>
+      </div>
+    );
+  }
+
+  if (!isSeller && !isBuyer && !isAdminViewer) {
+    return (
+      <div className="max-w-lg mx-auto px-4 py-16 text-center text-muted-foreground">
+        <p>You don't have access to this purchase.</p>
+        <Link to="/events" className="text-primary text-sm mt-3 inline-block">← Browse events</Link>
+      </div>
+    );
+  }
   const isCompleted = purchase.transfer_status === 'completed';
   const isExpired = purchase.transfer_status === 'expired';
   const isDisputed = purchase.transfer_status === 'disputed';
