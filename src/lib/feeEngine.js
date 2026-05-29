@@ -1,140 +1,248 @@
 /**
- * Peanut Gallery Fee Engine
- * ─────────────────────────
+ * Peanut Gallery Fee Engine v2
+ * ─────────────────────────────
  * Single source of truth for all fee logic.
- * Used by: Fee Simulator, Transaction Analytics, Checkout, Comparison Report.
+ * Used by: Checkout, Admin Fee Simulator, Seller payout preview, Analytics.
  *
- * LIVE PAYMENT ARCHITECTURE IS UNTOUCHED.
- * To change pricing: update ACTIVE_FEE_MODEL_ID only.
- * Everything else reads from it automatically.
+ * ⚠️  LIVE CHECKOUT USES ACTIVE_FEE_MODEL_ID ONLY.
+ * All other models exist for simulation/comparison — they do NOT affect production.
+ * To switch live pricing: change ACTIVE_FEE_MODEL_ID (and update STRIPE_ASSUMPTIONS if needed).
  */
 
-// ── Stripe processing fee assumptions ───────────────────────────────────────
+// ── Stripe processing fee (always charged on buyer total) ────────────────────
 export const STRIPE_ASSUMPTIONS = {
-  pct: 0.029,    // 2.9%
-  fixed: 0.30,   // $0.30 per transaction
+  pct: 0.029,   // 2.9%
+  fixed: 0.30,  // $0.30 per transaction
 };
 
 // ── ACTIVE FEE MODEL — single switch to change live pricing ─────────────────
-// Change this string to instantly switch the checkout fee model.
-// Options: any key in FEE_MODELS below.
-// Activated 2026-05-27: 5% + $1 minimum (approved beta pricing)
-// Rollback: change back to 'current_5pct'
-export const ACTIVE_FEE_MODEL_ID = 'pct5_min1';
+// ⚠️  DO NOT change this without testing the full checkout flow.
+// Activated 2026-05-27: 5% buyer fee + $1 minimum (approved beta pricing).
+export const ACTIVE_FEE_MODEL_ID = 'buyer_5_min_1';
 
-// ── Minimum listing price configuration ─────────────────────────────────────
-// Set to null to disable. Set to a number to enforce a floor.
-// This is configurable in admin — not enforced by default.
+// ── Minimum listing price (enforced at listing creation) ─────────────────────
 export const MIN_LISTING_PRICE_CONFIG = {
   enabled: true,
   threshold: 10, // dollars — enforced 2026-05-27
 };
 
 // ── Fee Models ───────────────────────────────────────────────────────────────
+// Each model defines:
+//   buyer_fee_pct    — % added on top of subtotal (buyer pays)
+//   buyer_fee_min    — minimum buyer fee floor
+//   seller_fee_pct   — % deducted from subtotal (seller pays)
+//   seller_fee_min   — minimum seller fee floor
+//   instant_only     — true = only applies to instant/PG-custody listings
 export const FEE_MODELS = {
+  // ── Model A — CURRENT LIVE MODEL ──────────────────────────────────────────
+  buyer_5_min_1: {
+    id: 'buyer_5_min_1',
+    label: 'Current: Buyer 5% + $1 min',
+    shortLabel: '5% min $1',
+    description: 'Buyer pays 5% (min $1). Seller pays nothing. Live model since 2026-05-27.',
+    isLive: true,
+    buyer_fee_pct: 0.05,
+    buyer_fee_min: 1.00,
+    seller_fee_pct: 0.00,
+    seller_fee_min: 0.00,
+  },
+
+  // ── Model B — Proposed: Split 5%/5% ───────────────────────────────────────
+  buyer_5_seller_5: {
+    id: 'buyer_5_seller_5',
+    label: 'Proposed: Buyer 5% + Seller 5%',
+    shortLabel: 'B5% + S5%',
+    description: 'Buyer pays 5% (min $1). Seller pays 5%. PG earns both sides.',
+    buyer_fee_pct: 0.05,
+    buyer_fee_min: 1.00,
+    seller_fee_pct: 0.05,
+    seller_fee_min: 0.00,
+  },
+
+  // ── Model C — Conservative: Buyer 5% + Seller 3% ─────────────────────────
+  buyer_5_seller_3: {
+    id: 'buyer_5_seller_3',
+    label: 'Conservative: Buyer 5% + Seller 3%',
+    shortLabel: 'B5% + S3%',
+    description: 'Buyer pays 5% (min $1). Seller pays 3%. Lower seller friction.',
+    buyer_fee_pct: 0.05,
+    buyer_fee_min: 1.00,
+    seller_fee_pct: 0.03,
+    seller_fee_min: 0.00,
+  },
+
+  // ── Model D — Instant Transfer Premium ────────────────────────────────────
+  instant_buyer_5_seller_10: {
+    id: 'instant_buyer_5_seller_10',
+    label: 'Instant Premium: Buyer 5% + Seller 10%',
+    shortLabel: 'B5% + S10%',
+    description: 'Buyer pays 5% (min $1). Seller pays 10%. For PG-custody/instant listings only.',
+    instant_only: true,
+    buyer_fee_pct: 0.05,
+    buyer_fee_min: 1.00,
+    seller_fee_pct: 0.10,
+    seller_fee_min: 0.00,
+  },
+
+  // ── Model E — Flat Plus Percent ───────────────────────────────────────────
+  buyer_5_seller_5_plus_1: {
+    id: 'buyer_5_seller_5_plus_1',
+    label: 'Premium: Buyer 5% + Seller 5% + $1 floor',
+    shortLabel: 'B5% + S5% $1',
+    description: 'Buyer pays 5% (min $1). Seller pays 5% (min $1). Highest take rate.',
+    buyer_fee_pct: 0.05,
+    buyer_fee_min: 1.00,
+    seller_fee_pct: 0.05,
+    seller_fee_min: 1.00,
+  },
+
+  // ── Legacy aliases (keep backward compat with old model IDs) ─────────────
   current_5pct: {
     id: 'current_5pct',
-    label: 'Current: 5%',
+    label: 'Legacy: 5% buyer only',
     shortLabel: '5%',
-    description: '5% of subtotal — what PG charges today',
-    isLive: true,
-    calc: (subtotal) => Math.round(subtotal * 0.05 * 100) / 100,
+    description: 'Legacy alias — identical to buyer_5_min_1 without $1 floor.',
+    buyer_fee_pct: 0.05,
+    buyer_fee_min: 0.00,
+    seller_fee_pct: 0.00,
+    seller_fee_min: 0.00,
   },
   pct5_min1: {
     id: 'pct5_min1',
-    label: '5% + $1 minimum',
+    label: 'Legacy alias: 5% + $1 min',
     shortLabel: '5% min $1',
-    description: '5% with a $1 floor — candidate for beta pricing',
-    isCandidate: true,
-    calc: (subtotal) => Math.max(1.00, Math.round(subtotal * 0.05 * 100) / 100),
-  },
-  pct_10: {
-    id: 'pct_10',
-    label: '10%',
-    shortLabel: '10%',
-    description: '10% of subtotal',
-    calc: (subtotal) => Math.round(subtotal * 0.10 * 100) / 100,
-  },
-  flat_1: {
-    id: 'flat_1',
-    label: '$1 Flat Fee',
-    shortLabel: '$1 flat',
-    description: 'Fixed $1 per transaction',
-    calc: () => 1.00,
-  },
-  flat_2: {
-    id: 'flat_2',
-    label: '$2 Flat Fee',
-    shortLabel: '$2 flat',
-    description: 'Fixed $2 per transaction',
-    calc: () => 2.00,
-  },
-  pct10_min2: {
-    id: 'pct10_min2',
-    label: '10% + $2 minimum',
-    shortLabel: '10% min $2',
-    description: '10% with a $2 floor',
-    calc: (subtotal) => Math.max(2.00, Math.round(subtotal * 0.10 * 100) / 100),
-  },
-  pct5_cap25: {
-    id: 'pct5_cap25',
-    label: '5% capped at $25',
-    shortLabel: '5% cap $25',
-    description: '5% but never more than $25',
-    calc: (subtotal) => Math.min(25.00, Math.round(subtotal * 0.05 * 100) / 100),
-  },
-  tiered: {
-    id: 'tiered',
-    label: 'Tiered Pricing',
-    shortLabel: 'Tiered',
-    description: '<$50 = $2 flat · $50–$200 = 5% · $200+ = 3%',
-    calc: (subtotal) => {
-      if (subtotal < 50) return 2.00;
-      if (subtotal <= 200) return Math.round(subtotal * 0.05 * 100) / 100;
-      return Math.round(subtotal * 0.03 * 100) / 100;
-    },
+    description: 'Legacy alias for buyer_5_min_1.',
+    buyer_fee_pct: 0.05,
+    buyer_fee_min: 1.00,
+    seller_fee_pct: 0.00,
+    seller_fee_min: 0.00,
   },
 };
 
 // ── Core calculator ──────────────────────────────────────────────────────────
+/**
+ * Calculate all fee components for a given ticket price, quantity, and model.
+ * @returns {{
+ *   ticketPrice, quantity, subtotal,
+ *   buyerFee, buyerTotal,
+ *   sellerFee, sellerPayout,
+ *   pgGrossRevenue, stripeFee, pgNetRevenue,
+ *   effectiveTakeRate, sellerPayoutRate,
+ *   profitable, breakeven,
+ *   model, modelId
+ * }}
+ */
 export function calculateFees(ticketPrice, quantity = 1, modelId = ACTIVE_FEE_MODEL_ID, stripeOpts = STRIPE_ASSUMPTIONS) {
   const model = FEE_MODELS[modelId] || FEE_MODELS[ACTIVE_FEE_MODEL_ID];
-  const subtotal = Math.round(ticketPrice * quantity * 100) / 100;
-  const pgFee = model.calc(subtotal);
-  const buyerTotal = Math.round((subtotal + pgFee) * 100) / 100;
-  const stripeFee = Math.round((buyerTotal * stripeOpts.pct + stripeOpts.fixed) * 100) / 100;
-  const pgNetRevenue = Math.round((pgFee - stripeFee) * 100) / 100;
-  const sellerPayout = subtotal;
-  const marginPct = pgFee > 0 ? Math.round((pgNetRevenue / pgFee) * 100) : 0;
+  const r = (n) => Math.round(n * 100) / 100;
+
+  const subtotal = r(ticketPrice * quantity);
+
+  const buyerFee = r(Math.max(model.buyer_fee_min, subtotal * model.buyer_fee_pct));
+  const sellerFee = r(Math.max(model.seller_fee_min, subtotal * model.seller_fee_pct));
+
+  const buyerTotal = r(subtotal + buyerFee);
+  const sellerPayout = r(Math.max(0, subtotal - sellerFee)); // never negative
+
+  const pgGrossRevenue = r(buyerFee + sellerFee);
+  const stripeFee = r(buyerTotal * stripeOpts.pct + stripeOpts.fixed);
+  const pgNetRevenue = r(pgGrossRevenue - stripeFee);
+
+  const effectiveTakeRate = subtotal > 0 ? r((pgNetRevenue / subtotal) * 100) : 0;
+  const sellerPayoutRate = subtotal > 0 ? r((sellerPayout / subtotal) * 100) : 0;
   const profitable = pgNetRevenue > 0;
-  const thin = pgNetRevenue > 0 && pgNetRevenue < 0.50;
+
+  // Legacy compat fields
+  const pgFee = buyerFee; // buyer-facing fee (used in old checkout)
+  const amount = buyerTotal;
 
   return {
-    ticketPrice, quantity, subtotal, pgFee, buyerTotal, stripeFee,
-    sellerPayout, pgGrossRevenue: pgFee, pgNetRevenue,
-    marginPct, profitable, thin,
+    ticketPrice, quantity, subtotal,
+    buyerFee, buyerTotal,
+    sellerFee, sellerPayout,
+    pgGrossRevenue, stripeFee, pgNetRevenue,
+    effectiveTakeRate, sellerPayoutRate,
+    profitable,
     model: model.label, modelId,
+    // Legacy compat
+    pgFee, amount, pgNetRevenue,
+    sellerPayout, pgGrossRevenue,
+    marginPct: pgGrossRevenue > 0 ? r((pgNetRevenue / pgGrossRevenue) * 100) : 0,
   };
 }
 
-// ── Active model shortcut (used by checkout) ─────────────────────────────────
+// ── Active model shortcut (used by live checkout — DO NOT change signature) ──
 export function calculateActiveFees(ticketPrice, quantity = 1) {
   return calculateFees(ticketPrice, quantity, ACTIVE_FEE_MODEL_ID);
 }
 
-// ── Buyer-facing fee breakdown formatter ─────────────────────────────────────
-// Use this in checkout to display a clean, trust-building breakdown.
+// ── Buyer-facing fee breakdown (used at checkout) ────────────────────────────
 export function formatFeeBreakdown(ticketPrice, quantity = 1) {
   const r = calculateActiveFees(ticketPrice, quantity);
   const model = FEE_MODELS[ACTIVE_FEE_MODEL_ID];
   return {
-    subtotalLabel: `${quantity > 1 ? `${quantity} tickets × $${ticketPrice}` : `Ticket`}`,
+    subtotalLabel: quantity > 1 ? `${quantity} tickets × $${ticketPrice}` : 'Ticket',
     subtotal: r.subtotal,
     feeLabel: `Service fee (${model.shortLabel})`,
-    fee: r.pgFee,
+    fee: r.buyerFee,
     total: r.buyerTotal,
-    // Raw result available if needed
     _raw: r,
+  };
+}
+
+// ── Seller-facing payout preview (used in listing creation UI) ───────────────
+export function formatSellerPayout(ticketPrice, quantity = 1, modelId = ACTIVE_FEE_MODEL_ID) {
+  const r = calculateFees(ticketPrice, quantity, modelId);
+  const model = FEE_MODELS[modelId];
+  return {
+    askingPrice: r.subtotal,
+    buyerSees: r.buyerTotal,
+    sellerReceives: r.sellerPayout,
+    pgFee: r.buyerFee,
+    sellerFee: r.sellerFee,
+    hasSellerFee: model.seller_fee_pct > 0 || model.seller_fee_min > 0,
+    sellerFeeLabel: model.seller_fee_pct > 0
+      ? `${(model.seller_fee_pct * 100).toFixed(0)}% seller service fee`
+      : null,
+  };
+}
+
+// ── Compare all models at a single price point ───────────────────────────────
+export function compareFeeModels(ticketPrice, quantity = 1) {
+  return Object.keys(FEE_MODELS).map(id => calculateFees(ticketPrice, quantity, id));
+}
+
+// ── Monthly revenue estimate ─────────────────────────────────────────────────
+export function estimateMonthlyRevenue(avgTicketPrice, transactionsPerMonth, avgQuantity = 1, modelId = ACTIVE_FEE_MODEL_ID, opts = {}) {
+  const { disputeRate = 0, failedRate = 0, fixedCosts = 0 } = opts;
+  const perTx = calculateFees(avgTicketPrice, avgQuantity, modelId);
+  const successRate = 1 - disputeRate - failedRate;
+  const successfulTx = Math.round(transactionsPerMonth * successRate);
+
+  const grossVolume = Math.round(perTx.subtotal * transactionsPerMonth * 100) / 100;
+  const pgGross = Math.round(perTx.pgGrossRevenue * successfulTx * 100) / 100;
+  const stripeCost = Math.round(perTx.stripeFee * successfulTx * 100) / 100;
+  const pgNet = Math.round((perTx.pgNetRevenue * successfulTx - fixedCosts) * 100) / 100;
+  const sellerPayouts = Math.round(perTx.sellerPayout * successfulTx * 100) / 100;
+
+  return {
+    transactionsPerMonth, successfulTx, avgTicketPrice, avgQuantity,
+    grossVolume, pgGross, stripeCost, pgNet, sellerPayouts,
+    effectiveTakeRate: perTx.effectiveTakeRate,
+    perTransaction: perTx,
+  };
+}
+
+// ── Annual revenue estimate ──────────────────────────────────────────────────
+export function estimateAnnualRevenue(avgTicketPrice, transactionsPerMonth, avgQuantity = 1, modelId = ACTIVE_FEE_MODEL_ID, opts = {}) {
+  const monthly = estimateMonthlyRevenue(avgTicketPrice, transactionsPerMonth, avgQuantity, modelId, opts);
+  return {
+    ...monthly,
+    annualGrossVolume: Math.round(monthly.grossVolume * 12 * 100) / 100,
+    annualPgGross: Math.round(monthly.pgGross * 12 * 100) / 100,
+    annualStripeCost: Math.round(monthly.stripeCost * 12 * 100) / 100,
+    annualPgNet: Math.round(monthly.pgNet * 12 * 100) / 100,
+    annualSellerPayouts: Math.round(monthly.sellerPayouts * 12 * 100) / 100,
   };
 }
 
@@ -149,91 +257,26 @@ export function findBreakeven(modelId = ACTIVE_FEE_MODEL_ID, quantity = 1, strip
 
 // ── Benchmark table ──────────────────────────────────────────────────────────
 export const BENCHMARK_PRICES = [1, 5, 10, 15, 20, 25, 50, 75, 100, 150, 200, 250, 500, 1000];
-
 export function buildBenchmarkTable(modelId, quantity = 1) {
   return BENCHMARK_PRICES.map(price => calculateFees(price, quantity, modelId));
 }
 
 // ── Side-by-side comparison ───────────────────────────────────────────────────
 export const COMPARISON_PRICES = [1, 5, 10, 15, 20, 25, 50, 100, 250, 500];
-
 export function buildComparison(modelAId, modelBId, quantity = 1) {
   return COMPARISON_PRICES.map(price => {
     const a = calculateFees(price, quantity, modelAId);
     const b = calculateFees(price, quantity, modelBId);
-    const feeImpact = Math.round((b.pgFee - a.pgFee) * 100) / 100;    // buyer impact
-    const netImpact = Math.round((b.pgNetRevenue - a.pgNetRevenue) * 100) / 100; // PG improvement
-    return { price, a, b, feeImpact, netImpact };
+    return {
+      price, a, b,
+      buyerImpact: Math.round((b.buyerTotal - a.buyerTotal) * 100) / 100,
+      sellerImpact: Math.round((b.sellerPayout - a.sellerPayout) * 100) / 100,
+      pgNetImpact: Math.round((b.pgNetRevenue - a.pgNetRevenue) * 100) / 100,
+    };
   });
 }
 
-// ── UX risk analysis for minimum fee ─────────────────────────────────────────
-export function analyzeUXRisk(modelId = 'pct5_min1') {
-  return COMPARISON_PRICES.map(price => {
-    const current = calculateFees(price, 1, 'current_5pct');
-    const candidate = calculateFees(price, 1, modelId);
-    const feeIncrease = Math.round((candidate.pgFee - current.pgFee) * 100) / 100;
-    const feeRatio = price > 0 ? candidate.pgFee / price : 0; // fee as % of ticket price
-
-    let uxRisk = 'none';
-    let uxNote = '';
-    if (feeRatio > 0.20) { uxRisk = 'high'; uxNote = 'Fee exceeds 20% of ticket price — likely to cause abandonment'; }
-    else if (feeRatio > 0.10) { uxRisk = 'medium'; uxNote = 'Fee is noticeable relative to ticket price'; }
-    else if (feeIncrease > 0) { uxRisk = 'low'; uxNote = `Buyer pays $${feeIncrease.toFixed(2)} more vs current model`; }
-    else { uxNote = 'No buyer impact vs current model'; }
-
-    return { price, currentFee: current.pgFee, candidateFee: candidate.pgFee, feeIncrease, feeRatio, uxRisk, uxNote };
-  });
-}
-
-// ── Minimum listing price impact ─────────────────────────────────────────────
-export function analyzeMinListingPriceImpact(threshold) {
-  const blocked = COMPARISON_PRICES.filter(p => p < threshold);
-  const allowed = COMPARISON_PRICES.filter(p => p >= threshold);
-  const lowestAllowed = Math.min(...allowed);
-  const lowestAllowedFees = calculateFees(lowestAllowed, 1, 'pct5_min1');
-  return { blocked, allowed, lowestAllowed, lowestAllowedFees };
-}
-
-// ── Recommendations engine ────────────────────────────────────────────────────
-export function generateRecommendations(modelId = ACTIVE_FEE_MODEL_ID) {
-  const breakeven = findBreakeven(modelId);
-  const recs = [];
-
-  if (breakeven !== null) {
-    recs.push({
-      type: breakeven > 10 ? 'warning' : 'info',
-      text: `Transactions under $${breakeven.toFixed(2)} lose money under the "${FEE_MODELS[modelId]?.label}" model.`,
-    });
-  }
-
-  const current = calculateFees(20, 1, 'current_5pct');
-  const min1 = calculateFees(20, 1, 'pct5_min1');
-  const improvement = Math.round((min1.pgNetRevenue - current.pgNetRevenue) * 100) / 100;
-  if (improvement > 0) {
-    recs.push({
-      type: 'tip',
-      text: `Adding a $1 minimum fee improves PG net by $${improvement} on $20 tickets.`,
-    });
-  }
-
-  const breakeven_pct5min1 = findBreakeven('pct5_min1');
-  if (breakeven_pct5min1 !== null) {
-    recs.push({
-      type: 'tip',
-      text: `"5% + $1 min" breaks even at $${breakeven_pct5min1.toFixed(2)}/ticket vs ~$20 for pure 5%.`,
-    });
-  }
-
-  recs.push({
-    type: 'info',
-    text: `Stripe always charges 2.9% + $0.30 per transaction, regardless of ticket price.`,
-  });
-
-  return recs;
-}
-
-// ── Real purchase analytics ──────────────────────────────────────────────────
+// ── Real purchase analytics (used by TransactionAnalytics) ───────────────────
 export function analyzePurchase(purchase, stripeOpts = STRIPE_ASSUMPTIONS) {
   const subtotal = purchase.subtotal || (purchase.amount - (purchase.platform_fee || 0));
   const pgFee = purchase.platform_fee || 0;
@@ -268,4 +311,38 @@ export function buildPurchaseAnalytics(purchases) {
     unprofitablePct: Math.round((unprofitable.length / enriched.length) * 100),
     enriched,
   };
+}
+
+// ── UX risk (legacy compat) ───────────────────────────────────────────────────
+export function analyzeUXRisk(modelId = 'buyer_5_seller_5') {
+  return COMPARISON_PRICES.map(price => {
+    const current = calculateFees(price, 1, 'buyer_5_min_1');
+    const candidate = calculateFees(price, 1, modelId);
+    const feeIncrease = Math.round((candidate.buyerFee - current.buyerFee) * 100) / 100;
+    const feeRatio = price > 0 ? candidate.buyerFee / price : 0;
+    let uxRisk = 'none', uxNote = '';
+    if (feeRatio > 0.20) { uxRisk = 'high'; uxNote = 'Buyer fee exceeds 20% of ticket — likely abandonment'; }
+    else if (feeRatio > 0.10) { uxRisk = 'medium'; uxNote = 'Fee noticeable relative to ticket price'; }
+    else if (feeIncrease > 0) { uxRisk = 'low'; uxNote = `Buyer pays $${feeIncrease.toFixed(2)} more vs current model`; }
+    else { uxNote = 'No buyer impact vs current model'; }
+    return { price, currentFee: current.buyerFee, candidateFee: candidate.buyerFee, feeIncrease, feeRatio, uxRisk, uxNote };
+  });
+}
+
+export function analyzeMinListingPriceImpact(threshold) {
+  const blocked = COMPARISON_PRICES.filter(p => p < threshold);
+  const allowed = COMPARISON_PRICES.filter(p => p >= threshold);
+  const lowestAllowed = Math.min(...allowed);
+  const lowestAllowedFees = calculateFees(lowestAllowed, 1, 'buyer_5_min_1');
+  return { blocked, allowed, lowestAllowed, lowestAllowedFees };
+}
+
+export function generateRecommendations(modelId = ACTIVE_FEE_MODEL_ID) {
+  const breakeven = findBreakeven(modelId);
+  const recs = [];
+  if (breakeven !== null) {
+    recs.push({ type: breakeven > 10 ? 'warning' : 'info', text: `Transactions under $${breakeven.toFixed(2)} lose money under "${FEE_MODELS[modelId]?.label}".` });
+  }
+  recs.push({ type: 'info', text: 'Stripe always charges 2.9% + $0.30 per transaction, regardless of ticket price.' });
+  return recs;
 }

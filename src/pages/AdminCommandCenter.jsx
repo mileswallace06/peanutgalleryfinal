@@ -15,6 +15,7 @@ import InstantOpsPanel from '@/components/admin/cc/InstantOpsPanel';
 import AIVerificationPanel from '@/components/admin/cc/AIVerificationPanel';
 import DonationOpsPanel from '@/components/admin/cc/DonationOpsPanel';
 import PendingReviewQueue from '@/components/admin/PendingReviewQueue';
+import FeeSimulatorV2 from '@/components/admin/FeeSimulatorV2';
 
 const SECTIONS = [
   { id: 'issues',    label: 'Live Issues',     icon: AlertTriangle },
@@ -27,6 +28,7 @@ const SECTIONS = [
   { id: 'transfers', label: 'Transfer Windows', icon: Radio },
   { id: 'transfer_intel', label: 'Transfer Intelligence', icon: Database },
   { id: 'review_queue',  label: 'Review Queue',          icon: ClipboardList },
+  { id: 'fee_simulator', label: 'Fee Simulator',          icon: CreditCard },
 ];
 
 export default function AdminCommandCenter() {
@@ -203,6 +205,9 @@ export default function AdminCommandCenter() {
         )}
         {activeSection === 'review_queue' && (
           <PendingReviewQueue onRefresh={loadAll} />
+        )}
+        {activeSection === 'fee_simulator' && (
+          <FeeSimulatorV2 />
         )}
       </div>
     </div>
