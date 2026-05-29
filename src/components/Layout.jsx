@@ -1,7 +1,7 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { useState, useEffect, useRef } from 'react';
-import { MapPin, Zap, Tag, Flame, User } from 'lucide-react';
+import { MapPin, Zap, Tag, Flame, User, Bell } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 import Onboarding from '@/components/Onboarding';
 import { useAuth } from '@/lib/AuthContext';
@@ -27,19 +27,15 @@ const NAV = [
 ];
 
 export default function Layout() {
-  // Use AuthContext user instead of a separate auth.me() call to avoid duplicate requests
   const { user } = useAuth();
-  // UX-5: Persist onboarding state on User entity so it survives device/browser changes.
-  // Falls back to localStorage for unauthenticated users / instant render.
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('pg_onboarded'));
+  const [unreadCount, setUnreadCount] = useState(0);
   const location = useLocation();
   const scrollPositions = useRef({});
   const containerRefs = useRef({});
 
-  // Initialize theme hook at top level
   useTheme();
 
-  // Get current tab key — returns null for sub-pages not owned by any nav tab
   const getCurrentTab = () => {
     const path = location.pathname;
     return NAV.find(n => path === n.to || path.startsWith(n.to + '/'))?.key || null;
@@ -47,7 +43,7 @@ export default function Layout() {
 
   const currentTab = getCurrentTab();
 
-  // Save scroll on every pathname change (before the tab switches visually)
+  // Save scroll on every pathname change
   const prevTabRef = useRef(currentTab);
   useEffect(() => {
     const prevTab = prevTabRef.current;
@@ -58,19 +54,16 @@ export default function Layout() {
     prevTabRef.current = currentTab;
   }, [currentTab]);
 
-  // Restore scroll position when switching TO a tab (after paint)
+  // Restore scroll position
   useEffect(() => {
     if (!currentTab) return;
     const container = containerRefs.current[currentTab];
     if (!container) return;
     const saved = scrollPositions.current[currentTab];
-    // rAF ensures the container is visible before we set scrollTop
-    requestAnimationFrame(() => {
-      container.scrollTop = saved || 0;
-    });
+    requestAnimationFrame(() => { container.scrollTop = saved || 0; });
   }, [currentTab]);
 
-  // UX-5: Sync onboarding state with User entity
+  // UX-5: Sync onboarding state
   useEffect(() => {
     if (!user) return;
     if (user.has_seen_onboarding) {
@@ -79,7 +72,26 @@ export default function Layout() {
     }
   }, [user?.has_seen_onboarding]);
 
-  // Log when user auth state resolves in Layout (debug only)
+  // Poll unread notification count
+  useEffect(() => {
+    if (!user?.email) return;
+    const fetchUnread = () => {
+      base44.entities.Notification.filter({ user_email: user.email, read: false }, '-created_date', 99)
+        .then(data => setUnreadCount(data.length))
+        .catch(() => {});
+    };
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 60000); // poll every 60s
+    return () => clearInterval(interval);
+  }, [user?.email]);
+
+  // Reset badge when user opens notifications page
+  useEffect(() => {
+    if (location.pathname === '/notifications') {
+      setUnreadCount(0);
+    }
+  }, [location.pathname]);
+
   useEffect(() => {
     if (user) {
       console.log('[Layout] user resolved from AuthContext — email:', user.email, '| role:', user.role);
@@ -89,7 +101,6 @@ export default function Layout() {
   const handleOnboardingDone = () => {
     localStorage.setItem('pg_onboarded', '1');
     setShowOnboarding(false);
-    // Persist to user entity so it survives new devices
     base44.auth.updateMe({ has_seen_onboarding: true }).catch(() => {});
   };
 
@@ -99,7 +110,6 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen bg-background font-sans dark:rave-bg">
-      {/* Global donation win notification — polls quietly in background */}
       {user?.email && <DonationWinNotification userEmail={user.email} />}
       {!user && (
         <div className="fixed right-4 z-[99]" style={{ top: 'calc(1rem + env(safe-area-inset-top))' }}>
@@ -112,15 +122,28 @@ export default function Layout() {
         </div>
       )}
 
+      {/* Notification bell — top right, only when logged in */}
+      {user && (
+        <Link to="/notifications"
+          className="fixed right-4 z-[99] flex items-center justify-center w-9 h-9 rounded-full transition-all active:scale-95"
+          style={{ top: 'calc(0.75rem + env(safe-area-inset-top))', background: unreadCount > 0 ? 'rgba(255,45,120,0.15)' : 'rgba(255,255,255,0.07)', border: `1px solid ${unreadCount > 0 ? 'rgba(255,45,120,0.4)' : 'rgba(255,255,255,0.12)'}` }}>
+          <Bell className="w-4 h-4" style={{ color: unreadCount > 0 ? '#FF2D78' : 'hsl(var(--muted-foreground))' }} />
+          {unreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black"
+              style={{ background: '#FF2D78', color: '#fff' }}>
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
+          )}
+        </Link>
+      )}
+
       {/* Stack-preserved tab containers */}
       <div className="relative w-full max-w-lg mx-auto pb-24" style={{ overscrollBehavior: 'none' }}>
-        {/* Sub-pages not owned by any tab (e.g. /create-listing, /account-settings) */}
         {currentTab === null && (
           <div className="overflow-y-auto" style={{ height: '100vh', overscrollBehavior: 'none' }}>
             <Outlet />
           </div>
         )}
-        {/* Each tab container persists in the DOM (no remount on switch) — hidden via visibility+pointer-events */}
         {NAV.map(({ key }) => (
           <div
             key={key}
@@ -129,20 +152,15 @@ export default function Layout() {
             style={{
               height: '100vh',
               overscrollBehavior: 'none',
-              // Use visibility+opacity rather than display:none so scroll position is preserved
-              // and React doesn't unmount/remount the subtree on every tab switch
               visibility: currentTab === key ? 'visible' : 'hidden',
               opacity: currentTab === key ? 1 : 0,
               pointerEvents: currentTab === key ? 'auto' : 'none',
               position: currentTab === key ? 'relative' : 'absolute',
               inset: currentTab === key ? 'auto' : 0,
-              // Crossfade: fade in active tab, but don't animate the outgoing tab
-              // (it's hidden via visibility so it can't flicker)
               transition: currentTab === key ? 'opacity 0.18s ease' : 'none',
               willChange: 'opacity',
               contain: 'paint layout',
             }}>
-            {/* Only render Outlet for active tab — but once mounted keep it */}
             <MountedTab tabKey={key} activeKey={currentTab} />
           </div>
         ))}

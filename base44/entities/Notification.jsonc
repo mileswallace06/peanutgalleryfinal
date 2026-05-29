@@ -1,0 +1,72 @@
+{
+  "name": "Notification",
+  "type": "object",
+  "properties": {
+    "user_email": {
+      "type": "string",
+      "description": "Recipient user email"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "purchase_confirmed",
+        "tickets_sent",
+        "transfer_verified",
+        "transfer_rejected",
+        "buyer_confirmed",
+        "sale_complete",
+        "payout_processing",
+        "dispute_opened",
+        "dispute_resolved",
+        "donation_won",
+        "donation_accepted",
+        "donation_expired",
+        "listing_hidden",
+        "listing_approved",
+        "listing_rejected",
+        "listing_expired",
+        "sale_created",
+        "ai_verified",
+        "ai_rejected",
+        "admin_message"
+      ]
+    },
+    "title": {
+      "type": "string"
+    },
+    "body": {
+      "type": "string"
+    },
+    "read": {
+      "type": "boolean",
+      "default": false
+    },
+    "reference_id": {
+      "type": "string",
+      "description": "ID of related entity (purchase, listing, donation, etc.)"
+    },
+    "reference_type": {
+      "type": "string",
+      "enum": [
+        "purchase",
+        "listing",
+        "donation",
+        "event",
+        "dispute"
+      ]
+    },
+    "action_url": {
+      "type": "string",
+      "description": "Deep link path (e.g. /purchase/abc)"
+    },
+    "icon": {
+      "type": "string",
+      "description": "Emoji icon for the notification"
+    }
+  },
+  "required": [
+    "user_email",
+    "type",
+    "title"
+  ]
+}

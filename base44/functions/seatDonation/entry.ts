@@ -388,6 +388,17 @@ async function runDraw(base44, donationId, excludeEmail) {
     reroll_count: rerollCount,
   });
 
+  // Notify winner — in-app + push + email
+  base44.asServiceRole.functions.invoke('recordNotification', {
+    user_email: winner.user.email,
+    type: 'donation_won',
+    title: '🎁 You won a seat donation!',
+    body: `A fan donated their seats (Sec ${donation.section}${donation.row ? `, Row ${donation.row}` : ''}) for ${donation.event_title || 'an event'}. Open the app to accept within 4 hours!`,
+    reference_id: donation.id,
+    reference_type: 'donation',
+    action_url: '/my-tickets',
+  }).catch(() => {});
+
   return {
     winner_email: winner.user.email,
     winner_name: winner.user.full_name || 'Fan',

@@ -6,6 +6,7 @@ import { Ticket, Clock, CheckCircle, Package, ArrowRight, Plus, RefreshCw } from
 import SellerMetrics from '@/components/sales/SellerMetrics';
 import VerifyTransferButton from '@/components/listings/VerifyTransferButton';
 import TransferStatusBadge from '@/components/listings/TransferStatusBadge';
+import ListingStatusBanner from '@/components/listings/ListingStatusBanner';
 import { isVerificationExpired } from '@/lib/transferConfidence';
 
 export default function MySales() {
@@ -226,10 +227,7 @@ export default function MySales() {
                       Active
                     </span>
                   </div>
-                  <TransferStatusBadge listing={l} />
-                  {(expired || !l.last_transfer_verification || l.transfer_status === 'transfer_unconfirmed') && (
-                    <VerifyTransferButton listing={l} event={ev} onVerified={load} />
-                  )}
+                  <ListingStatusBanner listing={l} event={ev} onRefresh={load} />
                 </div>
               );
             })}

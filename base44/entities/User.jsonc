@@ -146,6 +146,11 @@
       "default": false,
       "description": "Founding fan status \u2014 grants founding_fan trust badge"
     },
+    "has_seen_onboarding": {
+      "type": "boolean",
+      "default": false,
+      "description": "Persists onboarding completion across devices"
+    },
     "points_last_updated": {
       "type": "string",
       "description": "ISO timestamp of last points/trust update"

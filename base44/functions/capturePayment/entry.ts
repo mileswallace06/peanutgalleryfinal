@@ -16,15 +16,17 @@ async function awardPoints(base44, userEmail, action, referenceId, referenceType
   }
 }
 
-// Fire-and-forget notification helper — never throws
+// Fire-and-forget notification helper — records in-app + push + email
 async function notify(base44, userEmail, title, body, type, purchaseId) {
   try {
-    await base44.asServiceRole.functions.invoke('sendUserNotification', {
+    await base44.asServiceRole.functions.invoke('recordNotification', {
       user_email: userEmail,
       title,
       body,
       type,
-      purchase_id: purchaseId,
+      reference_id: purchaseId,
+      reference_type: 'purchase',
+      action_url: purchaseId ? `/purchase/${purchaseId}` : null,
     });
   } catch (err) {
     console.error('[capturePayment] notify failed to', userEmail, '|', err?.message);
@@ -163,6 +165,7 @@ Deno.serve(async (req) => {
     }
 
     notify(base44, purchase.seller_email, 'Sale complete 💸', 'Your payout is processing. Stripe deposits typically take 2–7 business days. First-time payouts may take up to 14 days.', 'sale_complete', purchase.id);
+    notify(base44, purchase.buyer_email, 'Transfer confirmed ✅', 'You confirmed receiving your tickets. Payment has been released to the seller. Enjoy the show!', 'buyer_confirmed', purchase.id);
 
     return Response.json({ status: 'completed', payment_captured: true, optimistic_id: optimistic_id });
   }
@@ -178,7 +181,7 @@ Deno.serve(async (req) => {
     if (hoursElapsed <= 4) {
       awardPoints(base44, purchase.seller_email, 'quick_seller_fulfill', purchase.id, 'purchase');
     }
-    notify(base44, purchase.buyer_email, 'Tickets sent 🚀', 'Check your ticket app or email, then confirm receipt.', 'tickets_sent', purchase.id);
+    notify(base44, purchase.buyer_email, 'Tickets sent 🚀', 'Your seller has sent the tickets! Check your email and ticket app (Ticketmaster, SeatGeek, etc.), then confirm receipt in the app to release payment.', 'tickets_sent', purchase.id);
   }
 
   // Quick buyer confirm bonus

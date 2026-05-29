@@ -33,6 +33,7 @@ import SellerPayoutGuide from '@/pages/SellerPayoutGuide';
 import WhyPeanutGallery from '@/pages/WhyPeanutGallery';
 import Leaderboard from '@/pages/Leaderboard';
 import FounderDashboard from '@/pages/FounderDashboard';
+import Notifications from '@/pages/Notifications';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, checkAppState, isAuthenticated, user } = useAuth();
@@ -103,6 +104,7 @@ const AuthenticatedApp = () => {
             <Route path="/why-peanut-gallery" element={<WhyPeanutGallery />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/founder" element={<FounderDashboard />} />
+            <Route path="/notifications" element={<Notifications />} />
           </Route>
           <Route path="*" element={<PageNotFound />} />
         </Routes>

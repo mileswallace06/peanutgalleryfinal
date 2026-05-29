@@ -3,7 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { isAdmin } from '@/lib/isAdmin';
 import { Navigate } from 'react-router-dom';
 import { format, formatDistanceToNow } from 'date-fns';
-import { Shield, RefreshCw, AlertTriangle, CreditCard, Zap, Users, Activity, Brain, Radio, Database, Bell } from 'lucide-react';
+import { Shield, RefreshCw, AlertTriangle, CreditCard, Zap, Users, Activity, Brain, Radio, Database, Bell, ClipboardList } from 'lucide-react';
 import TransferWindowAdminPanel from '@/components/admin/TransferWindowAdminPanel';
 import TransferIntelligencePanel from '@/components/admin/cc/TransferIntelligencePanel';
 import AdminAlertCenter from '@/components/admin/cc/AdminAlertCenter';
@@ -14,6 +14,7 @@ import StripePanel from '@/components/admin/cc/StripePanel';
 import InstantOpsPanel from '@/components/admin/cc/InstantOpsPanel';
 import AIVerificationPanel from '@/components/admin/cc/AIVerificationPanel';
 import DonationOpsPanel from '@/components/admin/cc/DonationOpsPanel';
+import PendingReviewQueue from '@/components/admin/PendingReviewQueue';
 
 const SECTIONS = [
   { id: 'issues',    label: 'Live Issues',     icon: AlertTriangle },
@@ -25,6 +26,7 @@ const SECTIONS = [
   { id: 'alerts',   label: 'Alert Center',   icon: Bell },
   { id: 'transfers', label: 'Transfer Windows', icon: Radio },
   { id: 'transfer_intel', label: 'Transfer Intelligence', icon: Database },
+  { id: 'review_queue',  label: 'Review Queue',          icon: ClipboardList },
 ];
 
 export default function AdminCommandCenter() {
@@ -198,6 +200,9 @@ export default function AdminCommandCenter() {
         )}
         {activeSection === 'transfer_intel' && (
           <TransferIntelligencePanel events={events} onRefresh={loadAll} />
+        )}
+        {activeSection === 'review_queue' && (
+          <PendingReviewQueue onRefresh={loadAll} />
         )}
       </div>
     </div>
