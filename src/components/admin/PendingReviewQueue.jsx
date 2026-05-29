@@ -173,73 +173,27 @@ export default function PendingReviewQueue({ onRefresh }) {
 
   const handleApprove = async (listing) => {
     setActionLoading(listing.id);
-    const user = await base44.auth.me().catch(() => null);
-    await base44.entities.Listing.update(listing.id, {
-      proof_status: 'approved',
-      status: 'active',
-    }).catch(() => {});
-
-    // Audit log
-    base44.entities.BetaTransferLog.create({
-      log_type: 'listing_restored',
-      actor_email: user?.email || 'admin',
-      actor_role: 'admin',
-      listing_id: listing.id,
-      before_state: { proof_status: 'pending_review', status: listing.status },
-      after_state: { proof_status: 'approved', status: 'active' },
-      notes: 'Admin approved listing via Review Queue',
-    }).catch(() => {});
-
-    // Notify seller
-    base44.functions.invoke('recordNotification', {
-      user_email: listing.seller_email,
-      type: 'listing_approved',
-      title: 'Listing approved ✅',
-      body: `Your listing (Sec ${listing.section}, Row ${listing.row}) is now live and visible to buyers.`,
-      reference_id: listing.id,
-      reference_type: 'listing',
-      action_url: '/my-sales',
-    }).catch(() => {});
-
-    await loadData();
-    onRefresh?.();
+    const res = await base44.functions.invoke('approveListingReview', { listing_id: listing.id });
+    if (!res.data?.success) {
+      console.error('[approve] failed:', res.data?.reason);
+      alert(`Approval failed: ${res.data?.reason || 'Unknown error'}`);
+    } else {
+      await loadData();
+      onRefresh?.();
+    }
     setActionLoading('');
   };
 
   const handleReject = async (listing, reason) => {
     setActionLoading(listing.id);
-    const user = await base44.auth.me().catch(() => null);
-    await base44.entities.Listing.update(listing.id, {
-      proof_status: 'rejected',
-      status: 'hidden',
-      hidden_reason: 'admin_disabled',
-      proof_rejection_reason: reason,
-    }).catch(() => {});
-
-    // Audit log
-    base44.entities.BetaTransferLog.create({
-      log_type: 'listing_hidden',
-      actor_email: user?.email || 'admin',
-      actor_role: 'admin',
-      listing_id: listing.id,
-      before_state: { proof_status: 'pending_review', status: listing.status },
-      after_state: { proof_status: 'rejected', status: 'hidden', hidden_reason: 'admin_disabled' },
-      notes: `Admin rejected listing. Reason: ${reason}`,
-    }).catch(() => {});
-
-    // Notify seller
-    base44.functions.invoke('recordNotification', {
-      user_email: listing.seller_email,
-      type: 'listing_rejected',
-      title: 'Listing not approved',
-      body: `Your listing (Sec ${listing.section}, Row ${listing.row}) was not approved. Reason: ${reason}`,
-      reference_id: listing.id,
-      reference_type: 'listing',
-      action_url: '/my-sales',
-    }).catch(() => {});
-
-    await loadData();
-    onRefresh?.();
+    const res = await base44.functions.invoke('rejectListingReview', { listing_id: listing.id, reason });
+    if (!res.data?.success) {
+      console.error('[reject] failed:', res.data?.reason);
+      alert(`Rejection failed: ${res.data?.reason || 'Unknown error'}`);
+    } else {
+      await loadData();
+      onRefresh?.();
+    }
     setActionLoading('');
   };
 
