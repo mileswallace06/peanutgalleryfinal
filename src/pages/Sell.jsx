@@ -279,11 +279,13 @@ export default function Sell() {
             <div className="space-y-2">
               {nearbyEvents.map(ev => {
                 const isTM = ev.source === 'ticketmaster';
+                const linkTo = isTM
+                  ? `/create-listing?tab=search&q=${encodeURIComponent(ev.title)}`
+                  : `/create-listing?event_id=${ev.id}`;
                 return (
                   <Link
                     key={ev.id}
-                    to={`/create-listing?event_id=${isTM ? '' : ev.id}`}
-                    onClick={isTM ? e => e.preventDefault() : undefined}
+                    to={linkTo}
                     className="flex items-center gap-3 px-4 py-3 rounded-2xl transition-all active:scale-[0.98]"
                     style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
                   >
@@ -298,11 +300,11 @@ export default function Sell() {
                         {ev.date && <span className="flex-shrink-0">· {format(new Date(ev.date), 'MMM d')}</span>}
                       </div>
                     </div>
-                    {!isTM && <ChevronRight className="w-4 h-4 flex-shrink-0 text-muted-foreground" />}
-                    {isTM && (
-                      <span className="text-[9px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
-                        style={{ background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' }}>TM</span>
-                    )}
+                    {isTM
+                      ? <span className="text-[9px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
+                          style={{ background: 'rgba(191,95,255,0.12)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.3)' }}>Search →</span>
+                      : <ChevronRight className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
+                    }
                   </Link>
                 );
               })}

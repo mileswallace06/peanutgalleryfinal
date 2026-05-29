@@ -27,7 +27,7 @@ const TYPE_DEFAULTS = {
   listing_approved:   { icon: '✅', email: true },
   listing_rejected:   { icon: '❌', email: true },
   listing_expired:    { icon: '⏱',  email: false },
-  sale_created:       { icon: '🎟️', email: false },
+  sale_created:       { icon: '🎟️', email: true },
   ai_verified:        { icon: '🤖', email: false },
   ai_rejected:        { icon: '🤖', email: true },
   admin_message:      { icon: '📢', email: true },

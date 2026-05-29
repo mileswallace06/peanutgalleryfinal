@@ -62,6 +62,8 @@ const inputStyle = {
 export default function CreateListing() {
   const [searchParams] = useSearchParams();
   const preselectedEventId = searchParams.get('event_id');
+  const preselectedTab = searchParams.get('tab'); // 'search' when coming from Sell TM event
+  const preselectedQuery = searchParams.get('q') || ''; // pre-filled search query from Sell
 
   const [step, setStep] = useState(preselectedEventId ? 1 : 0);
   const [events, setEvents] = useState([]);
@@ -71,8 +73,8 @@ export default function CreateListing() {
   const [flagged, setFlagged] = useState(false);
   const [uploadingProof, setUploadingProof] = useState(false);
   const [user, setUser] = useState(null);
-  const [eventTab, setEventTab] = useState('recommended');
-  const [tmQuery, setTmQuery] = useState('');
+  const [eventTab, setEventTab] = useState(preselectedTab === 'search' ? 'search' : 'recommended');
+  const [tmQuery, setTmQuery] = useState(preselectedQuery);
   const [tmResults, setTmResults] = useState([]);
   const [tmLoading, setTmLoading] = useState(false);
   const [tmSearched, setTmSearched] = useState(false);
@@ -208,6 +210,10 @@ export default function CreateListing() {
   };
 
   const handleSubmit = async () => {
+    if (!user) {
+      base44.auth.redirectToLogin();
+      return;
+    }
     setSubmitting(true);
     // Rollout logging — fee model + listing economics
     base44.analytics.track({
@@ -392,6 +398,8 @@ export default function CreateListing() {
               setDone(false); setStep(0);
               setForm({ event_id: '', section: '', row: '', seats: '', quantity: '1', tier: '', asking_price: '', original_price: '', transfer_method: 'email_transfer', proof_url: '' });
               setSelectedTmEvent(null); setTmResults([]); setTmQuery(''); setTmSearched(false); setSelectingTmId(null);
+              setAttestationDone(false); setAttestationData(null); setAttestationBlocked(false);
+              setListingMode('standard'); setPgTransferProofUrl(''); setPgTransferNotes('');
             }}
             className="inline-flex items-center justify-center gap-2 py-3 rounded-full font-semibold text-sm"
             style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--muted-foreground))' }}
