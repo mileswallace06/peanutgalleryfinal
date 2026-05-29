@@ -1,0 +1,103 @@
+{
+  "name": "TransferVerificationLog",
+  "type": "object",
+  "rls": {
+    "create": true,
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  },
+  "properties": {
+    "listing_id": {
+      "type": "string",
+      "description": "FK to Listing"
+    },
+    "event_id": {
+      "type": "string",
+      "description": "FK to Event"
+    },
+    "seller_email": {
+      "type": "string"
+    },
+    "platform": {
+      "type": "string",
+      "enum": [
+        "ticketmaster",
+        "seatgeek",
+        "axs",
+        "stubhub",
+        "apple_wallet",
+        "vivid",
+        "other"
+      ],
+      "description": "Ticketing platform the seller used"
+    },
+    "verification_timestamp": {
+      "type": "string",
+      "description": "ISO timestamp of when verification occurred"
+    },
+    "transfer_available": {
+      "type": "boolean",
+      "description": "Whether the seller confirmed transfer was available"
+    },
+    "verification_method": {
+      "type": "string",
+      "enum": [
+        "seller_attestation",
+        "screenshot_verified",
+        "admin_verified",
+        "buyer_confirmed",
+        "community_verified"
+      ],
+      "description": "How the verification was performed"
+    },
+    "event_start_utc": {
+      "type": "string",
+      "description": "ISO UTC start time of the event (copied from Event at log time)"
+    },
+    "minutes_since_event_start": {
+      "type": "number",
+      "description": "Minutes elapsed since event start at time of verification. Negative = before event."
+    },
+    "venue": {
+      "type": "string",
+      "description": "Venue name (copied from Event)"
+    },
+    "city": {
+      "type": "string",
+      "description": "City (copied from Event)"
+    },
+    "event_title": {
+      "type": "string",
+      "description": "Event title (copied from Event)"
+    },
+    "has_screenshot": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether seller provided a screenshot proof"
+    },
+    "confidence_score": {
+      "type": "number",
+      "description": "Confidence score assigned at verification time"
+    }
+  },
+  "required": [
+    "listing_id",
+    "event_id",
+    "verification_timestamp",
+    "transfer_available",
+    "verification_method"
+  ]
+}

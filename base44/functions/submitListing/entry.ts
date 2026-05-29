@@ -94,6 +94,11 @@ Deno.serve(async (req) => {
     }
   }
 
+  const now = new Date().toISOString();
+  const hasScreenshot = !!(body.transfer_attestation_proof_url);
+  const verificationMethod = hasScreenshot ? 'screenshot_verified' : 'seller_attestation';
+  const confidenceScore = hasScreenshot ? 75 : 55;
+
   const listing = await base44.entities.Listing.create({
     event_id: body.event_id,
     seller_email: user.email,
@@ -110,7 +115,46 @@ Deno.serve(async (req) => {
     proof_rejection_reason: flagged ? reason : proofDuplicate ? 'Duplicate proof image detected — requires manual review' : undefined,
     status: 'active',
     notes: (isAdmin || isTest) ? '[TEST] Admin/demo listing' : undefined,
+    // ── Transfer verification — starts the 45-min warning / 60-min expiry clock ──
+    last_transfer_verification: now,
+    transfer_status: 'transfer_confirmed',
+    transfer_verification_method: verificationMethod,
+    transfer_verification_proof_url: body.transfer_attestation_proof_url || undefined,
+    transfer_confidence_score: confidenceScore,
+    transfer_verified_by: user.email,
+    transfer_platform: body.transfer_source || undefined,
   });
+
+  // ── Fire-and-forget: log verification event for future historical analytics ──
+  // Fetch event metadata for enrichment (best-effort — never block listing creation)
+  base44.asServiceRole.entities.Event.filter({ id: body.event_id }).then(events => {
+    const event = events[0];
+    const eventStartMs = event?.event_start_utc
+      ? new Date(event.event_start_utc).getTime()
+      : event?.date
+      ? new Date(event.date).getTime()
+      : null;
+    const minutesSinceStart = eventStartMs
+      ? Math.round((Date.now() - eventStartMs) / 60000)
+      : null;
+
+    base44.asServiceRole.entities.TransferVerificationLog.create({
+      listing_id: listing.id,
+      event_id: body.event_id,
+      seller_email: user.email,
+      platform: body.transfer_source || undefined,
+      verification_timestamp: now,
+      transfer_available: true,
+      verification_method: verificationMethod,
+      event_start_utc: event?.event_start_utc || event?.date || undefined,
+      minutes_since_event_start: minutesSinceStart,
+      venue: event?.venue || undefined,
+      city: event?.city || undefined,
+      event_title: event?.title || undefined,
+      has_screenshot: hasScreenshot,
+      confidence_score: confidenceScore,
+    }).catch(err => console.error('[submitListing] TransferVerificationLog failed:', err?.message));
+  }).catch(err => console.error('[submitListing] event fetch for log failed:', err?.message));
 
   return Response.json({ listing, flagged, flag_reason: reason, optimistic_id: optimisticId });
 });
