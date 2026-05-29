@@ -2,6 +2,11 @@
  * recordNotification
  * Creates an in-app Notification record AND sends push + email.
  * Called from other backend functions (fire-and-forget pattern).
+ *
+ * SECURITY MODEL:
+ * - Must be called by an authenticated user OR carry x-base44-service-role: true
+ * - A non-admin authenticated user may only create notifications for THEMSELVES
+ * - Admin users and service-role calls may target any user_email
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
@@ -32,10 +37,9 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
 
-    // Only callable from authenticated users or service-role (other backend functions).
-    // Prevents unauthenticated actors from injecting notifications for arbitrary users.
-    const caller = await base44.auth.me().catch(() => null);
     const isServiceRole = req.headers.get('x-base44-service-role') === 'true';
+    const caller = await base44.auth.me().catch(() => null);
+
     if (!caller && !isServiceRole) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -48,6 +52,16 @@ Deno.serve(async (req) => {
 
     if (!user_email || !type || !title) {
       return Response.json({ error: 'user_email, type, title required' }, { status: 400 });
+    }
+
+    // SECURITY: Non-admin authenticated users can only create notifications for themselves.
+    // Service-role calls (from other backend functions) and admins may target any email.
+    if (!isServiceRole && caller) {
+      const isAdmin = caller.role === 'admin';
+      if (!isAdmin && caller.email !== user_email) {
+        console.warn(`[recordNotification] BLOCKED: ${caller.email} tried to notify ${user_email}`);
+        return Response.json({ error: 'Forbidden: you may only create notifications for your own account' }, { status: 403 });
+      }
     }
 
     const defaults = TYPE_DEFAULTS[type] || { icon: '🔔', email: true };

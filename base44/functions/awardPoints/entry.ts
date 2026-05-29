@@ -3,15 +3,21 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 /**
  * awardPoints — Peanut Points economy backend function
  *
- * Inlines all point/rank/trust logic (no local imports allowed in functions).
+ * SECURITY MODEL:
+ * - Authenticated users may only award points to THEMSELVES (no target_email spoofing)
+ * - Admin users may target any email
+ * - Internal service-role calls (from other backend functions) must supply target_email
+ *   AND carry the x-base44-service-role: true header
+ * - Marketplace actions (sale_completed, purchase, etc.) MUST reference a real,
+ *   completed Purchase or Listing that belongs to the caller — prevents phantom grinding
  *
  * ANTI-ABUSE PROTECTIONS:
  * 1. Duplicate guard: same action+reference_id never awarded twice
- * 2. Transaction validity: only completed transactions earn points
+ * 2. Ownership validation: purchase/listing reference must belong to caller
  * 3. Self-purchase: buyer === seller → no points
  * 4. Daily caps: feedback_left (+10/day max), fan_zone_post (+9/day max)
  * 5. Admin/test: admin transactions excluded unless is_real_transaction=true
- * 6. Referrals: only on legitimate first transaction completion
+ * 6. Referrals: disabled until referral system is built
  */
 
 // ─── Point Values (must stay in sync with lib/peanutPoints.js) ───────────────
@@ -37,8 +43,8 @@ const POINT_VALUES = {
   buyer_confirm_15min:            15,
   buyer_confirm_1hr:              10,
   instant_fulfillment_clean:      20,
-  quick_seller_fulfill:           20,   // seller confirms within 4h of purchase
-  quick_buyer_confirm:            15,   // buyer confirms within 2h of seller confirmation
+  quick_seller_fulfill:           20,
+  quick_buyer_confirm:            15,
 
   // Community (capped)
   feedback_left:                   5,
@@ -46,17 +52,17 @@ const POINT_VALUES = {
   beta_bug_report:                25,
   critical_bug_report:            75,
 
-  // Referrals — kept for schema compatibility but gated by disabled check below
+  // Referrals — disabled
   referral_signup:               100,
   referral_first_transaction:    150,
   referral_verified_seller:      100,
 
   // Seat Donations
-  seat_donation_created:         150,   // donor creates a donation
-  donation_accepted:              75,   // donor's donation was accepted
-  live_event_donation:            50,   // bonus for donating during live event
-  first_donation:                  0,   // achievement — bonus handled by ACHIEVEMENT_DEFS
-  donation_received:              10,   // recipient receives donated seats
+  seat_donation_created:         150,
+  donation_accepted:              75,
+  live_event_donation:            50,
+  first_donation:                  0,
+  donation_received:              10,
 
   // Penalties
   failed_transfer:               -75,
@@ -70,15 +76,19 @@ const POINT_VALUES = {
   trust_bonus:                    20,
 };
 
-// Donation achievements
-// (added to ACHIEVEMENT_DEFS below)
+// ─── Actions that require a validated reference entity ────────────────────────
+// For these actions, we verify the reference_id points to a real entity owned by the caller.
+const PURCHASE_ACTIONS = new Set(['purchase', 'sale_completed', 'live_upgrade_purchase', 'live_upgrade_sale',
+  'seller_transfer_15min', 'seller_transfer_1hr', 'buyer_confirm_15min', 'buyer_confirm_1hr',
+  'quick_seller_fulfill', 'quick_buyer_confirm']);
+const LISTING_ACTIONS  = new Set(['instant_listing_verified', 'instant_listing_sold', 'instant_fulfillment_clean']);
 
 // ─── Daily caps ───────────────────────────────────────────────────────────────
 const DAILY_CAPS = {
   feedback_left:          10,
   fan_zone_post:           9,
-  seat_donation_created: 450,  // FRAUD-2: max 3 donations/day can earn points (3×150=450)
-  donation_accepted:     225,  // max 3 accepted/day
+  seat_donation_created: 450,
+  donation_accepted:     225,
 };
 
 // ─── Ranks ────────────────────────────────────────────────────────────────────
@@ -106,8 +116,8 @@ function getRankForPoints(pts) {
 
 // ─── Achievement definitions (bonus points on unlock) ────────────────────────
 const ACHIEVEMENT_DEFS = {
-  first_purchase:           { bonus: 0 },   // first_purchase action covers this
-  first_sale:               { bonus: 0 },   // first_sale action covers this
+  first_purchase:           { bonus: 0 },
+  first_sale:               { bonus: 0 },
   first_instant_listing:    { bonus: 0 },
   stripe_onboarded:         { bonus: 0 },
   five_sales:               { bonus: 75 },
@@ -124,10 +134,9 @@ const ACHIEVEMENT_DEFS = {
   streak_10:                { bonus: 150 },
   hall_of_fame_entry:       { bonus: 500 },
   critical_bug_hunter:      { bonus: 0 },
-  // Donation achievements
-  fan_hero:                 { bonus: 100 },   // first donation
-  community_mvp:            { bonus: 200 },   // 5 donations
-  upgrade_angel:            { bonus: 350 },   // 10 donations
+  fan_hero:                 { bonus: 100 },
+  community_mvp:            { bonus: 200 },
+  upgrade_angel:            { bonus: 350 },
 };
 
 // ─── Trust Score ──────────────────────────────────────────────────────────────
@@ -189,12 +198,10 @@ function computeTrustBadges(user) {
 }
 
 // ─── Daily cap check ──────────────────────────────────────────────────────────
-// SCALE-3: Use server-side date filter + limit to avoid full history scan
 async function getDailyPointsForAction(base44, userEmail, action) {
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
   const todayIso = todayStart.toISOString();
-  // Filter at query level — only fetch today's records for this action
   const logs = await base44.asServiceRole.entities.PointsActivity.filter({
     user_email: userEmail,
     action,
@@ -212,6 +219,41 @@ async function isDuplicate(base44, userEmail, action, referenceId) {
     reference_id: referenceId,
   });
   return existing.length > 0;
+}
+
+// ─── Ownership validation ─────────────────────────────────────────────────────
+// Verifies that the supplied reference_id actually belongs to the caller.
+// Prevents phantom reference_ids from granting points to arbitrary users.
+async function validateOwnership(base44, action, referenceId, callerEmail) {
+  if (!referenceId) return { valid: false, reason: 'reference_id required for this action' };
+
+  if (PURCHASE_ACTIONS.has(action)) {
+    const purchases = await base44.asServiceRole.entities.Purchase.filter({ id: referenceId }).catch(() => []);
+    const p = purchases[0];
+    if (!p) return { valid: false, reason: 'purchase not found' };
+    if (p.transfer_status !== 'completed') return { valid: false, reason: 'purchase not completed' };
+    // Buyer actions
+    if (['purchase', 'live_upgrade_purchase', 'buyer_confirm_15min', 'buyer_confirm_1hr', 'quick_buyer_confirm'].includes(action)) {
+      if (p.buyer_email !== callerEmail) return { valid: false, reason: 'not the buyer of this purchase' };
+      if (p.buyer_email === p.seller_email) return { valid: false, reason: 'self-purchase' };
+    }
+    // Seller actions
+    if (['sale_completed', 'live_upgrade_sale', 'seller_transfer_15min', 'seller_transfer_1hr', 'quick_seller_fulfill'].includes(action)) {
+      if (p.seller_email !== callerEmail) return { valid: false, reason: 'not the seller of this purchase' };
+      if (p.buyer_email === p.seller_email) return { valid: false, reason: 'self-purchase' };
+    }
+    return { valid: true };
+  }
+
+  if (LISTING_ACTIONS.has(action)) {
+    const listings = await base44.asServiceRole.entities.Listing.filter({ id: referenceId }).catch(() => []);
+    const l = listings[0];
+    if (!l) return { valid: false, reason: 'listing not found' };
+    if (l.seller_email !== callerEmail) return { valid: false, reason: 'not the seller of this listing' };
+    return { valid: true };
+  }
+
+  return { valid: true }; // non-marketplace actions don't require ownership check
 }
 
 // ─── Default descriptions ─────────────────────────────────────────────────────
@@ -261,33 +303,32 @@ Deno.serve(async (req) => {
       target_email,
       description: customDesc,
       metadata = {},
-      _internal_service_call = false, // trusted internal calls from other backend functions
+      _internal_service_call = false,
     } = body;
 
     if (!action) return Response.json({ error: 'action required' }, { status: 400 });
 
-    // Internal service-role calls (e.g. from seatDonation) bypass auth.me() requirement
-    // but MUST supply target_email and cannot use admin-only actions
     let user = null;
     let isAdmin = false;
+    let callerEmail = null;
 
     if (_internal_service_call) {
+      // Internal calls from other backend functions must carry the service-role header
       if (!target_email) return Response.json({ error: 'target_email required for internal calls' }, { status: 400 });
-      // CRITICAL-4: Validate internal calls come from service-role context, not a browser client.
-      // Service-role requests from other backend functions carry a Base44-injected trusted header.
-      // Direct browser requests cannot forge this header (CORS + server-only header).
       const serviceHeader = req.headers.get('x-base44-service-role');
       if (!serviceHeader || serviceHeader !== 'true') {
         console.warn('[awardPoints] _internal_service_call attempted without service-role header — BLOCKED');
         return Response.json({ error: 'Unauthorized' }, { status: 401 });
       }
+      callerEmail = target_email; // internal calls are trusted; no ownership check needed
     } else {
       user = await base44.auth.me();
       if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
       isAdmin = user.role === 'admin';
+      callerEmail = user.email;
     }
 
-    // Referral actions are disabled until the referral system is built
+    // Referral actions disabled
     const disabledActions = ['referral_signup', 'referral_first_transaction', 'referral_verified_seller'];
     if (disabledActions.includes(action)) {
       return Response.json({ success: false, reason: 'referral_system_not_yet_live' });
@@ -299,16 +340,27 @@ Deno.serve(async (req) => {
       return Response.json({ error: `Unknown action: ${action}` }, { status: 400 });
     }
 
-    // Admin-only actions: bug reports, fraud, abuse, and negative manual actions
+    // Admin-only actions
     const adminOnlyActions = ['beta_bug_report', 'critical_bug_report', 'confirmed_fraud', 'abusive_behavior', 'failed_transfer', 'seller_dispute', 'repeated_cancellation'];
     if (adminOnlyActions.includes(action) && !isAdmin) {
       return Response.json({ error: 'Admin only action' }, { status: 403 });
     }
 
     // Resolve recipient email
+    // Non-admin users can ONLY award points to themselves — target_email is ignored
     const recipientEmail = _internal_service_call
       ? target_email
-      : (target_email && isAdmin) ? target_email : user.email;
+      : (target_email && isAdmin) ? target_email : callerEmail;
+
+    // SECURITY: For marketplace actions called by non-admin users,
+    // validate that the reference_id actually belongs to the caller
+    if (!_internal_service_call && !isAdmin && (PURCHASE_ACTIONS.has(action) || LISTING_ACTIONS.has(action))) {
+      const ownership = await validateOwnership(base44, action, reference_id, callerEmail);
+      if (!ownership.valid) {
+        console.warn(`[awardPoints] ownership check failed for ${callerEmail} on action=${action} ref=${reference_id}: ${ownership.reason}`);
+        return Response.json({ error: `Validation failed: ${ownership.reason}` }, { status: 403 });
+      }
+    }
 
     // Fetch recipient
     const [recipient] = await base44.asServiceRole.entities.User.filter({ email: recipientEmail });
@@ -334,19 +386,18 @@ Deno.serve(async (req) => {
     const description = customDesc || DEFAULT_DESCS[action] || action;
 
     // ── Compute new totals
-    const currentPts     = recipient.peanut_points   || 0;
+    const currentPts      = recipient.peanut_points   || 0;
     const currentLifetime = recipient.lifetime_points || 0;
-    const newPts         = Math.max(0, currentPts + pts);
-    const newLifetime    = pts > 0 ? currentLifetime + pts : currentLifetime; // lifetime never decrements
+    const newPts          = Math.max(0, currentPts + pts);
+    const newLifetime     = pts > 0 ? currentLifetime + pts : currentLifetime;
 
     // ── Achievement detection
     const achievements = [...(recipient.achievements || [])];
     const newAchievements = [];
 
-    // Updated counters (projected)
-    const newSales     = (recipient.total_sales     || 0) + (action === 'sale_completed' ? 1 : 0);
-    const newPurchases = (recipient.total_purchases || 0) + (action === 'purchase' || action === 'live_upgrade_purchase' ? 1 : 0);
-    const newInstant   = (recipient.total_instant_listings || 0) + (action === 'instant_listing_verified' ? 1 : 0);
+    const newSales        = (recipient.total_sales     || 0) + (action === 'sale_completed' ? 1 : 0);
+    const newPurchases    = (recipient.total_purchases || 0) + (action === 'purchase' || action === 'live_upgrade_purchase' ? 1 : 0);
+    const newInstant      = (recipient.total_instant_listings || 0) + (action === 'instant_listing_verified' ? 1 : 0);
     const newLiveUpgrades = (recipient.total_live_upgrades || 0) + (action === 'live_upgrade_purchase' || action === 'live_upgrade_sale' ? 1 : 0);
 
     const check = (key, condition) => {
@@ -363,7 +414,6 @@ Deno.serve(async (req) => {
     check('referral_starter',      action === 'referral_signup');
     check('critical_bug_hunter',   action === 'critical_bug_report');
 
-    // Donation achievements — need donation totals from DB (lightweight check via reference counts)
     const newDonations = (recipient.total_donations_made || 0) + (action === 'seat_donation_created' ? 1 : 0);
     check('fan_hero',      newDonations >= 1);
     check('community_mvp', newDonations >= 5);
@@ -376,28 +426,24 @@ Deno.serve(async (req) => {
     check('three_instant_listings',newInstant >= 3);
     check('three_live_upgrades',   newLiveUpgrades >= 3);
 
-    // Streak updates
     let sellerStreak = recipient.seller_streak || 0;
     if (action === 'sale_completed') sellerStreak += 1;
     if (action === 'failed_transfer' || action === 'seller_dispute') sellerStreak = 0;
     check('streak_5',  sellerStreak >= 5);
     check('streak_10', sellerStreak >= 10);
 
-    // Fast transfer counter
     let fastTransfers = recipient.total_fast_transfers || 0;
     if (action === 'seller_transfer_15min' || action === 'seller_transfer_1hr') fastTransfers += 1;
 
-    // Dispute/failure counters
-    let totalDisputes       = recipient.total_disputes          || 0;
-    let totalFailures       = recipient.total_failed_transfers  || 0;
-    let totalCancels        = recipient.total_cancelled_sales   || 0;
-    let fraudCount          = recipient.confirmed_fraud_count   || 0;
-    if (action === 'seller_dispute')       totalDisputes += 1;
-    if (action === 'failed_transfer')      totalFailures += 1;
-    if (action === 'repeated_cancellation') totalCancels += 1;
-    if (action === 'confirmed_fraud')      fraudCount += 1;
+    let totalDisputes   = recipient.total_disputes          || 0;
+    let totalFailures   = recipient.total_failed_transfers  || 0;
+    let totalCancels    = recipient.total_cancelled_sales   || 0;
+    let fraudCount      = recipient.confirmed_fraud_count   || 0;
+    if (action === 'seller_dispute')        totalDisputes += 1;
+    if (action === 'failed_transfer')       totalFailures += 1;
+    if (action === 'repeated_cancellation') totalCancels  += 1;
+    if (action === 'confirmed_fraud')       fraudCount    += 1;
 
-    // Achievement bonus points
     let achievementBonus = 0;
     for (const key of newAchievements) {
       achievementBonus += ACHIEVEMENT_DEFS[key]?.bonus || 0;
@@ -406,7 +452,6 @@ Deno.serve(async (req) => {
     const finalPts      = newPts + achievementBonus;
     const finalLifetime = newLifetime + achievementBonus;
 
-    // ── Trust score checks AFTER projecting all counters
     const projectedUser = {
       ...recipient,
       total_purchases:        newPurchases,
@@ -426,7 +471,6 @@ Deno.serve(async (req) => {
     check('trust_milestone_70', recalcTrustScore(projectedUser) >= 70 && !recipient.achievements?.includes('trust_milestone_70'));
     check('trust_milestone_85', recalcTrustScore(projectedUser) >= 85 && !recipient.achievements?.includes('trust_milestone_85'));
 
-    // Re-add bonus for trust milestones if just unlocked
     for (const key of ['trust_milestone_70', 'trust_milestone_85']) {
       if (newAchievements.includes(key)) {
         achievementBonus += ACHIEVEMENT_DEFS[key]?.bonus || 0;
@@ -436,7 +480,6 @@ Deno.serve(async (req) => {
     const veryFinalPts      = newPts + achievementBonus;
     const veryFinalLifetime = newLifetime + achievementBonus;
 
-    // Hall of Fame entry achievement
     check('hall_of_fame_entry', veryFinalLifetime >= 9200 && !achievements.includes('hall_of_fame_entry'));
     let hofBonus = 0;
     if (newAchievements.includes('hall_of_fame_entry')) {
@@ -446,13 +489,11 @@ Deno.serve(async (req) => {
     const trulyFinalPts      = veryFinalPts + hofBonus;
     const trulyFinalLifetime = veryFinalLifetime + hofBonus;
 
-    // ── Final rank & trust
     const newRankTier  = getRankForPoints(trulyFinalLifetime);
     const finalProjected = { ...projectedUser, lifetime_points: trulyFinalLifetime, achievements };
     const trustScore   = recalcTrustScore(finalProjected);
     const trustBadges  = computeTrustBadges({ ...finalProjected, trust_score: trustScore });
 
-    // ── Persist user update
     const newDonationsMade = (recipient.total_donations_made || 0) + (action === 'seat_donation_created' ? 1 : 0);
 
     await base44.asServiceRole.entities.User.update(recipient.id, {
@@ -477,7 +518,6 @@ Deno.serve(async (req) => {
       points_last_updated:    new Date().toISOString(),
     });
 
-    // ── Log activity
     await base44.asServiceRole.entities.PointsActivity.create({
       user_email:     recipientEmail,
       action,
