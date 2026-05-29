@@ -20,12 +20,11 @@ export default function SellerMetrics({ purchases }) {
   const completed = purchases.filter(p => p.transfer_status === 'completed' && p.seller_confirmed);
   const expired = purchases.filter(p => p.transfer_status === 'expired' && !p.seller_confirmed);
 
-  // Time from purchase created → seller_confirmed (proxy: updated_date when seller_confirmed first set)
-  // We use updated_date as the best available timestamp for when seller confirmed
+  // Time from purchase created → seller_confirmed_at (actual seller confirmation timestamp)
   const sellerConfirmTimes = completed
     .map(p => {
-      if (!p.created_date || !p.updated_date) return null;
-      return differenceInMinutes(new Date(p.updated_date), new Date(p.created_date));
+      if (!p.created_date || !p.seller_confirmed_at) return null;
+      return differenceInMinutes(new Date(p.seller_confirmed_at), new Date(p.created_date));
     })
     .filter(v => v !== null && v > 0);
 
@@ -33,11 +32,11 @@ export default function SellerMetrics({ purchases }) {
     ? sellerConfirmTimes.reduce((a, b) => a + b, 0) / sellerConfirmTimes.length
     : null;
 
-  // Time from purchase created → completed (buyer confirmed)
+  // Time from seller_confirmed_at → completed (buyer confirms receipt)
   const fullTransferTimes = completed
     .map(p => {
-      if (!p.created_date || !p.updated_date) return null;
-      return differenceInMinutes(new Date(p.updated_date), new Date(p.created_date));
+      if (!p.seller_confirmed_at || !p.updated_date) return null;
+      return differenceInMinutes(new Date(p.updated_date), new Date(p.seller_confirmed_at));
     })
     .filter(v => v !== null && v > 0);
 
@@ -74,7 +73,7 @@ export default function SellerMetrics({ purchases }) {
           icon={<CheckCircle2 className="w-4 h-4 text-green-500" />}
           label="Avg. Time to Receipt"
           value={formatDuration(avgFullTransfer)}
-          sub="purchase → buyer confirms"
+          sub="seller sends → buyer confirms"
         />
         <MetricTile
           icon={<CheckCircle2 className="w-4 h-4 text-primary" />}

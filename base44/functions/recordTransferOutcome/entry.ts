@@ -78,10 +78,18 @@ Deno.serve(async (req) => {
         // Clamp
         reliability = Math.max(0, Math.min(100, reliability));
 
+        // Factor in false claim count for reliability penalty
+        const falseClaims = seller.transfer_false_claim_count || 0;
+        if (falseClaims >= 1) reliability = Math.max(0, reliability - (falseClaims * 3));
+
+        // If dispute, increment false claim count (buyer won = seller made false transfer claim)
+        const newFalseClaimCount = !isSuccess ? falseClaims + 1 : falseClaims;
+
         await base44.asServiceRole.entities.User.update(seller.id, {
           transfer_success_count: successCount,
           transfer_fail_count: failCount,
           seller_transfer_reliability: reliability,
+          transfer_false_claim_count: newFalseClaimCount,
         });
       }
     }

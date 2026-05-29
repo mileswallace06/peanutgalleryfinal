@@ -294,6 +294,18 @@ Return ONLY valid JSON with this exact structure:
 
     await base44.asServiceRole.entities.Purchase.update(purchase_id, updatePayload);
 
+    // ── Increment transfer_false_claim_count on rejection ────────────────────
+    // When AI rejects the proof as suspicious, the seller made a false transfer claim
+    if (aiProofStatus === 'rejected_suspicious' && purchase.seller_email) {
+      const sellers = await base44.asServiceRole.entities.User.filter({ email: purchase.seller_email }).catch(() => []);
+      const seller = sellers[0];
+      if (seller) {
+        await base44.asServiceRole.entities.User.update(seller.id, {
+          transfer_false_claim_count: (seller.transfer_false_claim_count || 0) + 1,
+        }).catch(() => {});
+      }
+    }
+
     // ── Admin alerts for high-risk results ───────────────────────────────────
     if (aiProofStatus === 'rejected_suspicious' || fraudRiskScore >= 60) {
       base44.asServiceRole.functions.invoke('sendNotificationEmail', {

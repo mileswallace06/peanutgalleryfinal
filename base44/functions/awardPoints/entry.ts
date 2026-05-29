@@ -37,6 +37,8 @@ const POINT_VALUES = {
   buyer_confirm_15min:            15,
   buyer_confirm_1hr:              10,
   instant_fulfillment_clean:      20,
+  quick_seller_fulfill:           20,   // seller confirms within 4h of purchase
+  quick_buyer_confirm:            15,   // buyer confirms within 2h of seller confirmation
 
   // Community (capped)
   feedback_left:                   5,

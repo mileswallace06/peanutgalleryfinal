@@ -11,7 +11,8 @@
       "default": "user"
     },
     "stripe_account_id": {
-      "type": "string"
+      "type": "string",
+      "description": "Stripe Connect account ID \u2014 set after seller onboarding"
     },
     "stripe_onboarding_complete": {
       "type": "boolean",
@@ -27,6 +28,10 @@
     "avatar_url": {
       "type": "string"
     },
+    "banner_url": {
+      "type": "string",
+      "description": "Profile banner image URL"
+    },
     "persona_name": {
       "type": "string"
     },
@@ -39,13 +44,119 @@
     },
     "peanut_points": {
       "type": "number",
-      "default": 0
+      "default": 0,
+      "description": "Current spendable Peanut Points balance"
+    },
+    "lifetime_points": {
+      "type": "number",
+      "default": 0,
+      "description": "Lifetime total points earned (never decrements) \u2014 used for rank/leaderboard"
+    },
+    "peanut_level": {
+      "type": "number",
+      "default": 1,
+      "description": "Current rank level (1-10)"
+    },
+    "peanut_rank": {
+      "type": "string",
+      "default": "Rookie Fan",
+      "description": "Current rank label (e.g. Rookie Fan, Headliner)"
+    },
+    "trust_score": {
+      "type": "number",
+      "default": 50,
+      "description": "Computed 0-100 trust score. Higher = more trustworthy."
+    },
+    "trust_badges": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Earned trust badge keys (e.g. verified_seller, fast_transfer)"
+    },
+    "achievements": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Unlocked achievement keys"
+    },
+    "seller_streak": {
+      "type": "number",
+      "default": 0,
+      "description": "Consecutive successful transfers without failure"
+    },
+    "total_purchases": {
+      "type": "number",
+      "default": 0,
+      "description": "Lifetime completed ticket purchases"
+    },
+    "total_sales": {
+      "type": "number",
+      "default": 0,
+      "description": "Lifetime completed ticket sales"
+    },
+    "total_instant_listings": {
+      "type": "number",
+      "default": 0,
+      "description": "Lifetime instant listings verified by PG"
+    },
+    "total_live_upgrades": {
+      "type": "number",
+      "default": 0,
+      "description": "Lifetime live upgrade transactions (buy or sell)"
+    },
+    "total_fast_transfers": {
+      "type": "number",
+      "default": 0,
+      "description": "Count of transfers completed within fast threshold"
+    },
+    "total_disputes": {
+      "type": "number",
+      "default": 0,
+      "description": "Lifetime disputes caused by this seller"
+    },
+    "total_failed_transfers": {
+      "type": "number",
+      "default": 0,
+      "description": "Lifetime transfers that failed/expired without seller action"
+    },
+    "total_cancelled_sales": {
+      "type": "number",
+      "default": 0,
+      "description": "Lifetime cancelled/expired sales"
+    },
+    "confirmed_fraud_count": {
+      "type": "number",
+      "default": 0,
+      "description": "Number of times confirmed fraudulent behavior \u2014 excludes from donations and leaderboard"
+    },
+    "total_donations_made": {
+      "type": "number",
+      "default": 0,
+      "description": "Lifetime seat donations submitted"
+    },
+    "false_dispute_count": {
+      "type": "number",
+      "default": 0,
+      "description": "Times buyer filed a false or unfounded dispute"
+    },
+    "is_founding_fan": {
+      "type": "boolean",
+      "default": false,
+      "description": "Founding fan status \u2014 grants founding_fan trust badge"
+    },
+    "points_last_updated": {
+      "type": "string",
+      "description": "ISO timestamp of last points/trust update"
     },
     "referral_code": {
-      "type": "string"
+      "type": "string",
+      "description": "This user's shareable referral code"
     },
     "referred_by": {
-      "type": "string"
+      "type": "string",
+      "description": "Referral code used at signup"
     },
     "seller_transfer_reliability": {
       "type": "number",
@@ -70,7 +181,17 @@
     "transfer_false_claim_count": {
       "type": "number",
       "default": 0,
-      "description": "Times seller claimed transfer available but it wasn't"
+      "description": "Times seller claimed transfer available but AI/admin/buyer dispute proved otherwise"
+    },
+    "last_pi_attempt_at": {
+      "type": "string",
+      "description": "ISO timestamp of last payment intent creation attempt \u2014 used for rate limiting"
+    },
+    "pi_attempt_count": {
+      "type": "number",
+      "default": 0,
+      "description": "Total payment intent creation attempts \u2014 fraud signal"
     }
-  }
+  },
+  "required": []
 }
