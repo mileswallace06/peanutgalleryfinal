@@ -55,7 +55,9 @@ Deno.serve(async (req) => {
     await base44.asServiceRole.entities.Purchase.update(purchase_id, updatePayload);
 
     // ── Increment transfer_false_claim_count when admin explicitly rejects/marks fraudulent
-    if ((action === 'rejected' || action === 'marked_fraudulent') && purchase.seller_email) {
+    // Deduped: only one strike per purchase regardless of AI rejection or buyer dispute
+    if ((action === 'rejected' || action === 'marked_fraudulent') && purchase.seller_email && !purchase.false_claim_recorded) {
+      await base44.asServiceRole.entities.Purchase.update(purchase_id, { false_claim_recorded: true }).catch(() => {});
       const sellers = await base44.asServiceRole.entities.User.filter({ email: purchase.seller_email }).catch(() => []);
       const seller = sellers[0];
       if (seller) {

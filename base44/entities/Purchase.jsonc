@@ -126,6 +126,11 @@
       "type": "string",
       "description": "ISO timestamp when auto_review_flagged was set"
     },
+    "false_claim_recorded": {
+      "type": "boolean",
+      "default": false,
+      "description": "Dedup flag \u2014 true once a transfer_false_claim_count strike has been issued for this purchase. Prevents AI rejection + admin rejection + dispute from all counting separately."
+    },
     "fulfillment_status": {
       "type": "string",
       "enum": [

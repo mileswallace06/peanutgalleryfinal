@@ -82,8 +82,13 @@ Deno.serve(async (req) => {
         const falseClaims = seller.transfer_false_claim_count || 0;
         if (falseClaims >= 1) reliability = Math.max(0, reliability - (falseClaims * 3));
 
-        // If dispute, increment false claim count (buyer won = seller made false transfer claim)
-        const newFalseClaimCount = !isSuccess ? falseClaims + 1 : falseClaims;
+        // If dispute, strike false claim ONLY if not already recorded for this purchase
+        // (AI rejection or admin override may have already set false_claim_recorded = true)
+        let newFalseClaimCount = falseClaims;
+        if (!isSuccess && !purchase.false_claim_recorded) {
+          await base44.asServiceRole.entities.Purchase.update(purchase.id, { false_claim_recorded: true }).catch(() => {});
+          newFalseClaimCount = falseClaims + 1;
+        }
 
         await base44.asServiceRole.entities.User.update(seller.id, {
           transfer_success_count: successCount,

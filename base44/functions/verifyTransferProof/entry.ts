@@ -294,15 +294,21 @@ Return ONLY valid JSON with this exact structure:
 
     await base44.asServiceRole.entities.Purchase.update(purchase_id, updatePayload);
 
-    // ── Increment transfer_false_claim_count on rejection ────────────────────
-    // When AI rejects the proof as suspicious, the seller made a false transfer claim
-    if (aiProofStatus === 'rejected_suspicious' && purchase.seller_email) {
-      const sellers = await base44.asServiceRole.entities.User.filter({ email: purchase.seller_email }).catch(() => []);
-      const seller = sellers[0];
-      if (seller) {
-        await base44.asServiceRole.entities.User.update(seller.id, {
-          transfer_false_claim_count: (seller.transfer_false_claim_count || 0) + 1,
-        }).catch(() => {});
+    // ── Increment transfer_false_claim_count on rejection (deduped per purchase) ─
+    // Only strike once per purchase — false_claim_recorded prevents AI + admin + dispute
+    // from all counting separately for the same incident.
+    if (aiProofStatus === 'rejected_suspicious' && purchase.seller_email && !purchase.false_claim_recorded) {
+      // Re-fetch to get the latest false_claim_recorded state (avoids race with admin action)
+      const [freshPurchase] = await base44.asServiceRole.entities.Purchase.filter({ id: purchase_id }).catch(() => []);
+      if (!freshPurchase?.false_claim_recorded) {
+        await base44.asServiceRole.entities.Purchase.update(purchase_id, { false_claim_recorded: true }).catch(() => {});
+        const sellers = await base44.asServiceRole.entities.User.filter({ email: purchase.seller_email }).catch(() => []);
+        const seller = sellers[0];
+        if (seller) {
+          await base44.asServiceRole.entities.User.update(seller.id, {
+            transfer_false_claim_count: (seller.transfer_false_claim_count || 0) + 1,
+          }).catch(() => {});
+        }
       }
     }
 
