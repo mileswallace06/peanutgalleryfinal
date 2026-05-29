@@ -1,0 +1,68 @@
+{
+  "name": "BetaTransferLog",
+  "type": "object",
+  "properties": {
+    "log_type": {
+      "type": "string",
+      "enum": [
+        "verification",
+        "reverification",
+        "community_report",
+        "transfer_attempt",
+        "transfer_complete",
+        "transfer_failed",
+        "dispute_opened",
+        "dispute_resolved",
+        "admin_alert_created",
+        "admin_alert_resolved",
+        "admin_override",
+        "buyer_acknowledgment",
+        "seller_attestation",
+        "expiration_warning",
+        "listing_hidden",
+        "listing_restored"
+      ]
+    },
+    "actor_email": {
+      "type": "string",
+      "description": "Who triggered this event"
+    },
+    "actor_role": {
+      "type": "string",
+      "enum": [
+        "seller",
+        "buyer",
+        "admin",
+        "system"
+      ]
+    },
+    "listing_id": {
+      "type": "string"
+    },
+    "purchase_id": {
+      "type": "string"
+    },
+    "event_id": {
+      "type": "string"
+    },
+    "before_state": {
+      "type": "object",
+      "description": "Snapshot of relevant state before the action"
+    },
+    "after_state": {
+      "type": "object",
+      "description": "Snapshot of relevant state after the action"
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Additional context (confidence score, method, platform, etc.)"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "log_type",
+    "actor_role"
+  ]
+}

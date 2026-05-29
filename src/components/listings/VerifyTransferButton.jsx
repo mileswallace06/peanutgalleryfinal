@@ -54,12 +54,25 @@ export default function VerifyTransferButton({ listing, event, onVerified }) {
       update.transfer_verification_proof_url = proofUrl;
     }
     if (!canTransfer) {
-      // Auto-hide from upgrades
-      update.status = 'cancelled';
+      // SAFE: hide listing via status=hidden + hidden_reason, never delete/cancel
+      update.status = 'hidden';
+      update.hidden_reason = 'transfer_disabled';
       update.transfer_verified_notes = 'Seller confirmed transfer no longer available';
     }
 
     await base44.entities.Listing.update(listing.id, update);
+
+    // Beta log
+    base44.entities.BetaTransferLog.create({
+      log_type: canTransfer ? 'verification' : 'listing_hidden',
+      actor_email: listing.seller_email,
+      actor_role: 'seller',
+      listing_id: listing.id,
+      event_id: listing.event_id,
+      before_state: { transfer_status: listing.transfer_status, status: listing.status },
+      after_state: { transfer_status: update.transfer_status, status: update.status || listing.status },
+      metadata: { method: update.transfer_verification_method, score: update.transfer_confidence_score, has_proof: !!proofUrl },
+    }).catch(() => {});
     setSaving(false);
     setDone(true);
     setTimeout(() => {
@@ -143,7 +156,7 @@ export default function VerifyTransferButton({ listing, event, onVerified }) {
                   {canTransfer === false && (
                     <div className="rounded-xl px-4 py-3 text-xs leading-relaxed"
                       style={{ background: 'rgba(255,45,120,0.08)', border: '1px solid rgba(255,45,120,0.25)', color: '#FF2D78' }}>
-                      ⚠️ Your listing will be hidden from buyers and marked as transfer unavailable. Buyers cannot purchase untransferable tickets.
+                      ⚠️ Your listing will be hidden from buyers until transfer is available again. You can re-verify at any time to restore it.
                     </div>
                   )}
 

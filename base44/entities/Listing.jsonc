@@ -80,9 +80,21 @@
         "sold",
         "cancelled",
         "expired",
-        "pending_verification"
+        "pending_verification",
+        "hidden"
       ],
       "default": "active"
+    },
+    "hidden_reason": {
+      "type": "string",
+      "enum": [
+        "transfer_disabled",
+        "admin_disabled",
+        "expired_verification",
+        "sold",
+        "other"
+      ],
+      "description": "Why this listing is hidden from the marketplace"
     },
     "listing_mode": {
       "type": "string",
@@ -90,8 +102,7 @@
         "standard",
         "instant"
       ],
-      "default": "standard",
-      "description": "standard = seller transfers after purchase; instant = PG holds ticket before listing goes live"
+      "default": "standard"
     },
     "custody_status": {
       "type": "string",
@@ -101,36 +112,28 @@
         "verified",
         "rejected"
       ],
-      "default": "none",
-      "description": "Tracks whether PG has verified custody of the ticket for instant listings"
+      "default": "none"
     },
     "pg_transfer_proof_url": {
-      "type": "string",
-      "description": "Proof seller transferred ticket to PG (instant listings)"
+      "type": "string"
     },
     "pg_transfer_notes": {
-      "type": "string",
-      "description": "Seller notes on the PG transfer"
+      "type": "string"
     },
     "pg_fulfilled_at": {
-      "type": "string",
-      "description": "ISO timestamp when PG fulfilled the transfer to buyer"
+      "type": "string"
     },
     "pg_fulfilled_by": {
-      "type": "string",
-      "description": "Admin email who marked fulfillment"
+      "type": "string"
     },
     "reservation_token": {
-      "type": "string",
-      "description": "UUID set when a buyer begins checkout \u2014 prevents double-sell"
+      "type": "string"
     },
     "reservation_expires_at": {
-      "type": "string",
-      "description": "ISO timestamp \u2014 reservation auto-expires after 10 minutes"
+      "type": "string"
     },
     "reserved_by_email": {
-      "type": "string",
-      "description": "Email of buyer who holds the current reservation"
+      "type": "string"
     },
     "transfer_status": {
       "type": "string",
@@ -140,16 +143,13 @@
         "transfer_disabled",
         "transfer_expired"
       ],
-      "default": "transfer_unconfirmed",
-      "description": "Listing-level transfer availability status \u2014 source of truth for purchase eligibility"
+      "default": "transfer_unconfirmed"
     },
     "transfer_confidence_score": {
-      "type": "number",
-      "description": "0-100 confidence that this specific ticket can still be transferred"
+      "type": "number"
     },
     "last_transfer_verification": {
-      "type": "string",
-      "description": "ISO timestamp of the most recent transfer verification"
+      "type": "string"
     },
     "transfer_verification_method": {
       "type": "string",
@@ -159,20 +159,16 @@
         "admin_verified",
         "buyer_confirmed",
         "community_verified"
-      ],
-      "description": "Method used to verify transfer availability"
+      ]
     },
     "transfer_verification_proof_url": {
-      "type": "string",
-      "description": "Screenshot or proof of transfer availability"
+      "type": "string"
     },
     "transfer_verified_by": {
-      "type": "string",
-      "description": "Email of user/admin who verified"
+      "type": "string"
     },
     "transfer_verified_notes": {
-      "type": "string",
-      "description": "Notes on verification decision"
+      "type": "string"
     },
     "transfer_platform": {
       "type": "string",
@@ -183,8 +179,15 @@
         "stubhub",
         "apple_wallet",
         "other"
-      ],
-      "description": "Ticketing platform seller confirmed transfer is available on"
+      ]
+    },
+    "verification_warning_sent_at": {
+      "type": "string",
+      "description": "When the 45-min expiration warning was sent"
+    },
+    "verification_expired_sent_at": {
+      "type": "string",
+      "description": "When the expiration notification was sent"
     }
   },
   "required": [

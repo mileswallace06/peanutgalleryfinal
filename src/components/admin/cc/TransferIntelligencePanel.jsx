@@ -3,7 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { RefreshCw, ShieldCheck, XCircle, AlertTriangle, ExternalLink, Clock } from 'lucide-react';
 import { computeTransferConfidence, getTransferStatusBadge, formatVerificationAge, isVerificationExpired } from '@/lib/transferConfidence';
 
-function ListingRow({ listing, event, onAdminVerify, onDisable, onOverride }) {
+function ListingRow({ listing, event, onAdminVerify, onDisable, onOverride, onRestore }) {
   const badge = getTransferStatusBadge(listing);
   const score = listing.transfer_confidence_score ?? '?';
   const age = formatVerificationAge(listing.last_transfer_verification);
@@ -42,13 +42,22 @@ function ListingRow({ listing, event, onAdminVerify, onDisable, onOverride }) {
       )}
 
       <div className="flex flex-wrap gap-2 pt-1 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
-        <button onClick={() => onAdminVerify(listing)}
-          className="flex items-center gap-1 px-2.5 py-1 rounded-lg font-semibold"
-          style={{ background: 'rgba(0,255,135,0.08)', color: '#00FF87', border: '1px solid rgba(0,255,135,0.25)' }}>
-          <ShieldCheck className="w-3 h-3" /> Admin Verify
-        </button>
+        {listing.status === 'hidden' ? (
+          <button onClick={() => onRestore(listing)}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg font-semibold"
+            style={{ background: 'rgba(0,200,255,0.08)', color: '#00C8FF', border: '1px solid rgba(0,200,255,0.25)' }}>
+            <RefreshCw className="w-3 h-3" /> Restore Listing
+          </button>
+        ) : (
+          <button onClick={() => onAdminVerify(listing)}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg font-semibold"
+            style={{ background: 'rgba(0,255,135,0.08)', color: '#00FF87', border: '1px solid rgba(0,255,135,0.25)' }}>
+            <ShieldCheck className="w-3 h-3" /> Admin Verify
+          </button>
+        )}
         <button onClick={() => onDisable(listing)}
-          className="flex items-center gap-1 px-2.5 py-1 rounded-lg font-semibold"
+          disabled={listing.status === 'hidden'}
+          className="flex items-center gap-1 px-2.5 py-1 rounded-lg font-semibold disabled:opacity-40"
           style={{ background: 'rgba(255,45,120,0.08)', color: '#FF2D78', border: '1px solid rgba(255,45,120,0.25)' }}>
           <XCircle className="w-3 h-3" /> Disable Transfer
         </button>
@@ -91,7 +100,8 @@ export default function TransferIntelligencePanel({ events: eventsMap, onRefresh
       base44.entities.Listing.list('-updated_date', 200),
       base44.entities.TransferReport.list('-created_date', 500),
     ]);
-    setListings(allListings.filter(l => l.status === 'active' || l.status === 'pending_transfer'));
+    // Include hidden listings so admin can restore them — never exclude from intelligence view
+    setListings(allListings.filter(l => ['active', 'pending_transfer', 'hidden'].includes(l.status)));
     setReports(allReports);
     setLoading(false);
   };
@@ -131,10 +141,36 @@ export default function TransferIntelligencePanel({ events: eventsMap, onRefresh
     await loadData();
   };
 
+  const handleRestore = async (listing) => {
+    setActionLoading(listing.id + 'restore');
+    await base44.entities.Listing.update(listing.id, {
+      status: 'active',
+      hidden_reason: null,
+      transfer_status: 'transfer_unconfirmed',
+      verification_expired_sent_at: null,
+      verification_warning_sent_at: null,
+    });
+    // Beta log
+    base44.entities.BetaTransferLog.create({
+      log_type: 'listing_restored',
+      actor_role: 'admin',
+      listing_id: listing.id,
+      event_id: listing.event_id,
+      before_state: { status: listing.status, hidden_reason: listing.hidden_reason },
+      after_state: { status: 'active' },
+    }).catch(() => {});
+    await loadData();
+    onRefresh?.();
+    setActionLoading('');
+  };
+
   // Event-level aggregations
+  const now = Date.now();
+  const twoHoursAgo = now - 2 * 60 * 60 * 1000;
   const eventReportMap = {};
   reports.forEach(r => {
     if (!eventReportMap[r.event_id]) eventReportMap[r.event_id] = { open: 0, closed: 0, latest: null };
+    if (new Date(r.created_date).getTime() < twoHoursAgo) return; // only last 2h for conflict detection
     if (r.report_type === 'transfer_available') eventReportMap[r.event_id].open++;
     else eventReportMap[r.event_id].closed++;
     const ts = r.created_date;
@@ -143,15 +179,21 @@ export default function TransferIntelligencePanel({ events: eventsMap, onRefresh
     }
   });
 
+  // Conflict detection: events where open AND closed each >= 3
+  const conflictingEvents = Object.entries(eventReportMap)
+    .filter(([, d]) => d.open >= 3 && d.closed >= 3)
+    .map(([eid, d]) => ({ eid, ...d }));
+
   // Stats
   const expired = listings.filter(l => isVerificationExpired(l));
+  const hidden = listings.filter(l => l.status === 'hidden');
   const disabled = listings.filter(l => l.transfer_status === 'transfer_disabled');
   const lowConf = listings.filter(l => (l.transfer_confidence_score ?? 100) < 50 && l.transfer_status !== 'transfer_disabled');
   const needsReverify = listings.filter(l => isVerificationExpired(l) || !l.last_transfer_verification);
 
   const filteredListings = filter === 'all' ? listings
     : filter === 'needs_attention' ? needsReverify
-    : filter === 'expired' ? expired
+    : filter === 'hidden' ? hidden
     : filter === 'disabled' ? disabled
     : filter === 'low_confidence' ? lowConf
     : listings;
@@ -179,7 +221,7 @@ export default function TransferIntelligencePanel({ events: eventsMap, onRefresh
       <div className="grid grid-cols-4 gap-2">
         {[
           { label: 'Needs Reverify', value: needsReverify.length, color: '#FF8C00' },
-          { label: 'Expired', value: expired.length, color: '#FFE600' },
+          { label: 'Hidden', value: hidden.length, color: '#FFE600' },
           { label: 'Disabled', value: disabled.length, color: '#FF2D78' },
           { label: 'Low Confidence', value: lowConf.length, color: '#FF8C00' },
         ].map(s => (
@@ -190,6 +232,25 @@ export default function TransferIntelligencePanel({ events: eventsMap, onRefresh
           </div>
         ))}
       </div>
+
+      {/* ⚡ Conflict detection banner */}
+      {conflictingEvents.length > 0 && (
+        <div className="rounded-xl p-3 space-y-2"
+          style={{ background: 'rgba(255,230,0,0.08)', border: '1px solid rgba(255,230,0,0.35)' }}>
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 flex-shrink-0" style={{ color: '#FFE600' }} />
+            <span className="text-xs font-bold" style={{ color: '#FFE600' }}>
+              {conflictingEvents.length} event{conflictingEvents.length !== 1 ? 's' : ''} with conflicting community reports
+            </span>
+          </div>
+          {conflictingEvents.map(({ eid, open, closed }) => (
+            <div key={eid} className="text-xs text-foreground flex justify-between pl-6">
+              <span className="text-muted-foreground truncate">{eventsMap?.[eid]?.title || eid.slice(0, 12)}</span>
+              <span><span style={{ color: '#00FF87' }}>{open} open</span> vs <span style={{ color: '#FF2D78' }}>{closed} closed</span></span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Community report summaries */}
       {(topEventsByOpen.length > 0 || topEventsByClosed.length > 0) && (
@@ -221,7 +282,7 @@ export default function TransferIntelligencePanel({ events: eventsMap, onRefresh
       <div className="flex gap-2 flex-wrap">
         {[
           { key: 'needs_attention', label: `Needs Attention (${needsReverify.length})` },
-          { key: 'expired', label: `Expired (${expired.length})` },
+          { key: 'hidden', label: `Hidden (${hidden.length})` },
           { key: 'low_confidence', label: `Low Confidence (${lowConf.length})` },
           { key: 'disabled', label: `Disabled (${disabled.length})` },
           { key: 'all', label: `All (${listings.length})` },
@@ -251,6 +312,7 @@ export default function TransferIntelligencePanel({ events: eventsMap, onRefresh
               onAdminVerify={handleAdminVerify}
               onDisable={handleDisable}
               onOverride={handleOverride}
+              onRestore={handleRestore}
             />
           ))}
         </div>

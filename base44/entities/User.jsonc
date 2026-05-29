@@ -10,23 +10,6 @@
       ],
       "default": "user"
     },
-    "bio": {
-      "type": "string"
-    },
-    "avatar_url": {
-      "type": "string"
-    },
-    "banner_url": {
-      "type": "string"
-    },
-    "favorite_team": {
-      "type": "string"
-    },
-    "has_seen_onboarding": {
-      "type": "boolean",
-      "default": false,
-      "description": "Persisted onboarding completion \u2014 survives new devices"
-    },
     "stripe_account_id": {
       "type": "string"
     },
@@ -34,38 +17,29 @@
       "type": "boolean",
       "default": false
     },
-    "peanut_points": {
+    "strike_count": {
       "type": "number",
       "default": 0
     },
-    "lifetime_points": {
+    "bio": {
+      "type": "string"
+    },
+    "avatar_url": {
+      "type": "string"
+    },
+    "persona_name": {
+      "type": "string"
+    },
+    "persona_style": {
+      "type": "string"
+    },
+    "verified_fan": {
+      "type": "boolean",
+      "default": false
+    },
+    "peanut_points": {
       "type": "number",
-      "default": 0,
-      "description": "All-time \u2014 used for rank"
-    },
-    "peanut_level": {
-      "type": "number",
-      "default": 1
-    },
-    "peanut_rank": {
-      "type": "string",
-      "default": "Rookie Fan"
-    },
-    "trust_score": {
-      "type": "number",
-      "default": 50
-    },
-    "trust_badges": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
-    },
-    "achievements": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
+      "default": 0
     },
     "referral_code": {
       "type": "string"
@@ -73,66 +47,30 @@
     "referred_by": {
       "type": "string"
     },
-    "total_purchases": {
+    "seller_transfer_reliability": {
       "type": "number",
-      "default": 0
+      "description": "0-100 seller reliability score. Updated after each transfer outcome.",
+      "default": 70
     },
-    "total_sales": {
-      "type": "number",
-      "default": 0
-    },
-    "total_instant_listings": {
-      "type": "number",
-      "default": 0
-    },
-    "total_live_upgrades": {
-      "type": "number",
-      "default": 0
-    },
-    "total_fast_transfers": {
-      "type": "number",
-      "default": 0
-    },
-    "total_disputes": {
-      "type": "number",
-      "default": 0
-    },
-    "total_failed_transfers": {
-      "type": "number",
-      "default": 0
-    },
-    "total_cancelled_sales": {
-      "type": "number",
-      "default": 0
-    },
-    "confirmed_fraud_count": {
-      "type": "number",
-      "default": 0
-    },
-    "false_dispute_count": {
-      "type": "number",
-      "default": 0
-    },
-    "seller_streak": {
-      "type": "number",
-      "default": 0
-    },
-    "total_donations_made": {
+    "transfer_success_count": {
       "type": "number",
       "default": 0,
-      "description": "Lifetime seat donations"
+      "description": "Lifetime successful transfers"
     },
-    "is_founding_fan": {
-      "type": "boolean",
-      "default": false
-    },
-    "points_last_updated": {
-      "type": "string"
-    },
-    "strike_count": {
+    "transfer_fail_count": {
       "type": "number",
-      "default": 0
+      "default": 0,
+      "description": "Lifetime failed/disputed transfers"
+    },
+    "transfer_expired_count": {
+      "type": "number",
+      "default": 0,
+      "description": "Times verification expired before a sale"
+    },
+    "transfer_false_claim_count": {
+      "type": "number",
+      "default": 0,
+      "description": "Times seller claimed transfer available but it wasn't"
     }
-  },
-  "required": []
+  }
 }

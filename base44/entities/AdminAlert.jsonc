@@ -1,0 +1,77 @@
+{
+  "name": "AdminAlert",
+  "type": "object",
+  "properties": {
+    "alert_type": {
+      "type": "string",
+      "enum": [
+        "failed_transfer_after_payment",
+        "new_dispute",
+        "expired_verification",
+        "low_confidence_listing",
+        "conflicting_community_reports",
+        "transfer_disabled_active_listing",
+        "buyer_waiting_for_transfer",
+        "seller_missed_deadline",
+        "seller_reliability_drop",
+        "admin_action_required"
+      ]
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "critical",
+        "high",
+        "medium",
+        "low"
+      ],
+      "default": "medium"
+    },
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "reference_id": {
+      "type": "string",
+      "description": "ID of the related entity (purchase, listing, etc.)"
+    },
+    "reference_type": {
+      "type": "string",
+      "enum": [
+        "purchase",
+        "listing",
+        "event",
+        "user"
+      ]
+    },
+    "seller_email": {
+      "type": "string"
+    },
+    "buyer_email": {
+      "type": "string"
+    },
+    "event_id": {
+      "type": "string"
+    },
+    "resolved": {
+      "type": "boolean",
+      "default": false
+    },
+    "resolved_by": {
+      "type": "string"
+    },
+    "resolved_at": {
+      "type": "string"
+    },
+    "resolution_notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "alert_type",
+    "priority",
+    "title"
+  ]
+}

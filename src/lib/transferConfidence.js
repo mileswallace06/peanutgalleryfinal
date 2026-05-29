@@ -11,9 +11,10 @@
  * @param {object} listing - Listing entity
  * @param {object} event - Event entity (for advisory window status)
  * @param {object[]} reports - TransferReport[] for this event
+ * @param {object} sellerUser - User entity for the seller (optional, for reliability scoring)
  * @returns {{ score: number, factors: string[], label: string, color: string, bg: string, border: string, status: string }}
  */
-export function computeTransferConfidence(listing, event = null, reports = []) {
+export function computeTransferConfidence(listing, event = null, reports = [], sellerUser = null) {
   let score = 50; // neutral baseline
   const factors = [];
 
@@ -106,6 +107,25 @@ export function computeTransferConfidence(listing, event = null, reports = []) {
     } else if (eStatus === 'closing_soon') {
       score -= 10;
       factors.push('-10 Event transfer window closing soon');
+    }
+  }
+
+  // ── Seller reliability score ────────────────────────────────────────
+  if (sellerUser != null) {
+    const reliability = sellerUser.seller_transfer_reliability ?? 70;
+    if (reliability >= 90) {
+      score += 10;
+      factors.push(`+10 Seller reliability ${reliability}%`);
+    } else if (reliability >= 70) {
+      // neutral — no modifier
+    } else if (reliability < 60) {
+      score -= 20;
+      factors.push(`-20 Seller reliability ${reliability}% (low)`);
+    }
+    // Penalize repeated false claims
+    if ((sellerUser.transfer_false_claim_count ?? 0) >= 2) {
+      score -= 15;
+      factors.push(`-15 Seller has ${sellerUser.transfer_false_claim_count} false transfer claims`);
     }
   }
 

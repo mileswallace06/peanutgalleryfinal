@@ -1,0 +1,66 @@
+{
+  "name": "TransferOutcome",
+  "type": "object",
+  "properties": {
+    "listing_id": {
+      "type": "string"
+    },
+    "event_id": {
+      "type": "string"
+    },
+    "purchase_id": {
+      "type": "string"
+    },
+    "seller_email": {
+      "type": "string"
+    },
+    "buyer_email": {
+      "type": "string"
+    },
+    "platform": {
+      "type": "string",
+      "enum": [
+        "ticketmaster",
+        "seatgeek",
+        "axs",
+        "stubhub",
+        "apple_wallet",
+        "vivid",
+        "other"
+      ]
+    },
+    "transfer_successful": {
+      "type": "boolean"
+    },
+    "transfer_completed_at": {
+      "type": "string"
+    },
+    "minutes_to_transfer": {
+      "type": "number"
+    },
+    "buyer_confirmed": {
+      "type": "boolean",
+      "default": false
+    },
+    "seller_confirmed": {
+      "type": "boolean",
+      "default": false
+    },
+    "admin_intervention_required": {
+      "type": "boolean",
+      "default": false
+    },
+    "dispute_created": {
+      "type": "boolean",
+      "default": false
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "listing_id",
+    "event_id",
+    "seller_email"
+  ]
+}

@@ -3,9 +3,10 @@ import { base44 } from '@/api/base44Client';
 import { isAdmin } from '@/lib/isAdmin';
 import { Navigate } from 'react-router-dom';
 import { format, formatDistanceToNow } from 'date-fns';
-import { Shield, RefreshCw, AlertTriangle, CreditCard, Zap, Users, Activity, Brain, Radio, Database } from 'lucide-react';
+import { Shield, RefreshCw, AlertTriangle, CreditCard, Zap, Users, Activity, Brain, Radio, Database, Bell } from 'lucide-react';
 import TransferWindowAdminPanel from '@/components/admin/TransferWindowAdminPanel';
 import TransferIntelligencePanel from '@/components/admin/cc/TransferIntelligencePanel';
+import AdminAlertCenter from '@/components/admin/cc/AdminAlertCenter';
 import CommandSummaryBar from '@/components/admin/cc/CommandSummaryBar';
 import IssueFeed from '@/components/admin/cc/IssueFeed';
 import MarketplaceHealth from '@/components/admin/cc/MarketplaceHealth';
@@ -21,6 +22,7 @@ const SECTIONS = [
   { id: 'instant',  label: 'Instant Ops',     icon: Zap },
   { id: 'ai',       label: 'AI Verification', icon: Brain },
   { id: 'donations',label: 'Donations',        icon: Users },
+  { id: 'alerts',   label: 'Alert Center',   icon: Bell },
   { id: 'transfers', label: 'Transfer Windows', icon: Radio },
   { id: 'transfer_intel', label: 'Transfer Intelligence', icon: Database },
 ];
@@ -104,6 +106,7 @@ export default function AdminCommandCenter() {
             {lastRefresh ? `Updated ${formatDistanceToNow(lastRefresh, { addSuffix: true })}` : 'Loading…'}
           </span>
         </div>
+        <a href="/founder" className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded hidden sm:block flex-shrink-0">Founder →</a>
         <a href="/admin-legacy" className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded hidden sm:block flex-shrink-0">Legacy →</a>
         <button onClick={loadAll} disabled={loading}
           className="p-1.5 rounded-lg hover:bg-muted transition-colors flex-shrink-0">
@@ -186,6 +189,9 @@ export default function AdminCommandCenter() {
             events={events}
             onRefresh={loadAll}
           />
+        )}
+        {activeSection === 'alerts' && (
+          <AdminAlertCenter />
         )}
         {activeSection === 'transfers' && (
           <TransferWindowAdminPanel onRefresh={loadAll} />
