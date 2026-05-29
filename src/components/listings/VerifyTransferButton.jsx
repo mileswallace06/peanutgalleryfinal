@@ -49,6 +49,9 @@ export default function VerifyTransferButton({ listing, event, onVerified }) {
       transfer_verification_method: proofUrl ? 'screenshot_verified' : 'seller_attestation',
       transfer_confidence_score: canTransfer ? score : 0,
       transfer_verified_by: listing.seller_email,
+      // Reset warning/expiry flags so the full 45-min → 60-min lifecycle restarts
+      verification_warning_sent_at: null,
+      verification_expired_sent_at: null,
     };
     if (proofUrl) {
       update.transfer_verification_proof_url = proofUrl;

@@ -117,6 +117,9 @@ export default function TransferIntelligencePanel({ events: eventsMap, onRefresh
       transfer_confidence_score: 92,
       last_transfer_verification: now,
       transfer_verified_by: 'admin',
+      // Reset warning/expiry flags so the full lifecycle restarts
+      verification_warning_sent_at: null,
+      verification_expired_sent_at: null,
     });
     await loadData();
     onRefresh?.();
@@ -147,8 +150,9 @@ export default function TransferIntelligencePanel({ events: eventsMap, onRefresh
       status: 'active',
       hidden_reason: null,
       transfer_status: 'transfer_unconfirmed',
-      verification_expired_sent_at: null,
+      // Reset both flags so the full 45-min → 60-min cycle runs again
       verification_warning_sent_at: null,
+      verification_expired_sent_at: null,
     });
     // Beta log
     base44.entities.BetaTransferLog.create({
