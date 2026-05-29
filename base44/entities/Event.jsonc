@@ -28,20 +28,20 @@
     },
     "event_start_local": {
       "type": "string",
-      "description": "Local date/time at the venue as ISO string WITHOUT timezone offset, e.g. 2026-05-08T19:00:00. Used for display and initial data entry."
+      "description": "Local date/time at the venue as ISO string WITHOUT timezone offset, e.g. 2026-05-08T19:00:00."
     },
     "event_start_utc": {
       "type": "string",
       "format": "date-time",
-      "description": "Canonical UTC start time as ISO string. Derived from event_start_local + venue_timezone. All live/expired logic compares against this."
+      "description": "Canonical UTC start time as ISO string."
     },
     "venue_timezone": {
       "type": "string",
-      "description": "IANA timezone of the venue, e.g. America/Phoenix, America/Los_Angeles, America/New_York. REQUIRED for accurate live-window calculation."
+      "description": "IANA timezone of the venue, e.g. America/Phoenix."
     },
     "duration_hours": {
       "type": "number",
-      "description": "How many hours after start time the event is considered live. Defaults: concert/sports=4h, theater/comedy=3h."
+      "description": "How many hours after start time the event is considered live."
     },
     "category": {
       "type": "string",
@@ -51,8 +51,7 @@
         "theater",
         "comedy",
         "other"
-      ],
-      "description": "Event category \u2014 also controls default duration_hours"
+      ]
     },
     "image_url": {
       "type": "string",
@@ -69,8 +68,7 @@
     },
     "is_beta_live": {
       "type": "boolean",
-      "default": false,
-      "description": "Force-marks event as live for beta testing \u2014 listings appear in Upgrades tab regardless of date"
+      "default": false
     },
     "venue_lat": {
       "type": "number"
@@ -83,12 +81,63 @@
       "default": 500
     },
     "tm_id": {
-      "type": "string",
-      "description": "Ticketmaster event ID for externally sourced events"
+      "type": "string"
     },
     "tm_url": {
+      "type": "string"
+    },
+    "transfer_window_status": {
       "type": "string",
-      "description": "Ticketmaster event URL for externally sourced events"
+      "enum": [
+        "unknown",
+        "open",
+        "closing_soon",
+        "closed",
+        "manually_verified_open",
+        "manually_verified_closed"
+      ],
+      "default": "unknown",
+      "description": "Whether ticket transfers are currently available for this event"
+    },
+    "transfer_window_closes_at": {
+      "type": "string",
+      "description": "ISO timestamp \u2014 when the transfer window is expected to close. Null if unknown."
+    },
+    "transfer_window_source": {
+      "type": "string",
+      "enum": [
+        "ticketmaster",
+        "seatgeek",
+        "axs",
+        "mlb",
+        "manual_admin",
+        "user_reported",
+        "inferred"
+      ],
+      "description": "Source of the transfer window status"
+    },
+    "transfer_window_confidence": {
+      "type": "number",
+      "description": "Confidence score 0\u2013100 for the transfer window status"
+    },
+    "upgrade_eligibility_status": {
+      "type": "string",
+      "enum": [
+        "eligible",
+        "limited",
+        "unknown",
+        "not_eligible"
+      ],
+      "default": "unknown",
+      "description": "Overall upgrade eligibility derived from transfer window status"
+    },
+    "last_transfer_check_at": {
+      "type": "string",
+      "description": "ISO timestamp of the last transfer window check"
+    },
+    "admin_transfer_notes": {
+      "type": "string",
+      "description": "Admin notes on transfer window status"
     }
   },
   "required": [

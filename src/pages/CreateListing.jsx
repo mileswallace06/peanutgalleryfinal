@@ -9,6 +9,7 @@ import { fetchTMEvents } from '@/lib/tmCache';
 import { isAdmin as checkIsAdmin } from '@/lib/isAdmin';
 import NotificationPermissionPrompt from '@/components/NotificationPermissionPrompt';
 import { MIN_LISTING_PRICE_CONFIG, formatFeeBreakdown, ACTIVE_FEE_MODEL_ID, FEE_MODELS } from '@/lib/feeEngine';
+import SellerTransferAttestation from '@/components/events/SellerTransferAttestation';
 
 const STEPS = ['Event', 'Seats', 'Price', 'Done'];
 
@@ -88,6 +89,9 @@ export default function CreateListing() {
   const [recCityInput, setRecCityInput] = useState(_recSS?.locationInput || '');
   const [recCitySubmitted, setRecCitySubmitted] = useState(false);
 
+  const [attestationDone, setAttestationDone] = useState(false);
+  const [attestationData, setAttestationData] = useState(null);
+  const [attestationBlocked, setAttestationBlocked] = useState(false);
   const [listingMode, setListingMode] = useState('standard'); // 'standard' | 'instant'
   const [pgTransferProofUrl, setPgTransferProofUrl] = useState('');
   const [pgTransferNotes, setPgTransferNotes] = useState('');
@@ -254,6 +258,8 @@ export default function CreateListing() {
         transfer_method: form.transfer_method,
         proof_url: form.proof_url || undefined,
         is_test: isAdminUser,
+        transfer_source: attestationData?.platform || 'seller_confirmed',
+        transfer_attestation_proof_url: attestationData?.proofUrl || undefined,
       });
       setFlagged(res.data.flagged);
     }
@@ -400,7 +406,7 @@ export default function CreateListing() {
   }
 
   const canNext0 = !!form.event_id;
-  const canNext1 = !!form.section && !!form.row;
+  const canNext1 = !!form.section && !!form.row && attestationDone;
   const priceVal = parseFloat(form.asking_price) || 0;
   const minPrice = MIN_LISTING_PRICE_CONFIG.enabled ? MIN_LISTING_PRICE_CONFIG.threshold : 0;
   const priceTooLow = MIN_LISTING_PRICE_CONFIG.enabled && priceVal > 0 && priceVal < minPrice;
@@ -691,6 +697,45 @@ export default function CreateListing() {
               ))}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── Attestation gate (shown at bottom of step 1) ── */}
+      {step === 1 && !attestationDone && !attestationBlocked && (
+        <div className="mt-6">
+          <SellerTransferAttestation
+            onConfirm={(data) => { setAttestationData(data); setAttestationDone(true); }}
+            onBlocked={() => setAttestationBlocked(true)}
+            uploadFile={async (file) => {
+              const { file_url } = await base44.integrations.Core.UploadFile({ file });
+              return file_url;
+            }}
+          />
+        </div>
+      )}
+
+      {step === 1 && attestationBlocked && (
+        <div className="mt-6 rounded-2xl px-4 py-4 text-center space-y-3"
+          style={{ background: 'rgba(255,45,120,0.08)', border: '1px solid rgba(255,45,120,0.3)' }}>
+          <div className="text-2xl">🚫</div>
+          <div className="font-bold text-sm" style={{ color: '#FF2D78' }}>Listing not allowed</div>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            You indicated you cannot transfer this ticket. Only transferable tickets can be listed on Peanut Gallery.
+          </p>
+          <button
+            onClick={() => setAttestationBlocked(false)}
+            className="text-xs font-semibold px-4 py-2 rounded-lg"
+            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: 'hsl(var(--foreground))' }}>
+            Go back
+          </button>
+        </div>
+      )}
+
+      {step === 1 && attestationDone && (
+        <div className="mt-4 flex items-center gap-2 px-3 py-2 rounded-xl"
+          style={{ background: 'rgba(0,255,135,0.06)', border: '1px solid rgba(0,255,135,0.25)' }}>
+          <CheckCircle className="w-4 h-4 flex-shrink-0" style={{ color: '#00FF87' }} />
+          <span className="text-xs font-semibold" style={{ color: '#00FF87' }}>Transfer verified · Ready to continue</span>
         </div>
       )}
 

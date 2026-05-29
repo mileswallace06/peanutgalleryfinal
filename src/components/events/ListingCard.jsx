@@ -29,7 +29,7 @@ function getSignals(listing) {
   return { timeLabel, demandLabel, sellerLabel };
 }
 
-export default function ListingCard({ listing, onUpgrade, isCheapest, mode = 'upgrade' }) {
+export default function ListingCard({ listing, onUpgrade, isCheapest, mode = 'upgrade', transferWarning = null }) {
   const isDemo = listing.notes?.startsWith('[DEMO]');
   const isVerified = !!listing.proof_url && !isDemo;
   const isInstant = listing.listing_mode === 'instant' && listing.custody_status === 'verified';
@@ -141,22 +141,37 @@ export default function ListingCard({ listing, onUpgrade, isCheapest, mode = 'up
           </div>
         </div>
 
+        {/* Transfer warning */}
+        {transferWarning && (
+          <div className="text-[10px] px-3 py-2 rounded-xl leading-relaxed"
+            style={{ background: 'rgba(255,140,0,0.08)', color: '#FF8C00', border: '1px solid rgba(255,140,0,0.25)' }}>
+            ⚠️ {transferWarning}
+          </div>
+        )}
+
         {/* CTA Button */}
-        <button
-          onClick={() => onUpgrade(listing)}
-          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-full font-black text-sm transition-all active:scale-95"
-          style={{
-            background: 'linear-gradient(135deg, #00E87A, #00B8E8)',
-            color: '#0D0B14',
-            boxShadow: '0 0 18px rgba(0,232,122,0.22), 0 4px 16px rgba(0,0,0,0.3)',
-          }}
-        >
-          <ArrowUpRight className="w-4 h-4" />
-          {mode === 'upgrade'
-            ? `Upgrade to These Seats — $${listing.asking_price}${listing.quantity > 1 ? ` × ${listing.quantity}` : ''}`
-            : `Buy Tickets — $${listing.asking_price}${listing.quantity > 1 ? ` × ${listing.quantity}` : ''}`
-          }
-        </button>
+        {onUpgrade ? (
+          <button
+            onClick={() => onUpgrade(listing)}
+            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-full font-black text-sm transition-all active:scale-95"
+            style={{
+              background: 'linear-gradient(135deg, #00E87A, #00B8E8)',
+              color: '#0D0B14',
+              boxShadow: '0 0 18px rgba(0,232,122,0.22), 0 4px 16px rgba(0,0,0,0.3)',
+            }}
+          >
+            <ArrowUpRight className="w-4 h-4" />
+            {mode === 'upgrade'
+              ? `Upgrade to These Seats — $${listing.asking_price}${listing.quantity > 1 ? ` × ${listing.quantity}` : ''}`
+              : `Buy Tickets — $${listing.asking_price}${listing.quantity > 1 ? ` × ${listing.quantity}` : ''}`
+            }
+          </button>
+        ) : (
+          <div className="w-full flex items-center justify-center gap-2 py-3.5 rounded-full font-black text-sm opacity-40 cursor-not-allowed"
+            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'hsl(var(--muted-foreground))' }}>
+            🚫 Upgrades unavailable
+          </div>
+        )}
 
         {/* Bottom meta row */}
         <div className="flex items-center justify-between -mt-1">

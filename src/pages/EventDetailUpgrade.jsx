@@ -5,7 +5,9 @@ import { format } from 'date-fns';
 import { MapPin, Calendar, ArrowLeft, Zap } from 'lucide-react';
 import ListingCard from '@/components/events/ListingCard';
 import PurchaseDialog from '@/components/events/PurchaseDialog';
+import TransferWindowBadge from '@/components/events/TransferWindowBadge';
 import { getEventLiveStatus } from '@/lib/eventTiming';
+import { getTransferWindowInfo } from '@/lib/transferWindow';
 
 export default function EventDetailUpgrade() {
   const { id } = useParams();
@@ -63,6 +65,8 @@ export default function EventDetailUpgrade() {
   const isDemoOnly = listings.length > 0 && listings.every(l => l.notes?.startsWith('[DEMO]'));
   const sorted = [...listings].sort((a, b) => a.asking_price - b.asking_price);
   const cheapest = sorted[0]?.asking_price;
+  const transferInfo = getTransferWindowInfo(event);
+  const upgradesBlocked = !adminUnlocked && !transferInfo.canUpgrade;
 
   return (
     <div className="pb-32">
@@ -114,6 +118,11 @@ export default function EventDetailUpgrade() {
       {/* ── Content ── */}
       <div className="px-4 pt-8">
 
+        {/* Transfer window status */}
+        <div className="mb-4">
+          <TransferWindowBadge event={event} expanded showCountdown />
+        </div>
+
         {/* Location-lock notice */}
         <div className="mb-5 rounded-2xl px-4 py-3 flex items-start gap-3"
           style={{ background: 'rgba(0,255,135,0.06)', border: '1px solid rgba(0,255,135,0.2)' }}>
@@ -149,6 +158,17 @@ export default function EventDetailUpgrade() {
             </div>
           )}
         </div>
+
+        {/* Upgrades blocked banner */}
+        {upgradesBlocked && (
+          <div className="mb-5 rounded-2xl px-4 py-4"
+            style={{ background: 'rgba(255,45,120,0.08)', border: '1px solid rgba(255,45,120,0.3)' }}>
+            <div className="font-bold text-sm mb-1" style={{ color: '#FF2D78' }}>🚫 Upgrades currently unavailable</div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Official ticket transfers appear closed for this event. Purchasing an upgrade is not possible at this time.
+            </p>
+          </div>
+        )}
 
         {listings.length === 0 ? (
           <div className="text-center py-16 glass-card rounded-2xl">
@@ -186,8 +206,9 @@ export default function EventDetailUpgrade() {
                 key={listing.id}
                 listing={listing}
                 isCheapest={listing.asking_price === cheapest}
-                onUpgrade={setSelectedListing}
+                onUpgrade={upgradesBlocked ? undefined : setSelectedListing}
                 mode="upgrade"
+                transferWarning={transferInfo.showWarning ? transferInfo.sublabel : null}
               />
             ))}
           </div>

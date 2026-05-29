@@ -3,7 +3,8 @@ import { base44 } from '@/api/base44Client';
 import { isAdmin } from '@/lib/isAdmin';
 import { Navigate } from 'react-router-dom';
 import { format, formatDistanceToNow } from 'date-fns';
-import { Shield, RefreshCw, AlertTriangle, CreditCard, Zap, Users, Activity, Brain } from 'lucide-react';
+import { Shield, RefreshCw, AlertTriangle, CreditCard, Zap, Users, Activity, Brain, Radio } from 'lucide-react';
+import TransferWindowAdminPanel from '@/components/admin/TransferWindowAdminPanel';
 import CommandSummaryBar from '@/components/admin/cc/CommandSummaryBar';
 import IssueFeed from '@/components/admin/cc/IssueFeed';
 import MarketplaceHealth from '@/components/admin/cc/MarketplaceHealth';
@@ -19,6 +20,7 @@ const SECTIONS = [
   { id: 'instant',  label: 'Instant Ops',     icon: Zap },
   { id: 'ai',       label: 'AI Verification', icon: Brain },
   { id: 'donations',label: 'Donations',        icon: Users },
+  { id: 'transfers', label: 'Transfer Windows', icon: Radio },
 ];
 
 export default function AdminCommandCenter() {
@@ -182,6 +184,9 @@ export default function AdminCommandCenter() {
             events={events}
             onRefresh={loadAll}
           />
+        )}
+        {activeSection === 'transfers' && (
+          <TransferWindowAdminPanel onRefresh={loadAll} />
         )}
       </div>
     </div>
