@@ -45,6 +45,7 @@ export default function FounderDashboard() {
   const [listings, setListings] = useState([]);
   const [alerts, setAlerts] = useState([]);
   const [donations, setDonations] = useState([]);
+  const [outcomes, setOutcomes] = useState([]);
 
   useEffect(() => {
     base44.auth.me({ fresh: true }).then(u => {
@@ -55,16 +56,18 @@ export default function FounderDashboard() {
 
   const loadAll = useCallback(async () => {
     setLoading(true);
-    const [p, l, a, d] = await Promise.all([
+    const [p, l, a, d, o] = await Promise.all([
       base44.entities.Purchase.list('-created_date', 200),
       base44.entities.Listing.list('-updated_date', 200),
       base44.entities.AdminAlert.filter({ resolved: false }),
       base44.entities.SeatDonation.list('-created_date', 50),
+      base44.entities.TransferOutcome.list('-created_date', 500),
     ]);
     setPurchases(p || []);
     setListings(l || []);
     setAlerts(a || []);
     setDonations(d || []);
+    setOutcomes(o || []);
     setLastRefresh(new Date());
     setLoading(false);
   }, []);
@@ -99,17 +102,38 @@ export default function FounderDashboard() {
   const criticalAlerts = alerts.filter(a => a.priority === 'critical');
   const highAlerts = alerts.filter(a => a.priority === 'high');
 
-  // Transfer time for completed
-  const transferTimes = purchases
-    .filter(p => p.transfer_status === 'completed' && p.seller_confirmed_at && p.created_date)
-    .map(p => (new Date(p.seller_confirmed_at) - new Date(p.created_date)) / 60000);
-  const avgTransferMin = transferTimes.length
-    ? Math.round(transferTimes.reduce((a, b) => a + b, 0) / transferTimes.length)
+  // ── TransferOutcome is source of truth for all transfer metrics ──
+  const successfulOutcomes = outcomes.filter(o => o.transfer_successful);
+  const failedOutcomes = outcomes.filter(o => !o.transfer_successful);
+  const outcomeTotal = outcomes.length;
+
+  // Success rate from TransferOutcome (falls back to Purchase if no outcomes yet)
+  const successRate = outcomeTotal > 0
+    ? Math.round((successfulOutcomes.length / outcomeTotal) * 100)
+    : (completedSales.length + openDisputes.length > 0
+      ? Math.round((completedSales.length / (completedSales.length + openDisputes.length)) * 100)
+      : 100);
+
+  // Dispute rate from TransferOutcome
+  const disputeRate = outcomeTotal > 0
+    ? Math.round((failedOutcomes.length / outcomeTotal) * 100)
+    : 0;
+
+  // Avg transfer time from TransferOutcome.minutes_to_transfer (authoritative)
+  const outcomeTimes = successfulOutcomes
+    .filter(o => o.minutes_to_transfer != null && o.minutes_to_transfer > 0)
+    .map(o => o.minutes_to_transfer);
+  const avgTransferMin = outcomeTimes.length
+    ? Math.round(outcomeTimes.reduce((a, b) => a + b, 0) / outcomeTimes.length)
     : null;
 
-  const successRate = completedSales.length + openDisputes.length > 0
-    ? Math.round((completedSales.length / (completedSales.length + openDisputes.length)) * 100)
-    : 100;
+  // Marketplace Health Score (0–100)
+  // Weighted: success rate 40%, dispute rate 25%, critical alerts 20%, pending load 15%
+  const alertPenalty = Math.min(criticalAlerts.length * 10, 30);
+  const pendingPenalty = Math.min(pendingTransfers.length * 2, 15);
+  const healthScore = Math.max(0, Math.min(100,
+    Math.round(successRate * 0.40 + (100 - disputeRate * 4) * 0.25 + (100 - alertPenalty) * 0.20 + (100 - pendingPenalty) * 0.15)
+  ));
 
   const needsAttentionNow = criticalAlerts.length > 0 || openDisputes.length > 0 || buyerWaiting.length > 3;
 
@@ -189,6 +213,36 @@ export default function FounderDashboard() {
           </div>
         )}
 
+        {/* ── MARKETPLACE HEALTH SCORE ── */}
+        <div>
+          <SectionHeader title="Marketplace Health Score" icon="💊" />
+          <div className="rounded-2xl p-5 flex items-center gap-6"
+            style={{
+              background: healthScore >= 80 ? 'rgba(0,255,135,0.06)' : healthScore >= 60 ? 'rgba(255,140,0,0.06)' : 'rgba(255,45,120,0.08)',
+              border: `1px solid ${healthScore >= 80 ? 'rgba(0,255,135,0.25)' : healthScore >= 60 ? 'rgba(255,140,0,0.25)' : 'rgba(255,45,120,0.35)'}`,
+            }}>
+            <div>
+              <div className="text-5xl font-black" style={{ color: healthScore >= 80 ? '#00FF87' : healthScore >= 60 ? '#FF8C00' : '#FF2D78' }}>
+                {healthScore}
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">/ 100</div>
+            </div>
+            <div className="flex-1 space-y-1.5">
+              {[
+                { label: 'Transfer Success Rate', value: `${successRate}%`, src: outcomeTotal > 0 ? 'TransferOutcome' : 'Purchase fallback' },
+                { label: 'Dispute Rate', value: `${disputeRate}%`, src: 'TransferOutcome' },
+                { label: 'Avg Transfer Time', value: avgTransferMin ? `${avgTransferMin}m` : 'No data', src: 'TransferOutcome' },
+                { label: 'Open Critical Alerts', value: criticalAlerts.length, src: 'AdminAlert' },
+              ].map(m => (
+                <div key={m.label} className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">{m.label}</span>
+                  <span className="font-bold text-foreground">{m.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
         {/* ── MARKETPLACE PULSE ── */}
         <div>
           <SectionHeader title="Marketplace Pulse" icon="📊" />
@@ -210,28 +264,38 @@ export default function FounderDashboard() {
             <StatCard label="Low Confidence" value={lowConfidence.length} color="#FF2D78" icon="📉" urgent={lowConfidence.length > 2} />
           </div>
 
-          {/* Transfer success rate */}
-          <div className="mt-3 rounded-xl p-4 flex items-center justify-between gap-4"
+          {/* Transfer metrics from TransferOutcome (source of truth) */}
+          <div className="mt-3 rounded-xl p-4 grid grid-cols-2 sm:grid-cols-4 gap-4"
             style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
             <div>
-              <div className="text-xs text-muted-foreground">Transfer Success Rate</div>
-              <div className="text-2xl font-black mt-0.5" style={{ color: successRate >= 90 ? '#00FF87' : successRate >= 75 ? '#FF8C00' : '#FF2D78' }}>
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Success Rate</div>
+              <div className="text-xl font-black mt-0.5" style={{ color: successRate >= 90 ? '#00FF87' : successRate >= 75 ? '#FF8C00' : '#FF2D78' }}>
                 {successRate}%
               </div>
+              <div className="text-[9px] text-muted-foreground">{outcomeTotal > 0 ? `${outcomeTotal} outcomes` : 'Purchase fallback'}</div>
             </div>
-            {avgTransferMin !== null && (
-              <div className="text-right">
-                <div className="text-xs text-muted-foreground">Avg Transfer Time</div>
-                <div className="text-xl font-black text-foreground mt-0.5">
-                  {avgTransferMin < 60 ? `${avgTransferMin}m` : `${Math.floor(avgTransferMin / 60)}h ${avgTransferMin % 60}m`}
-                </div>
+            <div>
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Dispute Rate</div>
+              <div className="text-xl font-black mt-0.5" style={{ color: disputeRate === 0 ? '#00FF87' : disputeRate < 10 ? '#FF8C00' : '#FF2D78' }}>
+                {disputeRate}%
               </div>
-            )}
-            <div className="text-right">
-              <div className="text-xs text-muted-foreground">Open Disputes</div>
+              <div className="text-[9px] text-muted-foreground">{failedOutcomes.length} failures logged</div>
+            </div>
+            <div>
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Avg Transfer</div>
+              <div className="text-xl font-black text-foreground mt-0.5">
+                {avgTransferMin != null
+                  ? (avgTransferMin < 60 ? `${avgTransferMin}m` : `${Math.floor(avgTransferMin / 60)}h ${avgTransferMin % 60}m`)
+                  : '—'}
+              </div>
+              <div className="text-[9px] text-muted-foreground">{outcomeTimes.length} timed transfers</div>
+            </div>
+            <div>
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Open Disputes</div>
               <div className="text-xl font-black mt-0.5" style={{ color: openDisputes.length > 0 ? '#FF2D78' : '#00FF87' }}>
                 {openDisputes.length}
               </div>
+              <div className="text-[9px] text-muted-foreground">from Purchase entity</div>
             </div>
           </div>
         </div>
