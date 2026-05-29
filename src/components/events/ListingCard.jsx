@@ -1,5 +1,7 @@
 import { ArrowUpRight, Flame, ShieldCheck, Clock, Zap } from 'lucide-react';
 import TrustBadge from '@/components/TrustBadge';
+import TransferStatusBadge from '@/components/listings/TransferStatusBadge';
+import { getTransferStatusBadge } from '@/lib/transferConfidence';
 
 const TIER_STYLES = {
   floor: { color: '#FF2D78', bg: '#FF2D7815', label: 'Floor' },
@@ -33,6 +35,8 @@ export default function ListingCard({ listing, onUpgrade, isCheapest, mode = 'up
   const isDemo = listing.notes?.startsWith('[DEMO]');
   const isVerified = !!listing.proof_url && !isDemo;
   const isInstant = listing.listing_mode === 'instant' && listing.custody_status === 'verified';
+  const listingTransferBadge = getTransferStatusBadge(listing);
+  const isTransferDisabled = listing.transfer_status === 'transfer_disabled';
   const tier = TIER_STYLES[listing.tier];
   const savings = listing.original_price
     ? Math.round(((listing.original_price - listing.asking_price) / listing.original_price) * 100)
@@ -141,16 +145,25 @@ export default function ListingCard({ listing, onUpgrade, isCheapest, mode = 'up
           </div>
         </div>
 
-        {/* Transfer warning */}
-        {transferWarning && (
+        {/* Listing-level transfer status */}
+        <TransferStatusBadge listing={listing} />
+
+        {/* Event-level transfer warning (advisory only) */}
+        {transferWarning && !isTransferDisabled && (
           <div className="text-[10px] px-3 py-2 rounded-xl leading-relaxed"
-            style={{ background: 'rgba(255,140,0,0.08)', color: '#FF8C00', border: '1px solid rgba(255,140,0,0.25)' }}>
-            ⚠️ {transferWarning}
+            style={{ background: 'rgba(255,140,0,0.06)', color: '#FF8C00', border: '1px solid rgba(255,140,0,0.2)' }}>
+            ℹ️ Event advisory: {transferWarning}
           </div>
         )}
 
         {/* CTA Button */}
-        {onUpgrade ? (
+        {/* Block purchase only for transfer_disabled listings */}
+        {isTransferDisabled ? (
+          <div className="w-full flex items-center justify-center gap-2 py-3.5 rounded-full font-black text-sm cursor-not-allowed"
+            style={{ background: 'rgba(255,45,120,0.08)', border: '1px solid rgba(255,45,120,0.25)', color: '#FF2D78' }}>
+            ❌ Transfer Unavailable
+          </div>
+        ) : onUpgrade ? (
           <button
             onClick={() => onUpgrade(listing)}
             className="w-full flex items-center justify-center gap-2 py-3.5 rounded-full font-black text-sm transition-all active:scale-95"

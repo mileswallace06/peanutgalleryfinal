@@ -6,6 +6,7 @@ import { MapPin, Calendar, ArrowLeft, Zap } from 'lucide-react';
 import ListingCard from '@/components/events/ListingCard';
 import PurchaseDialog from '@/components/events/PurchaseDialog';
 import TransferWindowBadge from '@/components/events/TransferWindowBadge';
+import CommunityTransferReport from '@/components/listings/CommunityTransferReport';
 import { getEventLiveStatus } from '@/lib/eventTiming';
 import { getTransferWindowInfo } from '@/lib/transferWindow';
 
@@ -16,9 +17,11 @@ export default function EventDetailUpgrade() {
   const [loading, setLoading] = useState(true);
   const [selectedListing, setSelectedListing] = useState(null);
   const [user, setUser] = useState(null);
+  const [transferReports, setTransferReports] = useState([]);
 
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => {});
+    base44.entities.TransferReport.filter({ event_id: id }).then(setTransferReports).catch(() => {});
     Promise.all([
       base44.entities.Event.filter({ id }),
       base44.entities.Listing.filter({ event_id: id, status: 'active', proof_status: 'approved' }),
@@ -66,7 +69,8 @@ export default function EventDetailUpgrade() {
   const sorted = [...listings].sort((a, b) => a.asking_price - b.asking_price);
   const cheapest = sorted[0]?.asking_price;
   const transferInfo = getTransferWindowInfo(event);
-  const upgradesBlocked = !adminUnlocked && !transferInfo.canUpgrade;
+  // Event-level window is ADVISORY only. Purchases are only blocked by listing-level transfer_status.
+  const upgradesBlocked = false;
 
   return (
     <div className="pb-32">
@@ -118,10 +122,22 @@ export default function EventDetailUpgrade() {
       {/* ── Content ── */}
       <div className="px-4 pt-8">
 
-        {/* Transfer window status */}
-        <div className="mb-4">
+        {/* Transfer window status (event-level advisory) */}
+        <div className="mb-3">
           <TransferWindowBadge event={event} expanded showCountdown />
         </div>
+
+        {/* Community transfer reporting */}
+        {user && (
+          <div className="mb-4">
+            <CommunityTransferReport
+              event={event}
+              userEmail={user.email}
+              recentReports={transferReports}
+              onSubmitted={() => base44.entities.TransferReport.filter({ event_id: id }).then(setTransferReports).catch(() => {})}
+            />
+          </div>
+        )}
 
         {/* Location-lock notice */}
         <div className="mb-5 rounded-2xl px-4 py-3 flex items-start gap-3"
@@ -159,16 +175,7 @@ export default function EventDetailUpgrade() {
           )}
         </div>
 
-        {/* Upgrades blocked banner */}
-        {upgradesBlocked && (
-          <div className="mb-5 rounded-2xl px-4 py-4"
-            style={{ background: 'rgba(255,45,120,0.08)', border: '1px solid rgba(255,45,120,0.3)' }}>
-            <div className="font-bold text-sm mb-1" style={{ color: '#FF2D78' }}>🚫 Upgrades currently unavailable</div>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Official ticket transfers appear closed for this event. Purchasing an upgrade is not possible at this time.
-            </p>
-          </div>
-        )}
+
 
         {listings.length === 0 ? (
           <div className="text-center py-16 glass-card rounded-2xl">

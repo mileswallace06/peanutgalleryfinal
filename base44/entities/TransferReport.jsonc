@@ -1,0 +1,56 @@
+{
+  "name": "TransferReport",
+  "type": "object",
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "description": "FK to Event"
+    },
+    "listing_id": {
+      "type": "string",
+      "description": "FK to Listing (optional \u2014 event-level reports may not reference a listing)"
+    },
+    "reporter_email": {
+      "type": "string",
+      "description": "Email of the user submitting the report"
+    },
+    "report_type": {
+      "type": "string",
+      "enum": [
+        "transfer_available",
+        "transfer_unavailable"
+      ],
+      "description": "Whether reporter can or cannot see transfer button"
+    },
+    "screenshot_url": {
+      "type": "string",
+      "description": "Optional screenshot proving transfer state"
+    },
+    "platform": {
+      "type": "string",
+      "enum": [
+        "ticketmaster",
+        "seatgeek",
+        "axs",
+        "stubhub",
+        "apple_wallet",
+        "other"
+      ],
+      "description": "Ticketing platform being reported"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Optional free text"
+    },
+    "verified_by_admin": {
+      "type": "boolean",
+      "default": false,
+      "description": "Admin has reviewed and verified this report"
+    }
+  },
+  "required": [
+    "event_id",
+    "reporter_email",
+    "report_type"
+  ]
+}

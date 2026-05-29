@@ -4,6 +4,9 @@ import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 import { Ticket, Clock, CheckCircle, Package, ArrowRight, Plus, RefreshCw } from 'lucide-react';
 import SellerMetrics from '@/components/sales/SellerMetrics';
+import VerifyTransferButton from '@/components/listings/VerifyTransferButton';
+import TransferStatusBadge from '@/components/listings/TransferStatusBadge';
+import { isVerificationExpired } from '@/lib/transferConfidence';
 
 export default function MySales() {
   const [user, setUser] = useState(null);
@@ -202,21 +205,31 @@ export default function MySales() {
             <p className="text-xs text-muted-foreground mt-1">List tickets to start selling.</p>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {activeListings.map(l => {
               const ev = events[l.event_id];
+              const expired = isVerificationExpired(l);
               return (
-                <div key={l.id} className="rounded-2xl p-4 flex items-center justify-between gap-3 flex-wrap text-sm" style={cardStyle}>
-                  <div className="min-w-0">
-                    <div className="font-medium text-foreground truncate">{ev?.title || 'Event'}</div>
-                    <div className="text-xs text-muted-foreground mt-0.5">
-                      Section {l.section} · Row {l.row} · {l.quantity} seat{l.quantity !== 1 ? 's' : ''} · ${l.asking_price}/ea
+                <div key={l.id} className="rounded-2xl p-4 space-y-3 text-sm" style={{
+                  ...cardStyle,
+                  border: expired ? '1px solid rgba(255,140,0,0.3)' : cardStyle.border,
+                }}>
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className="min-w-0">
+                      <div className="font-medium text-foreground truncate">{ev?.title || 'Event'}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        Section {l.section} · Row {l.row} · {l.quantity} seat{l.quantity !== 1 ? 's' : ''} · ${l.asking_price}/ea
+                      </div>
                     </div>
+                    <span className="text-xs font-bold px-2.5 py-1 rounded-full flex-shrink-0"
+                      style={{ background: 'rgba(0,255,135,0.12)', color: 'var(--neon-green)', border: '1px solid rgba(0,255,135,0.25)' }}>
+                      Active
+                    </span>
                   </div>
-                  <span className="text-xs font-bold px-2.5 py-1 rounded-full flex-shrink-0"
-                    style={{ background: 'rgba(0,255,135,0.12)', color: 'var(--neon-green)', border: '1px solid rgba(0,255,135,0.25)' }}>
-                    Active
-                  </span>
+                  <TransferStatusBadge listing={l} />
+                  {(expired || !l.last_transfer_verification || l.transfer_status === 'transfer_unconfirmed') && (
+                    <VerifyTransferButton listing={l} event={ev} onVerified={load} />
+                  )}
                 </div>
               );
             })}

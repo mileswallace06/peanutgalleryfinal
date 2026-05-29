@@ -5,6 +5,7 @@ import { Elements, CardElement, useStripe, useElements } from '@stripe/react-str
 import { base44 } from '@/api/base44Client';
 import { formatFeeBreakdown, ACTIVE_FEE_MODEL_ID, FEE_MODELS } from '@/lib/feeEngine';
 import { X, Lock, Shield, ArrowRight } from 'lucide-react';
+import TransferAcknowledgment from '@/components/listings/TransferAcknowledgment';
 
 function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
   const stripe = useStripe();
@@ -17,6 +18,10 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [feeBreakdown, setFeeBreakdown] = useState(null);
+  // Transfer acknowledgment: low-confidence listings require explicit buyer ack
+  const transferScore = listing.transfer_confidence_score ?? null;
+  const needsTransferAck = transferScore !== null && transferScore < 70 && listing.transfer_status !== 'transfer_confirmed';
+  const [transferAcknowledged, setTransferAcknowledged] = useState(!needsTransferAck);
 
   const qty = listing.quantity || 1;
   const subtotal = listing.asking_price * qty;
@@ -123,6 +128,14 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
         </p>
       </div>
 
+      {/* Transfer status acknowledgment */}
+      {listing.transfer_status !== 'transfer_disabled' && (
+        <TransferAcknowledgment
+          listing={listing}
+          onAcknowledged={() => setTransferAcknowledged(true)}
+        />
+      )}
+
       {/* Instant transfer notice */}
       {listing.listing_mode === 'instant' && listing.custody_status === 'verified' && (
         <div className="flex items-start gap-3 rounded-2xl p-3" style={{ background: 'rgba(0,200,255,0.08)', border: '1px solid rgba(0,200,255,0.3)' }}>
@@ -205,7 +218,7 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
       {/* UX-8: Submit button rendered inside form but visually at bottom — sticky footer handled by parent */}
       <button
         type="submit"
-        disabled={loading || !stripe}
+        disabled={loading || !stripe || !transferAcknowledged}
         className="w-full flex items-center justify-center gap-2 py-3.5 rounded-full font-black text-sm transition-all disabled:opacity-40 mt-2"
         style={{ background: 'linear-gradient(135deg, #00E87A, #00B8E8)', color: '#0D0B14', boxShadow: '0 0 18px rgba(0,232,122,0.22)' }}
       >
