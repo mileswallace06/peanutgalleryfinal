@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { MapPin, Calendar, ArrowLeft, Ticket } from 'lucide-react';
+import { MapPin, Calendar, ArrowLeft, Ticket, Zap } from 'lucide-react';
 import ListingCard from '@/components/events/ListingCard';
 import PurchaseDialog from '@/components/events/PurchaseDialog';
 import { getEventLiveStatus } from '@/lib/eventTiming';
@@ -121,6 +121,33 @@ export default function EventDetail() {
           </div>
         </div>
       </div>
+
+      {/* ── Event Mode CTA — shown for live and soon events ── */}
+      {(isLive || timing.status === 'soon') && (
+        <Link to={`/event-mode/${id}`}
+          className="mx-4 mt-4 flex items-center gap-3 px-4 py-3.5 rounded-2xl"
+          style={{
+            background: 'linear-gradient(135deg, rgba(255,230,0,0.15), rgba(255,45,120,0.1))',
+            border: '1px solid rgba(255,230,0,0.4)',
+          }}>
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ background: 'rgba(255,230,0,0.2)' }}>
+            <Zap className="w-5 h-5" style={{ color: '#FFE600' }} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-black text-sm text-foreground leading-none">
+              {isLive ? '🎟 You\'re at the event?' : '⏰ Event starts soon!'}
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {isLive ? 'Enter Event Mode for Flash Drops, upgrades & live activity' : 'Get ready — Event Mode goes live when it starts'}
+            </p>
+          </div>
+          <span className="text-xs font-black px-3 py-1.5 rounded-full flex-shrink-0"
+            style={{ background: isLive ? 'rgba(255,230,0,0.2)' : 'rgba(255,255,255,0.08)', color: isLive ? '#FFE600' : 'hsl(var(--muted-foreground))' }}>
+            {isLive ? 'Enter →' : 'Soon'}
+          </span>
+        </Link>
+      )}
 
       {/* ── Content ── */}
       <div className="px-4 pt-8">

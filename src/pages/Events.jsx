@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 import { MapPin, Calendar, ChevronRight, LocateFixed, RefreshCw } from 'lucide-react';
+import { getEventLiveStatus } from '@/lib/eventTiming';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { fetchTMEvents, bustTMCache } from '@/lib/tmCache';
 import { useLocationDetect } from '@/hooks/useLocationDetect';
@@ -375,6 +376,9 @@ export default function Events() {
 function EventRow({ event }) {
   // A TM event has source='ticketmaster' AND a tm_id but no real DB id (or id starts with tm_)
   const isTM = event.source === 'ticketmaster' || String(event.id || '').startsWith('tm_');
+  const timing = !isTM && event.id ? getEventLiveStatus(event) : null;
+  const isLive = timing?.status === 'live';
+  const isSoon = timing?.status === 'soon';
 
   return (
     <div
@@ -424,8 +428,30 @@ function EventRow({ event }) {
           </div>
         </div>
 
-        {/* List your seats tag — only for PG events */}
-        {!isTM && (
+        {/* Live: Event Mode CTA */}
+        {!isTM && isLive && (
+          <div className="mt-2.5">
+            <Link
+              to={`/event-mode/${event.id}`}
+              className="inline-flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-full"
+              style={{ background: 'rgba(255,230,0,0.15)', color: '#FFE600', border: '1px solid rgba(255,230,0,0.4)' }}
+              onClick={e => e.stopPropagation()}
+            >
+              ⚡ Enter Event Mode
+            </Link>
+          </div>
+        )}
+        {/* Soon: teaser */}
+        {!isTM && isSoon && !isLive && (
+          <div className="mt-2.5">
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full"
+              style={{ background: 'rgba(191,95,255,0.12)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.3)' }}>
+              ⏰ Event Mode soon
+            </span>
+          </div>
+        )}
+        {/* List your seats tag — only for PG events, not live */}
+        {!isTM && !isLive && !isSoon && (
         <div className="mt-2.5">
           <Link
             to="/create-listing"

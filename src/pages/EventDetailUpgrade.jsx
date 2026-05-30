@@ -95,10 +95,17 @@ export default function EventDetailUpgrade() {
         </Link>
 
         {isLive && (
-          <span className="absolute top-4 right-4 text-xs font-black px-3 py-1 rounded-full animate-pulse"
-            style={{ background: '#FF2D7820', color: '#FF2D78', border: '1px solid #FF2D7860' }}>
-            🔴 LIVE NOW
-          </span>
+          <div className="absolute top-4 right-4 flex items-center gap-2">
+            <span className="text-xs font-black px-3 py-1 rounded-full animate-pulse"
+              style={{ background: '#FF2D7820', color: '#FF2D78', border: '1px solid #FF2D7860' }}>
+              🔴 LIVE NOW
+            </span>
+            <Link to={`/event-mode/${id}`}
+              className="text-xs font-black px-3 py-1.5 rounded-full flex items-center gap-1"
+              style={{ background: 'rgba(255,230,0,0.25)', color: '#FFE600', border: '1px solid rgba(255,230,0,0.6)', backdropFilter: 'blur(12px)' }}>
+              ⚡ Event Mode
+            </Link>
+          </div>
         )}
 
         <div className="absolute bottom-0 left-0 right-0 px-5 pb-5">
@@ -121,6 +128,26 @@ export default function EventDetailUpgrade() {
 
       {/* ── Content ── */}
       <div className="px-4 pt-8">
+
+        {/* ── Event Mode CTA ── */}
+        {isLive && (
+          <Link to={`/event-mode/${id}`}
+            className="mb-4 flex items-center gap-3 px-4 py-3.5 rounded-2xl"
+            style={{
+              background: 'linear-gradient(135deg, rgba(255,230,0,0.15), rgba(191,95,255,0.1))',
+              border: '1px solid rgba(255,230,0,0.4)',
+            }}>
+            <span className="text-2xl flex-shrink-0">⚡</span>
+            <div className="flex-1 min-w-0">
+              <p className="font-black text-sm text-foreground leading-none">Enter Event Mode</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Flash Drops, live activity & one-tap upgrades</p>
+            </div>
+            <span className="text-xs font-black px-3 py-1.5 rounded-full flex-shrink-0"
+              style={{ background: 'rgba(255,230,0,0.2)', color: '#FFE600', border: '1px solid rgba(255,230,0,0.3)' }}>
+              Live →
+            </span>
+          </Link>
+        )}
 
         {/* Transfer window status (event-level advisory) */}
         <div className="mb-3">
