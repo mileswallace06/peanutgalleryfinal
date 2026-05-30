@@ -39,14 +39,27 @@ export default function EventMode() {
 
   const loadAll = useCallback(async () => {
     setLoading(true);
+    const logCtx = { route_param: eventId, source_page: 'EventMode', ts: new Date().toISOString() };
+
     // Resolve event with fallbacks: direct id → tm_ prefix strip → tm_id field
     let ev = await base44.entities.Event.filter({ id: eventId }).then(r => r[0] || null).catch(() => null);
+    let lookupMethod = 'direct_id';
+
     if (!ev && eventId && eventId.startsWith('tm_')) {
+      lookupMethod = 'tm_prefix_strip';
       ev = await base44.entities.Event.filter({ tm_id: eventId.replace('tm_', '') }).then(r => r[0] || null).catch(() => null);
     }
     if (!ev) {
+      lookupMethod = 'tm_id_field';
       ev = await base44.entities.Event.filter({ tm_id: eventId }).then(r => r[0] || null).catch(() => null);
     }
+
+    if (ev) {
+      console.info('[EventMode] lookup success', { ...logCtx, lookup_method: lookupMethod, resolved_id: ev.id, event_source: ev.source || 'pg' });
+    } else {
+      console.warn('[EventMode] lookup=all_methods MISS', { ...logCtx, lookup_method: lookupMethod });
+    }
+
     const resolvedId = ev?.id || eventId;
     const [rawDrops, rawListings] = await Promise.all([
       base44.entities.FlashDrop.filter({ event_id: resolvedId }),

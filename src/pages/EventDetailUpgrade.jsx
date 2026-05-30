@@ -26,18 +26,23 @@ export default function EventDetailUpgrade() {
     setLoading(true);
     setLookupError(false);
 
+    const logCtx = { route_param: id, source_page: 'EventDetailUpgrade', ts: new Date().toISOString() };
+
     (async () => {
       try {
         // 1. Direct id lookup
         let events = await base44.entities.Event.filter({ id });
+        let lookupMethod = 'direct_id';
 
         // 2. Fallback: tm_ prefix
         if ((!events || events.length === 0) && id && id.startsWith('tm_')) {
+          lookupMethod = 'tm_prefix_strip';
           events = await base44.entities.Event.filter({ tm_id: id.replace('tm_', '') });
         }
 
         // 3. Fallback: treat id as tm_id directly
         if (!events || events.length === 0) {
+          lookupMethod = 'tm_id_field';
           events = await base44.entities.Event.filter({ tm_id: id });
         }
 
@@ -47,9 +52,10 @@ export default function EventDetailUpgrade() {
 
         if (!ev) {
           setLookupError(true);
-          console.warn('[EventDetailUpgrade] Event not found. Route param:', id, '| timestamp:', new Date().toISOString());
+          console.warn('[EventDetailUpgrade] lookup=all_methods MISS', { ...logCtx, lookup_method: lookupMethod });
           return;
         }
+        console.info('[EventDetailUpgrade] lookup success', { ...logCtx, lookup_method: lookupMethod, resolved_id: ev.id, event_source: ev.source || 'pg' });
 
         const resolvedId = ev.id;
         base44.entities.TransferReport.filter({ event_id: resolvedId }).then(r => { if (!cancelled) setTransferReports(r); }).catch(() => {});

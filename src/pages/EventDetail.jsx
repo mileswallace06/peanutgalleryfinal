@@ -29,19 +29,24 @@ export default function EventDetail() {
     setLoading(true);
     setLookupError(false);
 
+    const logCtx = { route_param: id, source_page: 'EventDetail', ts: new Date().toISOString() };
+
     (async () => {
       try {
         // 1. Try direct id lookup first
         let events = await base44.entities.Event.filter({ id });
+        let lookupMethod = 'direct_id';
 
         // 2. If not found and id looks like a tm_ prefix (shouldn't normally reach here, but handle it)
         if ((!events || events.length === 0) && id && id.startsWith('tm_')) {
+          lookupMethod = 'tm_prefix_strip';
           const tmId = id.replace('tm_', '');
           events = await base44.entities.Event.filter({ tm_id: tmId });
         }
 
-        // 3. If still not found, try tm_id lookup (e.g. user somehow navigated with a tm_id as the path param)
+        // 3. If still not found, try tm_id lookup (e.g. user navigated with a bare tm_id as the path param)
         if (!events || events.length === 0) {
+          lookupMethod = 'tm_id_field';
           events = await base44.entities.Event.filter({ tm_id: id });
         }
 
@@ -51,9 +56,10 @@ export default function EventDetail() {
 
         if (!ev) {
           setLookupError(true);
-          console.warn('[EventDetail] Event not found. Route param:', id, '| timestamp:', new Date().toISOString());
+          console.warn('[EventDetail] lookup=all_methods MISS', { ...logCtx, lookup_method: lookupMethod });
           return;
         }
+        console.info('[EventDetail] lookup success', { ...logCtx, lookup_method: lookupMethod, resolved_id: ev.id, event_source: ev.source || 'pg' });
 
         const resolvedId = ev.id;
         const rawListings = await loadEvent(resolvedId);

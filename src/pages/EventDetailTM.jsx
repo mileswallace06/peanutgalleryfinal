@@ -33,6 +33,8 @@ export default function EventDetailTM() {
   const [creatingEvent, setCreatingEvent] = useState(false);
 
   useEffect(() => {
+    const logCtx = { route_param: tmId, source_page: 'EventDetailTM', event_source: 'ticketmaster', ts: new Date().toISOString() };
+
     // First, fetch local Event by tm_id to get synced event data + ID
     base44.entities.Event.filter({ tm_id: tmId }).then(localEvents => {
       let eventData = null;
@@ -41,7 +43,7 @@ export default function EventDetailTM() {
       if (localEvents.length > 0) {
         const localEv = localEvents[0];
         eventId = localEv.id;
-        // Use locally synced TM event data
+        console.info('[EventDetailTM] lookup=db_tm_id success | localId:', eventId, logCtx);
         eventData = {
           tm_id: localEv.tm_id,
           title: localEv.title,
@@ -59,14 +61,18 @@ export default function EventDetailTM() {
         return base44.entities.Listing.filter({ event_id: eventId, status: 'active', proof_status: 'approved' });
       }
 
-      // Fallback: fetch from TM API to construct event object
+      // DB miss — event not yet synced. Fall back to TM API (covers race condition: user clicked before syncTMEvent finished)
+      console.info('[EventDetailTM] lookup=db_tm_id miss — falling back to TM API | tmId:', tmId, logCtx);
       return base44.functions.invoke('getTicketmasterEvents', { size: 100 }).then(tmRes => {
         const tmEvents = tmRes?.data?.events || [];
         const found = tmEvents.find(e => e.tm_id === tmId);
         if (found) {
+          console.info('[EventDetailTM] lookup=tm_api success | title:', found.title, logCtx);
           setEvent(found);
+        } else {
+          console.warn('[EventDetailTM] lookup=tm_api miss — event not found in TM API either', logCtx);
         }
-        return []; // no listings if no local event
+        return []; // no listings if no local event yet
       });
     }).then(rawListings => {
       if (Array.isArray(rawListings) && rawListings.length > 0) {
@@ -74,7 +80,9 @@ export default function EventDetailTM() {
         const real = rawListings.filter(l => !l.notes?.startsWith('[DEMO]'));
         setListings(real.length > 0 ? real : rawListings);
       }
-    }).catch(console.error).finally(() => setLoading(false));
+    }).catch(err => {
+      console.error('[EventDetailTM] load error', logCtx, err);
+    }).finally(() => setLoading(false));
   }, [tmId]);
 
   // Upsert a local Event record from TM data, then navigate to CreateListing
