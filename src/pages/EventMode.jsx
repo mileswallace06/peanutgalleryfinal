@@ -9,6 +9,8 @@ import { base44 } from '@/api/base44Client';
 import { motion, AnimatePresence } from 'framer-motion';
 import CreateFlashDropSheet from '@/components/flashdrops/CreateFlashDropSheet';
 import { logNavEvent } from '@/lib/navLogger';
+import { getEventLiveStatus } from '@/lib/eventTiming';
+import EventModePreview from '@/components/eventmode/EventModePreview';
 import EventModeHeader from '@/components/eventmode/EventModeHeader';
 import LiveActivityBar from '@/components/eventmode/LiveActivityBar';
 import FlashDropCenter from '@/components/eventmode/FlashDropCenter';
@@ -126,6 +128,14 @@ export default function EventMode() {
     if (!user) { base44.auth.redirectToLogin(); return; }
     setShowCreateDrop(true);
   };
+
+  // Show preview for non-live events instead of empty dashboard
+  if (event) {
+    const timing = getEventLiveStatus(event);
+    if (timing.status === 'upcoming' || timing.status === 'soon') {
+      return <EventModePreview event={event} user={user} />;
+    }
+  }
 
   return (
     <div className="min-h-screen pb-32" style={{ background: 'hsl(var(--background))' }}>
