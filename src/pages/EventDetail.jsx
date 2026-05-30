@@ -165,10 +165,10 @@ export default function EventDetail() {
               style={{ background: '#FF2D7820', color: '#FF2D78', border: '1px solid #FF2D7860' }}>
               🔴 LIVE NOW
             </span>
-            <Link to={`/event-mode/${id}`}
+            <Link to={`/upgrades/${id}`}
               className="text-xs font-black px-3 py-1.5 rounded-full flex items-center gap-1"
               style={{ background: 'rgba(255,230,0,0.2)', color: '#FFE600', border: '1px solid rgba(255,230,0,0.5)', backdropFilter: 'blur(12px)' }}>
-              ⚡ Event Mode
+              ⚡ Live Hub
             </Link>
           </div>
         )}
@@ -193,7 +193,7 @@ export default function EventDetail() {
       </div>
 
       {/* ── Event Mode CTA — always visible ── */}
-      <Link to={`/event-mode/${event.id}`}
+      <Link to={`/upgrades/${event.id}`}
         className="mx-4 mt-4 flex items-center gap-3 px-4 py-4 rounded-2xl transition-all active:scale-[0.98]"
         style={isLive ? {
           background: 'linear-gradient(135deg, rgba(255,230,0,0.18), rgba(255,45,120,0.12))',
@@ -212,13 +212,13 @@ export default function EventDetail() {
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-black text-sm text-foreground leading-none">
-            {isLive ? 'Event Mode — Live Now!' : timing.status === 'soon' ? 'Event Mode — Starting Soon' : 'Event Mode'}
+            {isLive ? 'Live Hub — Open Now!' : timing.status === 'soon' ? 'Live Hub — Starting Soon' : 'Upgrades & Live Hub'}
           </p>
           <p className="text-xs text-muted-foreground mt-0.5">
             {isLive
               ? 'Flash Drops, seat upgrades & live fan activity'
               : timing.status === 'soon'
-              ? 'Opens when the event starts — get ready!'
+              ? 'Flash Drops & upgrades open when the event starts'
               : 'Flash Drops & upgrades unlock at showtime'}
           </p>
         </div>
@@ -226,7 +226,7 @@ export default function EventDetail() {
           style={isLive
             ? { background: 'rgba(255,230,0,0.25)', color: '#FFE600', border: '1px solid rgba(255,230,0,0.4)' }
             : { background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' }}>
-          {isLive ? 'Enter →' : timing.status === 'soon' ? 'Soon' : 'Preview'}
+          {isLive ? 'Open →' : timing.status === 'soon' ? 'Get Ready' : 'Preview'}
         </span>
       </Link>
 

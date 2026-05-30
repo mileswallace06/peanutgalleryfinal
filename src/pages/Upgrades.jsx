@@ -408,7 +408,7 @@ function EventCard({ event, mode }) {
 
   const linkLabel = isTM
     ? 'View'
-    : isLive ? 'Upgrades' : isSoon ? 'Starting Soon' : 'Get Ready';
+    : isLive ? 'Open Live Hub' : isSoon ? 'Get Ready' : 'View Upgrades';
 
   return (
     <div

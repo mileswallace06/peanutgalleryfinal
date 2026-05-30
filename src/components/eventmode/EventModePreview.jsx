@@ -70,10 +70,10 @@ export default function EventModePreview({ event, user }) {
       {/* Header */}
       <div className="sticky top-0 z-20 px-4 py-3 flex items-center gap-3"
         style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-        <Link to={`/events/${event.id}`}
+        <Link to="/upgrades"
           className="flex items-center gap-1 text-sm font-semibold text-muted-foreground"
           style={{ marginTop: 'env(safe-area-inset-top)' }}>
-          <ArrowLeft className="w-4 h-4" /> Back
+          <ArrowLeft className="w-4 h-4" /> Upgrades
         </Link>
         <div className="flex-1 min-w-0">
           <p className="font-black text-xs text-foreground truncate">{event.title}</p>
@@ -202,7 +202,7 @@ export default function EventModePreview({ event, user }) {
             to={`/events/${event.id}`}
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-bold"
             style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
-            ← View Event Details
+            View Event Details →
           </Link>
         </div>
 
