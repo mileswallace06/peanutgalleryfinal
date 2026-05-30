@@ -1,11 +1,11 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 import { MapPin, Calendar, Zap, ChevronRight, LocateFixed, X, Clock, RefreshCw } from 'lucide-react';
 import LocationAutocomplete from '@/components/LocationAutocomplete';
 import { getEventLiveStatus, SOON_WINDOW_MINUTES } from '@/lib/eventTiming';
-import { getEventUrl, getUpgradeUrl } from '@/lib/eventUrl';
+import { getEventUrl } from '@/lib/eventUrl';
 import { logNavEvent } from '@/lib/navLogger';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { fetchTMEvents, bustTMCache } from '@/lib/tmCache';
@@ -388,31 +388,63 @@ export default function Upgrades() {
 function EventCard({ event, mode }) {
   const isLive = mode === 'live';
   const isSoon = mode === 'soon';
+  const navigate = useNavigate();
   const isTM = event.source === 'ticketmaster' || String(event.id || '').startsWith('tm_');
-  // Always use upgrade URL — EventDetailUpgrade handles both PG and TM events
-  const linkTo = getUpgradeUrl(event) || getEventUrl(event);
-  const hasValidLink = !!linkTo;
   const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
-  if (!hasValidLink) console.warn('[EventCard] Event missing valid id/tm_id — suppressing link', { id: event.id, tm_id: event.tm_id, source: event.source, title: event.title });
 
-  const handleClick = () => {
-    logNavEvent({
-      result: hasValidLink ? 'success' : 'navigation_error',
-      event,
-      sourcePage: 'Upgrades',
-      generatedHref: linkTo || '',
-      lookupMethod: 'none',
-      failureReason: hasValidLink ? '' : 'getUpgradeUrl/getEventUrl returned null — missing id and tm_id',
-    });
+  // For real PG events, use direct link. For TM-only, sync first then navigate.
+  const pgId = !isTM ? event.id : null;
+  const tmId = event.tm_id || (String(event.id || '').startsWith('tm_') ? String(event.id).replace('tm_', '') : null);
+  const hasValidLink = !!(pgId || tmId);
+
+  const [syncing, setSyncing] = useState(false);
+
+  const handleClick = async (e) => {
+    if (pgId) {
+      // Real PG event — navigate directly
+      logNavEvent({ result: 'success', event, sourcePage: 'Upgrades', generatedHref: `/upgrades/${pgId}`, lookupMethod: 'direct_id' });
+      navigate(`/upgrades/${pgId}`);
+      return;
+    }
+    if (!tmId) return;
+    // TM-only event — sync to DB first to get a real internal ID
+    e.preventDefault();
+    setSyncing(true);
+    try {
+      const res = await base44.functions.invoke('syncTMEvent', {
+        tm_id: tmId,
+        title: event.title,
+        venue: event.venue,
+        city: event.city,
+        state: event.state,
+        date: event.date,
+        image_url: event.image_url,
+        tm_url: event.tm_url,
+        category: event.category,
+      });
+      const internalId = res?.data?.id;
+      if (internalId) {
+        logNavEvent({ result: 'success', event, sourcePage: 'Upgrades', generatedHref: `/upgrades/${internalId}`, lookupMethod: 'sync_then_navigate' });
+        navigate(`/upgrades/${internalId}`);
+      } else {
+        // Sync returned no id — fall back to TM detail page
+        navigate(`/events/tm/${tmId}`);
+      }
+    } catch {
+      navigate(`/events/tm/${tmId}`);
+    } finally {
+      setSyncing(false);
+    }
   };
 
-  const linkLabel = isLive ? 'Open Live Hub' : isSoon ? 'Get Ready' : 'View Upgrades';
+  const linkLabel = syncing ? 'Loading…' : isLive ? 'Open Live Hub' : isSoon ? 'Get Ready' : 'View Upgrades';
 
   return (
     <div
-      className="flex items-center gap-3 rounded-2xl overflow-hidden relative"
+      onClick={handleClick}
+      className="flex items-center gap-3 rounded-2xl overflow-hidden relative cursor-pointer active:scale-[0.98] transition-transform"
       style={{
-        background: isLive || isSoon ? 'var(--card)' : 'var(--card)',
+        background: 'var(--card)',
         border: isLive ? '1px solid rgba(0,255,135,0.3)' : isSoon ? '1px solid rgba(255,230,0,0.3)' : '1px solid var(--border)',
         boxShadow: isLive ? '0 0 20px rgba(0,255,135,0.08)' : isSoon ? '0 0 20px rgba(255,230,0,0.06)' : 'none',
       }}
@@ -455,10 +487,10 @@ function EventCard({ event, mode }) {
 
       <div className="pr-3 flex-shrink-0">
         {hasValidLink ? (
-          <Link
-            to={linkTo}
+          <button
             onClick={handleClick}
-            className="flex items-center gap-1 px-3 py-2 rounded-xl font-bold text-xs whitespace-nowrap"
+            disabled={syncing}
+            className="flex items-center gap-1 px-3 py-2 rounded-xl font-bold text-xs whitespace-nowrap disabled:opacity-60"
             style={isLive
               ? { background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }
               : isSoon
@@ -466,8 +498,12 @@ function EventCard({ event, mode }) {
               : { background: 'hsl(var(--secondary))', color: 'hsl(var(--secondary-foreground))', border: '1px solid hsl(var(--border))' }
             }
           >
-            {linkLabel} <ChevronRight className="w-3.5 h-3.5" />
-          </Link>
+            {syncing
+              ? <span className="w-3 h-3 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'currentColor', borderTopColor: 'transparent' }} />
+              : null
+            }
+            {linkLabel} {!syncing && <ChevronRight className="w-3.5 h-3.5" />}
+          </button>
         ) : (
           <span className="px-3 py-2 rounded-xl text-xs text-muted-foreground opacity-60 whitespace-nowrap">
             Unavailable
@@ -479,7 +515,7 @@ function EventCard({ event, mode }) {
       {adminUnlocked && (
         <div className="absolute bottom-1 left-[84px] right-20 text-[8px] font-mono leading-tight pointer-events-none"
           style={{ color: 'rgba(255,230,0,0.6)' }}>
-          id:{String(event.id||'').slice(0,12)} tm:{String(event.tm_id||'-').slice(0,12)} src:{event.source||'?'} → {linkTo||'NULL'}
+          id:{String(event.id||'').slice(0,12)} tm:{String(event.tm_id||'-').slice(0,12)} src:{event.source||'?'} pgId:{pgId||'–'} tmId:{tmId||'–'}
         </div>
       )}
     </div>

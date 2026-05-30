@@ -34,6 +34,7 @@ export default function EventDetailUpgrade() {
   const [user, setUser] = useState(null);
   const [transferReports, setTransferReports] = useState([]);
   const [lookupError, setLookupError] = useState(false);
+  const [debugInfo, setDebugInfo] = useState(null);
   const [activeTab, setActiveTab] = useState('drops');
   const [sessionCheckins, setSessionCheckins] = useState(0);
   const [showCreateDrop, setShowCreateDrop] = useState(false);
@@ -47,17 +48,38 @@ export default function EventDetailUpgrade() {
     setLookupError(false);
 
     try {
+      // 1. Direct id lookup
       let events = await base44.entities.Event.filter({ id });
       let lookupMethod = 'direct_id';
 
+      // 2. tm_ prefix strip
       if ((!events || events.length === 0) && id && id.startsWith('tm_')) {
         lookupMethod = 'tm_prefix_strip';
         events = await base44.entities.Event.filter({ tm_id: id.replace('tm_', '') });
       }
 
+      // 3. Treat id as tm_id directly
       if (!events || events.length === 0) {
         lookupMethod = 'tm_id_field';
         events = await base44.entities.Event.filter({ tm_id: id });
+      }
+
+      // 4. Last resort: syncTMEvent — only if id looks like a TM id (tm_ prefix or alphanumeric TM format)
+      if ((!events || events.length === 0)) {
+        const tmId = id.startsWith('tm_') ? id.replace('tm_', '') : id;
+        lookupMethod = 'sync_fallback';
+        try {
+          const syncRes = await base44.functions.invoke('syncTMEvent', { tm_id: tmId });
+          const syncedId = syncRes?.data?.id;
+          if (syncedId && syncedId !== id) {
+            // Re-fetch with the real internal ID
+            events = await base44.entities.Event.filter({ id: syncedId });
+            // Update URL to the real ID without adding to history
+            window.history.replaceState(null, '', `/upgrades/${syncedId}`);
+          }
+        } catch {
+          // sync failed — fall through to error
+        }
       }
 
       if (cancelled.value) return;
@@ -66,7 +88,8 @@ export default function EventDetailUpgrade() {
 
       if (!ev) {
         setLookupError(true);
-        logNavEvent({ result: 'event_not_found', event: { id, tm_id: id }, sourcePage: 'EventDetailUpgrade', generatedHref: `/upgrades/${id}`, lookupMethod, failureReason: 'All lookup methods exhausted' });
+        setDebugInfo({ routeParam: id, lookupMethod });
+        logNavEvent({ result: 'event_not_found', event: { id, tm_id: id }, sourcePage: 'EventDetailUpgrade', generatedHref: `/upgrades/${id}`, lookupMethod, failureReason: 'All lookup methods including sync exhausted' });
         return;
       }
 
@@ -143,16 +166,32 @@ export default function EventDetailUpgrade() {
   }
 
   if (!loading && (!event || lookupError)) {
+    const tmFallbackId = id.startsWith('tm_') ? id.replace('tm_', '') : id;
     return (
-      <div className="px-4 py-20 text-center space-y-4">
-        <p className="text-5xl">🎟️</p>
-        <div>
-          <p className="font-bold text-foreground text-lg">Event not loaded yet</p>
-          <p className="text-sm text-muted-foreground mt-1 max-w-xs mx-auto">This event may still be syncing. Try refreshing or go back.</p>
+      <div className="px-4 py-16 space-y-4">
+        <div className="text-center">
+          <p className="text-5xl mb-3">🎟️</p>
+          <p className="font-bold text-foreground text-lg">Event not found</p>
+          <p className="text-sm text-muted-foreground mt-1 max-w-xs mx-auto">
+            We couldn't load this event. Try viewing it on Ticketmaster or go back.
+          </p>
         </div>
         <div className="flex flex-col gap-2 items-center">
           <button onClick={() => loadAll()} className="px-5 py-2.5 rounded-full font-bold text-sm" style={{ background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}>Retry</button>
+          <Link to={`/events/tm/${tmFallbackId}`} className="text-sm text-muted-foreground underline">View on Ticketmaster page →</Link>
           <Link to="/upgrades" className="text-sm text-muted-foreground underline">← Back to Upgrades</Link>
+        </div>
+        {/* Debug info — always shown so issues are visible */}
+        <div className="mt-6 rounded-xl p-4 text-left space-y-1 font-mono text-[10px]"
+          style={{ background: 'rgba(255,230,0,0.06)', border: '1px solid rgba(255,230,0,0.2)', color: 'rgba(255,230,0,0.8)' }}>
+          <p className="font-black text-[11px] mb-2">🔍 Debug Info</p>
+          <p>URL: {window.location.pathname}</p>
+          <p>Route param (id): {id}</p>
+          <p>Starts with tm_: {String(id.startsWith('tm_'))}</p>
+          <p>TM id attempted: {tmFallbackId}</p>
+          <p>Last lookup method: {debugInfo?.lookupMethod || 'unknown'}</p>
+          <p>All methods tried: direct_id → tm_prefix_strip → tm_id_field → sync_fallback</p>
+          <p>Result: 0 events found after all methods</p>
         </div>
       </div>
     );
