@@ -168,7 +168,7 @@ export default function EventMode() {
                   key={drop.id}
                   drop={drop}
                   user={user}
-                  nearbyListings={upgradeListings}
+                  allListings={listings}
                   onEntered={() => {}}
                   onWinnerSelected={() => setTimeout(loadAll, 2000)}
                 />

@@ -24,16 +24,13 @@
   },
   "properties": {
     "event_id": {
-      "type": "string",
-      "description": "FK to Event"
+      "type": "string"
     },
     "event_title": {
-      "type": "string",
-      "description": "Cached event title"
+      "type": "string"
     },
     "donor_email": {
-      "type": "string",
-      "description": "Who created this flash drop"
+      "type": "string"
     },
     "donor_name": {
       "type": "string"
@@ -49,8 +46,7 @@
       "type": "string"
     },
     "seats": {
-      "type": "string",
-      "description": "Comma-separated seat numbers"
+      "type": "string"
     },
     "quantity": {
       "type": "number",
@@ -68,12 +64,10 @@
       "default": "immediate"
     },
     "scheduled_label": {
-      "type": "string",
-      "description": "Human label: Halftime, 3rd Quarter, etc."
+      "type": "string"
     },
     "scheduled_at": {
-      "type": "string",
-      "description": "ISO timestamp when drop should go live"
+      "type": "string"
     },
     "status": {
       "type": "string",
@@ -85,21 +79,17 @@
         "expired",
         "cancelled"
       ],
-      "default": "pending",
-      "description": "pending = waiting for scheduled time or review; active = entry window open; closed = entry closed, picking winner; winner_selected = done"
+      "default": "pending"
     },
     "entry_opens_at": {
-      "type": "string",
-      "description": "ISO timestamp when entry window opened"
+      "type": "string"
     },
     "entry_closes_at": {
-      "type": "string",
-      "description": "ISO timestamp when entry window closes (30\u201390 seconds after open)"
+      "type": "string"
     },
     "entry_window_seconds": {
       "type": "number",
-      "default": 60,
-      "description": "Duration of entry window in seconds (30\u201390)"
+      "default": 60
     },
     "winner_email": {
       "type": "string"
@@ -110,22 +100,94 @@
     "winner_selected_at": {
       "type": "string"
     },
+    "winner_selection_locked_at": {
+      "type": "string",
+      "description": "ISO timestamp \u2014 set atomically when the first close_and_pick call begins processing. Guards against race conditions."
+    },
+    "winner_selection_request_id": {
+      "type": "string",
+      "description": "Unique ID of the first close_and_pick request. Used for idempotency."
+    },
+    "selection_completed_at": {
+      "type": "string",
+      "description": "ISO timestamp when winner selection fully completed."
+    },
     "entry_count": {
       "type": "number",
-      "default": 0,
-      "description": "Total number of entries at close"
+      "default": 0
     },
     "source_purchase_id": {
-      "type": "string",
-      "description": "Optional \u2014 if triggered from a purchase/upgrade"
+      "type": "string"
     },
     "source_donation_id": {
+      "type": "string"
+    },
+    "ownership_verified": {
+      "type": "boolean",
+      "default": false,
+      "description": "True if donor's ownership of this seat has been verified"
+    },
+    "ownership_verification_method": {
       "type": "string",
-      "description": "Optional \u2014 if migrated from SeatDonation"
+      "enum": [
+        "verified_listing",
+        "verified_ticket_file",
+        "ownership_proof_upload",
+        "transfer_capability",
+        "admin_verified"
+      ],
+      "description": "How ownership was verified"
+    },
+    "ownership_verified_at": {
+      "type": "string"
+    },
+    "ownership_listing_id": {
+      "type": "string",
+      "description": "FK to Listing \u2014 if verified via existing listing"
+    },
+    "ownership_delivery_method": {
+      "type": "string",
+      "enum": [
+        "ticket_transfer",
+        "account_transfer",
+        "seller_contact",
+        "manual_release",
+        "future_custody"
+      ],
+      "description": "How winner will receive the seat"
+    },
+    "trust_score": {
+      "type": "number",
+      "description": "0\u2013100 trust score. >= 80 = Verified Flash Drop badge.",
+      "default": 0
+    },
+    "trust_breakdown": {
+      "type": "object",
+      "description": "Components of the trust score",
+      "properties": {
+        "ownership_verified": {
+          "type": "number"
+        },
+        "transfer_confirmed": {
+          "type": "number"
+        },
+        "verified_seller": {
+          "type": "number"
+        },
+        "prior_transfers": {
+          "type": "number"
+        }
+      }
+    },
+    "abuse_flags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Any anti-abuse flags on this drop"
     },
     "metrics": {
       "type": "object",
-      "description": "Engagement metrics for founder dashboard",
       "properties": {
         "views": {
           "type": "number"
@@ -137,6 +199,12 @@
           "type": "number"
         },
         "loser_purchases": {
+          "type": "number"
+        },
+        "notification_sent": {
+          "type": "number"
+        },
+        "notification_opened": {
           "type": "number"
         }
       }

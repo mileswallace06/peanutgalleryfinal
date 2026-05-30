@@ -3,6 +3,13 @@ import { X, Zap, Gift, Clock } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { motion, AnimatePresence } from 'framer-motion';
 
+const DELIVERY_METHODS = [
+  { value: 'ticket_transfer', label: 'Ticket Transfer', desc: 'Transfer via ticketing app (TM, SeatGeek, etc.)' },
+  { value: 'account_transfer', label: 'Account Transfer', desc: 'Transfer full account access' },
+  { value: 'seller_contact', label: 'Direct Contact', desc: 'Winner contacts you to arrange handoff' },
+  { value: 'manual_release', label: 'Manual Release', desc: "You'll physically hand off at the gate" },
+];
+
 const SCHEDULE_OPTIONS = [
   { label: 'Halftime', value: 'halftime' },
   { label: 'End of 1st Quarter', value: 'q1_end' },
@@ -34,8 +41,32 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated }
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [scheduledLabel, setScheduledLabel] = useState('');
   const [windowSecs, setWindowSecs] = useState(60);
+  const [ownershipListingId, setOwnershipListingId] = useState('');
+  const [ownershipProofUrl, setOwnershipProofUrl] = useState('');
+  const [ownershipProofUploading, setOwnershipProofUploading] = useState(false);
+  const [deliveryMethod, setDeliveryMethod] = useState('ticket_transfer');
+  const [userListings, setUserListings] = useState([]);
   const [loading, setLoading] = useState(false);
   const [createdDrop, setCreatedDrop] = useState(null);
+
+  // Load user's existing listings for this event (ownership verification)
+  const loadUserListings = async () => {
+    if (!event?.id || !user?.email) return;
+    const listings = await base44.entities.Listing.filter({ event_id: event.id, seller_email: user.email, status: 'active' }).catch(() => []);
+    setUserListings(listings);
+    // Auto-select if there's one matching section
+    const match = listings.find(l => l.section === section);
+    if (match) setOwnershipListingId(match.id);
+  };
+
+  const handleProofUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setOwnershipProofUploading(true);
+    const { file_url } = await base44.integrations.Core.UploadFile({ file });
+    setOwnershipProofUrl(file_url);
+    setOwnershipProofUploading(false);
+  };
 
   const handleCreate = async () => {
     if (!section) return;
@@ -52,6 +83,9 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated }
       drop_type: dropType,
       scheduled_label: scheduledLabel || null,
       entry_window_seconds: windowSecs,
+      ownership_listing_id: ownershipListingId || null,
+      ownership_proof_url: ownershipProofUrl || null,
+      ownership_delivery_method: deliveryMethod,
     });
     setLoading(false);
     if (res?.data?.success) {
@@ -172,6 +206,66 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated }
                     <p className="text-[10px] text-muted-foreground">Shown as "A generous fan"</p>
                   </div>
                 </label>
+
+                {/* Ownership Verification */}
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block">Verify You Own This Seat</label>
+                  {userListings.length === 0 && (
+                    <button type="button" onClick={loadUserListings}
+                      className="text-xs text-primary underline">
+                      Check my listings for this event
+                    </button>
+                  )}
+                  {userListings.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="text-[10px] text-muted-foreground">Link an existing listing:</p>
+                      {userListings.map(l => (
+                        <button key={l.id} onClick={() => setOwnershipListingId(l.id)}
+                          className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs transition-all"
+                          style={ownershipListingId === l.id
+                            ? { background: 'rgba(0,255,135,0.08)', border: '1px solid rgba(0,255,135,0.3)', color: '#00FF87' }
+                            : { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'hsl(var(--foreground))' }}>
+                          <span>Sec {l.section}{l.row ? ` Row ${l.row}` : ''}</span>
+                          <span className="font-bold">${l.asking_price}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <div className="text-[10px] text-muted-foreground">Or upload proof:</div>
+                  {ownershipProofUrl ? (
+                    <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-xl"
+                      style={{ background: 'rgba(0,255,135,0.06)', border: '1px solid rgba(0,255,135,0.2)', color: '#00FF87' }}>
+                      ✓ Proof uploaded
+                      <button onClick={() => setOwnershipProofUrl('')} className="ml-auto text-muted-foreground">Remove</button>
+                    </div>
+                  ) : (
+                    <label className="flex items-center gap-2 px-3 py-2 rounded-xl cursor-pointer text-xs text-muted-foreground"
+                      style={{ border: '1.5px dashed rgba(255,255,255,0.12)' }}>
+                      {ownershipProofUploading ? <span className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" /> : '📎'}
+                      {ownershipProofUploading ? 'Uploading…' : 'Upload ticket screenshot'}
+                      <input type="file" accept="image/*" className="hidden" onChange={handleProofUpload} disabled={ownershipProofUploading} />
+                    </label>
+                  )}
+                </div>
+
+                {/* Delivery Method */}
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block mb-1">How Will Winner Receive Seat?</label>
+                  <div className="space-y-1.5">
+                    {DELIVERY_METHODS.map(m => (
+                      <button key={m.value} onClick={() => setDeliveryMethod(m.value)}
+                        className="w-full flex items-start gap-3 px-3 py-2.5 rounded-xl text-left transition-all"
+                        style={deliveryMethod === m.value
+                          ? { background: 'rgba(191,95,255,0.1)', border: '1px solid rgba(191,95,255,0.35)' }
+                          : { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                        <div>
+                          <p className="text-xs font-bold text-foreground">{m.label}</p>
+                          <p className="text-[10px] text-muted-foreground">{m.desc}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
                 <div className="flex gap-3 pt-1">
                   <button onClick={() => setStep('type')} className="flex-1 py-3 rounded-2xl text-sm font-bold text-muted-foreground" style={{ background: 'hsl(var(--muted))' }}>Back</button>
