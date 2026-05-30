@@ -101,16 +101,13 @@
       "type": "string"
     },
     "winner_selection_locked_at": {
-      "type": "string",
-      "description": "ISO timestamp \u2014 set atomically when the first close_and_pick call begins processing. Guards against race conditions."
+      "type": "string"
     },
     "winner_selection_request_id": {
-      "type": "string",
-      "description": "Unique ID of the first close_and_pick request. Used for idempotency."
+      "type": "string"
     },
     "selection_completed_at": {
-      "type": "string",
-      "description": "ISO timestamp when winner selection fully completed."
+      "type": "string"
     },
     "entry_count": {
       "type": "number",
@@ -122,10 +119,13 @@
     "source_donation_id": {
       "type": "string"
     },
+    "seat_inventory_id": {
+      "type": "string",
+      "description": "FK to SeatInventory \u2014 canonical ownership record for this seat"
+    },
     "ownership_verified": {
       "type": "boolean",
-      "default": false,
-      "description": "True if donor's ownership of this seat has been verified"
+      "default": false
     },
     "ownership_verification_method": {
       "type": "string",
@@ -135,15 +135,13 @@
         "ownership_proof_upload",
         "transfer_capability",
         "admin_verified"
-      ],
-      "description": "How ownership was verified"
+      ]
     },
     "ownership_verified_at": {
       "type": "string"
     },
     "ownership_listing_id": {
-      "type": "string",
-      "description": "FK to Listing \u2014 if verified via existing listing"
+      "type": "string"
     },
     "ownership_delivery_method": {
       "type": "string",
@@ -153,17 +151,14 @@
         "seller_contact",
         "manual_release",
         "future_custody"
-      ],
-      "description": "How winner will receive the seat"
+      ]
     },
     "trust_score": {
       "type": "number",
-      "description": "0\u2013100 trust score. >= 80 = Verified Flash Drop badge.",
       "default": 0
     },
     "trust_breakdown": {
       "type": "object",
-      "description": "Components of the trust score",
       "properties": {
         "ownership_verified": {
           "type": "number"
@@ -183,8 +178,7 @@
       "type": "array",
       "items": {
         "type": "string"
-      },
-      "description": "Any anti-abuse flags on this drop"
+      }
     },
     "metrics": {
       "type": "object",

@@ -1,0 +1,165 @@
+{
+  "name": "SeatInventory",
+  "type": "object",
+  "rls": {
+    "create": true,
+    "read": {
+      "$or": [
+        {
+          "owner_email": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "owner_email": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  },
+  "properties": {
+    "event_id": {
+      "type": "string"
+    },
+    "event_title": {
+      "type": "string"
+    },
+    "owner_email": {
+      "type": "string"
+    },
+    "owner_name": {
+      "type": "string"
+    },
+    "section": {
+      "type": "string"
+    },
+    "row": {
+      "type": "string"
+    },
+    "seats": {
+      "type": "string",
+      "description": "Comma-separated seat numbers"
+    },
+    "quantity": {
+      "type": "number",
+      "default": 1
+    },
+    "inventory_status": {
+      "type": "string",
+      "enum": [
+        "available",
+        "listed_for_sale",
+        "reserved_for_purchase",
+        "in_flash_drop",
+        "claimed_by_winner",
+        "transferred",
+        "cancelled"
+      ],
+      "default": "available"
+    },
+    "inventory_intent": {
+      "type": "string",
+      "enum": [
+        "sell",
+        "flash_drop",
+        "undecided"
+      ],
+      "default": "undecided"
+    },
+    "source_type": {
+      "type": "string",
+      "enum": [
+        "manual_entry",
+        "listing",
+        "flash_drop",
+        "purchase",
+        "future_custody"
+      ],
+      "default": "manual_entry"
+    },
+    "ownership_verified": {
+      "type": "boolean",
+      "default": false
+    },
+    "ownership_verification_method": {
+      "type": "string",
+      "enum": [
+        "verified_listing",
+        "verified_ticket_file",
+        "ownership_proof_upload",
+        "transfer_capability",
+        "admin_verified"
+      ]
+    },
+    "ownership_verified_at": {
+      "type": "string"
+    },
+    "ownership_proof_url": {
+      "type": "string"
+    },
+    "transfer_verified": {
+      "type": "boolean",
+      "default": false
+    },
+    "transfer_status": {
+      "type": "string",
+      "enum": [
+        "transfer_confirmed",
+        "transfer_unconfirmed",
+        "transfer_disabled",
+        "transfer_expired"
+      ],
+      "default": "transfer_unconfirmed"
+    },
+    "last_transfer_verification": {
+      "type": "string"
+    },
+    "linked_listing_id": {
+      "type": "string",
+      "description": "FK to Listing"
+    },
+    "linked_flash_drop_id": {
+      "type": "string",
+      "description": "FK to FlashDrop"
+    },
+    "linked_purchase_id": {
+      "type": "string",
+      "description": "FK to Purchase"
+    },
+    "winner_delivery_confirmed": {
+      "type": "boolean",
+      "default": false
+    },
+    "winner_delivery_confirmed_at": {
+      "type": "string"
+    },
+    "donor_delivery_confirmed": {
+      "type": "boolean",
+      "default": false
+    },
+    "donor_delivery_confirmed_at": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "event_id",
+    "owner_email",
+    "section"
+  ]
+}

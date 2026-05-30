@@ -188,6 +188,10 @@
     "verification_expired_sent_at": {
       "type": "string",
       "description": "When the expiration notification was sent"
+    },
+    "seat_inventory_id": {
+      "type": "string",
+      "description": "FK to SeatInventory \u2014 canonical ownership record for this seat"
     }
   },
   "required": [
