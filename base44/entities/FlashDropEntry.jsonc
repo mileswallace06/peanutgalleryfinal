@@ -1,0 +1,68 @@
+{
+  "name": "FlashDropEntry",
+  "type": "object",
+  "rls": {
+    "create": true,
+    "read": {
+      "$or": [
+        {
+          "entrant_email": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  },
+  "properties": {
+    "flash_drop_id": {
+      "type": "string",
+      "description": "FK to FlashDrop"
+    },
+    "event_id": {
+      "type": "string"
+    },
+    "entrant_email": {
+      "type": "string"
+    },
+    "entrant_name": {
+      "type": "string"
+    },
+    "entered_at": {
+      "type": "string",
+      "description": "ISO timestamp"
+    },
+    "is_winner": {
+      "type": "boolean",
+      "default": false
+    },
+    "loser_action": {
+      "type": "string",
+      "enum": [
+        "none",
+        "viewed_upgrades",
+        "clicked_listing",
+        "purchased"
+      ],
+      "default": "none",
+      "description": "What the loser did after losing \u2014 tracks conversion"
+    }
+  },
+  "required": [
+    "flash_drop_id",
+    "event_id",
+    "entrant_email"
+  ]
+}

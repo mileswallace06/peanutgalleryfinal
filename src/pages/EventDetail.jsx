@@ -88,12 +88,19 @@ export default function EventDetail() {
           <ArrowLeft className="w-4 h-4" /> Events
         </Link>
 
-        {/* Live badge */}
+        {/* Live badge + Event Mode button */}
         {isLive && (
-          <span className="absolute top-4 right-4 text-xs font-black px-3 py-1 rounded-full animate-pulse"
-            style={{ background: '#FF2D7820', color: '#FF2D78', border: '1px solid #FF2D7860' }}>
-            🔴 LIVE NOW
-          </span>
+          <div className="absolute top-4 right-4 flex items-center gap-2">
+            <span className="text-xs font-black px-3 py-1 rounded-full animate-pulse"
+              style={{ background: '#FF2D7820', color: '#FF2D78', border: '1px solid #FF2D7860' }}>
+              🔴 LIVE NOW
+            </span>
+            <Link to={`/event-mode/${id}`}
+              className="text-xs font-black px-3 py-1.5 rounded-full flex items-center gap-1"
+              style={{ background: 'rgba(255,230,0,0.2)', color: '#FFE600', border: '1px solid rgba(255,230,0,0.5)', backdropFilter: 'blur(12px)' }}>
+              ⚡ Event Mode
+            </Link>
+          </div>
         )}
 
         {/* Event info overlaid on bottom of hero */}

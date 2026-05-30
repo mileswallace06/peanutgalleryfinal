@@ -34,6 +34,7 @@ import WhyPeanutGallery from '@/pages/WhyPeanutGallery';
 import Leaderboard from '@/pages/Leaderboard';
 import FounderDashboard from '@/pages/FounderDashboard';
 import Notifications from '@/pages/Notifications';
+import EventMode from '@/pages/EventMode';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, checkAppState, isAuthenticated, user } = useAuth();
@@ -105,6 +106,7 @@ const AuthenticatedApp = () => {
             <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/founder" element={<FounderDashboard />} />
             <Route path="/notifications" element={<Notifications />} />
+            <Route path="/event-mode/:id" element={<EventMode />} />
           </Route>
           <Route path="*" element={<PageNotFound />} />
         </Routes>

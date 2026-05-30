@@ -1,0 +1,150 @@
+{
+  "name": "FlashDrop",
+  "type": "object",
+  "rls": {
+    "create": true,
+    "read": true,
+    "update": {
+      "$or": [
+        {
+          "donor_email": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  },
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "description": "FK to Event"
+    },
+    "event_title": {
+      "type": "string",
+      "description": "Cached event title"
+    },
+    "donor_email": {
+      "type": "string",
+      "description": "Who created this flash drop"
+    },
+    "donor_name": {
+      "type": "string"
+    },
+    "is_anonymous": {
+      "type": "boolean",
+      "default": false
+    },
+    "section": {
+      "type": "string"
+    },
+    "row": {
+      "type": "string"
+    },
+    "seats": {
+      "type": "string",
+      "description": "Comma-separated seat numbers"
+    },
+    "quantity": {
+      "type": "number",
+      "default": 1
+    },
+    "donor_message": {
+      "type": "string"
+    },
+    "drop_type": {
+      "type": "string",
+      "enum": [
+        "immediate",
+        "scheduled"
+      ],
+      "default": "immediate"
+    },
+    "scheduled_label": {
+      "type": "string",
+      "description": "Human label: Halftime, 3rd Quarter, etc."
+    },
+    "scheduled_at": {
+      "type": "string",
+      "description": "ISO timestamp when drop should go live"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "active",
+        "closed",
+        "winner_selected",
+        "expired",
+        "cancelled"
+      ],
+      "default": "pending",
+      "description": "pending = waiting for scheduled time or review; active = entry window open; closed = entry closed, picking winner; winner_selected = done"
+    },
+    "entry_opens_at": {
+      "type": "string",
+      "description": "ISO timestamp when entry window opened"
+    },
+    "entry_closes_at": {
+      "type": "string",
+      "description": "ISO timestamp when entry window closes (30\u201390 seconds after open)"
+    },
+    "entry_window_seconds": {
+      "type": "number",
+      "default": 60,
+      "description": "Duration of entry window in seconds (30\u201390)"
+    },
+    "winner_email": {
+      "type": "string"
+    },
+    "winner_name": {
+      "type": "string"
+    },
+    "winner_selected_at": {
+      "type": "string"
+    },
+    "entry_count": {
+      "type": "number",
+      "default": 0,
+      "description": "Total number of entries at close"
+    },
+    "source_purchase_id": {
+      "type": "string",
+      "description": "Optional \u2014 if triggered from a purchase/upgrade"
+    },
+    "source_donation_id": {
+      "type": "string",
+      "description": "Optional \u2014 if migrated from SeatDonation"
+    },
+    "metrics": {
+      "type": "object",
+      "description": "Engagement metrics for founder dashboard",
+      "properties": {
+        "views": {
+          "type": "number"
+        },
+        "entries": {
+          "type": "number"
+        },
+        "loser_upgrade_clicks": {
+          "type": "number"
+        },
+        "loser_purchases": {
+          "type": "number"
+        }
+      }
+    }
+  },
+  "required": [
+    "event_id",
+    "donor_email",
+    "section"
+  ]
+}

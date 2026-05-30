@@ -14,6 +14,7 @@ import StripePanel from '@/components/admin/cc/StripePanel';
 import InstantOpsPanel from '@/components/admin/cc/InstantOpsPanel';
 import AIVerificationPanel from '@/components/admin/cc/AIVerificationPanel';
 import DonationOpsPanel from '@/components/admin/cc/DonationOpsPanel';
+import FlashDropMetricsPanel from '@/components/admin/cc/FlashDropMetricsPanel';
 import PendingReviewQueue from '@/components/admin/PendingReviewQueue';
 import FeeSimulatorV2 from '@/components/admin/FeeSimulatorV2';
 import PricingStrategyAnalyzer from '@/components/admin/PricingStrategyAnalyzer';
@@ -51,6 +52,7 @@ const SECTIONS = [
   { id: 'transfer_intel', label: 'Transfer Intelligence', icon: Database },
   { id: 'review_queue',  label: 'Review Queue',          icon: ClipboardList },
   { id: 'fee_simulator', label: 'Fee Simulator',          icon: CreditCard },
+  { id: 'flash_drops',   label: 'Flash Drops',            icon: Zap },
 ];
 
 export default function AdminCommandCenter() {
@@ -230,6 +232,9 @@ export default function AdminCommandCenter() {
         )}
         {activeSection === 'fee_simulator' && (
           <FeeSimulatorTabs />
+        )}
+        {activeSection === 'flash_drops' && (
+          <FlashDropMetricsPanel />
         )}
       </div>
     </div>
