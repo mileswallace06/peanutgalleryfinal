@@ -6,6 +6,7 @@ import { MapPin, Calendar, ArrowLeft, Ticket, Zap } from 'lucide-react';
 import ListingCard from '@/components/events/ListingCard';
 import PurchaseDialog from '@/components/events/PurchaseDialog';
 import { getEventLiveStatus } from '@/lib/eventTiming';
+import { logNavEvent } from '@/lib/navLogger';
 
 export default function EventDetail() {
   const { id } = useParams();
@@ -57,9 +58,12 @@ export default function EventDetail() {
         if (!ev) {
           setLookupError(true);
           console.warn('[EventDetail] lookup=all_methods MISS', { ...logCtx, lookup_method: lookupMethod });
+          logNavEvent({ result: 'event_not_found', event: { id, tm_id: id }, sourcePage: 'EventDetail', generatedHref: `/events/${id}`, lookupMethod, failureReason: 'All lookup methods exhausted — event not in DB' });
           return;
         }
+        const navResult = lookupMethod === 'direct_id' ? 'success' : 'lookup_fallback_success';
         console.info('[EventDetail] lookup success', { ...logCtx, lookup_method: lookupMethod, resolved_id: ev.id, event_source: ev.source || 'pg' });
+        logNavEvent({ result: navResult, event: ev, sourcePage: 'EventDetail', generatedHref: `/events/${id}`, lookupMethod });
 
         const resolvedId = ev.id;
         const rawListings = await loadEvent(resolvedId);
@@ -75,6 +79,7 @@ export default function EventDetail() {
         if (cancelled) return;
         console.error('[EventDetail] load error:', err);
         setLookupError(true);
+        logNavEvent({ result: 'navigation_error', event: { id }, sourcePage: 'EventDetail', generatedHref: `/events/${id}`, lookupMethod: 'direct_id', failureReason: err?.message || 'Unknown error' });
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -96,6 +101,8 @@ export default function EventDetail() {
   }
 
   if (!loading && (!event || lookupError)) {
+    // Log the "not loaded" screen being shown
+    logNavEvent({ result: 'event_not_loaded', event: { id }, sourcePage: 'EventDetail', generatedHref: `/events/${id}`, lookupMethod: 'all_methods', failureReason: 'Event not loaded screen shown to user' });
     return (
       <div className="px-4 py-20 text-center space-y-4">
         <p className="text-5xl">🎟️</p>

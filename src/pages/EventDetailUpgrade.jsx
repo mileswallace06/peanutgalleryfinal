@@ -9,6 +9,7 @@ import TransferWindowBadge from '@/components/events/TransferWindowBadge';
 import CommunityTransferReport from '@/components/listings/CommunityTransferReport';
 import { getEventLiveStatus } from '@/lib/eventTiming';
 import { getTransferWindowInfo } from '@/lib/transferWindow';
+import { logNavEvent } from '@/lib/navLogger';
 
 export default function EventDetailUpgrade() {
   const { id } = useParams();
@@ -53,9 +54,12 @@ export default function EventDetailUpgrade() {
         if (!ev) {
           setLookupError(true);
           console.warn('[EventDetailUpgrade] lookup=all_methods MISS', { ...logCtx, lookup_method: lookupMethod });
+          logNavEvent({ result: 'event_not_found', event: { id, tm_id: id }, sourcePage: 'EventDetailUpgrade', generatedHref: `/upgrades/${id}`, lookupMethod, failureReason: 'All lookup methods exhausted — event not in DB' });
           return;
         }
+        const navResult = lookupMethod === 'direct_id' ? 'success' : 'lookup_fallback_success';
         console.info('[EventDetailUpgrade] lookup success', { ...logCtx, lookup_method: lookupMethod, resolved_id: ev.id, event_source: ev.source || 'pg' });
+        logNavEvent({ result: navResult, event: ev, sourcePage: 'EventDetailUpgrade', generatedHref: `/upgrades/${id}`, lookupMethod });
 
         const resolvedId = ev.id;
         base44.entities.TransferReport.filter({ event_id: resolvedId }).then(r => { if (!cancelled) setTransferReports(r); }).catch(() => {});
@@ -73,6 +77,7 @@ export default function EventDetailUpgrade() {
         if (cancelled) return;
         console.error('[EventDetailUpgrade] load error:', err);
         setLookupError(true);
+        logNavEvent({ result: 'navigation_error', event: { id }, sourcePage: 'EventDetailUpgrade', generatedHref: `/upgrades/${id}`, lookupMethod: 'direct_id', failureReason: err?.message || 'Unknown error' });
       } finally {
         if (!cancelled) setLoading(false);
       }

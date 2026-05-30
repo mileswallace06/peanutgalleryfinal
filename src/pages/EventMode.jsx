@@ -8,6 +8,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { motion, AnimatePresence } from 'framer-motion';
 import CreateFlashDropSheet from '@/components/flashdrops/CreateFlashDropSheet';
+import { logNavEvent } from '@/lib/navLogger';
 import EventModeHeader from '@/components/eventmode/EventModeHeader';
 import LiveActivityBar from '@/components/eventmode/LiveActivityBar';
 import FlashDropCenter from '@/components/eventmode/FlashDropCenter';
@@ -56,8 +57,10 @@ export default function EventMode() {
 
     if (ev) {
       console.info('[EventMode] lookup success', { ...logCtx, lookup_method: lookupMethod, resolved_id: ev.id, event_source: ev.source || 'pg' });
+      logNavEvent({ result: lookupMethod === 'direct_id' ? 'success' : 'lookup_fallback_success', event: ev, sourcePage: 'EventMode', generatedHref: `/event-mode/${eventId}`, lookupMethod });
     } else {
       console.warn('[EventMode] lookup=all_methods MISS', { ...logCtx, lookup_method: lookupMethod });
+      logNavEvent({ result: 'event_not_found', event: { id: eventId }, sourcePage: 'EventMode', generatedHref: `/event-mode/${eventId}`, lookupMethod, failureReason: 'All lookup methods exhausted' });
     }
 
     const resolvedId = ev?.id || eventId;

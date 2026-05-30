@@ -1,0 +1,84 @@
+{
+  "name": "EventNavigationLog",
+  "type": "object",
+  "rls": {
+    "create": true,
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  },
+  "properties": {
+    "timestamp": {
+      "type": "string",
+      "description": "ISO timestamp of the event"
+    },
+    "user_email": {
+      "type": "string"
+    },
+    "event_title": {
+      "type": "string"
+    },
+    "event_id": {
+      "type": "string"
+    },
+    "tm_id": {
+      "type": "string"
+    },
+    "source": {
+      "type": "string",
+      "description": "pg | ticketmaster | unknown"
+    },
+    "source_page": {
+      "type": "string",
+      "description": "Which page the navigation originated from"
+    },
+    "generated_href": {
+      "type": "string"
+    },
+    "lookup_method": {
+      "type": "string",
+      "description": "direct_id | tm_prefix_strip | tm_id_field | none"
+    },
+    "result": {
+      "type": "string",
+      "enum": [
+        "success",
+        "lookup_fallback_success",
+        "lookup_fallback_failed",
+        "event_not_loaded",
+        "event_not_found",
+        "navigation_error",
+        "unknown"
+      ]
+    },
+    "failure_reason": {
+      "type": "string"
+    },
+    "user_agent": {
+      "type": "string"
+    },
+    "is_admin": {
+      "type": "boolean",
+      "default": false
+    },
+    "session_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "timestamp",
+    "result"
+  ]
+}

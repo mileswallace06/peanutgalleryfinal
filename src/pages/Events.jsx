@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 import { MapPin, Calendar, ChevronRight, LocateFixed, RefreshCw } from 'lucide-react';
 import { getEventLiveStatus } from '@/lib/eventTiming';
 import { getEventUrl } from '@/lib/eventUrl';
+import { logNavEvent } from '@/lib/navLogger';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { fetchTMEvents, bustTMCache } from '@/lib/tmCache';
 import { useLocationDetect } from '@/hooks/useLocationDetect';
@@ -383,6 +384,17 @@ function EventRow({ event }) {
   const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
   const debugUrl = getEventUrl(event);
 
+  const handleCardClick = () => {
+    logNavEvent({
+      result: debugUrl ? 'success' : 'navigation_error',
+      event,
+      sourcePage: 'Events',
+      generatedHref: debugUrl || '',
+      lookupMethod: 'none',
+      failureReason: debugUrl ? '' : 'getEventUrl returned null — missing id and tm_id',
+    });
+  };
+
   return (
     <div
       className="rounded-2xl overflow-hidden flex items-stretch dark:border-[rgba(255,255,255,0.09)] relative"
@@ -488,6 +500,7 @@ function EventRow({ event }) {
         ) : (
           <Link
             to={debugUrl}
+            onClick={handleCardClick}
             className="flex items-center gap-1 px-3 py-2 rounded-xl font-bold text-xs whitespace-nowrap"
             style={{ background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}
           >

@@ -6,6 +6,7 @@ import { MapPin, Calendar, Zap, ChevronRight, LocateFixed, X, Clock, RefreshCw }
 import LocationAutocomplete from '@/components/LocationAutocomplete';
 import { getEventLiveStatus, SOON_WINDOW_MINUTES } from '@/lib/eventTiming';
 import { getEventUrl, getUpgradeUrl } from '@/lib/eventUrl';
+import { logNavEvent } from '@/lib/navLogger';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { fetchTMEvents, bustTMCache } from '@/lib/tmCache';
 import { useLocationDetect } from '@/hooks/useLocationDetect';
@@ -393,6 +394,18 @@ function EventCard({ event, mode }) {
   const hasValidLink = !!linkTo;
   const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
   if (!hasValidLink) console.warn('[EventCard] Event missing valid id/tm_id — suppressing link', { id: event.id, tm_id: event.tm_id, source: event.source, title: event.title });
+
+  const handleClick = () => {
+    logNavEvent({
+      result: hasValidLink ? 'success' : 'navigation_error',
+      event,
+      sourcePage: 'Upgrades',
+      generatedHref: linkTo || '',
+      lookupMethod: 'none',
+      failureReason: hasValidLink ? '' : 'getUpgradeUrl/getEventUrl returned null — missing id and tm_id',
+    });
+  };
+
   const linkLabel = isTM
     ? 'View'
     : isLive ? 'Upgrades' : isSoon ? 'Starting Soon' : 'Get Ready';
@@ -446,6 +459,7 @@ function EventCard({ event, mode }) {
         {hasValidLink ? (
           <Link
             to={linkTo}
+            onClick={handleClick}
             className="flex items-center gap-1 px-3 py-2 rounded-xl font-bold text-xs whitespace-nowrap"
             style={isLive
               ? { background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }

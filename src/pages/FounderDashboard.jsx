@@ -5,6 +5,7 @@ import { Navigate, Link } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 import { Shield, RefreshCw, AlertTriangle, TrendingUp, Clock, CheckCircle, XCircle, Activity, Zap, Bell } from 'lucide-react';
 import { isVerificationExpired } from '@/lib/transferConfidence';
+import EventNavHealthPanel from '@/components/founder/EventNavHealthPanel';
 
 function StatCard({ label, value, color, icon, sub, urgent }) {
   return (
@@ -322,6 +323,9 @@ export default function FounderDashboard() {
             ))}
           </div>
         </div>
+
+        {/* ── EVENT NAVIGATION HEALTH ── */}
+        <EventNavHealthPanel />
 
         {/* ── QUICK LINKS ── */}
         <div>
