@@ -16,6 +16,28 @@ import AIVerificationPanel from '@/components/admin/cc/AIVerificationPanel';
 import DonationOpsPanel from '@/components/admin/cc/DonationOpsPanel';
 import PendingReviewQueue from '@/components/admin/PendingReviewQueue';
 import FeeSimulatorV2 from '@/components/admin/FeeSimulatorV2';
+import PricingStrategyAnalyzer from '@/components/admin/PricingStrategyAnalyzer';
+
+function FeeSimulatorTabs() {
+  const [feeTab, setFeeTab] = useState('simulator');
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-2">
+        {[{ id: 'simulator', label: '🧮 Fee Simulator' }, { id: 'strategy', label: '🎯 Pricing Strategy' }].map(t => (
+          <button key={t.id} onClick={() => setFeeTab(t.id)}
+            className="px-3 py-1.5 rounded-full text-xs font-semibold transition-all"
+            style={feeTab === t.id
+              ? { background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }
+              : { background: 'rgba(255,255,255,0.06)', color: 'hsl(var(--muted-foreground))', border: '1px solid rgba(255,255,255,0.1)' }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {feeTab === 'simulator' && <FeeSimulatorV2 />}
+      {feeTab === 'strategy' && <PricingStrategyAnalyzer />}
+    </div>
+  );
+}
 
 const SECTIONS = [
   { id: 'issues',    label: 'Live Issues',     icon: AlertTriangle },
@@ -207,7 +229,7 @@ export default function AdminCommandCenter() {
           <PendingReviewQueue onRefresh={loadAll} />
         )}
         {activeSection === 'fee_simulator' && (
-          <FeeSimulatorV2 />
+          <FeeSimulatorTabs />
         )}
       </div>
     </div>
