@@ -391,14 +391,15 @@ function EventCard({ event, mode }) {
   // Use canonical URL helpers — never build raw /events/tm_xxx paths
   const linkTo = isTM ? getEventUrl(event) : (getUpgradeUrl(event) || getEventUrl(event));
   const hasValidLink = !!linkTo;
-  if (!hasValidLink) console.warn('[EventCard] Event missing valid id/tm_id — suppressing link', event);
+  const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
+  if (!hasValidLink) console.warn('[EventCard] Event missing valid id/tm_id — suppressing link', { id: event.id, tm_id: event.tm_id, source: event.source, title: event.title });
   const linkLabel = isTM
     ? 'View'
     : isLive ? 'Upgrades' : isSoon ? 'Starting Soon' : 'Get Ready';
 
   return (
     <div
-      className="flex items-center gap-3 rounded-2xl overflow-hidden"
+      className="flex items-center gap-3 rounded-2xl overflow-hidden relative"
       style={{
         background: isLive || isSoon ? 'var(--card)' : 'var(--card)',
         border: isLive ? '1px solid rgba(0,255,135,0.3)' : isSoon ? '1px solid rgba(255,230,0,0.3)' : '1px solid var(--border)',
@@ -461,6 +462,14 @@ function EventCard({ event, mode }) {
           </span>
         )}
       </div>
+
+      {/* Admin debug overlay */}
+      {adminUnlocked && (
+        <div className="absolute bottom-1 left-[84px] right-20 text-[8px] font-mono leading-tight pointer-events-none"
+          style={{ color: 'rgba(255,230,0,0.6)' }}>
+          id:{String(event.id||'').slice(0,12)} tm:{String(event.tm_id||'-').slice(0,12)} src:{event.source||'?'} → {linkTo||'NULL'}
+        </div>
+      )}
     </div>
   );
 }

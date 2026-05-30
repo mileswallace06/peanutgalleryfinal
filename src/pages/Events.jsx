@@ -380,10 +380,12 @@ function EventRow({ event }) {
   const timing = !isTM && event.id ? getEventLiveStatus(event) : null;
   const isLive = timing?.status === 'live';
   const isSoon = timing?.status === 'soon';
+  const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
+  const debugUrl = getEventUrl(event);
 
   return (
     <div
-      className="rounded-2xl overflow-hidden flex items-stretch dark:border-[rgba(255,255,255,0.09)]"
+      className="rounded-2xl overflow-hidden flex items-stretch dark:border-[rgba(255,255,255,0.09)] relative"
       style={{
         background: 'var(--card)',
         border: '1px solid var(--border)',
@@ -474,27 +476,33 @@ function EventRow({ event }) {
 
       {/* View button */}
       <div className="flex items-center pr-3 pl-1">
-        {(() => {
-          const url = getEventUrl(event);
-          if (!url) {
-            console.warn('[EventRow] Event missing valid id/tm_id — suppressing View link', event);
+        {!debugUrl ? (
+          (() => {
+            console.warn('[EventRow] Event missing valid id/tm_id — suppressing View link', { id: event.id, tm_id: event.tm_id, source: event.source, title: event.title });
             return (
               <span className="px-3 py-2 rounded-xl text-xs text-muted-foreground opacity-60 whitespace-nowrap">
                 Unavailable
               </span>
             );
-          }
-          return (
-            <Link
-              to={url}
-              className="flex items-center gap-1 px-3 py-2 rounded-xl font-bold text-xs whitespace-nowrap"
-              style={{ background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}
-            >
-              View <ChevronRight className="w-3.5 h-3.5" />
-            </Link>
-          );
-        })()}
+          })()
+        ) : (
+          <Link
+            to={debugUrl}
+            className="flex items-center gap-1 px-3 py-2 rounded-xl font-bold text-xs whitespace-nowrap"
+            style={{ background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}
+          >
+            View <ChevronRight className="w-3.5 h-3.5" />
+          </Link>
+        )}
       </div>
+
+      {/* Admin debug overlay */}
+      {adminUnlocked && (
+        <div className="absolute bottom-1 left-28 right-16 text-[8px] font-mono leading-tight pointer-events-none"
+          style={{ color: 'rgba(255,230,0,0.6)' }}>
+          id:{String(event.id||'').slice(0,12)} tm:{String(event.tm_id||'-').slice(0,12)} src:{event.source||'?'} → {debugUrl||'NULL'}
+        </div>
+      )}
     </div>
   );
 }
