@@ -369,7 +369,7 @@ Deno.serve(async (req) => {
       reference_id: flash_drop_id,
       reference_type: 'donation',
       icon: '🎁',
-      action_url: `/event-mode/${drop.event_id}`,
+      action_url: `/upgrades/${drop.event_id}`,
     }).catch(() => {});
 
     return Response.json({ success: true, winner: { email: winner.entrant_email, name: winner.entrant_name }, entry_count: entries.length });

@@ -291,7 +291,7 @@ function LoserView({ drop, allListings, userEmail }) {
           {ranked.map(l => {
             const isSameSection = l.section === drop.section;
             return (
-              <Link key={l.id} to={`/events/${l.event_id}`} onClick={handleListingClick}
+              <Link key={l.id} to={`/upgrades/${l.event_id}`} onClick={handleListingClick}
                 className="flex items-center justify-between px-3 py-2.5 rounded-xl transition-all active:scale-95"
                 style={{
                   background: isSameSection ? 'rgba(0,255,135,0.06)' : 'rgba(255,255,255,0.05)',
@@ -312,7 +312,7 @@ function LoserView({ drop, allListings, userEmail }) {
           })}
         </div>
       ) : (
-        <Link to={`/events/${drop.event_id}`}
+        <Link to={`/upgrades/${drop.event_id}`}
           onClick={handleListingClick}
           className="block text-center text-xs text-primary underline py-2">
           Browse all available seats →

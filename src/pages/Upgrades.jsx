@@ -390,7 +390,9 @@ function EventCard({ event, mode }) {
   const isSoon = mode === 'soon';
   const navigate = useNavigate();
   const isTM = event.source === 'ticketmaster' || String(event.id || '').startsWith('tm_');
-  const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
+  // Admin check is done server-side; this component doesn't have user context, so just hide debug overlay for non-admins
+  // Pass isAdmin from parent if needed — for now disable client-side bypass
+  const adminUnlocked = false;
 
   // For real PG events, use direct link. For TM-only, sync first then navigate.
   const pgId = !isTM ? event.id : null;

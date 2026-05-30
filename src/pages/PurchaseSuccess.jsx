@@ -297,6 +297,22 @@ function BuyerPanel({ purchase, onConfirm, onDispute, onCancel, actionLoading })
           >
             Cancel Purchase & Refund
           </button>
+
+          {/* Escalation CTA — visible after 4h if seller still hasn't confirmed */}
+          {purchase.created_date && (Date.now() - new Date(purchase.created_date).getTime()) > 4 * 60 * 60 * 1000 && (
+            <div className="rounded-xl p-3 text-center space-y-2"
+              style={{ background: 'rgba(255,45,120,0.07)', border: '1px solid rgba(255,45,120,0.2)' }}>
+              <p className="text-xs font-bold" style={{ color: '#FF2D78' }}>⚠️ Seller hasn't responded in 4+ hours</p>
+              <p className="text-[11px] text-muted-foreground">You can open a dispute or contact support for help.</p>
+              <button
+                onClick={onDispute}
+                disabled={actionLoading}
+                className="w-full py-2 rounded-xl text-xs font-bold transition-colors disabled:opacity-60"
+                style={{ background: 'rgba(255,45,120,0.12)', border: '1px solid rgba(255,45,120,0.35)', color: '#FF2D78' }}>
+                Seller Unresponsive — Open Dispute
+              </button>
+            </div>
+          )}
         </div>
       </div>
     );

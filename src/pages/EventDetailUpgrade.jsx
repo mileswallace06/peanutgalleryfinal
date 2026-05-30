@@ -64,22 +64,25 @@ export default function EventDetailUpgrade() {
         events = await base44.entities.Event.filter({ tm_id: id });
       }
 
-      // 4. Last resort: syncTMEvent — only if id looks like a TM id (tm_ prefix or alphanumeric TM format)
-      if ((!events || events.length === 0)) {
+      // 4. Last resort: syncTMEvent — ONLY if id looks like a real TM id (NOT a UUID)
+      // A UUID contains hyphens; TM IDs are alphanumeric with no hyphens
+      const looksLikeTmId = !id.includes('-') && /^[A-Za-z0-9]{10,25}$/.test(id);
+      if ((!events || events.length === 0) && looksLikeTmId) {
         const tmId = id.startsWith('tm_') ? id.replace('tm_', '') : id;
         lookupMethod = 'sync_fallback';
+        console.info('[EventDetailUpgrade] sync_fallback for TM-style id:', tmId);
         try {
           const syncRes = await base44.functions.invoke('syncTMEvent', { tm_id: tmId });
           const syncedId = syncRes?.data?.id;
           if (syncedId && syncedId !== id) {
-            // Re-fetch with the real internal ID
             events = await base44.entities.Event.filter({ id: syncedId });
-            // Update URL to the real ID without adding to history
             window.history.replaceState(null, '', `/upgrades/${syncedId}`);
           }
         } catch {
           // sync failed — fall through to error
         }
+      } else if ((!events || events.length === 0) && !looksLikeTmId) {
+        console.warn('[EventDetailUpgrade] UUID-style id not found in DB — skipping syncTMEvent to prevent corruption:', id);
       }
 
       if (cancelled.value) return;
@@ -98,7 +101,7 @@ export default function EventDetailUpgrade() {
       const resolvedId = ev.id;
       base44.entities.TransferReport.filter({ event_id: resolvedId }).then(r => { if (!cancelled.value) setTransferReports(r); }).catch(() => {});
 
-      const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
+      const adminUnlocked = false; // real check done post-load using user state
       const timing = getEventLiveStatus(ev);
       const isLive = timing.status === 'live';
 
@@ -181,18 +184,16 @@ export default function EventDetailUpgrade() {
           <Link to={`/events/tm/${tmFallbackId}`} className="text-sm text-muted-foreground underline">View on Ticketmaster page →</Link>
           <Link to="/upgrades" className="text-sm text-muted-foreground underline">← Back to Upgrades</Link>
         </div>
-        {/* Debug info — always shown so issues are visible */}
-        <div className="mt-6 rounded-xl p-4 text-left space-y-1 font-mono text-[10px]"
-          style={{ background: 'rgba(255,230,0,0.06)', border: '1px solid rgba(255,230,0,0.2)', color: 'rgba(255,230,0,0.8)' }}>
-          <p className="font-black text-[11px] mb-2">🔍 Debug Info</p>
-          <p>URL: {window.location.pathname}</p>
-          <p>Route param (id): {id}</p>
-          <p>Starts with tm_: {String(id.startsWith('tm_'))}</p>
-          <p>TM id attempted: {tmFallbackId}</p>
-          <p>Last lookup method: {debugInfo?.lookupMethod || 'unknown'}</p>
-          <p>All methods tried: direct_id → tm_prefix_strip → tm_id_field → sync_fallback</p>
-          <p>Result: 0 events found after all methods</p>
-        </div>
+        {/* Debug info — admin only */}
+        {sessionStorage.getItem('pg_admin_unlocked') === '1' && (
+          <div className="mt-6 rounded-xl p-4 text-left space-y-1 font-mono text-[10px]"
+            style={{ background: 'rgba(255,230,0,0.06)', border: '1px solid rgba(255,230,0,0.2)', color: 'rgba(255,230,0,0.8)' }}>
+            <p className="font-black text-[11px] mb-2">🔍 Debug Info (Admin)</p>
+            <p>Route param (id): {id}</p>
+            <p>TM id attempted: {tmFallbackId}</p>
+            <p>Last lookup method: {debugInfo?.lookupMethod || 'unknown'}</p>
+          </div>
+        )}
       </div>
     );
   }
@@ -201,7 +202,7 @@ export default function EventDetailUpgrade() {
   const isLive = timing?.status === 'live';
   const isUpcoming = timing?.status === 'upcoming' || timing?.status === 'soon';
   const transferInfo = getTransferWindowInfo(event);
-  const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
+  const adminUnlocked = user?.role === 'admin';
 
   const handleDropSeats = () => {
     if (!user) { base44.auth.redirectToLogin(); return; }

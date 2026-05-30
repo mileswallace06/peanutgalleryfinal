@@ -126,7 +126,7 @@ export default function EventDetail() {
     );
   }
 
-  const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
+  const adminUnlocked = user?.role === 'admin';
   const timing = getEventLiveStatus(event);
   const isLive = timing.status === 'live';
   const isLiveMode = timing.status === 'live' || timing.status === 'ended';

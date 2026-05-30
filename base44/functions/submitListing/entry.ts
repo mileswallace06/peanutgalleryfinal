@@ -62,6 +62,22 @@ Deno.serve(async (req) => {
     }
   }
 
+  // ── Block listings for ended events ─────────────────────────────────────
+  if (!isAdmin && !isTest && body.event_id) {
+    const eventRecords = await base44.asServiceRole.entities.Event.filter({ id: body.event_id }).catch(() => []);
+    const ev = eventRecords[0];
+    if (ev) {
+      const startMs = ev.event_start_utc ? new Date(ev.event_start_utc).getTime() : ev.date ? new Date(ev.date).getTime() : null;
+      if (startMs) {
+        const durationHours = ev.duration_hours || 4;
+        const endMs = startMs + durationHours * 60 * 60 * 1000;
+        if (Date.now() > endMs) {
+          return Response.json({ error: 'This event has already ended. Listings are closed.' }, { status: 409 });
+        }
+      }
+    }
+  }
+
   const { flagged, reason } = isAdmin || isTest
     ? { flagged: false, reason: null }
     : await checkSuspicious(base44, user.email, askingPrice);

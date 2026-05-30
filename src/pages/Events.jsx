@@ -24,6 +24,11 @@ export default function Events() {
   const _ss = readSS();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    base44.auth.me().then(u => setIsAdmin(u?.role === 'admin')).catch(() => {});
+  }, []);
   const [locationInput, setLocationInput] = useState(_ss?.locationInput || '');
   const [editingLocation, setEditingLocation] = useState(false);
 
@@ -65,7 +70,6 @@ export default function Events() {
     setLoading(true);
     setTmError(false);
     setNetworkError(false);
-    const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
     const now = Date.now();
     const tmParams = { size: 40 };
     if (ll) { tmParams.latlong = ll; tmParams.radius = '50'; }
@@ -81,7 +85,7 @@ export default function Events() {
       ]);
 
       const eligible = localData.filter(e => e.status !== 'ended');
-      const pgEvents = adminUnlocked
+      const pgEvents = isAdmin
         ? eligible
         : eligible.filter(e => !e.date || now < new Date(e.date).getTime());
       let pgFiltered = pgEvents.filter(e => !e.is_beta_live);
@@ -391,7 +395,7 @@ export default function Events() {
       ) : (
         <div className="px-4 space-y-3">
           {filtered.map(event => (
-            <EventRow key={event.id} event={event} />
+            <EventRow key={event.id} event={event} isAdmin={isAdmin} />
           ))}
         </div>
       )}
@@ -399,13 +403,11 @@ export default function Events() {
   );
 }
 
-function EventRow({ event }) {
-  // A TM event has source='ticketmaster' AND a tm_id but no real DB id (or id starts with tm_)
+function EventRow({ event, isAdmin = false }) {
   const isTM = event.source === 'ticketmaster' || String(event.id || '').startsWith('tm_');
   const timing = !isTM && event.id ? getEventLiveStatus(event) : null;
   const isLive = timing?.status === 'live';
   const isSoon = timing?.status === 'soon';
-  const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
   const debugUrl = getEventUrl(event);
 
   const handleCardClick = () => {
@@ -533,8 +535,7 @@ function EventRow({ event }) {
         )}
       </div>
 
-      {/* Admin debug overlay */}
-      {adminUnlocked && (
+      {isAdmin && (
         <div className="absolute bottom-1 left-28 right-16 text-[8px] font-mono leading-tight pointer-events-none"
           style={{ color: 'rgba(255,230,0,0.6)' }}>
           id:{String(event.id||'').slice(0,12)} tm:{String(event.tm_id||'-').slice(0,12)} src:{event.source||'?'} → {debugUrl||'NULL'}
