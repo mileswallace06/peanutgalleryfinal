@@ -4,6 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 import { MapPin, Calendar, ChevronRight, LocateFixed, RefreshCw } from 'lucide-react';
 import { getEventLiveStatus } from '@/lib/eventTiming';
+import { getEventUrl } from '@/lib/eventUrl';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { fetchTMEvents, bustTMCache } from '@/lib/tmCache';
 import { useLocationDetect } from '@/hooks/useLocationDetect';
@@ -102,7 +103,7 @@ export default function Events() {
 
       if (signal.aborted) return;
       const pgMapped = pgFiltered.map(e => ({ ...e, source: 'pg' }));
-      const tmEvents = tmEventsRaw.map(e => ({ ...e, id: `tm_${e.tm_id}` }));
+      const tmEvents = tmEventsRaw.map(e => ({ ...e, id: `tm_${e.tm_id}`, source: 'ticketmaster' }));
       setEvents([...pgMapped, ...tmEvents]);
 
       // Persist TM events locally so they survive past start time
@@ -473,48 +474,26 @@ function EventRow({ event }) {
 
       {/* View button */}
       <div className="flex items-center pr-3 pl-1">
-        {isTM ? (
-          (() => {
-            const tmId = event.tm_id || String(event.id || '').replace('tm_', '');
-            if (!tmId || tmId === 'undefined') {
-              console.warn('[EventRow] TM event missing tm_id — suppressing View link', event);
-              return (
-                <span className="px-3 py-2 rounded-xl text-xs text-muted-foreground opacity-60 whitespace-nowrap">
-                  Unavailable
-                </span>
-              );
-            }
+        {(() => {
+          const url = getEventUrl(event);
+          if (!url) {
+            console.warn('[EventRow] Event missing valid id/tm_id — suppressing View link', event);
             return (
-              <Link
-                to={`/events/tm/${tmId}`}
-                className="flex items-center gap-1 px-3 py-2 rounded-xl font-bold text-xs whitespace-nowrap"
-                style={{ background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}
-              >
-                View <ChevronRight className="w-3.5 h-3.5" />
-              </Link>
+              <span className="px-3 py-2 rounded-xl text-xs text-muted-foreground opacity-60 whitespace-nowrap">
+                Unavailable
+              </span>
             );
-          })()
-        ) : (
-          (() => {
-            if (!event.id) {
-              console.warn('[EventRow] PG event missing id — suppressing View link', event);
-              return (
-                <span className="px-3 py-2 rounded-xl text-xs text-muted-foreground opacity-60 whitespace-nowrap">
-                  Unavailable
-                </span>
-              );
-            }
-            return (
-              <Link
-                to={`/events/${event.id}`}
-                className="flex items-center gap-1 px-3 py-2 rounded-xl font-bold text-xs whitespace-nowrap"
-                style={{ background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}
-              >
-                View <ChevronRight className="w-3.5 h-3.5" />
-              </Link>
-            );
-          })()
-        )}
+          }
+          return (
+            <Link
+              to={url}
+              className="flex items-center gap-1 px-3 py-2 rounded-xl font-bold text-xs whitespace-nowrap"
+              style={{ background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}
+            >
+              View <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
+          );
+        })()}
       </div>
     </div>
   );

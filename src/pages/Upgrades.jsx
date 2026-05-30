@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 import { MapPin, Calendar, Zap, ChevronRight, LocateFixed, X, Clock, RefreshCw } from 'lucide-react';
 import LocationAutocomplete from '@/components/LocationAutocomplete';
 import { getEventLiveStatus, SOON_WINDOW_MINUTES } from '@/lib/eventTiming';
+import { getEventUrl, getUpgradeUrl } from '@/lib/eventUrl';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { fetchTMEvents, bustTMCache } from '@/lib/tmCache';
 import { useLocationDetect } from '@/hooks/useLocationDetect';
@@ -387,12 +388,10 @@ function EventCard({ event, mode }) {
   const isLive = mode === 'live';
   const isSoon = mode === 'soon';
   const isTM = event.source === 'ticketmaster' || String(event.id || '').startsWith('tm_');
-  const tmId = event.tm_id || String(event.id || '').replace('tm_', '');
-  const validTmLink = isTM && tmId && tmId !== 'undefined';
-  const validPgLink = !isTM && !!event.id;
-  const hasValidLink = isTM ? validTmLink : validPgLink;
-  if (isTM && !validTmLink) console.warn('[EventCard] TM event missing tm_id — suppressing link', event);
-  const linkTo = isTM ? `/events/tm/${tmId}` : `/upgrades/${event.id}`;
+  // Use canonical URL helpers — never build raw /events/tm_xxx paths
+  const linkTo = isTM ? getEventUrl(event) : (getUpgradeUrl(event) || getEventUrl(event));
+  const hasValidLink = !!linkTo;
+  if (!hasValidLink) console.warn('[EventCard] Event missing valid id/tm_id — suppressing link', event);
   const linkLabel = isTM
     ? 'View'
     : isLive ? 'Upgrades' : isSoon ? 'Starting Soon' : 'Get Ready';

@@ -39,10 +39,18 @@ export default function EventMode() {
 
   const loadAll = useCallback(async () => {
     setLoading(true);
-    const [ev, rawDrops, rawListings] = await Promise.all([
-      base44.entities.Event.filter({ id: eventId }).then(r => r[0] || null),
-      base44.entities.FlashDrop.filter({ event_id: eventId }),
-      base44.entities.Listing.filter({ event_id: eventId, status: 'active' }),
+    // Resolve event with fallbacks: direct id → tm_ prefix strip → tm_id field
+    let ev = await base44.entities.Event.filter({ id: eventId }).then(r => r[0] || null).catch(() => null);
+    if (!ev && eventId && eventId.startsWith('tm_')) {
+      ev = await base44.entities.Event.filter({ tm_id: eventId.replace('tm_', '') }).then(r => r[0] || null).catch(() => null);
+    }
+    if (!ev) {
+      ev = await base44.entities.Event.filter({ tm_id: eventId }).then(r => r[0] || null).catch(() => null);
+    }
+    const resolvedId = ev?.id || eventId;
+    const [rawDrops, rawListings] = await Promise.all([
+      base44.entities.FlashDrop.filter({ event_id: resolvedId }),
+      base44.entities.Listing.filter({ event_id: resolvedId, status: 'active' }),
     ]);
     setEvent(ev);
     // Keep drops relevant: active, pending scheduled, and completed within last 5 min
@@ -78,10 +86,22 @@ export default function EventMode() {
 
   if (!event && !loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 px-6">
-        <p className="text-4xl">🎫</p>
-        <p className="font-bold text-foreground">Event not found</p>
-        <Link to="/events" className="text-primary underline text-sm">Browse Events</Link>
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 px-6 text-center">
+        <p className="text-5xl">🎟️</p>
+        <div>
+          <p className="font-bold text-foreground text-lg">Event not loaded yet</p>
+          <p className="text-sm text-muted-foreground mt-1 max-w-xs mx-auto">
+            This event may still be syncing. Try refreshing.
+          </p>
+        </div>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-5 py-2.5 rounded-full font-bold text-sm"
+          style={{ background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}
+        >
+          Retry
+        </button>
+        <Link to="/events" className="text-sm text-muted-foreground underline">← Back to Events</Link>
       </div>
     );
   }

@@ -18,26 +18,61 @@ export default function EventDetailUpgrade() {
   const [selectedListing, setSelectedListing] = useState(null);
   const [user, setUser] = useState(null);
   const [transferReports, setTransferReports] = useState([]);
+  const [lookupError, setLookupError] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     base44.auth.me().then(setUser).catch(() => {});
-    base44.entities.TransferReport.filter({ event_id: id }).then(setTransferReports).catch(() => {});
-    Promise.all([
-      base44.entities.Event.filter({ id }),
-      base44.entities.Listing.filter({ event_id: id, status: 'active', proof_status: 'approved' }),
-    ]).then(([events, rawListings]) => {
-      const ev = events[0] || null;
-      setEvent(ev);
-      const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
-      const timing = ev ? getEventLiveStatus(ev) : null;
-      const isLiveMode = timing ? timing.status === 'live' : false;
-      // Upgrades tab shows LIVE-only listings (unless admin bypass)
-      const filtered = adminUnlocked
-        ? rawListings
-        : rawListings.filter(() => isLiveMode);
-      const real = filtered.filter(l => !l.notes?.startsWith('[DEMO]'));
-      setListings(real.length > 0 ? real : filtered);
-    }).catch(console.error).finally(() => setLoading(false));
+    setLoading(true);
+    setLookupError(false);
+
+    (async () => {
+      try {
+        // 1. Direct id lookup
+        let events = await base44.entities.Event.filter({ id });
+
+        // 2. Fallback: tm_ prefix
+        if ((!events || events.length === 0) && id && id.startsWith('tm_')) {
+          events = await base44.entities.Event.filter({ tm_id: id.replace('tm_', '') });
+        }
+
+        // 3. Fallback: treat id as tm_id directly
+        if (!events || events.length === 0) {
+          events = await base44.entities.Event.filter({ tm_id: id });
+        }
+
+        if (cancelled) return;
+        const ev = events?.[0] || null;
+        setEvent(ev);
+
+        if (!ev) {
+          setLookupError(true);
+          console.warn('[EventDetailUpgrade] Event not found. Route param:', id, '| timestamp:', new Date().toISOString());
+          return;
+        }
+
+        const resolvedId = ev.id;
+        base44.entities.TransferReport.filter({ event_id: resolvedId }).then(r => { if (!cancelled) setTransferReports(r); }).catch(() => {});
+
+        const rawListings = await base44.entities.Listing.filter({ event_id: resolvedId, status: 'active', proof_status: 'approved' });
+        if (cancelled) return;
+
+        const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
+        const timing = getEventLiveStatus(ev);
+        const isLiveMode = timing.status === 'live';
+        const filtered = adminUnlocked ? rawListings : rawListings.filter(() => isLiveMode);
+        const real = filtered.filter(l => !l.notes?.startsWith('[DEMO]'));
+        setListings(real.length > 0 ? real : filtered);
+      } catch (err) {
+        if (cancelled) return;
+        console.error('[EventDetailUpgrade] load error:', err);
+        setLookupError(true);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
   }, [id]);
 
   if (loading) {
@@ -52,11 +87,26 @@ export default function EventDetailUpgrade() {
     );
   }
 
-  if (!event) {
+  if (!loading && (!event || lookupError)) {
     return (
-      <div className="px-4 py-20 text-center">
-        <p className="text-muted-foreground">Event not found.</p>
-        <Link to="/upgrades" className="text-primary text-sm mt-3 inline-block">← Back to upgrades</Link>
+      <div className="px-4 py-20 text-center space-y-4">
+        <p className="text-5xl">🎟️</p>
+        <div>
+          <p className="font-bold text-foreground text-lg">Event not loaded yet</p>
+          <p className="text-sm text-muted-foreground mt-1 max-w-xs mx-auto">
+            This event may still be syncing. Try refreshing or go back to browse upgrades.
+          </p>
+        </div>
+        <div className="flex flex-col gap-2 items-center">
+          <button
+            onClick={() => window.location.reload()}
+            className="px-5 py-2.5 rounded-full font-bold text-sm"
+            style={{ background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}
+          >
+            Retry
+          </button>
+          <Link to="/upgrades" className="text-sm text-muted-foreground underline">← Back to Upgrades</Link>
+        </div>
       </div>
     );
   }
