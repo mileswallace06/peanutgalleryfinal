@@ -389,8 +389,8 @@ function EventCard({ event, mode }) {
   const isLive = mode === 'live';
   const isSoon = mode === 'soon';
   const isTM = event.source === 'ticketmaster' || String(event.id || '').startsWith('tm_');
-  // Use canonical URL helpers — never build raw /events/tm_xxx paths
-  const linkTo = isTM ? getEventUrl(event) : (getUpgradeUrl(event) || getEventUrl(event));
+  // Always use upgrade URL — EventDetailUpgrade handles both PG and TM events
+  const linkTo = getUpgradeUrl(event) || getEventUrl(event);
   const hasValidLink = !!linkTo;
   const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
   if (!hasValidLink) console.warn('[EventCard] Event missing valid id/tm_id — suppressing link', { id: event.id, tm_id: event.tm_id, source: event.source, title: event.title });
@@ -406,9 +406,7 @@ function EventCard({ event, mode }) {
     });
   };
 
-  const linkLabel = isTM
-    ? 'View'
-    : isLive ? 'Open Live Hub' : isSoon ? 'Get Ready' : 'View Upgrades';
+  const linkLabel = isLive ? 'Open Live Hub' : isSoon ? 'Get Ready' : 'View Upgrades';
 
   return (
     <div

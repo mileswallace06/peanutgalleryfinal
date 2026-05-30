@@ -45,10 +45,10 @@ export function getUpgradeUrl(event) {
     return `/upgrades/${id}`;
   }
 
-  // TM-only events don't have an upgrade detail page; fall back to TM detail
+  // TM-only events: route to /upgrades/tm_:tmId so EventDetailUpgrade handles them
   const tmId = event.tm_id || (isFakeTmId ? id.replace('tm_', '') : null);
   if (tmId && tmId !== 'undefined' && tmId !== 'null') {
-    return `/events/tm/${tmId}`;
+    return `/upgrades/tm_${tmId}`;
   }
 
   return null;
