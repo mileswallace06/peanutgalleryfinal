@@ -2,6 +2,7 @@ import { Outlet, Link, useLocation } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { useState, useEffect, useRef } from 'react';
 import { MapPin, Zap, Tag, Flame, User, Bell } from 'lucide-react';
+import { getEventLiveStatus } from '@/lib/eventTiming';
 import { useTheme } from '@/hooks/useTheme';
 import Onboarding from '@/components/Onboarding';
 import { useAuth } from '@/lib/AuthContext';
@@ -30,6 +31,7 @@ export default function Layout() {
   const { user } = useAuth();
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('pg_onboarded'));
   const [unreadCount, setUnreadCount] = useState(0);
+  const [liveEventId, setLiveEventId] = useState(null);
   const location = useLocation();
   const scrollPositions = useRef({});
   const containerRefs = useRef({});
@@ -91,6 +93,16 @@ export default function Layout() {
       setUnreadCount(0);
     }
   }, [location.pathname]);
+
+  // Check for live events to show pulse on Upgrades tab
+  useEffect(() => {
+    base44.entities.Event.filter({ status: 'live' }, '-updated_date', 5)
+      .then(evs => {
+        const live = evs.find(e => getEventLiveStatus(e).status === 'live');
+        setLiveEventId(live?.id || null);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (user) {
@@ -171,6 +183,7 @@ export default function Layout() {
         <div className="max-w-lg mx-auto flex items-stretch">
           {NAV.map(({ to, label, icon: Icon, color, key }) => {
             const active = currentTab === key;
+            const hasLivePulse = key === 'upgrades' && !!liveEventId && !active;
             return (
               <Link
                 key={to}
@@ -188,13 +201,19 @@ export default function Layout() {
                     }} />
                 )}
                 <div
-                  className="w-11 h-9 flex items-center justify-center rounded-xl transition-all"
+                  className="w-11 h-9 flex items-center justify-center rounded-xl transition-all relative"
                   style={active ? { background: `${color}18`, boxShadow: `0 0 14px ${color}44` } : {}}>
                   <Icon
                     className="w-5 h-5"
                     style={active ? { filter: `drop-shadow(0 0 6px ${color}bb)`, strokeWidth: 2.5 } : { strokeWidth: 1.8 }} />
+                  {hasLivePulse && (
+                    <span className="absolute top-0.5 right-0.5 w-2.5 h-2.5 rounded-full animate-pulse"
+                      style={{ background: '#FFE600', boxShadow: '0 0 6px #FFE600' }} />
+                  )}
                 </div>
-                <span className="text-[10px] font-bold leading-none">{label}</span>
+                <span className="text-[10px] font-bold leading-none">
+                  {hasLivePulse ? <span style={{ color: '#FFE600' }}>Live!</span> : label}
+                </span>
               </Link>
             );
           })}

@@ -293,6 +293,30 @@ export default function Events() {
         )}
       </div>
 
+      {/* ── Live Event Mode Banner ── */}
+      {!loading && filtered.some(e => e.source !== 'ticketmaster' && getEventLiveStatus(e).status === 'live') && (
+        <div className="mx-4 mb-4">
+          {filtered.filter(e => e.source !== 'ticketmaster' && getEventLiveStatus(e).status === 'live').map(e => (
+            <Link
+              key={e.id}
+              to={`/event-mode/${e.id}`}
+              className="flex items-center gap-3 px-4 py-3 rounded-2xl mb-2"
+              style={{ background: 'linear-gradient(135deg,rgba(255,230,0,0.18),rgba(255,45,120,0.1))', border: '2px solid rgba(255,230,0,0.5)', boxShadow: '0 0 20px rgba(255,230,0,0.1)' }}
+            >
+              <span className="text-xl flex-shrink-0">⚡</span>
+              <div className="flex-1 min-w-0">
+                <p className="font-black text-sm text-foreground leading-none">Event Mode Available</p>
+                <p className="text-xs text-muted-foreground mt-0.5 truncate">{e.title} — happening now</p>
+              </div>
+              <span className="text-xs font-black px-3 py-1.5 rounded-full flex-shrink-0"
+                style={{ background: 'rgba(255,230,0,0.25)', color: '#FFE600', border: '1px solid rgba(255,230,0,0.4)' }}>
+                Enter →
+              </span>
+            </Link>
+          ))}
+        </div>
+      )}
+
       {/* ── List ── */}
       {loading ? (
         <div className="px-4 space-y-3">
@@ -443,16 +467,16 @@ function EventRow({ event }) {
           </div>
         </div>
 
-        {/* Live: Event Mode CTA */}
+        {/* Live: Event Mode CTA — prominent button */}
         {!isTM && isLive && (
           <div className="mt-2.5">
             <Link
               to={`/event-mode/${event.id}`}
-              className="inline-flex items-center gap-1 text-[10px] font-black px-2.5 py-1 rounded-full"
-              style={{ background: 'rgba(255,230,0,0.15)', color: '#FFE600', border: '1px solid rgba(255,230,0,0.4)' }}
+              className="inline-flex items-center gap-1.5 text-[11px] font-black px-3 py-1.5 rounded-full"
+              style={{ background: 'linear-gradient(135deg,#FFE600,#FF8C00)', color: '#000', boxShadow: '0 0 12px rgba(255,230,0,0.35)' }}
               onClick={e => e.stopPropagation()}
             >
-              ⚡ Enter Event Mode
+              ⚡ Live Event Mode
             </Link>
           </div>
         )}

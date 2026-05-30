@@ -192,32 +192,43 @@ export default function EventDetail() {
         </div>
       </div>
 
-      {/* ── Event Mode CTA — shown for live and soon events ── */}
-      {(isLive || timing.status === 'soon') && (
-        <Link to={`/event-mode/${id}`}
-          className="mx-4 mt-4 flex items-center gap-3 px-4 py-3.5 rounded-2xl"
-          style={{
-            background: 'linear-gradient(135deg, rgba(255,230,0,0.15), rgba(255,45,120,0.1))',
-            border: '1px solid rgba(255,230,0,0.4)',
-          }}>
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-            style={{ background: 'rgba(255,230,0,0.2)' }}>
-            <Zap className="w-5 h-5" style={{ color: '#FFE600' }} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-black text-sm text-foreground leading-none">
-              {isLive ? '🎟 You\'re at the event?' : '⏰ Event starts soon!'}
-            </p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {isLive ? 'Enter Event Mode for Flash Drops, upgrades & live activity' : 'Get ready — Event Mode goes live when it starts'}
-            </p>
-          </div>
-          <span className="text-xs font-black px-3 py-1.5 rounded-full flex-shrink-0"
-            style={{ background: isLive ? 'rgba(255,230,0,0.2)' : 'rgba(255,255,255,0.08)', color: isLive ? '#FFE600' : 'hsl(var(--muted-foreground))' }}>
-            {isLive ? 'Enter →' : 'Soon'}
-          </span>
-        </Link>
-      )}
+      {/* ── Event Mode CTA — always visible ── */}
+      <Link to={`/event-mode/${event.id}`}
+        className="mx-4 mt-4 flex items-center gap-3 px-4 py-4 rounded-2xl transition-all active:scale-[0.98]"
+        style={isLive ? {
+          background: 'linear-gradient(135deg, rgba(255,230,0,0.18), rgba(255,45,120,0.12))',
+          border: '2px solid rgba(255,230,0,0.5)',
+          boxShadow: '0 0 24px rgba(255,230,0,0.12)',
+        } : timing.status === 'soon' ? {
+          background: 'linear-gradient(135deg, rgba(191,95,255,0.12), rgba(0,200,255,0.08))',
+          border: '1px solid rgba(191,95,255,0.4)',
+        } : {
+          background: 'hsl(var(--card))',
+          border: '1px solid hsl(var(--border))',
+        }}>
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-xl"
+          style={{ background: isLive ? 'rgba(255,230,0,0.2)' : 'rgba(191,95,255,0.15)' }}>
+          ⚡
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-black text-sm text-foreground leading-none">
+            {isLive ? 'Event Mode — Live Now!' : timing.status === 'soon' ? 'Event Mode — Starting Soon' : 'Event Mode'}
+          </p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {isLive
+              ? 'Flash Drops, seat upgrades & live fan activity'
+              : timing.status === 'soon'
+              ? 'Opens when the event starts — get ready!'
+              : 'Flash Drops & upgrades unlock at showtime'}
+          </p>
+        </div>
+        <span className="text-xs font-black px-3 py-1.5 rounded-full flex-shrink-0"
+          style={isLive
+            ? { background: 'rgba(255,230,0,0.25)', color: '#FFE600', border: '1px solid rgba(255,230,0,0.4)' }
+            : { background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' }}>
+          {isLive ? 'Enter →' : timing.status === 'soon' ? 'Soon' : 'Preview'}
+        </span>
+      </Link>
 
       {/* ── Content ── */}
       <div className="px-4 pt-8">
