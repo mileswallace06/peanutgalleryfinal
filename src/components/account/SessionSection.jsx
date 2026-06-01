@@ -37,8 +37,9 @@ export default function SessionSection({ onDeleteRequest, theme, toggleTheme, us
         <div className="space-y-3">
           {user?.role === 'admin' && (
             <button
-              onClick={() => {
+              onClick={async () => {
                 localStorage.removeItem('pg_onboarded');
+                await base44.auth.updateMe({ has_seen_onboarding: false }).catch(() => {});
                 window.location.href = '/events';
               }}
               className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-sm font-semibold transition-all active:scale-[0.98]"
