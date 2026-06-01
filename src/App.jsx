@@ -33,6 +33,7 @@ import SellerPayoutGuide from '@/pages/SellerPayoutGuide';
 import WhyPeanutGallery from '@/pages/WhyPeanutGallery';
 import Leaderboard from '@/pages/Leaderboard';
 import FounderDashboard from '@/pages/FounderDashboard';
+import FounderBetaChecklist from '@/pages/FounderBetaChecklist';
 import Notifications from '@/pages/Notifications';
 import EventMode from '@/pages/EventMode';
 
@@ -105,6 +106,7 @@ const AuthenticatedApp = () => {
             <Route path="/why-peanut-gallery" element={<WhyPeanutGallery />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/founder" element={<FounderDashboard />} />
+            <Route path="/beta-checklist" element={<FounderBetaChecklist />} />
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/event-mode/:id" element={<EventMode />} />
           </Route>

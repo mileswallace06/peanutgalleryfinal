@@ -335,6 +335,7 @@ export default function FounderDashboard() {
               { label: 'Admin Command Center', to: '/admin', icon: '🛡️' },
               { label: 'Transfer Intelligence', to: '/admin', icon: '🧠' },
               { label: 'Beta QA', to: '/beta-qa', icon: '🧪' },
+              { label: 'Beta Checklist', to: '/beta-checklist', icon: '📋' },
               { label: 'Leaderboard', to: '/leaderboard', icon: '🏆' },
             ].map(link => (
               <Link key={link.label} to={link.to}
