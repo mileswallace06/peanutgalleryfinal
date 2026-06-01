@@ -72,7 +72,7 @@ export default function AccountSettingsPage() {
         <NotificationsSection user={user} onUpdate={updated => setUser(u => ({ ...u, ...updated }))} />
         <SecuritySection user={user} />
         <SupportLegalSection />
-        <SessionSection onDeleteRequest={() => setShowDeleteModal(true)} theme={theme} toggleTheme={toggleTheme} />
+        <SessionSection onDeleteRequest={() => setShowDeleteModal(true)} theme={theme} toggleTheme={toggleTheme} user={user} />
       </div>
 
       {user && (

@@ -1,7 +1,7 @@
 import { base44 } from '@/api/base44Client';
 import { LogOut, Trash2, Moon, Sun, PlayCircle } from 'lucide-react';
 
-export default function SessionSection({ onDeleteRequest, theme, toggleTheme }) {
+export default function SessionSection({ onDeleteRequest, theme, toggleTheme, user }) {
   return (
     <section className="space-y-6">
       {/* Appearance */}
@@ -35,16 +35,18 @@ export default function SessionSection({ onDeleteRequest, theme, toggleTheme }) 
       <div>
         <h3 className="text-xs font-black tracking-widest uppercase text-muted-foreground mb-3">Session</h3>
         <div className="space-y-3">
-          <button
-            onClick={() => {
-              localStorage.removeItem('pg_onboarded');
-              window.location.href = '/events';
-            }}
-            className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-sm font-semibold transition-all active:scale-[0.98]"
-            style={{ background: 'rgba(191,95,255,0.07)', border: '1px solid rgba(191,95,255,0.2)', color: '#BF5FFF' }}
-          >
-            <PlayCircle className="w-4 h-4" /> Replay Onboarding
-          </button>
+          {user?.role === 'admin' && (
+            <button
+              onClick={() => {
+                localStorage.removeItem('pg_onboarded');
+                window.location.reload();
+              }}
+              className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-sm font-semibold transition-all active:scale-[0.98]"
+              style={{ background: 'rgba(191,95,255,0.07)', border: '1px solid rgba(191,95,255,0.2)', color: '#BF5FFF' }}
+            >
+              <PlayCircle className="w-4 h-4" /> Replay Onboarding
+            </button>
+          )}
           <button
             onClick={() => base44.auth.logout('/')}
             className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-sm font-semibold transition-all active:scale-[0.98]"
