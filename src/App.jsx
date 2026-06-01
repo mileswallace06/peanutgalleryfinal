@@ -20,7 +20,7 @@ import CreateListing from '@/pages/CreateListing';
 import FanZone from '@/pages/FanZone';
 import Me from '@/pages/Me';
 import Upgrades from '@/pages/Upgrades';
-import EventDetailUpgrade from '@/pages/EventDetailUpgrade.jsx';
+import EventDetailUpgrade from '@/pages/EventDetailUpgrade';
 import Sell from '@/pages/Sell';
 import EventDetailTM from '@/pages/EventDetailTM';
 import AccountSettingsPage from '@/pages/AccountSettingsPage';
