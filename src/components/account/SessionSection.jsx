@@ -39,7 +39,7 @@ export default function SessionSection({ onDeleteRequest, theme, toggleTheme, us
             <button
               onClick={() => {
                 localStorage.removeItem('pg_onboarded');
-                window.location.reload();
+                window.location.href = '/events';
               }}
               className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-sm font-semibold transition-all active:scale-[0.98]"
               style={{ background: 'rgba(191,95,255,0.07)', border: '1px solid rgba(191,95,255,0.2)', color: '#BF5FFF' }}
