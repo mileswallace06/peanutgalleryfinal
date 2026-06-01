@@ -134,11 +134,10 @@ export default function Onboarding({ onDone }) {
 
       {/* Logo — top left */}
       <div className="relative z-10 px-5 pt-4 flex items-center justify-between">
-        <img
-          src="https://media.base44.com/images/public/69ef9900cf3862dc0ea39734/9022a5431_ChatGPTImageMay1202601_29_27PM.png"
-          alt="Peanut Gallery"
-          className="h-12 w-auto rounded-xl"
-        />
+        <div className="flex flex-col leading-none">
+          <span className="font-display text-2xl" style={{ background: 'linear-gradient(90deg, #00FF87, #BF5FFF, #FFE600)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>peanut</span>
+          <span className="text-[10px] font-black tracking-[0.3em] text-white/70">GALLERY</span>
+        </div>
         <button
           onClick={finish}
           className="text-xs font-bold uppercase tracking-widest"
@@ -172,7 +171,7 @@ export default function Onboarding({ onDone }) {
             {/* Big headline */}
             <h2
               className="font-display leading-[1.05] whitespace-pre-line"
-              style={{ fontSize: 'clamp(2.6rem, 12vw, 4rem)', textShadow: '0 2px 24px rgba(0,0,0,0.6)' }}
+              style={{ fontSize: 'clamp(1.8rem, 8vw, 2.8rem)', textShadow: '0 2px 24px rgba(0,0,0,0.6)' }}
             >
               {slide.headline}
             </h2>
