@@ -303,7 +303,7 @@ export default function Onboarding({ onDone }) {
             </motion.div>
 
             {/* Headline — word by word stagger */}
-            <div className="font-display leading-[1.0] whitespace-pre-line" style={{ fontSize: 'clamp(2.2rem, 10vw, 3.4rem)' }}>
+            <div className="font-display leading-[1.0] whitespace-pre-line" style={{ fontSize: 'clamp(2.8rem, 13vw, 4.2rem)' }}>
               {slide.headlineWords.map((word, wi) => (
                 <motion.div
                   key={`${index}-w${wi}`}
