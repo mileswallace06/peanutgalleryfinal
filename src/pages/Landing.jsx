@@ -102,9 +102,9 @@ export default function Landing() {
         {/* Headline */}
         <div className="font-display leading-[0.95] mb-4" style={{ fontSize: 'clamp(2rem, 9vw, 3rem)' }}>
           {[
-            { text: 'Better Seats.', grad: 'linear-gradient(90deg, #00FF87, #00C8FF)', glow: '#00FF87' },
-            { text: 'After It Starts.', grad: 'linear-gradient(90deg, #BF5FFF, #FF2D78)', glow: '#BF5FFF' },
-            { text: 'Only On Peanut Gallery.', grad: 'linear-gradient(90deg, #FFE600, #FF2D78)', glow: '#FFE600' },
+            { text: 'Find.', grad: 'linear-gradient(90deg, #00FF87, #00C8FF)', glow: '#00FF87' },
+            { text: 'Upgrade.', grad: 'linear-gradient(90deg, #BF5FFF, #FF2D78)', glow: '#BF5FFF' },
+            { text: 'Experience.', grad: 'linear-gradient(90deg, #FFE600, #FF2D78)', glow: '#FFE600' },
           ].map(({ text, grad, glow }, i) => (
             <motion.div
               key={i}
