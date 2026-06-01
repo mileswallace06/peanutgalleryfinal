@@ -4,20 +4,68 @@ import { CheckCircle2, XCircle, HelpCircle, AlertTriangle, ChevronDown, ChevronU
 import { useAuth } from '@/lib/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
-// ─── Task definitions ──────────────────────────────────────────────────────────
+// ─── Task definitions (10 Real User Validation Tests) ──────────────────────────
 const TASKS = [
-  { id: 1, label: 'Open app', desc: 'User lands on the app for the first time. Does the landing page make sense?' },
-  { id: 2, label: 'Find an event', desc: 'User locates a real upcoming event via search or location.' },
-  { id: 3, label: 'Explain what PG does', desc: 'Without prompting, can the user explain what Peanut Gallery is?' },
-  { id: 4, label: 'Find Upgrades tab', desc: 'User navigates to the Upgrades page independently.' },
-  { id: 5, label: 'Enter Live Hub', desc: 'User opens a Live Hub for a live or upcoming event.' },
-  { id: 6, label: 'Understand Flash Drops', desc: 'User can explain what a Flash Drop is in their own words.' },
-  { id: 7, label: 'Join a Flash Drop', desc: 'User successfully enters a Flash Drop.' },
-  { id: 8, label: 'Find a listing', desc: 'User locates a ticket listing and understands the price/seat info.' },
-  { id: 9, label: 'Understand transfer protection', desc: 'User can explain what happens if a seller doesn\'t transfer.' },
-  { id: 10, label: 'Explain how buying works', desc: 'User understands escrow, payment hold, and confirmation flow.' },
-  { id: 11, label: 'Explain how selling works', desc: 'User understands how to list, transfer, and get paid.' },
-  { id: 12, label: 'Find notifications/watchlists', desc: 'User finds the bell icon and understands notification purpose.' },
+  {
+    id: 1,
+    label: 'Test 1 — 30 Second Test',
+    desc: 'Hand them the app. After 30 seconds ask: "What do you think this app does?" PASS if they mention: better seats / seat upgrades during events / free seat giveaways / fan-to-fan upgrades. FAIL if they say: Ticketmaster clone / social app / not sure.',
+    question: 'What do you think this app does?',
+  },
+  {
+    id: 2,
+    label: 'Test 2 — Differentiation Test',
+    desc: 'After 60 seconds ask: "What makes this different from Ticketmaster?" PASS if they mention: live upgrades / Flash Drops / upgrades during events / location-based. FAIL if they cannot identify any differentiation.',
+    question: 'What makes this different from Ticketmaster?',
+  },
+  {
+    id: 3,
+    label: 'Test 3 — First Action Test',
+    desc: 'Observe what the user taps first without guiding them. Track: Events / Upgrades / Live Hub / Sell / Notifications / Profile. Note the exact element they tap first.',
+    question: 'What did user tap first?',
+  },
+  {
+    id: 4,
+    label: 'Test 4 — Live Hub Discovery',
+    desc: 'Ask: "Find the part of the app where better seats happen." Do not help. PASS: under 15 seconds. WARNING: 15–30 seconds. FAIL: over 30 seconds or unable to find it.',
+    question: 'Find where better seats happen.',
+  },
+  {
+    id: 5,
+    label: 'Test 5 — Flash Drop Comprehension',
+    desc: 'Show a Flash Drop. Ask: "What do you think happens here?" PASS: user understands it\'s a free seat giveaway / random winner / enter to win. FAIL: confused about cost, odds, or purpose. Also ask: "Does the name Flash Drop sound exciting?" Record answer.',
+    question: 'What do you think happens here? Does "Flash Drop" sound exciting?',
+  },
+  {
+    id: 6,
+    label: 'Test 6 — Trust Test',
+    desc: 'Ask: "If you spent $100 here, would you trust it?" Then: "Why or why not?" Record the exact answer and common objections.',
+    question: 'If you spent $100 here, would you trust it? Why or why not?',
+  },
+  {
+    id: 7,
+    label: 'Test 7 — Seller Test',
+    desc: 'Ask: "How would you sell tickets here?" Do not help. Track: time to find sell flow, confusion points, questions asked.',
+    question: 'How would you sell tickets here?',
+  },
+  {
+    id: 8,
+    label: 'Test 8 — Excitement Test',
+    desc: 'Ask: "What is the coolest thing in this app?" Desired answers: Flash Drops / live upgrades / getting better seats / free seats / Live Hub. If they answer something else, note it — that reveals what they actually value.',
+    question: 'What is the coolest thing in this app?',
+  },
+  {
+    id: 9,
+    label: 'Test 9 — Return Test',
+    desc: 'Ask: "When would you open this app?" Desired: when I get to the venue / when the game starts / during intermission. If they don\'t know, retention will struggle.',
+    question: 'When would you open this app?',
+  },
+  {
+    id: 10,
+    label: 'Test 10 — Recommendation Test',
+    desc: 'Ask: "Would you tell a friend about this?" Then: "What would you tell them?" Record the exact wording — this reveals the true value proposition as users see it.',
+    question: 'Would you tell a friend? What would you tell them?',
+  },
 ];
 
 const OUTCOMES = [
@@ -136,7 +184,16 @@ function TaskRow({ task, result, onChange }) {
       {/* Expanded */}
       {expanded && (
         <div className="px-4 pb-4 space-y-3 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
-          <p className="text-[11px] text-muted-foreground pt-3 leading-relaxed">{task.desc}</p>
+          {/* Ask this */}
+          {task.question && (
+            <div className="mt-3 px-3 py-2.5 rounded-xl"
+              style={{ background: 'rgba(0,200,255,0.07)', border: '1px solid rgba(0,200,255,0.2)' }}>
+              <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-1">Ask this</p>
+              <p className="text-xs font-bold text-foreground italic">"{task.question}"</p>
+            </div>
+          )}
+
+          <p className="text-[11px] text-muted-foreground leading-relaxed">{task.desc}</p>
 
           {/* Outcome buttons */}
           <div className="grid grid-cols-2 gap-2">
@@ -157,11 +214,21 @@ function TaskRow({ task, result, onChange }) {
             ))}
           </div>
 
-          {/* Note */}
+          {/* Exact quote */}
+          <textarea
+            value={result?.quote || ''}
+            onChange={e => onChange(task.id, 'quote', e.target.value)}
+            placeholder='Exact quote from tester (e.g. "Wait, is this legal?")'
+            rows={2}
+            className="w-full px-3 py-2.5 rounded-xl text-xs text-foreground placeholder:text-muted-foreground focus:outline-none resize-none"
+            style={{ background: 'rgba(255,230,0,0.04)', border: '1px solid rgba(255,230,0,0.15)' }}
+          />
+
+          {/* Notes */}
           <textarea
             value={note}
             onChange={e => onChange(task.id, 'note', e.target.value)}
-            placeholder="Notes on what happened…"
+            placeholder="Observations — what they did, where they hesitated…"
             rows={2}
             className="w-full px-3 py-2.5 rounded-xl text-xs text-foreground placeholder:text-muted-foreground focus:outline-none resize-none"
             style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}
@@ -314,6 +381,19 @@ export default function FounderBetaChecklist() {
       </div>
 
       <div className="px-4 pt-5 max-w-2xl mx-auto space-y-6">
+
+        {/* Sprint goal */}
+        <div className="rounded-2xl px-4 py-4 space-y-2" style={{ background: 'rgba(0,255,135,0.06)', border: '1px solid rgba(0,255,135,0.2)' }}>
+          <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: '#00FF87' }}>Sprint Goal — Real User Validation</p>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Can a complete stranger explain Peanut Gallery without help? Run 10 testers (5 sports fans, 5 concert fans). Do NOT explain the product first. Just hand them the app.
+          </p>
+          <div className="pt-1 space-y-1">
+            <p className="text-[11px] font-bold text-foreground">✅ Sprint succeeds if:</p>
+            <p className="text-[11px] text-muted-foreground">• 70%+ of users independently say "this is an app for getting better seats after the event starts"</p>
+            <p className="text-[11px] text-muted-foreground">• 50%+ identify Flash Drops as exciting, unique, or memorable</p>
+          </div>
+        </div>
 
         {/* Add tester form */}
         {adding && (

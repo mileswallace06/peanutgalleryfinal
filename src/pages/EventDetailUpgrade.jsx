@@ -21,7 +21,7 @@ import LiveHubExplainer from '@/components/eventmode/LiveHubExplainer';
 import FlashDropExplainer from '@/components/eventmode/FlashDropExplainer';
 
 const TABS = [
-  { id: 'drops', label: '🎁 Fan Drops' },
+  { id: 'drops', label: '🎁 Flash Drops' },
   { id: 'upgrades', label: '⚡ Upgrades' },
   { id: 'karma', label: '🏆 Fan Karma' },
 ];
@@ -261,12 +261,17 @@ export default function EventDetailUpgrade() {
           }}>
           <span className="text-2xl flex-shrink-0">{isLive ? '🔴' : '⚡'}</span>
           <div className="flex-1 min-w-0">
-            <p className="font-black text-sm text-foreground leading-none">
-              {isLive ? 'Live Hub — Active Now' : 'Live Hub'}
+            <div className="flex items-center gap-2 leading-none mb-1">
+              <p className="font-black text-sm text-foreground leading-none">
+                {isLive ? 'Live Hub — Active Now' : 'Live Hub'}
+              </p>
+            </div>
+            <p className="text-[10px] text-muted-foreground leading-relaxed">
+              Where upgrades, Flash Drops, and fan activity happen during the event.
             </p>
             <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
               {isLive
-                ? 'Flash Drops, seat upgrades & live fan activity are happening right now.'
+                ? 'Flash Drops and seat upgrades are happening right now.'
                 : isUpcoming
                 ? 'Flash Drops and live upgrades activate at showtime. Preview them below.'
                 : 'Flash Drops and live upgrades unlock when the event goes live.'}
@@ -302,6 +307,17 @@ export default function EventDetailUpgrade() {
             {/* ── FLASH DROPS TAB ── */}
             {activeTab === 'drops' && (
               <div className="space-y-4">
+                {/* Flash Drop brand explainer — always shown */}
+                <div className="rounded-2xl px-4 py-3 flex items-start gap-3"
+                  style={{ background: 'rgba(255,230,0,0.07)', border: '1px solid rgba(255,230,0,0.25)' }}>
+                  <span className="text-xl flex-shrink-0">🎁</span>
+                  <div>
+                    <p className="font-black text-sm text-foreground">Flash Drop <span className="text-[11px] font-semibold text-muted-foreground ml-1">— Win Free Seats</span></p>
+                    <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                      Fans at the venue drop their extra seats for free. Enter in 60 seconds. Winner picked randomly. You pay nothing.
+                    </p>
+                  </div>
+                </div>
                 <FlashDropExplainer />
                 {drops.length > 0 ? (
                   <FlashDropCenter
@@ -400,6 +416,17 @@ export default function EventDetailUpgrade() {
             {/* ── FAN KARMA TAB ── */}
             {activeTab === 'karma' && (
               <div className="space-y-4">
+                {/* Fan Karma explainer */}
+                <div className="rounded-2xl px-4 py-3 flex items-start gap-3"
+                  style={{ background: 'rgba(191,95,255,0.08)', border: '1px solid rgba(191,95,255,0.25)' }}>
+                  <span className="text-xl flex-shrink-0">🏆</span>
+                  <div>
+                    <p className="font-black text-sm text-foreground">Fan Karma</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                      Your community reputation score. Earn it by helping other fans — dropping free seats, fast transfers, and showing up for your buyers.
+                    </p>
+                  </div>
+                </div>
                 <FanKarmaCard eventId={id} user={user} />
 
                 {/* Stats — show session checkins only when live */}
