@@ -148,7 +148,7 @@ export default function FlashDropCard({ drop: initialDrop, user, allListings = [
       {/* Header row */}
       <div className="px-4 pt-3 pb-2 flex items-center gap-2">
         <span className="text-base">⚡</span>
-        <span className="text-[10px] font-black tracking-[0.2em] uppercase" style={{ color: '#FFE600' }}>Flash Drop</span>
+        <span className="text-[10px] font-black tracking-[0.2em] uppercase" style={{ color: '#FFE600' }}>Fan Drop — Free Seat</span>
         {isVerified && (
           <span className="flex items-center gap-0.5 text-[9px] font-black px-1.5 py-0.5 rounded-full"
             style={{ background: 'rgba(0,255,135,0.12)', color: '#00FF87', border: '1px solid rgba(0,255,135,0.3)' }}>

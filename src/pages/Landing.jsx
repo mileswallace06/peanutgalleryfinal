@@ -102,9 +102,9 @@ export default function Landing() {
         {/* Headline */}
         <div className="font-display leading-[0.9] mb-5" style={{ fontSize: 'clamp(2.8rem, 12vw, 4.4rem)' }}>
           {[
-            { text: 'Buy.', grad: 'linear-gradient(90deg, #00FF87, #00C8FF)', glow: '#00FF87' },
-            { text: 'Upgrade.', grad: 'linear-gradient(90deg, #BF5FFF, #FF2D78)', glow: '#BF5FFF' },
-            { text: 'Experience.', grad: 'linear-gradient(90deg, #FFE600, #FF2D78)', glow: '#FFE600' },
+            { text: 'Better Seats.', grad: 'linear-gradient(90deg, #00FF87, #00C8FF)', glow: '#00FF87' },
+            { text: 'After It Starts.', grad: 'linear-gradient(90deg, #BF5FFF, #FF2D78)', glow: '#BF5FFF' },
+            { text: 'Only On PG.', grad: 'linear-gradient(90deg, #FFE600, #FF2D78)', glow: '#FFE600' },
           ].map(({ text, grad, glow }, i) => (
             <motion.div
               key={i}
@@ -132,8 +132,8 @@ export default function Landing() {
           className="text-base leading-relaxed mb-5"
           style={{ color: 'rgba(255,255,255,0.85)' }}
         >
-          Buy tickets before the event.{' '}
-          <span style={{ color: '#00FF87', fontWeight: 700 }}>Upgrade your seats</span> after it starts.
+          Buy live seat upgrades from fans already inside the venue —{' '}
+          <span style={{ color: '#00FF87', fontWeight: 700 }}>move closer once the show starts.</span>
         </motion.p>
 
         {/* Value props */}
@@ -144,9 +144,9 @@ export default function Landing() {
           className="flex flex-col gap-2.5 mb-7"
         >
           {[
-            { icon: '🔒', text: 'Escrow protection — seller paid only after you confirm' },
-            { icon: '📍', text: 'Location-locked upgrades — real fans only, no scalpers' },
-            { icon: '⚡', text: 'Instant transfers — 60-second listing, live payouts' },
+            { icon: '🔒', text: 'Money held safely — seller paid only after you confirm you got the tickets' },
+            { icon: '📍', text: 'Location-based upgrades — only fans at the venue can buy' },
+            { icon: '🎁', text: 'Free seat drops — fans give away unused seats to other fans' },
           ].map(({ icon, text }) => (
             <div key={text} className="flex items-start gap-2.5 text-sm font-medium" style={{ color: 'rgba(255,255,255,0.75)' }}>
               <span className="text-base leading-none mt-0.5">{icon}</span>

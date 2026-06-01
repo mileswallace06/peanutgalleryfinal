@@ -99,7 +99,7 @@ export default function ListingCard({ listing, onUpgrade, isCheapest, mode = 'up
           {isInstant && (
             <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full"
               style={{ background: 'rgba(0,200,255,0.12)', color: '#00C8FF', border: '1px solid rgba(0,200,255,0.3)' }}>
-              ⚡ Instant Transfer
+              ⚡ Instant Delivery
             </span>
           )}
           {demandLabel && (
@@ -145,7 +145,7 @@ export default function ListingCard({ listing, onUpgrade, isCheapest, mode = 'up
           </div>
         </div>
 
-        {/* Listing-level transfer status */}
+        {/* Transfer availability */}
         <TransferStatusBadge listing={listing} />
 
         {/* Event-level transfer warning (advisory only) */}
@@ -197,9 +197,13 @@ export default function ListingCard({ listing, onUpgrade, isCheapest, mode = 'up
             {sellerLabel === 'New seller' && <span className="opacity-50">New seller</span>}
           </span>
         </div>
-        <div className="flex items-center justify-center gap-2 -mt-2 flex-wrap">
-          <TrustBadge variant="protected" />
-          <TrustBadge variant="escrow" />
+        {/* Buyer protection plain-language message */}
+        <div className="rounded-xl px-3 py-2.5 flex items-start gap-2 -mt-1"
+          style={{ background: 'rgba(0,200,255,0.06)', border: '1px solid rgba(0,200,255,0.18)' }}>
+          <span className="text-sm flex-shrink-0">🔒</span>
+          <p className="text-[11px] leading-relaxed" style={{ color: 'rgba(0,200,255,0.85)' }}>
+            <span className="font-black">Buyer Protection:</span> Your money is only released after you confirm you received your tickets.
+          </p>
         </div>
       </div>
     </div>

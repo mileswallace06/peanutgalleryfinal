@@ -151,7 +151,7 @@ export function computeTransferConfidence(listing, event = null, reports = [], s
 export function getConfidenceDisplay(score) {
   if (score >= 80) {
     return {
-      label: `${score}% Transfer Confidence`,
+      label: `${score}% Likely Transferable`,
       color: '#00FF87',
       bg: 'rgba(0,255,135,0.08)',
       border: 'rgba(0,255,135,0.25)',
@@ -159,7 +159,7 @@ export function getConfidenceDisplay(score) {
     };
   } else if (score >= 50) {
     return {
-      label: `${score}% Transfer Confidence`,
+      label: `${score}% Probably Transferable`,
       color: '#FF8C00',
       bg: 'rgba(255,140,0,0.08)',
       border: 'rgba(255,140,0,0.25)',
@@ -167,7 +167,7 @@ export function getConfidenceDisplay(score) {
     };
   } else {
     return {
-      label: `${score}% Transfer Confidence`,
+      label: `${score}% Transfer Uncertain`,
       color: '#FF2D78',
       bg: 'rgba(255,45,120,0.08)',
       border: 'rgba(255,45,120,0.25)',
@@ -206,7 +206,7 @@ export function getTransferStatusBadge(listing) {
   if (listing.transfer_status === 'transfer_disabled') {
     return {
       icon: '❌',
-      label: 'Transfer Unavailable',
+      label: 'Can\'t Transfer — Unavailable',
       color: '#FF2D78',
       bg: 'rgba(255,45,120,0.1)',
       border: 'rgba(255,45,120,0.3)',
@@ -217,7 +217,7 @@ export function getTransferStatusBadge(listing) {
   if (expired || listing.transfer_status === 'transfer_expired') {
     return {
       icon: '⏱',
-      label: 'Verification Expired',
+      label: 'Needs Re-check',
       color: '#FF8C00',
       bg: 'rgba(255,140,0,0.08)',
       border: 'rgba(255,140,0,0.25)',
@@ -228,7 +228,7 @@ export function getTransferStatusBadge(listing) {
   if (listing.transfer_status === 'transfer_confirmed') {
     return {
       icon: '✅',
-      label: 'Transfer Verified',
+      label: 'Seller Confirmed Can Transfer',
       color: '#00FF87',
       bg: 'rgba(0,255,135,0.08)',
       border: 'rgba(0,255,135,0.25)',
@@ -239,7 +239,7 @@ export function getTransferStatusBadge(listing) {
   // transfer_unconfirmed or no status
   return {
     icon: '⚠️',
-    label: 'Transfer Unconfirmed',
+    label: 'Transfer Not Yet Confirmed',
     color: '#FFE600',
     bg: 'rgba(255,230,0,0.08)',
     border: 'rgba(255,230,0,0.25)',

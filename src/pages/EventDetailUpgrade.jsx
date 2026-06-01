@@ -17,9 +17,11 @@ import FlashDropCenter from '@/components/eventmode/FlashDropCenter';
 import UpgradeFeed from '@/components/eventmode/UpgradeFeed';
 import FanKarmaCard from '@/components/eventmode/FanKarmaCard';
 import CreateFlashDropSheet from '@/components/flashdrops/CreateFlashDropSheet';
+import LiveHubExplainer from '@/components/eventmode/LiveHubExplainer';
+import FlashDropExplainer from '@/components/eventmode/FlashDropExplainer';
 
 const TABS = [
-  { id: 'drops', label: '🎁 Flash Drops' },
+  { id: 'drops', label: '🎁 Fan Drops' },
   { id: 'upgrades', label: '⚡ Upgrades' },
   { id: 'karma', label: '🏆 Fan Karma' },
 ];
@@ -244,6 +246,9 @@ export default function EventDetailUpgrade() {
 
       <div className="px-4 pt-4 space-y-4 max-w-2xl mx-auto">
 
+        {/* ── LIVE HUB EXPLAINER — first-time only ── */}
+        <LiveHubExplainer />
+
         {/* ── LIVE HUB STATUS BANNER — always visible ── */}
         <div className="rounded-2xl px-4 py-3 flex items-start gap-3"
           style={isLive ? {
@@ -296,7 +301,8 @@ export default function EventDetailUpgrade() {
 
             {/* ── FLASH DROPS TAB ── */}
             {activeTab === 'drops' && (
-              <div>
+              <div className="space-y-4">
+                <FlashDropExplainer />
                 {drops.length > 0 ? (
                   <FlashDropCenter
                     drops={drops}
