@@ -5,7 +5,7 @@ const SLIDES = [
   {
     tag: '🥜 PEANUT GALLERY',
     tagColor: '#00FF87',
-    tagStyle: { background: 'rgba(0,255,135,0.12)', color: '#00FF87', border: '1px solid rgba(0,255,135,0.4)', boxShadow: '0 0 12px rgba(0,255,135,0.3)' },
+    tagStyle: { background: 'rgba(0,255,135,0.12)', color: '#00FF87', border: '1px solid rgba(0,255,135,0.35)' },
     headlineWords: [
       { text: 'Find.', color: '#00FF87', glow: '#00FF87' },
       { text: 'Upgrade.', color: '#BF5FFF', glow: '#BF5FFF' },
@@ -21,7 +21,7 @@ const SLIDES = [
   {
     tag: 'SEAT UPGRADES',
     tagColor: '#FF2D78',
-    tagStyle: { background: 'rgba(255,45,120,0.12)', color: '#FF2D78', border: '1px solid rgba(255,45,120,0.4)', boxShadow: '0 0 12px rgba(255,45,120,0.3)' },
+    tagStyle: { background: 'rgba(255,45,120,0.12)', color: '#FF2D78', border: '1px solid rgba(255,45,120,0.35)' },
     headlineWords: [
       { text: 'Stuck In', color: '#fff', glow: null },
       { text: 'The Back', color: '#fff', glow: null },
@@ -37,7 +37,7 @@ const SLIDES = [
   {
     tag: 'ZERO RISK',
     tagColor: '#00C8FF',
-    tagStyle: { background: 'rgba(0,200,255,0.12)', color: '#00C8FF', border: '1px solid rgba(0,200,255,0.4)', boxShadow: '0 0 12px rgba(0,200,255,0.3)' },
+    tagStyle: { background: 'rgba(0,200,255,0.12)', color: '#00C8FF', border: '1px solid rgba(0,200,255,0.35)' },
     headlineWords: [
       { text: 'Your', color: '#fff', glow: null },
       { text: 'Money', color: '#fff', glow: null },
@@ -54,7 +54,7 @@ const SLIDES = [
   {
     tag: 'SELL INSTANTLY',
     tagColor: '#FFE600',
-    tagStyle: { background: 'rgba(255,230,0,0.12)', color: '#FFE600', border: '1px solid rgba(255,230,0,0.4)', boxShadow: '0 0 12px rgba(255,230,0,0.3)' },
+    tagStyle: { background: 'rgba(255,230,0,0.12)', color: '#FFE600', border: '1px solid rgba(255,230,0,0.35)' },
     headlineWords: [
       { text: 'Got Seats', color: '#fff', glow: null },
       { text: "You Can't", color: '#fff', glow: null },
@@ -70,7 +70,7 @@ const SLIDES = [
   {
     tag: "🔥 LET'S GO",
     tagColor: '#BF5FFF',
-    tagStyle: { background: 'rgba(191,95,255,0.15)', color: '#fff', border: '1px solid rgba(191,95,255,0.5)', boxShadow: '0 0 16px rgba(191,95,255,0.5)' },
+    tagStyle: { background: 'rgba(191,95,255,0.15)', color: '#fff', border: '1px solid rgba(191,95,255,0.4)' },
     headlineWords: [
       { text: 'Your', color: '#fff', glow: null },
       { text: 'Seat Is', color: '#BF5FFF', glow: '#BF5FFF' },
@@ -261,7 +261,7 @@ export default function Onboarding({ onDone }) {
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               backgroundClip: 'text',
-              filter: 'drop-shadow(0 0 12px rgba(191,95,255,0.6))',
+              filter: 'none',
             }}
           >
             peanut
@@ -313,10 +313,7 @@ export default function Onboarding({ onDone }) {
                   style={{
                     color: word.color,
                     display: 'block',
-                    textShadow: word.glow
-                      ? `0 0 30px ${word.glow}99, 0 0 60px ${word.glow}55, 0 0 100px ${word.glow}22`
-                      : '0 2px 20px rgba(0,0,0,0.8)',
-                    filter: word.glow ? `drop-shadow(0 0 16px ${word.glow}88)` : 'none',
+                    textShadow: '0 2px 20px rgba(0,0,0,0.8)',
                   }}
                 >
                   {word.text}
@@ -347,7 +344,7 @@ export default function Onboarding({ onDone }) {
               animate={{
                 width: i === index ? 32 : 7,
                 background: i === index ? slide.accentDot : 'rgba(255,255,255,0.2)',
-                boxShadow: i === index ? `0 0 10px ${slide.accentDot}, 0 0 20px ${slide.accentDot}55` : 'none',
+                boxShadow: 'none',
               }}
               transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
               style={{ height: 6 }}
@@ -382,7 +379,7 @@ export default function Onboarding({ onDone }) {
             padding: isLast ? '22px 0' : '20px 0',
             fontSize: isLast ? '1.15rem' : '1.05rem',
             color: slide.btnColor,
-            boxShadow: `0 0 40px ${slide.accentDot}66, 0 0 80px ${slide.accentDot}33, 0 8px 32px rgba(0,0,0,0.5)`,
+            boxShadow: `0 4px 24px rgba(0,0,0,0.4)`,
           }}
         >
           {/* Animated gradient background */}
