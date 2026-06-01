@@ -1,0 +1,53 @@
+{
+  "name": "BetaFeedbackEvent",
+  "type": "object",
+  "rls": {
+    "create": true,
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  },
+  "properties": {
+    "user_email": {
+      "type": "string"
+    },
+    "user_name": {
+      "type": "string"
+    },
+    "feedback_type": {
+      "type": "string",
+      "enum": [
+        "bug",
+        "confused",
+        "love",
+        "idea"
+      ],
+      "description": "Type of feedback submitted"
+    },
+    "page": {
+      "type": "string",
+      "description": "Page path where feedback was submitted"
+    },
+    "message": {
+      "type": "string"
+    },
+    "screenshot_url": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "feedback_type"
+  ]
+}

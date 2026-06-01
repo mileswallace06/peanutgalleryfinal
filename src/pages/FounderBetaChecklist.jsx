@@ -371,12 +371,22 @@ export default function FounderBetaChecklist() {
             <h1 className="font-display text-2xl text-foreground leading-none">Beta Checklist</h1>
             <p className="text-[10px] text-muted-foreground mt-0.5">{totalSessions} session{totalSessions !== 1 ? 's' : ''} recorded</p>
           </div>
-          <button
-            onClick={() => setAdding(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl font-black text-sm"
-            style={{ background: 'linear-gradient(135deg, #00FF87, #00C8FF)', color: '#0D0B14' }}>
-            <Plus className="w-4 h-4" /> Add Tester
-          </button>
+          <div className="flex items-center gap-2">
+            <a href="/beta-dashboard" className="flex items-center gap-1.5 px-3 py-2 rounded-xl font-black text-xs"
+              style={{ background: 'rgba(191,95,255,0.12)', border: '1px solid rgba(191,95,255,0.3)', color: '#BF5FFF' }}>
+              📊 Dashboard
+            </a>
+            <a href="/beta-testers" className="flex items-center gap-1.5 px-3 py-2 rounded-xl font-black text-xs"
+              style={{ background: 'rgba(255,45,120,0.1)', border: '1px solid rgba(255,45,120,0.3)', color: '#FF2D78' }}>
+              👤 Testers
+            </a>
+            <button
+              onClick={() => setAdding(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl font-black text-sm"
+              style={{ background: 'linear-gradient(135deg, #00FF87, #00C8FF)', color: '#0D0B14' }}>
+              <Plus className="w-4 h-4" /> Add Session
+            </button>
+          </div>
         </div>
       </div>
 

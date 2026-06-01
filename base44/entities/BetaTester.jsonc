@@ -1,0 +1,119 @@
+{
+  "name": "BetaTester",
+  "type": "object",
+  "rls": {
+    "create": true,
+    "read": {
+      "$or": [
+        {
+          "user_email": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "user_email": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  },
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "email": {
+      "type": "string"
+    },
+    "user_email": {
+      "type": "string",
+      "description": "Matches auth user email when tester registers"
+    },
+    "fan_type": {
+      "type": "string",
+      "enum": [
+        "sports",
+        "concert",
+        "both"
+      ],
+      "description": "Sports fan or concert fan"
+    },
+    "favorite_teams": {
+      "type": "string"
+    },
+    "favorite_venues": {
+      "type": "string"
+    },
+    "device": {
+      "type": "string"
+    },
+    "beta_phase": {
+      "type": "string",
+      "enum": [
+        "phase_1",
+        "phase_2",
+        "phase_3"
+      ],
+      "default": "phase_1"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "invited",
+        "active",
+        "completed",
+        "dropped"
+      ],
+      "default": "invited"
+    },
+    "sessions_completed": {
+      "type": "number",
+      "default": 0
+    },
+    "feedback_count": {
+      "type": "number",
+      "default": 0
+    },
+    "last_active_at": {
+      "type": "string"
+    },
+    "day1_returned": {
+      "type": "boolean",
+      "default": false
+    },
+    "day3_returned": {
+      "type": "boolean",
+      "default": false
+    },
+    "day7_returned": {
+      "type": "boolean",
+      "default": false
+    },
+    "what_user_thinks_pg_is": {
+      "type": "string",
+      "description": "Exact quote from Test 1 \u2014 30 second test"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "name",
+    "email"
+  ]
+}

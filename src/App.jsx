@@ -34,6 +34,8 @@ import WhyPeanutGallery from '@/pages/WhyPeanutGallery';
 import Leaderboard from '@/pages/Leaderboard';
 import FounderDashboard from '@/pages/FounderDashboard';
 import FounderBetaChecklist from '@/pages/FounderBetaChecklist';
+import BetaRecruitment from '@/pages/BetaRecruitment';
+import BetaDashboard from '@/pages/BetaDashboard';
 import Notifications from '@/pages/Notifications';
 import EventMode from '@/pages/EventMode';
 
@@ -107,6 +109,8 @@ const AuthenticatedApp = () => {
             <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/founder" element={<FounderDashboard />} />
             <Route path="/beta-checklist" element={<FounderBetaChecklist />} />
+            <Route path="/beta-testers" element={<BetaRecruitment />} />
+            <Route path="/beta-dashboard" element={<BetaDashboard />} />
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/event-mode/:id" element={<EventMode />} />
           </Route>
