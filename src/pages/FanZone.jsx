@@ -307,7 +307,7 @@ export default function FanZone() {
          style={{
            background: 'linear-gradient(135deg, #FF99CC, #66FFFF)',
            boxShadow: '0 0 24px rgba(0,200,255,0.4), 0 4px 24px rgba(0,0,0,0.5)',
-           bottom: 'calc(6rem + env(safe-area-inset-bottom))'
+           bottom: 'calc(6rem + env(safe-area-inset-bottom))',
          }}
        >
         <Plus

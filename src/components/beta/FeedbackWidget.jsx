@@ -42,7 +42,7 @@ export default function FeedbackWidget({ user }) {
       {!open && (
         <button
           onClick={() => setOpen(true)}
-          className="fixed bottom-24 right-4 z-40 w-11 h-11 rounded-full flex items-center justify-center shadow-xl transition-all active:scale-95"
+          className="fixed bottom-24 left-4 z-40 w-11 h-11 rounded-full flex items-center justify-center shadow-xl transition-all active:scale-95"
           style={{ background: 'rgba(191,95,255,0.15)', border: '1px solid rgba(191,95,255,0.4)', backdropFilter: 'blur(12px)' }}
           aria-label="Send feedback"
         >
