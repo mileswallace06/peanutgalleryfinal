@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 
 export function usePullToRefresh(onRefresh, threshold = 60) {
   const containerRef = useRef(null);
+  const innerRef = useRef(null);
   const startYRef = useRef(0);
   const [pulling, setPulling] = useState(false);
 
@@ -21,12 +22,15 @@ export function usePullToRefresh(onRefresh, threshold = 60) {
 
       if (diff > 0) {
         setPulling(true);
-        container.style.transform = `translateY(${Math.min(diff, threshold)}px)`;
+        // Apply transform to inner element only — keeps fixed children unaffected
+        const inner = innerRef.current;
+        if (inner) inner.style.transform = `translateY(${Math.min(diff, threshold)}px)`;
       }
     };
 
     const handleTouchEnd = () => {
-      const transform = container.style.transform;
+      const inner = innerRef.current;
+      const transform = inner?.style.transform || '';
       const match = transform.match(/translateY\((\d+)px\)/);
       const distance = match ? parseInt(match[1]) : 0;
 
@@ -34,7 +38,7 @@ export function usePullToRefresh(onRefresh, threshold = 60) {
         onRefresh?.();
       }
 
-      container.style.transform = '';
+      if (inner) inner.style.transform = '';
       setPulling(false);
     };
 
@@ -49,5 +53,5 @@ export function usePullToRefresh(onRefresh, threshold = 60) {
     };
   }, [onRefresh, threshold]);
 
-  return { containerRef, pulling };
+  return { containerRef, innerRef, pulling };
 }

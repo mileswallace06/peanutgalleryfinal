@@ -177,12 +177,14 @@ export default function FanZone() {
     return posts;
   })();
 
-  const { containerRef, pulling } = usePullToRefresh(() => {
+  const { containerRef, innerRef, pulling } = usePullToRefresh(() => {
     loadPosts();
   });
 
   return (
-    <div ref={containerRef} className="pb-32 transition-transform duration-200">
+    <>
+    <div ref={containerRef} className="pb-32">
+      <div ref={innerRef} className="transition-transform duration-200">
       {pulling && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-4 py-2 rounded-full"
           style={{ background: 'rgba(102,255,255,0.15)', border: '1px solid rgba(102,255,255,0.3)' }}>
@@ -297,6 +299,9 @@ export default function FanZone() {
           ))
         )}
       </div>
+
+      </div>
+    </div>
 
       {/* FAB — only shown to authenticated users */}
        <button
@@ -485,7 +490,7 @@ export default function FanZone() {
           />
         </div>
       )}
-    </div>
+    </>
   );
 }
 
