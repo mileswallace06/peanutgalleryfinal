@@ -5,6 +5,7 @@
  */
 import FlashDropCard from '@/components/flashdrops/FlashDropCard';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Bell } from 'lucide-react';
 
 export default function FlashDropCenter({ drops, user, listings, loading, onDropSeats, onWinnerSelected }) {
   const activeDrops = drops.filter(d => d.status === 'active');
@@ -45,16 +46,28 @@ export default function FlashDropCenter({ drops, user, listings, loading, onDrop
       {loading ? (
         <div className="h-48 rounded-2xl animate-pulse bg-muted" />
       ) : activeDrops.length === 0 ? (
-        <div className="rounded-2xl px-5 py-8 text-center"
-          style={{ background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.1)' }}>
-          <p className="text-3xl mb-2">🎁</p>
-          <p className="text-sm font-bold text-foreground mb-1">No active Flash Drops</p>
-          <p className="text-xs text-muted-foreground mb-3">Upgraded your seat? Drop your old ones free for a fellow fan.</p>
-          <button onClick={onDropSeats}
-            className="text-xs px-4 py-2 rounded-full font-bold"
-            style={{ background: 'rgba(255,230,0,0.12)', color: '#FFE600', border: '1px solid rgba(255,230,0,0.3)' }}>
-            ⚡ Create First Drop
-          </button>
+        <div className="rounded-2xl px-5 py-8 text-center space-y-4"
+          style={{ background: 'rgba(255,230,0,0.03)', border: '1px dashed rgba(255,230,0,0.18)' }}>
+          <p className="text-3xl">🎁</p>
+          <div>
+            <p className="font-black text-sm text-foreground">No Flash Drops Yet</p>
+            <p className="text-xs text-muted-foreground mt-1.5 max-w-[220px] mx-auto leading-relaxed">
+              Fans can donate unused seats during the event. Be first to know if one drops.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 items-center">
+            <button
+              className="flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-sm transition-all active:scale-95"
+              style={{ background: 'rgba(255,230,0,0.12)', color: '#FFE600', border: '1px solid rgba(255,230,0,0.3)' }}>
+              <Bell className="w-3.5 h-3.5" />
+              Notify Me
+            </button>
+            <button onClick={onDropSeats}
+              className="text-xs px-4 py-2 rounded-full font-bold transition-all active:scale-95"
+              style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.1)' }}>
+              + Drop Seats Instead
+            </button>
+          </div>
         </div>
       ) : (
         <AnimatePresence>

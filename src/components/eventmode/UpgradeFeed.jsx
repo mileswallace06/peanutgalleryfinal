@@ -2,7 +2,7 @@
  * UpgradeFeed — sorted upgrade listings with price drop callouts.
  */
 import { Link } from 'react-router-dom';
-import { ArrowUpRight, TrendingDown } from 'lucide-react';
+import { ArrowUpRight, TrendingDown, Bell, Share2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { motion } from 'framer-motion';
 
@@ -30,7 +30,31 @@ export default function UpgradeFeed({ listings, eventId, loading }) {
   );
 
   if (sorted.length === 0) return (
-    <p className="text-sm text-muted-foreground text-center py-6">No upgrades listed right now.</p>
+    <div className="rounded-2xl px-5 py-8 text-center space-y-4"
+      style={{ background: 'rgba(0,255,135,0.03)', border: '1px dashed rgba(0,255,135,0.18)' }}>
+      <p className="text-3xl">⚡</p>
+      <div>
+        <p className="font-black text-sm text-foreground">No Upgrades Yet</p>
+        <p className="text-xs text-muted-foreground mt-1.5 max-w-[220px] mx-auto leading-relaxed">
+          Fans inside the venue can list seat upgrades once the event begins.
+        </p>
+      </div>
+      <div className="flex flex-col gap-2 items-center">
+        <button
+          className="flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-sm transition-all active:scale-95"
+          style={{ background: 'rgba(0,255,135,0.12)', color: '#00FF87', border: '1px solid rgba(0,255,135,0.3)' }}>
+          <Bell className="w-3.5 h-3.5" />
+          Notify Me When One Appears
+        </button>
+        <button
+          className="flex items-center gap-2 px-4 py-2 rounded-full font-bold text-xs transition-all active:scale-95"
+          style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.1)' }}
+          onClick={() => navigator.share?.({ title: 'Peanut Gallery', text: 'Get seat upgrades at the show!', url: window.location.href }).catch(() => {})}>
+          <Share2 className="w-3 h-3" />
+          Share PG With Friends At This Event
+        </button>
+      </div>
+    </div>
   );
 
   return (

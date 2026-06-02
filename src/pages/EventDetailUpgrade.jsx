@@ -13,6 +13,7 @@ import FanKarmaCard from '@/components/eventmode/FanKarmaCard';
 import CreateFlashDropSheet from '@/components/flashdrops/CreateFlashDropSheet';
 import EventLookupDebugPanel from '@/components/debug/EventLookupDebugPanel';
 import { logNavEvent } from '@/lib/navLogger';
+import LiveHubEmptyState from '@/components/eventmode/LiveHubEmptyState';
 
 const TABS = ['Upgrades', 'Flash Drops', 'Fan Karma'];
 
@@ -174,7 +175,12 @@ export default function EventDetailUpgrade() {
       {/* Tab content */}
       <div className="px-4 py-5 space-y-4">
         {activeTab === 'Upgrades' && (
-          <UpgradeFeed listings={listings} eventId={id} loading={loading} />
+          <>
+            <UpgradeFeed listings={listings} eventId={id} loading={loading} />
+            {!loading && listings.length === 0 && drops.filter(d => d.status === 'active' || d.status === 'pending').length === 0 && (
+              <LiveHubEmptyState />
+            )}
+          </>
         )}
 
         {activeTab === 'Flash Drops' && (
