@@ -12,6 +12,7 @@ import UpgradeFeed from '@/components/eventmode/UpgradeFeed';
 import FanKarmaCard from '@/components/eventmode/FanKarmaCard';
 import CreateFlashDropSheet from '@/components/flashdrops/CreateFlashDropSheet';
 import EventLookupDebugPanel from '@/components/debug/EventLookupDebugPanel';
+import { logNavEvent } from '@/lib/navLogger';
 
 const TABS = ['Upgrades', 'Flash Drops', 'Fan Karma'];
 
@@ -64,6 +65,16 @@ export default function EventDetailUpgrade() {
         if (!resolvedEvent) {
           setLookupError(true);
           setLoading(false);
+          const lastMethod = trace.steps[trace.steps.length - 1]?.method || 'direct_id';
+          logNavEvent({
+            result: 'event_not_found',
+            event: { id, tm_id: id },
+            sourcePage: 'EventDetailUpgrade',
+            generatedHref: `/upgrades/${id}`,
+            lookupMethod: lastMethod,
+            failureReason: `All lookup methods exhausted. Steps: ${trace.steps.map(s => `${s.method}=${s.count}`).join(', ')}`,
+            lookupTrace: { ...trace },
+          });
           return;
         }
 
@@ -78,9 +89,27 @@ export default function EventDetailUpgrade() {
         setListings(listingData);
         setDrops(dropData);
         setUser(me);
+
+        logNavEvent({
+          result: trace.steps[0]?.count > 0 ? 'success' : 'lookup_fallback_success',
+          event: resolvedEvent,
+          sourcePage: 'EventDetailUpgrade',
+          generatedHref: `/upgrades/${id}`,
+          lookupMethod: trace.steps.find(s => s.count > 0)?.method || 'direct_id',
+          lookupTrace: { ...trace },
+        });
       } catch (err) {
         console.error('[EventDetailUpgrade] load error:', err);
         setLookupError(true);
+        logNavEvent({
+          result: 'navigation_error',
+          event: { id, tm_id: id },
+          sourcePage: 'EventDetailUpgrade',
+          generatedHref: `/upgrades/${id}`,
+          lookupMethod: 'direct_id',
+          failureReason: err?.message || 'Unknown error',
+          lookupTrace: { ...trace },
+        });
       } finally {
         setLoading(false);
       }

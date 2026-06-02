@@ -77,6 +77,7 @@ export default function EventDetail() {
             generatedHref: `/events/${id}`,
             lookupMethod: lastMethod,
             failureReason: `All lookup methods exhausted. Steps: ${trace.steps.map(s => `${s.method}=${s.count}`).join(', ')}`,
+            lookupTrace: { ...trace },
           });
           return;
         }
@@ -93,19 +94,20 @@ export default function EventDetail() {
         setListings(real.length > 0 ? real : filtered);
 
         logNavEvent({
-          result: trace.steps[0]?.count > 0 ? 'success' : 'lookup_fallback_success',
-          event: ev,
-          sourcePage: 'EventDetail',
-          generatedHref: `/events/${id}`,
-          lookupMethod: trace.steps.find(s => s.count > 0)?.method || 'direct_id',
-        });
+            result: trace.steps[0]?.count > 0 ? 'success' : 'lookup_fallback_success',
+            event: ev,
+            sourcePage: 'EventDetail',
+            generatedHref: `/events/${id}`,
+            lookupMethod: trace.steps.find(s => s.count > 0)?.method || 'direct_id',
+            lookupTrace: { ...trace },
+          });
       } catch (err) {
         if (cancelled) return;
         console.error('[EventDetail] load error:', err);
         trace.steps.push({ method: 'caught_exception', count: 0, error: err?.message });
         setLookupTrace({ ...trace });
         setLookupError(true);
-        logNavEvent({ result: 'navigation_error', event: { id }, sourcePage: 'EventDetail', generatedHref: `/events/${id}`, lookupMethod: 'direct_id', failureReason: err?.message || 'Unknown error' });
+        logNavEvent({ result: 'navigation_error', event: { id }, sourcePage: 'EventDetail', generatedHref: `/events/${id}`, lookupMethod: 'direct_id', failureReason: err?.message || 'Unknown error', lookupTrace: { ...trace } });
       } finally {
         if (!cancelled) setLoading(false);
       }
