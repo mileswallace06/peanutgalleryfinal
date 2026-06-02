@@ -4,13 +4,14 @@
  * Three tabs: Flash Drops | Upgrades | Fan Karma
  */
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import LiveHubHero from '@/components/eventmode/LiveHubHero';
 import FlashDropCenter from '@/components/eventmode/FlashDropCenter';
 import UpgradeFeed from '@/components/eventmode/UpgradeFeed';
 import FanKarmaCard from '@/components/eventmode/FanKarmaCard';
 import CreateFlashDropSheet from '@/components/flashdrops/CreateFlashDropSheet';
+import EventLookupDebugPanel from '@/components/debug/EventLookupDebugPanel';
 
 const TABS = ['Upgrades', 'Flash Drops', 'Fan Karma'];
 
@@ -23,26 +24,99 @@ export default function EventDetailUpgrade() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('Upgrades');
   const [showDropSheet, setShowDropSheet] = useState(false);
+  const [lookupTrace, setLookupTrace] = useState(null);
+  const [lookupError, setLookupError] = useState(false);
 
   useEffect(() => {
     if (!id) return;
-    Promise.all([
-      base44.entities.Event.filter({ id }).catch(() => []),
-      base44.entities.Listing.filter({ event_id: id, status: 'active' }).catch(() => []),
-      base44.entities.FlashDrop.filter({ event_id: id }).catch(() => []),
-      base44.auth.me().catch(() => null),
-    ]).then(([events, listingData, dropData, me]) => {
-      setEvent(events[0] || null);
-      setListings(listingData);
-      setDrops(dropData);
-      setUser(me);
-      setLoading(false);
-    });
+    setLookupError(false);
+    setLookupTrace(null);
+
+    (async () => {
+      const trace = { steps: [], finalCount: 0, finalId: null };
+      try {
+        // Step 1: direct id
+        let events = await base44.entities.Event.filter({ id }).catch(() => []);
+        trace.steps.push({ method: 'direct_id', count: events.length });
+
+        // Step 2: tm_ prefix strip
+        if (events.length === 0 && id.startsWith('tm_')) {
+          events = await base44.entities.Event.filter({ tm_id: id.replace('tm_', '') }).catch(() => []);
+          trace.steps.push({ method: 'tm_prefix_strip', count: events.length });
+        }
+
+        // Step 3: bare tm_id
+        if (events.length === 0) {
+          events = await base44.entities.Event.filter({ tm_id: id }).catch(() => []);
+          trace.steps.push({ method: 'tm_id_field', count: events.length });
+        }
+
+        // ROOT CAUSE FIX: dedup — pick newest if multiple records share the same id/tm_id
+        if (events.length > 1) {
+          events = events.sort((a, b) => new Date(b.updated_date || 0) - new Date(a.updated_date || 0));
+        }
+
+        trace.finalCount = events.length;
+        trace.finalId = events[0]?.id || null;
+        setLookupTrace({ ...trace });
+
+        const resolvedEvent = events[0] || null;
+        if (!resolvedEvent) {
+          setLookupError(true);
+          setLoading(false);
+          return;
+        }
+
+        const resolvedId = resolvedEvent.id;
+        const [listingData, dropData, me] = await Promise.all([
+          base44.entities.Listing.filter({ event_id: resolvedId, status: 'active' }).catch(() => []),
+          base44.entities.FlashDrop.filter({ event_id: resolvedId }).catch(() => []),
+          base44.auth.me().catch(() => null),
+        ]);
+
+        setEvent(resolvedEvent);
+        setListings(listingData);
+        setDrops(dropData);
+        setUser(me);
+      } catch (err) {
+        console.error('[EventDetailUpgrade] load error:', err);
+        setLookupError(true);
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, [id]);
 
   const handleWinnerSelected = (dropId) => {
     setDrops(prev => prev.map(d => d.id === dropId ? { ...d, status: 'winner_selected' } : d));
   };
+
+  if (!loading && (!event || lookupError)) {
+    return (
+      <div className="min-h-screen bg-background pb-32">
+        <div className="px-4 py-20 text-center space-y-4">
+          <p className="text-5xl">⚡</p>
+          <div>
+            <p className="font-bold text-foreground text-lg">Live Hub not found</p>
+            <p className="text-sm text-muted-foreground mt-1 max-w-xs mx-auto">
+              This event may still be syncing. Try refreshing or go back.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 items-center">
+            <button
+              onClick={() => window.location.reload()}
+              className="px-5 py-2.5 rounded-full font-bold text-sm"
+              style={{ background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}
+            >
+              Retry
+            </button>
+            <Link to="/upgrades" className="text-sm text-muted-foreground underline">← Back to Upgrades</Link>
+          </div>
+        </div>
+        <EventLookupDebugPanel routeId={id} lookupTrace={lookupTrace} />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">

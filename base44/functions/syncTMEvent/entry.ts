@@ -24,7 +24,22 @@ Deno.serve(async (req) => {
     const existing = await base44.asServiceRole.entities.Event.filter({ tm_id });
 
     if (existing && existing.length > 0) {
-      // Already saved — update image/url in case they changed
+      // DEDUP: if somehow multiple records exist for this tm_id, delete all but the newest
+      if (existing.length > 1) {
+        const sorted = existing.sort((a, b) => new Date(b.updated_date || 0) - new Date(a.updated_date || 0));
+        const canonical = sorted[0];
+        // Delete the extra duplicates silently
+        for (let i = 1; i < sorted.length; i++) {
+          await base44.asServiceRole.entities.Event.delete(sorted[i].id).catch(() => {});
+        }
+        await base44.asServiceRole.entities.Event.update(canonical.id, {
+          image_url: image_url || canonical.image_url,
+          tm_url: tm_url || canonical.tm_url,
+        });
+        return Response.json({ status: 'deduped', id: canonical.id, duplicates_removed: sorted.length - 1 });
+      }
+
+      // Normal update
       await base44.asServiceRole.entities.Event.update(existing[0].id, {
         image_url: image_url || existing[0].image_url,
         tm_url: tm_url || existing[0].tm_url,

@@ -120,18 +120,22 @@ export default function Events() {
       const tmEvents = tmEventsRaw.map(e => ({ ...e, id: `tm_${e.tm_id}`, source: 'ticketmaster' }));
       setEvents([...pgMapped, ...tmEvents]);
 
-      // Persist TM events locally so they survive past start time
-      // Only sync IDs we haven't already synced this session
-      tmEventsRaw
-        .filter(e => e.tm_id && !syncedTmIds.current.has(e.tm_id))
-        .forEach(e => {
-          syncedTmIds.current.add(e.tm_id);
+      // Persist TM events locally so they survive past start time.
+      // SESSION DEDUP: only sync each tm_id once per session to prevent duplicate DB records.
+      // The syncTMEvent function is an upsert, but concurrent calls from multiple tabs/renders
+      // can still create duplicates if the first write hasn't committed before the second read.
+      const toSync = tmEventsRaw.filter(e => e.tm_id && !syncedTmIds.current.has(e.tm_id));
+      toSync.forEach(e => syncedTmIds.current.add(e.tm_id)); // mark BEFORE async call
+      // Serialize syncs to avoid write races — stagger by 200ms per event
+      toSync.forEach((e, i) => {
+        setTimeout(() => {
           base44.functions.invoke('syncTMEvent', {
             tm_id: e.tm_id, title: e.title, venue: e.venue, city: e.city,
             state: e.state, date: e.date, image_url: e.image_url,
             tm_url: e.tm_url, category: e.category || null,
           }).catch(syncErr => console.warn('[Events] syncTMEvent failed for', e.tm_id, syncErr?.message));
-        });
+        }, i * 200);
+      });
     } catch (err) {
       if (signal.aborted) return; // stale response — discard silently
       const status = err?.response?.status || err?.status;

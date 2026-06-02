@@ -7,6 +7,7 @@ import ListingCard from '@/components/events/ListingCard';
 import PurchaseDialog from '@/components/events/PurchaseDialog';
 import { getEventLiveStatus } from '@/lib/eventTiming';
 import { logNavEvent } from '@/lib/navLogger';
+import EventLookupDebugPanel from '@/components/debug/EventLookupDebugPanel';
 
 export default function EventDetail() {
   const { id } = useParams();
@@ -16,57 +17,72 @@ export default function EventDetail() {
   const [selectedListing, setSelectedListing] = useState(null);
   const [user, setUser] = useState(null);
   const [lookupError, setLookupError] = useState(false);
-
-  const loadEvent = async (resolvedId) => {
-    const [rawListings] = await Promise.all([
-      base44.entities.Listing.filter({ event_id: resolvedId, status: 'active', proof_status: 'approved' }),
-    ]);
-    return rawListings;
-  };
+  const [lookupTrace, setLookupTrace] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
     base44.auth.me().then(setUser).catch(() => {});
     setLoading(true);
     setLookupError(false);
-
-    const logCtx = { route_param: id, source_page: 'EventDetail', ts: new Date().toISOString() };
+    setLookupTrace(null);
 
     (async () => {
-      try {
-        // 1. Try direct id lookup first
-        let events = await base44.entities.Event.filter({ id });
-        let lookupMethod = 'direct_id';
+      const trace = { steps: [], finalCount: 0, finalId: null, syncTriggered: false, syncResult: null };
 
-        // 2. If not found and id looks like a tm_ prefix (shouldn't normally reach here, but handle it)
-        if ((!events || events.length === 0) && id && id.startsWith('tm_')) {
-          lookupMethod = 'tm_prefix_strip';
+      try {
+        // ── Step 1: direct internal id ──────────────────────────────────────
+        let events = [];
+        try {
+          events = await base44.entities.Event.filter({ id });
+        } catch (e) { /* ignore */ }
+        trace.steps.push({ method: 'direct_id', count: events.length });
+
+        // ── Step 2: tm_ prefix strip ─────────────────────────────────────────
+        if (events.length === 0 && id && id.startsWith('tm_')) {
           const tmId = id.replace('tm_', '');
-          events = await base44.entities.Event.filter({ tm_id: tmId });
+          try { events = await base44.entities.Event.filter({ tm_id: tmId }); } catch (e) { /* ignore */ }
+          trace.steps.push({ method: 'tm_prefix_strip', count: events.length });
         }
 
-        // 3. If still not found, try tm_id lookup (e.g. user navigated with a bare tm_id as the path param)
-        if (!events || events.length === 0) {
-          lookupMethod = 'tm_id_field';
-          events = await base44.entities.Event.filter({ tm_id: id });
+        // ── Step 3: bare tm_id lookup ────────────────────────────────────────
+        if (events.length === 0) {
+          try { events = await base44.entities.Event.filter({ tm_id: id }); } catch (e) { /* ignore */ }
+          trace.steps.push({ method: 'tm_id_field', count: events.length });
+        }
+
+        // ── Step 4: DEDUP CHECK — if multiple events found, pick newest ──────
+        // ROOT CAUSE FIX: TM sync creates duplicate DB records for the same tm_id
+        // because syncTMEvent is fire-and-forget from multiple concurrent clients.
+        // If >1 result, pick the most recently updated one (has most complete data).
+        if (events.length > 1) {
+          console.warn(`[EventDetail] ${events.length} duplicate events found for id="${id}" — picking newest`);
+          events = events.sort((a, b) => new Date(b.updated_date || 0) - new Date(a.updated_date || 0));
         }
 
         if (cancelled) return;
-        const ev = events?.[0] || null;
+        trace.finalCount = events.length;
+        trace.finalId = events[0]?.id || null;
+        setLookupTrace({ ...trace });
+
+        const ev = events[0] || null;
         setEvent(ev);
 
         if (!ev) {
           setLookupError(true);
-          console.warn('[EventDetail] lookup=all_methods MISS', { ...logCtx, lookup_method: lookupMethod });
-          logNavEvent({ result: 'event_not_found', event: { id, tm_id: id }, sourcePage: 'EventDetail', generatedHref: `/events/${id}`, lookupMethod, failureReason: 'All lookup methods exhausted — event not in DB' });
+          const lastMethod = trace.steps[trace.steps.length - 1]?.method || 'direct_id';
+          logNavEvent({
+            result: 'event_not_found',
+            event: { id, tm_id: id },
+            sourcePage: 'EventDetail',
+            generatedHref: `/events/${id}`,
+            lookupMethod: lastMethod,
+            failureReason: `All lookup methods exhausted. Steps: ${trace.steps.map(s => `${s.method}=${s.count}`).join(', ')}`,
+          });
           return;
         }
-        const navResult = lookupMethod === 'direct_id' ? 'success' : 'lookup_fallback_success';
-        console.info('[EventDetail] lookup success', { ...logCtx, lookup_method: lookupMethod, resolved_id: ev.id, event_source: ev.source || 'pg' });
-        logNavEvent({ result: navResult, event: ev, sourcePage: 'EventDetail', generatedHref: `/events/${id}`, lookupMethod });
 
         const resolvedId = ev.id;
-        const rawListings = await loadEvent(resolvedId);
+        const rawListings = await base44.entities.Listing.filter({ event_id: resolvedId, status: 'active', proof_status: 'approved' });
         if (cancelled) return;
 
         const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
@@ -75,9 +91,19 @@ export default function EventDetail() {
         const filtered = adminUnlocked ? rawListings : rawListings.filter(() => !isLiveMode);
         const real = filtered.filter(l => !l.notes?.startsWith('[DEMO]'));
         setListings(real.length > 0 ? real : filtered);
+
+        logNavEvent({
+          result: trace.steps[0]?.count > 0 ? 'success' : 'lookup_fallback_success',
+          event: ev,
+          sourcePage: 'EventDetail',
+          generatedHref: `/events/${id}`,
+          lookupMethod: trace.steps.find(s => s.count > 0)?.method || 'direct_id',
+        });
       } catch (err) {
         if (cancelled) return;
         console.error('[EventDetail] load error:', err);
+        trace.steps.push({ method: 'caught_exception', count: 0, error: err?.message });
+        setLookupTrace({ ...trace });
         setLookupError(true);
         logNavEvent({ result: 'navigation_error', event: { id }, sourcePage: 'EventDetail', generatedHref: `/events/${id}`, lookupMethod: 'direct_id', failureReason: err?.message || 'Unknown error' });
       } finally {
@@ -101,27 +127,28 @@ export default function EventDetail() {
   }
 
   if (!loading && (!event || lookupError)) {
-    // Log the "not loaded" screen being shown
-    logNavEvent({ result: 'event_not_loaded', event: { id }, sourcePage: 'EventDetail', generatedHref: `/events/${id}`, lookupMethod: 'all_methods', failureReason: 'Event not loaded screen shown to user' });
     return (
-      <div className="px-4 py-20 text-center space-y-4">
-        <p className="text-5xl">🎟️</p>
-        <div>
-          <p className="font-bold text-foreground text-lg">Event not loaded yet</p>
-          <p className="text-sm text-muted-foreground mt-1 max-w-xs mx-auto">
-            This event may still be syncing. Try refreshing or go back to find it.
-          </p>
+      <div className="pb-32">
+        <div className="px-4 py-20 text-center space-y-4">
+          <p className="text-5xl">🎟️</p>
+          <div>
+            <p className="font-bold text-foreground text-lg">Event not found</p>
+            <p className="text-sm text-muted-foreground mt-1 max-w-xs mx-auto">
+              This event may still be syncing. Try refreshing or go back to find it.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 items-center">
+            <button
+              onClick={() => window.location.reload()}
+              className="px-5 py-2.5 rounded-full font-bold text-sm"
+              style={{ background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}
+            >
+              Retry
+            </button>
+            <Link to="/events" className="text-sm text-muted-foreground underline">← Back to Events</Link>
+          </div>
         </div>
-        <div className="flex flex-col gap-2 items-center">
-          <button
-            onClick={() => window.location.reload()}
-            className="px-5 py-2.5 rounded-full font-bold text-sm"
-            style={{ background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}
-          >
-            Retry
-          </button>
-          <Link to="/events" className="text-sm text-muted-foreground underline">← Back to Events</Link>
-        </div>
+        <EventLookupDebugPanel routeId={id} lookupTrace={lookupTrace} />
       </div>
     );
   }
