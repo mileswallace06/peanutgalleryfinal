@@ -29,7 +29,7 @@ export default function Upgrades() {
 
   const [tmError, setTmError] = useState(false);
 
-  const { locationStatus, latlong, latlongRef, locationLabel, locationLabelRef, requestLocation, setManualCity } = useLocationDetect({
+  const { locationStatus, latlong, latlongRef, locationLabel, locationLabelRef, requestLocation, refreshLocation, setManualCity } = useLocationDetect({
     onSuccess: (ll) => fetchEvents(ll, null),
   });
 
@@ -39,10 +39,11 @@ export default function Upgrades() {
     return () => abortRef.current?.abort();
   }, []);
 
-  // Restore last city on hard refresh
+  // Restore last manual city on hard refresh.
+  // GPS coords are auto-restored by useLocationDetect.
   useEffect(() => {
     const ss = readSS();
-    if (ss?.city && !latlong) {
+    if (ss?.city && ss.city !== 'Near me' && !latlong) {
       setManualCity(ss.city);
       fetchEvents(null, ss.city);
     }

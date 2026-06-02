@@ -46,7 +46,7 @@ export default function Events() {
   // Track which TM IDs we've already synced this session to avoid duplicate calls
   const syncedTmIds = useRef(new Set());
 
-  const { locationStatus, latlong, latlongRef, locationLabel, locationLabelRef, requestLocation, setManualCity, setLocationLabelSync, setLatlongSync } = useLocationDetect({
+  const { locationStatus, latlong, latlongRef, locationLabel, locationLabelRef, requestLocation, refreshLocation, setManualCity, setLocationLabelSync, setLatlongSync } = useLocationDetect({
     onSuccess: (ll) => fetchEvents(ll, null, null),
   });
 
@@ -57,10 +57,11 @@ export default function Events() {
     return () => abortRef.current?.abort();
   }, []);
 
-  // Restore last city on hard refresh
+  // Restore last manual city on hard refresh.
+  // GPS coords are now auto-restored by useLocationDetect via localStorage cache.
   useEffect(() => {
     const ss = readSS();
-    if (ss?.city && !latlong) {
+    if (ss?.city && ss.city !== 'Near me' && !latlong) {
       setManualCity(ss.city);
       fetchEvents(null, ss.city, null);
     }
@@ -231,22 +232,40 @@ export default function Events() {
 
       {/* ── Location + Search ── */}
       <div className="px-4 mt-4 mb-4 space-y-2">
-        {/* Location chip — shows current location, tap to change */}
+        {/* Location chip — shows current location with refresh option for GPS */}
         {locationLabel && !editingLocation && (
-          <button
-            onClick={() => { setLocationInput(locationLabel === 'Near me' ? '' : locationLabel); setEditingLocation(true); }}
-            className="flex items-center gap-2 px-3 py-2 rounded-2xl transition-all active:scale-[0.98]"
-            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
-          >
-            <MapPin className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#00C8FF' }} />
-            <span className="text-xs font-semibold text-foreground truncate max-w-[160px]">
-              {locationStatus === 'requesting' ? 'Detecting…' : locationLabel}
-            </span>
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-1 flex-shrink-0"
-              style={{ background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' }}>
-              Change
-            </span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { setLocationInput(locationLabel === 'Near me' ? '' : locationLabel); setEditingLocation(true); }}
+              className="flex items-center gap-2 px-3 py-2 rounded-2xl transition-all active:scale-[0.98] flex-1 min-w-0"
+              style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+            >
+              <MapPin className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#00C8FF' }} />
+              <span className="text-xs font-semibold text-foreground truncate">
+                {locationStatus === 'requesting' ? 'Detecting…' : locationLabel}
+              </span>
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-auto flex-shrink-0"
+                style={{ background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' }}>
+                Change
+              </span>
+            </button>
+            {/* Refresh button — only visible when using GPS ("Near me") */}
+            {locationLabel === 'Near me' && (
+              <button
+                onClick={() => {
+                  refreshLocation();
+                  fetchEvents(latlongRef.current || null, null, null, true);
+                }}
+                disabled={locationStatus === 'requesting'}
+                title="Refresh nearby events"
+                aria-label="Refresh nearby events"
+                className="flex items-center justify-center w-9 h-9 rounded-2xl flex-shrink-0 transition-all active:scale-95 disabled:opacity-50"
+                style={{ background: 'rgba(0,200,255,0.1)', border: '1px solid rgba(0,200,255,0.25)', color: '#00C8FF' }}
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${locationStatus === 'requesting' ? 'animate-spin' : ''}`} />
+              </button>
+            )}
+          </div>
         )}
 
         {/* City search with autocomplete dropdown */}
