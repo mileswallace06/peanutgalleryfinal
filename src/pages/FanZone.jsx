@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { formatDistanceToNow } from 'date-fns';
@@ -303,6 +304,7 @@ export default function FanZone() {
       </div>
     </div>
 
+      {createPortal(<>
       {/* FAB — only shown to authenticated users */}
        <button
          onClick={() => user ? setFab(fab === 'menu' ? null : 'menu') : base44.auth.redirectToLogin()}
@@ -490,6 +492,7 @@ export default function FanZone() {
           />
         </div>
       )}
+      </>, document.body)}
     </>
   );
 }
