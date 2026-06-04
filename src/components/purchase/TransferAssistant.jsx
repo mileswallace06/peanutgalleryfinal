@@ -53,7 +53,7 @@ const OTHER_PLATFORMS = [
   { key: 'stubhub',      label: 'StubHub',       url: 'https://www.stubhub.com/selling' },
 ];
 
-export default function TransferAssistant({ purchase, listing, onConfirm, actionLoading, error, setError }) {
+export default function TransferAssistant({ purchase, listing, onConfirm, actionLoading, error, setError, sellerPayout }) {
   const [emailCopied, setEmailCopied] = useState(false);
   const [proofFile, setProofFile] = useState(null);
   const [showOtherPlatforms, setShowOtherPlatforms] = useState(false);
@@ -134,10 +134,18 @@ export default function TransferAssistant({ purchase, listing, onConfirm, action
           style={{ background: 'rgba(255,140,0,0.2)' }}>
           ⚡
         </div>
-        <div>
+        <div className="flex-1 min-w-0">
           <div className="font-black text-sm text-foreground">ACTION REQUIRED</div>
           <div className="text-xs text-muted-foreground">Transfer your tickets to the buyer</div>
         </div>
+        {sellerPayout != null && (
+          <div className="flex-shrink-0 text-right">
+            <div className="text-[10px] text-muted-foreground font-medium">You receive</div>
+            <div className="font-black text-lg leading-tight" style={{ color: '#00FF87' }}>
+              ${typeof sellerPayout === 'number' ? sellerPayout.toFixed(2) : sellerPayout}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="p-5 space-y-5">
@@ -225,23 +233,6 @@ export default function TransferAssistant({ purchase, listing, onConfirm, action
             Step 3 · Confirm Transfer
           </div>
 
-          {/* Optional proof upload — secondary, not primary */}
-          <label className="flex items-center gap-2 cursor-pointer rounded-xl px-4 py-3 mb-3 transition-all text-sm"
-            style={{
-              border: proofFile ? '1.5px solid rgba(0,255,135,0.4)' : '1.5px dashed rgba(255,255,255,0.12)',
-              background: proofFile ? 'rgba(0,255,135,0.06)' : 'rgba(255,255,255,0.02)',
-              color: proofFile ? '#00FF87' : 'hsl(var(--muted-foreground))',
-            }}>
-            {proofFile
-              ? <CheckCircle className="w-4 h-4 flex-shrink-0" />
-              : <Upload className="w-4 h-4 flex-shrink-0 opacity-60" />}
-            <span className="truncate text-xs">
-              {proofFile ? proofFile.name : 'Upload proof screenshot (optional — speeds up verification)'}
-            </span>
-            <input type="file" accept="image/*,application/pdf" className="hidden"
-              onChange={e => setProofFile(e.target.files[0] || null)} />
-          </label>
-
           {error && (
             <div className="text-xs px-3 py-2 rounded-lg mb-3"
               style={{ color: '#FF2D78', background: 'rgba(255,45,120,0.08)', border: '1px solid rgba(255,45,120,0.25)' }}>
@@ -249,6 +240,7 @@ export default function TransferAssistant({ purchase, listing, onConfirm, action
             </div>
           )}
 
+          {/* PRIMARY action — dominant visual */}
           <button
             onClick={handleConfirm}
             disabled={actionLoading || uploading}
@@ -265,8 +257,25 @@ export default function TransferAssistant({ purchase, listing, onConfirm, action
           </button>
 
           <p className="text-[10px] text-center text-muted-foreground mt-2">
-            Transfer note generated automatically. Your payout releases when the buyer confirms.
+            Your payout releases when the buyer confirms.
           </p>
+
+          {/* SECONDARY — proof upload, visually de-emphasized */}
+          <label className="flex items-center gap-2 cursor-pointer rounded-xl px-3 py-2.5 mt-3 transition-all"
+            style={{
+              border: proofFile ? '1px solid rgba(0,255,135,0.3)' : '1px solid rgba(255,255,255,0.08)',
+              background: proofFile ? 'rgba(0,255,135,0.04)' : 'transparent',
+              color: proofFile ? '#00FF87' : 'hsl(var(--muted-foreground))',
+            }}>
+            {proofFile
+              ? <CheckCircle className="w-3.5 h-3.5 flex-shrink-0" />
+              : <Upload className="w-3.5 h-3.5 flex-shrink-0 opacity-40" />}
+            <span className="truncate text-[11px]">
+              {proofFile ? proofFile.name : 'Add proof screenshot (optional)'}
+            </span>
+            <input type="file" accept="image/*,application/pdf" className="hidden"
+              onChange={e => setProofFile(e.target.files[0] || null)} />
+          </label>
         </div>
       </div>
     </div>

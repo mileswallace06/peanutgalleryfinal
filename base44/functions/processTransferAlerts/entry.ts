@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
         base44.asServiceRole.integrations.Core.SendEmail({
           to: listing.seller_email,
           subject: '⚠️ Your ticket listing verification expires soon',
-          body: `Your listing (Section ${listing.section}, Row ${listing.row}) transfer verification expires in ~15 minutes.\n\nPlease open Peanut Gallery and re-verify to keep your listing visible to buyers.\n\n— Peanut Gallery`,
+          body: `Your listing (Section ${listing.section}, Row ${listing.row}) transfer verification expires in ~15 minutes.\n\nPlease open Peanut Gallery and re-verify to keep your listing visible to buyers.\n\nRe-verify now →\nhttps://app.peanutgallery.app/my-sales\n\n— Peanut Gallery`,
         }).catch(() => {});
 
         results.warnings++;
@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
         base44.asServiceRole.integrations.Core.SendEmail({
           to: listing.seller_email,
           subject: '⏱ Your ticket listing is now hidden — re-verify to restore',
-          body: `Your listing (Section ${listing.section}, Row ${listing.row}) is no longer visible to buyers because transfer verification expired.\n\nTo restore your listing, open Peanut Gallery and tap "Verify Transfer Still Available".\n\n— Peanut Gallery`,
+          body: `Your listing (Section ${listing.section}, Row ${listing.row}) is no longer visible to buyers because transfer verification expired.\n\nTo restore your listing, open Peanut Gallery and tap "Verify Transfer Still Available".\n\nRestore listing →\nhttps://app.peanutgallery.app/my-sales\n\n— Peanut Gallery`,
         }).catch(() => {});
 
         // Create admin alert

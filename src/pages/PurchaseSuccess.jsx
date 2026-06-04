@@ -531,6 +531,7 @@ export default function PurchaseSuccess() {
           actionLoading={actionLoading}
           error={error}
           setError={setError}
+          sellerPayout={purchase.seller_payout ?? purchase.amount}
         />
       )}
       {isPending && isSeller && listing?.listing_mode === 'instant' && (
