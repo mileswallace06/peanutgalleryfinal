@@ -22,7 +22,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
 function buildEmail(title, body, type, purchaseId) {
   const ctaMap = {
-    sale_created:      { cta: 'Open My Sales →', path: '/my-sales' },
+    sale_created:      { cta: 'Send Tickets Now →', path: purchaseId ? `/purchase/${purchaseId}` : '/my-sales' },
     seller_reminder:   { cta: 'Send Tickets Now →', path: purchaseId ? `/purchase/${purchaseId}` : '/my-sales' },
     tickets_sent:      { cta: 'Confirm Receipt →', path: purchaseId ? `/purchase/${purchaseId}` : '/my-tickets' },
     buyer_reminder:    { cta: 'Confirm Tickets →', path: purchaseId ? `/purchase/${purchaseId}` : '/my-tickets' },
@@ -53,6 +53,9 @@ async function sendOneSignalPush(userEmail, title, body, data) {
     headings: { en: title },
     contents: { en: body },
     data: data || {},
+    ...(data?.purchase_id && {
+      url: `https://app.peanutgallery.app/purchase/${data.purchase_id}`,
+    }),
   };
 
   const res = await fetch('https://onesignal.com/api/v1/notifications', {

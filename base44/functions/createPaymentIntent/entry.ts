@@ -189,16 +189,10 @@ Deno.serve(async (req) => {
     return Response.json({ error: err.message }, { status: 500 });
   }
 
-  // Notify seller (fire-and-forget) — in-app + push + email
-  base44.asServiceRole.functions.invoke('recordNotification', {
-    user_email: listing.seller_email,
-    type: 'sale_created',
-    title: 'Your ticket sold 🎟️',
-    body: `Someone purchased your listing (Sec ${listing.section}, Row ${listing.row}). Transfer the tickets now to complete the sale and receive your payout.`,
-    reference_type: 'listing',
-    reference_id: listing.id,
-    action_url: '/my-sales',
-  }).catch(err => console.error('[createPaymentIntent] notify seller failed:', err?.message));
+  // NOTE: Seller notification with purchase deep-link is sent from PurchaseDialog
+  // (frontend) after the Purchase record is created, so we have the purchase ID.
+  // This fire-and-forget is a fallback only — no action_url since we don't have the purchase ID yet.
+  // The frontend call in PurchaseDialog will override with the correct deep-link.
 
   return Response.json({
     clientSecret: paymentIntent.client_secret,

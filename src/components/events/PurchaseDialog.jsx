@@ -87,7 +87,18 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
         payment_captured: false,
       });
 
-      // 4. Navigate to purchase page
+      // 4. Notify seller with direct deep-link to Transfer Assistant (fire-and-forget)
+      base44.functions.invoke('recordNotification', {
+        user_email: listing.seller_email,
+        type: 'sale_created',
+        title: '🎉 Your ticket sold!',
+        body: `Tap to transfer your tickets and receive payment. Sec ${listing.section}, Row ${listing.row}.`,
+        reference_type: 'purchase',
+        reference_id: purchase.id,
+        action_url: `/purchase/${purchase.id}`,
+      }).catch(() => {});
+
+      // 5. Navigate to purchase page
       navigate(`/purchase/${purchase.id}`);
     } catch (err) {
       // Attempt to restore listing on any error
