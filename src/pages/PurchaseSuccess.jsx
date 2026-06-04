@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { CheckCircle, Clock, XCircle, AlertTriangle, ArrowLeft, Ticket, Upload, FileText, ExternalLink, RefreshCw, Sparkles, Send } from 'lucide-react';
+import { CheckCircle, Clock, XCircle, AlertTriangle, ArrowLeft, Ticket, FileText, RefreshCw, Sparkles, Send } from 'lucide-react';
 import DisputeModal from '@/components/purchase/DisputeModal';
 import AIVerificationStatus from '@/components/purchase/AIVerificationStatus';
+import TransferAssistant from '@/components/purchase/TransferAssistant';
 import { createOptimisticPurchaseUpdate } from '@/lib/optimisticUI';
 import NotificationPermissionPrompt from '@/components/NotificationPermissionPrompt';
 
@@ -45,178 +46,7 @@ function ProgressBar({ purchase }) {
   );
 }
 
-// ── Transfer platform buttons ────────────────────────────────────────────────
-const PLATFORMS = [
-  { label: 'Ticketmaster', url: 'https://www.ticketmaster.com/member', color: '#006AFF' },
-  { label: 'SeatGeek',     url: 'https://seatgeek.com/account/orders', color: '#00A651' },
-  { label: 'StubHub',      url: 'https://www.stubhub.com/selling',     color: '#FF5C00' },
-];
-
-// ── Seller View ──────────────────────────────────────────────────────────────
-function SellerPanel({ purchase, onConfirm, actionLoading, error, setError, user }) {
-  const [proofNote, setProofNote] = useState('');
-  const [proofFile, setProofFile] = useState(null);
-  const [proofUploading, setProofUploading] = useState(false);
-
-  const handleConfirm = async () => {
-    if (!proofNote.trim() && !proofFile) {
-      setError('Please upload a screenshot or add a transfer note before confirming.');
-      return;
-    }
-    setProofUploading(true);
-    let proofUrl = null;
-    if (proofFile) {
-      const uploadRes = await base44.integrations.Core.UploadFile({ file: proofFile });
-      proofUrl = uploadRes.file_url;
-    }
-    setProofUploading(false);
-    await onConfirm({ proofUrl, proofNote: proofNote.trim() });
-  };
-
-  // Seller confirmed — waiting on buyer
-  if (purchase.seller_confirmed) {
-    return (
-      <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(0,200,255,0.3)', background: 'rgba(0,200,255,0.06)' }}>
-        {/* Hero state */}
-        <div className="px-5 pt-6 pb-5 text-center" style={{ borderBottom: '1px solid rgba(0,200,255,0.15)' }}>
-          <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3"
-            style={{ background: 'linear-gradient(135deg, #00C8FF33, #BF5FFF33)', border: '2px solid rgba(0,200,255,0.4)' }}>
-            <Send className="w-6 h-6" style={{ color: '#00C8FF' }} />
-          </div>
-          <h2 className="font-display text-2xl text-foreground mb-1">Tickets Sent 🚀</h2>
-          <p className="text-sm text-muted-foreground">We're waiting for the buyer to confirm receipt.</p>
-        </div>
-
-        {/* Status pill */}
-        <div className="px-5 py-4 flex flex-col items-center gap-3">
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold"
-            style={{ background: 'rgba(0,200,255,0.12)', border: '1px solid rgba(0,200,255,0.3)', color: '#00C8FF' }}>
-            <Clock className="w-4 h-4 animate-pulse" /> Waiting on buyer confirmation
-          </div>
-          <p className="text-xs text-center text-muted-foreground">
-            Your payout is released once the buyer confirms.
-          </p>
-
-          {/* AI Verification Status */}
-          <AIVerificationStatus purchase={purchase} role="seller" />
-
-          {/* Proof submitted */}
-          {(purchase.transfer_notes || purchase.transfer_proof_url) && (
-            <div className="w-full rounded-xl p-3 text-sm space-y-2 mt-1"
-              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
-              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Your Proof Submitted</div>
-              {purchase.transfer_notes && <p className="text-foreground text-xs">{purchase.transfer_notes}</p>}
-              {purchase.transfer_proof_url && (
-                <a href={purchase.transfer_proof_url} target="_blank" rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-primary hover:underline text-xs font-medium">
-                  <FileText className="w-3.5 h-3.5" /> View screenshot
-                </a>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // Seller needs to send tickets
-  return (
-    <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}>
-      <div className="px-5 py-4" style={{ background: 'rgba(191,95,255,0.1)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-        <h2 className="font-bold text-lg text-foreground">Send Your Tickets Now</h2>
-        <p className="text-sm text-muted-foreground mt-0.5">Transfer your tickets using your ticket app, then return here to confirm. You will be paid after the buyer confirms receipt.</p>
-      </div>
-
-      <div className="p-5 space-y-5">
-        {/* Buyer info */}
-        <div className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)' }}>
-          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Transfer To</div>
-          <div className="space-y-1 text-sm">
-            <div className="font-semibold text-foreground">{purchase.buyer_name || 'Buyer'}</div>
-            <div className="font-medium" style={{ color: '#BF5FFF' }}>{purchase.buyer_email}</div>
-            {purchase.buyer_phone && <div className="text-muted-foreground">{purchase.buyer_phone}</div>}
-          </div>
-        </div>
-
-        {/* Steps */}
-        <div className="space-y-3">
-          <div className="flex items-start gap-3">
-            <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">1</div>
-            <div>
-              <div className="font-semibold text-sm text-foreground">Open your ticket platform</div>
-              <div className="text-xs text-muted-foreground mb-2">Transfer tickets to the buyer's email above</div>
-              <div className="flex flex-wrap gap-2">
-                {PLATFORMS.map(p => (
-                  <a key={p.label} href={p.url} target="_blank" rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-white text-xs font-semibold"
-                    style={{ background: p.color }}>
-                    {p.label} <ExternalLink className="w-3 h-3" />
-                  </a>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-start gap-3">
-            <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">2</div>
-            <div className="flex-1">
-              <div className="font-semibold text-sm text-foreground">Upload proof of transfer</div>
-              <div className="text-xs text-muted-foreground mb-2">Screenshot of the transfer confirmation screen</div>
-              <label className="flex items-center gap-2 cursor-pointer rounded-xl px-4 py-3 transition-all text-sm text-muted-foreground"
-                style={{ border: '1.5px dashed rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.03)' }}>
-                <Upload className="w-4 h-4 flex-shrink-0 text-primary" />
-                {proofFile
-                  ? <span className="text-foreground font-medium truncate">{proofFile.name}</span>
-                  : <span>Tap to upload screenshot</span>}
-                <input type="file" accept="image/*,application/pdf" className="hidden" onChange={e => setProofFile(e.target.files[0] || null)} />
-              </label>
-            </div>
-          </div>
-
-          <div className="flex items-start gap-3">
-            <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">3</div>
-            <div className="flex-1">
-              <div className="font-semibold text-sm text-foreground">Add a transfer note <span className="text-muted-foreground font-normal">(optional if screenshot provided)</span></div>
-              <textarea
-                value={proofNote}
-                onChange={e => setProofNote(e.target.value)}
-                placeholder="e.g. Transferred via Ticketmaster to buyer's email at 7:32 PM"
-                rows={2}
-                className="mt-1.5 w-full px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
-                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }}
-              />
-            </div>
-          </div>
-        </div>
-
-        {error && (
-          <div className="text-sm rounded-xl px-3 py-2" style={{ color: '#FF2D78', background: 'rgba(255,45,120,0.1)', border: '1px solid rgba(255,45,120,0.25)' }}>
-            {error}
-          </div>
-        )}
-
-        <button
-          onClick={handleConfirm}
-          disabled={actionLoading}
-          className="w-full py-3.5 rounded-full font-black text-sm transition-all disabled:opacity-40 flex items-center justify-center gap-2"
-          style={{ background: 'linear-gradient(135deg, #00E87A, #00B8E8)', color: '#0D0B14' }}
-        >
-          {proofUploading ? (
-            <><span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> Uploading proof…</>
-          ) : actionLoading ? (
-            <><span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> Confirming…</>
-          ) : (
-            <><CheckCircle className="w-4 h-4" /> I've Sent the Tickets</>
-          )}
-        </button>
-
-        <p className="text-xs text-center text-muted-foreground">
-          Payment will be released once the buyer confirms receipt.
-        </p>
-      </div>
-    </div>
-  );
-}
+// SellerPanel removed — replaced by TransferAssistant component
 
 // ── Buyer View ───────────────────────────────────────────────────────────────
 function BuyerPanel({ purchase, onConfirm, onDispute, onCancel, actionLoading }) {
@@ -694,8 +524,9 @@ export default function PurchaseSuccess() {
 
       {/* Role-specific panels */}
       {isPending && isSeller && listing?.listing_mode !== 'instant' && (
-        <SellerPanel
+        <TransferAssistant
           purchase={purchase}
+          listing={listing}
           onConfirm={handleSellerConfirm}
           actionLoading={actionLoading}
           error={error}
