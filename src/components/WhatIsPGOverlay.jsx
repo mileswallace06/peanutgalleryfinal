@@ -6,6 +6,12 @@ export function shouldShowOverlay() {
   try { return !localStorage.getItem(STORAGE_KEY); } catch { return false; }
 }
 
+const FEATURES = [
+  { icon: '⚡', title: 'Upgrade during the show', desc: 'Buy better seats from fans around you once the event starts.', color: '#FFE600' },
+  { icon: '🎁', title: 'Win free upgrades', desc: 'Enter Fan Drops — seat giveaways from generous fans inside.', color: '#BF5FFF' },
+  { icon: '🔒', title: 'Your money is protected', desc: 'Payment is held in escrow until you confirm receipt.', color: '#00C8FF' },
+];
+
 export default function WhatIsPGOverlay({ onDismiss }) {
   const handleDismiss = () => {
     try { localStorage.setItem(STORAGE_KEY, '1'); } catch {}
@@ -13,60 +19,71 @@ export default function WhatIsPGOverlay({ onDismiss }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col justify-end sm:justify-center items-center"
-      style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)' }}>
-      <div className="relative w-full sm:max-w-md mx-auto rounded-t-3xl sm:rounded-3xl flex flex-col"
+    <div
+      className="fixed inset-0 z-[200] flex flex-col justify-end"
+      style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)' }}
+      onClick={handleDismiss}
+    >
+      {/* Sheet — stops click propagation so tapping inside doesn't close */}
+      <div
+        className="relative w-full rounded-t-3xl"
         style={{
-          background: 'hsl(0 0% 6%)',
-          border: '1px solid rgba(0,255,135,0.25)',
-          boxShadow: '0 0 80px rgba(0,255,135,0.12)',
-          maxHeight: '92dvh',
-        }}>
-        {/* Top accent */}
-        <div className="h-1 flex-shrink-0 rounded-t-3xl sm:rounded-t-3xl" style={{ background: 'linear-gradient(90deg, #00FF87, #00C8FF, #BF5FFF)' }} />
+          background: '#0a0a0a',
+          borderTop: '1px solid rgba(0,255,135,0.3)',
+          borderLeft: '1px solid rgba(255,255,255,0.06)',
+          borderRight: '1px solid rgba(255,255,255,0.06)',
+          paddingBottom: 'env(safe-area-inset-bottom)',
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Green top bar */}
+        <div className="h-1 w-full rounded-t-3xl" style={{ background: 'linear-gradient(90deg, #00FF87, #00C8FF, #BF5FFF)' }} />
 
-        {/* Close button */}
-        <button onClick={handleDismiss}
-          className="absolute top-4 right-4 w-8 h-8 rounded-full flex items-center justify-center z-10"
-          style={{ background: 'rgba(255,255,255,0.08)', color: 'hsl(var(--muted-foreground))' }}>
-          <X className="w-4 h-4" />
+        {/* Drag handle */}
+        <div className="flex justify-center pt-3 pb-1">
+          <div className="w-10 h-1 rounded-full bg-white/20" />
+        </div>
+
+        {/* Close */}
+        <button
+          onClick={handleDismiss}
+          className="absolute top-5 right-4 w-8 h-8 rounded-full flex items-center justify-center"
+          style={{ background: 'rgba(255,255,255,0.08)' }}
+        >
+          <X className="w-4 h-4 text-white/60" />
         </button>
 
-        {/* Scrollable content */}
-        <div className="overflow-y-auto px-6 pt-6 pb-8" style={{ paddingBottom: 'max(2rem, env(safe-area-inset-bottom))' }}>
+        <div className="px-6 pt-2 pb-6">
           {/* Badge */}
-          <div className="inline-flex items-center gap-2 mb-4">
-            <span className="text-xl">🎟</span>
-            <span className="text-[11px] font-black tracking-[0.2em] uppercase" style={{ color: '#00FF87' }}>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-base">🎟</span>
+            <span className="text-[10px] font-black tracking-[0.18em] uppercase" style={{ color: '#00FF87' }}>
               What is Peanut Gallery?
             </span>
           </div>
 
           {/* Headline */}
-          <h2 className="font-display leading-tight mb-3 text-foreground"
-            style={{ fontSize: 'clamp(1.8rem, 7vw, 2.4rem)' }}>
-            Better Seats<br />After The Event Starts
+          <h2 className="font-display text-white leading-[1.05] mb-2" style={{ fontSize: '2rem' }}>
+            Better Seats<br />After The Show Starts
           </h2>
 
-          <p className="text-sm text-muted-foreground leading-relaxed mb-5">
+          <p className="text-sm leading-relaxed mb-5" style={{ color: 'rgba(255,255,255,0.55)' }}>
             Buy live seat upgrades directly from fans already inside the venue — escrow-protected and location-verified.
           </p>
 
-          {/* Bullets */}
+          {/* Feature rows */}
           <div className="space-y-3 mb-6">
-            {[
-              { icon: '⚡', title: 'Upgrade during the show', desc: 'Buy better seats from fans around you once the event starts.', color: '#FFE600' },
-              { icon: '🎁', title: 'Win free upgrades', desc: 'Enter Fan Drops — seat giveaways from generous fans inside.', color: '#BF5FFF' },
-              { icon: '🔒', title: 'Your money is protected', desc: 'Payment is held in escrow until you confirm you received your tickets.', color: '#00C8FF' },
-            ].map(({ icon, title, desc, color }) => (
+            {FEATURES.map(({ icon, title, desc, color }) => (
               <div key={title} className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-2xl flex items-center justify-center flex-shrink-0 text-lg"
-                  style={{ background: `${color}18`, border: `1px solid ${color}33` }}>
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-lg"
+                  style={{ background: `${color}15`, border: `1px solid ${color}30` }}
+                >
                   {icon}
                 </div>
-                <div>
-                  <div className="text-sm font-bold text-foreground">{title}</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">{desc}</div>
+                <div className="pt-0.5">
+                  <p className="text-sm font-bold text-white leading-tight">{title}</p>
+                  <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.5)' }}>{desc}</p>
                 </div>
               </div>
             ))}
@@ -75,14 +92,15 @@ export default function WhatIsPGOverlay({ onDismiss }) {
           {/* CTA */}
           <button
             onClick={handleDismiss}
-            className="w-full py-4 rounded-full font-black text-base flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
-            style={{ background: 'linear-gradient(135deg, #00E87A, #00B8E8)', color: '#0D0B14', boxShadow: '0 4px 24px rgba(0,232,122,0.3)' }}>
+            className="w-full py-4 rounded-2xl font-black text-base flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+            style={{
+              background: 'linear-gradient(135deg, #00E87A, #00C8FF)',
+              color: '#061a10',
+              boxShadow: '0 0 32px rgba(0,232,122,0.25)',
+            }}
+          >
             <Zap className="w-5 h-5" /> Let's Go
           </button>
-
-          <p className="text-[10px] text-center text-muted-foreground mt-3">
-            Only shows once — we promise 🤝
-          </p>
         </div>
       </div>
     </div>
