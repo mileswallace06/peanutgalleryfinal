@@ -10,6 +10,7 @@ import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { fetchTMEvents, bustTMCache } from '@/lib/tmCache';
 import { useLocationDetect } from '@/hooks/useLocationDetect';
 import LocationAutocomplete from '@/components/LocationAutocomplete';
+import EventsEmptyState from '@/components/events/EventsEmptyState';
 
 // ── sessionStorage helpers ────────────────────────────────────────────────
 const SS_KEY = 'pg_events_location';
@@ -204,38 +205,31 @@ export default function Events() {
       </div>
 
       {/* ── Location + Search ── */}
-      <div className="px-4 mt-4 mb-4 space-y-2">
-        {/* Location chip — shows current location with refresh option for GPS */}
+      <div className="px-4 mt-3 mb-4 space-y-2">
+        {/* Location chip — compact, secondary treatment */}
         {locationLabel && !editingLocation && (
           <div className="flex items-center gap-2">
             <button
               onClick={() => { setLocationInput(locationLabel === 'Near me' ? '' : locationLabel); setEditingLocation(true); }}
-              className="flex items-center gap-2 px-3 py-2 rounded-2xl transition-all active:scale-[0.98] flex-1 min-w-0"
-              style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl transition-all active:scale-[0.98]"
+              style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}
             >
-              <MapPin className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#00C8FF' }} />
-              <span className="text-xs font-semibold text-foreground truncate">
+              <MapPin className="w-3 h-3 flex-shrink-0 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground truncate max-w-[120px]">
                 {locationStatus === 'requesting' ? 'Detecting…' : locationLabel}
               </span>
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-auto flex-shrink-0"
-                style={{ background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' }}>
-                Change
-              </span>
+              <span className="text-[10px] text-muted-foreground opacity-60">· change</span>
             </button>
-            {/* Refresh button — only visible when using GPS ("Near me") */}
             {locationLabel === 'Near me' && (
               <button
-                onClick={() => {
-                  refreshLocation();
-                  fetchEvents(latlongRef.current || null, null, null, true);
-                }}
+                onClick={() => { refreshLocation(); fetchEvents(latlongRef.current || null, null, null, true); }}
                 disabled={locationStatus === 'requesting'}
                 title="Refresh nearby events"
                 aria-label="Refresh nearby events"
-                className="flex items-center justify-center w-9 h-9 rounded-2xl flex-shrink-0 transition-all active:scale-95 disabled:opacity-50"
-                style={{ background: 'rgba(0,200,255,0.1)', border: '1px solid rgba(0,200,255,0.25)', color: '#00C8FF' }}
+                className="flex items-center justify-center w-7 h-7 rounded-lg flex-shrink-0 transition-all active:scale-95 disabled:opacity-50"
+                style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${locationStatus === 'requesting' ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-3 h-3 text-muted-foreground ${locationStatus === 'requesting' ? 'animate-spin' : ''}`} />
               </button>
             )}
           </div>
@@ -246,14 +240,12 @@ export default function Events() {
           value={locationInput}
           onChange={setLocationInput}
           onSelect={(s) => {
-            console.log('[Events] city selected:', s.label);
             setManualCity(s.label);
             setEditingLocation(false);
             writeSS({ city: s.label, locationInput: s.label });
             fetchEvents(null, s.label, null);
           }}
           onSubmit={(val) => {
-            console.log('[Events] city submitted:', val);
             setManualCity(val);
             setEditingLocation(false);
             writeSS({ city: val, locationInput: val });
@@ -288,17 +280,15 @@ export default function Events() {
       )}
 
       {/* ── Event count + aria-live announcement ── */}
-      <div
-        aria-live="polite"
-        aria-atomic="true"
-        className="px-4 mb-3"
-      >
-        {!loading && (locationLabel || latlong) && (
-          <p className="text-xs text-muted-foreground font-medium">
-            {filtered.length === 0
-              ? `No events found${locationLabel ? ` for ${locationLabel}` : ''}`
-              : `${filtered.length} event${filtered.length !== 1 ? 's' : ''}${locationLabel ? ` near ${locationLabel}` : ''}`}
-          </p>
+      <div aria-live="polite" aria-atomic="true" className="px-4 mb-4">
+        {!loading && (locationLabel || latlong) && filtered.length > 0 && (
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-border" />
+            <p className="text-[10px] font-semibold tracking-widest uppercase text-muted-foreground">
+              {filtered.length} event{filtered.length !== 1 ? 's' : ''}
+            </p>
+            <div className="h-px flex-1 bg-border" />
+          </div>
         )}
       </div>
 
@@ -330,71 +320,41 @@ export default function Events() {
       {loading ? (
         <div className="px-4 space-y-3">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="rounded-2xl h-28 animate-pulse" style={{ background: 'rgba(255,255,255,0.05)' }} />
+            <div key={i} className="rounded-2xl overflow-hidden flex animate-pulse" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+              <div className="w-28 flex-shrink-0" style={{ minHeight: 110, background: 'hsl(var(--muted))' }} />
+              <div className="flex-1 px-4 py-4 space-y-2">
+                <div className="h-3.5 rounded-full bg-muted w-3/4" />
+                <div className="h-2.5 rounded-full bg-muted w-1/2" />
+                <div className="h-2.5 rounded-full bg-muted w-2/5" />
+              </div>
+            </div>
           ))}
         </div>
       ) : !loading && !latlong && !locationLabel ? (
-        <div className="text-center py-16 text-muted-foreground px-4 space-y-4">
-          <MapPin className="w-8 h-8 mx-auto opacity-30" />
-          {locationStatus === 'denied' ? (
-            <>
-              <div>
-                <p className="font-medium text-foreground">Location access is blocked</p>
-                <p className="text-sm mt-1 opacity-70">Enable location permissions in your browser or search by city.</p>
-              </div>
-              <button
-                onClick={() => setEditingLocation(true)}
-                className="mx-auto flex items-center gap-2 px-5 py-3 rounded-full font-bold text-sm"
-                style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
-                <MapPin className="w-4 h-4" /> Search by city
-              </button>
-            </>
-          ) : (locationStatus === 'unavailable' || locationStatus === 'timeout') ? (
-            <>
-              <div>
-                <p className="font-medium text-foreground">
-                  {locationStatus === 'timeout' ? 'Location timed out' : "Couldn't get your location"}
-                </p>
-                <p className="text-sm mt-1 opacity-70">Try again or enter your city manually.</p>
-              </div>
-              <div className="flex gap-3 justify-center">
-                <button onClick={requestLocation}
-                  className="flex items-center gap-2 px-5 py-3 rounded-full font-bold text-sm"
-                  style={{ background: 'rgba(0,200,255,0.12)', border: '1px solid rgba(0,200,255,0.3)', color: '#00C8FF' }}>
-                  <LocateFixed className="w-4 h-4" /> Try again
-                </button>
-                <button onClick={() => setEditingLocation(true)}
-                  className="flex items-center gap-2 px-5 py-3 rounded-full font-bold text-sm"
-                  style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
-                  <MapPin className="w-4 h-4" /> Enter city
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <div>
-                <p className="font-medium text-foreground">Find events near you</p>
-                <p className="text-sm mt-1 opacity-70">Tap Near Me or search by city.</p>
-              </div>
-              <div className="flex gap-3 justify-center">
-                <button onClick={requestLocation}
-                  className="flex items-center gap-2 px-5 py-3 rounded-full font-bold text-sm"
-                  style={{ background: 'rgba(0,200,255,0.12)', border: '1px solid rgba(0,200,255,0.3)', color: '#00C8FF' }}>
-                  <LocateFixed className="w-4 h-4" /> Near Me
-                </button>
-                <button onClick={() => setEditingLocation(true)}
-                  className="flex items-center gap-2 px-5 py-3 rounded-full font-bold text-sm"
-                  style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
-                  <MapPin className="w-4 h-4" /> Enter city
-                </button>
-              </div>
-            </>
-          )}
-        </div>
+        <EventsEmptyState
+          locationStatus={locationStatus}
+          onNearMe={requestLocation}
+          onEnterCity={() => setEditingLocation(true)}
+        />
       ) : filtered.length === 0 ? (
-        <div className="text-center py-20 text-muted-foreground px-4">
-          <p className="font-medium">No events found nearby</p>
-          <p className="text-sm mt-1 opacity-70">Try a different city or search term</p>
+        <div className="px-4">
+          <div className="rounded-3xl overflow-hidden relative" style={{ minHeight: 200 }}>
+            <img
+              src="https://images.unsplash.com/photo-1540039155733-5bb30b4f5c1d?w=600&q=60"
+              alt="venue"
+              className="w-full h-full object-cover absolute inset-0 opacity-20"
+              style={{ filter: 'grayscale(40%)' }}
+            />
+            <div className="relative z-10 flex flex-col items-center justify-center text-center px-6 py-12 gap-3">
+              <p className="font-bold text-foreground text-base">No events found nearby</p>
+              <p className="text-sm text-muted-foreground max-w-xs">Try searching a different city or check back soon — events are added regularly.</p>
+              <button onClick={() => setEditingLocation(true)}
+                className="mt-2 flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold text-sm"
+                style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+                <MapPin className="w-3.5 h-3.5" /> Search another city
+              </button>
+            </div>
+          </div>
         </div>
       ) : (
         <div className="px-4 space-y-3">
@@ -427,109 +387,88 @@ function EventRow({ event, isAdmin = false }) {
 
   return (
     <div
-      className="rounded-2xl overflow-hidden flex items-stretch dark:border-[rgba(255,255,255,0.09)] relative"
+      className="rounded-2xl overflow-hidden flex items-stretch relative"
       style={{
-        background: 'var(--card)',
-        border: '1px solid var(--border)',
-        boxShadow: '0 4px 24px rgba(0,0,0,0.1)',
+        background: 'hsl(var(--card))',
+        border: isLive
+          ? '1px solid rgba(255,45,120,0.3)'
+          : '1px solid hsl(var(--border))',
       }}
     >
-      {/* Thumbnail */}
-      <div className="w-28 h-full flex-shrink-0 relative overflow-hidden" style={{ minHeight: 110 }}>
+      {/* Thumbnail — taller for visual weight */}
+      <div className="w-28 flex-shrink-0 relative overflow-hidden" style={{ minHeight: 120 }}>
         {event.image_url ? (
           <img src={event.image_url} alt={event.title} className="w-full h-full object-cover absolute inset-0" />
         ) : (
-          <div className="w-full h-full absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.04)' }}>
-            <Calendar className="w-6 h-6 opacity-20" />
+          <div className="w-full h-full absolute inset-0 flex items-center justify-center bg-muted">
+            <Calendar className="w-6 h-6 opacity-15" />
           </div>
         )}
         {isLive && (
-          <span className="absolute top-2 left-2 text-[9px] font-black px-1.5 py-0.5 rounded-full"
-            style={{ background: '#FF2D78', color: '#fff' }}>
-            LIVE
-          </span>
+          <div className="absolute inset-0 flex flex-col justify-end p-2"
+            style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 60%)' }}>
+            <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full self-start"
+              style={{ background: '#FF2D78', color: '#fff', letterSpacing: '0.05em' }}>
+              LIVE
+            </span>
+          </div>
         )}
       </div>
 
       {/* Info */}
-      <div className="flex-1 px-4 py-3.5 flex flex-col justify-between min-w-0">
+      <div className="flex-1 px-4 py-4 flex flex-col justify-between min-w-0 gap-2">
         <div>
-          <h3 className="font-bold text-foreground text-sm leading-tight mb-2 line-clamp-2">{event.title}</h3>
-          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mb-1">
-            <MapPin className="w-3 h-3 flex-shrink-0" style={{ color: '#00C8FF' }} />
-            <span className="truncate">
-              {event.venue}{event.city ? `, ${event.city}` : ''}{event.state ? `, ${event.state}` : ''}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            <Calendar className="w-3 h-3 flex-shrink-0" style={{ color: '#BF5FFF' }} />
-            <span>{event.date ? format(new Date(event.date), 'EEE, MMM d · h:mm a') : 'TBD'}</span>
+          <h3 className="font-bold text-foreground leading-tight line-clamp-2 mb-1.5" style={{ fontSize: '0.875rem' }}>
+            {event.title}
+          </h3>
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <MapPin className="w-3 h-3 flex-shrink-0 opacity-60" />
+              <span className="truncate">{event.venue}{event.city ? `, ${event.city}` : ''}{event.state ? `, ${event.state}` : ''}</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <Calendar className="w-3 h-3 flex-shrink-0 opacity-60" />
+              <span>{event.date ? format(new Date(event.date), 'EEE, MMM d · h:mm a') : 'TBD'}</span>
+            </div>
           </div>
         </div>
 
-        {/* Live Hub CTA */}
-        {!isTM && isLive && (
-          <div className="mt-2.5">
+        {/* Status tags */}
+        <div className="flex items-center gap-2">
+          {!isTM && isLive ? (
             <Link
               to={`/upgrades/${event.id}`}
-              className="inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-full"
+              className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full"
               style={{ background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}
               onClick={e => e.stopPropagation()}
             >
               Open Live Hub
             </Link>
-          </div>
-        )}
-        {/* Soon indicator */}
-        {!isTM && isSoon && !isLive && (
-          <div className="mt-2.5">
-            <span className="text-[10px] text-muted-foreground">Starting soon</span>
-          </div>
-        )}
-        {/* List seats — PG events only */}
-        {!isTM && !isLive && !isSoon && (
-          <div className="mt-2.5 flex items-center gap-2">
+          ) : !isTM && isSoon ? (
+            <span className="text-[10px] font-medium text-muted-foreground px-2 py-0.5 rounded-full border border-border">Starting soon</span>
+          ) : !isTM ? (
             <Link
               to="/create-listing"
-              className="inline-flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded-full bg-muted text-muted-foreground border border-border"
+              className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full text-muted-foreground border border-border"
               onClick={e => e.stopPropagation()}
             >
               List your seats
             </Link>
-          </div>
-        )}
-        {/* Trust cue — lightweight, always present */}
-        <div className="flex items-center gap-1 mt-2">
-          <ShieldCheck className="w-2.5 h-2.5 flex-shrink-0 opacity-30" />
-          <span className="text-[9px] text-muted-foreground opacity-50">Buyer protected</span>
+          ) : null}
         </div>
       </div>
 
-      {/* View button */}
-      <div className="flex items-center pr-3 pl-1">
-        {!debugUrl ? (
-          (() => {
-            console.warn('[EventRow] Event missing valid id/tm_id — suppressing View link', { id: event.id, tm_id: event.tm_id, source: event.source, title: event.title });
-            return (
-              <span className="px-3 py-2 rounded-xl text-xs text-muted-foreground opacity-60 whitespace-nowrap">
-                Unavailable
-              </span>
-            );
-          })()
-        ) : (
-          <Link
-            to={debugUrl}
-            onClick={handleCardClick}
-            className="flex items-center gap-1 px-3 py-2 rounded-xl font-bold text-xs whitespace-nowrap"
-            style={{ background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}
-          >
-            View <ChevronRight className="w-3.5 h-3.5" />
+      {/* View chevron */}
+      <div className="flex items-center pr-4 pl-1">
+        {debugUrl ? (
+          <Link to={debugUrl} onClick={handleCardClick} aria-label={`View ${event.title}`}>
+            <ChevronRight className="w-4 h-4 text-muted-foreground opacity-50" />
           </Link>
-        )}
+        ) : null}
       </div>
 
       {isAdmin && (
-        <div className="absolute bottom-1 left-28 right-16 text-[8px] font-mono leading-tight pointer-events-none"
+        <div className="absolute bottom-1 left-28 right-10 text-[8px] font-mono leading-tight pointer-events-none"
           style={{ color: 'rgba(255,230,0,0.6)' }}>
           id:{String(event.id||'').slice(0,12)} tm:{String(event.tm_id||'-').slice(0,12)} src:{event.source||'?'} → {debugUrl||'NULL'}
         </div>

@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { MapPin, Calendar, Zap, ChevronRight, LocateFixed, X, Clock, RefreshCw } from 'lucide-react';
+import { MapPin, Calendar, ChevronRight, LocateFixed, X, Clock, RefreshCw } from 'lucide-react';
 import LocationAutocomplete from '@/components/LocationAutocomplete';
 import { getEventLiveStatus, SOON_WINDOW_MINUTES } from '@/lib/eventTiming';
 import { getEventUrl } from '@/lib/eventUrl';
@@ -173,8 +173,8 @@ export default function Upgrades() {
         </div>
       </div>
 
-      {/* Location bar */}
-      <div className="px-4 mt-4 mb-5">
+      {/* Location bar — compact, secondary */}
+      <div className="px-4 mt-3 mb-4">
         {editingLocation ? (
           <div className="space-y-2">
             <div className="flex gap-2">
@@ -188,85 +188,53 @@ export default function Upgrades() {
                 autoFocus
               />
               <button type="button" onClick={() => setEditingLocation(false)}
-                className="flex items-center justify-center w-11 h-11 rounded-2xl flex-shrink-0 transition-all active:scale-95"
-                style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--muted-foreground))' }}>
-                <X className="w-4 h-4" />
+                className="flex items-center justify-center w-10 h-10 rounded-xl flex-shrink-0 transition-all active:scale-95"
+                style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}>
+                <X className="w-4 h-4 text-muted-foreground" />
               </button>
             </div>
-            {locationStatus === 'denied' && (
-              <p className="text-[11px] px-1" style={{ color: '#FF8C00' }}>
-                Location access is blocked. Enable it in your browser settings or type your city above.
+            {(locationStatus === 'denied' || locationStatus === 'unavailable' || locationStatus === 'timeout') && (
+              <p className="text-[11px] px-1 text-muted-foreground">
+                {locationStatus === 'denied'
+                  ? 'Location blocked — enter your city above.'
+                  : locationStatus === 'timeout'
+                  ? 'Location timed out — enter your city above.'
+                  : "Couldn't detect location — enter your city above."}
               </p>
             )}
-            {(locationStatus === 'unavailable' || locationStatus === 'timeout') && (
-              <p className="text-[11px] px-1" style={{ color: '#FF8C00' }}>
-                {locationStatus === 'timeout'
-                  ? "Location timed out. Try again or enter your city above."
-                  : "Couldn't get your location. Try again or enter your city above."}
-              </p>
-            )}
-          </div>
-        ) : locationStatus === 'denied' && !locationLabel ? (
-          <div className="space-y-2">
-            <div className="flex items-start gap-3 px-4 py-3.5 rounded-2xl"
-              style={{ background: 'rgba(255,140,0,0.08)', border: '1px solid rgba(255,140,0,0.25)' }}>
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5"
-                style={{ background: 'rgba(255,140,0,0.15)' }}>
-                <MapPin className="w-4 h-4" style={{ color: '#FF8C00' }} />
-              </div>
-              <div className="text-left flex-1">
-                <p className="text-xs font-black" style={{ color: '#FF8C00' }}>Location access is blocked</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">Enable location permissions in your browser or search by city.</p>
-              </div>
-            </div>
-            <button
-              onClick={() => { setLocationInput(''); setEditingLocation(true); }}
-              className="flex items-center gap-2 w-full px-4 py-3 rounded-2xl transition-all active:scale-[0.98]"
-              style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
-            >
-              <MapPin className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm font-bold text-foreground">Search by city instead</span>
-            </button>
           </div>
         ) : !locationLabel ? (
-          /* idle — prompt user to set location */
+          /* idle — compact two-button row */
           <div className="flex gap-2">
             <button onClick={requestLocation} disabled={locationStatus === 'requesting'}
-              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-sm transition-all active:scale-[0.98] disabled:opacity-60"
-              style={{ background: 'rgba(0,255,135,0.12)', border: '1px solid rgba(0,255,135,0.3)', color: '#00FF87' }}>
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold text-sm transition-all active:scale-[0.98] disabled:opacity-60"
+              style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
               {locationStatus === 'requesting'
-                ? <span className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#00FF87', borderTopColor: 'transparent' }} />
-                : <LocateFixed className="w-4 h-4" />
+                ? <span className="w-3.5 h-3.5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'currentColor', borderTopColor: 'transparent' }} />
+                : <LocateFixed className="w-3.5 h-3.5 text-muted-foreground" />
               }
-              Near Me
+              <span className="text-foreground">Near Me</span>
             </button>
             <button onClick={() => { setLocationInput(''); setEditingLocation(true); }}
-              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-sm transition-all active:scale-[0.98]"
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold text-sm transition-all active:scale-[0.98]"
               style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
-              <MapPin className="w-4 h-4 text-muted-foreground" /> Enter city
+              <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
+              <span className="text-foreground">Enter city</span>
             </button>
           </div>
         ) : (
+          /* location set — small inline chip */
           <button
             onClick={() => { setLocationInput(locationLabel === 'Near me' ? '' : locationLabel); setEditingLocation(true); }}
-            className="flex items-center gap-3 w-full px-4 py-3 rounded-2xl transition-all active:scale-[0.98]"
-            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl transition-all active:scale-[0.98]"
+            style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}
           >
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ background: 'rgba(0,180,90,0.25)', border: '1px solid rgba(0,180,90,0.4)' }}>
-              {locationStatus === 'requesting'
-                ? <span className="w-3.5 h-3.5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#00FF87', borderTopColor: 'transparent' }} />
-                : <MapPin className="w-4 h-4" style={{ color: '#00a855' }} />
-              }
-            </div>
-            <div className="text-left flex-1 min-w-0">
-              <p className="text-[10px] font-black tracking-widest uppercase text-muted-foreground">Showing events near</p>
-              <p className="text-sm font-bold text-foreground truncate">{locationLabel}</p>
-            </div>
-            <span className="text-xs font-bold px-2.5 py-1 rounded-full flex-shrink-0"
-              style={{ background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' }}>
-              Change
-            </span>
+            {locationStatus === 'requesting'
+              ? <span className="w-3 h-3 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'currentColor', borderTopColor: 'transparent' }} />
+              : <MapPin className="w-3 h-3 text-muted-foreground" />
+            }
+            <span className="text-xs text-muted-foreground truncate max-w-[130px]">{locationLabel}</span>
+            <span className="text-[10px] text-muted-foreground opacity-60">· change</span>
           </button>
         )}
       </div>
@@ -291,32 +259,48 @@ export default function Upgrades() {
       {/* Content */}
       <div className="px-4 space-y-8">
         {!loading && locationStatus === 'idle' && !locationLabel && (
-          <div className="rounded-2xl px-4 py-8 text-center"
-            style={{ background: 'rgba(0,200,255,0.05)', border: '1px solid rgba(0,200,255,0.15)' }}>
-            <p className="text-3xl mb-3">📍</p>
-            <p className="text-sm font-bold text-foreground">Set your location to get started</p>
-            <p className="text-xs text-muted-foreground mt-1">Tap "Near Me" or enter a city above</p>
+          <div className="rounded-3xl overflow-hidden relative" style={{ minHeight: 200 }}>
+            <img
+              src="https://images.unsplash.com/photo-1524368535928-5b5e00ddc76b?w=800&q=70"
+              alt="stadium seating"
+              className="w-full h-full object-cover absolute inset-0"
+              style={{ opacity: 0.15, filter: 'grayscale(20%)' }}
+            />
+            <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.5) 100%)' }} />
+            <div className="relative z-10 flex flex-col items-center justify-center text-center px-6 py-14 gap-2">
+              <LocateFixed className="w-7 h-7 text-muted-foreground opacity-40 mb-1" />
+              <p className="font-bold text-foreground text-base">See upgrades near you</p>
+              <p className="text-sm text-muted-foreground max-w-xs">
+                Better seats from fans already inside the venue — available at showtime.
+              </p>
+            </div>
           </div>
         )}
         {loading ? (
           <div className="space-y-3">
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="rounded-2xl h-24 animate-pulse bg-muted" />
+              <div key={i} className="rounded-2xl overflow-hidden flex animate-pulse" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+                <div className="w-20 flex-shrink-0" style={{ minHeight: 80, background: 'hsl(var(--muted))' }} />
+                <div className="flex-1 px-4 py-4 space-y-2">
+                  <div className="h-3 rounded-full bg-muted w-3/4" />
+                  <div className="h-2.5 rounded-full bg-muted w-1/2" />
+                </div>
+              </div>
             ))}
           </div>
         ) : (locationStatus === 'granted' || locationLabel) && (
           <>
             {/* LIVE NOW */}
             <section>
-              <div className="flex items-center gap-2 mb-3">
-                <span className="w-2 h-2 rounded-full bg-red-500" />
-                <h2 className="text-sm font-black tracking-widest uppercase text-foreground">Live Now</h2>
-              </div>
+              <SectionHeader
+                dot="red"
+                label="Live Now"
+                count={liveEvents.length > 0 ? liveEvents.length : null}
+              />
               {liveEvents.length === 0 ? (
-                <div className="rounded-2xl px-4 py-5 text-center"
-                  style={{ background: 'rgba(255,45,120,0.05)', border: '1px solid rgba(255,45,120,0.15)' }}>
-                  <p className="text-sm font-medium text-foreground/70">No events live right now</p>
-                  <p className="text-xs text-muted-foreground mt-1">Check back once a show near you starts</p>
+                <div className="rounded-2xl px-5 py-6 text-center" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+                  <p className="text-sm font-medium text-foreground">No events live right now</p>
+                  <p className="text-xs text-muted-foreground mt-1">Upgrades open when a show near you starts.</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -330,13 +314,12 @@ export default function Upgrades() {
             {/* STARTING SOON */}
             {soonEvents.length > 0 && (
               <section>
-                <div className="flex items-center gap-2 mb-3">
-                  <Clock className="w-3.5 h-3.5 text-foreground" />
-                  <h2 className="text-sm font-black tracking-widest uppercase text-foreground">Starting Soon</h2>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-muted text-muted-foreground border border-border">
-                    within {SOON_WINDOW_MINUTES} min
-                  </span>
-                </div>
+                <SectionHeader
+                  icon={<Clock className="w-3.5 h-3.5" />}
+                  label="Starting Soon"
+                  count={soonEvents.length}
+                  meta={`within ${SOON_WINDOW_MINUTES} min`}
+                />
                 <div className="space-y-3">
                   {soonEvents.map((event) => (
                     <EventCard key={event.id} event={event} mode="soon" />
@@ -347,14 +330,14 @@ export default function Upgrades() {
 
             {/* UPCOMING */}
             <section>
-              <div className="flex items-center gap-2 mb-3">
-                <Clock className="w-3.5 h-3.5 text-foreground" />
-                <h2 className="text-sm font-black tracking-widest uppercase text-foreground">Upcoming Near You</h2>
-              </div>
+              <SectionHeader
+                icon={<Calendar className="w-3.5 h-3.5" />}
+                label="Upcoming Near You"
+                count={upcomingEvents.length > 0 ? upcomingEvents.length : null}
+              />
               {upcomingEvents.length === 0 ? (
-                <div className="rounded-2xl px-4 py-5 text-center"
-                  style={{ background: 'rgba(191,95,255,0.05)', border: '1px solid rgba(191,95,255,0.15)' }}>
-                  <p className="text-sm font-medium text-foreground/70">No upcoming events found</p>
+                <div className="rounded-2xl px-5 py-6 text-center" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+                  <p className="text-sm font-medium text-foreground">No upcoming events found</p>
                   <p className="text-xs text-muted-foreground mt-1">New events are added regularly — check back soon.</p>
                 </div>
               ) : (
@@ -368,6 +351,24 @@ export default function Upgrades() {
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+function SectionHeader({ dot, icon, label, count, meta }) {
+  return (
+    <div className="flex items-center gap-2 mb-3">
+      {dot && <span className="w-2 h-2 rounded-full flex-shrink-0 bg-red-500" />}
+      {icon && <span className="text-muted-foreground flex-shrink-0">{icon}</span>}
+      <h2 className="text-xs font-semibold tracking-widest uppercase text-muted-foreground">{label}</h2>
+      {count != null && (
+        <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium tabular-nums"
+          style={{ background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' }}>
+          {count}
+        </span>
+      )}
+      {meta && <span className="text-[10px] text-muted-foreground opacity-60">{meta}</span>}
+      <div className="h-px flex-1 bg-border opacity-50" />
     </div>
   );
 }
