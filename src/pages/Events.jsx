@@ -187,36 +187,19 @@ export default function Events() {
 
 
 
-        <div className="absolute top-5 left-4">
-          <span className="text-[10px] font-black tracking-[0.2em] px-3 py-1 rounded-full flex items-center gap-1.5"
-          style={{ background: 'rgba(0,0,0,0.5)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.4)', backdropFilter: 'blur(12px)' }}>
-            🎫 MARKETPLACE
-          </span>
-        </div>
-
         {/* Headline */}
         <div className="absolute bottom-5 left-4 right-4">
           <h1
-            className="font-display leading-[0.9]"
+            className="font-display text-white leading-[0.95]"
             style={{
-              fontSize: 'clamp(3.2rem, 15vw, 5.2rem)',
+              fontSize: 'clamp(3rem, 14vw, 5rem)',
               letterSpacing: '-0.02em',
-              background: 'linear-gradient(135deg, #BF5FFF 0%, #FF2D78 55%, #FFE600 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-  
-              filter: 'drop-shadow(0 6px 24px rgba(0,0,0,0.6))',
+              filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.7))',
             }}
           >
-            Get Tickets
+            Events
           </h1>
-          <div className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-full"
-            style={{ background: 'rgba(191,95,255,0.25)', border: '1px solid rgba(191,95,255,0.4)' }}>
-            <span className="text-[11px] font-medium leading-snug" style={{ color: 'rgba(240,216,255,0.9)' }}>
-              Purchase fan-listed tickets to any event, anywhere — anytime before the show starts.
-            </span>
-          </div>
+          <p className="text-sm text-white/60 mt-1">Fan-listed tickets, buyer-protected.</p>
         </div>
       </div>
 
@@ -327,16 +310,16 @@ export default function Events() {
               key={e.id}
               to={`/upgrades/${e.id}`}
               className="flex items-center gap-3 px-4 py-3 rounded-2xl mb-2"
-              style={{ background: 'linear-gradient(135deg,rgba(255,230,0,0.18),rgba(255,45,120,0.1))', border: '2px solid rgba(255,230,0,0.5)', boxShadow: '0 0 20px rgba(255,230,0,0.1)' }}
+              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)' }}
             >
-              <span className="text-xl flex-shrink-0">⚡</span>
+              <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
               <div className="flex-1 min-w-0">
-                <p className="font-black text-sm text-foreground leading-none">Live Hub Available</p>
-                <p className="text-xs text-muted-foreground mt-0.5 truncate">{e.title} — happening now</p>
+                <p className="font-bold text-sm text-foreground leading-none">Live Now</p>
+                <p className="text-xs text-muted-foreground mt-0.5 truncate">{e.title}</p>
               </div>
-              <span className="text-xs font-black px-3 py-1.5 rounded-full flex-shrink-0"
-                style={{ background: 'rgba(255,230,0,0.25)', color: '#FFE600', border: '1px solid rgba(255,230,0,0.4)' }}>
-                Open →
+              <span className="text-xs font-bold px-3 py-1.5 rounded-full flex-shrink-0"
+                style={{ background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}>
+                Open
               </span>
             </Link>
           ))}
@@ -352,7 +335,7 @@ export default function Events() {
         </div>
       ) : !loading && !latlong && !locationLabel ? (
         <div className="text-center py-16 text-muted-foreground px-4 space-y-4">
-          <p className="text-4xl">📍</p>
+          <MapPin className="w-8 h-8 mx-auto opacity-30" />
           {locationStatus === 'denied' ? (
             <>
               <div>
@@ -410,7 +393,6 @@ export default function Events() {
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-20 text-muted-foreground px-4">
-          <p className="text-4xl mb-3">🥜</p>
           <p className="font-medium">No events found nearby</p>
           <p className="text-sm mt-1 opacity-70">Try a different city or search term</p>
         </div>
@@ -457,20 +439,14 @@ function EventRow({ event, isAdmin = false }) {
         {event.image_url ? (
           <img src={event.image_url} alt={event.title} className="w-full h-full object-cover absolute inset-0" />
         ) : (
-          <div className="w-full h-full absolute inset-0 flex items-center justify-center text-4xl" style={{ background: 'rgba(255,255,255,0.04)' }}>
-            🎫
+          <div className="w-full h-full absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.04)' }}>
+            <Calendar className="w-6 h-6 opacity-20" />
           </div>
         )}
-        {event.status === 'live' && (
+        {isLive && (
           <span className="absolute top-2 left-2 text-[9px] font-black px-1.5 py-0.5 rounded-full"
             style={{ background: '#FF2D78', color: '#fff' }}>
             LIVE
-          </span>
-        )}
-        {isTM && (
-          <span className="absolute bottom-1.5 left-1.5 text-[8px] font-bold px-1.5 py-0.5 rounded-full"
-            style={{ background: 'rgba(0,0,0,0.7)', color: 'rgba(255,255,255,0.6)' }}>
-            TM
           </span>
         )}
       </div>
@@ -491,46 +467,36 @@ function EventRow({ event, isAdmin = false }) {
           </div>
         </div>
 
-        {/* Live: Event Mode CTA — prominent button */}
+        {/* Live Hub CTA */}
         {!isTM && isLive && (
           <div className="mt-2.5">
             <Link
               to={`/upgrades/${event.id}`}
-              className="inline-flex items-center gap-1.5 text-[11px] font-black px-3 py-1.5 rounded-full"
-              style={{ background: 'linear-gradient(135deg,#FFE600,#FF8C00)', color: '#000', boxShadow: '0 0 12px rgba(255,230,0,0.35)' }}
+              className="inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-full"
+              style={{ background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}
               onClick={e => e.stopPropagation()}
             >
-              ⚡ Open Live Hub
+              Open Live Hub
             </Link>
           </div>
         )}
-        {/* Soon: teaser */}
+        {/* Soon indicator */}
         {!isTM && isSoon && !isLive && (
           <div className="mt-2.5">
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full"
-              style={{ background: 'rgba(191,95,255,0.12)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.3)' }}>
-              ⏰ Event Mode soon
-            </span>
+            <span className="text-[10px] text-muted-foreground">Starting soon</span>
           </div>
         )}
-        {/* List your seats tag — only for PG events, not live */}
+        {/* List seats — PG events only */}
         {!isTM && !isLive && !isSoon && (
-        <div className="mt-2.5">
-          <Link
-            to="/create-listing"
-            className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full bg-muted text-muted-foreground border border-border"
-            onClick={e => e.stopPropagation()}
-          >
-            🥜 List your seats
-          </Link>
-        </div>
-        )}
-        {isTM && (
-        <div className="mt-2.5">
-          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full bg-muted text-muted-foreground border border-border">
-            🎟️ Official tickets
-          </span>
-        </div>
+          <div className="mt-2.5">
+            <Link
+              to="/create-listing"
+              className="inline-flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded-full bg-muted text-muted-foreground border border-border"
+              onClick={e => e.stopPropagation()}
+            >
+              List your seats
+            </Link>
+          </div>
         )}
       </div>
 

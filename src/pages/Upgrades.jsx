@@ -159,34 +159,17 @@ export default function Upgrades() {
         <div className="absolute inset-0"
           style={{ background: 'linear-gradient(to bottom, rgba(5,3,12,0.4) 0%, rgba(5,3,12,0.2) 40%, rgba(5,3,12,0.95) 100%)' }} />
 
-        <div className="absolute top-5 left-4">
-          <span className="text-[10px] font-black tracking-[0.2em] px-3 py-1 rounded-full flex items-center gap-1.5"
-            style={{ background: 'rgba(0,0,0,0.5)', color: '#00FF87', border: '1px solid #00FF8755', backdropFilter: 'blur(12px)' }}>
-            ⚡ THE PEANUT GALLERY
-          </span>
-        </div>
-
         <div className="absolute bottom-5 left-4 right-4">
-          <h1 className="font-display mb-3"
+          <h1 className="font-display text-white mb-1"
             style={{
-              fontSize: 'clamp(3.2rem, 15vw, 5.2rem)',
+              fontSize: 'clamp(3rem, 14vw, 5rem)',
               letterSpacing: '-0.02em',
-              lineHeight: 1.1,
-              background: 'linear-gradient(135deg, #00FF87 0%, #00C8FF 60%, #BF5FFF 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-              filter: 'drop-shadow(0 6px 24px rgba(0,0,0,0.6))'
+              lineHeight: 1.05,
+              filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.7))'
             }}>
             Upgrades
           </h1>
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full"
-            style={{ background: 'rgba(0,255,135,0.15)', border: '1px solid rgba(0,255,135,0.35)' }}>
-            <Zap className="w-3 h-3 flex-shrink-0" style={{ color: '#00FF87' }} />
-            <span className="text-[11px] font-medium leading-snug" style={{ color: 'rgba(210,255,235,0.9)' }}>
-              Already at the show? Upgrade seats from fans around you — location-verified.
-            </span>
-          </div>
+          <p className="text-sm text-white/60">Buy better seats from fans already inside the venue.</p>
         </div>
       </div>
 
@@ -326,7 +309,7 @@ export default function Upgrades() {
             {/* LIVE NOW */}
             <section>
               <div className="flex items-center gap-2 mb-3">
-                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                <span className="w-2 h-2 rounded-full bg-red-500" />
                 <h2 className="text-sm font-black tracking-widest uppercase text-foreground">Live Now</h2>
               </div>
               {liveEvents.length === 0 ? (
@@ -459,18 +442,15 @@ function EventCard({ event, mode }) {
         {event.image_url ? (
           <img src={event.image_url} alt={event.title} className="w-full h-full object-cover absolute inset-0" />
         ) : (
-          <div className="w-full h-full absolute inset-0 flex items-center justify-center text-3xl bg-muted">🎫</div>
+          <div className="w-full h-full absolute inset-0 flex items-center justify-center bg-muted">
+            <Calendar className="w-6 h-6 text-muted-foreground opacity-40" />
+          </div>
         )}
-        <span className="absolute top-1.5 left-1.5 text-[8px] font-black px-1.5 py-0.5 rounded-full"
-          style={{
-            background: isLive ? '#FF2D78' : isSoon ? 'rgba(255,230,0,0.9)' : 'rgba(191,95,255,0.85)',
-            color: isSoon ? '#000' : '#fff'
-          }}>
-          {isLive ? 'LIVE' : isSoon ? 'SOON' : 'UPCOMING'}
-        </span>
-        {isTM && (
-          <span className="absolute bottom-1.5 left-1.5 text-[8px] font-bold px-1.5 py-0.5 rounded-full"
-            style={{ background: 'rgba(0,0,0,0.7)', color: 'rgba(255,255,255,0.6)' }}>TM</span>
+        {isLive && (
+          <span className="absolute top-1.5 left-1.5 text-[8px] font-black px-1.5 py-0.5 rounded-full"
+            style={{ background: '#FF2D78', color: '#fff' }}>
+            LIVE
+          </span>
         )}
       </div>
 
@@ -485,9 +465,7 @@ function EventCard({ event, mode }) {
           <span>{event.date ? format(new Date(event.date), 'EEE, MMM d · h:mm a') : 'TBD'}</span>
         </div>
         {!isLive && !isTM && (
-          <span className="inline-flex items-center gap-1 mt-1.5 text-[9px] font-bold px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
-            <Clock className="w-2.5 h-2.5" /> Upgrades unlock at showtime
-          </span>
+          <span className="mt-1.5 text-[10px] text-muted-foreground">Available at showtime</span>
         )}
       </div>
 

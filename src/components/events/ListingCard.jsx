@@ -1,7 +1,5 @@
-import { ArrowUpRight, Flame, ShieldCheck, Clock, Zap } from 'lucide-react';
-import TrustBadge from '@/components/TrustBadge';
+import { ArrowUpRight, ShieldCheck, Zap } from 'lucide-react';
 import TransferStatusBadge from '@/components/listings/TransferStatusBadge';
-import { getTransferStatusBadge } from '@/lib/transferConfidence';
 
 const TIER_STYLES = {
   floor: { color: '#FF2D78', bg: '#FF2D7815', label: 'Floor' },
@@ -10,38 +8,17 @@ const TIER_STYLES = {
   upper: { color: 'rgba(255,255,255,0.55)', bg: 'rgba(255,255,255,0.06)', label: 'Upper Level' },
 };
 
-// Deterministic signals based on listing id so they don't flicker
-function getSignals(listing) {
-  const hash = listing.id ? listing.id.charCodeAt(listing.id.length - 1) + listing.id.charCodeAt(0) : 0;
-  const timeLabels = ['Listed 2m ago', 'Just listed', 'Listed 8m ago', 'Listed 14m ago', 'Updated recently'];
-  const timeLabel = timeLabels[hash % timeLabels.length];
 
-  // Demand label: only show on ~40% of listings (floor/lower more likely)
-  const highDemandTiers = ['floor', 'lower'];
-  const demandRoll = hash % 5;
-  let demandLabel = null;
-  if (highDemandTiers.includes(listing.tier) && demandRoll < 2) demandLabel = 'High demand';
-  else if (demandRoll === 2 && listing.quantity === 1) demandLabel = 'Almost gone';
-  else if (demandRoll === 3 && listing.tier === 'floor') demandLabel = 'Popular section';
-
-  // Seller label
-  const sellerLabels = ['Verified seller', 'Fast transfer', 'Verified seller', 'Fast transfer', 'New seller'];
-  const sellerLabel = sellerLabels[hash % sellerLabels.length];
-
-  return { timeLabel, demandLabel, sellerLabel };
-}
 
 export default function ListingCard({ listing, onUpgrade, isCheapest, mode = 'upgrade', transferWarning = null }) {
   const isDemo = listing.notes?.startsWith('[DEMO]');
   const isVerified = !!listing.proof_url && !isDemo;
   const isInstant = listing.listing_mode === 'instant' && listing.custody_status === 'verified';
-  const listingTransferBadge = getTransferStatusBadge(listing);
   const isTransferDisabled = listing.transfer_status === 'transfer_disabled';
   const tier = TIER_STYLES[listing.tier];
   const savings = listing.original_price
     ? Math.round(((listing.original_price - listing.asking_price) / listing.original_price) * 100)
     : null;
-  const { timeLabel, demandLabel, sellerLabel } = getSignals(listing);
 
   const accentColor = isCheapest ? '#00FF87' : isVerified ? '#00FF87' : 'rgba(255,255,255,0.15)';
 
@@ -66,46 +43,30 @@ export default function ListingCard({ listing, onUpgrade, isCheapest, mode = 'up
       {/* Card body */}
       <div className="flex-1 px-4 py-5 flex flex-col gap-4">
 
-        {/* Badges row */}
+        {/* Badges row — max 2 badges */}
         <div className="flex items-center gap-2 flex-wrap">
-          {isCheapest && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full"
-              style={{ background: '#00FF8712', color: '#00FF87', border: '1px solid #00FF8730' }}>
-              <Flame className="w-2.5 h-2.5" /> Best Price
+          {isDemo && (
+            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full"
+              style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.45)', border: '1px solid rgba(255,255,255,0.1)' }}>
+              Demo
             </span>
           )}
           {tier && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full"
               style={{ background: tier.bg, color: tier.color }}>
               {tier.label}
             </span>
           )}
-          {isDemo ? (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-              style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.45)', border: '1px solid rgba(255,255,255,0.1)' }}>
-              🥜 Demo
-            </span>
-          ) : isVerified ? (
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full"
-              style={{ background: '#00FF8710', color: '#00FF87', border: '1px solid #00FF8728' }}>
-              <ShieldCheck className="w-2.5 h-2.5" /> Verified
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full"
-              style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.08)' }}>
-              Available
-            </span>
-          )}
           {isInstant && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full"
-              style={{ background: 'rgba(0,200,255,0.12)', color: '#00C8FF', border: '1px solid rgba(0,200,255,0.3)' }}>
-              ⚡ Instant Delivery
+            <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full"
+              style={{ background: 'rgba(0,200,255,0.1)', color: '#00C8FF', border: '1px solid rgba(0,200,255,0.2)' }}>
+              <Zap className="w-2.5 h-2.5" /> Instant
             </span>
           )}
-          {demandLabel && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full"
-              style={{ background: 'rgba(255,45,120,0.1)', color: '#FF2D78', border: '1px solid rgba(255,45,120,0.2)' }}>
-              <Zap className="w-2.5 h-2.5" /> {demandLabel}
+          {isVerified && !isDemo && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full"
+              style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.08)' }}>
+              <ShieldCheck className="w-2.5 h-2.5" /> Verified
             </span>
           )}
         </div>
@@ -152,16 +113,16 @@ export default function ListingCard({ listing, onUpgrade, isCheapest, mode = 'up
         {transferWarning && !isTransferDisabled && (
           <div className="text-[10px] px-3 py-2 rounded-xl leading-relaxed"
             style={{ background: 'rgba(255,140,0,0.06)', color: '#FF8C00', border: '1px solid rgba(255,140,0,0.2)' }}>
-            ℹ️ Event advisory: {transferWarning}
+            {transferWarning}
           </div>
         )}
 
         {/* CTA Button */}
         {/* Block purchase only for transfer_disabled listings */}
         {isTransferDisabled ? (
-          <div className="w-full flex items-center justify-center gap-2 py-3.5 rounded-full font-black text-sm cursor-not-allowed"
-            style={{ background: 'rgba(255,45,120,0.08)', border: '1px solid rgba(255,45,120,0.25)', color: '#FF2D78' }}>
-            ❌ Transfer Unavailable
+          <div className="w-full flex items-center justify-center gap-2 py-3.5 rounded-full font-bold text-sm cursor-not-allowed"
+            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'hsl(var(--muted-foreground))' }}>
+            Transfer Unavailable
           </div>
         ) : onUpgrade ? (
           <button
@@ -180,30 +141,16 @@ export default function ListingCard({ listing, onUpgrade, isCheapest, mode = 'up
             }
           </button>
         ) : (
-          <div className="w-full flex items-center justify-center gap-2 py-3.5 rounded-full font-black text-sm opacity-40 cursor-not-allowed"
-            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'hsl(var(--muted-foreground))' }}>
-            🚫 Upgrades unavailable
+          <div className="w-full flex items-center justify-center gap-2 py-3.5 rounded-full font-medium text-sm opacity-40 cursor-not-allowed"
+            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'hsl(var(--muted-foreground))' }}>
+            Unavailable
           </div>
         )}
 
-        {/* Bottom meta row */}
-        <div className="flex items-center justify-between -mt-1">
-          <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-            <Clock className="w-2.5 h-2.5 opacity-50" /> {timeLabel}
-          </span>
-          <span className="text-[10px] text-muted-foreground">
-            {sellerLabel === 'Verified seller' && <span className="text-green-400/70">✓ Verified seller</span>}
-            {sellerLabel === 'Fast transfer' && <span style={{ color: 'rgba(0,200,255,0.6)' }}>⚡ Fast transfer</span>}
-            {sellerLabel === 'New seller' && <span className="opacity-50">New seller</span>}
-          </span>
-        </div>
-        {/* Buyer protection plain-language message */}
-        <div className="rounded-xl px-3 py-2.5 flex items-start gap-2 -mt-1"
-          style={{ background: 'rgba(0,200,255,0.06)', border: '1px solid rgba(0,200,255,0.18)' }}>
-          <span className="text-sm flex-shrink-0">🔒</span>
-          <p className="text-[11px] leading-relaxed" style={{ color: 'rgba(0,200,255,0.85)' }}>
-            <span className="font-black">Buyer Protection:</span> Your money is only released after you confirm you received your tickets.
-          </p>
+        {/* Buyer protection — restrained */}
+        <div className="flex items-center gap-1.5 -mt-1">
+          <ShieldCheck className="w-3 h-3 flex-shrink-0 opacity-40" />
+          <p className="text-[10px] text-muted-foreground">Payment held until you confirm receipt.</p>
         </div>
       </div>
     </div>
