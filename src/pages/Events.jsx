@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { MapPin, Calendar, ChevronRight, LocateFixed, RefreshCw } from 'lucide-react';
+import { MapPin, Calendar, ChevronRight, LocateFixed, RefreshCw, ShieldCheck } from 'lucide-react';
 import { getEventLiveStatus } from '@/lib/eventTiming';
 import { getEventUrl } from '@/lib/eventUrl';
 import { logNavEvent } from '@/lib/navLogger';
@@ -488,7 +488,7 @@ function EventRow({ event, isAdmin = false }) {
         )}
         {/* List seats — PG events only */}
         {!isTM && !isLive && !isSoon && (
-          <div className="mt-2.5">
+          <div className="mt-2.5 flex items-center gap-2">
             <Link
               to="/create-listing"
               className="inline-flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded-full bg-muted text-muted-foreground border border-border"
@@ -498,6 +498,11 @@ function EventRow({ event, isAdmin = false }) {
             </Link>
           </div>
         )}
+        {/* Trust cue — lightweight, always present */}
+        <div className="flex items-center gap-1 mt-2">
+          <ShieldCheck className="w-2.5 h-2.5 flex-shrink-0 opacity-30" />
+          <span className="text-[9px] text-muted-foreground opacity-50">Buyer protected</span>
+        </div>
       </div>
 
       {/* View button */}

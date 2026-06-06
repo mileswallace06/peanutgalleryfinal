@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Bell, Zap } from 'lucide-react';
+import { ArrowLeft, Bell, Zap, Gift, Clock, ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { getEventLiveStatus } from '@/lib/eventTiming';
 import { format } from 'date-fns';
@@ -47,22 +47,22 @@ export default function LiveHubHero({ event, listings, drops }) {
           <ArrowLeft className="w-3.5 h-3.5" /> Back
         </Link>
 
-        {/* Status pill — single clear status, nothing else competing */}
+        {/* Status pill */}
         <div className="mb-2">
           {isLive ? (
-            <span className="inline-flex items-center gap-1.5 text-[11px] font-black px-3 py-1 rounded-full"
-              style={{ background: '#FF2D7822', color: '#FF2D78', border: '1px solid #FF2D7855' }}>
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1 rounded-full"
+              style={{ background: 'rgba(255,45,120,0.12)', color: '#FF2D78', border: '1px solid rgba(255,45,120,0.3)' }}>
               <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-              LIVE NOW
+              Live Now
             </span>
           ) : isSoon ? (
-            <span className="inline-flex items-center gap-1 text-[11px] font-black px-3 py-1 rounded-full"
-              style={{ background: 'rgba(255,230,0,0.12)', color: '#FFE600', border: '1px solid rgba(255,230,0,0.3)' }}>
-              ⏰ Starts in {countdown || 'Soon'}
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium px-3 py-1 rounded-full"
+              style={{ background: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.55)', border: '1px solid rgba(255,255,255,0.12)' }}>
+              <Clock className="w-3 h-3" /> Starts in {countdown || 'Soon'}
             </span>
           ) : (
-            <span className="text-[11px] font-semibold" style={{ color: 'rgba(255,255,255,0.4)' }}>
-              ⚡ Live Hub
+            <span className="text-[11px] font-medium tracking-wide" style={{ color: 'rgba(255,255,255,0.38)' }}>
+              Upgrade Marketplace
             </span>
           )}
         </div>
@@ -79,41 +79,42 @@ export default function LiveHubHero({ event, listings, drops }) {
           </p>
         )}
 
-        {/* Three primary signals — equal weight, no noise */}
-        <div className="grid grid-cols-3 gap-2">
-          {/* Upgrades */}
-          <div className="flex flex-col items-center gap-1 px-2 py-3 rounded-2xl"
+        {/* Primary stat — upgrades get dominant weight */}
+        <div className="flex items-center gap-3 mb-3">
+          <div className="flex-1 flex items-center gap-3 px-4 py-3 rounded-2xl"
             style={{
-              background: upgradeCount > 0 ? 'rgba(0,255,135,0.09)' : 'rgba(255,255,255,0.04)',
-              border: upgradeCount > 0 ? '1px solid rgba(0,255,135,0.25)' : '1px solid rgba(255,255,255,0.07)',
+              background: upgradeCount > 0 ? 'rgba(0,255,135,0.08)' : 'rgba(255,255,255,0.04)',
+              border: upgradeCount > 0 ? '1px solid rgba(0,255,135,0.2)' : '1px solid rgba(255,255,255,0.07)',
             }}>
-            <Zap className="w-5 h-5" style={{ color: upgradeCount > 0 ? '#00FF87' : 'rgba(255,255,255,0.25)' }} />
-            <span className="font-black text-lg text-white leading-none">{upgradeCount}</span>
-            <span className="text-[10px] font-semibold leading-none" style={{ color: 'rgba(255,255,255,0.45)' }}>
-              Upgrade{upgradeCount !== 1 ? 's' : ''}
-            </span>
+            <Zap className="w-4 h-4 flex-shrink-0" style={{ color: upgradeCount > 0 ? '#00FF87' : 'rgba(255,255,255,0.2)' }} />
+            <div>
+              <span className="font-black text-2xl text-white leading-none">{upgradeCount}</span>
+              <span className="text-xs font-medium ml-2" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                Upgrade{upgradeCount !== 1 ? 's' : ''} available
+              </span>
+            </div>
           </div>
 
-          {/* Flash Drops */}
-          <div className="flex flex-col items-center gap-1 px-2 py-3 rounded-2xl"
-            style={{
-              background: activeDrops > 0 ? 'rgba(255,230,0,0.09)' : 'rgba(255,255,255,0.04)',
-              border: activeDrops > 0 ? '1px solid rgba(255,230,0,0.25)' : '1px solid rgba(255,255,255,0.07)',
-            }}>
-            <span className="text-xl leading-none">🎁</span>
-            <span className="font-black text-lg text-white leading-none">{activeDrops}</span>
-            <span className="text-[10px] font-semibold leading-none" style={{ color: 'rgba(255,255,255,0.45)' }}>
-              Flash Drop{activeDrops !== 1 ? 's' : ''}
-            </span>
+          {/* Secondary: Fan Gifts — visually smaller */}
+          <div className="flex items-center gap-2 px-3 py-3 rounded-2xl"
+            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+            <Gift className="w-4 h-4" style={{ color: activeDrops > 0 ? '#BF5FFF' : 'rgba(255,255,255,0.2)' }} />
+            <span className="font-bold text-sm text-white">{activeDrops}</span>
           </div>
 
           {/* Notify */}
-          <button className="flex flex-col items-center gap-1 px-2 py-3 rounded-2xl transition-all active:scale-95"
-            style={{ background: 'rgba(191,95,255,0.09)', border: '1px solid rgba(191,95,255,0.25)' }}>
-            <Bell className="w-5 h-5" style={{ color: '#BF5FFF' }} />
-            <span className="font-black text-[11px] leading-none" style={{ color: '#BF5FFF' }}>Notify</span>
-            <span className="text-[10px] font-semibold leading-none" style={{ color: 'rgba(255,255,255,0.35)' }}>Me</span>
+          <button className="flex items-center justify-center w-11 h-11 rounded-2xl transition-all active:scale-95"
+            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)' }}>
+            <Bell className="w-4 h-4" style={{ color: 'rgba(255,255,255,0.4)' }} />
           </button>
+        </div>
+
+        {/* Trust line — Phase 3 */}
+        <div className="flex items-center gap-1.5">
+          <ShieldCheck className="w-3 h-3 flex-shrink-0" style={{ color: 'rgba(255,255,255,0.28)' }} />
+          <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.28)' }}>
+            Protected transfers · Payment held until you confirm receipt
+          </span>
         </div>
       </div>
     </div>

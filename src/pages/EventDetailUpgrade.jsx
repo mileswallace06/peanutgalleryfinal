@@ -5,6 +5,7 @@
  */
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { Zap } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import LiveHubHero from '@/components/eventmode/LiveHubHero';
 import FlashDropCenter from '@/components/eventmode/FlashDropCenter';
@@ -15,7 +16,7 @@ import EventLookupDebugPanel from '@/components/debug/EventLookupDebugPanel';
 import { logNavEvent } from '@/lib/navLogger';
 import LiveHubEmptyState from '@/components/eventmode/LiveHubEmptyState';
 
-const TABS = ['Upgrades', 'Flash Drops', 'Fan Karma'];
+const TABS = ['Upgrades', 'Fan Gifts', 'Fan Karma'];
 
 export default function EventDetailUpgrade() {
   const { id } = useParams();
@@ -125,9 +126,9 @@ export default function EventDetailUpgrade() {
     return (
       <div className="min-h-screen bg-background pb-32">
         <div className="px-4 py-20 text-center space-y-4">
-          <p className="text-5xl">⚡</p>
+          <Zap className="w-8 h-8 mx-auto opacity-20" />
           <div>
-            <p className="font-bold text-foreground text-lg">Live Hub not found</p>
+            <p className="font-bold text-foreground text-lg">Event not found</p>
             <p className="text-sm text-muted-foreground mt-1 max-w-xs mx-auto">
               This event may still be syncing. Try refreshing or go back.
             </p>
@@ -183,7 +184,7 @@ export default function EventDetailUpgrade() {
           </>
         )}
 
-        {activeTab === 'Flash Drops' && (
+        {activeTab === 'Fan Gifts' && (
           <FlashDropCenter
             drops={drops}
             user={user}
