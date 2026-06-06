@@ -1,16 +1,10 @@
-import { Zap, X } from 'lucide-react';
+import { Zap, X, ShieldCheck, Ticket, Gift } from 'lucide-react';
 
 const STORAGE_KEY = 'pg_what_is_pg_seen';
 
 export function shouldShowOverlay() {
   try { return !localStorage.getItem(STORAGE_KEY); } catch { return false; }
 }
-
-const FEATURES = [
-  { icon: '⚡', title: 'Upgrade during the show', desc: 'Buy better seats from fans around you once the event starts.', color: '#FFE600' },
-  { icon: '🎁', title: 'Win free upgrades', desc: 'Enter Fan Drops — seat giveaways from generous fans inside.', color: '#BF5FFF' },
-  { icon: '🔒', title: 'Your money is protected', desc: 'Payment is held in escrow until you confirm receipt.', color: '#00C8FF' },
-];
 
 export default function WhatIsPGOverlay({ onDismiss }) {
   const handleDismiss = () => {
@@ -21,70 +15,56 @@ export default function WhatIsPGOverlay({ onDismiss }) {
   return (
     <div
       className="fixed inset-0 z-[200] flex flex-col justify-end"
-      style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)' }}
+      style={{ background: 'rgba(0,0,0,0.7)' }}
       onClick={handleDismiss}
     >
-      {/* Sheet — stops click propagation so tapping inside doesn't close */}
       <div
-        className="relative w-full rounded-t-3xl"
-        style={{
-          background: '#0a0a0a',
-          borderTop: '1px solid rgba(0,255,135,0.3)',
-          borderLeft: '1px solid rgba(255,255,255,0.06)',
-          borderRight: '1px solid rgba(255,255,255,0.06)',
-          paddingBottom: 'env(safe-area-inset-bottom)',
-        }}
+        className="w-full rounded-t-3xl"
         onClick={e => e.stopPropagation()}
+        style={{ background: '#111', borderTop: '1px solid #222' }}
       >
-        {/* Green top bar */}
-        <div className="h-1 w-full rounded-t-3xl" style={{ background: 'linear-gradient(90deg, #00FF87, #00C8FF, #BF5FFF)' }} />
-
         {/* Drag handle */}
-        <div className="flex justify-center pt-3 pb-1">
-          <div className="w-10 h-1 rounded-full bg-white/20" />
+        <div className="flex justify-center py-3">
+          <div className="w-9 h-1 rounded-full" style={{ background: '#333' }} />
         </div>
 
         {/* Close */}
         <button
           onClick={handleDismiss}
-          className="absolute top-5 right-4 w-8 h-8 rounded-full flex items-center justify-center"
-          style={{ background: 'rgba(255,255,255,0.08)' }}
+          className="absolute top-4 right-4 w-8 h-8 rounded-full flex items-center justify-center"
+          style={{ background: '#1e1e1e' }}
         >
-          <X className="w-4 h-4 text-white/60" />
+          <X className="w-4 h-4" style={{ color: '#666' }} />
         </button>
 
-        <div className="px-6 pt-2 pb-6">
-          {/* Badge */}
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-base">🎟</span>
-            <span className="text-[10px] font-black tracking-[0.18em] uppercase" style={{ color: '#00FF87' }}>
-              What is Peanut Gallery?
-            </span>
-          </div>
-
-          {/* Headline */}
-          <h2 className="font-display text-white leading-[1.05] mb-2" style={{ fontSize: '2rem' }}>
-            Better Seats<br />After The Show Starts
-          </h2>
-
-          <p className="text-sm leading-relaxed mb-5" style={{ color: 'rgba(255,255,255,0.55)' }}>
-            Buy live seat upgrades directly from fans already inside the venue — escrow-protected and location-verified.
+        <div className="px-6 pb-8">
+          {/* Eyebrow */}
+          <p className="text-xs font-bold tracking-widest uppercase mb-3" style={{ color: '#00FF87' }}>
+            ⚡ Peanut Gallery
           </p>
 
-          {/* Feature rows */}
-          <div className="space-y-3 mb-6">
-            {FEATURES.map(({ icon, title, desc, color }) => (
-              <div key={title} className="flex items-start gap-3">
-                <div
-                  className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-lg"
-                  style={{ background: `${color}15`, border: `1px solid ${color}30` }}
-                >
-                  {icon}
+          {/* Headline */}
+          <h2 className="font-display text-white mb-2" style={{ fontSize: '1.75rem', lineHeight: 1.1 }}>
+            Better Seats,<br />Live At The Show
+          </h2>
+
+          <p className="text-sm mb-6" style={{ color: '#888', lineHeight: 1.6 }}>
+            Buy seat upgrades directly from fans already inside the venue — payment held safely until you confirm.
+          </p>
+
+          {/* Features */}
+          <div className="space-y-4 mb-7">
+            {[
+              { Icon: Ticket, label: 'Upgrade your seats during the event', color: '#FFE600' },
+              { Icon: Gift, label: 'Win free upgrades through Fan Drops', color: '#BF5FFF' },
+              { Icon: ShieldCheck, label: 'Money held in escrow until you confirm', color: '#00FF87' },
+            ].map(({ Icon, label, color }) => (
+              <div key={label} className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{ background: `${color}15` }}>
+                  <Icon className="w-4 h-4" style={{ color }} />
                 </div>
-                <div className="pt-0.5">
-                  <p className="text-sm font-bold text-white leading-tight">{title}</p>
-                  <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.5)' }}>{desc}</p>
-                </div>
+                <p className="text-sm font-medium text-white">{label}</p>
               </div>
             ))}
           </div>
@@ -92,15 +72,18 @@ export default function WhatIsPGOverlay({ onDismiss }) {
           {/* CTA */}
           <button
             onClick={handleDismiss}
-            className="w-full py-4 rounded-2xl font-black text-base flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+            className="w-full py-4 rounded-2xl font-bold text-base flex items-center justify-center gap-2"
             style={{
-              background: 'linear-gradient(135deg, #00E87A, #00C8FF)',
-              color: '#061a10',
-              boxShadow: '0 0 32px rgba(0,232,122,0.25)',
+              background: 'linear-gradient(135deg, #00FF87, #00C8FF)',
+              color: '#000',
             }}
           >
-            <Zap className="w-5 h-5" /> Let's Go
+            <Zap className="w-4 h-4" /> Got it, let's go
           </button>
+
+          <p className="text-center text-xs mt-3" style={{ color: '#444' }}>
+            This won't show again
+          </p>
         </div>
       </div>
     </div>
