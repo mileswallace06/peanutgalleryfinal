@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { Ticket, TrendingUp, Shield, LogIn, Edit2, Tag, Zap, ChevronRight, Camera, ImagePlus, UserPlus, UserCheck, Settings, Eye, EyeOff } from 'lucide-react';
+import { Ticket, TrendingUp, Shield, LogIn, Edit2, Tag, Zap, ChevronRight, Camera, ImagePlus, UserPlus, UserCheck, Settings, Eye, EyeOff, Star } from 'lucide-react';
 import PeanutPointsCard from '@/components/points/PeanutPointsCard';
 import RecentPointsActivity from '@/components/points/RecentPointsActivity';
 import CommunityImpactCard from '@/components/donations/CommunityImpactCard';
@@ -39,6 +39,7 @@ export default function Me() {
   const [followers, setFollowers] = useState([]);
   const [following, setFollowing] = useState([]);
   const [socialTab, setSocialTab] = useState('following');
+  const [activeTab, setActiveTab] = useState('main');
 
   // Keep local user in sync if AuthContext resolves after initial render
   useEffect(() => {
@@ -226,130 +227,121 @@ export default function Me() {
           </button>
         )}
 
-        {/* Profile content */}
-        <>
-
-        {/* Peanut Points */}
-        <PeanutPointsCard user={user} />
-
-        {/* Community Impact */}
-        <CommunityImpactCard userEmail={user.email} />
-
-        {/* Recent point activity */}
-        <div className="mb-5">
-          <p className="text-[10px] font-black tracking-widest uppercase text-muted-foreground mb-3 flex items-center gap-1.5">
-            <span className="w-4 h-px inline-block bg-current opacity-50" />
-            Recent Activity
-          </p>
-          <RecentPointsActivity userEmail={user.email} />
+        {/* Tab switcher */}
+        <div className="flex gap-2 mb-6 p-1 rounded-2xl" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+          {[
+            { id: 'main', label: 'My Account' },
+            { id: 'stats', label: '⚡ Fan Stats' },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className="flex-1 py-2 rounded-xl text-sm font-bold transition-all"
+              style={activeTab === tab.id
+                ? { background: 'hsl(var(--background))', color: 'hsl(var(--foreground))', boxShadow: '0 1px 4px rgba(0,0,0,0.15)' }
+                : { color: 'hsl(var(--muted-foreground))' }
+              }
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
-        {/* Divider */}
-        <div className="h-px mb-5" style={{ background: 'var(--border)' }} />
-
-        {/* Followers / Following */}
-        <div className="mb-5">
-          {/* Stats row */}
-          <div className="flex gap-4 mb-3">
-            <button
-              onClick={() => setSocialTab('following')}
-              className="flex flex-col items-center px-4 py-2.5 rounded-2xl transition-all"
-              style={socialTab === 'following'
-                ? { background: 'rgba(191,95,255,0.12)', border: '1px solid rgba(191,95,255,0.3)', color: '#BF5FFF' }
-                : { background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--foreground)' }
-              }
-            >
-              <span className="font-black text-lg leading-none text-foreground">{following.length}</span>
-              <span className="text-[10px] font-semibold mt-0.5">Following</span>
-            </button>
-            <button
-              onClick={() => setSocialTab('followers')}
-              className="flex flex-col items-center px-4 py-2.5 rounded-2xl transition-all"
-              style={socialTab === 'followers'
-                ? { background: 'rgba(191,95,255,0.12)', border: '1px solid rgba(191,95,255,0.3)', color: '#BF5FFF' }
-                : { background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--foreground)' }
-              }
-            >
-              <span className="font-black text-lg leading-none text-foreground">{followers.length}</span>
-              <span className="text-[10px] font-semibold mt-0.5">Followers</span>
-            </button>
-          </div>
-
-          {/* List */}
-          {socialTab === 'following' && (
-            following.length === 0
-              ? <p className="text-xs text-muted-foreground px-1">You're not following anyone yet. React to posts to find fans, or follow from their profile.</p>
-              : <div className="space-y-2">
-                  {following.map(f => (
-                    <div key={f.id} className="flex items-center gap-3 px-3 py-2.5 rounded-2xl"
-                      style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
-                      <div className="w-9 h-9 rounded-full flex items-center justify-center font-black text-sm flex-shrink-0"
-                        style={{ background: 'linear-gradient(135deg, #BF5FFF, #FF2D78)', color: '#fff' }}>
-                        {f.following_avatar_url
-                          ? <img src={f.following_avatar_url} alt="" className="w-full h-full object-cover rounded-full" />
-                          : (f.following_name || f.following_email || '?')[0].toUpperCase()
-                        }
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-foreground truncate">{f.following_name || f.following_email}</p>
-                        <p className="text-[10px] text-muted-foreground truncate">{f.following_email}</p>
-                      </div>
-                      <button
-                        onClick={() => handleUnfollow(f)}
-                        className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold dark:bg-[rgba(255,45,120,0.1)] dark:border-[rgba(255,45,120,0.2)]"
-                        style={{ background: '#f8e8f0', color: '#FF2D78', border: '1px solid #f0d0d8' }}
-                      >
-                        <UserCheck className="w-3 h-3" /> Unfollow
-                      </button>
-                    </div>
-                  ))}
-                </div>
-          )}
-          {socialTab === 'followers' && (
-            followers.length === 0
-              ? <p className="text-xs text-muted-foreground px-1">No followers yet.</p>
-              : <div className="space-y-2">
-                  {followers.map(f => {
-                    const alreadyFollowing = following.some(fw => fw.following_email === f.follower_email);
-                    return (
-                      <div key={f.id} className="flex items-center gap-3 px-3 py-2.5 rounded-2xl"
-                        style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
-                        <div className="w-9 h-9 rounded-full flex items-center justify-center font-black text-sm flex-shrink-0"
-                          style={{ background: 'linear-gradient(135deg, #00C8FF, #00FF87)', color: '#0a0510' }}>
-                          {(f.follower_email || '?')[0].toUpperCase()}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold text-foreground truncate">{f.follower_email}</p>
-                        </div>
-                        {!alreadyFollowing && (
-                          <button
-                            onClick={async () => {
-                              const created = await base44.entities.Follow.create({
-                                follower_email: user.email,
-                                following_email: f.follower_email,
-                                following_name: null,
-                                following_avatar_url: null,
-                              });
-                              setFollowing(prev => [...prev, created]);
-                            }}
-                            className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold dark:bg-[rgba(191,95,255,0.12)] dark:border-[rgba(191,95,255,0.3)]"
-                            style={{ background: '#f0e8f8', color: '#BF5FFF', border: '1px solid #e8d0f0' }}
-                          >
-                            <UserPlus className="w-3 h-3" /> Follow Back
+        {/* FAN STATS TAB */}
+        {activeTab === 'stats' && (
+          <>
+            <PeanutPointsCard user={user} />
+            <CommunityImpactCard userEmail={user.email} />
+            <div className="mb-5">
+              <p className="text-[10px] font-black tracking-widest uppercase text-muted-foreground mb-3 flex items-center gap-1.5">
+                <span className="w-4 h-px inline-block bg-current opacity-50" />
+                Recent Activity
+              </p>
+              <RecentPointsActivity userEmail={user.email} />
+            </div>
+            <div className="h-px mb-5" style={{ background: 'var(--border)' }} />
+            {/* Followers / Following */}
+            <div className="mb-5">
+              <div className="flex gap-4 mb-3">
+                <button onClick={() => setSocialTab('following')} className="flex flex-col items-center px-4 py-2.5 rounded-2xl transition-all"
+                  style={socialTab === 'following'
+                    ? { background: 'rgba(191,95,255,0.12)', border: '1px solid rgba(191,95,255,0.3)', color: '#BF5FFF' }
+                    : { background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--foreground)' }}>
+                  <span className="font-black text-lg leading-none text-foreground">{following.length}</span>
+                  <span className="text-[10px] font-semibold mt-0.5">Following</span>
+                </button>
+                <button onClick={() => setSocialTab('followers')} className="flex flex-col items-center px-4 py-2.5 rounded-2xl transition-all"
+                  style={socialTab === 'followers'
+                    ? { background: 'rgba(191,95,255,0.12)', border: '1px solid rgba(191,95,255,0.3)', color: '#BF5FFF' }
+                    : { background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--foreground)' }}>
+                  <span className="font-black text-lg leading-none text-foreground">{followers.length}</span>
+                  <span className="text-[10px] font-semibold mt-0.5">Followers</span>
+                </button>
+              </div>
+              {socialTab === 'following' && (
+                following.length === 0
+                  ? <p className="text-xs text-muted-foreground px-1">You're not following anyone yet.</p>
+                  : <div className="space-y-2">
+                      {following.map(f => (
+                        <div key={f.id} className="flex items-center gap-3 px-3 py-2.5 rounded-2xl"
+                          style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+                          <div className="w-9 h-9 rounded-full flex items-center justify-center font-black text-sm flex-shrink-0"
+                            style={{ background: 'linear-gradient(135deg, #BF5FFF, #FF2D78)', color: '#fff' }}>
+                            {f.following_avatar_url
+                              ? <img src={f.following_avatar_url} alt="" className="w-full h-full object-cover rounded-full" />
+                              : (f.following_name || f.following_email || '?')[0].toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold text-foreground truncate">{f.following_name || f.following_email}</p>
+                            <p className="text-[10px] text-muted-foreground truncate">{f.following_email}</p>
+                          </div>
+                          <button onClick={() => handleUnfollow(f)}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold"
+                            style={{ background: 'rgba(255,45,120,0.1)', color: '#FF2D78', border: '1px solid rgba(255,45,120,0.2)' }}>
+                            <UserCheck className="w-3 h-3" /> Unfollow
                           </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-          )}
-        </div>
+                        </div>
+                      ))}
+                    </div>
+              )}
+              {socialTab === 'followers' && (
+                followers.length === 0
+                  ? <p className="text-xs text-muted-foreground px-1">No followers yet.</p>
+                  : <div className="space-y-2">
+                      {followers.map(f => {
+                        const alreadyFollowing = following.some(fw => fw.following_email === f.follower_email);
+                        return (
+                          <div key={f.id} className="flex items-center gap-3 px-3 py-2.5 rounded-2xl"
+                            style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
+                            <div className="w-9 h-9 rounded-full flex items-center justify-center font-black text-sm flex-shrink-0"
+                              style={{ background: 'linear-gradient(135deg, #00C8FF, #00FF87)', color: '#0a0510' }}>
+                              {(f.follower_email || '?')[0].toUpperCase()}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-bold text-foreground truncate">{f.follower_email}</p>
+                            </div>
+                            {!alreadyFollowing && (
+                              <button
+                                onClick={async () => {
+                                  const created = await base44.entities.Follow.create({ follower_email: user.email, following_email: f.follower_email, following_name: null, following_avatar_url: null });
+                                  setFollowing(prev => [...prev, created]);
+                                }}
+                                className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold"
+                                style={{ background: 'rgba(191,95,255,0.12)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.3)' }}>
+                                <UserPlus className="w-3 h-3" /> Follow Back
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+              )}
+            </div>
+          </>
+        )}
 
-        {/* Divider */}
-        <div className="h-px mb-5" style={{ background: 'var(--border)' }} />
-
-        {/* Quick links */}
-        <div className="space-y-3">
+        {/* MAIN TAB */}
+        {activeTab === 'main' && <div className="space-y-3">
 
           <Link
             to="/my-tickets"
@@ -436,9 +428,8 @@ export default function Me() {
               <ChevronRight className="w-4 h-4 text-muted-foreground" />
             </Link>
           )}
-        </div>
+        </div>}
 
-        </>
       </div>
     </div>
   );
