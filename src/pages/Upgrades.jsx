@@ -204,37 +204,37 @@ export default function Upgrades() {
             )}
           </div>
         ) : !locationLabel ? (
-          /* idle — compact two-button row */
+          /* idle — intentional branded buttons */
           <div className="flex gap-2">
             <button onClick={requestLocation} disabled={locationStatus === 'requesting'}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold text-sm transition-all active:scale-[0.98] disabled:opacity-60"
-              style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-sm transition-all active:scale-[0.98] disabled:opacity-60"
+              style={{ background: 'rgba(191,95,255,0.15)', border: '1px solid rgba(191,95,255,0.35)', color: '#BF5FFF' }}>
               {locationStatus === 'requesting'
-                ? <span className="w-3.5 h-3.5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'currentColor', borderTopColor: 'transparent' }} />
-                : <LocateFixed className="w-3.5 h-3.5 text-muted-foreground" />
+                ? <span className="w-3.5 h-3.5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#BF5FFF', borderTopColor: 'transparent' }} />
+                : <LocateFixed className="w-3.5 h-3.5" />
               }
-              <span className="text-foreground">Near Me</span>
+              Near Me
             </button>
             <button onClick={() => { setLocationInput(''); setEditingLocation(true); }}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-semibold text-sm transition-all active:scale-[0.98]"
-              style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
-              <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-semibold text-sm transition-all active:scale-[0.98]"
+              style={{ background: 'hsl(var(--card))', border: '1px solid rgba(191,95,255,0.2)' }}>
+              <MapPin className="w-3.5 h-3.5" style={{ color: '#BF5FFF', opacity: 0.7 }} />
               <span className="text-foreground">Enter city</span>
             </button>
           </div>
         ) : (
-          /* location set — small inline chip */
+          /* location set — purple accent chip */
           <button
             onClick={() => { setLocationInput(locationLabel === 'Near me' ? '' : locationLabel); setEditingLocation(true); }}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl transition-all active:scale-[0.98]"
-            style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all active:scale-[0.98]"
+            style={{ background: 'rgba(191,95,255,0.12)', border: '1px solid rgba(191,95,255,0.3)' }}
           >
             {locationStatus === 'requesting'
-              ? <span className="w-3 h-3 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'currentColor', borderTopColor: 'transparent' }} />
-              : <MapPin className="w-3 h-3 text-muted-foreground" />
+              ? <span className="w-3 h-3 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#BF5FFF', borderTopColor: 'transparent' }} />
+              : <MapPin className="w-3 h-3" style={{ color: '#BF5FFF' }} />
             }
-            <span className="text-xs text-muted-foreground truncate max-w-[130px]">{locationLabel}</span>
-            <span className="text-[10px] text-muted-foreground opacity-60">· change</span>
+            <span className="text-xs font-semibold truncate max-w-[130px]" style={{ color: '#BF5FFF' }}>{locationLabel}</span>
+            <span className="text-[10px] opacity-60" style={{ color: '#BF5FFF' }}>· change</span>
           </button>
         )}
       </div>
@@ -356,19 +356,24 @@ export default function Upgrades() {
 }
 
 function SectionHeader({ dot, icon, label, count, meta }) {
+  const isLiveSection = dot === 'red';
   return (
     <div className="flex items-center gap-2 mb-3">
-      {dot && <span className="w-2 h-2 rounded-full flex-shrink-0 bg-red-500" />}
-      {icon && <span className="text-muted-foreground flex-shrink-0">{icon}</span>}
-      <h2 className="text-xs font-semibold tracking-widest uppercase text-muted-foreground">{label}</h2>
+      {/* Left accent bar */}
+      <div className="w-0.5 h-4 rounded-full flex-shrink-0"
+        style={{ background: isLiveSection ? '#FF2D78' : 'rgba(191,95,255,0.7)' }} />
+      {dot && !isLiveSection && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-red-500" />}
+      {isLiveSection && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-red-500" />}
+      {icon && <span className="flex-shrink-0" style={{ color: '#BF5FFF', opacity: 0.8 }}>{icon}</span>}
+      <h2 className="text-xs font-bold tracking-widest uppercase" style={{ color: isLiveSection ? 'hsl(var(--foreground))' : '#BF5FFF', opacity: isLiveSection ? 1 : 0.9 }}>{label}</h2>
       {count != null && (
-        <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium tabular-nums"
-          style={{ background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' }}>
+        <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold tabular-nums"
+          style={{ background: 'rgba(191,95,255,0.12)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.25)' }}>
           {count}
         </span>
       )}
-      {meta && <span className="text-[10px] text-muted-foreground opacity-60">{meta}</span>}
-      <div className="h-px flex-1 bg-border opacity-50" />
+      {meta && <span className="text-[10px] opacity-50" style={{ color: '#BF5FFF' }}>{meta}</span>}
+      <div className="h-px flex-1" style={{ background: 'rgba(191,95,255,0.15)' }} />
     </div>
   );
 }
@@ -475,16 +480,16 @@ function EventCard({ event, mode }) {
           <button
             onClick={handleClick}
             disabled={syncing}
-            className="flex items-center gap-1 px-3 py-2 rounded-xl font-bold text-xs whitespace-nowrap disabled:opacity-60"
+            className="flex items-center gap-1 px-3 py-2 rounded-xl font-bold text-xs whitespace-nowrap disabled:opacity-60 transition-all active:scale-95"
             style={isLive
-              ? { background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }
+              ? { background: 'rgba(191,95,255,0.18)', border: '1px solid rgba(191,95,255,0.45)', color: '#BF5FFF' }
               : isSoon
-              ? { background: 'hsl(var(--foreground))', color: 'hsl(var(--background))' }
-              : { background: 'hsl(var(--secondary))', color: 'hsl(var(--secondary-foreground))', border: '1px solid hsl(var(--border))' }
+              ? { background: 'rgba(191,95,255,0.25)', border: '1px solid rgba(191,95,255,0.5)', color: '#BF5FFF' }
+              : { background: 'rgba(191,95,255,0.1)', border: '1px solid rgba(191,95,255,0.25)', color: '#BF5FFF' }
             }
           >
             {syncing
-              ? <span className="w-3 h-3 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'currentColor', borderTopColor: 'transparent' }} />
+              ? <span className="w-3 h-3 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#BF5FFF', borderTopColor: 'transparent' }} />
               : null
             }
             {linkLabel} {!syncing && <ChevronRight className="w-3.5 h-3.5" />}

@@ -206,19 +206,19 @@ export default function Events() {
 
       {/* ── Location + Search ── */}
       <div className="px-4 mt-3 mb-4 space-y-2">
-        {/* Location chip — compact, secondary treatment */}
+        {/* Location chip — when set, show as accent pill */}
         {locationLabel && !editingLocation && (
           <div className="flex items-center gap-2">
             <button
               onClick={() => { setLocationInput(locationLabel === 'Near me' ? '' : locationLabel); setEditingLocation(true); }}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl transition-all active:scale-[0.98]"
-              style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all active:scale-[0.98]"
+              style={{ background: 'rgba(191,95,255,0.12)', border: '1px solid rgba(191,95,255,0.3)' }}
             >
-              <MapPin className="w-3 h-3 flex-shrink-0 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground truncate max-w-[120px]">
+              <MapPin className="w-3 h-3 flex-shrink-0" style={{ color: '#BF5FFF' }} />
+              <span className="text-xs font-semibold truncate max-w-[120px]" style={{ color: '#BF5FFF' }}>
                 {locationStatus === 'requesting' ? 'Detecting…' : locationLabel}
               </span>
-              <span className="text-[10px] text-muted-foreground opacity-60">· change</span>
+              <span className="text-[10px] opacity-60" style={{ color: '#BF5FFF' }}>· change</span>
             </button>
             {locationLabel === 'Near me' && (
               <button
@@ -226,35 +226,37 @@ export default function Events() {
                 disabled={locationStatus === 'requesting'}
                 title="Refresh nearby events"
                 aria-label="Refresh nearby events"
-                className="flex items-center justify-center w-7 h-7 rounded-lg flex-shrink-0 transition-all active:scale-95 disabled:opacity-50"
-                style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}
+                className="flex items-center justify-center w-7 h-7 rounded-full flex-shrink-0 transition-all active:scale-95 disabled:opacity-50"
+                style={{ background: 'rgba(191,95,255,0.1)', border: '1px solid rgba(191,95,255,0.25)' }}
               >
-                <RefreshCw className={`w-3 h-3 text-muted-foreground ${locationStatus === 'requesting' ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-3 h-3 ${locationStatus === 'requesting' ? 'animate-spin' : ''}`} style={{ color: '#BF5FFF' }} />
               </button>
             )}
           </div>
         )}
 
-        {/* City search with autocomplete dropdown */}
-        <LocationAutocomplete
-          value={locationInput}
-          onChange={setLocationInput}
-          onSelect={(s) => {
-            setManualCity(s.label);
-            setEditingLocation(false);
-            writeSS({ city: s.label, locationInput: s.label });
-            fetchEvents(null, s.label, null);
-          }}
-          onSubmit={(val) => {
-            setManualCity(val);
-            setEditingLocation(false);
-            writeSS({ city: val, locationInput: val });
-            fetchEvents(null, val, null);
-          }}
-          onNearMe={handleNearMe}
-          nearMeLoading={locationStatus === 'requesting'}
-          placeholder="Search city or event…"
-        />
+        {/* City search with autocomplete dropdown — only show when no location set */}
+        {!locationLabel && (
+          <LocationAutocomplete
+            value={locationInput}
+            onChange={setLocationInput}
+            onSelect={(s) => {
+              setManualCity(s.label);
+              setEditingLocation(false);
+              writeSS({ city: s.label, locationInput: s.label });
+              fetchEvents(null, s.label, null);
+            }}
+            onSubmit={(val) => {
+              setManualCity(val);
+              setEditingLocation(false);
+              writeSS({ city: val, locationInput: val });
+              fetchEvents(null, val, null);
+            }}
+            onNearMe={handleNearMe}
+            nearMeLoading={locationStatus === 'requesting'}
+            placeholder="Search city or event…"
+          />
+        )}
       </div>
 
       {/* ── Rate limit / network error ── */}
@@ -283,11 +285,11 @@ export default function Events() {
       <div aria-live="polite" aria-atomic="true" className="px-4 mb-4">
         {!loading && (locationLabel || latlong) && filtered.length > 0 && (
           <div className="flex items-center gap-3">
-            <div className="h-px flex-1 bg-border" />
-            <p className="text-[10px] font-semibold tracking-widest uppercase text-muted-foreground">
+            <div className="h-px flex-1" style={{ background: 'rgba(191,95,255,0.2)' }} />
+            <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: '#BF5FFF' }}>
               {filtered.length} event{filtered.length !== 1 ? 's' : ''}
             </p>
-            <div className="h-px flex-1 bg-border" />
+            <div className="h-px flex-1" style={{ background: 'rgba(191,95,255,0.2)' }} />
           </div>
         )}
       </div>
@@ -391,84 +393,85 @@ function EventRow({ event, isAdmin = false }) {
       style={{
         background: 'hsl(var(--card))',
         border: isLive
-          ? '1px solid rgba(255,45,120,0.3)'
+          ? '1px solid rgba(191,95,255,0.4)'
+          : isSoon
+          ? '1px solid rgba(191,95,255,0.2)'
           : '1px solid hsl(var(--border))',
+        boxShadow: isLive ? '0 0 24px rgba(191,95,255,0.1)' : 'none',
       }}
     >
-      {/* Thumbnail — taller for visual weight */}
+      {/* Thumbnail */}
       <div className="w-28 flex-shrink-0 relative overflow-hidden" style={{ minHeight: 120 }}>
         {event.image_url ? (
           <img src={event.image_url} alt={event.title} className="w-full h-full object-cover absolute inset-0" />
         ) : (
-          <div className="w-full h-full absolute inset-0 flex items-center justify-center bg-muted">
-            <Calendar className="w-6 h-6 opacity-15" />
+          <div className="w-full h-full absolute inset-0 flex items-center justify-center"
+            style={{ background: 'linear-gradient(135deg, rgba(191,95,255,0.15), rgba(0,200,255,0.08))' }}>
+            <Calendar className="w-6 h-6 opacity-30" style={{ color: '#BF5FFF' }} />
           </div>
         )}
         {isLive && (
           <div className="absolute inset-0 flex flex-col justify-end p-2"
-            style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 60%)' }}>
+            style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.65) 0%, transparent 55%)' }}>
             <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full self-start"
               style={{ background: '#FF2D78', color: '#fff', letterSpacing: '0.05em' }}>
               LIVE
             </span>
           </div>
         )}
+        {/* Subtle purple left-edge accent bar */}
+        <div className="absolute left-0 top-0 bottom-0 w-0.5"
+          style={{ background: isLive ? 'rgba(191,95,255,0.8)' : isSoon ? 'rgba(191,95,255,0.4)' : 'rgba(191,95,255,0.15)' }} />
       </div>
 
       {/* Info */}
-      <div className="flex-1 px-4 py-4 flex flex-col justify-between min-w-0 gap-2">
+      <div className="flex-1 px-3 py-3.5 flex flex-col justify-between min-w-0 gap-2">
         <div>
           <h3 className="font-bold text-foreground leading-tight line-clamp-2 mb-1.5" style={{ fontSize: '0.875rem' }}>
             {event.title}
           </h3>
           <div className="space-y-0.5">
             <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              <MapPin className="w-3 h-3 flex-shrink-0 opacity-60" />
+              <MapPin className="w-3 h-3 flex-shrink-0" style={{ color: '#BF5FFF', opacity: 0.7 }} />
               <span className="truncate">{event.venue}{event.city ? `, ${event.city}` : ''}{event.state ? `, ${event.state}` : ''}</span>
             </div>
             <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              <Calendar className="w-3 h-3 flex-shrink-0 opacity-60" />
+              <Calendar className="w-3 h-3 flex-shrink-0 opacity-50" />
               <span>{event.date ? format(new Date(event.date), 'EEE, MMM d · h:mm a') : 'TBD'}</span>
             </div>
           </div>
         </div>
 
-        {/* Status tags */}
+        {/* CTA */}
         <div className="flex items-center gap-2">
-          {!isTM && isLive ? (
-            <Link
-              to={`/upgrades/${event.id}`}
-              className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full"
-              style={{ background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}
-              onClick={e => e.stopPropagation()}
-            >
-              Open Live Hub
-            </Link>
-          ) : !isTM && isSoon ? (
-            <span className="text-[10px] font-medium text-muted-foreground px-2 py-0.5 rounded-full border border-border">Starting soon</span>
-          ) : !isTM ? (
-            <Link
-              to="/create-listing"
-              className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full text-muted-foreground border border-border"
-              onClick={e => e.stopPropagation()}
-            >
-              List your seats
-            </Link>
-          ) : null}
+          {debugUrl ? (
+            isLive ? (
+              <Link
+                to={`/upgrades/${event.id}`}
+                className="inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-full"
+                style={{ background: 'rgba(191,95,255,0.18)', border: '1px solid rgba(191,95,255,0.4)', color: '#BF5FFF' }}
+                onClick={e => e.stopPropagation()}
+              >
+                Open Live Hub <ChevronRight className="w-3 h-3" />
+              </Link>
+            ) : (
+              <Link
+                to={debugUrl}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold px-3 py-1.5 rounded-full transition-all active:scale-[0.97]"
+                style={{ background: 'rgba(191,95,255,0.1)', border: '1px solid rgba(191,95,255,0.25)', color: '#BF5FFF' }}
+                onClick={handleCardClick}
+              >
+                View tickets <ChevronRight className="w-3 h-3" />
+              </Link>
+            )
+          ) : (
+            isSoon && <span className="text-[10px] font-medium text-muted-foreground">Starting soon</span>
+          )}
         </div>
       </div>
 
-      {/* View chevron */}
-      <div className="flex items-center pr-4 pl-1">
-        {debugUrl ? (
-          <Link to={debugUrl} onClick={handleCardClick} aria-label={`View ${event.title}`}>
-            <ChevronRight className="w-4 h-4 text-muted-foreground opacity-50" />
-          </Link>
-        ) : null}
-      </div>
-
       {isAdmin && (
-        <div className="absolute bottom-1 left-28 right-10 text-[8px] font-mono leading-tight pointer-events-none"
+        <div className="absolute bottom-1 left-28 right-2 text-[8px] font-mono leading-tight pointer-events-none"
           style={{ color: 'rgba(255,230,0,0.6)' }}>
           id:{String(event.id||'').slice(0,12)} tm:{String(event.tm_id||'-').slice(0,12)} src:{event.source||'?'} → {debugUrl||'NULL'}
         </div>
