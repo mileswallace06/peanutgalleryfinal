@@ -13,28 +13,30 @@ export default function WhatIsPGOverlay({ onDismiss }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center"
+    <div className="fixed inset-0 z-[100] flex flex-col justify-end sm:justify-center items-center"
       style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)' }}>
-      <div className="relative w-full sm:max-w-md mx-auto rounded-t-3xl sm:rounded-3xl overflow-hidden"
+      <div className="relative w-full sm:max-w-md mx-auto rounded-t-3xl sm:rounded-3xl flex flex-col"
         style={{
           background: 'hsl(0 0% 6%)',
           border: '1px solid rgba(0,255,135,0.25)',
           boxShadow: '0 0 80px rgba(0,255,135,0.12)',
+          maxHeight: '92dvh',
         }}>
         {/* Top accent */}
-        <div className="h-1" style={{ background: 'linear-gradient(90deg, #00FF87, #00C8FF, #BF5FFF)' }} />
+        <div className="h-1 flex-shrink-0 rounded-t-3xl sm:rounded-t-3xl" style={{ background: 'linear-gradient(90deg, #00FF87, #00C8FF, #BF5FFF)' }} />
 
         {/* Close button */}
         <button onClick={handleDismiss}
-          className="absolute top-4 right-4 w-8 h-8 rounded-full flex items-center justify-center transition-colors"
+          className="absolute top-4 right-4 w-8 h-8 rounded-full flex items-center justify-center z-10"
           style={{ background: 'rgba(255,255,255,0.08)', color: 'hsl(var(--muted-foreground))' }}>
           <X className="w-4 h-4" />
         </button>
 
-        <div className="px-6 pt-6 pb-8">
+        {/* Scrollable content */}
+        <div className="overflow-y-auto px-6 pt-6 pb-8" style={{ paddingBottom: 'max(2rem, env(safe-area-inset-bottom))' }}>
           {/* Badge */}
-          <div className="inline-flex items-center gap-2 mb-5">
-            <span className="text-2xl">🎟</span>
+          <div className="inline-flex items-center gap-2 mb-4">
+            <span className="text-xl">🎟</span>
             <span className="text-[11px] font-black tracking-[0.2em] uppercase" style={{ color: '#00FF87' }}>
               What is Peanut Gallery?
             </span>
@@ -42,16 +44,16 @@ export default function WhatIsPGOverlay({ onDismiss }) {
 
           {/* Headline */}
           <h2 className="font-display leading-tight mb-3 text-foreground"
-            style={{ fontSize: 'clamp(2rem, 8vw, 2.6rem)' }}>
+            style={{ fontSize: 'clamp(1.8rem, 7vw, 2.4rem)' }}>
             Better Seats<br />After The Event Starts
           </h2>
 
-          <p className="text-sm text-muted-foreground leading-relaxed mb-6">
+          <p className="text-sm text-muted-foreground leading-relaxed mb-5">
             Buy live seat upgrades directly from fans already inside the venue — escrow-protected and location-verified.
           </p>
 
           {/* Bullets */}
-          <div className="space-y-4 mb-8">
+          <div className="space-y-3 mb-6">
             {[
               { icon: '⚡', title: 'Upgrade during the show', desc: 'Buy better seats from fans around you once the event starts.', color: '#FFE600' },
               { icon: '🎁', title: 'Win free upgrades', desc: 'Enter Fan Drops — seat giveaways from generous fans inside.', color: '#BF5FFF' },

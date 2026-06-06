@@ -10,7 +10,6 @@ import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { fetchTMEvents, bustTMCache } from '@/lib/tmCache';
 import { useLocationDetect } from '@/hooks/useLocationDetect';
 import LocationAutocomplete from '@/components/LocationAutocomplete';
-import ValuePropCard from '@/components/events/ValuePropCard';
 
 // ── sessionStorage helpers ────────────────────────────────────────────────
 const SS_KEY = 'pg_events_location';
@@ -26,15 +25,6 @@ export default function Events() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [valuePropDismissed, setValuePropDismissed] = useState(
-    () => !!localStorage.getItem('pg_valueprop_dismissed')
-  );
-
-  const handleDismissValueProp = () => {
-    localStorage.setItem('pg_valueprop_dismissed', '1');
-    setValuePropDismissed(true);
-  };
-
   useEffect(() => {
     base44.auth.me().then(u => setIsAdmin(u?.role === 'admin')).catch(() => {});
   }, []);
@@ -328,11 +318,6 @@ export default function Events() {
           </p>
         )}
       </div>
-
-      {/* ── Value Prop Card — always shown until dismissed ── */}
-      {!valuePropDismissed && (
-        <ValuePropCard onDismiss={handleDismissValueProp} />
-      )}
 
       {/* ── Live Event Mode Banner ── */}
       {!loading && filtered.some(e => e.source !== 'ticketmaster' && getEventLiveStatus(e).status === 'live') && (
