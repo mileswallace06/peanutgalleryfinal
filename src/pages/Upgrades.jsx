@@ -10,6 +10,7 @@ import { logNavEvent } from '@/lib/navLogger';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { fetchTMEvents, bustTMCache } from '@/lib/tmCache';
 import { useLocationDetect } from '@/hooks/useLocationDetect';
+import WhatIsPGOverlay, { shouldShowOverlay } from '@/components/WhatIsPGOverlay';
 
 // ── sessionStorage helpers ────────────────────────────────────────────────
 const SS_KEY = 'pg_upgrades_location';
@@ -24,6 +25,7 @@ export default function Upgrades() {
   const _ss = readSS();
   const [allEvents, setAllEvents] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [showOverlay, setShowOverlay] = useState(() => shouldShowOverlay());
   const [locationInput, setLocationInput] = useState(_ss?.locationInput || '');
   const [editingLocation, setEditingLocation] = useState(false);
 
@@ -139,6 +141,7 @@ export default function Upgrades() {
 
   return (
     <div ref={containerRef} className="pb-32 transition-transform duration-200">
+      {showOverlay && <WhatIsPGOverlay onDismiss={() => setShowOverlay(false)} />}
       {pulling && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-4 py-2 rounded-full"
           style={{ background: 'rgba(0,255,135,0.15)', border: '1px solid rgba(0,255,135,0.3)' }}>
