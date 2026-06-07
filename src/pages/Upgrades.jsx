@@ -259,19 +259,18 @@ export default function Upgrades() {
       {/* Content */}
       <div className="px-4 space-y-8">
         {!loading && locationStatus === 'idle' && !locationLabel && (
-          <div className="rounded-3xl overflow-hidden relative" style={{ minHeight: 200 }}>
+          <div className="rounded-2xl overflow-hidden relative" style={{ minHeight: 120 }}>
             <img
-              src="https://images.unsplash.com/photo-1524368535928-5b5e00ddc76b?w=800&q=70"
+              src="https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=800&q=75"
               alt="stadium seating"
               className="w-full h-full object-cover absolute inset-0"
-              style={{ opacity: 0.15, filter: 'grayscale(20%)' }}
+              style={{ opacity: 0.4, filter: 'grayscale(5%)' }}
             />
-            <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.5) 100%)' }} />
-            <div className="relative z-10 flex flex-col items-center justify-center text-center px-6 py-14 gap-2">
-              <LocateFixed className="w-7 h-7 text-muted-foreground opacity-40 mb-1" />
-              <p className="font-bold text-foreground text-base">See upgrades near you</p>
-              <p className="text-sm text-muted-foreground max-w-xs">
-                Better seats from fans already inside the venue — available at showtime.
+            <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, rgba(191,95,255,0.18) 0%, rgba(0,0,0,0.3) 50%, rgba(0,0,0,0.65) 100%)' }} />
+            <div className="relative z-10 flex flex-col justify-end px-5 py-4 h-full" style={{ minHeight: 120 }}>
+              <p className="font-bold text-white text-sm leading-tight">Upgrades open at showtime</p>
+              <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.55)' }}>
+                Better seats from fans already inside the venue.
               </p>
             </div>
           </div>
@@ -298,9 +297,9 @@ export default function Upgrades() {
                 count={liveEvents.length > 0 ? liveEvents.length : null}
               />
               {liveEvents.length === 0 ? (
-                <div className="rounded-2xl px-5 py-6 text-center" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
-                  <p className="text-sm font-medium text-foreground">No events live right now</p>
-                  <p className="text-xs text-muted-foreground mt-1">Upgrades open when a show near you starts.</p>
+                <div className="rounded-xl px-4 py-3 flex items-center gap-3" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+                  <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground opacity-30 flex-shrink-0" />
+                  <p className="text-xs text-muted-foreground">No events live right now — upgrades open at showtime.</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -336,9 +335,9 @@ export default function Upgrades() {
                 count={upcomingEvents.length > 0 ? upcomingEvents.length : null}
               />
               {upcomingEvents.length === 0 ? (
-                <div className="rounded-2xl px-5 py-6 text-center" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
-                  <p className="text-sm font-medium text-foreground">No upcoming events found</p>
-                  <p className="text-xs text-muted-foreground mt-1">New events are added regularly — check back soon.</p>
+                <div className="rounded-xl px-4 py-3 flex items-center gap-3" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+                  <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground opacity-30 flex-shrink-0" />
+                  <p className="text-xs text-muted-foreground">No upcoming events in this area — check back soon.</p>
                 </div>
               ) : (
                 <div className="space-y-3">

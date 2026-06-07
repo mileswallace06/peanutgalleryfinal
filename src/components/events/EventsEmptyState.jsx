@@ -11,53 +11,48 @@ export default function EventsEmptyState({ locationStatus, onNearMe, onEnterCity
 
   return (
     <div className="px-4">
-      {/* Background image card */}
-      <div className="rounded-3xl overflow-hidden relative mb-5" style={{ minHeight: 220 }}>
+      {/* Background image card — compact, atmospheric */}
+      <div className="rounded-2xl overflow-hidden relative mb-2" style={{ minHeight: 136 }}>
         <img
-          src="https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=800&q=70"
+          src="https://images.unsplash.com/photo-1506157786151-b8491531f063?w=900&q=80"
           alt="concert crowd"
           className="w-full h-full object-cover absolute inset-0"
-          style={{ opacity: 0.28, filter: 'grayscale(10%)' }}
+          style={{ opacity: 0.45, filter: 'grayscale(5%)' }}
         />
         {/* purple-tinted vignette */}
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, rgba(191,95,255,0.15) 0%, transparent 50%, rgba(0,0,0,0.5) 100%)' }} />
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, rgba(191,95,255,0.18) 0%, rgba(0,0,0,0.25) 50%, rgba(0,0,0,0.65) 100%)' }} />
 
-        <div className="relative z-10 flex flex-col items-center justify-center text-center px-6 py-12 gap-2">
+        <div className="relative z-10 flex flex-col justify-end px-5 py-4 h-full" style={{ minHeight: 136 }}>
           {isDenied ? (
-            <>
-              <MapPin className="w-7 h-7 text-muted-foreground opacity-40 mb-1" />
-              <p className="font-bold text-foreground text-base">Location access blocked</p>
-              <p className="text-sm text-muted-foreground max-w-xs">
-                Enable location in your browser settings, or search by city below.
+            <div>
+              <p className="font-bold text-white text-sm leading-tight">Location access blocked</p>
+              <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.55)' }}>
+                Enable location in settings, or search by city.
               </p>
-            </>
+            </div>
           ) : isError ? (
-            <>
-              <MapPin className="w-7 h-7 text-muted-foreground opacity-40 mb-1" />
-              <p className="font-bold text-foreground text-base">
+            <div>
+              <p className="font-bold text-white text-sm leading-tight">
                 {locationStatus === 'timeout' ? 'Location timed out' : "Couldn't detect location"}
               </p>
-              <p className="text-sm text-muted-foreground max-w-xs">
-                Try again or enter your city to see what's happening nearby.
+              <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.55)' }}>
+                Try again or enter your city.
               </p>
-            </>
+            </div>
           ) : (
-            <>
-              <LocateFixed className="w-7 h-7 text-muted-foreground opacity-40 mb-1" />
-              <p className="font-bold text-foreground text-base">
-                {isRequesting ? 'Finding events near you…' : 'See what\'s happening nearby'}
+            <div>
+              <p className="font-bold text-white text-sm leading-tight">
+                {isRequesting ? 'Finding events near you…' : "Your city's next shows"}
               </p>
-              <p className="text-sm text-muted-foreground max-w-xs">
-                {isRequesting
-                  ? 'Looking for concerts, sports, and more in your area.'
-                  : 'Fan-listed tickets for shows in your city.'}
+              <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.55)' }}>
+                {isRequesting ? 'Scanning nearby venues…' : 'Fan-listed upgrades · buyer-protected'}
               </p>
-            </>
+            </div>
           )}
         </div>
       </div>
 
-      {/* Action buttons — intentional purple CTAs */}
+      {/* Action buttons — tight to card, intentional purple CTAs */}
       {!isRequesting && (
         <div className="flex gap-2">
           {!isDenied && (

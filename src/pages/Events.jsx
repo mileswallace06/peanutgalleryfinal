@@ -171,9 +171,9 @@ export default function Events() {
       {/* ── Hero ── */}
       <div className="relative h-56 overflow-hidden" style={{ marginTop: 'env(safe-area-inset-top)' }}>
         <img
-          src="https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=900&q=80"
+          src="https://images.unsplash.com/photo-1429962714451-bb934ecdc4ec?w=1200&q=85"
           alt="crowd"
-          className="w-full h-full object-cover object-top"
+          className="w-full h-full object-cover object-center"
         />
         {/* Dark overlay — heavy at bottom */}
         <div
@@ -340,22 +340,21 @@ export default function Events() {
         />
       ) : filtered.length === 0 ? (
         <div className="px-4">
-          <div className="rounded-3xl overflow-hidden relative" style={{ minHeight: 200 }}>
-            <img
-              src="https://images.unsplash.com/photo-1540039155733-5bb30b4f5c1d?w=600&q=60"
-              alt="venue"
-              className="w-full h-full object-cover absolute inset-0 opacity-20"
-              style={{ filter: 'grayscale(40%)' }}
-            />
-            <div className="relative z-10 flex flex-col items-center justify-center text-center px-6 py-12 gap-3">
-              <p className="font-bold text-foreground text-base">No events found nearby</p>
-              <p className="text-sm text-muted-foreground max-w-xs">Try searching a different city or check back soon — events are added regularly.</p>
-              <button onClick={() => setEditingLocation(true)}
-                className="mt-2 flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold text-sm"
-                style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
-                <MapPin className="w-3.5 h-3.5" /> Search another city
-              </button>
+          <div className="rounded-2xl overflow-hidden relative flex items-center gap-4 px-4 py-4"
+            style={{ background: 'hsl(var(--card))', border: '1px solid rgba(191,95,255,0.15)', minHeight: 72 }}>
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+              style={{ background: 'rgba(191,95,255,0.1)' }}>
+              <MapPin className="w-4 h-4" style={{ color: '#BF5FFF' }} />
             </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-foreground text-sm">No events found here</p>
+              <p className="text-xs text-muted-foreground">Try a different city or check back soon.</p>
+            </div>
+            <button onClick={() => setEditingLocation(true)}
+              className="flex-shrink-0 text-xs font-bold px-3 py-1.5 rounded-full transition-all active:scale-95"
+              style={{ background: 'rgba(191,95,255,0.12)', border: '1px solid rgba(191,95,255,0.3)', color: '#BF5FFF' }}>
+              Change city
+            </button>
           </div>
         </div>
       ) : (
