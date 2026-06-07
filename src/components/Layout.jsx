@@ -22,7 +22,7 @@ function MountedTab({ tabKey, activeKey }) {
 
 const NAV = [
   { to: '/events', label: 'Tickets', icon: MapPin, color: '#BF5FFF', key: 'events' },
-  { to: '/upgrades', label: 'Upgrades', icon: Zap, color: '#00FF87', key: 'upgrades' },
+  { to: '/upgrades', label: 'Upgrades', sublabel: 'Better seats', icon: Zap, color: '#00FF87', key: 'upgrades' },
   { to: '/sell', label: 'Sell', icon: Tag, color: '#FF8C00', key: 'sell' },
   { to: '/fan-zone', label: 'Fan Zone', icon: Flame, color: '#00C8FF', key: 'fanzone' },
   { to: '/me', label: 'Me', icon: User, color: '#FF2D78', key: 'me' }
@@ -183,7 +183,7 @@ export default function Layout() {
       {/* Bottom nav */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 frosted-bar border-t border-white/10 dark:border-white/10" style={{ paddingBottom: 'env(safe-area-inset-bottom)', paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)' }}>
         <div className="max-w-lg mx-auto flex items-stretch">
-          {NAV.map(({ to, label, icon: Icon, color, key }) => {
+          {NAV.map(({ to, label, sublabel, icon: NavIcon, color, key }) => {
             const active = currentTab === key;
             const hasLivePulse = key === 'upgrades' && !!liveEventId && !active;
             return (
@@ -205,7 +205,7 @@ export default function Layout() {
                 <div
                   className="w-11 h-9 flex items-center justify-center rounded-xl transition-all relative"
                   style={active ? { background: `${color}18`, boxShadow: `0 0 14px ${color}44` } : {}}>
-                  <Icon
+                  <NavIcon
                     className="w-5 h-5"
                     style={active ? { filter: `drop-shadow(0 0 6px ${color}bb)`, strokeWidth: 2.5 } : { strokeWidth: 1.8 }} />
                   {hasLivePulse && (
@@ -216,6 +216,9 @@ export default function Layout() {
                 <span className="text-[10px] font-bold leading-none">
                   {hasLivePulse ? <span style={{ color: '#FFE600' }}>Live!</span> : label}
                 </span>
+                {sublabel && active && (
+                  <span className="text-[8px] leading-none mt-0.5 opacity-60">{sublabel}</span>
+                )}
               </Link>
             );
           })}

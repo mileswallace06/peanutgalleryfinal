@@ -62,7 +62,7 @@ export default function LiveHubHero({ event, listings, drops }) {
             </span>
           ) : (
             <span className="text-[11px] font-medium tracking-wide" style={{ color: 'rgba(255,255,255,0.38)' }}>
-              Upgrade Marketplace
+              Seat Upgrade Marketplace · opens at showtime
             </span>
           )}
         </div>
@@ -89,9 +89,14 @@ export default function LiveHubHero({ event, listings, drops }) {
             <Zap className="w-4 h-4 flex-shrink-0" style={{ color: upgradeCount > 0 ? '#00FF87' : 'rgba(255,255,255,0.2)' }} />
             <div>
               <span className="font-black text-2xl text-white leading-none">{upgradeCount}</span>
-              <span className="text-xs font-medium ml-2" style={{ color: 'rgba(255,255,255,0.45)' }}>
-                Upgrade{upgradeCount !== 1 ? 's' : ''} available
-              </span>
+              <div className="ml-2">
+                <p className="text-xs font-medium leading-none" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                  Seat upgrade{upgradeCount !== 1 ? 's' : ''} available
+                </p>
+                <p className="text-[9px] leading-none mt-0.5" style={{ color: 'rgba(255,255,255,0.25)' }}>
+                  Move into better seats
+                </p>
+              </div>
             </div>
           </div>
 

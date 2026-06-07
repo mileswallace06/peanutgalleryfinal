@@ -16,7 +16,11 @@ import EventLookupDebugPanel from '@/components/debug/EventLookupDebugPanel';
 import { logNavEvent } from '@/lib/navLogger';
 import LiveHubEmptyState from '@/components/eventmode/LiveHubEmptyState';
 
-const TABS = ['Upgrades', 'Fan Gifts', 'Fan Karma'];
+const TABS = [
+  { key: 'Upgrades', label: 'Upgrades', sub: 'Better seats' },
+  { key: 'Fan Gifts', label: 'Fan Gifts', sub: 'Free seat drops' },
+  { key: 'Fan Karma', label: 'Fan Karma', sub: 'Points & giving' },
+];
 
 export default function EventDetailUpgrade() {
   const { id } = useParams();
@@ -159,13 +163,14 @@ export default function EventDetailUpgrade() {
         style={{ background: 'hsl(var(--background))', borderColor: 'hsl(var(--border))' }}>
         {TABS.map(tab => (
           <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className="flex-1 py-3 text-xs font-black tracking-wide uppercase transition-colors relative"
-            style={{ color: activeTab === tab ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))' }}
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className="flex-1 py-2.5 transition-colors relative flex flex-col items-center gap-0"
+            style={{ color: activeTab === tab.key ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))' }}
           >
-            {tab}
-            {activeTab === tab && (
+            <span className="text-[11px] font-black tracking-wide uppercase leading-none">{tab.label}</span>
+            <span className="text-[9px] leading-none mt-0.5 opacity-60">{tab.sub}</span>
+            {activeTab === tab.key && (
               <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full"
                 style={{ background: 'hsl(var(--primary))' }} />
             )}
@@ -175,7 +180,7 @@ export default function EventDetailUpgrade() {
 
       {/* Tab content */}
       <div className="px-4 py-5 space-y-4">
-        {activeTab === 'Upgrades' && (
+        {activeTab === 'Upgrades' && ( // eslint-disable-line
           <>
             <UpgradeFeed listings={listings} eventId={id} loading={loading} />
             {!loading && listings.length === 0 && drops.filter(d => d.status === 'active' || d.status === 'pending').length === 0 && (
