@@ -158,7 +158,7 @@ export default function Sell() {
               fontSize: 'clamp(3rem, 14vw, 5rem)',
               letterSpacing: '-0.02em',
               filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.7))',
-              background: 'linear-gradient(90deg, #ffffff 40%, #FF8C00 100%)',
+              background: 'linear-gradient(90deg, #FF8C00 0%, #ffffff 60%)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               backgroundClip: 'text',
