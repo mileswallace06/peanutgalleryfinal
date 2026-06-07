@@ -208,7 +208,7 @@ export default function Upgrades() {
           <div className="flex gap-2">
             <button onClick={requestLocation} disabled={locationStatus === 'requesting'}
               className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-sm transition-all active:scale-[0.98] disabled:opacity-60"
-              style={{ background: 'rgba(191,95,255,0.15)', border: '1px solid rgba(191,95,255,0.35)', color: '#BF5FFF' }}>
+              style={{ background: 'rgba(0,255,135,0.12)', border: '1px solid rgba(0,255,135,0.35)', color: '#00FF87' }}>
               {locationStatus === 'requesting'
                 ? <span className="w-3.5 h-3.5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#BF5FFF', borderTopColor: 'transparent' }} />
                 : <LocateFixed className="w-3.5 h-3.5" />
@@ -217,24 +217,24 @@ export default function Upgrades() {
             </button>
             <button onClick={() => { setLocationInput(''); setEditingLocation(true); }}
               className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-semibold text-sm transition-all active:scale-[0.98]"
-              style={{ background: 'hsl(var(--card))', border: '1px solid rgba(191,95,255,0.2)' }}>
-              <MapPin className="w-3.5 h-3.5" style={{ color: '#BF5FFF', opacity: 0.7 }} />
+              style={{ background: 'hsl(var(--card))', border: '1px solid rgba(0,255,135,0.2)' }}>
+              <MapPin className="w-3.5 h-3.5" style={{ color: '#00FF87', opacity: 0.7 }} />
               <span className="text-foreground">Enter city</span>
             </button>
           </div>
         ) : (
-          /* location set — purple accent chip */
+          /* location set — green accent chip */
           <button
             onClick={() => { setLocationInput(locationLabel === 'Near me' ? '' : locationLabel); setEditingLocation(true); }}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all active:scale-[0.98]"
-            style={{ background: 'rgba(191,95,255,0.12)', border: '1px solid rgba(191,95,255,0.3)' }}
+            style={{ background: 'rgba(0,255,135,0.1)', border: '1px solid rgba(0,255,135,0.3)' }}
           >
             {locationStatus === 'requesting'
-              ? <span className="w-3 h-3 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#BF5FFF', borderTopColor: 'transparent' }} />
-              : <MapPin className="w-3 h-3" style={{ color: '#BF5FFF' }} />
+              ? <span className="w-3 h-3 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#00FF87', borderTopColor: 'transparent' }} />
+              : <MapPin className="w-3 h-3" style={{ color: '#00FF87' }} />
             }
-            <span className="text-xs font-semibold truncate max-w-[130px]" style={{ color: '#BF5FFF' }}>{locationLabel}</span>
-            <span className="text-[10px] opacity-60" style={{ color: '#BF5FFF' }}>· change</span>
+            <span className="text-xs font-semibold truncate max-w-[130px]" style={{ color: '#00FF87' }}>{locationLabel}</span>
+            <span className="text-[10px] opacity-60" style={{ color: '#00FF87' }}>· change</span>
           </button>
         )}
       </div>
@@ -360,19 +360,18 @@ function SectionHeader({ dot, icon, label, count, meta }) {
     <div className="flex items-center gap-2 mb-3">
       {/* Left accent bar */}
       <div className="w-0.5 h-4 rounded-full flex-shrink-0"
-        style={{ background: isLiveSection ? '#FF2D78' : 'rgba(191,95,255,0.7)' }} />
-      {dot && !isLiveSection && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-red-500" />}
+        style={{ background: isLiveSection ? '#FF2D78' : 'rgba(0,255,135,0.7)' }} />
       {isLiveSection && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-red-500" />}
-      {icon && <span className="flex-shrink-0" style={{ color: '#BF5FFF', opacity: 0.8 }}>{icon}</span>}
-      <h2 className="text-xs font-bold tracking-widest uppercase" style={{ color: isLiveSection ? 'hsl(var(--foreground))' : '#BF5FFF', opacity: isLiveSection ? 1 : 0.9 }}>{label}</h2>
+      {icon && <span className="flex-shrink-0" style={{ color: '#00FF87', opacity: 0.8 }}>{icon}</span>}
+      <h2 className="text-xs font-bold tracking-widest uppercase" style={{ color: isLiveSection ? 'hsl(var(--foreground))' : '#00FF87', opacity: isLiveSection ? 1 : 0.9 }}>{label}</h2>
       {count != null && (
         <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold tabular-nums"
-          style={{ background: 'rgba(191,95,255,0.12)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.25)' }}>
+          style={{ background: 'rgba(0,255,135,0.1)', color: '#00FF87', border: '1px solid rgba(0,255,135,0.25)' }}>
           {count}
         </span>
       )}
-      {meta && <span className="text-[10px] opacity-50" style={{ color: '#BF5FFF' }}>{meta}</span>}
-      <div className="h-px flex-1" style={{ background: 'rgba(191,95,255,0.15)' }} />
+      {meta && <span className="text-[10px] opacity-50" style={{ color: '#00FF87' }}>{meta}</span>}
+      <div className="h-px flex-1" style={{ background: 'rgba(0,255,135,0.15)' }} />
     </div>
   );
 }
@@ -466,7 +465,7 @@ function EventCard({ event, mode }) {
           <span className="truncate">{event.venue}{event.city ? `, ${event.city}` : ''}</span>
         </div>
         <div className="flex items-center gap-1 text-[11px] text-muted-foreground mt-0.5">
-          <Calendar className="w-3 h-3 flex-shrink-0" style={{ color: '#BF5FFF' }} />
+          <Calendar className="w-3 h-3 flex-shrink-0" style={{ color: '#00FF87' }} />
           <span>{event.date ? format(new Date(event.date), 'EEE, MMM d · h:mm a') : 'TBD'}</span>
         </div>
         {!isLive && !isTM && (
@@ -481,14 +480,14 @@ function EventCard({ event, mode }) {
             disabled={syncing}
             className="flex items-center gap-1 px-3 py-2 rounded-xl font-bold text-xs whitespace-nowrap disabled:opacity-60 transition-all active:scale-95"
             style={isLive
-              ? { background: 'rgba(191,95,255,0.18)', border: '1px solid rgba(191,95,255,0.45)', color: '#BF5FFF' }
+              ? { background: 'rgba(0,255,135,0.15)', border: '1px solid rgba(0,255,135,0.45)', color: '#00FF87' }
               : isSoon
-              ? { background: 'rgba(191,95,255,0.25)', border: '1px solid rgba(191,95,255,0.5)', color: '#BF5FFF' }
-              : { background: 'rgba(191,95,255,0.1)', border: '1px solid rgba(191,95,255,0.25)', color: '#BF5FFF' }
+              ? { background: 'rgba(0,255,135,0.2)', border: '1px solid rgba(0,255,135,0.5)', color: '#00FF87' }
+              : { background: 'rgba(0,255,135,0.08)', border: '1px solid rgba(0,255,135,0.25)', color: '#00FF87' }
             }
           >
             {syncing
-              ? <span className="w-3 h-3 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#BF5FFF', borderTopColor: 'transparent' }} />
+              ? <span className="w-3 h-3 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#00FF87', borderTopColor: 'transparent' }} />
               : null
             }
             {linkLabel} {!syncing && <ChevronRight className="w-3.5 h-3.5" />}
