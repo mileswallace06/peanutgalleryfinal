@@ -270,15 +270,32 @@ export default function PurchaseDialog({ event, listing, onClose, mode = 'ticket
       <div className="relative rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md mx-auto flex flex-col"
         style={{ maxHeight: 'calc(100dvh - 72px)', background: 'hsl(255 12% 9%)', border: '1px solid rgba(255,255,255,0.1)' }}>
         {/* Sticky header */}
-        <div className="flex-shrink-0 border-b px-5 py-4 flex items-center justify-between rounded-t-2xl"
+        <div className="flex-shrink-0 border-b px-5 py-4 rounded-t-2xl"
           style={{ background: 'hsl(255 12% 9%)', borderColor: 'rgba(255,255,255,0.1)' }}>
-          <div>
-            <h2 className="font-bold text-foreground">{mode === 'upgrade' ? 'Complete Upgrade' : 'Buy Tickets'}</h2>
-            <p className="text-xs text-muted-foreground">Section {listing.section} · Row {listing.row}</p>
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h2 className="font-bold text-foreground">{mode === 'upgrade' ? 'Complete Upgrade' : 'Buy Tickets'}</h2>
+              <p className="text-xs text-muted-foreground">Section {listing.section} · Row {listing.row}</p>
+            </div>
+            <button onClick={handleClose} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors text-foreground">
+              <X className="w-5 h-5" />
+            </button>
           </div>
-          <button onClick={handleClose} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors text-foreground">
-            <X className="w-5 h-5" />
-          </button>
+          {/* 4-point trust strip — visible before any payment info is entered */}
+          <div className="grid grid-cols-2 gap-1.5">
+            {[
+              { icon: '🔒', text: 'Money held safely in escrow' },
+              { icon: '✅', text: 'You confirm before seller is paid' },
+              { icon: '🎫', text: 'Seller notified to transfer immediately' },
+              { icon: '🛡️', text: 'Disputes supported if something goes wrong' },
+            ].map(({ icon, text }) => (
+              <div key={text} className="flex items-start gap-1.5 px-2.5 py-2 rounded-xl"
+                style={{ background: 'rgba(0,255,135,0.05)', border: '1px solid rgba(0,255,135,0.12)' }}>
+                <span className="text-sm leading-none flex-shrink-0 mt-0.5">{icon}</span>
+                <p className="text-[10px] leading-tight" style={{ color: 'rgba(200,255,230,0.7)' }}>{text}</p>
+              </div>
+            ))}
+          </div>
         </div>
         {/* UX-8: Scrollable body — submit button is sticky-footed outside scroll to prevent iOS keyboard overlap */}
         <div className="flex-1 overflow-y-auto p-5 pb-2">

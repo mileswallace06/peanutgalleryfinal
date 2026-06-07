@@ -147,10 +147,12 @@ export default function ListingCard({ listing, onUpgrade, isCheapest, mode = 'up
           </div>
         )}
 
-        {/* Buyer protection — restrained */}
-        <div className="flex items-center gap-1.5 -mt-1">
-          <ShieldCheck className="w-3 h-3 flex-shrink-0 opacity-40" />
-          <p className="text-[10px] text-muted-foreground">Payment held until you confirm receipt.</p>
+        {/* Buyer protection */}
+        <div className="flex items-center gap-3 -mt-1 flex-wrap">
+          <div className="flex items-center gap-1">
+            <ShieldCheck className="w-3 h-3 flex-shrink-0" style={{ color: '#00FF87', opacity: 0.7 }} />
+            <p className="text-[10px] text-muted-foreground">Money held in escrow · seller paid only after you confirm · disputes supported</p>
+          </div>
         </div>
       </div>
     </div>
