@@ -138,7 +138,7 @@ export default function Sell() {
       {/* Hero */}
       <div className="relative h-56 overflow-hidden" style={{ marginTop: 'env(safe-area-inset-top)' }}>
         <img
-          src="https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=900&q=80"
+          src="https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=900&q=80"
           alt="Sell"
           className="w-full h-full object-cover object-top"
         />
