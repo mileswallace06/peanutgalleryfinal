@@ -171,7 +171,7 @@ export default function Events() {
       {/* ── Hero ── */}
       <div className="relative h-56 overflow-hidden" style={{ marginTop: 'env(safe-area-inset-top)' }}>
         <img
-          src="https://images.unsplash.com/photo-1429962714451-bb934ecdc4ec?w=1200&q=85"
+          src="https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=1200&q=85"
           alt="crowd"
           className="w-full h-full object-cover object-center"
         />

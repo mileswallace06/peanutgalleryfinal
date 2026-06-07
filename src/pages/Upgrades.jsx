@@ -152,7 +152,7 @@ export default function Upgrades() {
       {/* Hero */}
       <div className="relative h-52 overflow-hidden" style={{ marginTop: 'env(safe-area-inset-top)' }}>
         <img
-          src="https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=900&q=80"
+          src="https://images.unsplash.com/photo-1459865264687-595d652de67e?w=900&q=80"
           alt="Upgrades"
           className="w-full h-full object-cover object-top"
         />
