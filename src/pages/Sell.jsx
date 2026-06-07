@@ -146,31 +146,23 @@ export default function Sell() {
           className="absolute inset-0"
           style={{ background: 'linear-gradient(to bottom, rgba(5,3,12,0.45) 0%, rgba(5,3,12,0.2) 40%, rgba(5,3,12,0.92) 100%)' }}
         />
+        <div
+          className="absolute bottom-0 left-0 right-0 h-36"
+          style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.65), transparent)' }}
+        />
 
         <div className="absolute bottom-5 left-4 right-4">
-          <span className="text-[10px] font-black tracking-[0.2em] px-3 py-1 rounded-full inline-block mb-3"
-            style={{ background: 'rgba(0,0,0,0.5)', color: '#FF8C00', border: '1px solid #FF8C0055', backdropFilter: 'blur(12px)' }}>
-            🏷️ SELLER HUB
-          </span>
-          <h1 className="font-display leading-[0.9] mb-3"
+          <h1
+            className="font-display text-white leading-[0.95]"
             style={{
-              fontSize: 'clamp(3.2rem, 15vw, 5.2rem)',
+              fontSize: 'clamp(3rem, 14vw, 5rem)',
               letterSpacing: '-0.02em',
-              background: 'linear-gradient(135deg, #FF2D78 0%, #FFE600 55%, #00FF87 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-              filter: 'drop-shadow(0 6px 24px rgba(0,0,0,0.6))'
-            }}>
+              filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.7))',
+            }}
+          >
             Sell Tickets
           </h1>
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full"
-            style={{ background: 'rgba(255,140,0,0.15)', border: '1px solid rgba(255,140,0,0.35)' }}>
-            <Tag className="w-3 h-3 flex-shrink-0" style={{ color: '#FF2D78' }} />
-            <span className="text-[11px] font-medium leading-snug" style={{ color: 'rgba(255,215,235,0.9)' }}>
-              List your seats instantly. Sellers keep 95% — the highest rate in the industry.
-            </span>
-          </div>
+          <p className="text-sm text-white/60 mt-1">List your seats. Keep 95% of every sale.</p>
         </div>
       </div>
 

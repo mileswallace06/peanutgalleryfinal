@@ -160,16 +160,17 @@ export default function Upgrades() {
           style={{ background: 'linear-gradient(to bottom, rgba(5,3,12,0.4) 0%, rgba(5,3,12,0.2) 40%, rgba(5,3,12,0.95) 100%)' }} />
 
         <div className="absolute bottom-5 left-4 right-4">
-          <h1 className="font-display text-white mb-1"
+          <h1
+            className="font-display text-white leading-[0.95]"
             style={{
               fontSize: 'clamp(3rem, 14vw, 5rem)',
               letterSpacing: '-0.02em',
-              lineHeight: 1.05,
-              filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.7))'
-            }}>
+              filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.7))',
+            }}
+          >
             Upgrades
           </h1>
-          <p className="text-sm text-white/60">Buy better seats from fans already inside the venue.</p>
+          <p className="text-sm text-white/60 mt-1">Better seats from fans already inside.</p>
         </div>
       </div>
 
@@ -259,18 +260,18 @@ export default function Upgrades() {
       {/* Content */}
       <div className="px-4 space-y-8">
         {!loading && locationStatus === 'idle' && !locationLabel && (
-          <div className="rounded-2xl overflow-hidden relative" style={{ minHeight: 120 }}>
+          <div className="rounded-2xl overflow-hidden relative" style={{ minHeight: 136 }}>
             <img
-              src="https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=800&q=75"
+              src="https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=900&q=80"
               alt="stadium seating"
               className="w-full h-full object-cover absolute inset-0"
-              style={{ opacity: 0.4, filter: 'grayscale(5%)' }}
+              style={{ opacity: 0.45, filter: 'grayscale(5%)' }}
             />
-            <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, rgba(191,95,255,0.18) 0%, rgba(0,0,0,0.3) 50%, rgba(0,0,0,0.65) 100%)' }} />
-            <div className="relative z-10 flex flex-col justify-end px-5 py-4 h-full" style={{ minHeight: 120 }}>
-              <p className="font-bold text-white text-sm leading-tight">Upgrades open at showtime</p>
+            <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, rgba(0,255,135,0.12) 0%, rgba(0,0,0,0.25) 50%, rgba(0,0,0,0.7) 100%)' }} />
+            <div className="relative z-10 flex flex-col justify-end px-5 py-4 h-full" style={{ minHeight: 136 }}>
+              <p className="font-bold text-white text-sm leading-tight">Seat upgrades open at showtime</p>
               <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.55)' }}>
-                Better seats from fans already inside the venue.
+                Fan-listed upgrades · buyer-protected
               </p>
             </div>
           </div>
