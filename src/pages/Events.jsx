@@ -180,11 +180,6 @@ export default function Events() {
           className="absolute inset-0"
           style={{ background: 'linear-gradient(to bottom, rgba(5,3,12,0.45) 0%, rgba(5,3,12,0.2) 40%, rgba(5,3,12,0.92) 100%)' }}
         />
-        {/* Purple accent wash */}
-        <div
-          className="absolute inset-0"
-          style={{ background: 'linear-gradient(160deg, rgba(191,95,255,0.22) 0%, transparent 55%)' }}
-        />
         {/* Extra text-area darkening */}
         <div
           className="absolute bottom-0 left-0 right-0 h-36"

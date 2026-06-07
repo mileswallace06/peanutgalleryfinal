@@ -158,9 +158,6 @@ export default function Upgrades() {
         />
         <div className="absolute inset-0"
           style={{ background: 'linear-gradient(to bottom, rgba(5,3,12,0.4) 0%, rgba(5,3,12,0.2) 40%, rgba(5,3,12,0.95) 100%)' }} />
-        {/* Green accent wash */}
-        <div className="absolute inset-0"
-          style={{ background: 'linear-gradient(160deg, rgba(0,255,135,0.18) 0%, transparent 55%)' }} />
 
         <div className="absolute bottom-5 left-4 right-4">
           <h1
