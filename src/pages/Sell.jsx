@@ -184,7 +184,7 @@ export default function Sell() {
           <Link
             to="/create-listing"
             className="flex items-center justify-center gap-2 w-full py-4 rounded-full font-black text-sm"
-            style={{ background: 'linear-gradient(135deg, #FF2D78, #BF5FFF)', color: '#fff', boxShadow: '0 0 20px rgba(191,95,255,0.25)' }}
+            style={{ background: 'linear-gradient(135deg, #FF8C00, #FF2D78)', color: '#fff', boxShadow: '0 0 20px rgba(255,140,0,0.25)' }}
           >
             <Plus className="w-4 h-4" /> List My Tickets
           </Link>
@@ -298,7 +298,7 @@ export default function Sell() {
                     </div>
                     {isTM
                       ? <span className="text-[9px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
-                          style={{ background: 'rgba(191,95,255,0.12)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.3)' }}>Search →</span>
+                          style={{ background: 'rgba(255,140,0,0.12)', color: '#FF8C00', border: '1px solid rgba(255,140,0,0.3)' }}>Search →</span>
                       : <ChevronRight className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
                     }
                   </Link>
