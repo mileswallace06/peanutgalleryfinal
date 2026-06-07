@@ -146,6 +146,11 @@ export default function Sell() {
           className="absolute inset-0"
           style={{ background: 'linear-gradient(to bottom, rgba(5,3,12,0.45) 0%, rgba(5,3,12,0.2) 40%, rgba(5,3,12,0.92) 100%)' }}
         />
+        {/* Orange accent wash */}
+        <div
+          className="absolute inset-0"
+          style={{ background: 'linear-gradient(160deg, rgba(255,140,0,0.22) 0%, transparent 55%)' }}
+        />
         <div
           className="absolute bottom-0 left-0 right-0 h-36"
           style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.65), transparent)' }}
