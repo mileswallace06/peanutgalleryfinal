@@ -191,11 +191,15 @@ export default function Events() {
         {/* Headline */}
         <div className="absolute bottom-5 left-4 right-4">
           <h1
-            className="font-display text-white leading-[0.95]"
+            className="font-display leading-[0.95]"
             style={{
               fontSize: 'clamp(3rem, 14vw, 5rem)',
               letterSpacing: '-0.02em',
               filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.7))',
+              background: 'linear-gradient(90deg, #ffffff 40%, #BF5FFF 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
             }}
           >
             Events

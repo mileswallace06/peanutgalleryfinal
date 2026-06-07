@@ -202,26 +202,22 @@ export default function FanZone() {
         />
         <div className="absolute inset-0"
           style={{ background: 'linear-gradient(to bottom, rgba(5,3,12,0.4) 0%, rgba(5,3,12,0.15) 40%, rgba(5,3,12,0.95) 100%)' }} />
-        <div className="absolute top-5 left-4">
-          <span className="text-[10px] font-black tracking-[0.2em] px-3 py-1 rounded-full"
-            style={{ background: 'rgba(0,0,0,0.5)', color: '#00C8FF', border: '1px solid #00C8FF55', backdropFilter: 'blur(12px)' }}>
-            🎤 FAN ZONE
-          </span>
-        </div>
         <div className="absolute bottom-5 left-4 right-4">
-          <h1 className="font-display mb-2"
+          <h1
+            className="font-display leading-[0.95]"
             style={{
-              fontSize: 'clamp(3.2rem, 15vw, 5rem)',
+              fontSize: 'clamp(3rem, 14vw, 5rem)',
               letterSpacing: '-0.02em',
-              lineHeight: 1.05,
-              background: 'linear-gradient(135deg, #FF99CC 0%, #66FFFF 100%)',
+              filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.7))',
+              background: 'linear-gradient(90deg, #ffffff 40%, #00C8FF 100%)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               backgroundClip: 'text',
-              filter: 'drop-shadow(0 6px 24px rgba(0,0,0,0.6))',
-            }}>
+            }}
+          >
             Fan Zone
           </h1>
+          <p className="text-sm text-white/60 mt-1">Share the moment with fellow fans.</p>
         </div>
       </div>
 
