@@ -489,12 +489,12 @@ function EventCard({ event, mode }) {
             style={isLive
               ? { background: 'rgba(0,255,135,0.15)', border: '1px solid rgba(0,255,135,0.45)', color: '#00FF87' }
               : isSoon
-              ? { background: 'rgba(0,255,135,0.2)', border: '1px solid rgba(0,255,135,0.5)', color: '#00FF87' }
+              ? { background: 'rgba(255,230,0,0.15)', border: '1px solid rgba(255,230,0,0.45)', color: '#FFE600' }
               : { background: 'rgba(0,255,135,0.08)', border: '1px solid rgba(0,255,135,0.25)', color: '#00FF87' }
             }
           >
             {syncing
-              ? <span className="w-3 h-3 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#00FF87', borderTopColor: 'transparent' }} />
+              ? <span className="w-3 h-3 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: isSoon ? '#FFE600' : '#00FF87', borderTopColor: 'transparent' }} />
               : null
             }
             {linkLabel} {!syncing && <ChevronRight className="w-3.5 h-3.5" />}
