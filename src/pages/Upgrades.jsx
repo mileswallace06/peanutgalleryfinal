@@ -292,7 +292,7 @@ export default function Upgrades() {
             {/* LIVE NOW */}
             <section>
               <SectionHeader
-                dot="red"
+                variant="live"
                 label="Live Now"
                 count={liveEvents.length > 0 ? liveEvents.length : null}
               />
@@ -314,6 +314,7 @@ export default function Upgrades() {
             {soonEvents.length > 0 && (
               <section>
                 <SectionHeader
+                  variant="soon"
                   icon={<Clock className="w-3.5 h-3.5" />}
                   label="Starting Soon"
                   count={soonEvents.length}
@@ -330,6 +331,7 @@ export default function Upgrades() {
             {/* UPCOMING */}
             <section>
               <SectionHeader
+                variant="upcoming"
                 icon={<Calendar className="w-3.5 h-3.5" />}
                 label="Upcoming Near You"
                 count={upcomingEvents.length > 0 ? upcomingEvents.length : null}
@@ -354,24 +356,29 @@ export default function Upgrades() {
   );
 }
 
-function SectionHeader({ dot, icon, label, count, meta }) {
-  const isLiveSection = dot === 'red';
+function SectionHeader({ dot, icon, label, count, meta, variant }) {
+  // variant: 'live' | 'soon' | 'upcoming' (default green)
+  const isLive = variant === 'live';
+  const isSoon = variant === 'soon';
+  const accentColor = isLive ? '#FF2D78' : isSoon ? '#FFE600' : '#00FF87';
+  const accentBg = isLive ? 'rgba(255,45,120,0.12)' : isSoon ? 'rgba(255,230,0,0.12)' : 'rgba(0,255,135,0.1)';
+  const accentBorder = isLive ? 'rgba(255,45,120,0.3)' : isSoon ? 'rgba(255,230,0,0.3)' : 'rgba(0,255,135,0.25)';
+  const accentLine = isLive ? 'rgba(255,45,120,0.4)' : isSoon ? 'rgba(255,230,0,0.3)' : 'rgba(0,255,135,0.15)';
+
   return (
     <div className="flex items-center gap-2 mb-3">
-      {/* Left accent bar */}
-      <div className="w-0.5 h-4 rounded-full flex-shrink-0"
-        style={{ background: isLiveSection ? '#FF2D78' : 'rgba(0,255,135,0.7)' }} />
-      {isLiveSection && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-red-500" />}
-      {icon && <span className="flex-shrink-0" style={{ color: '#00FF87', opacity: 0.8 }}>{icon}</span>}
-      <h2 className="text-xs font-bold tracking-widest uppercase" style={{ color: isLiveSection ? 'hsl(var(--foreground))' : '#00FF87', opacity: isLiveSection ? 1 : 0.9 }}>{label}</h2>
+      <div className="w-0.5 h-4 rounded-full flex-shrink-0" style={{ background: accentColor }} />
+      {isLive && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-red-500" />}
+      {icon && <span className="flex-shrink-0" style={{ color: accentColor, opacity: 0.9 }}>{icon}</span>}
+      <h2 className="text-xs font-bold tracking-widest uppercase" style={{ color: accentColor }}>{label}</h2>
       {count != null && (
         <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold tabular-nums"
-          style={{ background: 'rgba(0,255,135,0.1)', color: '#00FF87', border: '1px solid rgba(0,255,135,0.25)' }}>
+          style={{ background: accentBg, color: accentColor, border: `1px solid ${accentBorder}` }}>
           {count}
         </span>
       )}
-      {meta && <span className="text-[10px] opacity-50" style={{ color: '#00FF87' }}>{meta}</span>}
-      <div className="h-px flex-1" style={{ background: 'rgba(0,255,135,0.15)' }} />
+      {meta && <span className="text-[10px] opacity-60" style={{ color: accentColor }}>{meta}</span>}
+      <div className="h-px flex-1" style={{ background: accentLine }} />
     </div>
   );
 }
