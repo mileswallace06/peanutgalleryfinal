@@ -61,19 +61,41 @@ export default function EventDetailTM() {
         return base44.entities.Listing.filter({ event_id: eventId, status: 'active', proof_status: 'approved' });
       }
 
-      // DB miss — event not yet synced. Fall back to TM API (covers race condition: user clicked before syncTMEvent finished)
-      console.info('[EventDetailTM] lookup=db_tm_id miss — falling back to TM API | tmId:', tmId, logCtx);
-      return base44.functions.invoke('getTicketmasterEvents', { size: 100 }).then(tmRes => {
-        const tmEvents = tmRes?.data?.events || [];
-        const found = tmEvents.find(e => e.tm_id === tmId);
-        if (found) {
-          console.info('[EventDetailTM] lookup=tm_api success | title:', found.title, logCtx);
-          setEvent(found);
-        } else {
-          console.warn('[EventDetailTM] lookup=tm_api miss — event not found in TM API either', logCtx);
+      // DB miss — event not yet synced. Try to sync it by tmId, then re-fetch.
+      console.info('[EventDetailTM] lookup=db_tm_id miss — triggering syncTMEvent | tmId:', tmId, logCtx);
+      return base44.functions.invoke('syncTMEvent', { tm_id: tmId }).then(async (syncRes) => {
+        const syncedId = syncRes?.data?.id;
+        if (syncedId) {
+          // Re-fetch the now-synced event
+          const synced = await base44.entities.Event.filter({ id: syncedId });
+          if (synced.length > 0) {
+            const localEv = synced[0];
+            setLocalEventId(localEv.id);
+            setEvent({
+              tm_id: localEv.tm_id,
+              title: localEv.title,
+              venue: localEv.venue,
+              city: localEv.city,
+              state: localEv.state,
+              date: localEv.date || localEv.event_start_local,
+              image_url: localEv.image_url,
+              tm_url: localEv.tm_url,
+            });
+            return base44.entities.Listing.filter({ event_id: localEv.id, status: 'active', proof_status: 'approved' });
+          }
         }
-        return []; // no listings if no local event yet
-      });
+        // syncTMEvent had no data — try a keyword TM search as last resort
+        return base44.functions.invoke('tmSuggest', { keyword: tmId, size: 5 }).then(sugRes => {
+          const found = (sugRes?.data?.events || []).find(e => e.tm_id === tmId);
+          if (found) {
+            console.info('[EventDetailTM] lookup=tm_suggest success | title:', found.title, logCtx);
+            setEvent(found);
+          } else {
+            console.warn('[EventDetailTM] lookup=all_methods_exhausted', logCtx);
+          }
+          return [];
+        }).catch(() => []);
+      }).catch(() => []);
     }).then(rawListings => {
       if (Array.isArray(rawListings) && rawListings.length > 0) {
         const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
