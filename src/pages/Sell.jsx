@@ -130,6 +130,7 @@ export default function Sell() {
   }
 
   const active = listings.filter(l => l.status === 'active' || l.status === 'pending_transfer');
+  const drafts = listings.filter(l => l.status === 'pending_payout_setup');
   const sold = listings.filter(l => l.status === 'sold');
   const other = listings.filter(l => l.status === 'cancelled' || l.status === 'expired');
 
@@ -242,6 +243,24 @@ export default function Sell() {
           </div>
         )}
 
+        {/* Secondary CTA — allow listing creation even without onboarding */}
+        {!isAdmin(user) && user.stripe_onboarding_complete !== true && user.stripe_onboarding_complete !== 'true' && (
+          <div className="flex items-center gap-3 px-4 py-3 rounded-2xl"
+            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-foreground">Have tickets to list?</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Save your listing now — it'll go live once payout setup is complete.</p>
+            </div>
+            <Link
+              to="/create-listing"
+              className="flex items-center gap-1.5 px-4 py-2.5 rounded-full font-bold text-xs flex-shrink-0 transition-all active:scale-95"
+              style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--foreground))' }}
+            >
+              <Plus className="w-3.5 h-3.5" /> Create Listing
+            </Link>
+          </div>
+        )}
+
         {/* Stats row */}
         <div className="grid grid-cols-3 gap-3">
           {[
@@ -308,6 +327,18 @@ export default function Sell() {
           )}
         </section>
 
+        {/* Draft listings awaiting payout setup */}
+        {drafts.length > 0 && (
+          <section>
+            <h2 className="font-bold text-sm text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
+              <AlertCircle className="w-3.5 h-3.5" style={{ color: '#FF8C00' }} /> Awaiting Payout Setup ({drafts.length})
+            </h2>
+            <div className="space-y-3">
+              {drafts.map(l => <ListingRow key={l.id} listing={l} />)}
+            </div>
+          </section>
+        )}
+
         {/* Active listings */}
         {active.length > 0 && (
           <section>
@@ -361,12 +392,25 @@ function ListingRow({ listing }) {
     sold: 'var(--neon-cyan)',
     cancelled: 'var(--neon-pink)',
     expired: 'hsl(var(--muted-foreground))',
+    pending_payout_setup: '#FF8C00',
+  };
+  const STATUS_LABEL = {
+    active: 'Active',
+    pending_transfer: 'Pending Transfer',
+    sold: 'Sold',
+    cancelled: 'Cancelled',
+    expired: 'Expired',
+    pending_payout_setup: 'Draft · Payout Pending',
   };
   const color = STATUS_COLOR[listing.status] || 'hsl(var(--muted-foreground))';
+  const isDraft = listing.status === 'pending_payout_setup';
 
   return (
     <div className="rounded-2xl px-4 py-4 flex items-center justify-between gap-3"
-      style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+      style={{
+        background: isDraft ? 'rgba(255,140,0,0.04)' : 'hsl(var(--card))',
+        border: isDraft ? '1px solid rgba(255,140,0,0.25)' : '1px solid hsl(var(--border))',
+      }}>
       <div className="flex-1 min-w-0">
         <div className="font-bold text-sm text-foreground truncate">
           Sec {listing.section}{listing.row ? ` · Row ${listing.row}` : ''}
@@ -375,10 +419,15 @@ function ListingRow({ listing }) {
         <div className="text-xs text-muted-foreground mt-0.5">
           {listing.quantity} ticket{listing.quantity !== 1 ? 's' : ''} · ${listing.asking_price}/ea
         </div>
+        {isDraft && (
+          <p className="text-[10px] mt-1" style={{ color: '#FF8C00' }}>
+            Not visible to buyers until payout setup is complete.
+          </p>
+        )}
       </div>
-      <span className="text-[10px] font-black px-2.5 py-1 rounded-full capitalize flex-shrink-0"
+      <span className="text-[10px] font-black px-2.5 py-1 rounded-full flex-shrink-0 text-center"
         style={{ background: `${color}18`, color, border: `1px solid ${color}30` }}>
-        {listing.status.replace('_', ' ')}
+        {STATUS_LABEL[listing.status] || listing.status.replace(/_/g, ' ')}
       </span>
     </div>
   );

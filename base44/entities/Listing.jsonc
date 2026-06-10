@@ -81,9 +81,11 @@
         "cancelled",
         "expired",
         "pending_verification",
-        "hidden"
+        "hidden",
+        "pending_payout_setup"
       ],
-      "default": "active"
+      "default": "active",
+      "description": "pending_payout_setup = draft saved before seller completed Stripe Connect onboarding. Never shown to buyers."
     },
     "hidden_reason": {
       "type": "string",

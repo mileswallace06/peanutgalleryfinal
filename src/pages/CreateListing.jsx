@@ -71,6 +71,7 @@ export default function CreateListing() {
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const [flagged, setFlagged] = useState(false);
+  const [savedAsDraft, setSavedAsDraft] = useState(false);
   const [uploadingProof, setUploadingProof] = useState(false);
   const [user, setUser] = useState(null);
   const [eventTab, setEventTab] = useState(preselectedTab === 'search' ? 'search' : 'recommended');
@@ -225,8 +226,33 @@ export default function CreateListing() {
         listing_mode: listingMode,
         buyer_total: feePreview?.total || 0,
         pg_fee: feePreview?.fee || 0,
+        onboarding_complete: onboardingComplete,
       },
     });
+
+    // If Stripe onboarding is not complete, save as a non-public draft
+    if (!onboardingComplete) {
+      await base44.entities.Listing.create({
+        event_id: form.event_id,
+        seller_email: user?.email,
+        section: form.section,
+        row: form.row,
+        seats: form.seats || undefined,
+        quantity: parseInt(form.quantity) || 1,
+        tier: form.tier || undefined,
+        asking_price: parseFloat(form.asking_price),
+        original_price: form.original_price ? parseFloat(form.original_price) : undefined,
+        transfer_method: form.transfer_method,
+        proof_url: form.proof_url || undefined,
+        listing_mode: listingMode,
+        status: 'pending_payout_setup',
+        proof_status: 'pending_review',
+      });
+      setSubmitting(false);
+      setSavedAsDraft(true);
+      setDone(true);
+      return;
+    }
 
     if (listingMode === 'instant') {
       // Instant listing: create directly with pending_pg_verification status
@@ -322,43 +348,48 @@ export default function CreateListing() {
 
   const selectedEvent = events.find(e => e.id === form.event_id) || selectedTmEvent;
 
-  // ── Onboarding gate ───────────────────────────────────────────────────────
+  // ── Onboarding state (non-blocking) ──────────────────────────────────────
   const isAdminUser = checkIsAdmin(user);
   const onboardingComplete =
     isAdminUser ||
     user?.stripe_onboarding_complete === true ||
     user?.stripe_onboarding_complete === 'true';
 
-  if (user && !onboardingComplete) {
-    return (
-      <div className="max-w-md mx-auto px-4 py-16 flex flex-col items-center text-center gap-6">
-        <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
-          style={{ background: 'rgba(255,140,0,0.12)', border: '1px solid rgba(255,140,0,0.3)' }}>
-          <span className="text-3xl">🏦</span>
-        </div>
-        <div>
-          <h2 className="font-display text-3xl mb-2" style={{ color: '#FF8C00' }}>Payout Account Required</h2>
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            To list tickets on Peanut Gallery, you need to connect your bank account via Stripe. It takes under 2 minutes.
-          </p>
-        </div>
-        <Link
-          to="/sell"
-          className="w-full flex items-center justify-center gap-2 py-4 rounded-full font-black text-sm"
-          style={{ background: 'linear-gradient(135deg, #FF8C00, #FF2D78)', color: '#fff', boxShadow: '0 0 18px rgba(255,140,0,0.25)' }}
-        >
-          Set Up Payouts →
-        </Link>
-        <Link to="/sell" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-          ← Back to Sell
-        </Link>
-      </div>
-    );
-  }
-
   // ── Success screen ────────────────────────────────────────────────────────
 
   if (done) {
+    // Draft saved — seller needs to complete Stripe onboarding first
+    if (savedAsDraft) {
+      return (
+        <div className="max-w-md mx-auto px-4 py-16 text-center">
+          <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-5"
+            style={{ background: 'rgba(255,140,0,0.12)', border: '1px solid rgba(255,140,0,0.3)', boxShadow: '0 0 32px rgba(255,140,0,0.15)' }}>
+            <span className="text-4xl">🏦</span>
+          </div>
+          <h1 className="font-display text-4xl mb-2" style={{ color: '#FF8C00' }}>Listing Saved</h1>
+          <p className="text-sm text-muted-foreground leading-relaxed mt-2 mb-1 max-w-xs mx-auto">
+            Your listing details are saved. To make it live and visible to buyers, you need to complete your Stripe payout setup.
+          </p>
+          <p className="text-xs text-muted-foreground mb-8">It takes under 2 minutes and your bank info is never stored by Peanut Gallery.</p>
+          <div className="flex flex-col gap-3">
+            <Link
+              to="/sell"
+              className="inline-flex items-center justify-center gap-2 py-4 rounded-full font-black text-sm"
+              style={{ background: 'linear-gradient(135deg, #FF8C00, #FF2D78)', color: '#fff', boxShadow: '0 0 18px rgba(255,140,0,0.25)' }}
+            >
+              Complete Payout Setup →
+            </Link>
+            <Link to="/my-sales"
+              className="inline-flex items-center justify-center gap-2 py-3 rounded-full font-semibold text-sm"
+              style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--muted-foreground))' }}
+            >
+              View My Listings
+            </Link>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="max-w-md mx-auto px-4 py-16 text-center">
         {isAdminUser && (
@@ -395,7 +426,7 @@ export default function CreateListing() {
           </Link>
           <button
             onClick={() => {
-              setDone(false); setStep(0);
+              setDone(false); setSavedAsDraft(false); setStep(0);
               setForm({ event_id: '', section: '', row: '', seats: '', quantity: '1', tier: '', asking_price: '', original_price: '', transfer_method: 'email_transfer', proof_url: '' });
               setSelectedTmEvent(null); setTmResults([]); setTmQuery(''); setTmSearched(false); setSelectingTmId(null);
               setAttestationDone(false); setAttestationData(null); setAttestationBlocked(false);
