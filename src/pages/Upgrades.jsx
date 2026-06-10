@@ -406,9 +406,10 @@ function EventCard({ event, mode }) {
 
   const handleClick = async (e) => {
     if (pgId) {
-      // Real PG event — navigate directly
-      logNavEvent({ result: 'success', event, sourcePage: 'Upgrades', generatedHref: `/upgrades/${pgId}`, lookupMethod: 'direct_id' });
-      navigate(`/upgrades/${pgId}`);
+      // Real PG event — for live/soon go to upgrade hub; for upcoming go to event detail where tickets are listed
+      const dest = (isLive || isSoon) ? `/upgrades/${pgId}` : `/events/${pgId}`;
+      logNavEvent({ result: 'success', event, sourcePage: 'Upgrades', generatedHref: dest, lookupMethod: 'direct_id' });
+      navigate(dest);
       return;
     }
     if (!tmId) return;
@@ -442,7 +443,7 @@ function EventCard({ event, mode }) {
     }
   };
 
-  const linkLabel = syncing ? 'Loading…' : isLive ? 'Open Live Hub' : isSoon ? 'Get Ready' : 'View Upgrades';
+  const linkLabel = syncing ? 'Loading…' : isLive ? 'Open Live Hub' : isSoon ? 'Get Ready' : 'View Tickets';
 
   return (
     <div
@@ -481,7 +482,7 @@ function EventCard({ event, mode }) {
           <span>{event.date ? format(new Date(event.date), 'EEE, MMM d · h:mm a') : 'TBD'}</span>
         </div>
         {!isLive && !isTM && (
-          <span className="mt-1.5 text-[10px] text-muted-foreground">Available at showtime</span>
+          <span className="mt-1.5 text-[10px] text-muted-foreground">Tickets available · upgrades open at showtime</span>
         )}
       </div>
 
