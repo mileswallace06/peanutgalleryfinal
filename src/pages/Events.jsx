@@ -11,6 +11,7 @@ import { fetchTMEvents, bustTMCache } from '@/lib/tmCache';
 import { useLocationDetect } from '@/hooks/useLocationDetect';
 import LocationAutocomplete from '@/components/LocationAutocomplete';
 import EventsEmptyState from '@/components/events/EventsEmptyState';
+import EventThumbnail from '@/components/events/EventThumbnail';
 
 // ── sessionStorage helpers ────────────────────────────────────────────────
 const SS_KEY = 'pg_events_location';
@@ -377,108 +378,128 @@ function EventRow({ event, isAdmin = false }) {
   const timing = !isTM && event.id ? getEventLiveStatus(event) : null;
   const isLive = timing?.status === 'live';
   const isSoon = timing?.status === 'soon';
-  const debugUrl = getEventUrl(event);
+  const eventUrl = getEventUrl(event);
 
   const handleCardClick = () => {
     logNavEvent({
-      result: debugUrl ? 'success' : 'navigation_error',
+      result: eventUrl ? 'success' : 'navigation_error',
       event,
       sourcePage: 'Events',
-      generatedHref: debugUrl || '',
+      generatedHref: eventUrl || '',
       lookupMethod: 'none',
-      failureReason: debugUrl ? '' : 'getEventUrl returned null — missing id and tm_id',
+      failureReason: eventUrl ? '' : 'getEventUrl returned null',
     });
   };
 
+  // Marketplace signals — only show what's genuinely available
+  const listingCount = event.listing_count || null;
+  const minPrice = event.min_price || null;
+  const isPGEvent = event.source === 'pg';
+
   return (
     <div
-      className="rounded-2xl overflow-hidden flex items-stretch relative"
+      className="rounded-2xl overflow-hidden flex items-stretch"
       style={{
         background: 'hsl(var(--card))',
         border: isLive
-          ? '1px solid rgba(191,95,255,0.4)'
-          : isSoon
-          ? '1px solid rgba(191,95,255,0.2)'
+          ? '1px solid rgba(191,95,255,0.35)'
           : '1px solid hsl(var(--border))',
-        boxShadow: isLive ? '0 0 24px rgba(191,95,255,0.1)' : 'none',
+        boxShadow: isLive
+          ? '0 2px 16px rgba(191,95,255,0.08), 0 1px 3px rgba(0,0,0,0.12)'
+          : '0 1px 3px rgba(0,0,0,0.08)',
       }}
     >
       {/* Thumbnail */}
-      <div className="w-28 flex-shrink-0 relative overflow-hidden" style={{ minHeight: 120 }}>
-        {event.image_url ? (
-          <img src={event.image_url} alt={event.title} className="w-full h-full object-cover absolute inset-0" />
-        ) : (
-          <div className="w-full h-full absolute inset-0 flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg, rgba(191,95,255,0.15), rgba(0,200,255,0.08))' }}>
-            <Calendar className="w-6 h-6 opacity-30" style={{ color: '#BF5FFF' }} />
-          </div>
-        )}
+      <div className="w-28 flex-shrink-0 relative" style={{ minHeight: 116 }}>
+        <EventThumbnail
+          event={event}
+          className="absolute inset-0 w-full h-full"
+        />
+        {/* Subtle gradient overlay for readability */}
+        <div
+          className="absolute inset-0"
+          style={{ background: 'linear-gradient(to right, transparent 60%, rgba(0,0,0,0.18) 100%)' }}
+        />
         {isLive && (
-          <div className="absolute inset-0 flex flex-col justify-end p-2"
-            style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.65) 0%, transparent 55%)' }}>
-            <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full self-start"
-              style={{ background: '#FF2D78', color: '#fff', letterSpacing: '0.05em' }}>
+          <div className="absolute top-2 left-2">
+            <span
+              className="text-[9px] font-bold px-1.5 py-0.5 rounded"
+              style={{ background: 'rgba(220,38,38,0.92)', color: '#fff', letterSpacing: '0.08em' }}
+            >
               LIVE
             </span>
           </div>
         )}
-        {/* Subtle purple left-edge accent bar */}
-        <div className="absolute left-0 top-0 bottom-0 w-0.5"
-          style={{ background: isLive ? 'rgba(191,95,255,0.8)' : isSoon ? 'rgba(191,95,255,0.4)' : 'rgba(191,95,255,0.15)' }} />
       </div>
 
       {/* Info */}
-      <div className="flex-1 px-3 py-3.5 flex flex-col justify-between min-w-0 gap-2">
-        <div>
-          <h3 className="font-bold text-foreground leading-tight line-clamp-2 mb-1.5" style={{ fontSize: '0.875rem' }}>
+      <div className="flex-1 px-3.5 py-3.5 flex flex-col justify-between min-w-0 gap-2">
+        <div className="space-y-1">
+          <h3
+            className="font-semibold text-foreground leading-tight line-clamp-2"
+            style={{ fontSize: '0.875rem' }}
+          >
             {event.title}
           </h3>
-          <div className="space-y-0.5">
-            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              <MapPin className="w-3 h-3 flex-shrink-0" style={{ color: '#BF5FFF', opacity: 0.7 }} />
-              <span className="truncate">{event.venue}{event.city ? `, ${event.city}` : ''}{event.state ? `, ${event.state}` : ''}</span>
-            </div>
-            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              <Calendar className="w-3 h-3 flex-shrink-0 opacity-50" />
-              <span>{event.date ? format(new Date(event.date), 'EEE, MMM d · h:mm a') : 'TBD'}</span>
-            </div>
+          <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+            <MapPin className="w-3 h-3 flex-shrink-0 opacity-50" />
+            <span className="truncate">
+              {event.venue}{event.city ? `, ${event.city}` : ''}{event.state ? `, ${event.state}` : ''}
+            </span>
+          </div>
+          <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+            <Calendar className="w-3 h-3 flex-shrink-0 opacity-40" />
+            <span>{event.date ? format(new Date(event.date), 'EEE, MMM d · h:mm a') : 'TBD'}</span>
           </div>
         </div>
 
-        {/* CTA */}
-        <div className="flex items-center gap-2">
-          {debugUrl ? (
+        {/* Marketplace signals */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            {isPGEvent && listingCount > 0 && (
+              <span className="text-[11px] text-muted-foreground">
+                {listingCount} listing{listingCount !== 1 ? 's' : ''}
+                {minPrice ? ` · from $${minPrice}` : ''}
+              </span>
+            )}
+            {isPGEvent && !listingCount && (
+              <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                <ShieldCheck className="w-3 h-3 opacity-50" />
+                Buyer protected
+              </span>
+            )}
+          </div>
+
+          {eventUrl && (
             isLive ? (
               <Link
                 to={`/upgrades/${event.id}`}
-                className="inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-full"
-                style={{ background: 'rgba(191,95,255,0.18)', border: '1px solid rgba(191,95,255,0.4)', color: '#BF5FFF' }}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold px-3 py-1.5 rounded-lg flex-shrink-0"
+                style={{
+                  background: 'hsl(var(--primary))',
+                  color: 'hsl(var(--primary-foreground))',
+                }}
                 onClick={e => e.stopPropagation()}
               >
-                Open Live Hub <ChevronRight className="w-3 h-3" />
+                Live Hub <ChevronRight className="w-3 h-3" />
               </Link>
             ) : (
               <Link
-                to={debugUrl}
-                className="inline-flex items-center gap-1 text-[11px] font-semibold px-3 py-1.5 rounded-full transition-all active:scale-[0.97]"
-                style={{ background: 'rgba(191,95,255,0.1)', border: '1px solid rgba(191,95,255,0.25)', color: '#BF5FFF' }}
+                to={eventUrl}
+                className="inline-flex items-center gap-1 text-[11px] font-medium px-3 py-1.5 rounded-lg flex-shrink-0 transition-all active:scale-[0.97]"
+                style={{
+                  background: 'hsl(var(--secondary))',
+                  color: 'hsl(var(--secondary-foreground))',
+                  border: '1px solid hsl(var(--border))',
+                }}
                 onClick={handleCardClick}
               >
-                View tickets <ChevronRight className="w-3 h-3" />
+                View <ChevronRight className="w-3 h-3" />
               </Link>
             )
-          ) : (
-            isSoon && <span className="text-[10px] font-medium text-muted-foreground">Starting soon</span>
           )}
         </div>
       </div>
-
-      {isAdmin && (
-        <div className="absolute bottom-1 left-28 right-2 text-[8px] font-mono leading-tight pointer-events-none"
-          style={{ color: 'rgba(255,230,0,0.6)' }}>
-          id:{String(event.id||'').slice(0,12)} tm:{String(event.tm_id||'-').slice(0,12)} src:{event.source||'?'} → {debugUrl||'NULL'}
-        </div>
-      )}
     </div>
   );
 }
