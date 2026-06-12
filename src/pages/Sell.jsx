@@ -365,19 +365,27 @@ export default function Sell() {
 
         {/* Empty state */}
         {listings.length === 0 && (
-          <div className="text-center py-12 glass-card rounded-2xl px-6">
-            <p className="text-4xl mb-3">🎟️</p>
-            <p className="font-bold text-foreground">No listings yet</p>
-            <p className="text-sm text-muted-foreground mt-1 mb-5">Got seats you can't use? List them now.</p>
-            <Link to="/create-listing"
-              className="inline-flex items-center gap-2 font-bold px-6 py-3 rounded-full"
-              style={{ background: '#FF2D78', color: '#fff' }}>
-              <Plus className="w-4 h-4" /> Create Listing
-            </Link>
-            <Link to="/why-peanut-gallery"
-              className="block mt-4 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors">
-              🥜 Why Peanut Gallery? How we protect fans →
-            </Link>
+          <div className="relative rounded-2xl overflow-hidden text-center">
+            <img
+              src="https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=900&q=80"
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover object-center"
+            />
+            <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.75) 100%)' }} />
+            <div className="relative z-10 py-12 px-6">
+              <p className="text-4xl mb-3">🎟️</p>
+              <p className="font-bold text-white text-lg">Got seats you can't use?</p>
+              <p className="text-sm text-white/60 mt-1 mb-5">List them now and keep 95% of every sale.</p>
+              <Link to="/create-listing"
+                className="inline-flex items-center gap-2 font-bold px-6 py-3 rounded-full"
+                style={{ background: '#FF2D78', color: '#fff' }}>
+                <Plus className="w-4 h-4" /> Create Listing
+              </Link>
+              <Link to="/why-peanut-gallery"
+                className="block mt-4 text-xs font-semibold text-white/50 hover:text-white/80 transition-colors">
+                🥜 Why Peanut Gallery? How we protect fans →
+              </Link>
+            </div>
           </div>
         )}
       </div>
