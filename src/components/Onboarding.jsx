@@ -61,7 +61,7 @@ const SLIDES = [
       { text: 'Use?', color: '#FFE600', glow: '#FFE600' },
     ],
     body: 'List your tickets from anywhere in the world in 60 seconds. Buyers at the venue see them instantly. Get paid the moment they confirm receipt. Fast transfers. Instant confirmation.',
-    visual: 'https://images.unsplash.com/photo-1574272374294-2c5e0b0a6a0d?w=1200&q=90',
+    visual: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=1200&q=90',
     btnGradient: 'linear-gradient(135deg, #FF8C00, #FFE600)',
     btnColor: '#0D0B14',
     accentDot: '#FFE600',
