@@ -1,10 +1,13 @@
 /**
- * UpgradeFeed — sorted upgrade listings with price drop callouts.
+ * UpgradeFeed — live upgrades first, then resale/admission support.
  */
 import { Link } from 'react-router-dom';
-import { ArrowUpRight, TrendingDown, Bell, Zap } from 'lucide-react';
+import { ArrowUpRight, TrendingDown, Bell, Zap, Ticket } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { motion } from 'framer-motion';
+
+const UPGRADE_TYPES = new Set(['seat_upgrade']);
+const ADMISSION_TYPES = new Set(['resale_ticket', 'venue_ticket', null, undefined]);
 
 function confidenceColor(score) {
   if (!score) return '#888';
@@ -13,88 +16,176 @@ function confidenceColor(score) {
   return '#FF8C00';
 }
 
-export default function UpgradeFeed({ listings, eventId, loading }) {
-  const sorted = [...listings].sort((a, b) => {
-    // price drops first, then cheapest
-    const aDrop = a.original_price && a.original_price > a.asking_price;
-    const bDrop = b.original_price && b.original_price > b.asking_price;
-    if (aDrop && !bDrop) return -1;
-    if (!aDrop && bDrop) return 1;
-    return a.asking_price - b.asking_price;
-  });
+function ListingRow({ l, eventId, index }) {
+  const isPriceDrop = l.original_price && l.original_price > l.asking_price;
+  const savings = isPriceDrop ? Math.round(l.original_price - l.asking_price) : 0;
+  const isNew = l.created_date && Date.now() - new Date(l.created_date) < 600000;
+  const isUpgrade = UPGRADE_TYPES.has(l.listing_type);
 
+  return (
+    <motion.div key={l.id} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.04 }}>
+      <Link to={`/events/${eventId}`}
+        className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all active:scale-98"
+        style={{
+          background: isPriceDrop ? 'rgba(255,45,120,0.05)' : isUpgrade ? 'rgba(0,200,255,0.04)' : 'rgba(255,255,255,0.04)',
+          border: isPriceDrop ? '1px solid rgba(255,45,120,0.2)' : isUpgrade ? '1px solid rgba(0,200,255,0.15)' : '1px solid rgba(255,255,255,0.08)',
+        }}>
+        {isPriceDrop
+          ? <TrendingDown className="w-4 h-4 flex-shrink-0" style={{ color: '#FF2D78' }} />
+          : isUpgrade
+            ? <Zap className="w-4 h-4 flex-shrink-0" style={{ color: '#00C8FF' }} />
+            : <Ticket className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
+        }
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <p className="text-sm font-bold text-foreground">
+              Sec {l.section}{l.row ? ` · Row ${l.row}` : ''}
+            </p>
+            {isNew && (
+              <span className="text-[8px] font-black px-1 py-0.5 rounded-full" style={{ background: 'rgba(0,255,135,0.15)', color: '#00FF87' }}>NEW</span>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {l.quantity} ticket{l.quantity !== 1 ? 's' : ''} ·{' '}
+            {l.created_date ? formatDistanceToNow(new Date(l.created_date), { addSuffix: true }) : ''}
+          </p>
+        </div>
+        <div className="text-right flex-shrink-0">
+          <p className="font-black text-base" style={{ color: isPriceDrop ? '#FF2D78' : isUpgrade ? '#00C8FF' : '#00FF87' }}>${l.asking_price}</p>
+          {isPriceDrop && (
+            <p className="text-[10px] text-muted-foreground">
+              <span className="line-through">${l.original_price}</span>
+              <span className="ml-1 font-bold" style={{ color: '#FF2D78' }}>-${savings}</span>
+            </p>
+          )}
+          <div className="flex items-center justify-end gap-0.5 mt-0.5">
+            <div className="w-1.5 h-1.5 rounded-full" style={{ background: confidenceColor(l.transfer_confidence_score) }} />
+          </div>
+        </div>
+        <ArrowUpRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+      </Link>
+    </motion.div>
+  );
+}
+
+export default function UpgradeFeed({ listings, eventId, loading, event }) {
   if (loading) return (
     <div className="space-y-2">
       {[1, 2, 3].map(i => <div key={i} className="h-16 rounded-xl animate-pulse bg-muted" />)}
     </div>
   );
 
-  if (sorted.length === 0) return (
-    <div className="rounded-2xl px-5 py-8 text-center space-y-3"
-      style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}>
-      <Zap className="w-5 h-5 mx-auto opacity-20" />
-      <div>
-        <p className="font-semibold text-sm text-foreground">No upgrades listed yet</p>
-        <p className="text-xs text-muted-foreground mt-1.5 max-w-[220px] mx-auto leading-relaxed">
-          Fans inside the venue can list seat upgrades once the event begins.
+  const upgradeListings = listings.filter(l => UPGRADE_TYPES.has(l.listing_type))
+    .sort((a, b) => {
+      const aDrop = a.original_price && a.original_price > a.asking_price;
+      const bDrop = b.original_price && b.original_price > b.asking_price;
+      if (aDrop && !bDrop) return -1;
+      if (!aDrop && bDrop) return 1;
+      return a.asking_price - b.asking_price;
+    });
+
+  const admissionListings = listings.filter(l => ADMISSION_TYPES.has(l.listing_type))
+    .sort((a, b) => a.asking_price - b.asking_price);
+
+  const eventStatus = event?.status;
+  const isEnded = eventStatus === 'ended';
+  const isLive = eventStatus === 'live';
+
+  // Event ended state
+  if (isEnded) {
+    return (
+      <div className="rounded-2xl px-5 py-8 text-center space-y-2"
+        style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}>
+        <p className="text-3xl">🏁</p>
+        <p className="font-semibold text-sm text-foreground">Event has ended</p>
+        <p className="text-xs text-muted-foreground max-w-[220px] mx-auto leading-relaxed">
+          No more upgrades are available. The event is over.
         </p>
       </div>
-      <button
-        className="flex items-center gap-2 mx-auto px-5 py-2.5 rounded-full font-medium text-sm transition-all active:scale-95"
-        style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.55)', border: '1px solid rgba(255,255,255,0.1)' }}>
-        <Bell className="w-3.5 h-3.5" />
-        Notify me when one appears
-      </button>
-    </div>
-  );
+    );
+  }
+
+  // Event not live yet — no upgrades
+  if (!isLive && upgradeListings.length === 0) {
+    return (
+      <div className="rounded-2xl px-5 py-8 text-center space-y-3"
+        style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}>
+        <Zap className="w-5 h-5 mx-auto opacity-20" />
+        <div>
+          <p className="font-semibold text-sm text-foreground">Upgrades open when the event goes live</p>
+          <p className="text-xs text-muted-foreground mt-1.5 max-w-[220px] mx-auto leading-relaxed">
+            Seat upgrades will appear here once doors open and fans start listing.
+          </p>
+        </div>
+        <button
+          className="flex items-center gap-2 mx-auto px-5 py-2.5 rounded-full font-medium text-sm transition-all active:scale-95"
+          style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.55)', border: '1px solid rgba(255,255,255,0.1)' }}>
+          <Bell className="w-3.5 h-3.5" />
+          Notify me when one appears
+        </button>
+      </div>
+    );
+  }
+
+  // Live but no upgrades
+  if (upgradeListings.length === 0) {
+    return (
+      <div className="space-y-4">
+        <div className="rounded-2xl px-5 py-8 text-center space-y-3"
+          style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <Zap className="w-5 h-5 mx-auto opacity-20" />
+          <div>
+            <p className="font-semibold text-sm text-foreground">No live upgrades yet</p>
+            <p className="text-xs text-muted-foreground mt-1.5 max-w-[220px] mx-auto leading-relaxed">
+              Fans inside the venue can list seat upgrades. Check back soon.
+            </p>
+          </div>
+          <button
+            className="flex items-center gap-2 mx-auto px-5 py-2.5 rounded-full font-medium text-sm transition-all active:scale-95"
+            style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.55)', border: '1px solid rgba(255,255,255,0.1)' }}>
+            <Bell className="w-3.5 h-3.5" />
+            Notify me when one appears
+          </button>
+        </div>
+
+        {admissionListings.length > 0 && (
+          <>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 h-px" style={{ background: 'hsl(var(--border))' }} />
+              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-2">Admission Tickets</span>
+              <div className="flex-1 h-px" style={{ background: 'hsl(var(--border))' }} />
+            </div>
+            <p className="text-[11px] text-muted-foreground text-center -mt-2">These are full admission tickets, not upgrades.</p>
+            <div className="space-y-2">
+              {admissionListings.map((l, i) => <ListingRow key={l.id} l={l} eventId={eventId} index={i} />)}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-2">
-      {sorted.map((l, i) => {
-        const isPriceDrop = l.original_price && l.original_price > l.asking_price;
-        const savings = isPriceDrop ? Math.round(l.original_price - l.asking_price) : 0;
-        const isNew = l.created_date && Date.now() - new Date(l.created_date) < 600000; // 10 min
+    <div className="space-y-4">
+      {/* Live upgrades section */}
+      <div className="space-y-2">
+        {upgradeListings.map((l, i) => <ListingRow key={l.id} l={l} eventId={eventId} index={i} />)}
+      </div>
 
-        return (
-          <motion.div key={l.id} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.04 }}>
-            <Link to={`/events/${eventId}`}
-              className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all active:scale-98"
-              style={{
-                background: isPriceDrop ? 'rgba(255,45,120,0.05)' : 'rgba(255,255,255,0.04)',
-                border: isPriceDrop ? '1px solid rgba(255,45,120,0.2)' : '1px solid rgba(255,255,255,0.08)',
-              }}>
-              {isPriceDrop && <TrendingDown className="w-4 h-4 flex-shrink-0" style={{ color: '#FF2D78' }} />}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <p className="text-sm font-bold text-foreground">
-                    Sec {l.section}{l.row ? ` · Row ${l.row}` : ''}
-                  </p>
-                  {isNew && (
-                    <span className="text-[8px] font-black px-1 py-0.5 rounded-full" style={{ background: 'rgba(0,255,135,0.15)', color: '#00FF87' }}>NEW</span>
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {l.quantity} ticket{l.quantity !== 1 ? 's' : ''} ·{' '}
-                  {l.created_date ? formatDistanceToNow(new Date(l.created_date), { addSuffix: true }) : ''}
-                </p>
-              </div>
-              <div className="text-right flex-shrink-0">
-                <p className="font-black text-base" style={{ color: isPriceDrop ? '#FF2D78' : '#00FF87' }}>${l.asking_price}</p>
-                {isPriceDrop && (
-                  <p className="text-[10px] text-muted-foreground">
-                    <span className="line-through">${l.original_price}</span>
-                    <span className="ml-1 font-bold" style={{ color: '#FF2D78' }}>-${savings}</span>
-                  </p>
-                )}
-                <div className="flex items-center justify-end gap-0.5 mt-0.5">
-                  <div className="w-1.5 h-1.5 rounded-full" style={{ background: confidenceColor(l.transfer_confidence_score) }} />
-                </div>
-              </div>
-              <ArrowUpRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-            </Link>
-          </motion.div>
-        );
-      })}
+      {/* Admission tickets below as secondary section */}
+      {admissionListings.length > 0 && (
+        <>
+          <div className="flex items-center gap-2 pt-2">
+            <div className="flex-1 h-px" style={{ background: 'hsl(var(--border))' }} />
+            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-2">Also Available — Admission</span>
+            <div className="flex-1 h-px" style={{ background: 'hsl(var(--border))' }} />
+          </div>
+          <p className="text-[11px] text-muted-foreground text-center -mt-2">Full admission tickets. Not upgrades.</p>
+          <div className="space-y-2">
+            {admissionListings.map((l, i) => <ListingRow key={l.id} l={l} eventId={eventId} index={i} />)}
+          </div>
+        </>
+      )}
     </div>
   );
 }

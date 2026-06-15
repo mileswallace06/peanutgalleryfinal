@@ -182,10 +182,7 @@ export default function EventDetailUpgrade() {
       <div className="px-4 py-5 space-y-4">
         {activeTab === 'Upgrades' && ( // eslint-disable-line
           <>
-            <UpgradeFeed listings={listings} eventId={id} loading={loading} />
-            {!loading && listings.length === 0 && drops.filter(d => d.status === 'active' || d.status === 'pending').length === 0 && (
-              <LiveHubEmptyState />
-            )}
+            <UpgradeFeed listings={listings} eventId={id} loading={loading} event={event} />
           </>
         )}
 

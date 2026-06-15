@@ -4,13 +4,17 @@ import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { base44 } from '@/api/base44Client';
 import { formatFeeBreakdown, ACTIVE_FEE_MODEL_ID, FEE_MODELS } from '@/lib/feeEngine';
-import { X, Lock, Shield, ArrowRight } from 'lucide-react';
+import { X, Lock, Shield, ArrowRight, AlertTriangle, MapPin, Ticket } from 'lucide-react';
 import TransferAcknowledgment from '@/components/listings/TransferAcknowledgment';
 
 function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
   const stripe = useStripe();
   const elements = useElements();
   const navigate = useNavigate();
+
+  const isUpgrade = listing.listing_type === 'seat_upgrade';
+  const isDemo = listing.is_demo_listing || listing.notes?.startsWith('[DEMO]');
+  const isDemoUpgrade = isUpgrade && isDemo;
 
   const [name, setName] = useState('');
   const [email] = useState(buyerEmail || ''); // HIGH-1: locked to authenticated user email
@@ -110,8 +114,64 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
     }
   };
 
+  // Demo upgrade: simulate without real payment
+  const handleDemoUpgradeSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    await new Promise(r => setTimeout(r, 1200));
+    const purchase = await base44.entities.Purchase.create({
+      listing_id: listing.id,
+      event_id: event.id,
+      buyer_email: email,
+      buyer_name: name || 'Demo User',
+      seller_email: listing.seller_email,
+      amount: 0,
+      subtotal: 0,
+      platform_fee: 0,
+      seller_payout: 0,
+      quantity: listing.quantity || 1,
+      transfer_status: 'completed',
+      buyer_confirmed: true,
+      seller_confirmed: true,
+      payment_captured: false,
+    });
+    navigate(`/purchase/${purchase.id}`);
+  };
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <form onSubmit={isDemoUpgrade ? handleDemoUpgradeSubmit : handleSubmit} className="space-y-5">
+      {/* Upgrade disclaimer */}
+      {isUpgrade && (
+        <div className="flex items-start gap-3 rounded-2xl p-3"
+          style={{ background: 'rgba(255,140,0,0.08)', border: '1px solid rgba(255,140,0,0.35)' }}>
+          <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: '#FF8C00' }} />
+          <div className="text-xs leading-relaxed" style={{ color: 'rgba(255,200,100,0.9)' }}>
+            <strong style={{ color: '#FF8C00' }}>This is an upgrade, not admission.</strong> You must already have a ticket to this event. This purchase grants you access to better seats, not entry to the venue.
+            {listing.requires_location && listing.location_requirement !== 'none' && (
+              <div className="flex items-center gap-1.5 mt-1.5">
+                <MapPin className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#00C8FF' }} />
+                <span style={{ color: '#00C8FF' }}>
+                  {listing.location_requirement === 'inside_venue' && 'You must be inside the venue to complete this purchase.'}
+                  {listing.location_requirement === 'venue_proximity' && 'You must be near the venue to complete this purchase.'}
+                  {listing.location_requirement === 'city_only' && 'You must be in the city to complete this purchase.'}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Demo upgrade notice — replaces real payment UI */}
+      {isDemoUpgrade && (
+        <div className="flex items-start gap-3 rounded-2xl p-3"
+          style={{ background: 'rgba(191,95,255,0.08)', border: '1px solid rgba(191,95,255,0.3)' }}>
+          <Ticket className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: '#BF5FFF' }} />
+          <div className="text-xs leading-relaxed" style={{ color: 'rgba(220,190,255,0.9)' }}>
+            <strong style={{ color: '#BF5FFF' }}>Demo mode.</strong> This simulates an upgrade purchase. No real payment, barcode validation, ticket transfer, or geofencing will occur.
+          </div>
+        </div>
+      )}
+
       {/* Order summary */}
       <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
         <div className="font-semibold text-sm text-foreground mb-3">Order Summary</div>
@@ -157,13 +217,18 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
         </div>
       )}
 
-      {/* Escrow notice */}
-      <div className="flex items-start gap-3 rounded-2xl p-3" style={{ background: 'rgba(0,255,135,0.08)', border: '1px solid rgba(0,255,135,0.25)' }}>
-        <Shield className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: '#00FF87' }} />
-        <div className="text-xs" style={{ color: 'rgba(200,255,230,0.85)' }}>
-          Your payment is held safely until the ticket transfer is confirmed. The seller does not get paid until you confirm you received the seats.
+      {/* Escrow notice — skip for demo upgrades */}
+      {!isDemoUpgrade && (
+        <div className="flex items-start gap-3 rounded-2xl p-3" style={{ background: 'rgba(0,255,135,0.08)', border: '1px solid rgba(0,255,135,0.25)' }}>
+          <Shield className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: '#00FF87' }} />
+          <div className="text-xs" style={{ color: 'rgba(200,255,230,0.85)' }}>
+            {isUpgrade
+              ? 'Your payment is held in escrow. The seller is paid only after you confirm access to the upgraded seats.'
+              : 'Your payment is held safely until the ticket transfer is confirmed. The seller does not get paid until you confirm you received the seats.'
+            }
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Buyer info */}
       <div className="space-y-3">
@@ -203,22 +268,23 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
         </div>
       </div>
 
-      {/* Card element */}
-      <div>
-        <label className="block text-xs font-medium text-muted-foreground mb-1 flex items-center gap-1">
-          <Lock className="w-3 h-3" /> Card Details
-        </label>
-        <div className="px-3 py-3 rounded-xl" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)' }}>
-          <CardElement options={{
-            hidePostalCode: false,
-            style: {
-              base: { fontSize: '14px', color: '#ffffff', '::placeholder': { color: 'rgba(255,255,255,0.35)' }, iconColor: '#BF5FFF' },
-              invalid: { color: '#FF2D78' }
-            }
-          }} />
+      {/* Card element — hidden for demo upgrades */}
+      {!isDemoUpgrade && (
+        <div>
+          <label className="block text-xs font-medium text-muted-foreground mb-1 flex items-center gap-1">
+            <Lock className="w-3 h-3" /> Card Details
+          </label>
+          <div className="px-3 py-3 rounded-xl" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)' }}>
+            <CardElement options={{
+              hidePostalCode: false,
+              style: {
+                base: { fontSize: '14px', color: '#ffffff', '::placeholder': { color: 'rgba(255,255,255,0.35)' }, iconColor: '#BF5FFF' },
+                invalid: { color: '#FF2D78' }
+              }
+            }} />
+          </div>
         </div>
-
-      </div>
+      )}
 
       {error && (
         <div className="text-sm rounded-xl px-3 py-2" style={{ color: '#FF2D78', background: 'rgba(255,45,120,0.1)', border: '1px solid rgba(255,45,120,0.25)' }}>
@@ -226,15 +292,26 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
         </div>
       )}
 
-      {/* UX-8: Submit button rendered inside form but visually at bottom — sticky footer handled by parent */}
       <button
         type="submit"
-        disabled={loading || !stripe || !transferAcknowledged}
+        disabled={loading || (!isDemoUpgrade && (!stripe || !transferAcknowledged))}
         className="w-full flex items-center justify-center gap-2 py-3.5 rounded-full font-black text-sm transition-all disabled:opacity-40 mt-2"
-        style={{ background: 'linear-gradient(135deg, #00E87A, #00B8E8)', color: '#0D0B14', boxShadow: '0 0 18px rgba(0,232,122,0.22)' }}
+        style={{
+          background: isDemoUpgrade
+            ? 'linear-gradient(135deg, #BF5FFF, #7B2FFF)'
+            : isUpgrade
+            ? 'linear-gradient(135deg, #FF8C00, #FF2D78)'
+            : 'linear-gradient(135deg, #00E87A, #00B8E8)',
+          color: isDemoUpgrade ? '#fff' : '#0D0B14',
+          boxShadow: isDemoUpgrade ? '0 0 18px rgba(191,95,255,0.22)' : '0 0 18px rgba(0,232,122,0.22)',
+        }}
       >
         {loading ? (
           <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Processing...</>
+        ) : isDemoUpgrade ? (
+          <><Ticket className="w-4 h-4" /> Simulate Upgrade Purchase <ArrowRight className="w-4 h-4" /></>
+        ) : isUpgrade ? (
+          <><ArrowRight className="w-4 h-4" /> Upgrade Live — ${total.toFixed(2)} Escrow Protected <ArrowRight className="w-4 h-4" /></>
         ) : (
           <><Lock className="w-4 h-4" /> Pay ${total.toFixed(2)} Securely — Escrow Protected <ArrowRight className="w-4 h-4" /></>
         )}
@@ -248,6 +325,9 @@ export default function PurchaseDialog({ event, listing, onClose, mode = 'ticket
   const [stripePromise, setStripePromise] = useState(null);
   const [user, setUser] = useState(null);
   const [reservedListingId, setReservedListingId] = useState(null);
+  const isUpgrade = listing.listing_type === 'seat_upgrade';
+  const isDemo = listing.is_demo_listing || listing.notes?.startsWith('[DEMO]');
+  const isDemoUpgrade = isUpgrade && isDemo;
 
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => {});
@@ -274,7 +354,9 @@ export default function PurchaseDialog({ event, listing, onClose, mode = 'ticket
           style={{ background: 'hsl(255 12% 9%)', borderColor: 'rgba(255,255,255,0.1)' }}>
           <div className="flex items-center justify-between mb-3">
             <div>
-              <h2 className="font-bold text-foreground">{mode === 'upgrade' ? 'Complete Upgrade' : 'Buy Tickets'}</h2>
+              <h2 className="font-bold text-foreground">
+                {isDemoUpgrade ? 'Simulate Upgrade Purchase' : isUpgrade ? 'Upgrade Live' : 'Buy Ticket'}
+              </h2>
               <p className="text-xs text-muted-foreground">Section {listing.section} · Row {listing.row}</p>
             </div>
             <button onClick={handleClose} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors text-foreground">
