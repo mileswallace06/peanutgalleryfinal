@@ -1,47 +1,74 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { CheckCircle, Clock, XCircle, AlertTriangle, ArrowLeft, Ticket, FileText, RefreshCw, Sparkles, Send } from 'lucide-react';
+import { CheckCircle, Clock, XCircle, AlertTriangle, ArrowLeft, Ticket, FileText, RefreshCw, Sparkles } from 'lucide-react';
 import DisputeModal from '@/components/purchase/DisputeModal';
 import AIVerificationStatus from '@/components/purchase/AIVerificationStatus';
 import TransferAssistant from '@/components/purchase/TransferAssistant';
 import { createOptimisticPurchaseUpdate } from '@/lib/optimisticUI';
 import NotificationPermissionPrompt from '@/components/NotificationPermissionPrompt';
 
-// ── Progress bar ────────────────────────────────────────────────────────────
-const STEPS = ['Payment Authorized', 'Seller Sending', 'Buyer Confirmed', 'Complete'];
+// ── Transaction Timeline ─────────────────────────────────────────────────────
+function TransactionTimeline({ purchase }) {
+  const isCompleted = purchase.transfer_status === 'completed';
+  const isDisputed = purchase.transfer_status === 'disputed';
 
-function ProgressBar({ purchase }) {
-  const step = purchase.transfer_status === 'completed'
-    ? 3
-    : purchase.buyer_confirmed
-    ? 3
-    : purchase.seller_confirmed
-    ? 2
-    : 1;
+  const steps = [
+    {
+      label: 'Payment Authorized',
+      sublabel: 'Funds held in escrow',
+      done: true,
+      active: false,
+      ts: purchase.created_date,
+    },
+    {
+      label: 'Seller Transferring Tickets',
+      sublabel: purchase.seller_confirmed ? 'Seller has sent tickets' : 'Waiting on seller',
+      done: !!purchase.seller_confirmed,
+      active: !purchase.seller_confirmed && !isDisputed,
+      ts: purchase.seller_confirmed_at,
+    },
+    {
+      label: 'Buyer Confirms Receipt',
+      sublabel: purchase.buyer_confirmed ? 'You confirmed receipt' : 'Check your email & confirm here',
+      done: !!purchase.buyer_confirmed,
+      active: purchase.seller_confirmed && !purchase.buyer_confirmed && !isDisputed,
+      ts: null,
+    },
+    {
+      label: 'Funds Released',
+      sublabel: isCompleted ? 'Payout sent to seller' : 'After you confirm receipt',
+      done: isCompleted,
+      active: false,
+      ts: null,
+    },
+  ];
 
   return (
-    <div className="mb-6">
-      <div className="flex items-center">
-        {STEPS.map((label, i) => (
-          <div key={label} className="flex items-center flex-1 last:flex-none">
-            <div className="flex flex-col items-center">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all ${
-                i < step ? 'border-transparent text-black' :
-                i === step ? 'border-primary text-primary animate-pulse' :
-                'border-border text-muted-foreground'
-              }`} style={i < step ? { background: 'linear-gradient(135deg, #00FF87, #00C8FF)' } : {}}>
-                {i < step ? '✓' : i + 1}
-              </div>
-              <span className="text-[9px] text-muted-foreground mt-1 text-center w-14 leading-tight hidden sm:block">{label}</span>
+    <div className="rounded-2xl px-4 py-4 mb-5 space-y-3" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+      <p className="text-xs font-black tracking-widest uppercase text-muted-foreground">Transaction Status</p>
+      {steps.map((s, i) => (
+        <div key={i} className="flex items-start gap-3">
+          <div className="flex flex-col items-center">
+            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 transition-all ${
+              s.done ? 'text-black' : s.active ? 'border-2 border-primary text-primary' : 'border-2 border-border text-muted-foreground'
+            }`} style={s.done ? { background: 'linear-gradient(135deg, #00FF87, #00C8FF)' } : s.active ? { borderColor: '#BF5FFF', color: '#BF5FFF' } : {}}>
+              {s.done ? '✓' : i + 1}
             </div>
-            {i < STEPS.length - 1 && (
-              <div className={`flex-1 h-0.5 mx-1 mb-4 sm:mb-0 transition-all ${i < step ? '' : 'bg-border'}`}
-                style={i < step ? { background: 'linear-gradient(90deg, #00FF87, #00C8FF)' } : {}} />
+            {i < steps.length - 1 && (
+              <div className="w-px flex-1 mt-1" style={{ minHeight: 12, background: s.done ? '#00FF8740' : 'hsl(var(--border))' }} />
             )}
           </div>
-        ))}
-      </div>
+          <div className="pb-3 min-w-0 flex-1">
+            <p className={`text-sm font-bold ${s.done ? '' : s.active ? '' : 'text-muted-foreground'}`}
+              style={{ color: s.done ? '#00FF87' : s.active ? 'hsl(var(--foreground))' : undefined }}>
+              {s.label}
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">{s.sublabel}</p>
+            {s.ts && <p className="text-[10px] text-muted-foreground opacity-60 mt-0.5">{new Date(s.ts).toLocaleString()}</p>}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -428,10 +455,6 @@ export default function PurchaseSuccess() {
   }
 
   // Access control — only buyer, seller, or admin may view purchase details
-  const isSeller = user?.email === purchase.seller_email;
-  const isBuyer = !isSeller && (user?.email === purchase.buyer_email || user?.email === purchase.created_by);
-  const isAdminViewer = user?.role === 'admin';
-
   if (!user) {
     return (
       <div className="max-w-lg mx-auto px-4 py-16 text-center space-y-4">
@@ -444,6 +467,10 @@ export default function PurchaseSuccess() {
       </div>
     );
   }
+
+  const isSeller = user.email === purchase.seller_email;
+  const isBuyer = !isSeller && (user.email === purchase.buyer_email || user.email === purchase.created_by);
+  const isAdminViewer = user.role === 'admin';
 
   if (!isSeller && !isBuyer && !isAdminViewer) {
     return (
@@ -460,8 +487,11 @@ export default function PurchaseSuccess() {
 
   return (
     <div className="max-w-lg mx-auto px-4 py-6 pb-12">
-      <Link to="/events" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-5 transition-colors">
-        <ArrowLeft className="w-4 h-4" /> Back
+      <Link
+        to={isSeller ? '/my-sales' : '/my-tickets'}
+        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-5 transition-colors"
+      >
+        <ArrowLeft className="w-4 h-4" /> {isSeller ? 'My Sales' : 'My Tickets'}
       </Link>
 
       {/* Terminal status banners */}
@@ -519,8 +549,8 @@ export default function PurchaseSuccess() {
         </div>
       </div>
 
-      {/* Progress bar */}
-      {isPending && <ProgressBar purchase={purchase} />}
+      {/* Transaction timeline */}
+      {(isPending || isCompleted) && !isExpired && <TransactionTimeline purchase={purchase} />}
 
       {/* Role-specific panels */}
       {isPending && isSeller && listing?.listing_mode !== 'instant' && (

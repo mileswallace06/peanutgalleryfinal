@@ -303,6 +303,16 @@ export default function PurchaseDialog({ event, listing, onClose, mode = 'ticket
             <div className="flex justify-center py-8">
               <span className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
             </div>
+          ) : user?.email && listing.seller_email === user.email ? (
+            <div className="text-center py-8 space-y-3 px-4">
+              <p className="text-4xl">🚫</p>
+              <p className="font-bold text-foreground">You can't buy your own listing</p>
+              <p className="text-sm text-muted-foreground">This ticket is listed by you. Share the event link with friends so they can buy it.</p>
+              <button onClick={handleClose} className="mt-2 px-6 py-2.5 rounded-full font-bold text-sm"
+                style={{ background: 'hsl(var(--muted))', color: 'hsl(var(--foreground))' }}>
+                Close
+              </button>
+            </div>
           ) : (
             <Elements stripe={stripePromise}>
               <CheckoutForm event={event} listing={listing} buyerEmail={user?.email} onClose={handleClose} onReserved={setReservedListingId} />

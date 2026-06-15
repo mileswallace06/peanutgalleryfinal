@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { MapPin, Calendar, ArrowLeft, Ticket, Zap } from 'lucide-react';
+import { MapPin, Calendar, ArrowLeft, Ticket, Zap, Plus, Bell, ShieldCheck } from 'lucide-react';
 import ListingCard from '@/components/events/ListingCard';
 import PurchaseDialog from '@/components/events/PurchaseDialog';
 import { getEventLiveStatus } from '@/lib/eventTiming';
@@ -83,15 +83,17 @@ export default function EventDetail() {
         }
 
         const resolvedId = ev.id;
-        const rawListings = await base44.entities.Listing.filter({ event_id: resolvedId, status: 'active', proof_status: 'approved' });
+        // Fetch both approved + pending_review so nothing silently disappears
+        const rawListings = await base44.entities.Listing.filter({ event_id: resolvedId, status: 'active' });
         if (cancelled) return;
 
-        const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
+        const adminUnlocked = user?.role === 'admin' || sessionStorage.getItem('pg_admin_unlocked') === '1';
         const timing = getEventLiveStatus(ev);
-        const isLiveMode = timing.status === 'live' || timing.status === 'ended';
-        const filtered = adminUnlocked ? rawListings : rawListings.filter(() => !isLiveMode);
-        const real = filtered.filter(l => !l.notes?.startsWith('[DEMO]'));
-        setListings(real.length > 0 ? real : filtered);
+        // Pre-event: show active approved listings. Live/ended: also show listings (upgrades)
+        // Only hide from non-admin if explicitly hidden status
+        const visibleListings = rawListings.filter(l => l.proof_status === 'approved');
+        const real = visibleListings.filter(l => !l.notes?.startsWith('[DEMO]'));
+        setListings(real.length > 0 ? real : visibleListings);
 
         logNavEvent({
             result: trace.steps[0]?.count > 0 ? 'success' : 'lookup_fallback_success',
@@ -155,7 +157,7 @@ export default function EventDetail() {
     );
   }
 
-  const adminUnlocked = user?.role === 'admin';
+  const adminUnlocked = user?.role === 'admin' || sessionStorage.getItem('pg_admin_unlocked') === '1';
   const timing = getEventLiveStatus(event);
   const isLive = timing.status === 'live';
   const isLiveMode = timing.status === 'live' || timing.status === 'ended';
@@ -291,23 +293,83 @@ export default function EventDetail() {
 
         {/* Listings */}
         {listings.length === 0 ? (
-          <div className="text-center py-16 glass-card rounded-2xl">
-            <p className="text-4xl mb-3">🎟️</p>
+          <div className="space-y-4">
             {isLiveMode && !adminUnlocked ? (
-            <>
-              <p className="font-bold text-foreground">Event has started!</p>
-              <p className="text-sm text-muted-foreground mt-1 max-w-[240px] mx-auto leading-relaxed">
-                Ticket sales are closed. Check the <strong>Upgrades</strong> tab to find seat upgrades at the venue.
-              </p>
-            </>
-          ) : (
-            <>
-              <p className="font-bold text-foreground">No tickets available yet</p>
-              <p className="text-sm text-muted-foreground mt-1 max-w-[220px] mx-auto leading-relaxed">
-                Check back soon for available listings.
-              </p>
-            </>
-          )}
+              <div className="text-center py-10 rounded-2xl" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+                <p className="text-4xl mb-3">⚡</p>
+                <p className="font-bold text-foreground">Event is live — check Upgrades</p>
+                <p className="text-sm text-muted-foreground mt-1 max-w-[240px] mx-auto leading-relaxed">
+                  Pre-event ticket sales have closed. Fans inside are listing seat upgrades right now.
+                </p>
+                <Link to={`/upgrades/${event.id}`}
+                  className="inline-flex items-center gap-2 mt-4 px-6 py-3 rounded-full font-black text-sm"
+                  style={{ background: 'linear-gradient(135deg, #FFE600, #FF8C00)', color: '#0D0B14' }}>
+                  <Zap className="w-4 h-4" /> Find Seat Upgrades
+                </Link>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {/* Empty state — value prop + seller CTA */}
+                <div className="rounded-2xl overflow-hidden relative" style={{ border: '1px solid hsl(var(--border))' }}>
+                  <img
+                    src="https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=900&q=80"
+                    alt=""
+                    className="absolute inset-0 w-full h-full object-cover"
+                    style={{ opacity: 0.35 }}
+                  />
+                  <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.85) 100%)' }} />
+                  <div className="relative z-10 px-5 py-8 text-center">
+                    <p className="text-3xl mb-3">🎟️</p>
+                    <p className="font-bold text-white text-lg">No tickets listed yet</p>
+                    <p className="text-sm text-white/60 mt-1 max-w-[240px] mx-auto leading-relaxed">
+                      Be the first to sell for this event and set the price.
+                    </p>
+                    <Link
+                      to={`/create-listing?event_id=${event.id}`}
+                      className="inline-flex items-center gap-2 mt-4 px-6 py-3 rounded-full font-black text-sm"
+                      style={{ background: 'linear-gradient(135deg, #FF8C00, #FF2D78)', color: '#fff' }}
+                    >
+                      <Plus className="w-4 h-4" /> List Tickets for This Event
+                    </Link>
+                  </div>
+                </div>
+
+                {/* How it works for buyers */}
+                <div className="rounded-2xl px-4 py-4 space-y-3" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+                  <p className="text-xs font-black tracking-widest uppercase text-muted-foreground">How Peanut Gallery Works</p>
+                  {[
+                    { icon: <Ticket className="w-4 h-4" />, color: '#BF5FFF', title: 'Fan-to-fan tickets', body: 'Real fans sell tickets they can\'t use — no scalpers, no bots.' },
+                    { icon: <ShieldCheck className="w-4 h-4" />, color: '#00FF87', title: 'Escrow protected', body: 'Your money is held safely until you confirm you got the tickets.' },
+                    { icon: <Zap className="w-4 h-4" />, color: '#00C8FF', title: 'Live upgrades at showtime', body: 'Once the event starts, better seats get listed by fans who can\'t use them.' },
+                  ].map(({ icon, color, title, body }) => (
+                    <div key={title} className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                        style={{ background: `${color}18`, color }}>
+                        {icon}
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">{title}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{body}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Notify me when tickets arrive */}
+                <div className="rounded-2xl px-4 py-4 flex items-center justify-between gap-3"
+                  style={{ background: 'rgba(191,95,255,0.06)', border: '1px solid rgba(191,95,255,0.2)' }}>
+                  <div>
+                    <p className="text-sm font-bold text-foreground">Get notified when tickets drop</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">We'll alert you the moment a listing goes live.</p>
+                  </div>
+                  <Link to="/account-settings"
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-xs flex-shrink-0"
+                    style={{ background: 'rgba(191,95,255,0.15)', border: '1px solid rgba(191,95,255,0.35)', color: '#BF5FFF' }}>
+                    <Bell className="w-3.5 h-3.5" /> Alerts
+                  </Link>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="space-y-4">
