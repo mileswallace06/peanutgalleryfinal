@@ -6,6 +6,7 @@ import { base44 } from '@/api/base44Client';
 import { formatFeeBreakdown, ACTIVE_FEE_MODEL_ID, FEE_MODELS } from '@/lib/feeEngine';
 import { X, Lock, Shield, ArrowRight, AlertTriangle, MapPin, Ticket } from 'lucide-react';
 import TransferAcknowledgment from '@/components/listings/TransferAcknowledgment';
+import UpgradeEligibilityGate from '@/components/upgrades/UpgradeEligibilityGate.jsx';
 
 function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
   const stripe = useStripe();
@@ -15,6 +16,7 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
   const isUpgrade = listing.listing_type === 'seat_upgrade';
   const isDemo = listing.is_demo_listing || listing.notes?.startsWith('[DEMO]');
   const isDemoUpgrade = isUpgrade && isDemo;
+  const hasEligibilityGate = isUpgrade && (listing.requires_location || listing.requires_existing_ticket);
 
   const [name, setName] = useState('');
   const [email] = useState(buyerEmail || ''); // HIGH-1: locked to authenticated user email
@@ -22,6 +24,7 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [feeBreakdown, setFeeBreakdown] = useState(null);
+  const [eligibilityPassed, setEligibilityPassed] = useState(!hasEligibilityGate);
   // Transfer acknowledgment: low-confidence listings require explicit buyer ack
   const transferScore = listing.transfer_confidence_score ?? null;
   const needsTransferAck = transferScore !== null && transferScore < 70 && listing.transfer_status !== 'transfer_confirmed';
@@ -161,7 +164,7 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
         </div>
       )}
 
-      {/* Demo upgrade notice — replaces real payment UI */}
+      {/* Demo upgrade notice */}
       {isDemoUpgrade && (
         <div className="flex items-start gap-3 rounded-2xl p-3"
           style={{ background: 'rgba(191,95,255,0.08)', border: '1px solid rgba(191,95,255,0.3)' }}>
@@ -170,6 +173,15 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
             <strong style={{ color: '#BF5FFF' }}>Demo mode.</strong> This simulates an upgrade purchase. No real payment, barcode validation, ticket transfer, or geofencing will occur.
           </div>
         </div>
+      )}
+
+      {/* Eligibility gate — blocks checkout for upgrades until checks pass */}
+      {hasEligibilityGate && (
+        <UpgradeEligibilityGate
+          listing={listing}
+          isDemo={isDemo}
+          onEligible={() => setEligibilityPassed(true)}
+        />
       )}
 
       {/* Order summary */}
@@ -294,7 +306,7 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
 
       <button
         type="submit"
-        disabled={loading || (!isDemoUpgrade && (!stripe || !transferAcknowledged))}
+        disabled={loading || !eligibilityPassed || (!isDemoUpgrade && (!stripe || !transferAcknowledged))}
         className="w-full flex items-center justify-center gap-2 py-3.5 rounded-full font-black text-sm transition-all disabled:opacity-40 mt-2"
         style={{
           background: isDemoUpgrade

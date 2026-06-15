@@ -15,6 +15,7 @@ import CreateFlashDropSheet from '@/components/flashdrops/CreateFlashDropSheet';
 import EventLookupDebugPanel from '@/components/debug/EventLookupDebugPanel';
 import { logNavEvent } from '@/lib/navLogger';
 import LiveHubEmptyState from '@/components/eventmode/LiveHubEmptyState';
+import UpgradeEligibilityGate from '@/components/upgrades/UpgradeEligibilityGate.jsx';
 
 const TABS = [
   { key: 'Upgrades', label: 'Upgrades', sub: 'Better seats' },
@@ -33,6 +34,7 @@ export default function EventDetailUpgrade() {
   const [showDropSheet, setShowDropSheet] = useState(false);
   const [lookupTrace, setLookupTrace] = useState(null);
   const [lookupError, setLookupError] = useState(false);
+  const [hubEligibilityPassed, setHubEligibilityPassed] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -182,6 +184,32 @@ export default function EventDetailUpgrade() {
       <div className="px-4 py-5 space-y-4">
         {activeTab === 'Upgrades' && ( // eslint-disable-line
           <>
+            {/* Hub-level eligibility gate — shown if any upgrade listing has requirements */}
+            {!loading && (() => {
+              const upgradeListings = listings.filter(l => l.listing_type === 'seat_upgrade');
+              const anyHasGate = upgradeListings.some(l => l.requires_location || l.requires_existing_ticket);
+              const isDemo = upgradeListings.some(l => l.is_demo_listing || l.notes?.startsWith('[DEMO]'));
+              if (!anyHasGate) return null;
+              // Use the strictest listing as the representative gate
+              const strictest = upgradeListings.find(l => l.requires_location && l.requires_existing_ticket)
+                || upgradeListings.find(l => l.requires_location)
+                || upgradeListings.find(l => l.requires_existing_ticket);
+              return (
+                <div className="mb-2">
+                  <p className="text-xs font-bold text-muted-foreground mb-2 uppercase tracking-widest">Upgrade Eligibility</p>
+                  <UpgradeEligibilityGate
+                    listing={strictest}
+                    isDemo={isDemo}
+                    onEligible={() => setHubEligibilityPassed(true)}
+                  />
+                  {hubEligibilityPassed && (
+                    <p className="text-[11px] mt-2 text-center font-semibold" style={{ color: '#00FF87' }}>
+                      ✓ Eligible — browse available upgrades below
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
             <UpgradeFeed listings={listings} eventId={id} loading={loading} event={event} />
           </>
         )}
