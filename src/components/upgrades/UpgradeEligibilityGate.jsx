@@ -2,158 +2,131 @@ import { useState } from 'react';
 import { MapPin, Ticket, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 
 /**
- * Renders eligibility checks for upgrade listings:
- * - Existing ticket confirmation (requires_existing_ticket)
- * - Location verification (requires_location / location_requirement)
- *
- * In demo mode all checks are simulated (no real geofencing).
- * Calls onEligible() when all required checks pass.
+ * Simulates eligibility checks for upgrade listings.
+ * In demo mode, all checks are simulated (no real geofencing).
+ * In live mode, shows a placeholder for real checks.
  */
-export default function UpgradeEligibilityGate({ listing, isDemo, onEligible }) {
-  const needsTicket = listing?.requires_existing_ticket;
+export default function UpgradeEligibilityGate({ listing, isDemo = false, onEligible }) {
+  const [locationStatus, setLocationStatus] = useState('idle'); // idle | checking | pass | fail
+  const [ticketStatus, setTicketStatus] = useState('idle');
+
   const needsLocation = listing?.requires_location && listing?.location_requirement !== 'none';
+  const needsTicket = listing?.requires_existing_ticket;
 
-  const [ticketConfirmed, setTicketConfirmed] = useState(false);
-  const [locationStatus, setLocationStatus] = useState('idle'); // idle | checking | passed | failed
-  const [locationError, setLocationError] = useState('');
+  const allPassed = (
+    (!needsLocation || locationStatus === 'pass') &&
+    (!needsTicket || ticketStatus === 'pass')
+  );
 
-  const allPassed = (!needsTicket || ticketConfirmed) && (!needsLocation || locationStatus === 'passed');
-
-  const handleTicketConfirm = () => {
-    setTicketConfirmed(true);
-    if (!needsLocation || locationStatus === 'passed') onEligible();
+  // Notify parent when all checks pass
+  const checkAndNotify = (newLoc, newTicket) => {
+    const locOk = !needsLocation || newLoc === 'pass';
+    const tickOk = !needsTicket || newTicket === 'pass';
+    if (locOk && tickOk) onEligible?.();
   };
 
-  const handleLocationCheck = () => {
-    setLocationStatus('checking');
-    setLocationError('');
-
+  const checkLocation = () => {
     if (isDemo) {
-      // Simulate a brief check
+      setLocationStatus('checking');
       setTimeout(() => {
-        setLocationStatus('passed');
-        if (!needsTicket || ticketConfirmed) onEligible();
-      }, 1000);
+        setLocationStatus('pass');
+        checkAndNotify('pass', ticketStatus);
+      }, 1200);
       return;
     }
-
-    if (!navigator.geolocation) {
-      setLocationStatus('failed');
-      setLocationError('Geolocation is not supported by your browser.');
-      return;
-    }
-
+    if (!navigator.geolocation) { setLocationStatus('fail'); return; }
+    setLocationStatus('checking');
     navigator.geolocation.getCurrentPosition(
-      () => {
-        // Live mode: location obtained — actual proximity check happens server-side at purchase
-        setLocationStatus('passed');
-        if (!needsTicket || ticketConfirmed) onEligible();
-      },
-      (err) => {
-        setLocationStatus('failed');
-        setLocationError(err.code === 1 ? 'Location access denied. Please allow location in your browser settings.' : 'Could not determine your location. Please try again.');
-      },
-      { timeout: 10000, enableHighAccuracy: false }
+      () => { setLocationStatus('pass'); checkAndNotify('pass', ticketStatus); },
+      () => setLocationStatus('fail'),
+      { timeout: 8000 }
     );
   };
 
-  if (!needsTicket && !needsLocation) return null;
+  const checkTicket = () => {
+    if (isDemo) {
+      setTicketStatus('checking');
+      setTimeout(() => {
+        setTicketStatus('pass');
+        checkAndNotify(locationStatus, 'pass');
+      }, 900);
+      return;
+    }
+    // Live: manual attestation only
+    setTicketStatus('pass');
+    checkAndNotify(locationStatus, 'pass');
+  };
+
+  const statusIcon = (status) => {
+    if (status === 'checking') return <Loader2 className="w-4 h-4 animate-spin" style={{ color: '#FFE600' }} />;
+    if (status === 'pass') return <CheckCircle className="w-4 h-4" style={{ color: '#00FF87' }} />;
+    if (status === 'fail') return <XCircle className="w-4 h-4" style={{ color: '#FF2D78' }} />;
+    return null;
+  };
 
   return (
-    <div className="space-y-3">
-      {/* Existing ticket check */}
-      {needsTicket && (
-        <div className="rounded-2xl p-3 space-y-2"
-          style={{ background: 'rgba(255,140,0,0.07)', border: '1px solid rgba(255,140,0,0.25)' }}>
-          <div className="flex items-start gap-2.5">
-            <Ticket className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#FF8C00' }} />
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-bold" style={{ color: '#FF8C00' }}>Do you already have a ticket to this event?</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5 leading-relaxed">
-                This upgrade only grants access to better seats — it does not include event admission.
-              </p>
-            </div>
-          </div>
-          {ticketConfirmed ? (
-            <div className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: '#00FF87' }}>
-              <CheckCircle className="w-3.5 h-3.5" /> Confirmed — you have admission
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={handleTicketConfirm}
-              className="w-full py-2 rounded-xl font-bold text-xs transition-all active:scale-95"
-              style={{ background: 'rgba(255,140,0,0.15)', border: '1px solid rgba(255,140,0,0.35)', color: '#FF8C00' }}
-            >
-              Yes, I have a ticket to this event
-            </button>
-          )}
-        </div>
-      )}
+    <div className="rounded-2xl p-3 space-y-2"
+      style={{ background: 'rgba(255,140,0,0.06)', border: '1px solid rgba(255,140,0,0.2)' }}>
+      <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
+        Eligibility Checks {isDemo && <span style={{ color: '#BF5FFF' }}>· Demo</span>}
+      </p>
 
-      {/* Location check */}
       {needsLocation && (
-        <div className="rounded-2xl p-3 space-y-2"
-          style={{ background: 'rgba(0,200,255,0.07)', border: '1px solid rgba(0,200,255,0.25)' }}>
-          <div className="flex items-start gap-2.5">
-            <MapPin className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#00C8FF' }} />
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-bold" style={{ color: '#00C8FF' }}>
-                {listing.location_requirement === 'inside_venue' && 'You must be inside the venue'}
-                {listing.location_requirement === 'venue_proximity' && 'You must be near the venue'}
-                {listing.location_requirement === 'city_only' && 'You must be in the city'}
-              </p>
-              <p className="text-[10px] text-muted-foreground mt-0.5 leading-relaxed">
-                {isDemo ? 'Demo mode — location check is simulated.' : 'We\'ll verify your location before completing this purchase.'}
-              </p>
-            </div>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <MapPin className="w-4 h-4 flex-shrink-0" style={{ color: '#00C8FF' }} />
+            <span className="text-xs text-foreground">
+              {listing.location_requirement === 'inside_venue' && 'Must be inside the venue'}
+              {listing.location_requirement === 'venue_proximity' && 'Must be near the venue'}
+              {listing.location_requirement === 'city_only' && 'Must be in the city'}
+            </span>
           </div>
-
-          {locationStatus === 'idle' && (
-            <button
-              type="button"
-              onClick={handleLocationCheck}
-              className="w-full py-2 rounded-xl font-bold text-xs transition-all active:scale-95"
-              style={{ background: 'rgba(0,200,255,0.12)', border: '1px solid rgba(0,200,255,0.3)', color: '#00C8FF' }}
-            >
-              {isDemo ? 'Simulate Location Check' : 'Verify My Location'}
-            </button>
-          )}
-          {locationStatus === 'checking' && (
-            <div className="flex items-center gap-2 text-xs" style={{ color: '#00C8FF' }}>
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              {isDemo ? 'Simulating…' : 'Checking location…'}
-            </div>
-          )}
-          {locationStatus === 'passed' && (
-            <div className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: '#00FF87' }}>
-              <CheckCircle className="w-3.5 h-3.5" /> {isDemo ? 'Location simulated ✓' : 'Location verified ✓'}
-            </div>
-          )}
-          {locationStatus === 'failed' && (
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: '#FF2D78' }}>
-                <XCircle className="w-3.5 h-3.5" /> {locationError}
-              </div>
+          <div className="flex items-center gap-2">
+            {statusIcon(locationStatus)}
+            {locationStatus === 'idle' || locationStatus === 'fail' ? (
               <button
                 type="button"
-                onClick={handleLocationCheck}
-                className="w-full py-2 rounded-xl font-bold text-xs"
-                style={{ background: 'rgba(255,45,120,0.08)', border: '1px solid rgba(255,45,120,0.25)', color: '#FF2D78' }}
+                onClick={checkLocation}
+                className="text-[11px] font-bold px-3 py-1.5 rounded-full transition-all"
+                style={{ background: 'rgba(0,200,255,0.12)', border: '1px solid rgba(0,200,255,0.3)', color: '#00C8FF' }}
               >
-                Try Again
+                {locationStatus === 'fail' ? 'Retry' : isDemo ? 'Simulate' : 'Check'}
               </button>
-            </div>
-          )}
+            ) : locationStatus === 'pass' ? (
+              <span className="text-[11px] font-bold" style={{ color: '#00FF87' }}>Verified</span>
+            ) : null}
+          </div>
         </div>
       )}
 
-      {/* All passed confirmation */}
-      {allPassed && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold"
-          style={{ background: 'rgba(0,255,135,0.08)', border: '1px solid rgba(0,255,135,0.25)', color: '#00FF87' }}>
-          <CheckCircle className="w-3.5 h-3.5" /> All eligibility checks passed — you can proceed
+      {needsTicket && (
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Ticket className="w-4 h-4 flex-shrink-0" style={{ color: '#FF8C00' }} />
+            <span className="text-xs text-foreground">I have a ticket to this event</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {statusIcon(ticketStatus)}
+            {ticketStatus === 'idle' ? (
+              <button
+                type="button"
+                onClick={checkTicket}
+                className="text-[11px] font-bold px-3 py-1.5 rounded-full transition-all"
+                style={{ background: 'rgba(255,140,0,0.12)', border: '1px solid rgba(255,140,0,0.3)', color: '#FF8C00' }}
+              >
+                {isDemo ? 'Simulate' : 'Confirm'}
+              </button>
+            ) : ticketStatus === 'pass' ? (
+              <span className="text-[11px] font-bold" style={{ color: '#00FF87' }}>Confirmed</span>
+            ) : null}
+          </div>
         </div>
+      )}
+
+      {allPassed && (
+        <p className="text-[11px] font-bold text-center pt-1" style={{ color: '#00FF87' }}>
+          ✓ All checks passed — you may proceed
+        </p>
       )}
     </div>
   );
