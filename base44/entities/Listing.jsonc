@@ -194,6 +194,68 @@
     "seat_inventory_id": {
       "type": "string",
       "description": "FK to SeatInventory \u2014 canonical ownership record for this seat"
+    },
+    "listing_type": {
+      "type": "string",
+      "enum": [
+        "resale_ticket",
+        "seat_upgrade",
+        "parking_pass",
+        "experience_add_on",
+        "other"
+      ],
+      "default": "resale_ticket",
+      "description": "What kind of listing this is. Existing listings default to resale_ticket."
+    },
+    "inventory_source": {
+      "type": "string",
+      "enum": [
+        "fan",
+        "broker",
+        "venue_partner",
+        "pg_inventory",
+        "other"
+      ],
+      "default": "fan",
+      "description": "Where the inventory originates. Existing listings default to fan."
+    },
+    "requires_existing_ticket": {
+      "type": "boolean",
+      "default": false,
+      "description": "True if the buyer must already have a ticket to this event to purchase (e.g. seat upgrades)"
+    },
+    "requires_location": {
+      "type": "boolean",
+      "default": false,
+      "description": "True if purchase requires buyer to be at or near the venue"
+    },
+    "location_requirement": {
+      "type": "string",
+      "enum": [
+        "none",
+        "venue_proximity",
+        "inside_venue",
+        "city_only"
+      ],
+      "default": "none",
+      "description": "How strict the location gate is for this listing"
+    },
+    "upgrade_window_opens_at": {
+      "type": "string",
+      "description": "ISO timestamp \u2014 when this listing becomes purchasable (for time-gated upgrades)"
+    },
+    "upgrade_window_closes_at": {
+      "type": "string",
+      "description": "ISO timestamp \u2014 when this listing stops being purchasable"
+    },
+    "upgrade_instructions": {
+      "type": "string",
+      "description": "Free-text instructions shown to buyer after purchase (e.g. 'Go to Gate B and show this screen')"
+    },
+    "is_demo_listing": {
+      "type": "boolean",
+      "default": false,
+      "description": "True for demo/test listings. Replaces the legacy [DEMO] notes prefix pattern."
     }
   },
   "required": [
