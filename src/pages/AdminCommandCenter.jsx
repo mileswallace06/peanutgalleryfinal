@@ -3,7 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { isAdmin } from '@/lib/isAdmin';
 import { Navigate } from 'react-router-dom';
 import { format, formatDistanceToNow } from 'date-fns';
-import { Shield, RefreshCw, AlertTriangle, CreditCard, Zap, Users, Activity, Brain, Radio, Database, Bell, ClipboardList } from 'lucide-react';
+import { Shield, RefreshCw, AlertTriangle, CreditCard, Zap, Users, Activity, Brain, Radio, Database, Bell, ClipboardList, ArrowUpRight } from 'lucide-react';
 import TransferWindowAdminPanel from '@/components/admin/TransferWindowAdminPanel';
 import TransferIntelligencePanel from '@/components/admin/cc/TransferIntelligencePanel';
 import AdminAlertCenter from '@/components/admin/cc/AdminAlertCenter';
@@ -18,6 +18,7 @@ import FlashDropMetricsPanel from '@/components/admin/cc/FlashDropMetricsPanel';
 import PendingReviewQueue from '@/components/admin/PendingReviewQueue';
 import FeeSimulatorV2 from '@/components/admin/FeeSimulatorV2';
 import PricingStrategyAnalyzer from '@/components/admin/PricingStrategyAnalyzer';
+import LiveUpgradeControlPanel from '@/components/admin/cc/LiveUpgradeControlPanel';
 
 function FeeSimulatorTabs() {
   const [feeTab, setFeeTab] = useState('simulator');
@@ -53,6 +54,7 @@ const SECTIONS = [
   { id: 'review_queue',  label: 'Review Queue',          icon: ClipboardList },
   { id: 'fee_simulator', label: 'Fee Simulator',          icon: CreditCard },
   { id: 'flash_drops',   label: 'Flash Drops',            icon: Zap },
+  { id: 'live_upgrades', label: 'Live Upgrades',          icon: Zap },
 ];
 
 export default function AdminCommandCenter() {
@@ -235,6 +237,9 @@ export default function AdminCommandCenter() {
         )}
         {activeSection === 'flash_drops' && (
           <FlashDropMetricsPanel />
+        )}
+        {activeSection === 'live_upgrades' && (
+          <LiveUpgradeControlPanel />
         )}
       </div>
     </div>
