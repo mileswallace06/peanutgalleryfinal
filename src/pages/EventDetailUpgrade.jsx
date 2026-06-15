@@ -186,7 +186,7 @@ export default function EventDetailUpgrade() {
           <>
             {/* Hub-level eligibility gate — shown if any upgrade listing has requirements */}
             {!loading && (() => {
-              const upgradeListings = listings.filter(l => l.listing_type === 'seat_upgrade');
+              const upgradeListings = listings.filter(l => ['live_upgrade', 'venue_upgrade'].includes(l.listing_type));
               const anyHasGate = upgradeListings.some(l => l.requires_location || l.requires_existing_ticket);
               const isDemo = upgradeListings.some(l => l.is_demo_listing || l.notes?.startsWith('[DEMO]'));
               if (!anyHasGate) return null;

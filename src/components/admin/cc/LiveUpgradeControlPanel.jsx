@@ -61,7 +61,8 @@ export default function LiveUpgradeControlPanel() {
   };
 
   // --- Metrics ---
-  const upgradeListings = listings.filter(l => l.listing_type === 'seat_upgrade');
+  const UPGRADE_LISTING_TYPES = ['live_upgrade', 'venue_upgrade'];
+  const upgradeListings = listings.filter(l => UPGRADE_LISTING_TYPES.includes(l.listing_type));
   const demoUpgradeListings = upgradeListings.filter(l => l.is_demo_listing);
   const activeUpgradeListings = upgradeListings.filter(l => l.status === 'active');
   const activeDemoUpgrades = demoUpgradeListings.filter(l => l.status === 'active');

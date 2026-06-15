@@ -13,7 +13,8 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
   const elements = useElements();
   const navigate = useNavigate();
 
-  const isUpgrade = listing.listing_type === 'seat_upgrade';
+  const UPGRADE_LISTING_TYPES = ['live_upgrade', 'venue_upgrade'];
+  const isUpgrade = UPGRADE_LISTING_TYPES.includes(listing.listing_type);
   const isDemo = listing.is_demo_listing || listing.notes?.startsWith('[DEMO]');
   const isDemoUpgrade = isUpgrade && isDemo;
   const hasEligibilityGate = isUpgrade && (listing.requires_location || listing.requires_existing_ticket);
@@ -39,6 +40,7 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!stripe || !elements) return;
+    if (isUpgrade && !eligibilityPassed) return;
     setLoading(true);
     setError('');
 
@@ -337,7 +339,8 @@ export default function PurchaseDialog({ event, listing, onClose, mode = 'ticket
   const [stripePromise, setStripePromise] = useState(null);
   const [user, setUser] = useState(null);
   const [reservedListingId, setReservedListingId] = useState(null);
-  const isUpgrade = listing.listing_type === 'seat_upgrade';
+  const UPGRADE_LISTING_TYPES = ['live_upgrade', 'venue_upgrade'];
+  const isUpgrade = UPGRADE_LISTING_TYPES.includes(listing.listing_type);
   const isDemo = listing.is_demo_listing || listing.notes?.startsWith('[DEMO]');
   const isDemoUpgrade = isUpgrade && isDemo;
 

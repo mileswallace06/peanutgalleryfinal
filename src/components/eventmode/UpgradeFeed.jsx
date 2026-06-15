@@ -6,7 +6,7 @@ import { ArrowUpRight, TrendingDown, Bell, Zap, Ticket } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { motion } from 'framer-motion';
 
-const UPGRADE_TYPES = new Set(['seat_upgrade']);
+const UPGRADE_TYPES = new Set(['live_upgrade', 'venue_upgrade']);
 const ADMISSION_TYPES = new Set(['resale_ticket', 'venue_ticket', null, undefined]);
 
 function confidenceColor(score) {
@@ -75,17 +75,23 @@ export default function UpgradeFeed({ listings, eventId, loading, event }) {
     </div>
   );
 
-  const upgradeListings = listings.filter(l => UPGRADE_TYPES.has(l.listing_type))
+  const TYPE_ORDER = { venue_upgrade: 0, live_upgrade: 1, venue_ticket: 2, resale_ticket: 3 };
+
+  const upgradeListings = listings
+    .filter(l => UPGRADE_TYPES.has(l.listing_type))
     .sort((a, b) => {
-      const aDrop = a.original_price && a.original_price > a.asking_price;
-      const bDrop = b.original_price && b.original_price > b.asking_price;
-      if (aDrop && !bDrop) return -1;
-      if (!aDrop && bDrop) return 1;
+      const typeOrder = (TYPE_ORDER[a.listing_type] ?? 99) - (TYPE_ORDER[b.listing_type] ?? 99);
+      if (typeOrder !== 0) return typeOrder;
       return a.asking_price - b.asking_price;
     });
 
-  const admissionListings = listings.filter(l => ADMISSION_TYPES.has(l.listing_type))
-    .sort((a, b) => a.asking_price - b.asking_price);
+  const admissionListings = listings
+    .filter(l => ADMISSION_TYPES.has(l.listing_type))
+    .sort((a, b) => {
+      const typeOrder = (TYPE_ORDER[a.listing_type] ?? 99) - (TYPE_ORDER[b.listing_type] ?? 99);
+      if (typeOrder !== 0) return typeOrder;
+      return a.asking_price - b.asking_price;
+    });
 
   const eventStatus = event?.status;
   const isEnded = eventStatus === 'ended';

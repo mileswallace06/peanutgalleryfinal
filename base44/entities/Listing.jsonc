@@ -199,13 +199,12 @@
       "type": "string",
       "enum": [
         "resale_ticket",
-        "seat_upgrade",
-        "parking_pass",
-        "experience_add_on",
-        "other"
+        "venue_ticket",
+        "live_upgrade",
+        "venue_upgrade"
       ],
       "default": "resale_ticket",
-      "description": "What kind of listing this is. Existing listings default to resale_ticket."
+      "description": "What kind of listing this is. resale_ticket/venue_ticket = admission. live_upgrade/venue_upgrade = seat upgrade (requires existing admission). Old records without listing_type safely default to resale_ticket."
     },
     "inventory_source": {
       "type": "string",
@@ -214,15 +213,16 @@
         "broker",
         "venue_partner",
         "pg_inventory",
+        "pg_demo",
         "other"
       ],
       "default": "fan",
-      "description": "Where the inventory originates. Existing listings default to fan."
+      "description": "Where the inventory originates. pg_demo = admin-created demo listings."
     },
     "requires_existing_ticket": {
       "type": "boolean",
       "default": false,
-      "description": "True if the buyer must already have a ticket to this event to purchase (e.g. seat upgrades)"
+      "description": "True if the buyer must already have a ticket to this event to purchase (e.g. upgrades)"
     },
     "requires_location": {
       "type": "boolean",
@@ -242,7 +242,7 @@
     },
     "upgrade_window_opens_at": {
       "type": "string",
-      "description": "ISO timestamp \u2014 when this listing becomes purchasable (for time-gated upgrades)"
+      "description": "ISO timestamp \u2014 when this listing becomes purchasable"
     },
     "upgrade_window_closes_at": {
       "type": "string",
@@ -250,12 +250,12 @@
     },
     "upgrade_instructions": {
       "type": "string",
-      "description": "Free-text instructions shown to buyer after purchase (e.g. 'Go to Gate B and show this screen')"
+      "description": "Free-text instructions shown to buyer after purchase"
     },
     "is_demo_listing": {
       "type": "boolean",
       "default": false,
-      "description": "True for demo/test listings. Replaces the legacy [DEMO] notes prefix pattern."
+      "description": "True for demo/test listings created by admin."
     }
   },
   "required": [

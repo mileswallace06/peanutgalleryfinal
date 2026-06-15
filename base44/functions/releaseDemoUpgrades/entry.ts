@@ -8,6 +8,13 @@ const DEMO_TEMPLATES = [
   { section: 'Mid 201', row: 'F', seats: '9,10', asking_price: 55, tier: 'mid', upgrade_instructions: 'Present at mid-level usher station.' },
 ];
 
+// Only target demo venue_upgrade listings created by this system
+const isDemoUpgrade = (l) =>
+  l.listing_type === 'venue_upgrade' &&
+  l.is_demo_listing === true &&
+  l.inventory_source === 'pg_demo' &&
+  (l.notes || '').startsWith('[DEMO]');
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -28,36 +35,34 @@ Deno.serve(async (req) => {
     }
     const event = events[0];
 
-    // PAUSE: hide all active demo upgrade listings for this event
+    // Fetch all demo listings for this event
+    const existing = await base44.asServiceRole.entities.Listing.filter({ event_id, is_demo_listing: true });
+    const demoUpgrades = existing.filter(isDemoUpgrade);
+
+    // PAUSE: hide all active demo venue_upgrade listings
     if (action === 'pause') {
-      const existing = await base44.asServiceRole.entities.Listing.filter({ event_id, is_demo_listing: true });
-      const active = existing.filter(l => l.listing_type === 'seat_upgrade' && l.status === 'active');
+      const active = demoUpgrades.filter(l => l.status === 'active');
       await Promise.all(active.map(l =>
         base44.asServiceRole.entities.Listing.update(l.id, { status: 'hidden', hidden_reason: 'admin_disabled' })
       ));
       return Response.json({ success: true, action: 'paused', count: active.length });
     }
 
-    // RESET: delete all demo upgrade listings for this event
+    // RESET: delete all demo venue_upgrade listings for this event
     if (action === 'reset') {
-      const existing = await base44.asServiceRole.entities.Listing.filter({ event_id, is_demo_listing: true });
-      const upgrades = existing.filter(l => l.listing_type === 'seat_upgrade');
-      await Promise.all(upgrades.map(l =>
+      await Promise.all(demoUpgrades.map(l =>
         base44.asServiceRole.entities.Listing.delete(l.id)
       ));
-      return Response.json({ success: true, action: 'reset', deleted: upgrades.length });
+      return Response.json({ success: true, action: 'reset', deleted: demoUpgrades.length });
     }
 
-    // RELEASE: create demo upgrade listings
-    const existing = await base44.asServiceRole.entities.Listing.filter({ event_id, is_demo_listing: true });
-    const existingUpgrades = existing.filter(l => l.listing_type === 'seat_upgrade');
-    if (existingUpgrades.length > 0) {
-      // Re-activate any paused ones
-      const paused = existingUpgrades.filter(l => l.status === 'hidden');
+    // RELEASE (default): re-activate paused ones, or create fresh
+    if (demoUpgrades.length > 0) {
+      const paused = demoUpgrades.filter(l => l.status === 'hidden');
       await Promise.all(paused.map(l =>
         base44.asServiceRole.entities.Listing.update(l.id, { status: 'active', hidden_reason: null })
       ));
-      return Response.json({ success: true, action: 'reactivated', count: paused.length, total: existingUpgrades.length });
+      return Response.json({ success: true, action: 'reactivated', count: paused.length, total: demoUpgrades.length });
     }
 
     const created = await Promise.all(DEMO_TEMPLATES.map(tpl =>
@@ -70,15 +75,15 @@ Deno.serve(async (req) => {
         quantity: 2,
         tier: tpl.tier,
         asking_price: tpl.asking_price,
-        listing_type: 'seat_upgrade',
-        inventory_source: 'pg_inventory',
+        listing_type: 'venue_upgrade',
+        inventory_source: 'pg_demo',
         is_demo_listing: true,
         requires_existing_ticket: true,
         requires_location: true,
         location_requirement: 'inside_venue',
         proof_status: 'approved',
         status: 'active',
-        notes: `[DEMO] Venue upgrade — ${tpl.section}`,
+        notes: '[DEMO] Venue-released live upgrade',
         upgrade_instructions: tpl.upgrade_instructions,
         transfer_method: 'in_person',
       })
