@@ -363,21 +363,46 @@ export default function PurchaseDialog({ event, listing, onClose, mode = 'ticket
               <X className="w-5 h-5" />
             </button>
           </div>
-          {/* 4-point trust strip — visible before any payment info is entered */}
-          <div className="grid grid-cols-2 gap-1.5">
-            {[
-              { icon: '🔒', text: 'Money held safely in escrow' },
-              { icon: '✅', text: 'You confirm before seller is paid' },
-              { icon: '🎫', text: 'Seller notified to transfer immediately' },
-              { icon: '🛡️', text: 'Disputes supported if something goes wrong' },
-            ].map(({ icon, text }) => (
-              <div key={text} className="flex items-start gap-1.5 px-2.5 py-2 rounded-xl"
-                style={{ background: 'rgba(0,255,135,0.05)', border: '1px solid rgba(0,255,135,0.12)' }}>
-                <span className="text-sm leading-none flex-shrink-0 mt-0.5">{icon}</span>
-                <p className="text-[10px] leading-tight" style={{ color: 'rgba(200,255,230,0.7)' }}>{text}</p>
-              </div>
-            ))}
-          </div>
+          {/* Trust strip — context-aware */}
+          {isDemoUpgrade ? (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl"
+              style={{ background: 'rgba(191,95,255,0.08)', border: '1px solid rgba(191,95,255,0.2)' }}>
+              <span className="text-sm">🧪</span>
+              <p className="text-[10px] leading-tight" style={{ color: 'rgba(220,190,255,0.8)' }}>
+                Demo simulation — no real payment, no ticket transfer, no geofencing
+              </p>
+            </div>
+          ) : isUpgrade ? (
+            <div className="grid grid-cols-2 gap-1.5">
+              {[
+                { icon: '🎟️', text: 'Existing admission required' },
+                { icon: '🔒', text: 'Payment held in escrow' },
+                { icon: '✅', text: 'You confirm before seller is paid' },
+                { icon: '🛡️', text: 'Disputes supported' },
+              ].map(({ icon, text }) => (
+                <div key={text} className="flex items-start gap-1.5 px-2.5 py-2 rounded-xl"
+                  style={{ background: 'rgba(255,140,0,0.05)', border: '1px solid rgba(255,140,0,0.15)' }}>
+                  <span className="text-sm leading-none flex-shrink-0 mt-0.5">{icon}</span>
+                  <p className="text-[10px] leading-tight" style={{ color: 'rgba(255,200,130,0.8)' }}>{text}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-1.5">
+              {[
+                { icon: '🔒', text: 'Money held safely in escrow' },
+                { icon: '✅', text: 'You confirm before seller is paid' },
+                { icon: '🎫', text: 'Seller notified to transfer immediately' },
+                { icon: '🛡️', text: 'Disputes supported if something goes wrong' },
+              ].map(({ icon, text }) => (
+                <div key={text} className="flex items-start gap-1.5 px-2.5 py-2 rounded-xl"
+                  style={{ background: 'rgba(0,255,135,0.05)', border: '1px solid rgba(0,255,135,0.12)' }}>
+                  <span className="text-sm leading-none flex-shrink-0 mt-0.5">{icon}</span>
+                  <p className="text-[10px] leading-tight" style={{ color: 'rgba(200,255,230,0.7)' }}>{text}</p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         {/* UX-8: Scrollable body — submit button is sticky-footed outside scroll to prevent iOS keyboard overlap */}
         <div className="flex-1 overflow-y-auto p-5 pb-2">
