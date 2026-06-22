@@ -7,6 +7,7 @@ import AIVerificationStatus from '@/components/purchase/AIVerificationStatus';
 import TransferAssistant from '@/components/purchase/TransferAssistant';
 import { createOptimisticPurchaseUpdate } from '@/lib/optimisticUI';
 import NotificationPermissionPrompt from '@/components/NotificationPermissionPrompt';
+import { UPGRADE_LISTING_TYPES } from '@/lib/listingTypes';
 
 // ── Transaction Timeline ─────────────────────────────────────────────────────
 function TransactionTimeline({ purchase }) {
@@ -480,7 +481,6 @@ export default function PurchaseSuccess() {
   const isSeller = user.email === purchase.seller_email;
   const isBuyer = !isSeller && (user.email === purchase.buyer_email || user.email === purchase.created_by);
   const isAdminViewer = user.role === 'admin';
-  const UPGRADE_LISTING_TYPES = ['live_upgrade', 'venue_upgrade'];
   const isUpgrade = listing && UPGRADE_LISTING_TYPES.includes(listing.listing_type);
 
   if (!isSeller && !isBuyer && !isAdminViewer) {

@@ -5,9 +5,10 @@ import { Link } from 'react-router-dom';
 import { ArrowUpRight, TrendingDown, Bell, Zap, Ticket } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { motion } from 'framer-motion';
+import { UPGRADE_LISTING_TYPES, TICKET_LISTING_TYPES } from '@/lib/listingTypes';
 
-const UPGRADE_TYPES = new Set(['live_upgrade', 'venue_upgrade']);
-const ADMISSION_TYPES = new Set(['resale_ticket', 'venue_ticket', null, undefined]);
+const UPGRADE_TYPES = new Set(UPGRADE_LISTING_TYPES);
+const ADMISSION_TYPES = new Set([...TICKET_LISTING_TYPES, null, undefined]);
 
 function confidenceColor(score) {
   if (!score) return '#888';

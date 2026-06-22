@@ -1,5 +1,6 @@
 import { ArrowUpRight, ShieldCheck, Zap, MapPin, Ticket, AlertTriangle } from 'lucide-react';
 import TransferStatusBadge from '@/components/listings/TransferStatusBadge';
+import { UPGRADE_LISTING_TYPES } from '@/lib/listingTypes';
 
 const TIER_STYLES = {
   floor: { color: '#FF2D78', bg: '#FF2D7815', label: 'Floor' },
@@ -12,7 +13,6 @@ const TIER_STYLES = {
 
 export default function ListingCard({ listing, onUpgrade, isCheapest, mode = 'upgrade', transferWarning = null }) {
   const isDemo = listing.is_demo_listing || listing.notes?.startsWith('[DEMO]');
-  const UPGRADE_LISTING_TYPES = ['live_upgrade', 'venue_upgrade'];
   const isUpgrade = UPGRADE_LISTING_TYPES.includes(listing.listing_type);
   const isVerified = !!listing.proof_url && !isDemo;
   const isInstant = listing.listing_mode === 'instant' && listing.custody_status === 'verified';

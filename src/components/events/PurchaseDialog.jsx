@@ -7,13 +7,13 @@ import { formatFeeBreakdown, ACTIVE_FEE_MODEL_ID, FEE_MODELS } from '@/lib/feeEn
 import { X, Lock, Shield, ArrowRight, AlertTriangle, MapPin, Ticket } from 'lucide-react';
 import TransferAcknowledgment from '@/components/listings/TransferAcknowledgment';
 import UpgradeEligibilityGate from '@/components/upgrades/UpgradeEligibilityGate.jsx';
+import { UPGRADE_LISTING_TYPES } from '@/lib/listingTypes';
 
 function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
   const stripe = useStripe();
   const elements = useElements();
   const navigate = useNavigate();
 
-  const UPGRADE_LISTING_TYPES = ['live_upgrade', 'venue_upgrade'];
   const isUpgrade = UPGRADE_LISTING_TYPES.includes(listing.listing_type);
   const isDemo = listing.is_demo_listing || listing.notes?.startsWith('[DEMO]');
   const isDemoUpgrade = isUpgrade && isDemo;
@@ -339,7 +339,6 @@ export default function PurchaseDialog({ event, listing, onClose, mode = 'ticket
   const [stripePromise, setStripePromise] = useState(null);
   const [user, setUser] = useState(null);
   const [reservedListingId, setReservedListingId] = useState(null);
-  const UPGRADE_LISTING_TYPES = ['live_upgrade', 'venue_upgrade'];
   const isUpgrade = UPGRADE_LISTING_TYPES.includes(listing.listing_type);
   const isDemo = listing.is_demo_listing || listing.notes?.startsWith('[DEMO]');
   const isDemoUpgrade = isUpgrade && isDemo;

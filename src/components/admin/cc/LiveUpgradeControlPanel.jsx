@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { ArrowUpRight, Play, Pause, Trash2, RefreshCw } from 'lucide-react';
+import { UPGRADE_LISTING_TYPES } from '@/lib/listingTypes';
 
 function MetricCard({ label, value, sub, color = '#BF5FFF', isDemo = false }) {
   return (
@@ -66,7 +67,6 @@ export default function LiveUpgradeControlPanel() {
   };
 
   // --- Metrics ---
-  const UPGRADE_LISTING_TYPES = ['live_upgrade', 'venue_upgrade'];
   const upgradeListings = listings.filter(l => UPGRADE_LISTING_TYPES.includes(l.listing_type));
   const demoUpgradeListings = upgradeListings.filter(l => l.is_demo_listing);
   const activeUpgradeListings = upgradeListings.filter(l => l.status === 'active');

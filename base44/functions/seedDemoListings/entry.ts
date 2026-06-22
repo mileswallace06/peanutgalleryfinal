@@ -111,6 +111,7 @@ Deno.serve(async (req) => {
       transfer_method: 'email_transfer',
       proof_status: 'approved',
       status: 'active',
+      is_demo_listing: true,
       notes: `[DEMO] Great seats! Willing to move to a lower section. Seller: ${sellerEmail}`
     };
     await base44.asServiceRole.entities.Listing.create(listing);

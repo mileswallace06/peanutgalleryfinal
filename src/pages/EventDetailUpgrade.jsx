@@ -16,6 +16,7 @@ import EventLookupDebugPanel from '@/components/debug/EventLookupDebugPanel';
 import { logNavEvent } from '@/lib/navLogger';
 import LiveHubEmptyState from '@/components/eventmode/LiveHubEmptyState';
 import UpgradeEligibilityGate from '@/components/upgrades/UpgradeEligibilityGate.jsx';
+import { UPGRADE_LISTING_TYPES } from '@/lib/listingTypes';
 
 const TABS = [
   { key: 'Upgrades', label: 'Upgrades', sub: 'Better seats' },
@@ -150,7 +151,7 @@ export default function EventDetailUpgrade() {
             <Link to="/upgrades" className="text-sm text-muted-foreground underline">← Back to Upgrades</Link>
           </div>
         </div>
-        <EventLookupDebugPanel routeId={id} lookupTrace={lookupTrace} />
+        {user?.role === 'admin' && <EventLookupDebugPanel routeId={id} lookupTrace={lookupTrace} />}
       </div>
     );
   }
@@ -186,7 +187,7 @@ export default function EventDetailUpgrade() {
           <>
             {/* Hub-level eligibility gate — shown if any upgrade listing has requirements */}
             {!loading && (() => {
-              const upgradeListings = listings.filter(l => ['live_upgrade', 'venue_upgrade'].includes(l.listing_type));
+              const upgradeListings = listings.filter(l => UPGRADE_LISTING_TYPES.includes(l.listing_type));
               const anyHasGate = upgradeListings.some(l => l.requires_location || l.requires_existing_ticket);
               const isDemo = upgradeListings.some(l => l.is_demo_listing || l.notes?.startsWith('[DEMO]'));
               if (!anyHasGate) return null;
