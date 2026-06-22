@@ -421,11 +421,11 @@ export default function PurchaseDialog({ event, listing, onClose, mode = 'ticket
         </div>
         {/* UX-8: Scrollable body — submit button is sticky-footed outside scroll to prevent iOS keyboard overlap */}
         <div className="flex-1 overflow-y-auto p-5 pb-2">
-          {!stripePromise ? (
+          {!stripePromise || !user ? (
             <div className="flex justify-center py-8">
               <span className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
             </div>
-          ) : user?.email && listing.seller_email === user.email ? (
+          ) : user.email === listing.seller_email ? (
             <div className="text-center py-8 space-y-3 px-4">
               <p className="text-4xl">🚫</p>
               <p className="font-bold text-foreground">You can't buy your own listing</p>
@@ -437,7 +437,7 @@ export default function PurchaseDialog({ event, listing, onClose, mode = 'ticket
             </div>
           ) : (
             <Elements stripe={stripePromise}>
-              <CheckoutForm event={event} listing={listing} buyerEmail={user?.email} onClose={handleClose} onReserved={setReservedListingId} />
+              <CheckoutForm event={event} listing={listing} buyerEmail={user.email} onClose={handleClose} onReserved={setReservedListingId} />
             </Elements>
           )}
         </div>

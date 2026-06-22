@@ -76,7 +76,7 @@ function TransactionTimeline({ purchase }) {
 // SellerPanel removed — replaced by TransferAssistant component
 
 // ── Buyer View ───────────────────────────────────────────────────────────────
-function BuyerPanel({ purchase, onConfirm, onDispute, onCancel, actionLoading }) {
+function BuyerPanel({ purchase, onConfirm, onDispute, onCancel, actionLoading, isUpgrade }) {
   // Buyer confirmed — complete
   if (purchase.buyer_confirmed) {
     return (
@@ -86,8 +86,8 @@ function BuyerPanel({ purchase, onConfirm, onDispute, onCancel, actionLoading })
             style={{ background: 'linear-gradient(135deg, #00FF8733, #00C8FF33)', border: '2px solid rgba(0,255,135,0.5)' }}>
             <CheckCircle className="w-6 h-6" style={{ color: '#00FF87' }} />
           </div>
-          <h2 className="font-display text-2xl text-foreground mb-1">Upgrade Confirmed 🎟️</h2>
-          <p className="text-sm text-muted-foreground">Your tickets are confirmed. Payment has been released to the seller.</p>
+          <h2 className="font-display text-2xl text-foreground mb-1">{isUpgrade ? 'Upgrade Confirmed 🎟️' : 'Ticket Confirmed 🎟️'}</h2>
+          <p className="text-sm text-muted-foreground">{isUpgrade ? 'Your seat upgrade is confirmed. Payment has been released to the seller.' : 'Your tickets are confirmed. Payment has been released to the seller.'}</p>
           <div className="flex flex-col gap-2 mt-4 text-xs text-center">
             <span className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full font-semibold mx-auto"
               style={{ background: 'rgba(0,255,135,0.15)', color: '#00FF87', border: '1px solid rgba(0,255,135,0.3)' }}>
@@ -234,7 +234,7 @@ function BuyerPanel({ purchase, onConfirm, onDispute, onCancel, actionLoading })
 }
 
 // ── Completed state (role-specific) ─────────────────────────────────────────
-function CompletedBanner({ isSeller }) {
+function CompletedBanner({ isSeller, isUpgrade }) {
   return (
     <div className="rounded-2xl overflow-hidden mb-5" style={{
       border: '1px solid rgba(0,255,135,0.35)',
@@ -246,11 +246,13 @@ function CompletedBanner({ isSeller }) {
           <CheckCircle className="w-6 h-6" style={{ color: '#00FF87' }} />
         </div>
         <h2 className="font-display text-2xl text-foreground mb-1">
-          {isSeller ? 'Sale Complete 💸' : 'Upgrade Confirmed 🎟️'}
+          {isSeller ? 'Sale Complete 💸' : isUpgrade ? 'Upgrade Confirmed 🎟️' : 'Ticket Confirmed 🎟️'}
         </h2>
         <p className="text-sm text-muted-foreground mb-4">
           {isSeller
             ? 'Great work. Your payout is being processed by Stripe.'
+            : isUpgrade
+            ? 'Enjoy your upgraded seats! Payment has been released to the seller.'
             : 'Enjoy the show! Payment has been released to the seller.'}
         </p>
         {isSeller && (
@@ -273,6 +275,13 @@ function CompletedBanner({ isSeller }) {
             ✓ {isSeller ? 'Payout processing' : 'Payout released to seller'}
           </span>
         </div>
+        {!isSeller && (
+          <Link to="/my-tickets"
+            className="inline-flex items-center gap-2 mt-4 px-5 py-2.5 rounded-full font-bold text-sm transition-all"
+            style={{ background: 'linear-gradient(135deg, #00E87A, #00B8E8)', color: '#0D0B14' }}>
+            {isUpgrade ? 'View My Upgrade →' : 'View My Tickets →'}
+          </Link>
+        )}
       </div>
     </div>
   );
@@ -471,6 +480,8 @@ export default function PurchaseSuccess() {
   const isSeller = user.email === purchase.seller_email;
   const isBuyer = !isSeller && (user.email === purchase.buyer_email || user.email === purchase.created_by);
   const isAdminViewer = user.role === 'admin';
+  const UPGRADE_LISTING_TYPES = ['live_upgrade', 'venue_upgrade'];
+  const isUpgrade = listing && UPGRADE_LISTING_TYPES.includes(listing.listing_type);
 
   if (!isSeller && !isBuyer && !isAdminViewer) {
     return (
@@ -488,14 +499,14 @@ export default function PurchaseSuccess() {
   return (
     <div className="max-w-lg mx-auto px-4 py-6 pb-12">
       <Link
-        to={isSeller ? '/my-sales' : '/my-tickets'}
+        to={isSeller ? '/my-sales' : isAdminViewer ? '/admin' : '/my-tickets'}
         className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-5 transition-colors"
       >
-        <ArrowLeft className="w-4 h-4" /> {isSeller ? 'My Sales' : 'My Tickets'}
+        <ArrowLeft className="w-4 h-4" /> {isSeller ? 'My Sales' : isAdminViewer ? 'Admin' : 'My Tickets'}
       </Link>
 
       {/* Terminal status banners */}
-      {isCompleted && <CompletedBanner isSeller={isSeller} />}
+      {isCompleted && <CompletedBanner isSeller={isSeller} isUpgrade={isUpgrade} />}
 
       {isExpired && (
         <div className="flex items-center gap-3 rounded-2xl p-4 mb-5"
@@ -645,6 +656,7 @@ export default function PurchaseSuccess() {
           onDispute={() => setShowDisputeModal(true)}
           onCancel={handleCancel}
           actionLoading={actionLoading}
+          isUpgrade={isUpgrade}
         />
       )}
 

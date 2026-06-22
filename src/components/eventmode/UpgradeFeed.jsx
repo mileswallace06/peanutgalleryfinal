@@ -123,12 +123,6 @@ export default function UpgradeFeed({ listings, eventId, loading, event }) {
             Seat upgrades will appear here once doors open and fans start listing.
           </p>
         </div>
-        <button
-          className="flex items-center gap-2 mx-auto px-5 py-2.5 rounded-full font-medium text-sm transition-all active:scale-95"
-          style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.55)', border: '1px solid rgba(255,255,255,0.1)' }}>
-          <Bell className="w-3.5 h-3.5" />
-          Notify me when one appears
-        </button>
       </div>
     );
   }
@@ -146,12 +140,6 @@ export default function UpgradeFeed({ listings, eventId, loading, event }) {
               Fans inside the venue can list seat upgrades. Check back soon.
             </p>
           </div>
-          <button
-            className="flex items-center gap-2 mx-auto px-5 py-2.5 rounded-full font-medium text-sm transition-all active:scale-95"
-            style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.55)', border: '1px solid rgba(255,255,255,0.1)' }}>
-            <Bell className="w-3.5 h-3.5" />
-            Notify me when one appears
-          </button>
         </div>
 
         {admissionListings.length > 0 && (

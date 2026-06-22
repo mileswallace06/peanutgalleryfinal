@@ -152,7 +152,7 @@ export default function EventDetail() {
             <Link to="/events" className="text-sm text-muted-foreground underline">← Back to Events</Link>
           </div>
         </div>
-        <EventLookupDebugPanel routeId={id} lookupTrace={lookupTrace} />
+        {user?.role === 'admin' && <EventLookupDebugPanel routeId={id} lookupTrace={lookupTrace} />}
       </div>
     );
   }
@@ -161,7 +161,7 @@ export default function EventDetail() {
   const timing = getEventLiveStatus(event);
   const isLive = timing.status === 'live';
   const isLiveMode = timing.status === 'live' || timing.status === 'ended';
-  const isDemoOnly = listings.length > 0 && listings.every(l => l.notes?.startsWith('[DEMO]'));
+  const isDemoOnly = listings.length > 0 && listings.some(l => l.notes?.startsWith('[DEMO]') || l.is_demo_listing);
   const sorted = [...listings].sort((a, b) => a.asking_price - b.asking_price);
   const cheapest = sorted[0]?.asking_price;
 

@@ -53,6 +53,22 @@ export default function MySales() {
 
   useEffect(() => { load(); }, [load]);
 
+  const handlePauseListing = async (id) => {
+    await base44.entities.Listing.update(id, { status: 'hidden', hidden_reason: 'other' }).catch(() => {});
+    load();
+  };
+
+  const handleResumeListing = async (id) => {
+    await base44.entities.Listing.update(id, { status: 'active', hidden_reason: null }).catch(() => {});
+    load();
+  };
+
+  const handleDeleteListing = async (listing) => {
+    if (!window.confirm(`Delete this listing permanently?\n\nSection ${listing.section} · Row ${listing.row}\nThis action cannot be undone.`)) return;
+    await base44.entities.Listing.delete(listing.id).catch(() => {});
+    load();
+  };
+
   if (loading) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-12 text-center">
@@ -110,7 +126,7 @@ export default function MySales() {
           to="/create-listing"
           className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-primary/90 transition-colors flex-shrink-0"
         >
-          <Plus className="w-4 h-4" /> List Upgrade
+          <Plus className="w-4 h-4" /> List Tickets
         </Link>
       </div>
 
@@ -230,6 +246,22 @@ export default function MySales() {
                     </span>
                   </div>
                   <ListingStatusBanner listing={l} event={ev} onRefresh={load} />
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      onClick={() => handlePauseListing(l.id)}
+                      className="text-xs font-bold px-3 py-1.5 rounded-xl transition-colors"
+                      style={{ background: 'rgba(255,200,0,0.1)', border: '1px solid rgba(255,200,0,0.25)', color: 'var(--neon-yellow)' }}
+                    >
+                      Pause
+                    </button>
+                    <button
+                      onClick={() => handleDeleteListing(l)}
+                      className="text-xs font-bold px-3 py-1.5 rounded-xl transition-colors"
+                      style={{ background: 'rgba(255,45,120,0.08)', border: '1px solid rgba(255,45,120,0.2)', color: '#FF2D78' }}
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
               );
             })}
@@ -263,6 +295,24 @@ export default function MySales() {
                     </div>
                   </div>
                   <ListingStatusBanner listing={l} event={ev} onRefresh={load} />
+                  <div className="flex gap-2 pt-1">
+                    {l.status === 'hidden' && (
+                      <button
+                        onClick={() => handleResumeListing(l.id)}
+                        className="text-xs font-bold px-3 py-1.5 rounded-xl transition-colors"
+                        style={{ background: 'rgba(0,255,135,0.1)', border: '1px solid rgba(0,255,135,0.25)', color: 'var(--neon-green)' }}
+                      >
+                        Resume
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDeleteListing(l)}
+                      className="text-xs font-bold px-3 py-1.5 rounded-xl transition-colors"
+                      style={{ background: 'rgba(255,45,120,0.08)', border: '1px solid rgba(255,45,120,0.2)', color: '#FF2D78' }}
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
               );
             })}

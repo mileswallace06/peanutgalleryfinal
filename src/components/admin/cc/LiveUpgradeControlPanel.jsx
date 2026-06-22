@@ -47,6 +47,11 @@ export default function LiveUpgradeControlPanel() {
 
   const runAction = async (action) => {
     if (!selectedEventId) return;
+    if (action === 'reset') {
+      if (!window.confirm('Delete ALL demo upgrade listings for this event?\n\nThis will permanently remove all demo listings. This action cannot be undone.')) return;
+    } else if (action === 'pause') {
+      if (!window.confirm('Pause all demo upgrade listings for this event?\n\nListings will be hidden from the marketplace. You can reactivate them later.')) return;
+    }
     setActionLoading(true);
     setActionMsg(null);
     const res = await base44.functions.invoke('releaseDemoUpgrades', { action, event_id: selectedEventId });

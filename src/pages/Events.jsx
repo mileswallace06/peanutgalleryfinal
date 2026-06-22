@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { MapPin, Calendar, ChevronRight, LocateFixed, RefreshCw, ShieldCheck } from 'lucide-react';
+import { MapPin, Calendar, ChevronRight, LocateFixed, RefreshCw, ShieldCheck, Search } from 'lucide-react';
 import { getEventLiveStatus } from '@/lib/eventTiming';
 import { getEventUrl } from '@/lib/eventUrl';
 import { logNavEvent } from '@/lib/navLogger';
@@ -35,6 +35,7 @@ export default function Events() {
 
   const [tmError, setTmError] = useState(false);
   const [networkError, setNetworkError] = useState(false);
+  const [keyword, setKeyword] = useState('');
   // Track which TM IDs we've already synced this session to avoid duplicate calls
   const syncedTmIds = useRef(new Set());
 
@@ -106,6 +107,15 @@ export default function Events() {
         } else {
           pgFiltered = [];
         }
+      }
+      if (keyword) {
+        const kw = keyword.toLowerCase();
+        pgFiltered = pgFiltered.filter(e =>
+          e.title?.toLowerCase().includes(kw) ||
+          e.venue?.toLowerCase().includes(kw) ||
+          e.city?.toLowerCase().includes(kw) ||
+          (e.artist && e.artist.toLowerCase().includes(kw))
+        );
       }
 
       if (signal.aborted) return;
@@ -262,6 +272,28 @@ export default function Events() {
             placeholder="Search city or event…"
           />
         )}
+      </div>
+
+      {/* ── Event search ── */}
+      <div className="px-4 mb-4">
+        <form onSubmit={(e) => {
+          e.preventDefault();
+          const ll = latlongRef.current || null;
+          const city = !ll && locationLabelRef.current && locationLabelRef.current !== 'Near me' ? locationLabelRef.current : null;
+          fetchEvents(ll, city, keyword.trim() || null);
+        }}>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <input
+              type="text"
+              value={keyword}
+              onChange={e => setKeyword(e.target.value)}
+              placeholder="Search events, artists, teams, venues…"
+              className="w-full pl-9 pr-4 py-2.5 rounded-full text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+              style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+            />
+          </div>
+        </form>
       </div>
 
       {/* ── Rate limit / network error ── */}

@@ -41,6 +41,19 @@ export default function MyTickets() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Realtime: update purchases when they change
+  useEffect(() => {
+    const unsubscribe = base44.entities.Purchase.subscribe((event) => {
+      if (event.type === 'update') {
+        setPurchases(prev => {
+          if (!prev.some(p => p.id === event.data.id)) return prev;
+          return prev.map(p => p.id === event.data.id ? { ...p, ...event.data } : p);
+        });
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
   if (loading) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-12 text-center">
@@ -161,13 +174,15 @@ export default function MyTickets() {
           <Ticket className="w-6 h-6 text-primary" /> My Tickets
         </h1>
         <p className="text-sm text-muted-foreground mt-1">{user.email}</p>
+        <p className="text-xs text-muted-foreground mt-2">Your purchased tickets and upgrades appear here.</p>
       </div>
 
       {purchases.length === 0 ? (
         <div className="text-center py-20 text-muted-foreground">
           <p className="text-4xl mb-3">🎫</p>
-          <p className="font-medium text-foreground">No purchases yet</p>
-          <Link to="/events" className="text-primary text-sm mt-2 inline-block hover:underline">Browse events →</Link>
+          <p className="font-medium text-foreground">No tickets yet</p>
+          <p className="text-sm mt-1">Browse events and buy tickets — they'll appear here.</p>
+          <Link to="/events" className="text-primary text-sm mt-3 inline-block hover:underline">Browse events →</Link>
         </div>
       ) : (
         <>
