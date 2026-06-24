@@ -204,7 +204,7 @@ export default function Layout() {
                 )}
                 <div
                   className="w-11 h-9 flex items-center justify-center rounded-xl transition-all relative"
-                  style={active ? { background: `${color}18`, boxShadow: `0 0 14px ${color}44` } : {}}>
+                  style={active ? { background: `${color}18` } : {}}>
                   <NavIcon
                     className="w-5 h-5"
                     style={active ? { filter: `drop-shadow(0 0 6px ${color}bb)`, strokeWidth: 2.5 } : { strokeWidth: 1.8 }} />
