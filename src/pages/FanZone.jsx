@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { formatDistanceToNow } from 'date-fns';
 import { Plus, X, ImagePlus, Star, MapPin, Users, TrendingUp, Search, ChevronDown, RefreshCw } from 'lucide-react';
@@ -15,7 +15,14 @@ const REACTIONS = [
 ];
 
 export default function FanZone() {
+  const location = useLocation();
+  const isTabActive = location.pathname === '/fan-zone' || location.pathname.startsWith('/fan-zone/');
   const [user, setUser] = useState(null);
+
+  // Close any open FAB sheets when navigating away from FanZone
+  useEffect(() => {
+    if (!isTabActive && fab) setFab(null);
+  }, [isTabActive]);
   const [posts, setPosts] = useState([]);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -301,9 +308,9 @@ export default function FanZone() {
     </div>
 
       {createPortal(<>
-      {/* FAB — only shown to authenticated users */}
-       <button
-         onClick={() => user ? setFab(fab === 'menu' ? null : 'menu') : base44.auth.redirectToLogin()}
+      {/* FAB — only shown to authenticated users when FanZone tab is active */}
+      {isTabActive && <button
+          onClick={() => user ? setFab(fab === 'menu' ? null : 'menu') : base44.auth.redirectToLogin()}
          aria-label={fab === 'menu' ? 'Close post menu' : 'Create post'}
          aria-expanded={fab === 'menu'}
          className="fixed right-5 z-40 w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform active:scale-95"
@@ -314,10 +321,10 @@ export default function FanZone() {
          }}
        >
         <Plus
-          className="w-7 h-7 transition-transform duration-200"
-          style={{ color: 'var(--gradient-btn-text)', transform: fab === 'menu' ? 'rotate(45deg)' : 'rotate(0deg)' }}
+        className="w-7 h-7 transition-transform duration-200"
+        style={{ color: 'var(--gradient-btn-text)', transform: fab === 'menu' ? 'rotate(45deg)' : 'rotate(0deg)' }}
         />
-      </button>
+        </button>}
 
       {/* FAB mini-menu */}
       {fab === 'menu' && (
