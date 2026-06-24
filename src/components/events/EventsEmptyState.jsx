@@ -81,13 +81,13 @@ export default function EventsEmptyState({ locationStatus, onNearMe, onEnterCity
         </div>
         <div className="flex gap-2">
           <button onClick={onNearMe}
-          className="flex-1 flex items-center justify-center gap-1.5 py-3 rounded-2xl font-bold text-sm transition-all active:scale-[0.98]"
+          className="flex-1 flex items-center justify-center gap-2.5 py-3 rounded-2xl font-bold text-sm transition-all active:scale-[0.98]"
           style={{ background: 'rgba(191,95,255,0.15)', border: '1px solid rgba(191,95,255,0.4)', color: '#BF5FFF' }}>
             <LocateFixed className="w-4 h-4 flex-shrink-0" />
             <span className="whitespace-nowrap">Use My Location</span>
           </button>
           <button onClick={onEnterCity}
-          className="flex-1 flex items-center justify-center gap-1.5 py-3 rounded-2xl font-semibold text-sm transition-all active:scale-[0.98]"
+          className="flex-1 flex items-center justify-center gap-2.5 py-3 rounded-2xl font-semibold text-sm transition-all active:scale-[0.98]"
           style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}>
             <MapPin className="w-4 h-4 flex-shrink-0" style={{ color: '#BF5FFF', opacity: 0.7 }} />
             <span className="text-foreground whitespace-nowrap">Enter City</span>
