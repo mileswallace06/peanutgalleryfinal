@@ -144,6 +144,11 @@
 @layer base {
   html, body {
     overscroll-behavior: none;
+    /* Prevent iOS text auto-resize on orientation change */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    /* Remove iOS/Android tap highlight for native feel */
+    -webkit-tap-highlight-color: transparent;
   }
 
   * {
@@ -153,11 +158,49 @@
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-sans);
+    /* Minimum readable body font size */
+    font-size: 14px;
   }
 
   button, [role="button"], svg {
     user-select: none;
     -webkit-user-select: none;
+  }
+
+  /* ── Native mobile enhancements ─────────────────────────────────────── */
+
+  /* Prevent double-tap-to-zoom on interactive elements (native app feel) */
+  button,
+  [role="button"],
+  a,
+  input,
+  select,
+  textarea {
+    touch-action: manipulation;
+  }
+
+  /* Hide all scrollbars — native apps don't show them */
+  * {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE/Edge */
+  }
+  *::-webkit-scrollbar {
+    display: none; /* Chrome/Safari/iOS */
+    width: 0;
+    height: 0;
+  }
+
+  /* Momentum scrolling on all scroll containers (iOS) */
+  [style*="overflow"],
+  [class*="overflow"],
+  [class*="scroll"] {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Minimum touch target — 44×44px (WCAG 2.5.5) */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
   }
 
   /* Keyboard focus visibility for accessibility (WCAG 2.4.7) */

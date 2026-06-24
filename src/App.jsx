@@ -1,3 +1,4 @@
+import { Suspense, lazy } from 'react'
 import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
@@ -7,53 +8,47 @@ import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import Layout from '@/components/Layout';
 import Landing from '@/pages/Landing';
-import Events from '@/pages/Events';
-import EventDetail from '@/pages/EventDetail';
-import PurchaseSuccess from '@/pages/PurchaseSuccess';
-import AdminMode from '@/pages/AdminMode';
-import AdminCommandCenter from '@/pages/AdminCommandCenter';
-import MySales from '@/pages/MySales';
-import MyTickets from '@/pages/MyTickets';
-import CreateListing from '@/pages/CreateListing';
-import FanZone from '@/pages/FanZone';
-import Me from '@/pages/Me';
-import Upgrades from '@/pages/Upgrades';
-import EventDetailUpgrade from '@/pages/EventDetailUpgrade';
-import Sell from '@/pages/Sell';
-import EventDetailTM from '@/pages/EventDetailTM';
-import AccountSettingsPage from '@/pages/AccountSettingsPage';
-import EditPersona from '@/pages/EditPersona';
-import BetaQA from '@/pages/BetaQA';
-import TermsOfService from '@/pages/TermsOfService';
-import PrivacyPolicy from '@/pages/PrivacyPolicy';
-import InstantListingsGuide from '@/pages/InstantListingsGuide';
-import SellerPayoutGuide from '@/pages/SellerPayoutGuide';
-import WhyPeanutGallery from '@/pages/WhyPeanutGallery';
-import Leaderboard from '@/pages/Leaderboard';
-import FounderDashboard from '@/pages/FounderDashboard';
-import FounderBetaChecklist from '@/pages/FounderBetaChecklist';
-import BetaRecruitment from '@/pages/BetaRecruitment';
-import BetaDashboard from '@/pages/BetaDashboard';
-import Notifications from '@/pages/Notifications';
-import EventMode from '@/pages/EventMode';
+import RouteFallback from '@/components/RouteFallback';
+
+// ── Route-based code splitting ────────────────────────────────────────────
+// All authenticated routes are lazily loaded to reduce the initial bundle.
+// Landing, Layout, and auth-critical components stay eager for instant first paint.
+const Events = lazy(() => import('@/pages/Events'));
+const EventDetail = lazy(() => import('@/pages/EventDetail'));
+const PurchaseSuccess = lazy(() => import('@/pages/PurchaseSuccess'));
+const AdminMode = lazy(() => import('@/pages/AdminMode'));
+const AdminCommandCenter = lazy(() => import('@/pages/AdminCommandCenter'));
+const MySales = lazy(() => import('@/pages/MySales'));
+const MyTickets = lazy(() => import('@/pages/MyTickets'));
+const CreateListing = lazy(() => import('@/pages/CreateListing'));
+const FanZone = lazy(() => import('@/pages/FanZone'));
+const Me = lazy(() => import('@/pages/Me'));
+const Upgrades = lazy(() => import('@/pages/Upgrades'));
+const EventDetailUpgrade = lazy(() => import('@/pages/EventDetailUpgrade'));
+const Sell = lazy(() => import('@/pages/Sell'));
+const EventDetailTM = lazy(() => import('@/pages/EventDetailTM'));
+const AccountSettingsPage = lazy(() => import('@/pages/AccountSettingsPage'));
+const EditPersona = lazy(() => import('@/pages/EditPersona'));
+const BetaQA = lazy(() => import('@/pages/BetaQA'));
+const TermsOfService = lazy(() => import('@/pages/TermsOfService'));
+const PrivacyPolicy = lazy(() => import('@/pages/PrivacyPolicy'));
+const InstantListingsGuide = lazy(() => import('@/pages/InstantListingsGuide'));
+const SellerPayoutGuide = lazy(() => import('@/pages/SellerPayoutGuide'));
+const WhyPeanutGallery = lazy(() => import('@/pages/WhyPeanutGallery'));
+const Leaderboard = lazy(() => import('@/pages/Leaderboard'));
+const FounderDashboard = lazy(() => import('@/pages/FounderDashboard'));
+const FounderBetaChecklist = lazy(() => import('@/pages/FounderBetaChecklist'));
+const BetaRecruitment = lazy(() => import('@/pages/BetaRecruitment'));
+const BetaDashboard = lazy(() => import('@/pages/BetaDashboard'));
+const Notifications = lazy(() => import('@/pages/Notifications'));
+const EventMode = lazy(() => import('@/pages/EventMode'));
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, checkAppState, isAuthenticated, user } = useAuth();
 
   // Branded loading spinner
   if (isLoadingPublicSettings || isLoadingAuth) {
-    return (
-      <div className="fixed inset-0 flex flex-col items-center justify-center gap-4"
-        style={{ background: 'hsl(255 10% 5%)' }}>
-        <img
-          src="https://media.base44.com/images/public/69ef9900cf3862dc0ea39734/9022a5431_ChatGPTImageMay1202601_29_27PM.png"
-          alt="Peanut Gallery"
-          className="h-16 w-auto rounded-2xl mb-2"
-        />
-        <div className="w-8 h-8 border-4 rounded-full animate-spin"
-          style={{ borderColor: 'rgba(191,95,255,0.3)', borderTopColor: '#BF5FFF' }} />
-      </div>
-    );
+    return <RouteFallback />;
   }
 
   // Only show auth error screens if the user is genuinely not authenticated.
@@ -73,6 +68,7 @@ const AuthenticatedApp = () => {
   }
 
   return (
+        <Suspense fallback={<RouteFallback />}>
         <Routes>
           {/* Authenticated root → straight to events */}
           <Route path="/" element={<Navigate to="/events" replace />} />
@@ -109,6 +105,7 @@ const AuthenticatedApp = () => {
           </Route>
           <Route path="*" element={<PageNotFound />} />
         </Routes>
+        </Suspense>
   );
 };
 
