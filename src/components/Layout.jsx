@@ -55,7 +55,8 @@ export default function Layout() {
   const scrollPositions = useRef({});
   const containerRefs = useRef({});
 
-  useTheme();
+  const { theme } = useTheme();
+  const isLight = theme === 'light';
 
   const getCurrentTab = () => {
     const path = location.pathname;
@@ -149,7 +150,7 @@ export default function Layout() {
             onClick={() => base44.auth.redirectToLogin()}
             aria-label="Sign in to Peanut Gallery"
             className="text-sm font-bold px-5 py-2.5 rounded-full"
-            style={{ background: '#BF5FFF', color: '#fff' }}>
+            style={{ background: 'var(--neon-purple)', color: '#fff' }}>
             Sign in
           </button>
         </div>
@@ -159,11 +160,11 @@ export default function Layout() {
       {user && (
         <Link to="/notifications" aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
           className="fixed right-4 z-[99] flex items-center justify-center w-11 h-11 rounded-full transition-all active:scale-95"
-          style={{ top: 'calc(0.75rem + env(safe-area-inset-top))', background: unreadCount > 0 ? 'rgba(255,45,120,0.15)' : 'rgba(255,255,255,0.07)', border: `1px solid ${unreadCount > 0 ? 'rgba(255,45,120,0.4)' : 'rgba(255,255,255,0.12)'}` }}>
-          <Bell className="w-5 h-5" style={{ color: unreadCount > 0 ? '#FF2D78' : 'hsl(var(--muted-foreground))' }} />
+          style={{ top: 'calc(0.75rem + env(safe-area-inset-top))', background: unreadCount > 0 ? 'rgba(var(--neon-pink-rgb), 0.1)' : 'hsl(var(--card))', border: `1px solid ${unreadCount > 0 ? 'rgba(var(--neon-pink-rgb), 0.25)' : 'hsl(var(--border))'}` }}>
+          <Bell className="w-5 h-5" style={{ color: unreadCount > 0 ? 'var(--neon-pink)' : 'hsl(var(--muted-foreground))' }} />
           {unreadCount > 0 && (
             <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black"
-              style={{ background: '#FF2D78', color: '#fff' }}>
+              style={{ background: 'var(--neon-pink)', color: '#fff' }}>
               {unreadCount > 9 ? '9+' : unreadCount}
             </span>
           )}
@@ -240,7 +241,7 @@ export default function Layout() {
                     className="absolute top-0 left-1/2 -translate-x-1/2 h-0.5 w-8 rounded-b"
                     style={{
                       background: `linear-gradient(90deg, ${color}00, ${color}, ${color}00)`,
-                      boxShadow: `0 0 8px ${color}88`
+                      boxShadow: isLight ? 'none' : `0 0 8px ${color}88`
                     }} />
                 )}
                 <div
@@ -248,14 +249,14 @@ export default function Layout() {
                   style={active ? { background: `${color}18` } : {}}>
                   <NavIcon
                     className="w-5 h-5"
-                    style={active ? { filter: `drop-shadow(0 0 6px ${color}bb)`, strokeWidth: 2.5 } : { strokeWidth: 1.8 }} />
+                    style={active ? { filter: isLight ? 'none' : `drop-shadow(0 0 6px ${color}bb)`, strokeWidth: 2.5 } : { strokeWidth: 1.8 }} />
                   {hasLivePulse && (
                     <span className="absolute top-0.5 right-0.5 w-2.5 h-2.5 rounded-full animate-pulse"
-                      style={{ background: '#FFE600', boxShadow: '0 0 6px #FFE600' }} />
+                      style={{ background: 'var(--neon-yellow)', boxShadow: isLight ? 'none' : '0 0 6px var(--neon-yellow)' }} />
                   )}
                 </div>
                 <span className="text-xs font-bold leading-none">
-                  {hasLivePulse ? <span style={{ color: '#FFE600' }}>Live!</span> : label}
+                  {hasLivePulse ? <span style={{ color: 'var(--neon-yellow)' }}>Live!</span> : label}
                 </span>
                 {sublabel && active && (
                   <span className="text-[8px] leading-none mt-0.5 opacity-60">{sublabel}</span>
