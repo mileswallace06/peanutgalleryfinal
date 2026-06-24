@@ -29,7 +29,7 @@ export function useTheme() {
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }, []);
 
-  // Initialise on mount — localStorage override > system preference
+  // Initialise on mount — dark is the default; localStorage override takes precedence
   useEffect(() => {
     const saved = localStorage.getItem('pg_theme');
     if (saved === 'dark' || saved === 'light') {
@@ -37,13 +37,13 @@ export function useTheme() {
       setTheme(saved);
       applyTheme(saved);
     } else {
-      setPref('system');
-      const resolved = resolveSystemTheme();
-      setTheme(resolved);
-      applyTheme(resolved);
+      // Default to dark mode (app is designed dark-first)
+      setPref('dark');
+      setTheme('dark');
+      applyTheme('dark');
     }
     setMounted(true);
-  }, [applyTheme, resolveSystemTheme]);
+  }, [applyTheme]);
 
   // Listen for live system preference changes (only when no explicit override)
   useEffect(() => {

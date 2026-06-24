@@ -9,46 +9,46 @@
     --font-display: 'Black Han Sans', Impact, sans-serif;
     --font-sans: 'DM Sans', system-ui, sans-serif;
 
-    /* Light mode (default) */
-    --background: 0 0% 100%;
-    --foreground: 0 0% 10%;
-    --card: 0 0% 96%;
-    --card-foreground: 0 0% 10%;
+    /* Light mode — warm, cohesive palette */
+    --background: 240 20% 98%;
+    --foreground: 240 10% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 10%;
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 10%;
-    --primary: 270 100% 45%;
+    --popover-foreground: 240 10% 10%;
+    --primary: 270 75% 42%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 0 0% 90%;
-    --secondary-foreground: 0 0% 15%;
-    --muted: 0 0% 85%;
-    --muted-foreground: 0 0% 50%;
-    --accent: 145 100% 30%;
+    --secondary: 240 15% 93%;
+    --secondary-foreground: 240 10% 15%;
+    --muted: 240 15% 94%;
+    --muted-foreground: 240 5% 42%;
+    --accent: 155 75% 28%;
     --accent-foreground: 0 0% 100%;
-    --destructive: 0 84% 55%;
+    --destructive: 0 75% 50%;
     --destructive-foreground: 0 0% 100%;
-    --border: 0 0% 90%;
-    --input: 0 0% 92%;
-    --ring: 270 100% 45%;
+    --border: 240 15% 88%;
+    --input: 240 15% 90%;
+    --ring: 270 75% 42%;
     --radius: 1rem;
 
     --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 0 0% 10%;
-    --sidebar-primary: 270 100% 45%;
+    --sidebar-foreground: 240 10% 10%;
+    --sidebar-primary: 270 75% 42%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 0 0% 90%;
-    --sidebar-accent-foreground: 0 0% 15%;
-    --sidebar-border: 0 0% 90%;
-    --sidebar-ring: 270 100% 45%;
+    --sidebar-accent: 240 15% 93%;
+    --sidebar-accent-foreground: 240 10% 15%;
+    --sidebar-border: 240 15% 88%;
+    --sidebar-ring: 270 75% 42%;
   }
 
-  /* Light mode: darken neon/accent colors so they're readable on white */
+  /* Light mode neon — deep, saturated brand colors that pop on warm white */
   :root {
-    --neon-green: #007a3d;
-    --neon-cyan: #006080;
-    --neon-purple: #6a1fbf;
-    --neon-pink: #b01050;
-    --neon-yellow: #7a6800;
-    --neon-orange: #b05a00;
+    --neon-green: #00994a;
+    --neon-cyan: #0084b8;
+    --neon-purple: #842bd4;
+    --neon-pink: #d11561;
+    --neon-yellow: #8f7a00;
+    --neon-orange: #cc6200;
   }
 
   .dark {
@@ -129,18 +129,83 @@
   }
 }
 
-/* Light mode: global readable overrides for neon-on-white */
-@layer base {
-  :root:not(.dark) {
-    --primary: 270 80% 38%;
-    --accent: 145 90% 24%;
+/* Light mode utility overrides — make dark-first components work on warm white */
+@layer utilities {
+  :root:not(.dark) .rave-bg {
+    background:
+      radial-gradient(ellipse 80% 60% at 15% -5%, #842bd408, transparent 55%),
+      radial-gradient(ellipse 70% 50% at 85% 5%, #d1156108, transparent 50%),
+      radial-gradient(ellipse 60% 70% at 50% 110%, #00994a06, transparent 55%),
+      radial-gradient(ellipse 40% 30% at 50% 50%, #0084b804, transparent 50%),
+      hsl(240 20% 98%);
   }
 
-  /* Darken gradient text in light mode so it reads on white bg */
-  :root:not(.dark) .gradient-text-rave,
-  :root:not(.dark) .gradient-text-green,
+  :root:not(.dark) .frosted-bar {
+    background: rgba(255, 255, 255, 0.82);
+    backdrop-filter: blur(30px) saturate(180%);
+    -webkit-backdrop-filter: blur(30px) saturate(180%);
+    border-color: hsl(240 15% 85%);
+  }
+
+  :root:not(.dark) .glass {
+    background: rgba(132, 43, 212, 0.04);
+    backdrop-filter: blur(24px) saturate(150%);
+    -webkit-backdrop-filter: blur(24px) saturate(150%);
+  }
+
+  :root:not(.dark) .glass-strong {
+    background: rgba(132, 43, 212, 0.06);
+    backdrop-filter: blur(32px) saturate(160%);
+    -webkit-backdrop-filter: blur(32px) saturate(160%);
+  }
+
+  :root:not(.dark) .glass-card {
+    background: linear-gradient(135deg, rgba(132,43,212,0.05) 0%, rgba(132,43,212,0.02) 100%);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(132, 43, 212, 0.12);
+  }
+
+  /* Light mode neon glows — softer, warm shadows */
+  :root:not(.dark) .neon-glow-green {
+    box-shadow: 0 0 12px rgba(0,153,74,0.15), 0 0 24px rgba(0,153,74,0.08);
+  }
+  :root:not(.dark) .neon-glow-purple {
+    box-shadow: 0 0 12px rgba(132,43,212,0.15), 0 0 24px rgba(132,43,212,0.08);
+  }
+  :root:not(.dark) .neon-glow-pink {
+    box-shadow: 0 0 12px rgba(209,21,97,0.15), 0 0 24px rgba(209,21,97,0.08);
+  }
+
+  :root:not(.dark) .neon-border-green {
+    border-color: #00994a;
+    box-shadow: 0 0 0 1px rgba(0,153,74,0.3), inset 0 0 0 1px rgba(0,153,74,0.15);
+  }
+
+  /* Light mode gradient text — deep brand colors, not muddy brightness filter */
+  :root:not(.dark) .gradient-text-rave {
+    background: linear-gradient(90deg, #842bd4, #d11561, #8f7a00);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  :root:not(.dark) .gradient-text-green {
+    background: linear-gradient(90deg, #00994a, #0084b8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
   :root:not(.dark) .gradient-text-purple {
-    filter: brightness(0.55) saturate(1.4);
+    background: linear-gradient(135deg, #842bd4, #0084b8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  :root:not(.dark) .gradient-border::before {
+    background: linear-gradient(135deg, rgba(132,43,212,0.3), rgba(209,21,97,0.15), rgba(0,153,74,0.15));
   }
 }
 
