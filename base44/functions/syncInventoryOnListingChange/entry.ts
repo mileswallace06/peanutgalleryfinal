@@ -51,6 +51,13 @@ Deno.serve(async (req) => {
     await base44.asServiceRole.entities.SeatInventory.update(inventoryId, {
       inventory_status: 'reserved_for_purchase',
     });
+  } else if (listing.status === 'hidden') {
+    // Listing hidden (e.g. expired verification) — release SeatInventory so the
+    // seller can re-list, flash-drop, or donate without a manual admin intervention.
+    await base44.asServiceRole.entities.SeatInventory.update(inventoryId, {
+      inventory_status: 'available',
+      inventory_intent: 'undecided',
+    });
   }
 
   return Response.json({ ok: true, listing_id: listing.id, new_inventory_status: listing.status });

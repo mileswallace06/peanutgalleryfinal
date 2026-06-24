@@ -97,7 +97,19 @@ Deno.serve(async (req) => {
       const purchases = await base44.asServiceRole.entities.Purchase.filter({ payment_intent_id: piId }).catch(() => []);
       const purchase = purchases[0];
       if (purchase && !purchase.payment_captured) {
+        // Mark payment as captured — Stripe has confirmed the money.
         await base44.asServiceRole.entities.Purchase.update(purchase.id, { payment_captured: true }).catch(() => {});
+
+        // If the purchase is still pending_transfer, capturePayment didn't finish its
+        // DB updates (possible crash after Stripe capture but before listing-sold update).
+        // Alert admin so they can manually complete the purchase.
+        if (purchase.transfer_status === 'pending_transfer') {
+          await base44.asServiceRole.functions.invoke('sendNotificationEmail', {
+            to: 'experience@peanutgallery.store',
+            subject: `⚠️ Payment captured but purchase not completed — ${purchase.id}`,
+            body: `Stripe confirmed payment capture, but the purchase record was not fully updated (capturePayment may have crashed after capture).\n\nPurchase: ${purchase.id}\nBuyer: ${purchase.buyer_email}\nSeller: ${purchase.seller_email}\nAmount: $${purchase.amount?.toFixed(2)}\nPaymentIntent: ${piId}\n\nACTION: Verify in Stripe dashboard that payment is captured, then manually complete the purchase in the admin panel:\n1. Set transfer_status to 'completed'\n2. Mark listing as 'sold'\n3. Notify buyer and seller`,
+          }).catch(() => {});
+        }
       }
       console.log('[stripeWebhook] payment_intent.succeeded:', piId);
     }

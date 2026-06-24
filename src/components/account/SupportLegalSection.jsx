@@ -7,14 +7,14 @@ const EXTERNAL_LINKS = [
     icon: HelpCircle,
     label: 'Help Center',
     desc: 'FAQs, guides, and how-tos',
-    href: 'mailto:support@peanutgallery.app?subject=Help Request',
+    href: 'mailto:experience@peanutgallery.store?subject=Help Request',
     color: '#00C8FF',
   },
   {
     icon: Mail,
     label: 'Contact Support',
     desc: 'Email us about any issue',
-    href: 'mailto:support@peanutgallery.app',
+    href: 'mailto:experience@peanutgallery.store',
     color: '#BF5FFF',
   },
 ];

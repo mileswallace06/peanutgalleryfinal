@@ -16,10 +16,10 @@ Deno.serve(async (req) => {
 
   const stripe = new Stripe(secretKey);
 
-  // Determine base URL from request origin for redirect URLs
-  const origin = req.headers.get('origin') || 'https://app.base44.com';
-  const returnUrl  = `${origin}/sell?onboarding=complete`;
-  const refreshUrl = `${origin}/sell?onboarding=refresh`;
+  // Hardcode production domain — never rely on Origin header (can be missing/spoofed)
+  const APP_DOMAIN = 'https://app.peanutgallery.store';
+  const returnUrl  = `${APP_DOMAIN}/sell?onboarding=complete`;
+  const refreshUrl = `${APP_DOMAIN}/sell?onboarding=refresh`;
 
   try {
     // Reuse existing account or create a new Express account

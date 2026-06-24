@@ -25,7 +25,7 @@ function TrustBadge({ icon, label }) {
 }
 
 const SELLER_STEPS = [
-  { icon: '🎟️', title: 'Transfer Your Ticket to PG', desc: 'Send your ticket to experience@peanutgallery.com via Ticketmaster, SeatGeek, or email — before your listing goes live.' },
+  { icon: '🎟️', title: 'Transfer Your Ticket to PG', desc: 'Send your ticket to experience@peanutgallery.store via Ticketmaster, SeatGeek, or email — before your listing goes live.' },
   { icon: '📸', title: 'Upload Transfer Proof', desc: 'Screenshot the confirmation and upload it. Takes 30 seconds.' },
   { icon: '✅', title: 'PG Verifies Custody', desc: 'Our team reviews your transfer proof, usually within a few hours. You\'ll be notified once approved.' },
   { icon: '⚡', title: 'Your Listing Goes Live', desc: 'Your listing appears with the ⚡ Instant Transfer badge. You don\'t need to be online or available again.' },
@@ -44,7 +44,7 @@ const FAQS = [
   { q: 'Does the seller still get paid?', a: 'Yes. After the buyer confirms ticket receipt, the escrowed payment is released to the seller\'s bank account via Stripe. Sellers keep 95% of the sale price.' },
   { q: 'What if my transfer proof gets rejected?', a: 'Our team will let you know the reason. Common issues: screenshot not showing both accounts clearly, incomplete transfer, or the ticket was already transferred elsewhere. You can resubmit with a clearer screenshot.' },
   { q: 'Can I cancel my Instant Listing?', a: 'Before verification, yes — contact support and we\'ll return the ticket to you. After a buyer has purchased, cancellation is not possible as the transfer process begins immediately.' },
-  { q: 'What ticket platforms can I transfer from?', a: 'We accept transfers from Ticketmaster, AXS, SeatGeek, and email-transferable tickets. The transfer email is experience@peanutgallery.com.' },
+  { q: 'What ticket platforms can I transfer from?', a: 'We accept transfers from Ticketmaster, AXS, SeatGeek, and email-transferable tickets. The transfer email is experience@peanutgallery.store.' },
   { q: 'What if the buyer says they didn\'t receive the ticket?', a: 'All transfers are logged and verified. Our team can audit the delivery chain and resolve disputes. Buyer funds stay in escrow until the issue is resolved.' },
   { q: 'How long does PG verification take?', a: 'Typically a few hours during business hours. We aim to verify within 24 hours in all cases.' },
   { q: 'Is this available for all events?', a: 'Instant Transfer listings are available for all events on Peanut Gallery. The listing type is optional — you can always choose Standard mode instead.' },

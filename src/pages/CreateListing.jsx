@@ -821,7 +821,7 @@ export default function CreateListing() {
               style={{ background: 'rgba(0,200,255,0.06)', border: '1px solid rgba(0,200,255,0.25)' }}>
               <div className="text-sm font-semibold" style={{ color: '#00C8FF' }}>How Instant Transfer works</div>
               <div className="space-y-2 text-xs text-muted-foreground">
-                <div className="flex items-start gap-2"><span style={{ color: '#00C8FF' }}>1.</span><span>Transfer your ticket to <strong style={{ color: 'hsl(var(--foreground))' }}>experience@peanutgallery.com</strong> now via Ticketmaster, SeatGeek, or email.</span></div>
+                <div className="flex items-start gap-2"><span style={{ color: '#00C8FF' }}>1.</span><span>Transfer your ticket to <strong style={{ color: 'hsl(var(--foreground))' }}>experience@peanutgallery.store</strong> now via Ticketmaster, SeatGeek, or email.</span></div>
                 <div className="flex items-start gap-2"><span style={{ color: '#00C8FF' }}>2.</span><span>Upload proof of transfer below. Our team verifies custody (usually within hours).</span></div>
                 <div className="flex items-start gap-2"><span style={{ color: '#00C8FF' }}>3.</span><span>Once verified, your listing goes live with the <strong style={{ color: '#00C8FF' }}>⚡ Instant Transfer</strong> badge. Buyers receive tickets via PG-managed transfer.</span></div>
               </div>
@@ -858,7 +858,7 @@ export default function CreateListing() {
                 <textarea
                   value={pgTransferNotes}
                   onChange={e => setPgTransferNotes(e.target.value)}
-                  placeholder="e.g. Transferred via Ticketmaster to experience@peanutgallery.com at 3:45 PM"
+                  placeholder="e.g. Transferred via Ticketmaster to experience@peanutgallery.store at 3:45 PM"
                   rows={2}
                   className="w-full px-3 py-2.5 rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
                   style={{ background: 'rgba(0,200,255,0.05)', border: '1px solid rgba(0,200,255,0.2)' }}

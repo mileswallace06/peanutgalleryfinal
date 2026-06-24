@@ -51,7 +51,41 @@ Deno.serve(async (req) => {
   await base44.asServiceRole.entities.Purchase.update(purchase.id, {
     transfer_status: 'expired'
   });
-  await base44.asServiceRole.entities.Listing.update(purchase.listing_id, { status: 'active' });
+
+  // Only restore listing to active if it's currently pending_transfer.
+  // Don't override cancelled/sold/hidden — that would re-list a cancelled listing
+  // or un-lock a sold listing, causing double-sale or inventory conflicts.
+  const [currentListing] = await base44.asServiceRole.entities.Listing.filter({ id: purchase.listing_id });
+  if (currentListing && currentListing.status === 'pending_transfer') {
+    await base44.asServiceRole.entities.Listing.update(purchase.listing_id, {
+      status: 'active',
+      reservation_token: null,
+      reservation_expires_at: null,
+      reserved_by_email: null,
+    });
+  }
+
+  // Notify seller that the purchase was cancelled — they may have already
+  // initiated a ticket transfer on Ticketmaster/SeatGeek and must be warned.
+  const sellerMessage = purchase.seller_confirmed
+    ? 'The buyer cancelled after you confirmed transfer. If you already sent tickets on Ticketmaster/SeatGeek, please contact support immediately.'
+    : 'The buyer cancelled their purchase. Your listing has been restored to active.';
+  base44.asServiceRole.functions.invoke('sendUserNotification', {
+    user_email: purchase.seller_email,
+    title: 'Purchase cancelled',
+    body: sellerMessage,
+    type: 'listing_expired',
+    purchase_id: purchase.id,
+  }).catch(() => {});
+
+  // If seller had already confirmed, alert admin — tickets may have been transferred
+  if (purchase.seller_confirmed) {
+    base44.asServiceRole.functions.invoke('sendNotificationEmail', {
+      to: 'experience@peanutgallery.store',
+      subject: `⚠️ Purchase cancelled after seller confirmed — ${purchase.id}`,
+      body: `Buyer cancelled purchase AFTER seller confirmed transfer.\n\nPurchase: ${purchase.id}\nBuyer: ${purchase.buyer_email}\nSeller: ${purchase.seller_email}\nAmount: $${purchase.amount?.toFixed(2)}\nSeller had confirmed: ${purchase.seller_confirmed}\n\nINVESTIGATE: Were tickets already transferred? Contact seller to confirm.`,
+    }).catch(() => {});
+  }
 
   return Response.json({ status: 'cancelled' });
 });

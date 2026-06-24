@@ -47,11 +47,12 @@ Deno.serve(async (req) => {
   const secretKey = Deno.env.get('STRIPELIVESECRETKEY');
   const stripe = secretKey ? new Stripe(secretKey) : null;
 
-  // ── SCALE-1: Paginate — only process purchases from last 72h to avoid full scans
+  // ── SCALE-1: Only process purchases from last 72h + higher limit
   const cutoff = new Date(now - 72 * 60 * 60 * 1000).toISOString();
   const pending = await base44.asServiceRole.entities.Purchase.filter({
     transfer_status: 'pending_transfer',
-  }, '-created_date', 100);
+    created_date: { $gte: cutoff },
+  }, '-created_date', 500);
 
   for (const purchase of pending) {
     const flags = purchase.reminder_flags || {};
@@ -256,7 +257,7 @@ Deno.serve(async (req) => {
   try {
     const reservedListings = await base44.asServiceRole.entities.Listing.filter({
       status: 'pending_transfer',
-    }, '-created_date', 50).catch(() => []);
+    }, '-created_date', 500).catch(() => []);
 
     for (const l of reservedListings) {
       if (l.reservation_token && l.reservation_expires_at) {

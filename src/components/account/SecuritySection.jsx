@@ -26,7 +26,7 @@ export default function SecuritySection({ user }) {
             <p className="text-sm font-medium text-foreground">••••••••••</p>
           </div>
           <a
-            href="mailto:support@peanutgallery.app?subject=Password Change Request"
+            href="mailto:experience@peanutgallery.store?subject=Password Change Request"
             className="text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1"
             style={{ background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' }}
           >

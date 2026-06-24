@@ -21,13 +21,13 @@ export default function DeleteAccountModal({ user, isOpen, onClose }) {
       // Contact support flow — Base44 doesn't expose a hard-delete endpoint.
       // We log out and send a deletion request email per App Store guidelines.
       await base44.integrations.Core.SendEmail({
-        to: 'support@peanutgallery.app',
+        to: 'experience@peanutgallery.store',
         subject: `Account Deletion Request — ${user?.email}`,
         body: `User ${user?.full_name} (${user?.email}, id: ${user?.id}) has requested account deletion from within the app on ${new Date().toISOString()}.`,
       }).catch(() => {});
       await base44.auth.logout('/');
     } catch {
-      setError('Something went wrong. Please email support@peanutgallery.app directly.');
+      setError('Something went wrong. Please email experience@peanutgallery.store directly.');
       setDeleting(false);
     }
   };

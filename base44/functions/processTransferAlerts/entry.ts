@@ -19,15 +19,22 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
 
-    // This is a scheduled function — no user session expected.
-    // When invoked manually via SDK (test tool or admin UI), the caller may not have
-    // an admin session, so we skip user-level auth and rely on service-role operations only.
+    // Auth: allow automation scheduler (no session) or admin callers.
+    // Blocks non-admin users from manually triggering mass email/alert operations.
+    try {
+      const caller = await base44.auth.me();
+      if (caller && caller.role !== 'admin') {
+        return Response.json({ error: 'Forbidden' }, { status: 403 });
+      }
+    } catch (_) {
+      // No session = called by automation scheduler — allow
+    }
 
     const now = new Date();
     const results = { warnings: 0, expirations: 0, alerts_created: 0, conflicts: 0 };
 
     // ── 1. Verification expiration tracking ──────────────────────────────────
-    const activeListings = await base44.asServiceRole.entities.Listing.filter({ status: 'active' });
+    const activeListings = await base44.asServiceRole.entities.Listing.filter({ status: 'active' }, '-created_date', 500);
 
     for (const listing of activeListings) {
       if (!listing.last_transfer_verification) continue;
@@ -44,7 +51,7 @@ Deno.serve(async (req) => {
         base44.asServiceRole.integrations.Core.SendEmail({
           to: listing.seller_email,
           subject: '⚠️ Your ticket listing verification expires soon',
-          body: `Your listing (Section ${listing.section}, Row ${listing.row}) transfer verification expires in ~15 minutes.\n\nPlease open Peanut Gallery and re-verify to keep your listing visible to buyers.\n\nRe-verify now →\nhttps://app.peanutgallery.app/my-sales\n\n— Peanut Gallery`,
+          body: `Your listing (Section ${listing.section}, Row ${listing.row}) transfer verification expires in ~15 minutes.\n\nPlease open Peanut Gallery and re-verify to keep your listing visible to buyers.\n\nRe-verify now →\nhttps://app.peanutgallery.store/my-sales\n\n— Peanut Gallery`,
         }).catch(() => {});
 
         results.warnings++;
@@ -74,7 +81,7 @@ Deno.serve(async (req) => {
         base44.asServiceRole.integrations.Core.SendEmail({
           to: listing.seller_email,
           subject: '⏱ Your ticket listing is now hidden — re-verify to restore',
-          body: `Your listing (Section ${listing.section}, Row ${listing.row}) is no longer visible to buyers because transfer verification expired.\n\nTo restore your listing, open Peanut Gallery and tap "Verify Transfer Still Available".\n\nRestore listing →\nhttps://app.peanutgallery.app/my-sales\n\n— Peanut Gallery`,
+          body: `Your listing (Section ${listing.section}, Row ${listing.row}) is no longer visible to buyers because transfer verification expired.\n\nTo restore your listing, open Peanut Gallery and tap "Verify Transfer Still Available".\n\nRestore listing →\nhttps://app.peanutgallery.store/my-sales\n\n— Peanut Gallery`,
         }).catch(() => {});
 
         // Create admin alert
@@ -117,7 +124,7 @@ Deno.serve(async (req) => {
     }
 
     // ── 2. Stalled transfer alerts ───────────────────────────────────────────
-    const pendingPurchases = await base44.asServiceRole.entities.Purchase.filter({ transfer_status: 'pending_transfer' });
+    const pendingPurchases = await base44.asServiceRole.entities.Purchase.filter({ transfer_status: 'pending_transfer' }, '-created_date', 500);
 
     for (const purchase of pendingPurchases) {
       const ageMin = (now - new Date(purchase.created_date)) / 60000;
@@ -140,7 +147,7 @@ Deno.serve(async (req) => {
     }
 
     // ── 3. Disputed purchase alerts ──────────────────────────────────────────
-    const disputes = await base44.asServiceRole.entities.Purchase.filter({ transfer_status: 'disputed' });
+    const disputes = await base44.asServiceRole.entities.Purchase.filter({ transfer_status: 'disputed' }, '-created_date', 500);
     for (const p of disputes) {
       await createAlertIfNew(base44, {
         alert_type: 'new_dispute',

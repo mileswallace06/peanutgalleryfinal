@@ -3,7 +3,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 // ── Config ──────────────────────────────────────────────────────────────────
 const MAX_DROPS_PER_USER_PER_EVENT = 2;
 const MIN_MINUTES_BETWEEN_DROPS = 5;
-const ALLOW_UNVERIFIED_BETA = true; // set false for production to block unverified drops
+const ALLOW_UNVERIFIED_BETA = false; // BLOCKS unverified drops in production
 
 // ── Trust score ─────────────────────────────────────────────────────────────
 function computeTrustScore({ ownershipVerified, ownershipMethod, transferConfirmed, sellerVerified, priorSuccessfulTransfers }) {

@@ -29,7 +29,7 @@ function buildEmail(title, body, type, purchaseId) {
     sale_complete:     { cta: 'View My Sales →', path: '/my-sales' },
   };
   const { cta = 'Open Peanut Gallery →', path = '/events' } = ctaMap[type] || {};
-  const appUrl = `https://app.peanutgallery.app${path}`;
+  const appUrl = `https://app.peanutgallery.store${path}`;
   return {
     subject: title,
     body: `${body}\n\n${cta}\n${appUrl}\n\n— Peanut Gallery\n\nTo manage notification preferences, visit your account settings.`,
@@ -54,7 +54,7 @@ async function sendOneSignalPush(userEmail, title, body, data) {
     contents: { en: body },
     data: data || {},
     ...(data?.purchase_id && {
-      url: `https://app.peanutgallery.app/purchase/${data.purchase_id}`,
+      url: `https://app.peanutgallery.store/purchase/${data.purchase_id}`,
     }),
   };
 
