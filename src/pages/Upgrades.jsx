@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { MapPin, Calendar, ChevronRight, LocateFixed, X, Clock, RefreshCw } from 'lucide-react';
+import { MapPin, Calendar, ChevronRight, LocateFixed, X, Clock, RefreshCw, Zap } from 'lucide-react';
 import LocationAutocomplete from '@/components/LocationAutocomplete';
 import { getEventLiveStatus, SOON_WINDOW_MINUTES } from '@/lib/eventTiming';
 import { getEventUrl } from '@/lib/eventUrl';
@@ -175,6 +175,10 @@ export default function Upgrades() {
             Upgrades
           </h1>
           <p className="text-sm text-white/60 mt-1">Better seats from fans already inside.</p>
+          <p className="text-xs text-white/40 mt-2 flex items-center gap-1">
+            <LocateFixed className="w-3 h-3" />
+            Tap Near Me or Enter City to find upgrade opportunities.
+          </p>
         </div>
       </div>
 
@@ -264,19 +268,35 @@ export default function Upgrades() {
       {/* Content */}
       <div className="px-4 space-y-8">
         {!loading && locationStatus === 'idle' && !locationLabel && (
-          <div className="rounded-2xl overflow-hidden relative" style={{ minHeight: 136 }}>
-            <img
-              src="https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=900&q=80"
-              alt="stadium seating"
-              className="w-full h-full object-cover absolute inset-0"
-              style={{ opacity: 0.45, filter: 'grayscale(5%)' }}
-            />
-            <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, rgba(var(--neon-green-rgb),0.12) 0%, rgba(0,0,0,0.25) 50%, rgba(0,0,0,0.7) 100%)' }} />
-            <div className="relative z-10 flex flex-col justify-end px-5 py-4 h-full" style={{ minHeight: 136 }}>
-              <p className="font-bold text-white text-sm leading-tight">Seat upgrades open at showtime</p>
-              <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.55)' }}>
-                Fan-listed upgrades · buyer-protected
+          <div className="rounded-2xl overflow-hidden relative" style={{ background: 'hsl(var(--card))', border: '1px solid rgba(var(--neon-green-rgb),0.2)' }}>
+            <div className="relative z-10 px-5 py-5">
+              <p className="font-bold text-foreground text-sm leading-tight flex items-center gap-1.5">
+                <Zap className="w-3.5 h-3.5" style={{ color: 'var(--neon-green)' }} />
+                Better seats in 3 taps
               </p>
+              <div className="mt-3 space-y-2">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0"
+                    style={{ background: 'rgba(var(--neon-green-rgb),0.12)', color: 'var(--neon-green)' }}>1</span>
+                  <p className="text-xs text-muted-foreground">Choose your location</p>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <span className="text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0"
+                    style={{ background: 'rgba(var(--neon-green-rgb),0.12)', color: 'var(--neon-green)' }}>2</span>
+                  <p className="text-xs text-muted-foreground">Browse available upgrades</p>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <span className="text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0"
+                    style={{ background: 'rgba(var(--neon-green-rgb),0.12)', color: 'var(--neon-green)' }}>3</span>
+                  <p className="text-xs text-muted-foreground">Upgrade your seat instantly</p>
+                </div>
+              </div>
+              <button onClick={requestLocation}
+                className="mt-4 w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-bold text-xs transition-all active:scale-[0.98]"
+                style={{ background: 'rgba(var(--neon-green-rgb),0.12)', border: '1px solid rgba(var(--neon-green-rgb),0.35)', color: 'var(--neon-green)' }}>
+                <LocateFixed className="w-3.5 h-3.5" />
+                Tap Near Me above to get started →
+              </button>
             </div>
           </div>
         )}
