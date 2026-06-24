@@ -18,16 +18,10 @@ export default function DeleteAccountModal({ user, isOpen, onClose }) {
     setDeleting(true);
     setError('');
     try {
-      // Contact support flow — Base44 doesn't expose a hard-delete endpoint.
-      // We log out and send a deletion request email per App Store guidelines.
-      await base44.integrations.Core.SendEmail({
-        to: 'experience@peanutgallery.store',
-        subject: `Account Deletion Request — ${user?.email}`,
-        body: `User ${user?.full_name} (${user?.email}, id: ${user?.id}) has requested account deletion from within the app on ${new Date().toISOString()}.`,
-      }).catch(() => {});
+      await base44.functions.invoke('deleteAccount', {});
       await base44.auth.logout('/');
-    } catch {
-      setError('Something went wrong. Please email experience@peanutgallery.store directly.');
+    } catch (err) {
+      setError(err.response?.data?.error || err.message || 'Something went wrong. Please try again or email experience@peanutgallery.store.');
       setDeleting(false);
     }
   };
@@ -39,6 +33,9 @@ export default function DeleteAccountModal({ user, isOpen, onClose }) {
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={reset} />
 
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="delete-account-title"
         className="relative z-10 w-full sm:max-w-md sm:mx-auto rounded-t-3xl sm:rounded-3xl p-6 space-y-5"
         style={{ background: 'hsl(255 12% 9%)', border: '1px solid rgba(255,255,255,0.1)' }}
       >
@@ -50,11 +47,11 @@ export default function DeleteAccountModal({ user, isOpen, onClose }) {
               <AlertTriangle className="w-5 h-5" style={{ color: '#FF2D78' }} />
             </div>
             <div>
-              <h3 className="font-black text-lg text-foreground">Delete Account</h3>
+              <h3 id="delete-account-title" className="font-black text-lg text-foreground">Delete Account</h3>
               <p className="text-xs text-muted-foreground mt-0.5">Step {step} of 3</p>
             </div>
           </div>
-          <button onClick={reset} className="text-muted-foreground hover:text-foreground transition-colors">
+          <button onClick={reset} aria-label="Close dialog" className="text-muted-foreground hover:text-foreground transition-colors p-2 -mr-1">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -82,7 +79,7 @@ export default function DeleteAccountModal({ user, isOpen, onClose }) {
               </ul>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Your request will be processed within 30 days per our Privacy Policy. You'll receive a confirmation email.
+              Your account and all associated data will be permanently and immediately deleted. You'll receive a confirmation email.
             </p>
             <div className="space-y-2">
               <button
@@ -160,7 +157,7 @@ export default function DeleteAccountModal({ user, isOpen, onClose }) {
                 {deleting
                   ? <span className="flex items-center justify-center gap-2">
                       <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Submitting request…
+                      Deleting account…
                     </span>
                   : 'Yes, delete my account'
                 }

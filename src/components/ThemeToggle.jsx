@@ -9,7 +9,7 @@ export default function ThemeToggle() {
   return (
     <button
       onClick={toggleTheme}
-      className="w-10 h-10 rounded-xl flex items-center justify-center transition-all font-bold"
+      className="w-11 h-11 rounded-xl flex items-center justify-center transition-all font-bold"
       style={{
         background: theme === 'dark' 
           ? 'rgba(191,95,255,0.3)' 
@@ -24,6 +24,7 @@ export default function ThemeToggle() {
           ? '0 0 16px rgba(191,95,255,0.25)'
           : '0 0 12px rgba(255,255,255,0.5)'
       }}
+      aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
       title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
     >
       {theme === 'dark' ? (

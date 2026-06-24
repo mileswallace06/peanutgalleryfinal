@@ -129,7 +129,8 @@ export default function Layout() {
         <div className="fixed right-4 z-[99]" style={{ top: 'calc(1rem + env(safe-area-inset-top))' }}>
           <button
             onClick={() => base44.auth.redirectToLogin()}
-            className="text-sm font-bold px-4 py-1.5 rounded-full"
+            aria-label="Sign in to Peanut Gallery"
+            className="text-sm font-bold px-5 py-2.5 rounded-full"
             style={{ background: '#BF5FFF', color: '#fff' }}>
             Sign in
           </button>
@@ -138,10 +139,10 @@ export default function Layout() {
 
       {/* Notification bell — top right, only when logged in */}
       {user && (
-        <Link to="/notifications"
-          className="fixed right-4 z-[99] flex items-center justify-center w-9 h-9 rounded-full transition-all active:scale-95"
+        <Link to="/notifications" aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
+          className="fixed right-4 z-[99] flex items-center justify-center w-11 h-11 rounded-full transition-all active:scale-95"
           style={{ top: 'calc(0.75rem + env(safe-area-inset-top))', background: unreadCount > 0 ? 'rgba(255,45,120,0.15)' : 'rgba(255,255,255,0.07)', border: `1px solid ${unreadCount > 0 ? 'rgba(255,45,120,0.4)' : 'rgba(255,255,255,0.12)'}` }}>
-          <Bell className="w-4 h-4" style={{ color: unreadCount > 0 ? '#FF2D78' : 'hsl(var(--muted-foreground))' }} />
+          <Bell className="w-5 h-5" style={{ color: unreadCount > 0 ? '#FF2D78' : 'hsl(var(--muted-foreground))' }} />
           {unreadCount > 0 && (
             <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black"
               style={{ background: '#FF2D78', color: '#fff' }}>
@@ -181,7 +182,7 @@ export default function Layout() {
       </div>
 
       {/* Bottom nav */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 frosted-bar border-t border-white/10 dark:border-white/10" style={{ paddingBottom: 'env(safe-area-inset-bottom)', paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)' }}>
+      <nav aria-label="Main navigation" className="fixed bottom-0 left-0 right-0 z-50 frosted-bar border-t border-white/10 dark:border-white/10" style={{ paddingBottom: 'env(safe-area-inset-bottom)', paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)' }}>
         <div className="max-w-lg mx-auto flex items-stretch">
           {NAV.map(({ to, label, sublabel, icon: NavIcon, color, key }) => {
             const active = currentTab === key;
@@ -213,7 +214,7 @@ export default function Layout() {
                       style={{ background: '#FFE600', boxShadow: '0 0 6px #FFE600' }} />
                   )}
                 </div>
-                <span className="text-[10px] font-bold leading-none">
+                <span className="text-xs font-bold leading-none">
                   {hasLivePulse ? <span style={{ color: '#FFE600' }}>Live!</span> : label}
                 </span>
                 {sublabel && active && (

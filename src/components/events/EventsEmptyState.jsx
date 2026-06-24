@@ -63,7 +63,7 @@ export default function EventsEmptyState({ locationStatus, onNearMe, onEnterCity
             map(({ icon, text }) =>
             <div key={text} className="flex items-center gap-2">
                 <span style={{ color: '#BF5FFF' }}>{icon}</span>
-                <p className="text-[11px]" style={{ color: 'rgba(255,255,255,0.7)' }}>{text}</p>
+                <p className="text-xs" style={{ color: 'rgba(255,255,255,0.7)' }}>{text}</p>
               </div>
             )}
           </div>
@@ -80,16 +80,16 @@ export default function EventsEmptyState({ locationStatus, onNearMe, onEnterCity
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3">
-          <button onClick={onNearMe}
+          <button onClick={onNearMe} aria-label="Use my location to find events"
           className="min-w-fit px-5 py-3 inline-flex items-center justify-center gap-3 whitespace-nowrap rounded-2xl font-bold text-sm transition-all active:scale-[0.98]"
           style={{ background: 'rgba(191,95,255,0.15)', border: '1px solid rgba(191,95,255,0.4)', color: '#BF5FFF' }}>
-            <LocateFixed className="w-4 h-4 flex-shrink-0" />
+            <LocateFixed className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
             <span className="leading-none">Use My Location</span>
           </button>
-          <button onClick={onEnterCity}
+          <button onClick={onEnterCity} aria-label="Search events by city name"
           className="min-w-fit px-5 py-3 inline-flex items-center justify-center gap-3 whitespace-nowrap rounded-2xl font-semibold text-sm transition-all active:scale-[0.98]"
           style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}>
-            <MapPin className="w-4 h-4 flex-shrink-0" style={{ color: '#BF5FFF', opacity: 0.7 }} />
+            <MapPin className="w-4 h-4 flex-shrink-0" style={{ color: '#BF5FFF', opacity: 0.7 }} aria-hidden="true" />
             <span className="text-foreground leading-none">Enter City</span>
           </button>
         </div>
