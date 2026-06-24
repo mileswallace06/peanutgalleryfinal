@@ -1,6 +1,7 @@
-import { ArrowUpRight, ShieldCheck, Zap, MapPin, Ticket, AlertTriangle } from 'lucide-react';
+import { ArrowUpRight, ShieldCheck, Zap, MapPin, Ticket, AlertTriangle, Clock } from 'lucide-react';
 import TransferStatusBadge from '@/components/listings/TransferStatusBadge';
 import { UPGRADE_LISTING_TYPES } from '@/lib/listingTypes';
+import { isReservedByMe, isReservedByOther, isSold } from '@/lib/listingVisibility';
 
 const TIER_STYLES = {
   floor: { color: '#FF2D78', bg: '#FF2D7815', label: 'Floor' },
@@ -11,7 +12,7 @@ const TIER_STYLES = {
 
 
 
-export default function ListingCard({ listing, onUpgrade, isCheapest, mode = 'upgrade', transferWarning = null }) {
+export default function ListingCard({ listing, onUpgrade, isCheapest, mode = 'upgrade', transferWarning = null, currentUserEmail }) {
   const isDemo = listing.is_demo_listing || listing.notes?.startsWith('[DEMO]');
   const isUpgrade = UPGRADE_LISTING_TYPES.includes(listing.listing_type);
   const isVerified = !!listing.proof_url && !isDemo;
@@ -149,9 +150,43 @@ export default function ListingCard({ listing, onUpgrade, isCheapest, mode = 'up
           </div>
         )}
 
-        {/* CTA Button */}
-        {/* Block purchase only for transfer_disabled listings */}
-        {isTransferDisabled ? (
+        {/* CTA Button — sold / reserved / transfer-disabled / available */}
+        {isSold(listing) ? (
+          <div className="w-full flex items-center justify-center gap-2 py-3.5 rounded-full font-bold text-sm cursor-not-allowed"
+            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'hsl(var(--muted-foreground))' }}>
+            This listing has sold
+          </div>
+        ) : isReservedByOther(listing, currentUserEmail) ? (
+          <div className="w-full flex items-center justify-center gap-2 py-3.5 rounded-full font-bold text-sm cursor-not-allowed"
+            style={{ background: 'rgba(255,140,0,0.08)', border: '1px solid rgba(255,140,0,0.2)', color: '#FF8C00' }}>
+            <Clock className="w-4 h-4" /> Temporarily reserved
+          </div>
+        ) : isReservedByMe(listing, currentUserEmail) ? (
+          <div className="flex flex-col gap-2">
+            <div className="w-full flex items-center justify-center gap-2 py-2 rounded-full font-bold text-xs"
+              style={{ background: 'rgba(0,255,135,0.08)', border: '1px solid rgba(0,255,135,0.2)', color: '#00FF87' }}>
+              <Clock className="w-3.5 h-3.5" /> Reserved for you
+            </div>
+            {onUpgrade && (
+              <button
+                onClick={() => onUpgrade(listing)}
+                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-full font-black text-sm transition-all active:scale-95"
+                style={{
+                  background: isUpgrade
+                    ? 'linear-gradient(135deg, #FF8C00, #FF2D78)'
+                    : 'linear-gradient(135deg, #00E87A, #00B8E8)',
+                  color: '#0D0B14',
+                  boxShadow: isUpgrade
+                    ? '0 0 18px rgba(255,140,0,0.22), 0 4px 16px rgba(0,0,0,0.3)'
+                    : '0 0 18px rgba(0,232,122,0.22), 0 4px 16px rgba(0,0,0,0.3)',
+                }}
+              >
+                <ArrowUpRight className="w-4 h-4" />
+                Continue to Checkout
+              </button>
+            )}
+          </div>
+        ) : isTransferDisabled ? (
           <div className="w-full flex items-center justify-center gap-2 py-3.5 rounded-full font-bold text-sm cursor-not-allowed"
             style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'hsl(var(--muted-foreground))' }}>
             Transfer Unavailable

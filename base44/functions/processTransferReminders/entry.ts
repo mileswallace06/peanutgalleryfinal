@@ -285,6 +285,32 @@ Deno.serve(async (req) => {
     console.error('[reminders] reservation cleanup error:', err?.message);
   }
 
+  // ── Clean up expired reservations on ACTIVE listings ────────────────────
+  // With pre-checkout reservation, listings stay 'active' but get reservation
+  // fields set. This clears expired ones so the listing returns to fully available.
+  try {
+    const activeListings = await base44.asServiceRole.entities.Listing.filter({
+      status: 'active',
+    }, '-created_date', 500).catch(() => []);
+
+    for (const l of activeListings) {
+      if (l.reserved_by_email && l.reservation_expires_at) {
+        const expiredMs = new Date(l.reservation_expires_at).getTime();
+        if (expiredMs < now) {
+          await base44.asServiceRole.entities.Listing.update(l.id, {
+            reserved_by_email: null,
+            reservation_token: null,
+            reservation_expires_at: null,
+          }).catch(() => {});
+          reservationsCleared++;
+          console.log('[reminders] Cleared expired reservation on active listing:', l.id);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[reminders] active reservation cleanup error:', err?.message);
+  }
+
   console.log(`[processTransferReminders] done. sent=${sent} expired=${expired} reviewed=${reviewed} reservationsCleared=${reservationsCleared} total=${pending.length}`);
   return Response.json({ sent, expired, reviewed, reservationsCleared, total: pending.length });
 });

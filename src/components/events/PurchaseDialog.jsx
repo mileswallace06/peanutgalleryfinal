@@ -4,10 +4,11 @@ import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { base44 } from '@/api/base44Client';
 import { formatFeeBreakdown, ACTIVE_FEE_MODEL_ID, FEE_MODELS } from '@/lib/feeEngine';
-import { X, Lock, Shield, ArrowRight, AlertTriangle, MapPin, Ticket } from 'lucide-react';
+import { X, Lock, Shield, ArrowRight, AlertTriangle, MapPin, Ticket, Clock } from 'lucide-react';
 import TransferAcknowledgment from '@/components/listings/TransferAcknowledgment';
 import UpgradeEligibilityGate from '@/components/upgrades/UpgradeEligibilityGate.jsx';
 import { UPGRADE_LISTING_TYPES } from '@/lib/listingTypes';
+import { formatCountdown } from '@/lib/listingVisibility';
 
 function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
   const stripe = useStripe();
@@ -68,8 +69,8 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
       });
 
       if (result.error) {
-        // Restore listing
-        await base44.entities.Listing.update(listing.id, { status: 'active' });
+        // Release reservation on Stripe failure
+        await base44.functions.invoke('releaseReservation', { listing_id: listing.id }).catch(() => {});
         setError(result.error.message);
         setLoading(false);
         return;
@@ -110,9 +111,9 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
       // 5. Navigate to purchase page
       navigate(`/purchase/${purchase.id}`);
     } catch (err) {
-      // Attempt to restore listing on any error
+      // Release reservation on any checkout error
       if (listing.id) {
-        await base44.entities.Listing.update(listing.id, { status: 'active' }).catch(() => {});
+        await base44.functions.invoke('releaseReservation', { listing_id: listing.id }).catch(() => {});
       }
       setError(err.response?.data?.error || err.message || 'Something went wrong');
       setLoading(false);
@@ -339,6 +340,10 @@ export default function PurchaseDialog({ event, listing, onClose, mode = 'ticket
   const [stripePromise, setStripePromise] = useState(null);
   const [user, setUser] = useState(null);
   const [reservedListingId, setReservedListingId] = useState(null);
+  const [reservation, setReservation] = useState(null);
+  const [reservationLoading, setReservationLoading] = useState(false);
+  const [reservationError, setReservationError] = useState(null);
+  const [countdown, setCountdown] = useState(0);
   const isUpgrade = UPGRADE_LISTING_TYPES.includes(listing.listing_type);
   const isDemo = listing.is_demo_listing || listing.notes?.startsWith('[DEMO]');
   const isDemoUpgrade = isUpgrade && isDemo;
@@ -350,11 +355,49 @@ export default function PurchaseDialog({ event, listing, onClose, mode = 'ticket
     }).catch(console.error);
   }, []);
 
+  // Reserve listing when dialog opens (skip if seller viewing own listing)
+  useEffect(() => {
+    if (!user || !listing?.id || user.email === listing.seller_email || isDemoUpgrade) return;
+    setReservationLoading(true);
+    setReservationError(null);
+    base44.functions.invoke('reserveListing', { listing_id: listing.id })
+      .then(res => {
+        setReservation({
+          token: res.data.reservation_token,
+          expires_at: res.data.reservation_expires_at,
+        });
+      })
+      .catch(err => {
+        setReservationError(err.response?.data?.error || err.message || 'Failed to reserve listing');
+      })
+      .finally(() => setReservationLoading(false));
+  }, [user, listing?.id]);
+
+  // Countdown timer for active reservation
+  useEffect(() => {
+    if (!reservation?.expires_at) return;
+    const update = () => {
+      const remaining = Math.max(0, Math.floor((new Date(reservation.expires_at).getTime() - Date.now()) / 1000));
+      setCountdown(remaining);
+    };
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [reservation?.expires_at]);
+
   // If dialog is closed after reservation but before purchase completes, release the listing
   const handleClose = async () => {
-    if (reservedListingId) {
-      await base44.entities.Listing.update(reservedListingId, { status: 'active' }).catch(() => {});
+    if (listing?.id) {
+      await base44.functions.invoke('releaseReservation', { listing_id: listing.id }).catch(() => {});
     }
+    onClose();
+  };
+
+  const handleReleaseReservation = async () => {
+    if (!listing?.id) return;
+    await base44.functions.invoke('releaseReservation', { listing_id: listing.id }).catch(() => {});
+    setReservation(null);
+    setCountdown(0);
     onClose();
   };
 
@@ -434,10 +477,51 @@ export default function PurchaseDialog({ event, listing, onClose, mode = 'ticket
                 Close
               </button>
             </div>
+          ) : reservationError ? (
+            <div className="text-center py-8 space-y-3 px-4">
+              <p className="text-4xl">⚠️</p>
+              <p className="font-bold text-foreground text-sm">{reservationError}</p>
+              <button onClick={handleClose} className="mt-2 px-6 py-2.5 rounded-full font-bold text-sm"
+                style={{ background: 'hsl(var(--muted))', color: 'hsl(var(--foreground))' }}>
+                Close
+              </button>
+            </div>
           ) : (
-            <Elements stripe={stripePromise}>
-              <CheckoutForm event={event} listing={listing} buyerEmail={user.email} onClose={handleClose} onReserved={setReservedListingId} />
-            </Elements>
+            <>
+              {reservation && countdown > 0 && (
+                <div className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl mb-3"
+                  style={{ background: 'rgba(0,255,135,0.08)', border: '1px solid rgba(0,255,135,0.2)' }}>
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4" style={{ color: '#00FF87' }} />
+                    <span className="text-xs font-bold" style={{ color: '#00FF87' }}>Reserved for you</span>
+                    <span className="text-xs font-mono font-bold" style={{ color: countdown < 60 ? '#FF8C00' : '#00FF87' }}>
+                      {formatCountdown(countdown)}
+                    </span>
+                  </div>
+                  <button onClick={handleReleaseReservation}
+                    className="text-[11px] font-bold px-3 py-1.5 rounded-full transition-all"
+                    style={{ background: 'rgba(255,255,255,0.08)', color: 'hsl(var(--muted-foreground))' }}>
+                    Release
+                  </button>
+                </div>
+              )}
+              {reservation && countdown === 0 && (
+                <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl mb-3"
+                  style={{ background: 'rgba(255,140,0,0.08)', border: '1px solid rgba(255,140,0,0.2)' }}>
+                  <Clock className="w-4 h-4" style={{ color: '#FF8C00' }} />
+                  <span className="text-xs font-bold" style={{ color: '#FF8C00' }}>Reservation expired — re-reserve when you submit</span>
+                </div>
+              )}
+              {reservationLoading && (
+                <div className="flex items-center justify-center gap-2 py-3">
+                  <span className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                  <span className="text-xs text-muted-foreground">Securing your listing...</span>
+                </div>
+              )}
+              <Elements stripe={stripePromise}>
+                <CheckoutForm event={event} listing={listing} buyerEmail={user.email} onClose={handleClose} onReserved={setReservedListingId} />
+              </Elements>
+            </>
           )}
         </div>
       </div>

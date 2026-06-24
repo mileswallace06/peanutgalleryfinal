@@ -6,6 +6,7 @@ import { ArrowUpRight, TrendingDown, Bell, Zap, Ticket } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { motion } from 'framer-motion';
 import { UPGRADE_LISTING_TYPES, TICKET_LISTING_TYPES } from '@/lib/listingTypes';
+import { isListingVisible } from '@/lib/listingVisibility';
 
 const UPGRADE_TYPES = new Set(UPGRADE_LISTING_TYPES);
 const ADMISSION_TYPES = new Set([...TICKET_LISTING_TYPES, null, undefined]);
@@ -69,7 +70,7 @@ function ListingRow({ l, eventId, index }) {
   );
 }
 
-export default function UpgradeFeed({ listings, eventId, loading, event }) {
+export default function UpgradeFeed({ listings, eventId, loading, event, currentUserEmail }) {
   if (loading) return (
     <div className="space-y-2">
       {[1, 2, 3].map(i => <div key={i} className="h-16 rounded-xl animate-pulse bg-muted" />)}
@@ -78,7 +79,9 @@ export default function UpgradeFeed({ listings, eventId, loading, event }) {
 
   const TYPE_ORDER = { venue_upgrade: 0, live_upgrade: 1, venue_ticket: 2, resale_ticket: 3 };
 
-  const upgradeListings = listings
+  const visibleListings = listings.filter(l => isListingVisible(l, currentUserEmail));
+
+  const upgradeListings = visibleListings
     .filter(l => UPGRADE_TYPES.has(l.listing_type))
     .sort((a, b) => {
       const typeOrder = (TYPE_ORDER[a.listing_type] ?? 99) - (TYPE_ORDER[b.listing_type] ?? 99);
@@ -86,7 +89,7 @@ export default function UpgradeFeed({ listings, eventId, loading, event }) {
       return a.asking_price - b.asking_price;
     });
 
-  const admissionListings = listings
+  const admissionListings = visibleListings
     .filter(l => ADMISSION_TYPES.has(l.listing_type))
     .sort((a, b) => {
       const typeOrder = (TYPE_ORDER[a.listing_type] ?? 99) - (TYPE_ORDER[b.listing_type] ?? 99);

@@ -21,6 +21,7 @@ function inferVendor(url) {
 }
 import ListingCard from '@/components/events/ListingCard';
 import PurchaseDialog from '@/components/events/PurchaseDialog';
+import { isListingVisible } from '@/lib/listingVisibility';
 
 export default function EventDetailTM() {
   const { tmId } = useParams();
@@ -31,8 +32,10 @@ export default function EventDetailTM() {
   const [loading, setLoading] = useState(true);
   const [selectedListing, setSelectedListing] = useState(null);
   const [creatingEvent, setCreatingEvent] = useState(false);
+  const [user, setUser] = useState(null);
 
   useEffect(() => {
+    base44.auth.me().then(setUser).catch(() => {});
     const logCtx = { route_param: tmId, source_page: 'EventDetailTM', event_source: 'ticketmaster', ts: new Date().toISOString() };
 
     // First, fetch local Event by tm_id to get synced event data + ID
@@ -96,11 +99,12 @@ export default function EventDetailTM() {
           return [];
         }).catch(() => []);
       }).catch(() => []);
-    }).then(rawListings => {
+    }).then(async rawListings => {
       if (Array.isArray(rawListings) && rawListings.length > 0) {
-        const adminUnlocked = sessionStorage.getItem('pg_admin_unlocked') === '1';
-        const real = rawListings.filter(l => !l.notes?.startsWith('[DEMO]'));
-        setListings(real.length > 0 ? real : rawListings);
+        const me = await base44.auth.me().catch(() => null);
+        const visible = rawListings.filter(l => isListingVisible(l, me?.email));
+        const real = visible.filter(l => !l.notes?.startsWith('[DEMO]'));
+        setListings(real.length > 0 ? real : visible);
       }
     }).catch(err => {
       console.error('[EventDetailTM] load error', logCtx, err);
@@ -300,6 +304,7 @@ export default function EventDetailTM() {
                     isCheapest={listing.asking_price === cheapest}
                     onUpgrade={setSelectedListing}
                     mode="ticket"
+                    currentUserEmail={user?.email}
                   />
                 ))}
               </div>

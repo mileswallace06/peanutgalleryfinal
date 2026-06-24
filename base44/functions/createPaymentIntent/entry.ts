@@ -80,6 +80,30 @@ Deno.serve(async (req) => {
     }
   }
 
+  // ── One-per-buyer: block if user has an active reservation on a DIFFERENT listing
+  const userReservations = await base44.asServiceRole.entities.Listing.filter({
+    reserved_by_email: user.email,
+    status: 'active',
+  }).catch(() => []);
+
+  const now2 = Date.now();
+  for (const r of userReservations) {
+    if (r.id === listing.id) continue;
+    if (r.reservation_expires_at && new Date(r.reservation_expires_at).getTime() > now2) {
+      return Response.json({
+        error: 'You already have a listing reserved. Complete or release that checkout before reserving another.',
+        code: 'ALREADY_HAS_RESERVATION',
+        existing_listing_id: r.id,
+      }, { status: 409 });
+    }
+    // Expired reservation — auto-release it
+    await base44.asServiceRole.entities.Listing.update(r.id, {
+      reserved_by_email: null,
+      reservation_token: null,
+      reservation_expires_at: null,
+    }).catch(() => {});
+  }
+
   // Also block if user already has an active pending purchase for this listing
   const existingUserPurchase = await base44.asServiceRole.entities.Purchase.filter({
     listing_id: listing.id,

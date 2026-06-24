@@ -8,6 +8,7 @@ import PurchaseDialog from '@/components/events/PurchaseDialog';
 import { getEventLiveStatus } from '@/lib/eventTiming';
 import { logNavEvent } from '@/lib/navLogger';
 import EventLookupDebugPanel from '@/components/debug/EventLookupDebugPanel';
+import { isListingVisible } from '@/lib/listingVisibility';
 
 export default function EventDetail() {
   const { id } = useParams();
@@ -83,15 +84,16 @@ export default function EventDetail() {
         }
 
         const resolvedId = ev.id;
-        // Fetch both approved + pending_review so nothing silently disappears
+        const me = await base44.auth.me().catch(() => null);
+        // Fetch active listings — reservation keeps status 'active', so reserved listings
+        // are still fetched; isListingVisible filters out those reserved by OTHER users.
         const rawListings = await base44.entities.Listing.filter({ event_id: resolvedId, status: 'active' });
         if (cancelled) return;
 
-        const adminUnlocked = user?.role === 'admin' || sessionStorage.getItem('pg_admin_unlocked') === '1';
+        const adminUnlocked = me?.role === 'admin' || sessionStorage.getItem('pg_admin_unlocked') === '1';
         const timing = getEventLiveStatus(ev);
-        // Pre-event: show active approved listings. Live/ended: also show listings (upgrades)
-        // Only hide from non-admin if explicitly hidden status
-        const visibleListings = rawListings.filter(l => l.proof_status === 'approved');
+        // Filter: hide sold, unapproved, and listings reserved by other users
+        const visibleListings = rawListings.filter(l => isListingVisible(l, me?.email));
         const real = visibleListings.filter(l => !l.notes?.startsWith('[DEMO]'));
         setListings(real.length > 0 ? real : visibleListings);
 
@@ -380,6 +382,7 @@ export default function EventDetail() {
                 isCheapest={listing.asking_price === cheapest}
                 onUpgrade={setSelectedListing}
                 mode="ticket"
+                currentUserEmail={user?.email}
               />
             ))}
           </div>
