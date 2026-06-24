@@ -84,7 +84,7 @@ export default function EventsEmptyState({ locationStatus, onNearMe, onEnterCity
             className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-sm transition-all active:scale-[0.98]"
             style={{ background: 'rgba(191,95,255,0.15)', border: '1px solid rgba(191,95,255,0.4)', color: '#BF5FFF' }}>
             <LocateFixed className="w-4 h-4" />
-            Use My Location
+            <span>Use My Location</span>
           </button>
           <button onClick={onEnterCity}
             className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-semibold text-sm transition-all active:scale-[0.98]"
