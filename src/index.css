@@ -39,6 +39,20 @@
     --sidebar-accent-foreground: 240 10% 15%;
     --sidebar-border: 240 15% 88%;
     --sidebar-ring: 270 75% 42%;
+
+    /* ── Centralized design tokens — light mode ── */
+    --hero-bg-top: rgba(30, 20, 45, 0.2);
+    --hero-bg-mid: rgba(30, 20, 45, 0.08);
+    --hero-bg-end: rgba(30, 20, 45, 0.72);
+    --hero-bg-extra: rgba(0, 0, 0, 0.25);
+    --hero-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    --hero-text-fade: #1a1a2e;
+    --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
+    --card-shadow-live: 0 2px 12px rgba(132, 43, 212, 0.06), 0 1px 3px rgba(0, 0, 0, 0.05);
+    --fab-shadow: 0 4px 16px rgba(0, 0, 0, 0.15), 0 0 8px rgba(132, 43, 212, 0.1);
+    --search-bg: rgba(132, 43, 212, 0.04);
+    --search-border: hsl(240 15% 88%);
+    --gradient-btn-text: #ffffff;
   }
 
   /* Light mode neon — deep, saturated brand colors that pop on warm white */
@@ -49,6 +63,16 @@
     --neon-pink: #d11561;
     --neon-yellow: #8f7a00;
     --neon-orange: #cc6200;
+    --neon-cyan-light: #4d9ab8;
+    --neon-pink-light: #c44583;
+    --neon-green-rgb: 0, 153, 74;
+    --neon-cyan-rgb: 0, 132, 184;
+    --neon-purple-rgb: 132, 43, 212;
+    --neon-pink-rgb: 209, 21, 97;
+    --neon-yellow-rgb: 143, 122, 0;
+    --neon-orange-rgb: 204, 98, 0;
+    --neon-cyan-light-rgb: 77, 154, 184;
+    --neon-pink-light-rgb: 196, 69, 131;
   }
 
   .dark {
@@ -58,6 +82,16 @@
     --neon-pink: #FF2D78;
     --neon-yellow: #FFE600;
     --neon-orange: #FF8C00;
+    --neon-cyan-light: #66FFFF;
+    --neon-pink-light: #FF99CC;
+    --neon-green-rgb: 0, 255, 135;
+    --neon-cyan-rgb: 0, 200, 255;
+    --neon-purple-rgb: 191, 95, 255;
+    --neon-pink-rgb: 255, 45, 120;
+    --neon-yellow-rgb: 255, 230, 0;
+    --neon-orange-rgb: 255, 140, 0;
+    --neon-cyan-light-rgb: 102, 255, 255;
+    --neon-pink-light-rgb: 255, 153, 204;
   }
 
   .dark {
@@ -90,6 +124,20 @@
     --sidebar-accent-foreground: 0 0% 98%;
     --sidebar-border: 0 0% 15%;
     --sidebar-ring: 270 100% 65%;
+
+    /* ── Centralized design tokens — dark mode ── */
+    --hero-bg-top: rgba(5, 3, 12, 0.45);
+    --hero-bg-mid: rgba(5, 3, 12, 0.2);
+    --hero-bg-end: rgba(5, 3, 12, 0.92);
+    --hero-bg-extra: rgba(0, 0, 0, 0.65);
+    --hero-shadow: 0 4px 16px rgba(0, 0, 0, 0.7);
+    --hero-text-fade: #ffffff;
+    --card-shadow: none;
+    --card-shadow-live: 0 2px 16px rgba(191, 95, 255, 0.08), 0 1px 3px rgba(0, 0, 0, 0.12);
+    --fab-shadow: 0 0 24px rgba(0, 200, 255, 0.4), 0 4px 24px rgba(0, 0, 0, 0.5);
+    --search-bg: rgba(255, 255, 255, 0.07);
+    --search-border: rgba(255, 255, 255, 0.1);
+    --gradient-btn-text: #0D0B14;
   }
 }
 

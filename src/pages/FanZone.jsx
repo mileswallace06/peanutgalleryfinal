@@ -188,9 +188,9 @@ export default function FanZone() {
       <div ref={innerRef} className="transition-transform duration-200">
       {pulling && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-4 py-2 rounded-full"
-          style={{ background: 'rgba(102,255,255,0.15)', border: '1px solid rgba(102,255,255,0.3)' }}>
-          <RefreshCw className="w-3.5 h-3.5 animate-spin" style={{ color: '#66FFFF' }} />
-          <span className="text-xs font-semibold" style={{ color: '#66FFFF' }}>Refreshing…</span>
+          style={{ background: 'rgba(var(--neon-cyan-light-rgb), 0.1)', border: '1px solid rgba(var(--neon-cyan-light-rgb), 0.25)' }}>
+          <RefreshCw className="w-3.5 h-3.5 animate-spin" style={{ color: 'var(--neon-cyan-light)' }} />
+          <span className="text-xs font-semibold" style={{ color: 'var(--neon-cyan-light)' }}>Refreshing…</span>
         </div>
       )}
       {/* Hero */}
@@ -201,15 +201,15 @@ export default function FanZone() {
           className="w-full h-full object-cover object-top"
         />
         <div className="absolute inset-0"
-          style={{ background: 'linear-gradient(to bottom, rgba(5,3,12,0.4) 0%, rgba(5,3,12,0.15) 40%, rgba(5,3,12,0.95) 100%)' }} />
+          style={{ background: 'linear-gradient(to bottom, var(--hero-bg-top) 0%, var(--hero-bg-mid) 40%, var(--hero-bg-end) 100%)' }} />
         <div className="absolute bottom-5 left-4 right-4">
           <h1
             className="font-display leading-[0.95]"
             style={{
               fontSize: 'clamp(3rem, 14vw, 5rem)',
               letterSpacing: '-0.02em',
-              filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.7))',
-              background: 'linear-gradient(90deg, #00C8FF 0%, #ffffff 60%)',
+              filter: 'drop-shadow(var(--hero-shadow))',
+              background: 'linear-gradient(90deg, var(--neon-cyan) 0%, var(--hero-text-fade) 60%)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               backgroundClip: 'text',
@@ -242,17 +242,17 @@ export default function FanZone() {
         {feedTab === 'bucket' && bucketList.length === 0 && !loading && (
           <p className="text-xs text-muted-foreground px-1">
             Add artists & venues to your Bucket List to filter posts here.{' '}
-            <button className="underline" style={{ color: '#FFE600' }} onClick={() => setShowBucketList(true)}>Add now</button>
+            <button className="underline" style={{ color: 'var(--neon-yellow)' }} onClick={() => setShowBucketList(true)}>Add now</button>
           </p>
         )}
         {feedTab === 'nearby' && !userLocation && (
           <p className="text-xs text-muted-foreground px-1">Allow location access to see posts near you.</p>
         )}
         {feedTab === 'nearby' && userLocation && (
-          <p className="text-xs px-1" style={{ color: '#00FF87' }}>📍 Showing posts within 80 km of your location</p>
+          <p className="text-xs px-1" style={{ color: 'var(--neon-green)' }}>📍 Showing posts within 80 km of your location</p>
         )}
         {feedTab === 'friends' && followingEmails.length === 0 && (
-          <p className="text-xs text-muted-foreground px-1">Follow people from your <Link to="/me" className="underline" style={{ color: '#BF5FFF' }}>profile</Link> to see their posts here.</p>
+          <p className="text-xs text-muted-foreground px-1">Follow people from your <Link to="/me" className="underline" style={{ color: 'var(--neon-purple)' }}>profile</Link> to see their posts here.</p>
         )}
       </div>
 
@@ -266,7 +266,7 @@ export default function FanZone() {
             <button
               onClick={loadPosts}
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-sm"
-              style={{ background: 'rgba(0,200,255,0.12)', border: '1px solid rgba(0,200,255,0.3)', color: '#00C8FF' }}
+              style={{ background: 'rgba(var(--neon-cyan-rgb), 0.08)', border: '1px solid rgba(var(--neon-cyan-rgb), 0.2)', color: 'var(--neon-cyan)' }}
             >
               <RefreshCw className="w-4 h-4" /> Retry
             </button>
@@ -308,14 +308,14 @@ export default function FanZone() {
          aria-expanded={fab === 'menu'}
          className="fixed right-5 z-40 w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform active:scale-95"
          style={{
-           background: 'linear-gradient(135deg, #FF99CC, #66FFFF)',
-           boxShadow: '0 0 24px rgba(0,200,255,0.4), 0 4px 24px rgba(0,0,0,0.5)',
+           background: 'linear-gradient(135deg, var(--neon-pink-light), var(--neon-cyan-light))',
+           boxShadow: 'var(--fab-shadow)',
            bottom: 'calc(6rem + env(safe-area-inset-bottom))',
          }}
        >
         <Plus
           className="w-7 h-7 transition-transform duration-200"
-          style={{ color: '#0a0510', transform: fab === 'menu' ? 'rotate(45deg)' : 'rotate(0deg)' }}
+          style={{ color: 'var(--gradient-btn-text)', transform: fab === 'menu' ? 'rotate(45deg)' : 'rotate(0deg)' }}
         />
       </button>
 
@@ -325,8 +325,8 @@ export default function FanZone() {
           <div className="fixed inset-0 z-30" onClick={closeAll} />
           <div className="fixed right-5 z-40 flex flex-col items-end gap-3"
             style={{ bottom: 'calc(10rem + env(safe-area-inset-bottom))', animation: 'fabMenuIn 0.18s cubic-bezier(0.34,1.56,0.64,1) both' }}>
-            <FabOption label="Seat Flex" emoji="💺" color="#66FFFF" delay="0s" onClick={() => setFab('flex')} />
-            <FabOption label="Create a post" emoji="🎤" color="#FF99CC" delay="0.05s" onClick={() => setFab('post')} />
+            <FabOption label="Seat Flex" emoji="💺" color="var(--neon-cyan-light)" delay="0s" onClick={() => setFab('flex')} />
+            <FabOption label="Create a post" emoji="🎤" color="var(--neon-pink-light)" delay="0.05s" onClick={() => setFab('post')} />
           </div>
           <style>{`
             @keyframes fabMenuIn { from { opacity:0; transform:translateY(16px) scale(0.92); } to { opacity:1; transform:translateY(0) scale(1); } }
@@ -340,8 +340,8 @@ export default function FanZone() {
         <div className="fixed inset-0 z-50 flex flex-col justify-end">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeAll} />
           <div className="relative z-10 rounded-t-3xl px-5 pt-5 overflow-y-auto max-h-[85vh]"
-            style={{ background: 'hsl(255 12% 9%)', border: '1px solid rgba(255,255,255,0.1)', paddingBottom: 'calc(7rem + env(safe-area-inset-bottom))' }}>
-            <div className="w-10 h-1 rounded-full mx-auto mb-5" style={{ background: 'rgba(255,255,255,0.2)' }} />
+            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', paddingBottom: 'calc(7rem + env(safe-area-inset-bottom))' }}>
+            <div className="w-10 h-1 rounded-full mx-auto mb-5" style={{ background: 'hsl(var(--border))' }} />
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-bold text-base text-foreground">Create a post</h2>
               <button onClick={closeAll}><X className="w-5 h-5 text-muted-foreground" /></button>
@@ -369,7 +369,7 @@ export default function FanZone() {
                 </div>
               ) : (
                 <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer w-fit"
-                  style={{ color: uploadingPhoto ? '#BF5FFF' : 'rgba(255,255,255,0.4)' }}>
+                  style={{ color: uploadingPhoto ? 'var(--neon-purple)' : 'hsl(var(--muted-foreground))' }}>
                   {uploadingPhoto
                     ? <span className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                     : <ImagePlus className="w-4 h-4" />}
@@ -379,7 +379,7 @@ export default function FanZone() {
                 </label>
               )}
 
-              <div className="h-px" style={{ background: 'rgba(255,255,255,0.08)' }} />
+              <div className="h-px" style={{ background: 'hsl(var(--border))' }} />
 
               {/* Searchable event picker */}
               <div className="relative" ref={eventPickerRef}>
@@ -387,7 +387,7 @@ export default function FanZone() {
                   type="button"
                   onClick={() => setShowEventPicker(v => !v)}
                   className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs text-left"
-                  style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', color: selectedEventId ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))' }}
+                  style={{ background: 'var(--search-bg)', border: '1px solid hsl(var(--border))', color: selectedEventId ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))' }}
                 >
                   <span className="flex-shrink-0">🎫</span>
                   <span className="flex-1 truncate">
@@ -401,7 +401,7 @@ export default function FanZone() {
 
                 {showEventPicker && (
                   <div className="absolute bottom-full left-0 right-0 mb-1 rounded-2xl overflow-hidden z-10"
-                    style={{ background: 'hsl(255 12% 11%)', border: '1px solid rgba(255,255,255,0.12)', maxHeight: '220px', display: 'flex', flexDirection: 'column' }}>
+                    style={{ background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', maxHeight: '220px', display: 'flex', flexDirection: 'column' }}>
                     <div className="p-2 flex-shrink-0">
                       <div className="relative">
                         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
@@ -412,7 +412,7 @@ export default function FanZone() {
                           value={eventQuery}
                           onChange={e => setEventQuery(e.target.value)}
                           className="w-full pl-8 pr-3 py-2 rounded-xl text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
-                          style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}
+                          style={{ background: 'var(--search-bg)', border: '1px solid hsl(var(--border))' }}
                         />
                       </div>
                     </div>
@@ -425,7 +425,7 @@ export default function FanZone() {
                             type="button"
                             onClick={() => { setSelectedEventId(ev.id); setShowEventPicker(false); setEventQuery(''); }}
                             className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left transition-all"
-                            style={{ background: selectedEventId === ev.id ? 'rgba(0,200,255,0.1)' : 'transparent', borderBottom: '1px solid rgba(255,255,255,0.05)' }}
+                            style={{ background: selectedEventId === ev.id ? 'rgba(var(--neon-cyan-rgb), 0.08)' : 'transparent', borderBottom: '1px solid hsl(var(--border))' }}
                           >
                             {ev.image_url
                               ? <img src={ev.image_url} alt="" className="w-7 h-7 rounded-lg object-cover flex-shrink-0" />
@@ -450,7 +450,7 @@ export default function FanZone() {
                 type="submit"
                 disabled={(!text.trim() && !photoUrl) || submitting || uploadingPhoto}
                 className="w-full py-3 rounded-2xl font-bold text-sm disabled:opacity-40 transition-opacity"
-                style={{ background: 'linear-gradient(135deg, rgba(0,200,255,0.3), rgba(191,95,255,0.3))', color: '#fff', border: '1px solid rgba(0,200,255,0.3)' }}
+                style={{ background: 'linear-gradient(135deg, rgba(var(--neon-cyan-rgb), 0.2), rgba(var(--neon-purple-rgb), 0.2))', color: 'var(--gradient-btn-text)', border: '1px solid rgba(var(--neon-cyan-rgb), 0.25)' }}
               >
                 {submitting ? 'Posting…' : 'Post'}
               </button>
@@ -494,10 +494,10 @@ export default function FanZone() {
 }
 
 const TAB_STYLES = {
-  trending: { active: 'rgba(255,153,204,0.12)', border: 'rgba(255,153,204,0.35)', color: '#FF99CC' },
-  bucket:   { active: 'rgba(255,230,0,0.12)',   border: 'rgba(255,230,0,0.35)',   color: '#FFE600' },
-  nearby:   { active: 'rgba(0,255,135,0.10)',   border: 'rgba(0,255,135,0.35)',   color: '#00FF87' },
-  friends:  { active: 'rgba(191,95,255,0.12)',  border: 'rgba(191,95,255,0.35)',  color: '#BF5FFF' },
+  trending: { active: 'rgba(var(--neon-pink-light-rgb), 0.1)', border: 'rgba(var(--neon-pink-light-rgb), 0.25)', color: 'var(--neon-pink-light)' },
+  bucket:   { active: 'rgba(var(--neon-yellow-rgb), 0.1)',     border: 'rgba(var(--neon-yellow-rgb), 0.25)',     color: 'var(--neon-yellow)' },
+  nearby:   { active: 'rgba(var(--neon-green-rgb), 0.08)',    border: 'rgba(var(--neon-green-rgb), 0.25)',      color: 'var(--neon-green)' },
+  friends:  { active: 'rgba(var(--neon-purple-rgb), 0.1)',    border: 'rgba(var(--neon-purple-rgb), 0.25)',      color: 'var(--neon-purple)' },
 };
 
 function FeedTab({ id, active, label, icon, badge, onClick, onEditClick }) {
@@ -524,7 +524,7 @@ function FeedTab({ id, active, label, icon, badge, onClick, onEditClick }) {
         <span
           onClick={e => { e.stopPropagation(); onEditClick(); }}
           className="ml-auto text-[10px] font-black px-2 py-0.5 rounded-full cursor-pointer"
-          style={{ background: 'rgba(255,230,0,0.2)', color: '#FFE600' }}
+          style={{ background: 'rgba(var(--neon-yellow-rgb), 0.12)', color: 'var(--neon-yellow)' }}
         >
           Edit
         </span>
@@ -540,22 +540,22 @@ function FabOption({ label, emoji, color, delay = '0s', onClick }) {
       className="flex items-center gap-2.5 pl-3.5 pr-4 py-2.5 rounded-2xl"
       style={{
         background: color,
-        boxShadow: `0 0 20px ${color}88, 0 4px 20px rgba(0,0,0,0.6)`,
+        boxShadow: 'var(--fab-shadow)',
         animation: `fabItemIn 0.22s cubic-bezier(0.34,1.56,0.64,1) ${delay} both`,
       }}
     >
       <span className="text-lg leading-none">{emoji}</span>
-      <span className="text-sm font-black tracking-tight" style={{ color: '#0a0510' }}>{label}</span>
+      <span className="text-sm font-black tracking-tight" style={{ color: 'var(--gradient-btn-text)' }}>{label}</span>
     </button>
   );
 }
 
 const AVATAR_GRADIENTS = [
-  'linear-gradient(135deg, #FF99CC, #BF5FFF)',
-  'linear-gradient(135deg, #66FFFF, #00C8FF)',
-  'linear-gradient(135deg, #FFE600, #FF7A00)',
-  'linear-gradient(135deg, #00FF87, #00C8FF)',
-  'linear-gradient(135deg, #FF2D78, #FF99CC)',
+  'linear-gradient(135deg, var(--neon-pink-light), var(--neon-purple))',
+  'linear-gradient(135deg, var(--neon-cyan-light), var(--neon-cyan))',
+  'linear-gradient(135deg, var(--neon-yellow), var(--neon-orange))',
+  'linear-gradient(135deg, var(--neon-green), var(--neon-cyan))',
+  'linear-gradient(135deg, var(--neon-pink), var(--neon-pink-light))',
 ];
 function avatarGradient(str) {
   let h = 0;
@@ -574,13 +574,13 @@ function PostCard({ post, user, onReact, reactingId }) {
     <div className="rounded-2xl overflow-hidden"
       style={{
         background: 'hsl(var(--card))',
-        border: isSeatFlex ? '1px solid rgba(102,255,255,0.2)' : '1px solid hsl(var(--border))',
-        boxShadow: isSeatFlex ? '0 0 20px rgba(102,255,255,0.06)' : 'none',
+        border: isSeatFlex ? '1px solid rgba(var(--neon-cyan-light-rgb),0.2)' : '1px solid hsl(var(--border))',
+        boxShadow: isSeatFlex ? '0 0 20px rgba(var(--neon-cyan-light-rgb),0.06)' : 'none',
       }}>
 
       {/* Seat Flex accent bar */}
       {isSeatFlex && (
-        <div className="h-0.5 w-full" style={{ background: 'linear-gradient(90deg, #66FFFF, #BF5FFF)' }} />
+        <div className="h-0.5 w-full" style={{ background: 'linear-gradient(90deg, var(--neon-cyan-light), var(--neon-purple))' }} />
       )}
 
       <div className="px-4 py-4 space-y-3">
@@ -588,7 +588,7 @@ function PostCard({ post, user, onReact, reactingId }) {
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 font-black text-sm"
-              style={{ background: avatarGradient(authorKey), color: '#0a0510', boxShadow: '0 0 10px rgba(0,0,0,0.4)' }}>
+              style={{ background: avatarGradient(authorKey), color: 'var(--gradient-btn-text)', boxShadow: '0 0 10px rgba(0,0,0,0.4)' }}>
               {initials}
             </div>
             <div>
@@ -596,7 +596,7 @@ function PostCard({ post, user, onReact, reactingId }) {
               <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                 {isSeatFlex && (
                   <span className="text-[9px] font-black tracking-widest px-1.5 py-0.5 rounded-full"
-                    style={{ background: 'rgba(102,255,255,0.15)', color: '#66FFFF', border: '1px solid rgba(102,255,255,0.3)' }}>
+                    style={{ background: 'rgba(var(--neon-cyan-light-rgb),0.15)', color: 'var(--neon-cyan-light)', border: '1px solid rgba(var(--neon-cyan-light-rgb),0.3)' }}>
                     💺 SEAT FLEX
                   </span>
                 )}
@@ -623,11 +623,11 @@ function PostCard({ post, user, onReact, reactingId }) {
           <div className="flex items-center gap-2 px-3 py-2 rounded-xl"
             style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}>
             <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-black" style={{ color: '#FF99CC' }}>
+              <span className="text-[10px] font-black" style={{ color: 'var(--neon-pink-light)' }}>
                 Sec {post.from_section || '?'}{post.from_row ? ` Row ${post.from_row}` : ''}
               </span>
               <span className="text-xs text-muted-foreground">→</span>
-              <span className="text-[10px] font-black" style={{ color: '#66FFFF' }}>
+              <span className="text-[10px] font-black" style={{ color: 'var(--neon-cyan-light)' }}>
                 Sec {post.to_section || '?'}{post.to_row ? ` Row ${post.to_row}` : ''}
               </span>
             </div>
@@ -642,14 +642,14 @@ function PostCard({ post, user, onReact, reactingId }) {
               <div className="relative rounded-xl overflow-hidden aspect-[4/3]">
                 <img src={post.before_photo_url} alt="Before" className="w-full h-full object-cover" />
                 <span className="absolute bottom-1.5 left-1.5 text-[9px] font-black px-1.5 py-0.5 rounded-full"
-                  style={{ background: 'rgba(0,0,0,0.75)', color: '#FF99CC' }}>BEFORE</span>
+                  style={{ background: 'rgba(0,0,0,0.75)', color: 'var(--neon-pink-light)' }}>BEFORE</span>
               </div>
             )}
             {post.after_photo_url && (
               <div className="relative rounded-xl overflow-hidden aspect-[4/3]">
                 <img src={post.after_photo_url} alt="After" className="w-full h-full object-cover" />
                 <span className="absolute bottom-1.5 left-1.5 text-[9px] font-black px-1.5 py-0.5 rounded-full"
-                  style={{ background: 'rgba(0,0,0,0.75)', color: '#66FFFF' }}>AFTER</span>
+                  style={{ background: 'rgba(0,0,0,0.75)', color: 'var(--neon-cyan-light)' }}>AFTER</span>
               </div>
             )}
           </div>
@@ -680,10 +680,10 @@ function PostCard({ post, user, onReact, reactingId }) {
                 disabled={!user || !!reactingId}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all active:scale-95 disabled:opacity-50"
                 style={{
-                  background: reacted ? 'rgba(255,153,204,0.18)' : 'hsl(var(--muted))',
-                  border: reacted ? '1px solid rgba(255,153,204,0.4)' : '1px solid hsl(var(--border))',
-                  color: reacted ? '#FF99CC' : 'hsl(var(--muted-foreground))',
-                  boxShadow: reacted ? '0 0 10px rgba(255,153,204,0.15)' : 'none',
+                  background: reacted ? 'rgba(var(--neon-pink-light-rgb), 0.12)' : 'hsl(var(--muted))',
+                  border: reacted ? '1px solid rgba(var(--neon-pink-light-rgb), 0.3)' : '1px solid hsl(var(--border))',
+                  color: reacted ? 'var(--neon-pink-light)' : 'hsl(var(--muted-foreground))',
+                  boxShadow: reacted ? 'none' : 'none',
                 }}
               >
                 <span className="text-sm">{emoji}</span>

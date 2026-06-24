@@ -173,9 +173,9 @@ export default function Events() {
     <div ref={containerRef} className="pb-32 transition-transform duration-200">
       {pulling && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-4 py-2 rounded-full"
-          style={{ background: 'rgba(191,95,255,0.15)', border: '1px solid rgba(191,95,255,0.3)' }}>
-          <RefreshCw className="w-3.5 h-3.5 animate-spin" style={{ color: '#BF5FFF' }} />
-          <span className="text-xs font-semibold" style={{ color: '#BF5FFF' }}>Refreshing…</span>
+          style={{ background: 'rgba(var(--neon-purple-rgb), 0.1)', border: '1px solid rgba(var(--neon-purple-rgb), 0.25)' }}>
+          <RefreshCw className="w-3.5 h-3.5 animate-spin" style={{ color: 'var(--neon-purple)' }} />
+          <span className="text-xs font-semibold" style={{ color: 'var(--neon-purple)' }}>Refreshing…</span>
         </div>
       )}
 
@@ -189,12 +189,12 @@ export default function Events() {
         {/* Dark overlay — heavy at bottom */}
         <div
           className="absolute inset-0"
-          style={{ background: 'linear-gradient(to bottom, rgba(5,3,12,0.45) 0%, rgba(5,3,12,0.2) 40%, rgba(5,3,12,0.92) 100%)' }}
+          style={{ background: 'linear-gradient(to bottom, var(--hero-bg-top) 0%, var(--hero-bg-mid) 40%, var(--hero-bg-end) 100%)' }}
         />
         {/* Extra text-area darkening */}
         <div
           className="absolute bottom-0 left-0 right-0 h-36"
-          style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.65), transparent)' }}
+          style={{ background: 'linear-gradient(to top, var(--hero-bg-extra), transparent)' }}
         />
 
 
@@ -206,8 +206,8 @@ export default function Events() {
             style={{
               fontSize: 'clamp(3rem, 14vw, 5rem)',
               letterSpacing: '-0.02em',
-              filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.7))',
-              background: 'linear-gradient(90deg, #BF5FFF 0%, #ffffff 60%)',
+              filter: 'drop-shadow(var(--hero-shadow))',
+              background: 'linear-gradient(90deg, var(--neon-purple) 0%, var(--hero-text-fade) 60%)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               backgroundClip: 'text',
@@ -227,13 +227,13 @@ export default function Events() {
             <button
               onClick={() => { setLocationInput(locationLabel === 'Near me' ? '' : locationLabel); setEditingLocation(true); }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all active:scale-[0.98]"
-              style={{ background: 'rgba(191,95,255,0.12)', border: '1px solid rgba(191,95,255,0.3)' }}
+              style={{ background: 'rgba(var(--neon-purple-rgb),0.12)', border: '1px solid rgba(var(--neon-purple-rgb),0.3)' }}
             >
-              <MapPin className="w-3 h-3 flex-shrink-0" style={{ color: '#BF5FFF' }} />
-              <span className="text-xs font-semibold truncate max-w-[120px]" style={{ color: '#BF5FFF' }}>
+              <MapPin className="w-3 h-3 flex-shrink-0" style={{ color: 'var(--neon-purple)' }} />
+              <span className="text-xs font-semibold truncate max-w-[120px]" style={{ color: 'var(--neon-purple)' }}>
                 {locationStatus === 'requesting' ? 'Detecting…' : locationLabel}
               </span>
-              <span className="text-[10px] opacity-60" style={{ color: '#BF5FFF' }}>· change</span>
+              <span className="text-[10px] opacity-60" style={{ color: 'var(--neon-purple)' }}>· change</span>
             </button>
             {locationLabel === 'Near me' && (
               <button
@@ -242,9 +242,9 @@ export default function Events() {
                 title="Refresh nearby events"
                 aria-label="Refresh nearby events"
                 className="flex items-center justify-center w-7 h-7 rounded-full flex-shrink-0 transition-all active:scale-95 disabled:opacity-50"
-                style={{ background: 'rgba(191,95,255,0.1)', border: '1px solid rgba(191,95,255,0.25)' }}
+                style={{ background: 'rgba(var(--neon-purple-rgb),0.1)', border: '1px solid rgba(var(--neon-purple-rgb),0.25)' }}
               >
-                <RefreshCw className={`w-3 h-3 ${locationStatus === 'requesting' ? 'animate-spin' : ''}`} style={{ color: '#BF5FFF' }} />
+                <RefreshCw className={`w-3 h-3 ${locationStatus === 'requesting' ? 'animate-spin' : ''}`} style={{ color: 'var(--neon-purple)' }} />
               </button>
             )}
           </div>
@@ -299,7 +299,7 @@ export default function Events() {
       {/* ── Rate limit / network error ── */}
       {tmError && (
         <div className="mx-4 mb-3 px-4 py-3 rounded-2xl text-sm font-medium flex items-center justify-between gap-3"
-          style={{ background: 'rgba(255,140,0,0.1)', border: '1px solid rgba(255,140,0,0.3)', color: '#FF8C00' }}>
+          style={{ background: 'rgba(var(--neon-orange-rgb), 0.08)', border: '1px solid rgba(var(--neon-orange-rgb), 0.2)', color: 'var(--neon-orange)' }}>
           <span>Too many requests right now. Please wait a moment.</span>
           <button onClick={() => fetchEvents(latlongRef.current || null, null, null, true)}
             className="flex items-center gap-1 text-xs font-bold underline underline-offset-2 flex-shrink-0">
@@ -309,7 +309,7 @@ export default function Events() {
       )}
       {networkError && !tmError && (
         <div className="mx-4 mb-3 px-4 py-3 rounded-2xl text-sm font-medium flex items-center justify-between gap-3"
-          style={{ background: 'rgba(255,45,120,0.1)', border: '1px solid rgba(255,45,120,0.3)', color: '#FF2D78' }}>
+          style={{ background: 'rgba(var(--neon-pink-rgb), 0.08)', border: '1px solid rgba(var(--neon-pink-rgb), 0.2)', color: 'var(--neon-pink)' }}>
           <span>Failed to load events. Check your connection.</span>
           <button onClick={() => fetchEvents(latlongRef.current || null, null, null, true)}
             className="flex items-center gap-1 text-xs font-bold underline underline-offset-2 flex-shrink-0">
@@ -322,11 +322,11 @@ export default function Events() {
       <div aria-live="polite" aria-atomic="true" className="px-4 mb-4">
         {!loading && (locationLabel || latlong) && filtered.length > 0 && (
           <div className="flex items-center gap-3">
-            <div className="h-px flex-1" style={{ background: 'rgba(191,95,255,0.2)' }} />
-            <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: '#BF5FFF' }}>
+            <div className="h-px flex-1" style={{ background: 'rgba(var(--neon-purple-rgb),0.2)' }} />
+            <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: 'var(--neon-purple)' }}>
               {filtered.length} event{filtered.length !== 1 ? 's' : ''}
             </p>
-            <div className="h-px flex-1" style={{ background: 'rgba(191,95,255,0.2)' }} />
+            <div className="h-px flex-1" style={{ background: 'rgba(var(--neon-purple-rgb),0.2)' }} />
           </div>
         )}
       </div>
@@ -339,7 +339,7 @@ export default function Events() {
               key={e.id}
               to={`/upgrades/${e.id}`}
               className="flex items-center gap-3 px-4 py-3 rounded-2xl mb-2"
-              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)' }}
+              style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
             >
               <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
               <div className="flex-1 min-w-0">
@@ -378,10 +378,10 @@ export default function Events() {
       ) : filtered.length === 0 ? (
         <div className="px-4">
           <div className="rounded-2xl overflow-hidden relative flex items-center gap-4 px-4 py-4"
-            style={{ background: 'hsl(var(--card))', border: '1px solid rgba(191,95,255,0.15)', minHeight: 72 }}>
+            style={{ background: 'hsl(var(--card))', border: '1px solid rgba(var(--neon-purple-rgb),0.15)', minHeight: 72 }}>
             <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ background: 'rgba(191,95,255,0.1)' }}>
-              <MapPin className="w-4 h-4" style={{ color: '#BF5FFF' }} />
+              style={{ background: 'rgba(var(--neon-purple-rgb),0.1)' }}>
+              <MapPin className="w-4 h-4" style={{ color: 'var(--neon-purple)' }} />
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-bold text-foreground text-sm">No events found here</p>
@@ -389,7 +389,7 @@ export default function Events() {
             </div>
             <button onClick={() => setEditingLocation(true)}
               className="flex-shrink-0 text-xs font-bold px-3 py-1.5 rounded-full transition-all active:scale-95"
-              style={{ background: 'rgba(191,95,255,0.12)', border: '1px solid rgba(191,95,255,0.3)', color: '#BF5FFF' }}>
+              style={{ background: 'rgba(var(--neon-purple-rgb),0.12)', border: '1px solid rgba(var(--neon-purple-rgb),0.3)', color: 'var(--neon-purple)' }}>
               Change city
             </button>
           </div>
@@ -434,10 +434,10 @@ function EventRow({ event, isAdmin = false }) {
       style={{
         background: 'hsl(var(--card))',
         border: isLive
-          ? '1px solid rgba(191,95,255,0.35)'
+          ? '1px solid rgba(var(--neon-purple-rgb),0.35)'
           : '1px solid hsl(var(--border))',
         boxShadow: isLive
-          ? '0 2px 16px rgba(191,95,255,0.08), 0 1px 3px rgba(0,0,0,0.12)'
+          ? '0 2px 16px rgba(var(--neon-purple-rgb),0.08), 0 1px 3px rgba(0,0,0,0.12)'
           : '0 1px 3px rgba(0,0,0,0.08)',
       }}
     >

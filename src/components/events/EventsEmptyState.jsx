@@ -11,7 +11,7 @@ export default function EventsEmptyState({ locationStatus, onNearMe, onEnterCity
         <div className="rounded-2xl overflow-hidden relative" style={{ minHeight: 120 }}>
           <img src="https://images.unsplash.com/photo-1506157786151-b8491531f063?w=900&q=80" alt="concert crowd"
           className="w-full h-full object-cover absolute inset-0" style={{ opacity: 0.4 }} />
-          <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, rgba(191,95,255,0.2) 0%, rgba(0,0,0,0.7) 100%)' }} />
+          <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, rgba(var(--neon-purple-rgb), 0.15) 0%, var(--hero-bg-end) 100%)' }} />
           <div className="relative z-10 flex flex-col justify-end px-5 py-5 h-full" style={{ minHeight: 120 }}>
             <p className="font-bold text-white text-sm">Finding events near you…</p>
             <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.55)' }}>Scanning nearby venues</p>
@@ -50,7 +50,7 @@ export default function EventsEmptyState({ locationStatus, onNearMe, onEnterCity
       <div className="rounded-2xl overflow-hidden relative" style={{ minHeight: 140 }}>
         <img src="https://images.unsplash.com/photo-1506157786151-b8491531f063?w=900&q=80" alt="concert crowd"
         className="w-full h-full object-cover absolute inset-0" style={{ opacity: 0.4 }} />
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, rgba(191,95,255,0.2) 0%, rgba(0,0,0,0.72) 100%)' }} />
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, rgba(var(--neon-purple-rgb), 0.15) 0%, var(--hero-bg-end) 100%)' }} />
         <div className="relative z-10 px-5 py-5 flex flex-col gap-3" style={{ minHeight: 140 }}>
           <p className="font-display text-white leading-tight" style={{ fontSize: 'clamp(1.4rem, 6vw, 1.8rem)' }}>
             Fan tickets.<br />Buyer protected.

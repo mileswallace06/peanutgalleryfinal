@@ -121,7 +121,7 @@ export default function Sell() {
         <button
           onClick={() => base44.auth.redirectToLogin()}
           className="flex items-center gap-2 font-bold px-8 py-3.5 rounded-full neon-glow-green"
-          style={{ background: 'linear-gradient(135deg, #00FF87, #00C8FF)', color: '#0D0B14' }}
+          style={{ background: 'linear-gradient(135deg, var(--neon-green), var(--neon-cyan))', color: 'var(--gradient-btn-text)' }}
         >
           <LogIn className="w-4 h-4" /> Sign In
         </button>
@@ -145,11 +145,11 @@ export default function Sell() {
         />
         <div
           className="absolute inset-0"
-          style={{ background: 'linear-gradient(to bottom, rgba(5,3,12,0.45) 0%, rgba(5,3,12,0.2) 40%, rgba(5,3,12,0.92) 100%)' }}
+          style={{ background: 'linear-gradient(to bottom, var(--hero-bg-top) 0%, var(--hero-bg-mid) 40%, var(--hero-bg-end) 100%)' }}
         />
         <div
           className="absolute bottom-0 left-0 right-0 h-36"
-          style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.65), transparent)' }}
+          style={{ background: 'linear-gradient(to top, var(--hero-bg-extra), transparent)' }}
         />
 
         <div className="absolute bottom-5 left-4 right-4">
@@ -158,8 +158,8 @@ export default function Sell() {
             style={{
               fontSize: 'clamp(3rem, 14vw, 5rem)',
               letterSpacing: '-0.02em',
-              filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.7))',
-              background: 'linear-gradient(90deg, #FF8C00 0%, #ffffff 60%)',
+              filter: 'drop-shadow(var(--hero-shadow))',
+              background: 'linear-gradient(90deg, var(--neon-orange) 0%, var(--hero-text-fade) 60%)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               backgroundClip: 'text',
@@ -185,19 +185,19 @@ export default function Sell() {
           <Link
             to="/create-listing"
             className="flex items-center justify-center gap-2 w-full py-4 rounded-full font-black text-sm"
-            style={{ background: 'linear-gradient(135deg, #FF8C00, #FF2D78)', color: '#fff', boxShadow: '0 0 20px rgba(255,140,0,0.25)' }}
+            style={{ background: 'linear-gradient(135deg, var(--neon-orange), var(--neon-pink))', color: 'var(--gradient-btn-text)', boxShadow: 'var(--fab-shadow)' }}
           >
             <Plus className="w-4 h-4" /> List My Tickets
           </Link>
         ) : (
           /* Onboarding CTA — required before listing */
           <div className="rounded-2xl overflow-hidden"
-            style={{ border: '1px solid rgba(255,140,0,0.35)', background: 'rgba(255,140,0,0.06)' }}>
-            <div className="px-5 py-4" style={{ borderBottom: '1px solid rgba(255,140,0,0.2)' }}>
+            style={{ border: '1px solid rgba(var(--neon-orange-rgb),0.35)', background: 'rgba(var(--neon-orange-rgb),0.06)' }}>
+            <div className="px-5 py-4" style={{ borderBottom: '1px solid rgba(var(--neon-orange-rgb),0.2)' }}>
               <div className="flex items-start gap-3">
                 <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5"
-                  style={{ background: 'rgba(255,140,0,0.15)', border: '1px solid rgba(255,140,0,0.3)' }}>
-                  <AlertCircle className="w-4 h-4" style={{ color: '#FF8C00' }} />
+                  style={{ background: 'rgba(var(--neon-orange-rgb),0.15)', border: '1px solid rgba(var(--neon-orange-rgb),0.3)' }}>
+                  <AlertCircle className="w-4 h-4" style={{ color: 'var(--neon-orange)' }} />
                 </div>
                 <div>
                   <p className="font-black text-sm text-foreground">
@@ -224,7 +224,7 @@ export default function Sell() {
                 onClick={handleStartOnboarding}
                 disabled={onboardingLoading}
                 className="w-full flex items-center justify-center gap-2 py-3.5 rounded-full font-black text-sm transition-all disabled:opacity-60"
-                style={{ background: 'linear-gradient(135deg, #FF8C00, #FF2D78)', color: '#fff', boxShadow: '0 0 18px rgba(255,140,0,0.25)' }}
+                style={{ background: 'linear-gradient(135deg, var(--neon-orange), var(--neon-pink))', color: 'var(--gradient-btn-text)', boxShadow: 'var(--fab-shadow)' }}
               >
                 {onboardingLoading
                   ? <><Loader2 className="w-4 h-4 animate-spin" /> Redirecting to Stripe…</>
@@ -236,7 +236,7 @@ export default function Sell() {
               </p>
               <Link to="/seller-payout-guide"
                 className="block text-center text-xs font-semibold transition-colors"
-                style={{ color: '#FF8C00' }}>
+                style={{ color: 'var(--neon-orange)' }}>
                 📖 How does payout setup work? →
               </Link>
             </div>
@@ -264,9 +264,9 @@ export default function Sell() {
         {/* Stats row */}
         <div className="grid grid-cols-3 gap-3">
           {[
-            { label: 'Active', value: active.length, color: 'var(--neon-green)', bg: 'rgba(0,255,135,0.08)', border: 'rgba(0,255,135,0.2)' },
-            { label: 'Sold', value: sold.length, color: 'var(--neon-cyan)', bg: 'rgba(0,200,255,0.08)', border: 'rgba(0,200,255,0.2)' },
-            { label: 'Total', value: listings.length, color: 'var(--neon-purple)', bg: 'rgba(191,95,255,0.08)', border: 'rgba(191,95,255,0.2)' },
+            { label: 'Active', value: active.length, color: 'var(--neon-green)', bg: 'rgba(var(--neon-green-rgb), 0.06)', border: 'rgba(var(--neon-green-rgb), 0.15)' },
+            { label: 'Sold', value: sold.length, color: 'var(--neon-cyan)', bg: 'rgba(var(--neon-cyan-rgb), 0.06)', border: 'rgba(var(--neon-cyan-rgb), 0.15)' },
+            { label: 'Total', value: listings.length, color: 'var(--neon-purple)', bg: 'rgba(var(--neon-purple-rgb), 0.06)', border: 'rgba(var(--neon-purple-rgb), 0.15)' },
           ].map(({ label, value, color, bg, border }) => (
             <div key={label} className="rounded-2xl px-4 py-3 text-center"
               style={{ background: bg, border: `1px solid ${border}` }}>
@@ -279,7 +279,7 @@ export default function Sell() {
         {/* Recommended Events Near You */}
         <section>
           <h2 className="font-bold text-sm text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
-            <MapPin className="w-3.5 h-3.5" style={{ color: '#00C8FF' }} /> Events Near You
+            <MapPin className="w-3.5 h-3.5" style={{ color: 'var(--neon-cyan)' }} /> Events Near You
           </h2>
           {nearbyLoading ? (
             <div className="space-y-2">
@@ -317,7 +317,7 @@ export default function Sell() {
                     </div>
                     {isTM
                       ? <span className="text-[9px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
-                          style={{ background: 'rgba(255,140,0,0.12)', color: '#FF8C00', border: '1px solid rgba(255,140,0,0.3)' }}>Search →</span>
+                          style={{ background: 'rgba(var(--neon-orange-rgb),0.12)', color: 'var(--neon-orange)', border: '1px solid rgba(var(--neon-orange-rgb),0.3)' }}>Search →</span>
                       : <ChevronRight className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
                     }
                   </Link>
@@ -331,7 +331,7 @@ export default function Sell() {
         {drafts.length > 0 && (
           <section>
             <h2 className="font-bold text-sm text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
-              <AlertCircle className="w-3.5 h-3.5" style={{ color: '#FF8C00' }} /> Awaiting Payout Setup ({drafts.length})
+              <AlertCircle className="w-3.5 h-3.5" style={{ color: 'var(--neon-orange)' }} /> Awaiting Payout Setup ({drafts.length})
             </h2>
             <div className="space-y-3">
               {drafts.map(l => <ListingRow key={l.id} listing={l} />)}
@@ -343,7 +343,7 @@ export default function Sell() {
         {active.length > 0 && (
           <section>
             <h2 className="font-bold text-sm text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
-              <Tag className="w-3.5 h-3.5" style={{ color: '#00FF87' }} /> Active ({active.length})
+              <Tag className="w-3.5 h-3.5" style={{ color: 'var(--neon-green)' }} /> Active ({active.length})
             </h2>
             <div className="space-y-3">
               {active.map(l => <ListingRow key={l.id} listing={l} />)}
@@ -355,7 +355,7 @@ export default function Sell() {
         {sold.length > 0 && (
           <section>
             <h2 className="font-bold text-sm text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
-              <TrendingUp className="w-3.5 h-3.5" style={{ color: '#00C8FF' }} /> Sold ({sold.length})
+              <TrendingUp className="w-3.5 h-3.5" style={{ color: 'var(--neon-cyan)' }} /> Sold ({sold.length})
             </h2>
             <div className="space-y-3">
               {sold.map(l => <ListingRow key={l.id} listing={l} />)}
@@ -371,14 +371,14 @@ export default function Sell() {
               alt=""
               className="absolute inset-0 w-full h-full object-cover object-center"
             />
-            <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.75) 100%)' }} />
+            <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, var(--hero-bg-top) 0%, var(--hero-bg-end) 100%)' }} />
             <div className="relative z-10 py-12 px-6">
               <p className="text-4xl mb-3">🎟️</p>
               <p className="font-bold text-white text-lg">Got seats you can't use?</p>
               <p className="text-sm text-white/60 mt-1 mb-5">List them now and keep 95% of every sale.</p>
               <Link to="/create-listing"
                 className="inline-flex items-center gap-2 font-bold px-6 py-3 rounded-full"
-                style={{ background: '#FF2D78', color: '#fff' }}>
+                style={{ background: 'var(--neon-pink)', color: 'var(--gradient-btn-text)' }}>
                 <Plus className="w-4 h-4" /> Create Listing
               </Link>
               <Link to="/why-peanut-gallery"
@@ -400,7 +400,7 @@ function ListingRow({ listing }) {
     sold: 'var(--neon-cyan)',
     cancelled: 'var(--neon-pink)',
     expired: 'hsl(var(--muted-foreground))',
-    pending_payout_setup: '#FF8C00',
+    pending_payout_setup: 'var(--neon-orange)',
   };
   const STATUS_LABEL = {
     active: 'Active',
@@ -416,8 +416,8 @@ function ListingRow({ listing }) {
   return (
     <div className="rounded-2xl px-4 py-4 flex items-center justify-between gap-3"
       style={{
-        background: isDraft ? 'rgba(255,140,0,0.04)' : 'hsl(var(--card))',
-        border: isDraft ? '1px solid rgba(255,140,0,0.25)' : '1px solid hsl(var(--border))',
+        background: isDraft ? 'rgba(var(--neon-orange-rgb),0.04)' : 'hsl(var(--card))',
+        border: isDraft ? '1px solid rgba(var(--neon-orange-rgb),0.25)' : '1px solid hsl(var(--border))',
       }}>
       <div className="flex-1 min-w-0">
         <div className="font-bold text-sm text-foreground truncate">
@@ -428,7 +428,7 @@ function ListingRow({ listing }) {
           {listing.quantity} ticket{listing.quantity !== 1 ? 's' : ''} · ${listing.asking_price}/ea
         </div>
         {isDraft && (
-          <p className="text-[10px] mt-1" style={{ color: '#FF8C00' }}>
+          <p className="text-[10px] mt-1" style={{ color: 'var(--neon-orange)' }}>
             Not visible to buyers until payout setup is complete.
           </p>
         )}

@@ -108,7 +108,7 @@ export default function Me() {
         <button
           onClick={() => base44.auth.redirectToLogin()}
           className="flex items-center gap-2 font-black px-8 py-3.5 rounded-full"
-          style={{ background: 'linear-gradient(135deg, #00FF87, #00C8FF)', color: '#0D0B14', boxShadow: '0 0 24px rgba(0,255,135,0.3)' }}
+          style={{ background: 'linear-gradient(135deg, var(--neon-green), var(--neon-cyan))', color: 'var(--gradient-btn-text)', boxShadow: 'var(--fab-shadow)' }}
         >
           <LogIn className="w-4 h-4" /> Sign In
         </button>
@@ -126,7 +126,7 @@ export default function Me() {
           alt="banner"
           className="w-full h-full object-cover object-center"
         />
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, rgba(5,3,12,0.3) 0%, rgba(5,3,12,0.85) 100%)' }} />
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, var(--hero-bg-top) 0%, var(--hero-bg-end) 100%)' }} />
         {/* Banner edit overlay */}
         <button
           onClick={() => bannerInputRef.current?.click()}
@@ -155,7 +155,7 @@ export default function Me() {
               style={{
                 background: 'linear-gradient(135deg, #BF5FFF, #FF2D78)',
                 boxShadow: '0 0 32px rgba(191,95,255,0.5)',
-                border: '3px solid hsl(255 10% 5%)',
+                border: '3px solid hsl(var(--background))',
               }}
             >
               {user.avatar_url
@@ -182,7 +182,7 @@ export default function Me() {
           <button
             onClick={() => navigate('/edit-persona')}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all active:scale-95 dark:text-[rgba(255,255,255,0.7)] dark:bg-[rgba(255,255,255,0.07)] dark:border-[rgba(255,255,255,0.12)]"
-            style={{ background: '#f0f0f0', border: '1px solid #d0d0d0', color: '#000' }}
+            style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--foreground))' }}
           >
             <Edit2 className="w-3.5 h-3.5" /> Edit Persona
           </button>
@@ -197,19 +197,19 @@ export default function Me() {
         {/* Role badges + Account Settings button */}
         <div className="flex items-center gap-2 mb-5 flex-wrap">
           <span className="text-[10px] font-bold px-2.5 py-1 rounded-full dark:bg-[rgba(0,200,255,0.25)] dark:border-[rgba(0,200,255,0.5)] dark:text-[#00FFFF]"
-            style={{ background: '#e0f0f8', color: '#00C8FF', border: '1px solid #d0e8f0' }}>
+            style={{ background: 'rgba(var(--neon-cyan-rgb), 0.1)', color: 'var(--neon-cyan)', border: '1px solid rgba(var(--neon-cyan-rgb), 0.2)' }}>
             🥜 Fan
           </span>
           {isAdmin(user) && (
             <span className="text-[10px] font-bold px-2.5 py-1 rounded-full dark:bg-[rgba(255,230,0,0.25)] dark:border-[rgba(255,230,0,0.5)] dark:text-[#FFFF00]"
-              style={{ background: '#f8f8e8', color: '#FFE600', border: '1px solid #f0e8d0' }}>
+              style={{ background: 'rgba(var(--neon-yellow-rgb), 0.1)', color: 'var(--neon-yellow)', border: '1px solid rgba(var(--neon-yellow-rgb), 0.2)' }}>
               ✦ Admin
             </span>
           )}
           <button
             onClick={() => navigate('/account-settings')}
             className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold transition-all active:scale-95"
-            style={{ background: 'rgba(191,95,255,0.1)', border: '1px solid rgba(191,95,255,0.3)', color: '#BF5FFF' }}
+            style={{ background: 'rgba(var(--neon-purple-rgb), 0.08)', border: '1px solid rgba(var(--neon-purple-rgb), 0.25)', color: 'var(--neon-purple)' }}
           >
             <Settings className="w-3 h-3" /> Account Settings
           </button>
@@ -346,15 +346,15 @@ export default function Me() {
           <Link
             to="/my-tickets"
             className="flex items-center gap-4 px-5 py-4 rounded-2xl transition-all active:scale-[0.98]"
-            style={{ background: 'rgba(0,200,255,0.1)', border: '1px solid rgba(0,200,255,0.25)' }}
+            style={{ background: 'rgba(var(--neon-cyan-rgb), 0.08)', border: '1px solid rgba(var(--neon-cyan-rgb), 0.2)' }}
           >
             <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ background: 'rgba(0,200,255,0.2)' }}>
-              <Ticket className="w-5 h-5 dark:!text-[#00C8FF] dark:drop-shadow-[0_0_8px_rgba(0,200,255,0.8)]" style={{ color: '#003366' }} />
+              style={{ background: 'rgba(var(--neon-cyan-rgb), 0.12)' }}>
+              <Ticket className="w-5 h-5 dark:!text-[#00C8FF] dark:drop-shadow-[0_0_8px_rgba(0,200,255,0.8)]" style={{ color: 'var(--neon-cyan)' }} />
             </div>
             <div className="flex-1">
-              <div className="font-bold text-sm" style={{ color: '#003366' }} className="dark:!text-[#00FFFF]">My Tickets</div>
-              <div className="text-[9px] dark:!text-[#00FFFF]" style={{ color: '#002847' }}>View your purchases</div>
+              <div className="font-bold text-sm" style={{ color: 'var(--neon-cyan)' }} className="dark:!text-[#00FFFF]">My Tickets</div>
+              <div className="text-[9px] dark:!text-[#00FFFF]" style={{ color: 'var(--neon-cyan)' }}>View your purchases</div>
             </div>
             <ChevronRight className="w-4 h-4 text-muted-foreground" />
           </Link>
@@ -362,15 +362,15 @@ export default function Me() {
           <Link
             to="/my-sales"
             className="flex items-center gap-4 px-5 py-4 rounded-2xl transition-all active:scale-[0.98]"
-            style={{ background: 'rgba(191,95,255,0.1)', border: '1px solid rgba(191,95,255,0.25)' }}
+            style={{ background: 'rgba(var(--neon-purple-rgb), 0.08)', border: '1px solid rgba(var(--neon-purple-rgb), 0.2)' }}
           >
             <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ background: 'rgba(191,95,255,0.2)' }}>
-              <TrendingUp className="w-5 h-5 dark:!text-[#BF5FFF] dark:drop-shadow-[0_0_8px_rgba(191,95,255,0.8)]" style={{ color: '#6B3B7F' }} />
+              style={{ background: 'rgba(var(--neon-purple-rgb), 0.12)' }}>
+              <TrendingUp className="w-5 h-5 dark:!text-[#BF5FFF] dark:drop-shadow-[0_0_8px_rgba(191,95,255,0.8)]" style={{ color: 'var(--neon-purple)' }} />
             </div>
             <div className="flex-1">
-              <div className="font-bold text-sm" style={{ color: '#6B3B7F' }} className="dark:!text-[#FF00FF]">My Sales</div>
-              <div className="text-[9px] dark:!text-[#FF99FF]" style={{ color: '#4A2D5F' }}>Track your listings</div>
+              <div className="font-bold text-sm" style={{ color: 'var(--neon-purple)' }} className="dark:!text-[#FF00FF]">My Sales</div>
+              <div className="text-[9px] dark:!text-[#FF99FF]" style={{ color: 'var(--neon-purple)' }}>Track your listings</div>
             </div>
             <ChevronRight className="w-4 h-4 text-muted-foreground" />
           </Link>
@@ -378,15 +378,15 @@ export default function Me() {
           <Link
             to="/create-listing"
             className="flex items-center gap-4 px-5 py-4 rounded-2xl transition-all active:scale-[0.98]"
-            style={{ background: 'rgba(0,255,135,0.1)', border: '1px solid rgba(0,255,135,0.25)' }}
+            style={{ background: 'rgba(var(--neon-green-rgb), 0.08)', border: '1px solid rgba(var(--neon-green-rgb), 0.2)' }}
           >
             <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ background: 'rgba(0,255,135,0.2)' }}>
-              <Zap className="w-5 h-5 dark:!text-[#00FF87] dark:drop-shadow-[0_0_8px_rgba(0,255,135,0.8)]" style={{ color: '#004D30' }} />
+              style={{ background: 'rgba(var(--neon-green-rgb), 0.12)' }}>
+              <Zap className="w-5 h-5 dark:!text-[#00FF87] dark:drop-shadow-[0_0_8px_rgba(0,255,135,0.8)]" style={{ color: 'var(--neon-green)' }} />
             </div>
             <div className="flex-1">
-              <div className="font-bold text-sm" style={{ color: '#004D30' }} className="dark:!text-[#00FF99]">Sell Tickets</div>
-              <div className="text-[9px] dark:!text-[#00FF99]" style={{ color: '#003D24' }}>List seats you want to move</div>
+              <div className="font-bold text-sm" style={{ color: 'var(--neon-green)' }} className="dark:!text-[#00FF99]">Sell Tickets</div>
+              <div className="text-[9px] dark:!text-[#00FF99]" style={{ color: 'var(--neon-green)' }}>List seats you want to move</div>
             </div>
             <ChevronRight className="w-4 h-4 text-muted-foreground" />
           </Link>
@@ -415,15 +415,15 @@ export default function Me() {
             <Link
               to="/admin"
               className="flex items-center gap-4 px-5 py-4 rounded-2xl transition-all active:scale-[0.98]"
-              style={{ background: 'rgba(255,230,0,0.1)', border: '1px solid rgba(255,230,0,0.25)' }}
+              style={{ background: 'rgba(var(--neon-yellow-rgb), 0.08)', border: '1px solid rgba(var(--neon-yellow-rgb), 0.2)' }}
             >
               <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{ background: 'rgba(255,230,0,0.2)' }}>
-                <Shield className="w-5 h-5 dark:!text-[#FFE600] dark:drop-shadow-[0_0_8px_rgba(255,230,0,0.8)]" style={{ color: '#664D00' }} />
+                style={{ background: 'rgba(var(--neon-yellow-rgb), 0.12)' }}>
+                <Shield className="w-5 h-5 dark:!text-[#FFE600] dark:drop-shadow-[0_0_8px_rgba(255,230,0,0.8)]" style={{ color: 'var(--neon-yellow)' }} />
               </div>
               <div className="flex-1">
-                <div className="font-bold text-sm" style={{ color: '#664D00' }} className="dark:!text-[#FFFF00]">Admin Panel</div>
-                <div className="text-[9px] dark:!text-[#FFFF99]" style={{ color: '#4D3300' }}>Manage events and listings</div>
+                <div className="font-bold text-sm" style={{ color: 'var(--neon-yellow)' }} className="dark:!text-[#FFFF00]">Admin Panel</div>
+                <div className="text-[9px] dark:!text-[#FFFF99]" style={{ color: 'var(--neon-yellow)' }}>Manage events and listings</div>
               </div>
               <ChevronRight className="w-4 h-4 text-muted-foreground" />
             </Link>
