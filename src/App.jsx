@@ -1,13 +1,11 @@
 import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
-import { BrowserRouter as Router, Route, Routes, useLocation } from 'react-router-dom';
-import { AnimatePresence, motion } from 'framer-motion';
+import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import Layout from '@/components/Layout';
-import { Navigate } from 'react-router-dom';
 import Landing from '@/pages/Landing';
 import Events from '@/pages/Events';
 import EventDetail from '@/pages/EventDetail';
@@ -41,7 +39,6 @@ import EventMode from '@/pages/EventMode';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, checkAppState, isAuthenticated, user } = useAuth();
-  const location = useLocation();
 
   // Branded loading spinner
   if (isLoadingPublicSettings || isLoadingAuth) {
@@ -67,19 +64,15 @@ const AuthenticatedApp = () => {
     } else if (authError.type === 'auth_required') {
       // Not logged in — show the branded landing page instead of redirecting to Base44 login
       return (
-        <AnimatePresence mode="wait">
-          <Routes key={location.pathname}>
-            <Route path="/" element={<Landing />} />
-            <Route path="*" element={<Landing />} />
-          </Routes>
-        </AnimatePresence>
+        <Routes>
+          <Route path="/" element={<Landing />} />
+          <Route path="*" element={<Landing />} />
+        </Routes>
       );
     }
   }
 
   return (
-    <AnimatePresence mode="wait">
-      <motion.div key={location.pathname}>
         <Routes>
           {/* Authenticated root → straight to events */}
           <Route path="/" element={<Navigate to="/events" replace />} />
@@ -116,8 +109,6 @@ const AuthenticatedApp = () => {
           </Route>
           <Route path="*" element={<PageNotFound />} />
         </Routes>
-      </motion.div>
-    </AnimatePresence>
   );
 };
 

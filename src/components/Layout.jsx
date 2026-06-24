@@ -1,6 +1,7 @@
-import { Outlet, Link, useLocation } from 'react-router-dom';
+import { Outlet, Link, useLocation, useOutlet } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { useState, useEffect, useRef } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { MapPin, Zap, Tag, Flame, User, Bell } from 'lucide-react';
 import { getEventLiveStatus } from '@/lib/eventTiming';
 import { useTheme } from '@/hooks/useTheme';
@@ -8,16 +9,32 @@ import Onboarding from '@/components/Onboarding';
 import { useAuth } from '@/lib/AuthContext';
 import DonationWinNotification from '@/components/donations/DonationWinNotification';
 import FeedbackWidget from '@/components/beta/FeedbackWidget';
+import { pageVariants, useNavigationDirection } from '@/lib/pageTransitions';
 
 /**
  * Once a tab has been activated, keep its Outlet mounted permanently.
  * This prevents remounts / state resets on tab switches.
+ * AnimatePresence provides iOS-native horizontal slide transitions within each tab.
  */
-function MountedTab({ tabKey, activeKey }) {
+function MountedTab({ tabKey, activeKey, direction, pathname }) {
   const mountedRef = useRef(false);
+  const outlet = useOutlet();
   if (activeKey === tabKey) mountedRef.current = true;
   if (!mountedRef.current) return null;
-  return <Outlet />;
+  return (
+    <AnimatePresence mode="wait" custom={direction}>
+      <motion.div
+        key={pathname}
+        custom={direction}
+        variants={pageVariants}
+        initial="initial"
+        animate="animate"
+        exit="exit"
+      >
+        {outlet}
+      </motion.div>
+    </AnimatePresence>
+  );
 }
 
 const NAV = [
@@ -34,6 +51,7 @@ export default function Layout() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [liveEventId, setLiveEventId] = useState(null);
   const location = useLocation();
+  const direction = useNavigationDirection();
   const scrollPositions = useRef({});
   const containerRefs = useRef({});
 
@@ -152,13 +170,27 @@ export default function Layout() {
         </Link>
       )}
 
-      {/* Stack-preserved tab containers */}
+      {/* Stack-preserved tab containers with iOS-native page transitions */}
       <div className="relative w-full max-w-lg mx-auto pb-24" style={{ overscrollBehavior: 'none' }}>
-        {currentTab === null && (
-          <div className="overflow-y-auto" style={{ height: '100vh', overscrollBehavior: 'none' }}>
-            <Outlet />
-          </div>
-        )}
+        {/* Null-tab container for non-tab routes (purchase, admin, settings, etc.) */}
+        <div
+          ref={el => containerRefs.current['_null'] = el}
+          className="overflow-y-auto"
+          style={{
+            height: '100vh',
+            overscrollBehavior: 'none',
+            overflowX: 'hidden',
+            visibility: !currentTab ? 'visible' : 'hidden',
+            opacity: !currentTab ? 1 : 0,
+            pointerEvents: !currentTab ? 'auto' : 'none',
+            position: !currentTab ? 'relative' : 'absolute',
+            inset: !currentTab ? 'auto' : 0,
+            transition: !currentTab ? 'opacity 0.18s ease' : 'none',
+            willChange: 'opacity',
+            contain: 'paint layout',
+          }}>
+          <MountedTab tabKey="_null" activeKey={currentTab || '_null'} direction={direction} pathname={location.pathname} />
+        </div>
         {NAV.map(({ key }) => (
           <div
             key={key}
@@ -167,6 +199,7 @@ export default function Layout() {
             style={{
               height: '100vh',
               overscrollBehavior: 'none',
+              overflowX: 'hidden',
               visibility: currentTab === key ? 'visible' : 'hidden',
               opacity: currentTab === key ? 1 : 0,
               pointerEvents: currentTab === key ? 'auto' : 'none',
@@ -176,7 +209,7 @@ export default function Layout() {
               willChange: 'opacity',
               contain: 'paint layout',
             }}>
-            <MountedTab tabKey={key} activeKey={currentTab} />
+            <MountedTab tabKey={key} activeKey={currentTab || '_null'} direction={direction} pathname={location.pathname} />
           </div>
         ))}
       </div>
@@ -193,6 +226,13 @@ export default function Layout() {
                 to={to}
                 aria-label={label}
                 aria-current={active ? 'page' : undefined}
+                onClick={(e) => {
+                  if (active && location.pathname === to) {
+                    e.preventDefault();
+                    const container = containerRefs.current[key];
+                    if (container) container.scrollTo({ top: 0, behavior: 'smooth' });
+                  }
+                }}
                 className="flex-1 flex flex-col items-center justify-center gap-0.5 py-3 relative transition-all active:scale-95"
                 style={{ color: active ? color : 'hsl(var(--muted-foreground))' }}>
                 {active && (
