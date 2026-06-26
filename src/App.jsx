@@ -32,6 +32,7 @@ const EditPersona = lazy(() => import('@/pages/EditPersona'));
 const BetaQA = lazy(() => import('@/pages/BetaQA'));
 const TermsOfService = lazy(() => import('@/pages/TermsOfService'));
 const PrivacyPolicy = lazy(() => import('@/pages/PrivacyPolicy'));
+const CookiePolicy = lazy(() => import('@/pages/CookiePolicy'));
 const InstantListingsGuide = lazy(() => import('@/pages/InstantListingsGuide'));
 const SellerPayoutGuide = lazy(() => import('@/pages/SellerPayoutGuide'));
 const WhyPeanutGallery = lazy(() => import('@/pages/WhyPeanutGallery'));
@@ -75,6 +76,7 @@ const AuthenticatedApp = () => {
           {/* Public routes — accessible without authentication (App Store requirement) */}
           <Route path="/terms" element={<TermsOfService />} />
           <Route path="/privacy" element={<PrivacyPolicy />} />
+          <Route path="/cookies" element={<CookiePolicy />} />
           <Route element={<Layout />}>
             <Route path="/events" element={<Events />} />
             <Route path="/events/:id" element={<EventDetail />} />

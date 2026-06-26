@@ -1,4 +1,4 @@
-import { HelpCircle, FileText, ShieldCheck, Mail, ExternalLink } from 'lucide-react';
+import { HelpCircle, FileText, ShieldCheck, Cookie, Mail, ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 // Icon is used dynamically via destructuring from LINKS array
 
@@ -22,6 +22,7 @@ const EXTERNAL_LINKS = [
 const INTERNAL_LINKS = [
   { icon: FileText, label: 'Terms of Service', desc: 'How Peanut Gallery works', to: '/terms', color: '#FF8C00' },
   { icon: ShieldCheck, label: 'Privacy Policy', desc: 'How we handle your data', to: '/privacy', color: '#00FF87' },
+  { icon: Cookie, label: 'Cookie Policy', desc: 'How we use cookies & storage', to: '/cookies', color: '#00C8FF' },
 ];
 
 export default function SupportLegalSection() {
