@@ -200,7 +200,7 @@ export default function PrivacyPolicy() {
       <div className="sticky top-0 z-20 frosted-bar border-b border-border"
         style={{ paddingTop: 'calc(env(safe-area-inset-top) + 10px)' }}>
         <div className="flex items-center gap-3 px-4 pb-3">
-          <button onClick={() => navigate(-1)}
+          <button onClick={() => window.history.length > 1 ? navigate(-1) : navigate('/')}
             className="w-9 h-9 rounded-xl flex items-center justify-center"
             style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
             <ChevronLeft className="w-5 h-5" />

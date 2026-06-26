@@ -72,6 +72,9 @@ const AuthenticatedApp = () => {
         <Routes>
           {/* Authenticated root → straight to events */}
           <Route path="/" element={<Navigate to="/events" replace />} />
+          {/* Public routes — accessible without authentication (App Store requirement) */}
+          <Route path="/terms" element={<TermsOfService />} />
+          <Route path="/privacy" element={<PrivacyPolicy />} />
           <Route element={<Layout />}>
             <Route path="/events" element={<Events />} />
             <Route path="/events/:id" element={<EventDetail />} />
@@ -90,8 +93,6 @@ const AuthenticatedApp = () => {
             <Route path="/account-settings" element={<AccountSettingsPage />} />
             <Route path="/edit-persona" element={<EditPersona />} />
             <Route path="/beta-qa" element={<BetaQA />} />
-            <Route path="/terms" element={<TermsOfService />} />
-            <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/instant-listings" element={<InstantListingsGuide />} />
             <Route path="/seller-payout-guide" element={<SellerPayoutGuide />} />
             <Route path="/why-peanut-gallery" element={<WhyPeanutGallery />} />
