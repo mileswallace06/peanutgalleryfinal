@@ -27,7 +27,8 @@ export default function FanZone() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [reactingId, setReactingId] = useState(null);
-  const [loadError, setLoadError] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
 
   // FAB state
   const [fab, setFab] = useState(null);
@@ -54,16 +55,18 @@ export default function FanZone() {
       setUser(u);
       if (u?.email) {
         base44.entities.BucketListItem.filter({ user_email: u.email })
-          .then(setBucketList).catch(() => {});
+          .then(setBucketList).catch((err) => console.warn('[FanZone] BucketListItem.filter failed:', err?.message || err));
         base44.entities.Follow.filter({ follower_email: u.email })
           .then(rows => setFollowingEmails(rows.map(r => r.following_email)))
-          .catch(() => {});
+          .catch((err) => console.warn('[FanZone] Follow.filter failed:', err?.message || err));
       }
-    }).catch(() => {});
+    }).catch((err) => {
+      console.warn('[FanZone] auth.me failed:', err?.message || err);
+    }).finally(() => setAuthLoading(false));
     loadPosts();
     base44.entities.Event.list('date', 50)
       .then(data => setEvents(data.filter(e => e.status !== 'ended')))
-      .catch(() => {});
+      .catch((err) => console.warn('[FanZone] Event.list failed:', err?.message || err));
   }, []);
 
   // Request geolocation when Near Me tab is selected
@@ -79,12 +82,22 @@ export default function FanZone() {
 
   const loadPosts = async () => {
     setLoading(true);
-    setLoadError(false);
+    setLoadError(null);
     try {
       const data = await base44.entities.FanPost.list('-created_date', 100);
-      setPosts(data);
-    } catch (_) {
-      setLoadError(true);
+      setPosts(Array.isArray(data) ? data : []);
+    } catch (err) {
+      const detail = {
+        entity: 'FanPost',
+        query: 'list(-created_date, 100)',
+        filter: feedTab,
+        authState: authLoading ? 'resolving' : user ? 'authenticated' : 'unauthenticated',
+        environment: window.location.hostname.includes('base44') ? 'preview' : 'live',
+        message: err?.message || String(err),
+        status: err?.response?.status || err?.status,
+      };
+      console.warn('[FanZone] loadPosts failed:', detail);
+      setLoadError(detail);
     } finally {
       setLoading(false);
     }
@@ -265,7 +278,7 @@ export default function FanZone() {
 
       {/* Feed */}
       <div className="px-4 space-y-3">
-        {loadError ? (
+        {loadError && !authLoading ? (
           <div className="text-center py-16 space-y-3">
             <p className="text-3xl">😵</p>
             <p className="font-bold text-foreground">Couldn't load posts</p>
@@ -278,7 +291,7 @@ export default function FanZone() {
               <RefreshCw className="w-4 h-4" /> Retry
             </button>
           </div>
-        ) : loading ? (
+        ) : (loading || authLoading) ? (
           [...Array(3)].map((_, i) => (
             <div key={i} className="rounded-2xl h-40 animate-pulse bg-muted" />
           ))
@@ -286,16 +299,27 @@ export default function FanZone() {
           <div className="text-center py-24 space-y-3">
             <p className="text-4xl">{feedTab === 'bucket' ? '⭐' : feedTab === 'nearby' ? '📍' : feedTab === 'friends' ? '👥' : '🎤'}</p>
             <p className="font-bold text-foreground">
-              {feedTab === 'bucket' ? 'No posts match your Bucket List' :
+              {feedTab === 'bucket' ? 'No bucket list posts yet' :
                feedTab === 'nearby' ? 'No nearby posts yet' :
-               feedTab === 'friends' ? 'No posts from people you follow' :
+               feedTab === 'friends' ? 'No friend posts yet' :
+               feedTab === 'trending' ? 'No trending posts yet' :
                'No fan posts yet'}
             </p>
             <p className="text-sm text-muted-foreground">
-              {feedTab === 'bucket' ? 'Try adding more artists or venues' :
+              {feedTab === 'bucket' ? 'Try adding more artists or venues to your list' :
+               feedTab === 'nearby' ? 'Allow location access or try another area' :
                feedTab === 'friends' ? 'Follow fans from your profile to see their posts here' :
-               'Be the first to share something — tap the + button to create a post'}
+               'Be the first to share a moment from an event.'}
             </p>
+            {feedTab !== 'friends' && (
+              <button
+                onClick={() => user ? setFab('post') : base44.auth.redirectToLogin()}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-sm"
+                style={{ background: 'rgba(var(--neon-cyan-rgb), 0.08)', border: '1px solid rgba(var(--neon-cyan-rgb), 0.2)', color: 'var(--neon-cyan)' }}
+              >
+                <Plus className="w-4 h-4" /> Create Post
+              </button>
+            )}
           </div>
         ) : (
           filtered.map(post => (
