@@ -24,7 +24,19 @@ This is the operational manual for running Peanut Gallery day-to-day. It tells y
 | Analytics + Mobile + Operations + Support | [05-analytics-mobile-operations-support.md](./docs/runbook/05-analytics-mobile-operations-support.md) | Sales drop, no listings, low inventory, disputes, conversion, cancellation. App won't load, light/dark mode, navigation, notifications, location/camera. Daily/weekly/monthly/launch/live event checklists. Support guidelines |
 | Escalation Matrix + Decision Trees + Emergency Playbook | [06-emergency-playbook.md](./docs/runbook/06-emergency-playbook.md) | Full escalation matrix, decision trees for all major workflows, emergency response for Stripe/TM/DB/OneSignal outages, fraud, viral spikes, venue issues, major bugs |
 
----
+---## Important Warning
+
+Some Peanut Gallery systems appear in the admin panel or database but are not fully operational yet.
+
+Before relying on any workflow, check whether it is marked:
+
+- Live
+- Admin-assisted
+- Demo-only
+- Incomplete
+- Future roadmap
+
+Do not assume a feature is production-ready just because a page, entity field, or admin module exists.
 
 ### Escalation Levels
 
