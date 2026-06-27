@@ -18,7 +18,23 @@ export default function PrivacyPolicy() {
     script.src = 'https://policygenerator.usercentrics.eu/api/privacy-policy';
     document.head.appendChild(script);
 
+    // Poll for Usercentrics content to load, then hide the disclaimer note at the bottom.
+    const interval = setInterval(() => {
+      const container = document.querySelector('.uc-privacy-policy');
+      if (!container || container.children.length === 0) return;
+      // Hide any element whose text contains the disclaimer keywords
+      Array.from(container.children).forEach(child => {
+        const text = child.textContent || '';
+        if (/not legal advice|not ready for deployment|use at your own risk/i.test(text)) {
+          child.style.display = 'none';
+        }
+      });
+      // Stop polling after content has been processed
+      clearInterval(interval);
+    }, 500);
+
     return () => {
+      clearInterval(interval);
       const node = document.getElementById('usercentrics-ppg');
       if (node) node.remove();
     };
@@ -161,6 +177,12 @@ export default function PrivacyPolicy() {
           }
           .uc-privacy-policy > *:last-child {
             margin-bottom: 0;
+          }
+          /* Hide Usercentrics disclaimer notes injected at the bottom */
+          .uc-privacy-policy > *:last-child:has(strong:first-child),
+          .uc-privacy-policy > p:last-child:has(strong),
+          .uc-privacy-policy > div:last-child:has(strong) {
+            display: none !important;
           }
         `}</style>
       </div>
