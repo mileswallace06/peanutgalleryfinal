@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
+import { useAuth } from '@/lib/AuthContext';
 import { Shield, Database, CheckCircle, XCircle, RefreshCw, Lock, AlertTriangle, FileText, CreditCard, FlaskConical } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -15,11 +16,11 @@ import AIVerificationQueue from '@/components/admin/AIVerificationQueue';
 const ADMIN_PASSWORD = 'peanut2026';
 
 export default function AdminMode() {
+  const { user, isLoadingAuth } = useAuth();
   const [unlocked, setUnlocked] = useState(sessionStorage.getItem('pg_admin_unlocked') === '1');
   const [password, setPassword] = useState('');
   const [pwError, setPwError] = useState('');
 
-  const [user, setUser] = useState(null);
   const [stripeMode, setStripeMode] = useState(null);
   const [stripeModeLoading, setStripeModeLoading] = useState(false);
 
@@ -37,21 +38,17 @@ export default function AdminMode() {
   const [actionLoading, setActionLoading] = useState('');
 
   useEffect(() => {
-    if (unlocked) {
-      base44.auth.me({ fresh: true }).then(u => {
-        console.log('[AdminMode] email:', u?.email, '| role:', u?.role, '| isAdmin:', isAdmin(u));
-        setUser(u);
-        if (!isAdmin(u)) {
-          // Non-admin got the password — lock them back out
-          sessionStorage.removeItem('pg_admin_unlocked');
-          setUnlocked(false);
-          setPwError('Your account does not have admin privileges.');
-        }
-      }).catch(() => {});
-      loadData();
-      loadStripeMode();
+    if (!unlocked || isLoadingAuth || !user) return;
+    if (!isAdmin(user)) {
+      // Non-admin got the password — lock them back out
+      sessionStorage.removeItem('pg_admin_unlocked');
+      setUnlocked(false);
+      setPwError('Your account does not have admin privileges.');
+      return;
     }
-  }, [unlocked]);
+    loadData();
+    loadStripeMode();
+  }, [unlocked, isLoadingAuth, user]);
 
   const loadStripeMode = async () => {
     setStripeModeLoading(true);

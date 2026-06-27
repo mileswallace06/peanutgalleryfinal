@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { isAdmin } from '@/lib/isAdmin';
 import { Navigate } from 'react-router-dom';
+import { useAuth } from '@/lib/AuthContext';
 import { format, formatDistanceToNow } from 'date-fns';
 import { Shield, RefreshCw, AlertTriangle, CreditCard, Zap, Users, Activity, Brain, Radio, Database, Bell, ClipboardList, ArrowUpRight } from 'lucide-react';
 import TransferWindowAdminPanel from '@/components/admin/TransferWindowAdminPanel';
@@ -58,8 +59,7 @@ const SECTIONS = [
 ];
 
 export default function AdminCommandCenter() {
-  const [user, setUser] = useState(null);
-  const [authChecked, setAuthChecked] = useState(false);
+  const { user, isLoadingAuth } = useAuth();
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState(null);
   const [activeSection, setActiveSection] = useState('issues');
@@ -70,14 +70,6 @@ export default function AdminCommandCenter() {
   const [events, setEvents] = useState({});
   const [donations, setDonations] = useState([]);
   const [stripeMode, setStripeMode] = useState(null);
-
-  // Auth check
-  useEffect(() => {
-    base44.auth.me({ fresh: true }).then(u => {
-      setUser(u);
-      setAuthChecked(true);
-    }).catch(() => setAuthChecked(true));
-  }, []);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -105,13 +97,13 @@ export default function AdminCommandCenter() {
   }, []);
 
   useEffect(() => {
-    if (authChecked && user && isAdmin(user)) {
+    if (!isLoadingAuth && user && isAdmin(user)) {
       loadAll();
     }
-  }, [authChecked, user]);
+  }, [isLoadingAuth, user]);
 
-  // Not yet checked
-  if (!authChecked) {
+  // Still loading auth
+  if (isLoadingAuth) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -119,7 +111,7 @@ export default function AdminCommandCenter() {
     );
   }
 
-  // Not admin → redirect silently
+  // Not admin → redirect
   if (!user || !isAdmin(user)) {
     return <Navigate to="/events" replace />;
   }

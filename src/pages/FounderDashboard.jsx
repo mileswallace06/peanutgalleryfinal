@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { isAdmin } from '@/lib/isAdmin';
 import { Navigate, Link } from 'react-router-dom';
+import { useAuth } from '@/lib/AuthContext';
 import { formatDistanceToNow } from 'date-fns';
 import { Shield, RefreshCw, AlertTriangle, TrendingUp, Clock, CheckCircle, XCircle, Activity, Zap, Bell } from 'lucide-react';
 import { isVerificationExpired } from '@/lib/transferConfidence';
@@ -37,8 +38,7 @@ function SectionHeader({ title, icon }) {
 }
 
 export default function FounderDashboard() {
-  const [user, setUser] = useState(null);
-  const [authChecked, setAuthChecked] = useState(false);
+  const { user, isLoadingAuth } = useAuth();
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState(null);
 
@@ -47,13 +47,6 @@ export default function FounderDashboard() {
   const [alerts, setAlerts] = useState([]);
   const [donations, setDonations] = useState([]);
   const [outcomes, setOutcomes] = useState([]);
-
-  useEffect(() => {
-    base44.auth.me({ fresh: true }).then(u => {
-      setUser(u);
-      setAuthChecked(true);
-    }).catch(() => setAuthChecked(true));
-  }, []);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -74,10 +67,10 @@ export default function FounderDashboard() {
   }, []);
 
   useEffect(() => {
-    if (authChecked && user && isAdmin(user)) loadAll();
-  }, [authChecked, user]);
+    if (!isLoadingAuth && user && isAdmin(user)) loadAll();
+  }, [isLoadingAuth, user]);
 
-  if (!authChecked) return (
+  if (isLoadingAuth) return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
     </div>
