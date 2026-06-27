@@ -113,14 +113,11 @@ export default function PrivacyPolicy() {
           }
           .uc-privacy-policy table {
             width: 100%;
-            border-collapse: separate;
-            border-spacing: 0;
+            border-collapse: collapse;
             margin: 0 0 1.5em 0;
             font-size: 13px;
-            display: block;
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-            white-space: nowrap;
+            table-layout: fixed;
+            display: table;
           }
           .uc-privacy-policy thead {
             background: hsl(var(--muted)) !important;
@@ -131,31 +128,20 @@ export default function PrivacyPolicy() {
             padding: 10px 14px;
             text-align: left;
             vertical-align: top;
-            white-space: normal;
-            min-width: 120px;
+            white-space: normal !important;
+            word-break: break-word;
+            overflow-wrap: break-word;
           }
           .uc-privacy-policy th {
             color: hsl(var(--foreground)) !important;
             font-weight: 700;
             background: hsl(var(--muted)) !important;
-            position: sticky;
-            top: 0;
-            z-index: 1;
           }
           .uc-privacy-policy td {
-            color: hsl(var(--muted-foreground)) !important;
-          }
-          .uc-privacy-policy tbody tr {
-            border-top: 1px solid hsl(var(--border));
-          }
-          .uc-privacy-policy tbody tr:nth-child(even) {
-            background: hsl(var(--muted) / 0.4);
+            color: hsl(var(--foreground)) !important;
           }
           .uc-privacy-policy tbody tr:nth-child(even) td {
             background: hsl(var(--muted) / 0.4) !important;
-          }
-          .uc-privacy-policy tbody td {
-            color: hsl(var(--foreground)) !important;
           }
           .uc-privacy-policy hr {
             border: none;
