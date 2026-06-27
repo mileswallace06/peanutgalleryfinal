@@ -126,10 +126,7 @@ export default function CookiePolicy() {
           </section>
         ))}
 
-        <div className="px-4 py-3 rounded-2xl text-xs text-muted-foreground"
-          style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
-          ⚠️ This document is a general business/platform draft intended for early-stage operational protection. It is not legal advice. Peanut Gallery should have this policy reviewed by a licensed attorney before large-scale public deployment.
-        </div>
+
       </div>
     </div>
   );
