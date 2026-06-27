@@ -5,6 +5,8 @@ import { Ticket, TrendingUp, Shield, LogIn, Edit2, Tag, Zap, ChevronRight, Camer
 import PeanutPointsCard from '@/components/points/PeanutPointsCard';
 import RecentPointsActivity from '@/components/points/RecentPointsActivity';
 import CommunityImpactCard from '@/components/donations/CommunityImpactCard';
+import { isAdmin } from '@/lib/isAdmin';
+import { useAuth } from '@/lib/AuthContext';
 
 /** Privacy-first email display — hidden by default, reveal on tap */
 function EmailDisplay({ email }) {
@@ -23,8 +25,6 @@ function EmailDisplay({ email }) {
     </button>
   );
 }
-import { isAdmin } from '@/lib/isAdmin';
-import { useAuth } from '@/lib/AuthContext';
 
 export default function Me() {
   const navigate = useNavigate();
@@ -353,7 +353,7 @@ export default function Me() {
               <Ticket className="w-5 h-5 dark:!text-[#00C8FF] dark:drop-shadow-[0_0_8px_rgba(0,200,255,0.8)]" style={{ color: 'var(--neon-cyan)' }} />
             </div>
             <div className="flex-1">
-              <div className="font-bold text-sm" style={{ color: 'var(--neon-cyan)' }} className="dark:!text-[#00FFFF]">My Tickets</div>
+              <div className="font-bold text-sm dark:!text-[#00FFFF]" style={{ color: 'var(--neon-cyan)' }}>My Tickets</div>
               <div className="text-[9px] dark:!text-[#00FFFF]" style={{ color: 'var(--neon-cyan)' }}>View your purchases</div>
             </div>
             <ChevronRight className="w-4 h-4 text-muted-foreground" />
@@ -369,7 +369,7 @@ export default function Me() {
               <TrendingUp className="w-5 h-5 dark:!text-[#BF5FFF] dark:drop-shadow-[0_0_8px_rgba(191,95,255,0.8)]" style={{ color: 'var(--neon-purple)' }} />
             </div>
             <div className="flex-1">
-              <div className="font-bold text-sm" style={{ color: 'var(--neon-purple)' }} className="dark:!text-[#FF00FF]">My Sales</div>
+              <div className="font-bold text-sm dark:!text-[#FF00FF]" style={{ color: 'var(--neon-purple)' }}>My Sales</div>
               <div className="text-[9px] dark:!text-[#FF99FF]" style={{ color: 'var(--neon-purple)' }}>Track your listings</div>
             </div>
             <ChevronRight className="w-4 h-4 text-muted-foreground" />
@@ -385,7 +385,7 @@ export default function Me() {
               <Zap className="w-5 h-5 dark:!text-[#00FF87] dark:drop-shadow-[0_0_8px_rgba(0,255,135,0.8)]" style={{ color: 'var(--neon-green)' }} />
             </div>
             <div className="flex-1">
-              <div className="font-bold text-sm" style={{ color: 'var(--neon-green)' }} className="dark:!text-[#00FF99]">Sell Tickets</div>
+              <div className="font-bold text-sm dark:!text-[#00FF99]" style={{ color: 'var(--neon-green)' }}>Sell Tickets</div>
               <div className="text-[9px] dark:!text-[#00FF99]" style={{ color: 'var(--neon-green)' }}>List seats you want to move</div>
             </div>
             <ChevronRight className="w-4 h-4 text-muted-foreground" />
@@ -422,7 +422,7 @@ export default function Me() {
                 <Shield className="w-5 h-5 dark:!text-[#FFE600] dark:drop-shadow-[0_0_8px_rgba(255,230,0,0.8)]" style={{ color: 'var(--neon-yellow)' }} />
               </div>
               <div className="flex-1">
-                <div className="font-bold text-sm" style={{ color: 'var(--neon-yellow)' }} className="dark:!text-[#FFFF00]">Admin Panel</div>
+                <div className="font-bold text-sm dark:!text-[#FFFF00]" style={{ color: 'var(--neon-yellow)' }}>Admin Panel</div>
                 <div className="text-[9px] dark:!text-[#FFFF99]" style={{ color: 'var(--neon-yellow)' }}>Manage events and listings</div>
               </div>
               <ChevronRight className="w-4 h-4 text-muted-foreground" />
