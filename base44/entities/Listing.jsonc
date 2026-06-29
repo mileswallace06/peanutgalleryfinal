@@ -85,7 +85,7 @@
         "pending_payout_setup"
       ],
       "default": "active",
-      "description": "pending_payout_setup = draft saved before seller completed Stripe Connect onboarding. Never shown to buyers."
+      "description": "pending_payout_setup = draft saved before seller completed Stripe Connect onboarding."
     },
     "hidden_reason": {
       "type": "string",
@@ -105,6 +105,63 @@
         "instant"
       ],
       "default": "standard"
+    },
+    "listing_transfer_mode": {
+      "type": "string",
+      "enum": [
+        "standard",
+        "instant_transfer_ready"
+      ],
+      "default": "standard",
+      "description": "standard = seller transfers after sale. instant_transfer_ready = seller has authorized PG as limited transfer agent and submitted ticket for delivery custody."
+    },
+    "seller_ownership_confirmed": {
+      "type": "boolean",
+      "default": false,
+      "description": "Seller confirmed they own or control this ticket at time of listing."
+    },
+    "limited_transfer_authorization": {
+      "type": "boolean",
+      "default": false,
+      "description": "Seller authorized PG to act as limited transfer agent solely for buyer delivery."
+    },
+    "ticket_custody_status": {
+      "type": "string",
+      "enum": [
+        "not_received",
+        "pending",
+        "received",
+        "delivered_to_buyer",
+        "returned_to_seller",
+        "failed",
+        "expired"
+      ],
+      "default": "not_received",
+      "description": "Tracks the state of the ticket through PG's temporary delivery custody."
+    },
+    "custody_received_at": {
+      "type": "string",
+      "description": "ISO timestamp when PG confirmed receipt of the ticket transfer."
+    },
+    "buyer_delivered_at": {
+      "type": "string",
+      "description": "ISO timestamp when ticket was transferred to buyer."
+    },
+    "returned_to_seller_at": {
+      "type": "string",
+      "description": "ISO timestamp when ticket was returned or released to seller."
+    },
+    "transfer_failure_reason": {
+      "type": "string",
+      "description": "Human-readable reason if delivery to buyer failed."
+    },
+    "seller_release_deadline": {
+      "type": "string",
+      "description": "ISO timestamp by which seller must submit ticket for ITR custody."
+    },
+    "event_start_time": {
+      "type": "string",
+      "description": "Cached ISO timestamp of event start \u2014 used to enforce ITR expiry logic."
     },
     "custody_status": {
       "type": "string",
@@ -184,16 +241,14 @@
       ]
     },
     "verification_warning_sent_at": {
-      "type": "string",
-      "description": "When the 45-min expiration warning was sent"
+      "type": "string"
     },
     "verification_expired_sent_at": {
-      "type": "string",
-      "description": "When the expiration notification was sent"
+      "type": "string"
     },
     "seat_inventory_id": {
       "type": "string",
-      "description": "FK to SeatInventory \u2014 canonical ownership record for this seat"
+      "description": "FK to SeatInventory"
     },
     "listing_type": {
       "type": "string",
@@ -203,8 +258,7 @@
         "live_upgrade",
         "venue_upgrade"
       ],
-      "default": "resale_ticket",
-      "description": "What kind of listing this is. resale_ticket/venue_ticket = admission. live_upgrade/venue_upgrade = seat upgrade (requires existing admission). Old records without listing_type safely default to resale_ticket."
+      "default": "resale_ticket"
     },
     "inventory_source": {
       "type": "string",
@@ -216,18 +270,15 @@
         "pg_demo",
         "other"
       ],
-      "default": "fan",
-      "description": "Where the inventory originates. pg_demo = admin-created demo listings."
+      "default": "fan"
     },
     "requires_existing_ticket": {
       "type": "boolean",
-      "default": false,
-      "description": "True if the buyer must already have a ticket to this event to purchase (e.g. upgrades)"
+      "default": false
     },
     "requires_location": {
       "type": "boolean",
-      "default": false,
-      "description": "True if purchase requires buyer to be at or near the venue"
+      "default": false
     },
     "location_requirement": {
       "type": "string",
@@ -237,25 +288,20 @@
         "inside_venue",
         "city_only"
       ],
-      "default": "none",
-      "description": "How strict the location gate is for this listing"
+      "default": "none"
     },
     "upgrade_window_opens_at": {
-      "type": "string",
-      "description": "ISO timestamp \u2014 when this listing becomes purchasable"
+      "type": "string"
     },
     "upgrade_window_closes_at": {
-      "type": "string",
-      "description": "ISO timestamp \u2014 when this listing stops being purchasable"
+      "type": "string"
     },
     "upgrade_instructions": {
-      "type": "string",
-      "description": "Free-text instructions shown to buyer after purchase"
+      "type": "string"
     },
     "is_demo_listing": {
       "type": "boolean",
-      "default": false,
-      "description": "True for demo/test listings created by admin."
+      "default": false
     }
   },
   "required": [

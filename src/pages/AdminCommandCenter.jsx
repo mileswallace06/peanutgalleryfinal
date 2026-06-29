@@ -20,6 +20,7 @@ import PendingReviewQueue from '@/components/admin/PendingReviewQueue';
 import FeeSimulatorV2 from '@/components/admin/FeeSimulatorV2';
 import PricingStrategyAnalyzer from '@/components/admin/PricingStrategyAnalyzer';
 import LiveUpgradeControlPanel from '@/components/admin/cc/LiveUpgradeControlPanel';
+import InstantTransferReadyPanel from '@/components/admin/InstantTransferReadyPanel';
 
 function FeeSimulatorTabs() {
   const [feeTab, setFeeTab] = useState('simulator');
@@ -56,6 +57,7 @@ const SECTIONS = [
   { id: 'fee_simulator', label: 'Fee Simulator',          icon: CreditCard },
   { id: 'flash_drops',   label: 'Flash Drops',            icon: Zap },
   { id: 'live_upgrades', label: 'Live Upgrades',          icon: Zap },
+  { id: 'itr',           label: 'Instant Transfer Ready', icon: Shield },
 ];
 
 export default function AdminCommandCenter() {
@@ -232,6 +234,9 @@ export default function AdminCommandCenter() {
         )}
         {activeSection === 'live_upgrades' && (
           <LiveUpgradeControlPanel />
+        )}
+        {activeSection === 'itr' && (
+          <InstantTransferReadyPanel />
         )}
       </div>
     </div>

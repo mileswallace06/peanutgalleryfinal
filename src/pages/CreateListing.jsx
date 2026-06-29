@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { useSearchParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, CheckCircle, Upload, Zap, Search, Star } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle, Upload, Zap, Search, Star, Shield } from 'lucide-react';
+import InstantTransferAgreement from '@/components/listings/InstantTransferAgreement';
 import LocationAutocomplete from '@/components/LocationAutocomplete';
 import { getEventLiveStatus } from '@/lib/eventTiming';
 import { fetchTMEvents } from '@/lib/tmCache';
@@ -95,7 +96,8 @@ export default function CreateListing() {
   const [attestationDone, setAttestationDone] = useState(false);
   const [attestationData, setAttestationData] = useState(null);
   const [attestationBlocked, setAttestationBlocked] = useState(false);
-  const [listingMode, setListingMode] = useState('standard'); // 'standard' | 'instant'
+  const [listingMode, setListingMode] = useState('standard'); // 'standard' | 'instant_transfer_ready'
+  const [itrAgreementDone, setItrAgreementDone] = useState(false);
   const [pgTransferProofUrl, setPgTransferProofUrl] = useState('');
   const [pgTransferNotes, setPgTransferNotes] = useState('');
   const [uploadingPgProof, setUploadingPgProof] = useState(false);
@@ -254,9 +256,8 @@ export default function CreateListing() {
       return;
     }
 
-    if (listingMode === 'instant') {
-      // Instant listing: create directly with pending_pg_verification status
-      const listing = await base44.entities.Listing.create({
+    if (listingMode === 'instant_transfer_ready') {
+      await base44.entities.Listing.create({
         event_id: form.event_id,
         seller_email: user?.email,
         section: form.section,
@@ -269,6 +270,10 @@ export default function CreateListing() {
         transfer_method: form.transfer_method,
         proof_url: form.proof_url || undefined,
         listing_mode: 'instant',
+        listing_transfer_mode: 'instant_transfer_ready',
+        seller_ownership_confirmed: true,
+        limited_transfer_authorization: true,
+        ticket_custody_status: 'pending',
         custody_status: 'pending_pg_verification',
         status: 'pending_verification',
         proof_status: 'pending_review',
@@ -405,16 +410,16 @@ export default function CreateListing() {
           <CheckCircle className="w-10 h-10" style={{ color: '#00FF87' }} />
         </div>
         <h1 className="font-display text-4xl mb-2 dark:[filter:none] [filter:brightness(0.45)_saturate(1.5)]" style={{ background: 'linear-gradient(135deg, #00FF87, #00C8FF)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
-          {listingMode === 'instant' ? 'Pending Custody Verification' : flagged ? 'Pending Verification' : 'Listing Live'}
+          {listingMode === 'instant_transfer_ready' ? 'Pending Custody Verification' : flagged ? 'Pending Verification' : 'Listing Live'}
         </h1>
         <p className="text-muted-foreground text-sm mb-1 mt-2">
-          {listingMode === 'instant'
-            ? 'We received your transfer submission. Once our team verifies custody, your listing will go live with the Instant Transfer badge.'
+          {listingMode === 'instant_transfer_ready'
+            ? 'We received your transfer submission. Once our team confirms custody, your listing will go live with the Instant Transfer Ready badge.'
             : flagged ? 'Your listing is being reviewed and will go live shortly.'
             : 'Your listing is now live and visible to buyers.'}
         </p>
         <p className="text-xs mb-8 dark:opacity-70" style={{ color: listingMode === 'instant' ? '#006080' : flagged ? '#a07000' : '#007a3d' }}>
-          {listingMode === 'instant' ? 'Usually verified within hours.' : flagged ? 'Usually approved within minutes.' : 'Buyers can see it right now ⚡'}
+          {listingMode === 'instant_transfer_ready' ? 'Usually verified within hours.' : flagged ? 'Usually approved within minutes.' : 'Buyers can see it right now ⚡'}
         </p>
         <div className="flex flex-col gap-3">
           <Link
@@ -430,7 +435,7 @@ export default function CreateListing() {
               setForm({ event_id: '', section: '', row: '', seats: '', quantity: '1', tier: '', asking_price: '', original_price: '', transfer_method: 'email_transfer', proof_url: '' });
               setSelectedTmEvent(null); setTmResults([]); setTmQuery(''); setTmSearched(false); setSelectingTmId(null);
               setAttestationDone(false); setAttestationData(null); setAttestationBlocked(false);
-              setListingMode('standard'); setPgTransferProofUrl(''); setPgTransferNotes('');
+              setListingMode('standard'); setItrAgreementDone(false); setPgTransferProofUrl(''); setPgTransferNotes('');
             }}
             className="inline-flex items-center justify-center gap-2 py-3 rounded-full font-semibold text-sm"
             style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--muted-foreground))' }}
@@ -450,7 +455,7 @@ export default function CreateListing() {
   const minPrice = MIN_LISTING_PRICE_CONFIG.enabled ? MIN_LISTING_PRICE_CONFIG.threshold : 0;
   const priceTooLow = MIN_LISTING_PRICE_CONFIG.enabled && priceVal > 0 && priceVal < minPrice;
   const canSubmit = !!form.asking_price && priceVal >= (minPrice || 1)
-    && (listingMode === 'standard' || pgTransferProofUrl || pgTransferNotes.trim());
+    && (listingMode === 'standard' || (itrAgreementDone && (pgTransferProofUrl || pgTransferNotes.trim())));
 
   // Fee preview for step 2
   const feePreview = priceVal > 0 ? formatFeeBreakdown(priceVal, parseInt(form.quantity) || 1) : null;
@@ -788,7 +793,7 @@ export default function CreateListing() {
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
-                onClick={() => setListingMode('standard')}
+                onClick={() => { setListingMode('standard'); setItrAgreementDone(false); }}
                 className="p-4 rounded-2xl text-left transition-all"
                 style={{
                   background: listingMode === 'standard' ? 'rgba(191,95,255,0.08)' : 'hsl(var(--card))',
@@ -796,35 +801,51 @@ export default function CreateListing() {
                 }}
               >
                 <div className="font-bold text-sm text-foreground mb-1">📋 Standard</div>
-                <div className="text-[11px] text-muted-foreground leading-relaxed">You transfer to buyer after sale. You must be available.</div>
+                <div className="text-[11px] text-muted-foreground leading-relaxed">You transfer to the buyer after sale. You must be available when the ticket sells.</div>
               </button>
               <button
                 type="button"
-                onClick={() => setListingMode('instant')}
+                onClick={() => { setListingMode('instant_transfer_ready'); setItrAgreementDone(false); }}
                 className="p-4 rounded-2xl text-left transition-all"
                 style={{
-                  background: listingMode === 'instant' ? 'rgba(0,200,255,0.08)' : 'hsl(var(--card))',
-                  border: listingMode === 'instant' ? '1px solid rgba(0,200,255,0.35)' : '1px solid hsl(var(--border))',
+                  background: listingMode === 'instant_transfer_ready' ? 'rgba(0,200,255,0.08)' : 'hsl(var(--card))',
+                  border: listingMode === 'instant_transfer_ready' ? '1px solid rgba(0,200,255,0.35)' : '1px solid hsl(var(--border))',
                 }}
               >
-                <div className="font-bold text-sm flex items-center gap-1.5" style={{ color: listingMode === 'instant' ? '#00C8FF' : 'hsl(var(--foreground))' }}>
-                  ⚡ Instant Transfer
+                <div className="font-bold text-sm flex items-center gap-1.5" style={{ color: listingMode === 'instant_transfer_ready' ? '#00C8FF' : 'hsl(var(--foreground))' }}>
+                  <Shield className="w-3.5 h-3.5" /> Instant Transfer Ready
                 </div>
-                <div className="text-[11px] text-muted-foreground leading-relaxed mt-1">Transfer ticket to PG now. Buyers get it instantly. You don't need to be online.</div>
+                <div className="text-[11px] text-muted-foreground leading-relaxed mt-1">Authorize PG as your delivery agent. Buyers receive tickets immediately — you don't need to be online.</div>
               </button>
             </div>
           </div>
 
-          {/* Instant mode explainer + proof */}
-          {listingMode === 'instant' && (
+          {/* ITR mode: agreement gate, then proof upload */}
+          {listingMode === 'instant_transfer_ready' && !itrAgreementDone && (
+            <InstantTransferAgreement onConfirmed={() => setItrAgreementDone(true)} />
+          )}
+
+          {listingMode === 'instant_transfer_ready' && itrAgreementDone && (
             <div className="rounded-2xl p-4 space-y-4"
               style={{ background: 'rgba(0,200,255,0.06)', border: '1px solid rgba(0,200,255,0.25)' }}>
-              <div className="text-sm font-semibold" style={{ color: '#00C8FF' }}>How Instant Transfer works</div>
-              <div className="space-y-2 text-xs text-muted-foreground">
-                <div className="flex items-start gap-2"><span style={{ color: '#00C8FF' }}>1.</span><span>Transfer your ticket to <strong style={{ color: 'hsl(var(--foreground))' }}>experience@peanutgallery.store</strong> now via Ticketmaster, SeatGeek, or email.</span></div>
-                <div className="flex items-start gap-2"><span style={{ color: '#00C8FF' }}>2.</span><span>Upload proof of transfer below. Our team verifies custody (usually within hours).</span></div>
-                <div className="flex items-start gap-2"><span style={{ color: '#00C8FF' }}>3.</span><span>Once verified, your listing goes live with the <strong style={{ color: '#00C8FF' }}>⚡ Instant Transfer</strong> badge. Buyers receive tickets via PG-managed transfer.</span></div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 flex-shrink-0" style={{ color: '#00C8FF' }} />
+                <span className="text-sm font-bold" style={{ color: '#00C8FF' }}>Transfer Agent Agreement Signed</span>
+                <button type="button" onClick={() => setItrAgreementDone(false)}
+                  className="ml-auto text-[11px] text-muted-foreground underline">Review</button>
               </div>
+
+              <div className="space-y-2 text-xs text-muted-foreground">
+                <p className="font-semibold text-foreground">Next: Submit your ticket for delivery custody</p>
+                <div className="flex items-start gap-2"><span style={{ color: '#00C8FF' }}>1.</span><span>Transfer your ticket to <strong className="text-foreground">experience@peanutgallery.store</strong> via Ticketmaster, SeatGeek, or email transfer.</span></div>
+                <div className="flex items-start gap-2"><span style={{ color: '#00C8FF' }}>2.</span><span>Upload proof below. Our team verifies receipt (usually within hours).</span></div>
+                <div className="flex items-start gap-2"><span style={{ color: '#00C8FF' }}>3.</span><span>Once confirmed, your listing goes live with the <strong style={{ color: '#00C8FF' }}>⚡ Instant Transfer Ready</strong> badge. If it doesn't sell, we return the ticket to you.</span></div>
+              </div>
+
+              <p className="text-[10px] text-muted-foreground px-1 leading-relaxed"
+                style={{ borderLeft: '2px solid rgba(0,200,255,0.3)', paddingLeft: '8px' }}>
+                Peanut Gallery does not own your ticket. We hold it temporarily as your authorized delivery agent only.
+              </p>
 
               {/* PG transfer proof upload */}
               <div>
@@ -850,7 +871,6 @@ export default function CreateListing() {
                 )}
               </div>
 
-              {/* Transfer notes */}
               <div>
                 <label className="block text-xs text-muted-foreground mb-1.5 font-semibold">
                   Transfer notes <span className="opacity-50 font-normal">(optional if screenshot provided)</span>

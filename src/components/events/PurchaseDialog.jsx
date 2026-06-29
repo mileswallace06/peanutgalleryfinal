@@ -222,12 +222,23 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
         />
       )}
 
-      {/* Instant transfer notice */}
-      {listing.listing_mode === 'instant' && listing.custody_status === 'verified' && (
-        <div className="flex items-start gap-3 rounded-2xl p-3" style={{ background: 'rgba(0,200,255,0.08)', border: '1px solid rgba(0,200,255,0.3)' }}>
-          <span className="text-lg flex-shrink-0">⚡</span>
-          <div className="text-xs" style={{ color: 'rgba(200,240,255,0.9)' }}>
-            <strong style={{ color: '#00C8FF' }}>Instant Transfer:</strong> Peanut Gallery already has this ticket ready. After purchase, we'll transfer it to you directly — no waiting on the seller.
+      {/* Instant Transfer Ready notice */}
+      {listing.listing_transfer_mode === 'instant_transfer_ready' && (
+        <div className="rounded-2xl p-3 space-y-2" style={{ background: 'rgba(0,200,255,0.08)', border: '1px solid rgba(0,200,255,0.3)' }}>
+          <div className="flex items-start gap-3">
+            <span className="text-lg flex-shrink-0">⚡</span>
+            <div className="text-xs" style={{ color: 'rgba(200,240,255,0.9)' }}>
+              <strong style={{ color: '#00C8FF' }}>Instant Transfer Ready</strong>
+              <p className="mt-0.5 leading-relaxed">
+                The seller has authorized Peanut Gallery as their delivery agent. After your payment is confirmed, Peanut Gallery will transfer the ticket to you — expected immediately, but not guaranteed if transfer verification fails.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-start gap-2 pt-2" style={{ borderTop: '1px solid rgba(0,200,255,0.15)' }}>
+            <Shield className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" style={{ color: '#00FF87' }} />
+            <p className="text-[11px] leading-relaxed" style={{ color: 'rgba(200,255,230,0.8)' }}>
+              If delivery fails for any reason, you'll be automatically refunded. Peanut Gallery holds the ticket as the seller's limited delivery agent — it does not own this ticket.
+            </p>
           </div>
         </div>
       )}
