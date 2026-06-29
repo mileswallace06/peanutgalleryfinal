@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { MapPin, Calendar, ChevronRight, LocateFixed, RefreshCw, ShieldCheck, Search } from 'lucide-react';
+import { MapPin, Calendar, ChevronRight, LocateFixed, RefreshCw, ShieldCheck, Search, ArrowUpDown } from 'lucide-react';
 import { getEventLiveStatus } from '@/lib/eventTiming';
 import { getEventUrl } from '@/lib/eventUrl';
 import { logNavEvent } from '@/lib/navLogger';
@@ -36,6 +36,10 @@ export default function Events() {
   const [tmError, setTmError] = useState(false);
   const [networkError, setNetworkError] = useState(false);
   const [keyword, setKeyword] = useState('');
+  // Sort: 'soonest' = upcoming soonest (default), 'latest' = latest upcoming
+  // showPast: when false (default) hides past events; when true shows everything
+  const [sortMode, setSortMode] = useState('soonest');
+  const [showPast, setShowPast] = useState(false);
   // Track which TM IDs we've already synced this session to avoid duplicate calls
   const syncedTmIds = useRef(new Set());
 
@@ -161,7 +165,41 @@ export default function Events() {
     requestLocation();
   };
 
-  const filtered = events;
+  // Date-aware sorting & filtering of events.
+  // Marketplaces prioritizes future, purchasable events.
+  const getEventDate = (e) => {
+    // Prefer canonical UTC start time, fall back to legacy date field
+    const d = e.event_start_utc || e.date;
+    return d ? new Date(d).getTime() : null;
+  };
+
+  const filtered = (() => {
+    const now = Date.now();
+    let list = [...events];
+
+    // Default: hide past events (users buy tickets for upcoming shows)
+    // Toggle exposes past events for browsing
+    if (!showPast) {
+      list = list.filter(e => {
+        const t = getEventDate(e);
+        // Keep events with no parseable date (don't accidentally hide unknowns)
+        return t === null || t >= now;
+      });
+    }
+
+    list.sort((a, b) => {
+      const ta = getEventDate(a);
+      const tb = getEventDate(b);
+      // Events without dates sink to the bottom regardless of mode
+      if (ta === null && tb === null) return 0;
+      if (ta === null) return 1;
+      if (tb === null) return -1;
+      // 'soonest' = ascending (nearest future first); 'latest' = descending
+      return sortMode === 'latest' ? tb - ta : ta - tb;
+    });
+
+    return list;
+  })();
 
   const { containerRef, pulling } = usePullToRefresh(() => {
     const ll = latlongRef.current || null;
@@ -294,6 +332,32 @@ export default function Events() {
             />
           </div>
         </form>
+      </div>
+
+      {/* ── Sort by Date ── */}
+      <div className="px-4 mb-4 flex items-center gap-2">
+        <ArrowUpDown className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+        <div className="flex gap-1.5 flex-1">
+          {[
+            { id: 'soonest', label: 'Upcoming Soonest' },
+            { id: 'latest', label: 'Latest Upcoming' },
+          ].map(opt => (
+            <button key={opt.id} onClick={() => setSortMode(opt.id)}
+              className="px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-all"
+              style={sortMode === opt.id
+                ? { background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }
+                : { background: 'hsl(var(--card))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }}>
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        <button onClick={() => setShowPast(v => !v)}
+          className="px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-all"
+          style={showPast
+            ? { background: 'rgba(var(--neon-yellow-rgb),0.12)', color: 'var(--neon-yellow)', border: '1px solid rgba(var(--neon-yellow-rgb),0.3)' }
+            : { background: 'hsl(var(--card))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }}>
+          Past Events
+        </button>
       </div>
 
       {/* ── Rate limit / network error ── */}

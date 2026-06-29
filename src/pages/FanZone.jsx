@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Link, useLocation } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { formatDistanceToNow } from 'date-fns';
-import { Plus, X, ImagePlus, Star, MapPin, Users, TrendingUp, Search, ChevronDown, RefreshCw } from 'lucide-react';
+import { Plus, X, ImagePlus, Star, MapPin, Users, TrendingUp, Search, ChevronDown, RefreshCw, ArrowUpDown, Clock, Calendar } from 'lucide-react';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import SeatFlexSheet from '@/components/fanzone/SeatFlexSheet';
 import BucketListSheet from '@/components/fanzone/BucketListSheet';
@@ -45,6 +45,11 @@ export default function FanZone() {
 
   // Filter state
   const [feedTab, setFeedTab] = useState('trending'); // 'trending' | 'bucket' | 'nearby' | 'friends'
+  // Date sort/filter — Fan Zone supports both upcoming activity AND retrospective posts
+  // dateSort: 'upcoming' | 'newest_posted' | 'oldest_event' | 'past'
+  // dateFilter: 'all' | 'upcoming' | 'past' | 'recent'
+  const [dateSort, setDateSort] = useState('upcoming');
+  const [dateFilter, setDateFilter] = useState('all');
   const [bucketList, setBucketList] = useState([]);
   const [showBucketList, setShowBucketList] = useState(false);
   const [userLocation, setUserLocation] = useState(null);
@@ -64,8 +69,10 @@ export default function FanZone() {
       console.warn('[FanZone] auth.me failed:', err?.message || err);
     }).finally(() => setAuthLoading(false));
     loadPosts();
-    base44.entities.Event.list('date', 50)
-      .then(data => setEvents(data.filter(e => e.status !== 'ended')))
+    // Load ALL events (including past) so retrospective posts can link to them.
+    // Fan Zone is conversation, not just upcoming purchases.
+    base44.entities.Event.list('date', 100)
+      .then(data => setEvents(Array.isArray(data) ? data : []))
       .catch((err) => console.warn('[FanZone] Event.list failed:', err?.message || err));
   }, []);
 
@@ -159,43 +166,113 @@ export default function FanZone() {
     return { ...p, _score: score };
   });
 
+  // Feed tabs now act as CONTENT FILTERS only (what pool of posts).
+  // Date sort/filter is applied uniformly afterward so browsing is chronological.
   const filtered = (() => {
+    let base;
     if (feedTab === 'trending') {
-      return [...withScore].sort((a, b) => b._score - a._score);
-    }
-    if (feedTab === 'bucket') {
-      if (bucketNames.length === 0) return posts;
-      return posts.filter(p => {
+      // Trending: pre-sort by reaction score as base, then date sort overrides ordering
+      base = [...withScore].sort((a, b) => b._score - a._score);
+    } else if (feedTab === 'bucket') {
+      base = bucketNames.length === 0 ? posts : posts.filter(p => {
         const haystack = [p.event_title, p.text].join(' ').toLowerCase();
         return bucketNames.some(name => haystack.includes(name));
       });
+    } else if (feedTab === 'nearby') {
+      if (!userLocation) {
+        base = posts.filter(p => !!p.event_city);
+      } else {
+        const RADIUS_KM = 80;
+        const deg2rad = d => d * Math.PI / 180;
+        const haversine = (lat1, lng1, lat2, lng2) => {
+          const R = 6371;
+          const dLat = deg2rad(lat2 - lat1);
+          const dLng = deg2rad(lng2 - lng1);
+          const a = Math.sin(dLat/2)**2 + Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.sin(dLng/2)**2;
+          return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        };
+        const nearbyEventIds = new Set(
+          events
+            .filter(e => e.venue_lat && e.venue_lng && haversine(userLocation.lat, userLocation.lng, e.venue_lat, e.venue_lng) <= RADIUS_KM)
+            .map(e => e.id)
+        );
+        const nearbyCities = new Set(events.filter(e => nearbyEventIds.has(e.id)).map(e => e.city).filter(Boolean));
+        base = posts.filter(p => nearbyEventIds.has(p.event_id) || (p.event_city && nearbyCities.has(p.event_city)));
+      }
+    } else if (feedTab === 'friends') {
+      base = (!user || followingEmails.length === 0) ? [] : posts.filter(p => followingEmails.includes(p.author_email));
+    } else {
+      base = posts;
     }
-    if (feedTab === 'nearby') {
-      if (!userLocation) return posts.filter(p => !!p.event_city);
-      // Find events within ~80km of user using event venue lat/lng
-      const RADIUS_KM = 80;
-      const deg2rad = d => d * Math.PI / 180;
-      const haversine = (lat1, lng1, lat2, lng2) => {
-        const R = 6371;
-        const dLat = deg2rad(lat2 - lat1);
-        const dLng = deg2rad(lng2 - lng1);
-        const a = Math.sin(dLat/2)**2 + Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.sin(dLng/2)**2;
-        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-      };
-      const nearbyEventIds = new Set(
-        events
-          .filter(e => e.venue_lat && e.venue_lng && haversine(userLocation.lat, userLocation.lng, e.venue_lat, e.venue_lng) <= RADIUS_KM)
-          .map(e => e.id)
-      );
-      // Also match by city name if events don't have lat/lng
-      const nearbyCities = new Set(events.filter(e => nearbyEventIds.has(e.id)).map(e => e.city).filter(Boolean));
-      return posts.filter(p => nearbyEventIds.has(p.event_id) || (p.event_city && nearbyCities.has(p.event_city)));
+    // ── Date filter (applies regardless of feed tab) ──
+    // eventDateTime = when the tagged event happens/happened (looked up from Event entity)
+    // createdAt = when the post was made
+    const getEventDateForPost = (p) => {
+      if (!p.event_id) return null;
+      const ev = events.find(e => e.id === p.event_id);
+      if (!ev) return null;
+      const d = ev.event_start_utc || ev.date;
+      return d ? new Date(d).getTime() : null;
+    };
+    const getPostDate = (p) => p.created_date ? new Date(p.created_date).getTime() : null;
+
+    const now = Date.now();
+    const ONE_DAY = 24 * 60 * 60 * 1000;
+
+    if (dateFilter === 'upcoming') {
+      base = base.filter(p => {
+        const t = getEventDateForPost(p);
+        return t !== null && t >= now;
+      });
+    } else if (dateFilter === 'past') {
+      base = base.filter(p => {
+        const t = getEventDateForPost(p);
+        return t !== null && t < now;
+      });
+    } else if (dateFilter === 'recent') {
+      base = base.filter(p => {
+        const t = getPostDate(p);
+        return t !== null && (now - t) <= ONE_DAY;
+      });
     }
-    if (feedTab === 'friends') {
-      if (!user || followingEmails.length === 0) return [];
-      return posts.filter(p => followingEmails.includes(p.author_email));
+    // dateFilter === 'all' → no filtering
+
+    // ── Date sort ──
+    if (dateSort === 'upcoming') {
+      base.sort((a, b) => {
+        const ta = getEventDateForPost(a), tb = getEventDateForPost(b);
+        if (ta === null && tb === null) return 0;
+        if (ta === null) return 1;
+        if (tb === null) return -1;
+        return ta - tb; // soonest first
+      });
+    } else if (dateSort === 'newest_posted') {
+      base.sort((a, b) => {
+        const ta = getPostDate(a), tb = getPostDate(b);
+        if (ta === null && tb === null) return 0;
+        if (ta === null) return 1;
+        if (tb === null) return -1;
+        return tb - ta; // newest post first
+      });
+    } else if (dateSort === 'oldest_event') {
+      base.sort((a, b) => {
+        const ta = getEventDateForPost(a), tb = getEventDateForPost(b);
+        if (ta === null && tb === null) return 0;
+        if (ta === null) return 1;
+        if (tb === null) return -1;
+        return ta - tb; // oldest event date first
+      });
+    } else if (dateSort === 'past') {
+      base.sort((a, b) => {
+        const ta = getEventDateForPost(a), tb = getEventDateForPost(b);
+        if (ta === null && tb === null) return 0;
+        if (ta === null) return 1;
+        if (tb === null) return -1;
+        return tb - ta; // most recent past event first (retrospective)
+      });
     }
-    return posts;
+
+    return base;
   })();
 
   const { containerRef, innerRef, pulling } = usePullToRefresh(() => {
@@ -274,6 +351,45 @@ export default function FanZone() {
         {feedTab === 'friends' && followingEmails.length === 0 && (
           <p className="text-xs text-muted-foreground px-1">Follow people from your <Link to="/me" className="underline" style={{ color: 'var(--neon-purple)' }}>profile</Link> to see their posts here.</p>
         )}
+      </div>
+
+      {/* ── Date Sort & Filter controls ── */}
+      <div className="px-4 mb-4 space-y-2">
+        {/* Filter chips: what time range of events to show */}
+        <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+          {[
+            { id: 'all', label: '📋 All' },
+            { id: 'upcoming', label: '🗓 Upcoming' },
+            { id: 'past', label: '🏟 Past Events' },
+            { id: 'recent', label: '⚡ Recently Posted' },
+          ].map(opt => (
+            <button key={opt.id} onClick={() => setDateFilter(opt.id)}
+              className="px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap flex-shrink-0 transition-all"
+              style={dateFilter === opt.id
+                ? { background: 'rgba(var(--neon-cyan-rgb), 0.15)', color: 'var(--neon-cyan)', border: '1px solid rgba(var(--neon-cyan-rgb), 0.35)' }
+                : { background: 'hsl(var(--card))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }}>
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        {/* Sort: how to order the results */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+          <ArrowUpDown className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+          {[
+            { id: 'upcoming', label: 'Upcoming Soonest' },
+            { id: 'newest_posted', label: 'Newest Posted' },
+            { id: 'past', label: 'Most Recent Past' },
+            { id: 'oldest_event', label: 'Oldest Event' },
+          ].map(opt => (
+            <button key={opt.id} onClick={() => setDateSort(opt.id)}
+              className="px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap flex-shrink-0 transition-all"
+              style={dateSort === opt.id
+                ? { background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }
+                : { background: 'hsl(var(--card))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }}>
+              {opt.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Feed */}
