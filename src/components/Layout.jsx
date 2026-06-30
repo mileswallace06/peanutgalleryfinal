@@ -66,24 +66,36 @@ export default function Layout() {
 
   const currentTab = getCurrentTab();
 
-  // Save scroll on every pathname change
+  // Save scroll whenever the route changes — covers both tab switches AND
+  // intra-tab navigation (Events list → EventDetail → back).
+  const prevPathRef = useRef(location.pathname);
   const prevTabRef = useRef(currentTab);
   useEffect(() => {
+    const prevPath = prevPathRef.current;
     const prevTab = prevTabRef.current;
-    if (prevTab && prevTab !== currentTab) {
+    // Save the outgoing tab's scroll position before switching
+    if (prevTab) {
       const prev = containerRefs.current[prevTab];
       if (prev) scrollPositions.current[prevTab] = prev.scrollTop;
     }
+    prevPathRef.current = location.pathname;
     prevTabRef.current = currentTab;
-  }, [currentTab]);
+  }, [location.pathname, currentTab]);
 
-  // Restore scroll position
+  // Restore scroll position — double-rAF ensures the container has repainted
+  // after visibility:visible is applied before we set scrollTop.
   useEffect(() => {
     if (!currentTab) return;
     const container = containerRefs.current[currentTab];
     if (!container) return;
-    const saved = scrollPositions.current[currentTab];
-    requestAnimationFrame(() => { container.scrollTop = saved || 0; });
+    const saved = scrollPositions.current[currentTab] || 0;
+    // Only restore if navigating back to the same root tab path
+    // (not when drilling into a sub-route within the tab)
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        container.scrollTop = saved;
+      });
+    });
   }, [currentTab]);
 
   // UX-5: Sync onboarding state
@@ -189,8 +201,6 @@ export default function Layout() {
             position: !currentTab ? 'relative' : 'absolute',
             inset: !currentTab ? 'auto' : 0,
             transition: !currentTab ? 'opacity 0.18s ease' : 'none',
-            willChange: 'opacity',
-            contain: 'paint layout',
           }}>
           <MountedTab tabKey="_null" activeKey={currentTab || '_null'} direction={direction} pathname={location.pathname} />
         </div>
@@ -210,8 +220,6 @@ export default function Layout() {
               position: currentTab === key ? 'relative' : 'absolute',
               inset: currentTab === key ? 'auto' : 0,
               transition: currentTab === key ? 'opacity 0.18s ease' : 'none',
-              willChange: 'opacity',
-              contain: 'paint layout',
             }}>
             <MountedTab tabKey={key} activeKey={currentTab || '_null'} direction={direction} pathname={location.pathname} />
           </div>

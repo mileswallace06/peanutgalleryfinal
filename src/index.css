@@ -217,6 +217,11 @@
     outline-offset: 2px;
   }
 
+  /* On orientation change, force a reflow so 100dvh recalculates correctly */
+  @media screen and (orientation: portrait), screen and (orientation: landscape) {
+    html { height: 100%; }
+  }
+
   /* Respect reduced motion preferences (WCAG 2.3.3) */
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
