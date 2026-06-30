@@ -107,7 +107,7 @@ export default function AdminCommandCenter() {
   // Still loading auth
   if (isLoadingAuth) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-full flex items-center justify-center">
         <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -119,7 +119,7 @@ export default function AdminCommandCenter() {
   }
 
   return (
-    <div className="min-h-screen" style={{ background: 'hsl(var(--background))' }}>
+    <div style={{ background: 'hsl(var(--background))' }}>
       {/* Top bar */}
       <div className="sticky top-0 z-40 px-4 py-3 flex items-center gap-3 border-b border-border"
         style={{ background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(24px)' }}>

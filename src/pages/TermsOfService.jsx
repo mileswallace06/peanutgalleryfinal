@@ -6,7 +6,7 @@ export default function TermsOfService() {
   const navigate = useNavigate();
 
   return (
-    <div style={{ height: '100dvh', overflowY: 'auto', paddingTop: 'env(safe-area-inset-top)' }}>
+    <div style={{ height: '100dvh', overflowY: 'auto' }}>
       {/* Header */}
       <div className="sticky top-0 z-20 frosted-bar border-b border-border"
         style={{ paddingTop: 'calc(env(safe-area-inset-top) + 10px)' }}>

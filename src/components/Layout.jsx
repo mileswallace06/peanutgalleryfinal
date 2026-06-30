@@ -30,6 +30,7 @@ function MountedTab({ tabKey, activeKey, direction, pathname }) {
         initial="initial"
         animate="animate"
         exit="exit"
+        style={{ minHeight: '100%' }}
       >
         {outlet}
       </motion.div>
@@ -176,12 +177,12 @@ export default function Layout() {
         {/* Null-tab container for non-tab routes (purchase, admin, settings, etc.) */}
         <div
           ref={el => containerRefs.current['_null'] = el}
-          className="overflow-y-auto"
           style={{
-            height: '100dvh',
+            height: '100%',
             overscrollBehavior: 'none',
             overflowX: 'hidden',
             overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
             visibility: !currentTab ? 'visible' : 'hidden',
             opacity: !currentTab ? 1 : 0,
             pointerEvents: !currentTab ? 'auto' : 'none',
@@ -197,12 +198,12 @@ export default function Layout() {
           <div
             key={key}
             ref={el => containerRefs.current[key] = el}
-            className="overflow-y-auto"
             style={{
-              height: '100dvh',
+              height: '100%',
               overscrollBehavior: 'none',
               overflowX: 'hidden',
               overflowY: 'auto',
+              WebkitOverflowScrolling: 'touch',
               visibility: currentTab === key ? 'visible' : 'hidden',
               opacity: currentTab === key ? 1 : 0,
               pointerEvents: currentTab === key ? 'auto' : 'none',

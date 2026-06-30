@@ -92,7 +92,7 @@ export default function Me() {
 
   if (!user) {
     return (
-      <div className="min-h-screen pb-28 flex flex-col items-center justify-center gap-6 px-5 dark:rave-bg">
+      <div className="min-h-full pb-28 flex flex-col items-center justify-center gap-6 px-5 dark:rave-bg">
         <div
           className="w-20 h-20 rounded-full flex items-center justify-center text-4xl"
           style={{ background: 'rgba(191,95,255,0.15)', border: '1px solid rgba(191,95,255,0.3)' }}
@@ -117,7 +117,7 @@ export default function Me() {
   }
 
   return (
-    <div className="min-h-screen pb-32 dark:rave-bg relative" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+    <div className="pb-32 dark:rave-bg relative" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
 
       {/* Hero banner */}
       <div className="relative h-40 overflow-hidden group/banner">

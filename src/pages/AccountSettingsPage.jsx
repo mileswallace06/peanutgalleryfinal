@@ -48,8 +48,8 @@ export default function AccountSettingsPage() {
   }, []);
 
   return (
-    <div className="min-h-screen pb-32 dark:rave-bg" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
-      {/* Header */}
+    <div className="pb-32 dark:rave-bg">
+      {/* Header — sticky within the tab scroll container */}
       <div
         className="flex items-center gap-3 px-4 py-3 sticky top-0 z-10 frosted-bar border-b border-white/5"
         style={{ paddingTop: 'calc(env(safe-area-inset-top) + 10px)' }}
