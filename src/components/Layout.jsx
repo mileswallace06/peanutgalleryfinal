@@ -141,7 +141,7 @@ export default function Layout() {
   }
 
   return (
-    <div className="min-h-screen bg-background font-sans dark:rave-bg">
+    <div className="bg-background font-sans dark:rave-bg" style={{ height: '100dvh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       {user?.email && <DonationWinNotification userEmail={user.email} />}
       {user && <FeedbackWidget user={user} />}
       {!user && (
@@ -172,15 +172,16 @@ export default function Layout() {
       )}
 
       {/* Stack-preserved tab containers with iOS-native page transitions */}
-      <div className="relative w-full max-w-lg mx-auto pb-24" style={{ overscrollBehavior: 'none' }}>
+      <div className="relative w-full max-w-lg mx-auto flex-1 min-h-0" style={{ overscrollBehavior: 'none' }}>
         {/* Null-tab container for non-tab routes (purchase, admin, settings, etc.) */}
         <div
           ref={el => containerRefs.current['_null'] = el}
           className="overflow-y-auto"
           style={{
-            height: '100vh',
+            height: '100dvh',
             overscrollBehavior: 'none',
             overflowX: 'hidden',
+            overflowY: 'auto',
             visibility: !currentTab ? 'visible' : 'hidden',
             opacity: !currentTab ? 1 : 0,
             pointerEvents: !currentTab ? 'auto' : 'none',
@@ -198,9 +199,10 @@ export default function Layout() {
             ref={el => containerRefs.current[key] = el}
             className="overflow-y-auto"
             style={{
-              height: '100vh',
+              height: '100dvh',
               overscrollBehavior: 'none',
               overflowX: 'hidden',
+              overflowY: 'auto',
               visibility: currentTab === key ? 'visible' : 'hidden',
               opacity: currentTab === key ? 1 : 0,
               pointerEvents: currentTab === key ? 'auto' : 'none',

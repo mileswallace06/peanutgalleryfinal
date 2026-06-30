@@ -149,6 +149,14 @@
     text-size-adjust: 100%;
     /* Remove iOS/Android tap highlight for native feel */
     -webkit-tap-highlight-color: transparent;
+    /* Lock the document — only the app shell scrolls */
+    height: 100%;
+    overflow: hidden;
+  }
+
+  #root {
+    height: 100%;
+    overflow: hidden;
   }
 
   * {
