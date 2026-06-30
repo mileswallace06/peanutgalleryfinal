@@ -40,6 +40,8 @@ export const AuthProvider = ({ children }) => {
       try {
         const publicSettings = await appClient.get(`/prod/public-settings/by-id/${appParams.appId}`);
         setAppPublicSettings(publicSettings);
+        // Unblock the loading screen immediately — checkUserAuth runs independently
+        setIsLoadingPublicSettings(false);
         
         // If we got the app public settings successfully, check if user is authenticated
         if (appParams.token) {
@@ -49,7 +51,6 @@ export const AuthProvider = ({ children }) => {
           setIsAuthenticated(false);
           setAuthChecked(true);
         }
-        setIsLoadingPublicSettings(false);
       } catch (appError) {
         console.error('App state check failed:', appError);
         
@@ -99,34 +100,38 @@ export const AuthProvider = ({ children }) => {
   };
 
   const checkUserAuth = async () => {
+    // Safety timeout — if auth check takes >10s, unblock the UI rather than hang forever
+    const timeout = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('auth_timeout')), 10000)
+    );
     try {
-      // Now check if the user is authenticated
       setIsLoadingAuth(true);
-      const currentUser = await base44.auth.me({ fresh: true });
-      // DEBUG: log auth state to catch stale/incorrect role assignments
-      console.log('[Auth] user.id:', currentUser?.id, '| email:', currentUser?.email, '| role:', currentUser?.role, '| isAdmin:', currentUser?.role === 'admin');
+      const currentUser = await Promise.race([base44.auth.me({ fresh: true }), timeout]);
+      console.log('[Auth] user.id:', currentUser?.id, '| email:', currentUser?.email, '| role:', currentUser?.role);
       setUser(currentUser);
       setIsAuthenticated(true);
       setIsLoadingAuth(false);
       setAuthChecked(true);
-      await loginOneSignalUser(currentUser?.email);
+      // Fire-and-forget — must NOT block auth completion
+      loginOneSignalUser(currentUser?.email).catch(err =>
+        console.warn('[OneSignal] login failed (non-blocking):', err?.message)
+      );
     } catch (error) {
       const status = error?.status || error?.response?.status;
-      console.error('[Auth] checkUserAuth failed — status:', status, '| message:', error?.message, '| full error:', error);
+      const isTimeout = error?.message === 'auth_timeout';
+      if (isTimeout) {
+        console.error('[Auth] checkUserAuth timed out after 10s — unblocking UI');
+      } else {
+        console.error('[Auth] checkUserAuth failed — status:', status, '| message:', error?.message);
+      }
       setIsLoadingAuth(false);
       setIsAuthenticated(false);
       setAuthChecked(true);
       
-      // Only redirect to login if we don't already have a cached user (avoids sign-out on transient errors)
       if (!user && (status === 401 || status === 403)) {
-        console.warn('[Auth] Redirecting to login — no cached user and got', status);
-        setAuthError({
-          type: 'auth_required',
-          message: 'Authentication required'
-        });
-      } else if (!user) {
-        // Transient network error — don't sign out but log clearly
-        console.warn('[Auth] Non-auth error during checkUserAuth (status:', status, ') — not signing out, treating as network blip');
+        setAuthError({ type: 'auth_required', message: 'Authentication required' });
+      } else if (!user && isTimeout) {
+        setAuthError({ type: 'auth_required', message: 'Authentication timed out. Please try again.' });
       }
     }
   };
