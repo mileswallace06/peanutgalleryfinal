@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 import { MapPin, Calendar, ArrowLeft, Ticket, ExternalLink, Plus } from 'lucide-react';
@@ -26,6 +26,10 @@ import { isListingVisible } from '@/lib/listingVisibility';
 export default function EventDetailTM() {
   const { tmId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  // Full TM event data passed from the Events list — avoids the broken
+  // syncTMEvent(tm_id-only) fallback when the event hasn't synced to DB yet.
+  const passedEvent = location.state?.tmEvent;
   const [event, setEvent] = useState(null); // TM event data
   const [localEventId, setLocalEventId] = useState(null); // local DB Event.id if it exists
   const [listings, setListings] = useState([]);
@@ -64,7 +68,16 @@ export default function EventDetailTM() {
         return base44.entities.Listing.filter({ event_id: eventId, status: 'active', proof_status: 'approved' });
       }
 
-      // DB miss — event not yet synced. Try to sync it by tmId, then re-fetch.
+      // DB miss — but the Events list passed full TM data via router state.
+      // Use it directly; no need for the syncTMEvent(tm_id-only) fallback,
+      // which 400s because title is missing.
+      if (passedEvent) {
+        console.info('[EventDetailTM] lookup=router_state success | tmId:', tmId, logCtx);
+        setEvent(passedEvent);
+        return [];
+      }
+
+      // DB miss, no passed data — deep link. Best-effort sync + tmSuggest.
       console.info('[EventDetailTM] lookup=db_tm_id miss — triggering syncTMEvent | tmId:', tmId, logCtx);
       return base44.functions.invoke('syncTMEvent', { tm_id: tmId }).then(async (syncRes) => {
         const syncedId = syncRes?.data?.id;
