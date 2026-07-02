@@ -69,6 +69,9 @@ export default function Layout() {
   // Per-pathname scroll memory — saved continuously by onScroll, restored on
   // every route change. Detail pages have no saved entry → start at top.
   // Handles tab switches AND intra-tab navigation (list → detail → back).
+  // Content-ready retry: list pages remount on back navigation and re-fetch
+  // asynchronously, so the saved offset can exceed the current scroll height.
+  // We reapply until the content is tall enough to accept it (capped ~2s).
   const pathRef = useRef(location.pathname);
   useEffect(() => {
     const tab = currentTab;
@@ -76,9 +79,19 @@ export default function Layout() {
     pathRef.current = location.pathname;
     if (!container) return;
     const saved = scrollPositions.current[location.pathname] || 0;
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => { container.scrollTop = saved; });
-    });
+    let cancelled = false;
+    let attempts = 0;
+    const tryRestore = () => {
+      if (cancelled) return;
+      container.scrollTop = saved;
+      attempts++;
+      const reached = Math.abs(container.scrollTop - saved) <= 2;
+      if (saved > 0 && !reached && attempts < 40) {
+        setTimeout(tryRestore, 50);
+      }
+    };
+    requestAnimationFrame(() => requestAnimationFrame(tryRestore));
+    return () => { cancelled = true; };
   }, [location.pathname, currentTab]);
 
   // Save scroll continuously for the current pathname
