@@ -66,38 +66,19 @@ export default function Layout() {
 
   const currentTab = getCurrentTab();
 
-  // Per-pathname scroll memory. pathRef is synced during render so any scroll
-  // event — including browser clamps triggered by content-height changes
-  // during a route transition — saves to the CORRECT pathname. This prevents
-  // an outgoing page's saved scroll from being overwritten while AnimatePresence
-  // is still swapping content.
+  // Per-pathname scroll memory — saved continuously by onScroll, restored on
+  // every route change. Detail pages have no saved entry → start at top.
+  // Handles tab switches AND intra-tab navigation (list → detail → back).
   const pathRef = useRef(location.pathname);
-  pathRef.current = location.pathname;
-
-  // Restore scroll on every route change. We poll via rAF until the container's
-  // content is tall enough to hold the saved position (or clamp after 1s).
-  // This is robust against AnimatePresence "wait" exit delays (the exiting
-  // detail page occupies the shared container for ~150ms) and async data
-  // refetches that remount list pages well after the pathname changes.
   useEffect(() => {
     const tab = currentTab;
     const container = tab ? containerRefs.current[tab] : containerRefs.current['_null'];
+    pathRef.current = location.pathname;
     if (!container) return;
     const saved = scrollPositions.current[location.pathname] || 0;
-
-    let rafId;
-    const start = performance.now();
-    const tick = () => {
-      // Apply once the content can hold the saved offset, or clamp after 1s.
-      // saved === 0 satisfies the check immediately (no polling).
-      if (container.scrollHeight - container.clientHeight >= saved || performance.now() - start > 1000) {
-        container.scrollTop = saved;
-        return;
-      }
-      rafId = requestAnimationFrame(tick);
-    };
-    rafId = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(rafId);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => { container.scrollTop = saved; });
+    });
   }, [location.pathname, currentTab]);
 
   // Save scroll continuously for the current pathname
