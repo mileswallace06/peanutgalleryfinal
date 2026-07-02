@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation, useOutlet } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { MapPin, Zap, Tag, Flame, User, Bell } from 'lucide-react';
 import { getEventLiveStatus } from '@/lib/eventTiming';
@@ -66,37 +66,25 @@ export default function Layout() {
 
   const currentTab = getCurrentTab();
 
-  // Save scroll whenever the route changes — covers both tab switches AND
-  // intra-tab navigation (Events list → EventDetail → back).
-  const prevPathRef = useRef(location.pathname);
-  const prevTabRef = useRef(currentTab);
+  // Per-pathname scroll memory — saved continuously by onScroll, restored on
+  // every route change. Detail pages have no saved entry → start at top.
+  // Handles tab switches AND intra-tab navigation (list → detail → back).
+  const pathRef = useRef(location.pathname);
   useEffect(() => {
-    const prevPath = prevPathRef.current;
-    const prevTab = prevTabRef.current;
-    // Save the outgoing tab's scroll position before switching
-    if (prevTab) {
-      const prev = containerRefs.current[prevTab];
-      if (prev) scrollPositions.current[prevTab] = prev.scrollTop;
-    }
-    prevPathRef.current = location.pathname;
-    prevTabRef.current = currentTab;
+    const tab = currentTab;
+    const container = tab ? containerRefs.current[tab] : containerRefs.current['_null'];
+    pathRef.current = location.pathname;
+    if (!container) return;
+    const saved = scrollPositions.current[location.pathname] || 0;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => { container.scrollTop = saved; });
+    });
   }, [location.pathname, currentTab]);
 
-  // Restore scroll position — double-rAF ensures the container has repainted
-  // after visibility:visible is applied before we set scrollTop.
-  useEffect(() => {
-    if (!currentTab) return;
-    const container = containerRefs.current[currentTab];
-    if (!container) return;
-    const saved = scrollPositions.current[currentTab] || 0;
-    // Only restore if navigating back to the same root tab path
-    // (not when drilling into a sub-route within the tab)
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        container.scrollTop = saved;
-      });
-    });
-  }, [currentTab]);
+  // Save scroll continuously for the current pathname
+  const handleScroll = useCallback((e) => {
+    scrollPositions.current[pathRef.current] = e.target.scrollTop;
+  }, []);
 
   // UX-5: Sync onboarding state
   useEffect(() => {
@@ -189,6 +177,7 @@ export default function Layout() {
         {/* Null-tab container for non-tab routes (purchase, admin, settings, etc.) */}
         <div
           ref={el => containerRefs.current['_null'] = el}
+          onScroll={handleScroll}
           style={{
             height: '100%',
             overscrollBehavior: 'none',
@@ -208,6 +197,7 @@ export default function Layout() {
           <div
             key={key}
             ref={el => containerRefs.current[key] = el}
+            onScroll={handleScroll}
             style={{
               height: '100%',
               overscrollBehavior: 'none',
