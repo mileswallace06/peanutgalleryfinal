@@ -10,12 +10,19 @@
  *      canonical UTC start time by fetching event details from the TM
  *      Discovery API (capped per run to respect rate limits).
  *   2. For each upcoming/live event, decides whether the transfer window
- *      should be considered CLOSED:
+ *      should be considered CLOSED or just CLOSING SOON:
  *        - Admin override (manually_verified_open / manually_verified_closed)
  *          is always respected and never auto-changed.
- *        - If an explicit transfer_window_closes_at has passed → closed.
- *        - If the event started more than TRANSFER_CLOSES_AFTER_START_MIN
- *          minutes ago → closed (transfers are virtually always shut by then).
+ *        - 90 min after the event start → CLOSED (transfers virtually always
+ *          shut by then); listings are hidden.
+ *        - An explicit transfer_window_closes_at that has passed → CLOSED
+ *          only when the event has already started OR the close came from an
+ *          authoritative source (manual_admin / official partner). Listings
+ *          are hidden in that case.
+ *        - An INFERRED closes_at that has passed BEFORE the event starts is
+ *          NOT a hard close — the event is marked 'closing_soon' so the UI
+ *          shows a "Transfer may close soon" warning, and no listings are
+ *          hidden until the event actually starts (or the 90-min fallback).
  *   3. On a newly-closed window:
  *        - Marks the Event transfer_window_status = 'closed',
  *          upgrade_eligibility_status = 'not_eligible'.
@@ -41,6 +48,16 @@ const TRANSFER_CLOSES_AFTER_START_MIN = 90; // transfers virtually always closed
 const TM_ENRICH_CAP = 5;                   // max TM detail fetches per run (rate-limit safety)
 const FETCH_TIMEOUT_MS = 8000;              // per TM fetch timeout
 const CLOSED_ACTION_CAP = 30;               // max newly-closed events acted on per run
+// Sources authoritative enough to justify hiding listings BEFORE the event
+// starts. Inferred/unverified sources must wait until the event has started
+// (or the 90-min post-start fallback) before any listings are hidden.
+const TRUSTED_SOURCES = new Set([
+  'manual_admin',
+  'ticketmaster',
+  'seatgeek',
+  'axs',
+  'mlb',
+]);
 
 Deno.serve(async (req) => {
   try {
@@ -63,7 +80,7 @@ Deno.serve(async (req) => {
     const now = new Date();
     const nowMs = now.getTime();
     const svc = base44.asServiceRole;
-    const results = { scanned: 0, enriched: 0, closed: 0, listings_hidden: 0, alerts: 0 };
+    const results = { scanned: 0, enriched: 0, closed: 0, warned: 0, listings_hidden: 0, alerts: 0 };
 
     // Load upcoming + live events (skip ended). Two filter calls keep it simple.
     const [upcoming, live] = await Promise.all([
@@ -113,7 +130,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ── 2. Detect closed transfer windows + act ───────────────────────────
+    // ── 2. Detect transfer-window closure + act ──────────────────────────
     for (const ev of events) {
       const startMs = ev.event_start_utc ? new Date(ev.event_start_utc).getTime()
         : ev.date ? new Date(ev.date).getTime() : null;
@@ -127,10 +144,47 @@ Deno.serve(async (req) => {
       const closesAtMs = ev.transfer_window_closes_at
         ? new Date(ev.transfer_window_closes_at).getTime() : null;
 
+      const eventStarted = nowMs >= startMs;
       const closedByExplicitWindow = closesAtMs !== null && nowMs >= closesAtMs;
       const closedByElapsed = nowMs >= startMs + TRANSFER_CLOSES_AFTER_START_MIN * 60 * 1000;
+      const isTrustedSource = !!ev.transfer_window_source && TRUSTED_SOURCES.has(ev.transfer_window_source);
 
-      if (!closedByExplicitWindow && !closedByElapsed) continue;
+      // Decide between a hard close (hide listings) and a soft warning.
+      // The 90-min post-start fallback is always safe to act on (we're well
+      // past the start). An explicit closes_at that has passed is a hard
+      // close only when the event has already started OR the close came from
+      // an authoritative source. An inferred/unverified close that fires
+      // BEFORE the event starts must NOT hide listings — instead we mark the
+      // window "closing_soon" so the UI shows a "Transfer may close soon"
+      // warning badge.
+      let shouldCloseAndHide = false;
+      let shouldWarnClosingSoon = false;
+      if (closedByElapsed) {
+        shouldCloseAndHide = true;
+      } else if (closedByExplicitWindow) {
+        if (eventStarted || isTrustedSource) {
+          shouldCloseAndHide = true;
+        } else {
+          shouldWarnClosingSoon = true;
+        }
+      }
+      if (!shouldCloseAndHide && !shouldWarnClosingSoon) continue;
+
+      // Soft warning path — mark closing_soon, do NOT hide any listings.
+      if (shouldWarnClosingSoon) {
+        if (ev.transfer_window_status === 'closing_soon') continue; // already warned
+        await svc.entities.Event.update(ev.id, {
+          transfer_window_status: 'closing_soon',
+          upgrade_eligibility_status: 'limited',
+          last_transfer_check_at: now.toISOString(),
+          transfer_window_source: ev.transfer_window_source || 'inferred',
+          transfer_window_confidence: 60,
+        }).catch(() => {});
+        results.warned++;
+        continue; // no listing takedown for inferred pre-start closes
+      }
+
+      // Hard close path
       if (ev.transfer_window_status === 'closed') continue; // already closed
       if (results.closed >= CLOSED_ACTION_CAP) continue; // bound work per run
 
