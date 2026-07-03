@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { RefreshCw, ShieldCheck, XCircle, AlertTriangle, ExternalLink, Clock } from 'lucide-react';
 import { computeTransferConfidence, getTransferStatusBadge, formatVerificationAge, isVerificationExpired } from '@/lib/transferConfidence';
+import EventConfidenceOverview from '@/components/admin/cc/EventConfidenceOverview';
 
 function ListingRow({ listing, event, onAdminVerify, onDisable, onOverride, onRestore }) {
   const badge = getTransferStatusBadge(listing);
@@ -220,6 +221,8 @@ export default function TransferIntelligencePanel({ events: eventsMap, onRefresh
           <RefreshCw className={`w-4 h-4 text-muted-foreground ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
+
+      <EventConfidenceOverview />
 
       {/* Stats */}
       <div className="grid grid-cols-4 gap-2">

@@ -1,0 +1,126 @@
+{
+  "name": "TransferIntelligence",
+  "type": "object",
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  },
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "description": "FK to Event"
+    },
+    "event_title": {
+      "type": "string",
+      "description": "Cached event title at time of recording"
+    },
+    "venue": {
+      "type": "string",
+      "description": "Venue name \u2014 primary key for venue-level historical trends"
+    },
+    "city": {
+      "type": "string"
+    },
+    "state": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "concert",
+        "sports",
+        "theater",
+        "comedy",
+        "other"
+      ],
+      "description": "Event type"
+    },
+    "artist": {
+      "type": "string",
+      "description": "Performer / team name"
+    },
+    "platform": {
+      "type": "string",
+      "enum": [
+        "ticketmaster",
+        "seatgeek",
+        "axs",
+        "stubhub",
+        "apple_wallet",
+        "vivid",
+        "other"
+      ],
+      "description": "Ticketing platform used for the transfer"
+    },
+    "transfer_successful": {
+      "type": "boolean",
+      "description": "Whether the transfer completed successfully"
+    },
+    "failure_reason": {
+      "type": "string",
+      "description": "Reason for failure if transfer_successful is false"
+    },
+    "time_before_event_min": {
+      "type": "number",
+      "description": "Minutes between transfer completion and event start. Negative = completed after start."
+    },
+    "minutes_to_transfer": {
+      "type": "number",
+      "description": "Minutes from purchase creation to transfer completion"
+    },
+    "seller_response_time_min": {
+      "type": "number",
+      "description": "Seller response time in minutes (alias of minutes_to_transfer)"
+    },
+    "buyer_confirmed": {
+      "type": "boolean",
+      "default": false
+    },
+    "seller_confirmed": {
+      "type": "boolean",
+      "default": false
+    },
+    "seller_email": {
+      "type": "string"
+    },
+    "buyer_email": {
+      "type": "string"
+    },
+    "source": {
+      "type": "string",
+      "enum": [
+        "transfer_outcome",
+        "manual"
+      ],
+      "default": "transfer_outcome",
+      "description": "How this intelligence record was created"
+    },
+    "recorded_at": {
+      "type": "string",
+      "description": "ISO timestamp when the outcome was recorded"
+    }
+  },
+  "required": [
+    "event_id",
+    "venue",
+    "transfer_successful"
+  ]
+}

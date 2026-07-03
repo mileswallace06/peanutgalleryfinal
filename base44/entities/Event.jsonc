@@ -118,7 +118,20 @@
     },
     "transfer_window_confidence": {
       "type": "number",
-      "description": "Confidence score 0\u2013100 for the transfer window status"
+      "description": "Legacy confidence score 0\u2013100 for the transfer window status. Kept in sync with transfer_confidence_score on transitions."
+    },
+    "transfer_confidence_score": {
+      "type": "number",
+      "description": "Transfer Confidence Engine score 0\u2013100 representing confidence that the transfer window is CLOSED (transfers unavailable). Single source of truth for badges, listing visibility, and live upgrade eligibility. 90-100 closed, 70-89 closing soon, 40-69 uncertain, 0-39 unknown."
+    },
+    "transfer_confidence_reason": {
+      "type": "string",
+      "description": "Human-readable breakdown of why the Transfer Confidence Engine assigned the current score (contributing signals)."
+    },
+    "transfer_confidence_last_updated": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO timestamp of the last Transfer Confidence Engine recalculation."
     },
     "upgrade_eligibility_status": {
       "type": "string",

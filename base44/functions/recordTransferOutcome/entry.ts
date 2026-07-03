@@ -49,6 +49,47 @@ Deno.serve(async (req) => {
       notes: !isSuccess ? purchase.dispute_reason : null,
     });
 
+    // Learning: feed the Transfer Confidence Engine with this outcome so it
+    // can learn venue / platform transfer trends over time.
+    try {
+      let listing = null;
+      if (purchase.listing_id) {
+        try { listing = await base44.asServiceRole.entities.Listing.get(purchase.listing_id); } catch (_) {}
+      }
+      let ev = null;
+      if (purchase.event_id) {
+        try { const evs = await base44.asServiceRole.entities.Event.filter({ id: purchase.event_id }); ev = evs[0]; } catch (_) {}
+      }
+      let timeBeforeEventMin = null;
+      if (ev && (ev.event_start_utc || ev.date)) {
+        const startMs = new Date(ev.event_start_utc || ev.date).getTime();
+        if (!Number.isNaN(startMs)) timeBeforeEventMin = Math.round((startMs - Date.now()) / 60000);
+      }
+      await base44.asServiceRole.entities.TransferIntelligence.create({
+        event_id: purchase.event_id,
+        event_title: ev?.title || null,
+        venue: ev?.venue || null,
+        city: ev?.city || null,
+        state: ev?.state || null,
+        category: ev?.category || null,
+        artist: ev?.artist || null,
+        platform: listing?.transfer_platform || null,
+        transfer_successful: isSuccess,
+        failure_reason: !isSuccess ? (purchase.dispute_reason || null) : null,
+        time_before_event_min: timeBeforeEventMin,
+        minutes_to_transfer: minutesToTransfer,
+        seller_response_time_min: minutesToTransfer,
+        buyer_confirmed: purchase.buyer_confirmed || false,
+        seller_confirmed: purchase.seller_confirmed || false,
+        seller_email: purchase.seller_email,
+        buyer_email: purchase.buyer_email,
+        source: 'transfer_outcome',
+        recorded_at: now,
+      });
+    } catch (_) {
+      // learning is best-effort
+    }
+
     // Beta log
     base44.asServiceRole.entities.BetaTransferLog.create({
       log_type: isSuccess ? 'transfer_complete' : 'transfer_failed',
