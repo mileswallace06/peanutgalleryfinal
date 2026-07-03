@@ -11,7 +11,7 @@
  *      newMult = clamp(prevMult * (1 - 0.5 * bias), 0.3, 2.0)
  *    A source that consistently points "open" when reality is "closed" (positive bias)
  *    has its weight reduced; one that under-estimates gets increased.
- *    Requires >= 5 samples per source to adjust.
+ *    Requires >= 25 samples per source to adjust.
  * 4. Upserts the ConfidenceCalibration singleton (read by scanTransferWindows at each scan).
  *
  * Scheduled hourly. Admin-only when invoked interactively.
@@ -20,7 +20,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
 const ADJUSTABLE = ['historical', 'venue_patterns', 'platform_patterns', 'community', 'time'];
 const BASE_WEIGHTS = { official_partner: 1.0, manual_verification: 1.0, historical: 0.8, venue_patterns: 0.5, platform_patterns: 0.5, community: 0.5, time: 0.3 };
-const MIN_SAMPLES = 5;
+const MIN_SAMPLES = 25;
 const BIAS_K = 0.5;
 const MULT_MIN = 0.3;
 const MULT_MAX = 2.0;
