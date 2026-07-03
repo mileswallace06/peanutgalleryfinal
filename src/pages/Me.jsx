@@ -395,7 +395,6 @@ export default function Me() {
           <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid hsl(var(--border))' }}>
             {[
               { to: '/why-peanut-gallery', label: 'Why Peanut Gallery?', sub: 'How Peanut Gallery protects fans', emoji: '🥜' },
-              { to: '/instant-listings', label: 'Instant Transfer Guide', sub: 'How instant listings work', emoji: '⚡' },
               { to: '/seller-payout-guide', label: 'Seller Payout Guide', sub: 'Stripe setup & payouts', emoji: '🏦' },
             ].map((item, i, arr) => (
               <Link key={item.to} to={item.to}
