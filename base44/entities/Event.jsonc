@@ -122,7 +122,7 @@
     },
     "transfer_open_confidence_score": {
       "type": "number",
-      "description": "Confidence 0\u2013100 that transfers are currently AVAILABLE (window open). High + closed-low \u2192 open recommendation."
+      "description": "Confidence 0\u2013100 that transfers are currently AVAILABLE (window open)."
     },
     "transfer_closed_confidence_score": {
       "type": "number",
@@ -132,16 +132,74 @@
       "type": "string",
       "enum": [
         "open",
+        "likely_open",
         "closing_soon",
         "closed",
         "unknown",
         "admin_review"
       ],
-      "description": "Engine recommendation derived from the directional scores. admin_review = conflicting/ambiguous signals needing manual review."
+      "description": "Engine recommendation derived from directional scores + stability. admin_review = conflicting/ambiguous signals."
+    },
+    "transfer_confidence_evidence": {
+      "type": "object",
+      "description": "Explainable AI: per-source signed contribution to the OPEN confidence (positive = supports open, negative = supports closed). Values need not total 100.",
+      "properties": {
+        "official_partner": {
+          "type": "number"
+        },
+        "manual_verification": {
+          "type": "number"
+        },
+        "historical_success": {
+          "type": "number"
+        },
+        "historical_failures": {
+          "type": "number"
+        },
+        "community_reports_positive": {
+          "type": "number"
+        },
+        "community_reports_negative": {
+          "type": "number"
+        },
+        "time_inference": {
+          "type": "number"
+        },
+        "venue_patterns": {
+          "type": "number"
+        },
+        "platform_patterns": {
+          "type": "number"
+        },
+        "seller_history": {
+          "type": "number"
+        },
+        "buyer_history": {
+          "type": "number"
+        }
+      }
+    },
+    "transfer_confidence_momentum": {
+      "type": "object",
+      "description": "Confidence momentum applied this scan (limits wild swings unless authoritative).",
+      "properties": {
+        "open": {
+          "type": "number",
+          "description": "Change applied to open score this scan (null if first scan)"
+        },
+        "closed": {
+          "type": "number",
+          "description": "Change applied to closed score this scan (null if first scan)"
+        },
+        "bypassed": {
+          "type": "boolean",
+          "description": "True if momentum was bypassed by an authoritative source (manual/official)"
+        }
+      }
     },
     "transfer_confidence_reason": {
       "type": "string",
-      "description": "Human-readable breakdown of why the Transfer Confidence Engine assigned the current scores (contributing signals)."
+      "description": "Short human-readable summary of the contributing signals."
     },
     "transfer_confidence_last_updated": {
       "type": "string",

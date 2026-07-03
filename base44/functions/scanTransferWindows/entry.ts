@@ -1,35 +1,39 @@
 /**
- * scanTransferWindows — "Transfer Window Agent" (Transfer Confidence Engine)
+ * scanTransferWindows — "Transfer Intelligence Engine"
  * --------------------------------------------------------------------
- * Scheduled function (runs every 30 min) that continuously scores each event
- * with DIRECTIONAL confidence:
- *   transfer_open_confidence_score   — confidence 0-100 transfers are OPEN
- *   transfer_closed_confidence_score — confidence 0-100 transfers are CLOSED
- *   transfer_confidence_recommendation — open | closing_soon | closed | unknown | admin_review
+ * Scheduled function (every 30 min). Continuously scores each event with
+ * DIRECTIONAL, EXPLAINABLE, STABLE, FRESHNESS-AWARE confidence:
  *
- * A high score always explains what we are confident about. The two scores are
- * independent evidence measures (both can be low = unknown, both high = conflict
- * → admin_review).
+ *   transfer_open_confidence_score     — confidence 0-100 transfers are OPEN
+ *   transfer_closed_confidence_score   — confidence 0-100 transfers are CLOSED
+ *   transfer_confidence_recommendation — open | likely_open | closing_soon | closed | unknown | admin_review
+ *   transfer_confidence_evidence       — per-source signed contributions (Explainable AI)
+ *   transfer_confidence_momentum       — movement applied this scan (stability)
  *
- * Confidence signals (combined, strongest first):
- *   1. Manual admin verification (manually_verified_open/closed) — overrides
- *      everything; pins open=100/closed=0 or open=0/closed=100.
- *   2. Official partner data (Ticketmaster / AXS / SeatGeek / MLB / venue
- *      integrations) + an explicit transfer_window_closes_at.
- *   3. Community reports (TransferReport) — recency-weighted.
- *   4. Historical marketplace data (TransferIntelligence) — venue-level
- *      transfer success rate, learned automatically from completed outcomes.
- *   5. Time-based inference — weakest; fills gaps (distance from event start).
+ * Architecture: a set of pluggable EVIDENCE CONTRIBUTORS, each producing a
+ * signed contribution toward open/closed. Adding a future source (AXS API,
+ * verified-seller program, ML predictions…) is just another contributor +
+ * evidence key — the scoring architecture does not change.
  *
- * Decision logic:
- *   closed >= 90                       → closed       (hide, disable upgrades, Closed badge)
- *   closed 70-89                       → closing_soon (no hide; warn sellers/buyers; flag admin review)
- *   open >= 80 AND closed < 70         → open         (active; Available badge)
- *   open < 40 AND closed < 40          → unknown      (no hide; keep monitoring)
- *   otherwise (conflicting/ambiguous) → admin_review (no hide; flag admin review)
+ * Contributor weights (highest → lowest):
+ *   official_partner       1.0   (authoritative — bypasses momentum)
+ *   manual_verification    1.0   (authoritative — pins scores)
+ *   historical_success     0.8
+ *   historical_failures    0.8
+ *   venue_patterns         0.5
+ *   platform_patterns      0.5
+ *   community_reports_*   0.5   (freshness-decayed + stability-damped)
+ *   seller_history         0.5   (pluggable, data source TBD)
+ *   buyer_history          0.5   (pluggable, data source TBD)
+ *   time_inference         0.3/0.6 (gap-filler; weakest; damped when stronger evidence exists)
  *
- * Writes are throttled to meaningful changes to bound DB load. Listing takedowns
- * and notifications fire only on a recommendation transition.
+ * Stability features:
+ *   - Momentum: non-authoritative scores move ≤15 pts/scan toward the new prediction.
+ *   - Freshness: community reports decay (1h→100%, 6h→85%, 24h→60%, 48h→20%, 72h→0);
+ *     historical data decays by season (≤90d→100%, ≤1y→90%, ≤2y→70%, older→40%).
+ *   - Stability: community impact is damped by venue evidence volume
+ *     (1 report among 5000 transfers barely moves the score).
+ *   - Recommendation: conflicting evidence → admin_review (never aggressive auto-action).
  *
  * Runs as service role. Scheduled invocations (no interactive session) are
  * allowed; interactive non-admin calls are blocked.
@@ -39,116 +43,262 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 const TM_ENRICH_CAP = 5;
 const FETCH_TIMEOUT_MS = 8000;
 const CLOSED_ACTION_CAP = 30;
+const WARN_ACTION_CAP = 30;
+const REVIEW_ACTION_CAP = 30;
 const TRUSTED_SOURCES = new Set(['manual_admin', 'ticketmaster', 'seatgeek', 'axs', 'mlb']);
-const SCORE_WRITE_DELTA = 5;
+const SCORE_WRITE_DELTA = 4;
 const STALE_AFTER_MS = 2 * 60 * 60 * 1000;
+const MOMENTUM_LIMIT = 15;
 
 function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }
+function round1(n) { return Math.round(n); }
+
+// Evidence freshness decay ────────────────────────────────────────────────
+// Community reports: 0-1h 100%, 6h 85%, 24h 60%, 48h 20%, 72h+ ignored.
+function communityDecay(ageH) {
+  if (ageH <= 1) return 1.0;
+  if (ageH <= 6) return 1.0 - 0.15 * (ageH - 1) / 5;
+  if (ageH <= 24) return 0.85 - 0.25 * (ageH - 6) / 18;
+  if (ageH <= 48) return 0.60 - 0.40 * (ageH - 24) / 24;
+  if (ageH <= 72) return 0.20 - 0.20 * (ageH - 48) / 24;
+  return 0;
+}
+// Historical data: newest season 100%, prev 90%, 2 seasons 70%, >3 seasons 40%.
+function historyDecay(ageDays) {
+  if (ageDays <= 90) return 1.0;
+  if (ageDays <= 365) return 0.9;
+  if (ageDays <= 730) return 0.7;
+  return 0.4;
+}
 
 /**
- * Compute directional confidence scores + recommendation.
- * Returns { open, closed, recommendation, reason, status, eligibility, action, override }.
+ * Compute directional, explainable confidence.
+ * Returns { open, closed, rawOpen, rawClosed, recommendation, status, eligibility,
+ *           action, override, evidence, momentum, reason }.
+ *
+ * `evidence` is a flat map of source → signed contribution to OPEN confidence
+ * (positive supports open, negative supports closed).
  */
-function computeConfidence(ev, startMs, ctx, nowMs) {
-  // 1. Manual admin override — authoritative, beats everything.
+function computeConfidence(ev, ctx, nowMs) {
+  const evidence = {
+    official_partner: 0, manual_verification: 0,
+    historical_success: 0, historical_failures: 0,
+    community_reports_positive: 0, community_reports_negative: 0,
+    time_inference: 0, venue_patterns: 0, platform_patterns: 0,
+    seller_history: 0, buyer_history: 0,
+  };
+  const reasons = [];
+
+  // ── 1. Manual admin verification (authoritative, pins scores) ──────────
   if (ev.transfer_window_status === 'manually_verified_closed') {
-    return { open: 0, closed: 100, recommendation: 'closed', reason: 'Admin verified closed (manual override)', status: 'manually_verified_closed', eligibility: 'not_eligible', action: 'none', override: true };
+    evidence.manual_verification = -100;
+    return { open: 0, closed: 100, rawOpen: 0, rawClosed: 100, recommendation: 'closed',
+      reason: 'Admin verified closed (manual override)', status: 'manually_verified_closed',
+      eligibility: 'not_eligible', action: 'none', override: true, evidence,
+      momentum: { open: null, closed: null, bypassed: true } };
   }
   if (ev.transfer_window_status === 'manually_verified_open') {
-    return { open: 100, closed: 0, recommendation: 'open', reason: 'Admin verified open (manual override)', status: 'manually_verified_open', eligibility: 'eligible', action: 'none', override: true };
+    evidence.manual_verification = 100;
+    return { open: 100, closed: 0, rawOpen: 100, rawClosed: 0, recommendation: 'open',
+      reason: 'Admin verified open (manual override)', status: 'manually_verified_open',
+      eligibility: 'eligible', action: 'none', override: true, evidence,
+      momentum: { open: null, closed: null, bypassed: true } };
   }
 
-  const reasons = [];
+  let open = 30;       // neutral base
+  let closed = 30;
+  let authoritative = false;
+  let strongEvidence = false;   // official or historical data present
+  let communityPos = 0, communityNeg = 0;
+
   const source = ev.transfer_window_source;
   const isTrusted = !!source && TRUSTED_SOURCES.has(source);
   const closesAtMs = ev.transfer_window_closes_at ? new Date(ev.transfer_window_closes_at).getTime() : null;
+  const startMs = ev.event_start_utc ? new Date(ev.event_start_utc).getTime()
+    : ev.date ? new Date(ev.date).getTime() : null;
+  const eventStarted = startMs !== null && nowMs >= startMs;
 
-  // 5. Time-based inference (weakest — fills gaps). open + closed <= ~100.
-  let closed, open;
-  if (startMs === null) {
-    closed = 30; open = 30; reasons.push('No start time (neutral)');
-  } else {
-    const minSince = (nowMs - startMs) / 60000;
-    const minBefore = -minSince;
-    if (minSince >= 90) { closed = 90; open = 8; reasons.push('95+ min after start'); }
-    else if (minSince >= 30) { closed = 72; open = 15; reasons.push(`${Math.round(minSince)} min after start`); }
-    else if (minSince >= 0) { closed = 45; open = 35; reasons.push('event in progress (<30 min)'); }
-    else if (minBefore >= 1440) { closed = 6; open = 85; reasons.push(`${Math.round(minBefore / 60)} h before start`); }
-    else if (minBefore >= 120) { closed = 18; open = 60; reasons.push(`${Math.round(minBefore)} min before start`); }
-    else { closed = 30; open = 45; reasons.push(`${Math.round(minBefore)} min before start`); }
-  }
-
-  // 2. Explicit transfer_window_closes_at (stronger than time alone)
+  // ── 2. Official partner data (weight 1.0, authoritative) ────────────────
   if (closesAtMs !== null) {
     if (nowMs >= closesAtMs) {
-      const eventStarted = startMs !== null && nowMs >= startMs;
-      if (eventStarted) { closed = Math.max(closed, 92); open = Math.min(open, 6); reasons.push('close time passed, event started'); }
-      else if (isTrusted) { closed = Math.max(closed, 92); open = Math.min(open, 6); reasons.push(`official close time passed (${source})`); }
-      else { closed = Math.max(closed, 72); open = Math.min(open, 20); reasons.push('inferred close time passed (unverified, pre-start)'); }
+      if (eventStarted || isTrusted) {
+        open -= 56; closed += 62;
+        evidence.official_partner = -56;
+        authoritative = true; strongEvidence = true;
+        reasons.push(eventStarted ? 'official close passed (event started)' : `official close passed (${source})`);
+      } else {
+        open -= 30; closed += 42;
+        evidence.official_partner = -30;
+        reasons.push('inferred close passed (unverified, pre-start)');
+      }
     } else {
       const minToClose = (closesAtMs - nowMs) / 60000;
-      if (minToClose < 30) { closed = Math.max(closed, 68); open = Math.min(open, 30); reasons.push(`window closes in ~${Math.round(minToClose)} min`); }
-      else { open = Math.max(open, 78); closed = Math.min(closed, 18); reasons.push(`window open, closes in ~${Math.round(minToClose)} min`); }
+      if (minToClose < 30) {
+        open -= 10; closed += 38;
+        evidence.official_partner = -10;
+        authoritative = isTrusted;
+        if (isTrusted) strongEvidence = true;
+        reasons.push(`official window closes in ~${Math.round(minToClose)} min`);
+      } else {
+        open += 48; closed -= 18;
+        evidence.official_partner = 48;
+        authoritative = isTrusted;
+        if (isTrusted) strongEvidence = true;
+        reasons.push(`official window open, closes in ~${Math.round(minToClose)} min`);
+      }
     }
+  } else if (isTrusted && startMs !== null && !eventStarted) {
+    // Official source, no explicit close time, pre-start → presume open.
+    open += 40; closed -= 10;
+    evidence.official_partner = 40;
+    authoritative = true; strongEvidence = true;
+    reasons.push(`official source (${source}) — presumed open`);
   }
 
-  // 3. Community reports (TransferReport) — recency weighted over 24h.
-  // unavailable pushes closed up; available pushes open up. Conflicting reports
-  // can raise BOTH → admin_review.
+  // ── 3. Historical marketplace data (venue) — weight 0.8, season-decayed ──
+  const vs = ev.venue ? ctx.venueStats[ev.venue] : null;
+  if (vs && vs.decTotal >= 3) {
+    const successRate = vs.decTotal > 0 ? vs.decSuccess / vs.decTotal : 0.5;
+    const successLift = Math.max(0, (successRate - 0.5) * 50) * 0.8;
+    const failureDrag = Math.min(0, (successRate - 0.5) * 50) * 0.8; // negative when successRate<0.5
+    open += successLift + failureDrag;
+    closed -= (successLift + failureDrag) * 0.6;
+    evidence.historical_success = round1(successLift);
+    evidence.historical_failures = round1(failureDrag);
+    strongEvidence = true;
+    reasons.push(`History ${Math.round(successRate * 100)}% success at ${ev.venue} (${vs.total} transfers)`);
+  }
+
+  // ── 4. Venue pattern learning (weight 0.5) — venue tendency, established venues only
+  if (vs && vs.decTotal >= 10) {
+    const successRate = vs.decTotal > 0 ? vs.decSuccess / vs.decTotal : 0.5;
+    const dir = (successRate - 0.5) * 20 * 0.5;
+    open += dir; closed -= dir * 0.6;
+    evidence.venue_patterns = round1(dir);
+  }
+
+  // ── 5. Platform pattern learning (weight 0.5) ───────────────────────────
+  const platformKey = ev.transfer_platform || null; // Event has no platform field; contributors may set later
+  const ps = platformKey ? ctx.platformStats[platformKey] : null;
+  if (ps && ps.decTotal >= 5) {
+    const successRate = ps.decTotal > 0 ? ps.decSuccess / ps.decTotal : 0.5;
+    const dir = (successRate - 0.5) * 20 * 0.5;
+    open += dir; closed -= dir * 0.6;
+    evidence.platform_patterns = round1(dir);
+  }
+
+  // ── 6. Community reports (weight 0.5, freshness-decayed, stability-damped)
   const evReports = ctx.reportsByEvent[ev.id] || [];
   if (evReports.length) {
-    let netClosed = 0, netOpen = 0, unavail = 0, avail = 0;
+    let posW = 0, negW = 0, posCount = 0, negCount = 0;
     for (const r of evReports) {
       const ageH = (nowMs - new Date(r.created_date).getTime()) / 3600000;
-      if (ageH > 24) continue;
-      const w = Math.max(0.2, 1 - ageH / 24);
-      if (r.report_type === 'transfer_unavailable') { netClosed += w * 15; unavail++; }
-      else if (r.report_type === 'transfer_available') { netOpen += w * 15; avail++; }
+      const d = communityDecay(ageH);
+      if (d === 0) continue;
+      if (r.report_type === 'transfer_unavailable') { negW += d; negCount++; }
+      else if (r.report_type === 'transfer_available') { posW += d; posCount++; }
     }
-    closed = clamp(closed + netClosed, 0, 100);
-    open = clamp(open + netOpen, 0, 100);
-    reasons.push(`Community: ${unavail} unavailable / ${avail} available`);
+    communityPos = posCount; communityNeg = negCount;
+    // Stability: damp community by venue evidence volume.
+    const venueVol = vs ? vs.decTotal : 0;
+    const stability = 1 / (1 + venueVol / 200);
+    const w = 0.5 * stability;
+    const posOpen = posW * 15 * w;
+    const negClosed = negW * 15 * w;
+    open += posOpen - negW * 5 * w;
+    closed += negClosed - posW * 5 * w;
+    evidence.community_reports_positive = round1(posOpen);
+    evidence.community_reports_negative = round1(-negClosed);
+    if (posCount + negCount > 0) {
+      reasons.push(`Community ${posCount} available / ${negCount} unavailable`);
+    }
   }
 
-  // 4. Historical marketplace data (TransferIntelligence) — venue success rate.
-  // High historical success → more confident OPEN (and less closed).
-  const vs = ev.venue ? ctx.venueStats[ev.venue] : null;
-  if (vs && vs.total >= 3) {
-    const successPct = (vs.success / vs.total) * 100;
-    const adj = Math.round((successPct - 50) * 0.4); // -20..+20
-    open = clamp(open + adj, 0, 100);
-    closed = clamp(closed - adj, 0, 100);
-    reasons.push(`History: ${Math.round(successPct)}% success at ${ev.venue} (${vs.total} transfers)`);
+  // ── 7. Seller history & buyer history (pluggable, data source TBD) ─────
+  // Registered contributors for future wiring (verified-seller program, buyer reports).
+  evidence.seller_history = 0;
+  evidence.buyer_history = 0;
+
+  // ── 8. Time inference (gap-filler, lowest weight) ───────────────────────
+  if (startMs !== null) {
+    const minSince = (nowMs - startMs) / 60000;
+    const minBefore = -minSince;
+    let openDir, closedDir, weight;
+    if (eventStarted) {
+      // Post-start time is a meaningful real-world signal.
+      weight = 0.6;
+      if (minSince >= 90) { openDir = -60; closedDir = 70; }
+      else if (minSince >= 30) { openDir = -40; closedDir = 55; }
+      else { openDir = -15; closedDir = 25; }
+    } else {
+      // Pre-start time is a weak gap-filler; damp when stronger evidence exists.
+      weight = 0.3 * (strongEvidence ? 0.5 : 1);
+      if (minBefore >= 1440) { openDir = 55; closedDir = -40; }
+      else if (minBefore >= 120) { openDir = 30; closedDir = -18; }
+      else { openDir = 15; closedDir = -5; }
+    }
+    open += openDir * weight;
+    closed += closedDir * weight;
+    evidence.time_inference = round1(openDir * weight);
+    reasons.push(eventStarted
+      ? `Time: ${Math.round(minSince)} min after start`
+      : `Time: ${Math.round(minBefore)} min before start`);
+  } else {
+    reasons.push('No start time');
   }
 
-  // Official partner with no explicit close → presume open before start
-  if (isTrusted && closesAtMs === null && startMs !== null && nowMs < startMs) {
-    open = Math.max(open, 70);
-    closed = Math.min(closed, 20);
-    reasons.push(`official source (${source}) — window presumed open`);
+  // ── Raw scores ─────────────────────────────────────────────────────────
+  const rawOpen = clamp(round1(open), 0, 100);
+  const rawClosed = clamp(round1(closed), 0, 100);
+
+  // ── Momentum: limit movement unless authoritative ────────────────────────
+  const prevOpen = ev.transfer_open_confidence_score ?? null;
+  const prevClosed = ev.transfer_closed_confidence_score ?? null;
+  let finalOpen, finalClosed;
+  if (authoritative || prevOpen === null || prevClosed === null) {
+    finalOpen = rawOpen; finalClosed = rawClosed;
+  } else {
+    finalOpen = clamp(prevOpen + clamp(rawOpen - prevOpen, -MOMENTUM_LIMIT, MOMENTUM_LIMIT), 0, 100);
+    finalClosed = clamp(prevClosed + clamp(rawClosed - prevClosed, -MOMENTUM_LIMIT, MOMENTUM_LIMIT), 0, 100);
   }
+  const momentum = {
+    open: (prevOpen === null) ? null : round1(finalOpen - prevOpen),
+    closed: (prevClosed === null) ? null : round1(finalClosed - prevClosed),
+    bypassed: authoritative,
+  };
 
-  closed = clamp(Math.round(closed), 0, 100);
-  open = clamp(Math.round(open), 0, 100);
+  // ── Conflict detection (unstable evidence) ─────────────────────────────
+  const conflict = (communityPos >= 2 && communityNeg >= 2);
 
-  // Recommendation — directional decision logic
+  // ── Recommendation: confidence + stability ─────────────────────────────
   let recommendation, status, eligibility, action;
-  if (closed >= 90) { recommendation = 'closed'; status = 'closed'; eligibility = 'not_eligible'; action = 'hide'; }
-  else if (closed >= 70 && open >= 70) { recommendation = 'admin_review'; status = 'unknown'; eligibility = 'limited'; action = 'review'; }
-  else if (closed >= 70) { recommendation = 'closing_soon'; status = 'closing_soon'; eligibility = 'limited'; action = 'warn'; }
-  else if (open >= 80) { recommendation = 'open'; status = 'open'; eligibility = 'eligible'; action = 'none'; }
-  else if (open < 40 && closed < 40) { recommendation = 'unknown'; status = 'unknown'; eligibility = 'unknown'; action = 'none'; }
-  else { recommendation = 'admin_review'; status = 'unknown'; eligibility = 'limited'; action = 'review'; }
+  if (finalClosed >= 90) {
+    recommendation = 'closed'; status = 'closed'; eligibility = 'not_eligible'; action = 'hide';
+  } else if (finalClosed >= 70) {
+    recommendation = 'closing_soon'; status = 'closing_soon'; eligibility = 'limited'; action = 'warn';
+  } else if (conflict) {
+    recommendation = 'admin_review'; status = 'unknown'; eligibility = 'limited'; action = 'review';
+  } else if (finalOpen >= 80 && strongEvidence) {
+    recommendation = 'open'; status = 'open'; eligibility = 'eligible'; action = 'none';
+  } else if (finalOpen >= 60) {
+    recommendation = 'likely_open'; status = 'open'; eligibility = 'eligible'; action = 'none';
+  } else if (finalOpen < 40 && finalClosed < 40) {
+    recommendation = 'unknown'; status = 'unknown'; eligibility = 'unknown'; action = 'none';
+  } else {
+    recommendation = 'admin_review'; status = 'unknown'; eligibility = 'limited'; action = 'review';
+  }
 
-  return { open, closed, recommendation, reason: reasons.join(' · '), status, eligibility, action, override: false };
+  return {
+    open: finalOpen, closed: finalClosed, rawOpen, rawClosed,
+    recommendation, status, eligibility, action, override: false,
+    evidence, momentum, reason: reasons.join(' · '),
+  };
 }
 
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
 
-    // Auth: scheduled runs resolve a system principal that may not be admin,
-    // so only block genuine interactive non-admin calls.
     try {
       const isInteractive = await base44.auth.isAuthenticated();
       if (isInteractive) {
@@ -208,7 +358,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ── 2. Load confidence signals (batched once, grouped in memory) ────────
+    // ── 2. Load evidence signals (batched once, grouped + decayed) ────────
     const [reports, intel] = await Promise.all([
       svc.entities.TransferReport.list('-created_date', 500).catch(() => []),
       svc.entities.TransferIntelligence.list('-created_date', 500).catch(() => []),
@@ -218,25 +368,36 @@ Deno.serve(async (req) => {
       if (!r.event_id) continue;
       (reportsByEvent[r.event_id] ||= []).push(r);
     }
+    // Venue + platform stats with season freshness decay.
     const venueStats = {};
+    const platformStats = {};
     for (const i of intel) {
-      if (!i.venue) continue;
-      const v = venueStats[i.venue] ||= { success: 0, fail: 0, total: 0 };
-      v.total++;
-      if (i.transfer_successful) v.success++; else v.fail++;
+      const ts = i.recorded_at || i.created_date;
+      const ageDays = ts ? (nowMs - new Date(ts).getTime()) / 86400000 : 9999;
+      const d = historyDecay(ageDays);
+      if (i.venue) {
+        const v = venueStats[i.venue] ||= { success: 0, fail: 0, total: 0, decSuccess: 0, decTotal: 0 };
+        v.total++; v.decTotal += d;
+        if (i.transfer_successful) { v.success++; v.decSuccess += d; } else v.fail++;
+      }
+      if (i.platform) {
+        const p = platformStats[i.platform] ||= { success: 0, fail: 0, total: 0, decSuccess: 0, decTotal: 0 };
+        p.total++; p.decTotal += d;
+        if (i.transfer_successful) { p.success++; p.decSuccess += d; } else p.fail++;
+      }
     }
-    const ctx = { reportsByEvent, venueStats };
+    const ctx = { reportsByEvent, venueStats, platformStats };
 
-    // ── 3. Score every event + collect transition actions ──────────────────
+    // ── 3. Score every event + collect transition actions ─────────────────
     const pendingUpdates = [];
     const hideTasks = [];
     const warnTasks = [];
     const reviewTasks = [];
     let hidePushed = 0;
+    let warnPushed = 0;
+    let reviewPushed = 0;
     for (const ev of events) {
-      const startMs = ev.event_start_utc ? new Date(ev.event_start_utc).getTime()
-        : ev.date ? new Date(ev.date).getTime() : null;
-      const c = computeConfidence(ev, startMs, ctx, nowMs);
+      const c = computeConfidence(ev, ctx, nowMs);
 
       const prevRec = ev.transfer_confidence_recommendation ?? null;
       const tierChanged = !c.override && prevRec !== c.recommendation;
@@ -246,6 +407,8 @@ Deno.serve(async (req) => {
         transfer_open_confidence_score: c.open,
         transfer_closed_confidence_score: c.closed,
         transfer_confidence_recommendation: c.recommendation,
+        transfer_confidence_evidence: c.evidence,
+        transfer_confidence_momentum: c.momentum,
         transfer_confidence_reason: c.reason,
         transfer_confidence_last_updated: now.toISOString(),
       } as Record<string, unknown>;
@@ -273,10 +436,12 @@ Deno.serve(async (req) => {
         if (c.recommendation === 'closed' && hidePushed < CLOSED_ACTION_CAP) {
           hideTasks.push({ ev });
           hidePushed++;
-        } else if (c.recommendation === 'closing_soon') {
+        } else if (c.recommendation === 'closing_soon' && warnPushed < WARN_ACTION_CAP) {
           warnTasks.push({ ev });
-        } else if (c.recommendation === 'admin_review') {
+          warnPushed++;
+        } else if (c.recommendation === 'admin_review' && reviewPushed < REVIEW_ACTION_CAP) {
           reviewTasks.push({ ev });
+          reviewPushed++;
         }
       }
     }
@@ -302,7 +467,7 @@ Deno.serve(async (req) => {
             svc.integrations.Core.SendEmail({
               to: email,
               subject: '🚫 Your listing was hidden — ticket transfer window closed',
-              body: `Your listing(s) for "${ev.title || 'this event'}" have been automatically hidden because the ticket transfer window has closed (closed-confidence ${ev.transfer_closed_confidence_score ?? '—'}/100).\n\nBuyers can no longer purchase these seats as upgrades.\n\nIf you believe this is an error (e.g. transfers are still available), contact Peanut Gallery support.\n\n— Peanut Gallery`,
+              body: `Your listing(s) for "${ev.title || 'this event'}" have been automatically hidden because the ticket transfer window has closed (closed-confidence ${ev.transfer_closed_confidence_score ?? '—'}/100).\n\nBuyers can no longer purchase these seats as upgrades.\n\nIf you believe this is an error, contact Peanut Gallery support.\n\n— Peanut Gallery`,
             }).catch(() => {});
             svc.entities.Notification.create({
               user_email: email,
@@ -354,7 +519,7 @@ Deno.serve(async (req) => {
         alert_type: 'admin_action_required',
         priority: 'low',
         title: `Transfers may close soon — review window`,
-        description: `Event "${ev.title || ev.id}" closed-confidence is 70-89. Listings left active; sellers warned. Monitor and verify manually if needed.`,
+        description: `Event "${ev.title || ev.id}" closed-confidence is 70-89. Listings left active; sellers warned. Verify manually if needed.`,
         reference_id: ev.id,
         reference_type: 'event',
         event_id: ev.id,
@@ -369,7 +534,7 @@ Deno.serve(async (req) => {
         alert_type: 'admin_action_required',
         priority: 'medium',
         title: `Conflicting transfer signals — manual review needed`,
-        description: `Event "${ev.title || ev.id}" has ambiguous/conflicting transfer signals (open ${ev.transfer_open_confidence_score ?? '—'} / closed ${ev.transfer_closed_confidence_score ?? '—'}). Listings left active. Verify the window status manually and apply an override if needed.`,
+        description: `Event "${ev.title || ev.id}" has ambiguous/conflicting transfer signals (open ${ev.transfer_open_confidence_score ?? '—'} / closed ${ev.transfer_closed_confidence_score ?? '—'}). Listings left active. Verify and override if needed.`,
         reference_id: ev.id,
         reference_type: 'event',
         event_id: ev.id,
@@ -386,7 +551,6 @@ Deno.serve(async (req) => {
   }
 });
 
-// Helper: only create an alert if no unresolved alert of the same type+reference exists
 async function createAlertIfNew(svc, alertData) {
   try {
     if (alertData.reference_id) {
