@@ -19,15 +19,22 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
 
-    // Auth: allow automation scheduler (no session) or admin callers.
-    // Blocks non-admin users from manually triggering mass email/alert operations.
+    // Auth: scheduled automations run under a system/service principal that
+    // may resolve to a non-admin identity via auth.me(), so a hard role check
+    // would 403 the scheduler. Only block genuine interactive non-admin calls
+    // (isAuthenticated() true with a non-admin role); scheduled/service
+    // invocations and admins pass through. The function body uses only the
+    // service role, so caller identity does not affect its operations.
     try {
-      const caller = await base44.auth.me();
-      if (caller && caller.role !== 'admin') {
-        return Response.json({ error: 'Forbidden' }, { status: 403 });
+      const isInteractive = await base44.auth.isAuthenticated();
+      if (isInteractive) {
+        const caller = await base44.auth.me();
+        if (caller && caller.role !== 'admin') {
+          return Response.json({ error: 'Forbidden' }, { status: 403 });
+        }
       }
     } catch (_) {
-      // No session = called by automation scheduler — allow
+      // No resolvable session (scheduled run) — allow
     }
 
     const now = new Date();
