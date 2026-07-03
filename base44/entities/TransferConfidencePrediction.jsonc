@@ -1,0 +1,168 @@
+{
+  "name": "TransferConfidencePrediction",
+  "type": "object",
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  },
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "description": "FK to Event"
+    },
+    "event_title": {
+      "type": "string"
+    },
+    "venue": {
+      "type": "string"
+    },
+    "city": {
+      "type": "string"
+    },
+    "state": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "concert",
+        "sports",
+        "theater",
+        "comedy",
+        "other"
+      ]
+    },
+    "artist": {
+      "type": "string"
+    },
+    "platform": {
+      "type": "string",
+      "enum": [
+        "ticketmaster",
+        "seatgeek",
+        "axs",
+        "stubhub",
+        "apple_wallet",
+        "vivid",
+        "other"
+      ],
+      "description": "Ticketing platform (enriched at transfer-outcome resolution)"
+    },
+    "seller_email": {
+      "type": "string",
+      "description": "Seller (enriched at transfer-outcome resolution)"
+    },
+    "recommendation": {
+      "type": "string",
+      "enum": [
+        "open",
+        "likely_open",
+        "closing_soon",
+        "closed",
+        "unknown",
+        "admin_review"
+      ]
+    },
+    "open_confidence": {
+      "type": "number"
+    },
+    "closed_confidence": {
+      "type": "number"
+    },
+    "evidence": {
+      "type": "object",
+      "description": "Per-source signed contributions at prediction time (same structure as Event.transfer_confidence_evidence).",
+      "properties": {
+        "official_partner": {
+          "type": "number"
+        },
+        "manual_verification": {
+          "type": "number"
+        },
+        "historical_success": {
+          "type": "number"
+        },
+        "historical_failures": {
+          "type": "number"
+        },
+        "community_reports_positive": {
+          "type": "number"
+        },
+        "community_reports_negative": {
+          "type": "number"
+        },
+        "time_inference": {
+          "type": "number"
+        },
+        "venue_patterns": {
+          "type": "number"
+        },
+        "platform_patterns": {
+          "type": "number"
+        },
+        "seller_history": {
+          "type": "number"
+        },
+        "buyer_history": {
+          "type": "number"
+        }
+      }
+    },
+    "predicted_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "resolved": {
+      "type": "boolean",
+      "default": false
+    },
+    "resolved_at": {
+      "type": "string"
+    },
+    "actual_outcome": {
+      "type": "string",
+      "enum": [
+        "transfer_succeeded",
+        "transfer_failed",
+        "window_open",
+        "window_closed",
+        "admin_override"
+      ]
+    },
+    "prediction_correct": {
+      "type": "boolean",
+      "description": "null = neutral (unknown/admin_review), excluded from accuracy"
+    },
+    "resolution_source": {
+      "type": "string",
+      "enum": [
+        "transfer_outcome",
+        "admin_override",
+        "scheduled_calibration"
+      ]
+    }
+  },
+  "required": [
+    "event_id",
+    "recommendation",
+    "predicted_at"
+  ]
+}

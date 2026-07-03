@@ -6,6 +6,16 @@
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
+// Map a (recommendation, outcome) pair to a correctness verdict for self-calibration.
+function predVerdict(recommendation, outcome) {
+  const openRecs = ['open', 'likely_open'];
+  const closedRecs = ['closed', 'closing_soon'];
+  if (['unknown', 'admin_review'].includes(recommendation)) return null;
+  if (outcome === 'transfer_succeeded' || outcome === 'window_open') return openRecs.includes(recommendation);
+  if (outcome === 'transfer_failed' || outcome === 'window_closed') return closedRecs.includes(recommendation);
+  return null;
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -88,6 +98,26 @@ Deno.serve(async (req) => {
       });
     } catch (_) {
       // learning is best-effort
+    }
+
+    // Self-calibration: resolve the event's active confidence prediction with this outcome.
+    try {
+      const preds = await base44.asServiceRole.entities.TransferConfidencePrediction.filter({ event_id: purchase.event_id, resolved: false });
+      const pred = preds[0];
+      if (pred) {
+        const outcome = isSuccess ? 'transfer_succeeded' : 'transfer_failed';
+        await base44.asServiceRole.entities.TransferConfidencePrediction.update(pred.id, {
+          resolved: true,
+          resolved_at: now,
+          actual_outcome: outcome,
+          prediction_correct: predVerdict(pred.recommendation, outcome),
+          resolution_source: 'transfer_outcome',
+          platform: listing?.transfer_platform || null,
+          seller_email: purchase.seller_email || null,
+        });
+      }
+    } catch (_) {
+      // self-calibration is best-effort
     }
 
     // Beta log

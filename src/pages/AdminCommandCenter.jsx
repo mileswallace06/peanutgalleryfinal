@@ -4,7 +4,7 @@ import { isAdmin } from '@/lib/isAdmin';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { format, formatDistanceToNow } from 'date-fns';
-import { Shield, RefreshCw, AlertTriangle, CreditCard, Zap, Users, Activity, Brain, Radio, Database, Bell, ClipboardList, ArrowUpRight } from 'lucide-react';
+import { Shield, RefreshCw, AlertTriangle, CreditCard, Zap, Users, Activity, Brain, Radio, Database, Bell, ClipboardList, ArrowUpRight, Gauge } from 'lucide-react';
 import TransferWindowAdminPanel from '@/components/admin/TransferWindowAdminPanel';
 import TransferIntelligencePanel from '@/components/admin/cc/TransferIntelligencePanel';
 import AdminAlertCenter from '@/components/admin/cc/AdminAlertCenter';
@@ -21,6 +21,7 @@ import FeeSimulatorV2 from '@/components/admin/FeeSimulatorV2';
 import PricingStrategyAnalyzer from '@/components/admin/PricingStrategyAnalyzer';
 import LiveUpgradeControlPanel from '@/components/admin/cc/LiveUpgradeControlPanel';
 import InstantTransferReadyPanel from '@/components/admin/InstantTransferReadyPanel';
+import ConfidenceCalibrationPanel from '@/components/admin/cc/ConfidenceCalibrationPanel';
 
 function FeeSimulatorTabs() {
   const [feeTab, setFeeTab] = useState('simulator');
@@ -53,6 +54,7 @@ const SECTIONS = [
   { id: 'alerts',   label: 'Alert Center',   icon: Bell },
   { id: 'transfers', label: 'Transfer Windows', icon: Radio },
   { id: 'transfer_intel', label: 'Transfer Intelligence', icon: Database },
+  { id: 'calibration', label: 'Confidence Calibration', icon: Gauge },
   { id: 'review_queue',  label: 'Review Queue',          icon: ClipboardList },
   { id: 'fee_simulator', label: 'Fee Simulator',          icon: CreditCard },
   { id: 'flash_drops',   label: 'Flash Drops',            icon: Zap },
@@ -222,6 +224,9 @@ export default function AdminCommandCenter() {
         )}
         {activeSection === 'transfer_intel' && (
           <TransferIntelligencePanel events={events} onRefresh={loadAll} />
+        )}
+        {activeSection === 'calibration' && (
+          <ConfidenceCalibrationPanel />
         )}
         {activeSection === 'review_queue' && (
           <PendingReviewQueue onRefresh={loadAll} />

@@ -1,0 +1,88 @@
+{
+  "name": "ConfidenceCalibration",
+  "type": "object",
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  },
+  "properties": {
+    "total_resolved": {
+      "type": "number",
+      "description": "Total resolved predictions"
+    },
+    "total_with_verdict": {
+      "type": "number",
+      "description": "Resolved predictions with a true/false verdict (non-neutral)"
+    },
+    "overall_accuracy": {
+      "type": "number",
+      "description": "correct / (correct+incorrect) across all verdict predictions, 0-100"
+    },
+    "accuracy_by_venue": {
+      "type": "object",
+      "description": "{ venue: { correct, incorrect, accuracy, samples } }"
+    },
+    "accuracy_by_platform": {
+      "type": "object"
+    },
+    "accuracy_by_category": {
+      "type": "object"
+    },
+    "accuracy_by_artist": {
+      "type": "object"
+    },
+    "accuracy_by_seller": {
+      "type": "object"
+    },
+    "accuracy_by_recommendation": {
+      "type": "object",
+      "description": "Accuracy grouped by the engine's own recommendation tier"
+    },
+    "source_weights": {
+      "type": "object",
+      "description": "Per-source self-tuned weight state: { source: { baseWeight, multiplier, samples, hits, misses, accuracy, bias } }",
+      "properties": {
+        "historical": {
+          "type": "object"
+        },
+        "venue_patterns": {
+          "type": "object"
+        },
+        "platform_patterns": {
+          "type": "object"
+        },
+        "community": {
+          "type": "object"
+        },
+        "time": {
+          "type": "object"
+        }
+      }
+    },
+    "resolved_this_run": {
+      "type": "number"
+    },
+    "last_calibrated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

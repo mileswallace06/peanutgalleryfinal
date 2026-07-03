@@ -45,6 +45,7 @@ const FETCH_TIMEOUT_MS = 8000;
 const CLOSED_ACTION_CAP = 30;
 const WARN_ACTION_CAP = 30;
 const REVIEW_ACTION_CAP = 30;
+const PRED_CREATE_CAP = 150;
 const TRUSTED_SOURCES = new Set(['manual_admin', 'ticketmaster', 'seatgeek', 'axs', 'mlb']);
 const SCORE_WRITE_DELTA = 4;
 const STALE_AFTER_MS = 2 * 60 * 60 * 1000;
@@ -107,6 +108,8 @@ function computeConfidence(ev, ctx, nowMs) {
 
   let open = 30;       // neutral base
   let closed = 30;
+  const wm = ctx.weights || {};
+  const wmult = (k) => (wm[k] == null ? 1 : wm[k]);
   let authoritative = false;
   let strongEvidence = false;   // official or historical data present
   let communityPos = 0, communityNeg = 0;
@@ -159,8 +162,8 @@ function computeConfidence(ev, ctx, nowMs) {
   const vs = ev.venue ? ctx.venueStats[ev.venue] : null;
   if (vs && vs.decTotal >= 3) {
     const successRate = vs.decTotal > 0 ? vs.decSuccess / vs.decTotal : 0.5;
-    const successLift = Math.max(0, (successRate - 0.5) * 50) * 0.8;
-    const failureDrag = Math.min(0, (successRate - 0.5) * 50) * 0.8; // negative when successRate<0.5
+    const successLift = Math.max(0, (successRate - 0.5) * 50) * 0.8 * wmult('historical');
+    const failureDrag = Math.min(0, (successRate - 0.5) * 50) * 0.8 * wmult('historical'); // negative when successRate<0.5
     open += successLift + failureDrag;
     closed -= (successLift + failureDrag) * 0.6;
     evidence.historical_success = round1(successLift);
@@ -172,7 +175,7 @@ function computeConfidence(ev, ctx, nowMs) {
   // ── 4. Venue pattern learning (weight 0.5) — venue tendency, established venues only
   if (vs && vs.decTotal >= 10) {
     const successRate = vs.decTotal > 0 ? vs.decSuccess / vs.decTotal : 0.5;
-    const dir = (successRate - 0.5) * 20 * 0.5;
+    const dir = (successRate - 0.5) * 20 * 0.5 * wmult('venue_patterns');
     open += dir; closed -= dir * 0.6;
     evidence.venue_patterns = round1(dir);
   }
@@ -182,7 +185,7 @@ function computeConfidence(ev, ctx, nowMs) {
   const ps = platformKey ? ctx.platformStats[platformKey] : null;
   if (ps && ps.decTotal >= 5) {
     const successRate = ps.decTotal > 0 ? ps.decSuccess / ps.decTotal : 0.5;
-    const dir = (successRate - 0.5) * 20 * 0.5;
+    const dir = (successRate - 0.5) * 20 * 0.5 * wmult('platform_patterns');
     open += dir; closed -= dir * 0.6;
     evidence.platform_patterns = round1(dir);
   }
@@ -202,7 +205,7 @@ function computeConfidence(ev, ctx, nowMs) {
     // Stability: damp community by venue evidence volume.
     const venueVol = vs ? vs.decTotal : 0;
     const stability = 1 / (1 + venueVol / 200);
-    const w = 0.5 * stability;
+    const w = 0.5 * stability * wmult('community');
     const posOpen = posW * 15 * w;
     const negClosed = negW * 15 * w;
     open += posOpen - negW * 5 * w;
@@ -237,9 +240,10 @@ function computeConfidence(ev, ctx, nowMs) {
       else if (minBefore >= 120) { openDir = 30; closedDir = -18; }
       else { openDir = 15; closedDir = -5; }
     }
-    open += openDir * weight;
-    closed += closedDir * weight;
-    evidence.time_inference = round1(openDir * weight);
+    const tw = weight * wmult('time');
+    open += openDir * tw;
+    closed += closedDir * tw;
+    evidence.time_inference = round1(openDir * tw);
     reasons.push(eventStarted
       ? `Time: ${Math.round(minSince)} min after start`
       : `Time: ${Math.round(minBefore)} min before start`);
@@ -386,10 +390,28 @@ Deno.serve(async (req) => {
         if (i.transfer_successful) { p.success++; p.decSuccess += d; } else p.fail++;
       }
     }
-    const ctx = { reportsByEvent, venueStats, platformStats };
+    // Load self-calibrated evidence weights (multipliers) from the calibration singleton.
+    let weights = { historical: 1, venue_patterns: 1, platform_patterns: 1, community: 1, time: 1 };
+    try {
+      const calib = (await svc.entities.ConfidenceCalibration.list('-last_calibrated_at', 1))[0];
+      if (calib?.source_weights) {
+        for (const k of Object.keys(weights)) {
+          const m = calib.source_weights[k]?.multiplier;
+          if (typeof m === 'number' && m > 0) weights[k] = m;
+        }
+      }
+    } catch (_) { /* calibration not yet initialized */ }
+    const ctx = { reportsByEvent, venueStats, platformStats, weights };
 
     // ── 3. Score every event + collect transition actions ─────────────────
     const pendingUpdates = [];
+    const predCreate = [];
+    const predUpdate = [];
+    const activePredByEvent = {};
+    try {
+      const activePreds = await svc.entities.TransferConfidencePrediction.filter({ resolved: false }, '-predicted_at', 2000);
+      for (const p of activePreds) if (p.event_id) activePredByEvent[p.event_id] = p;
+    } catch (_) { /* entity may not exist yet */ }
     const hideTasks = [];
     const warnTasks = [];
     const reviewTasks = [];
@@ -427,10 +449,26 @@ Deno.serve(async (req) => {
       const closedDelta = prevClosed === null ? 999 : Math.abs(prevClosed - c.closed);
       const lastUpd = ev.transfer_confidence_last_updated ? new Date(ev.transfer_confidence_last_updated).getTime() : 0;
       const stale = (nowMs - lastUpd) > STALE_AFTER_MS;
-      if (tierChanged || openDelta >= SCORE_WRITE_DELTA || closedDelta >= SCORE_WRITE_DELTA || prevOpen === null || prevClosed === null || stale) {
+      const willWrite = tierChanged || openDelta >= SCORE_WRITE_DELTA || closedDelta >= SCORE_WRITE_DELTA || prevOpen === null || prevClosed === null || stale;
+      if (willWrite) {
         pendingUpdates.push(update);
         results.scored++;
       }
+      // Self-calibration: every live-relevant event gets an active prediction (created
+      // once on first observation, refreshed only on meaningful score change thereafter).
+      // Only events within the active window (next 7 days / started within 24h) can
+      // produce outcomes, so stale past events are skipped to bound write volume.
+      const evStart = ev.event_start_utc ? new Date(ev.event_start_utc).getTime() : (ev.date ? new Date(ev.date).getTime() : null);
+      const liveRelevant = evStart !== null && evStart <= nowMs + 7 * 86400000 && evStart >= nowMs - 24 * 3600000;
+      const pf = {
+        event_id: ev.id, event_title: ev.title, venue: ev.venue, city: ev.city,
+        state: ev.state, category: ev.category, artist: ev.artist,
+        recommendation: c.recommendation, open_confidence: c.open,
+        closed_confidence: c.closed, evidence: c.evidence, predicted_at: now.toISOString(),
+      } as Record<string, unknown>;
+      const existingPred = activePredByEvent[ev.id];
+      if (existingPred) { if (willWrite) predUpdate.push({ id: existingPred.id, ...pf }); }
+      else if (liveRelevant && predCreate.length < PRED_CREATE_CAP) predCreate.push(pf);
 
       if (tierChanged) {
         if (c.recommendation === 'closed' && hidePushed < CLOSED_ACTION_CAP) {
@@ -450,6 +488,14 @@ Deno.serve(async (req) => {
     for (let i = 0; i < pendingUpdates.length; i += 500) {
       await svc.entities.Event.bulkUpdate(pendingUpdates.slice(i, i + 500)).catch(() => {});
     }
+    // Persist confidence predictions (self-calibration training data).
+    for (let i = 0; i < predCreate.length; i += 500) {
+      await svc.entities.TransferConfidencePrediction.bulkCreate(predCreate.slice(i, i + 500)).catch(() => {});
+    }
+    for (let i = 0; i < predUpdate.length; i += 500) {
+      await svc.entities.TransferConfidencePrediction.bulkUpdate(predUpdate.slice(i, i + 500)).catch(() => {});
+    }
+    results.predictions_written = predCreate.length + predUpdate.length;
 
     // ── 5. Closed actions (hide listings + notify + alert) ─────────────────
     for (const { ev } of hideTasks) {
