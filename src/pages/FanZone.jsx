@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Link, useLocation } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { formatDistanceToNow } from 'date-fns';
-import { Plus, X, ImagePlus, Star, MapPin, Users, TrendingUp, Search, ChevronDown, RefreshCw, ArrowUpDown, Clock, Calendar } from 'lucide-react';
+import { Plus, X, ImagePlus, Star, MapPin, Users, TrendingUp, Search, ChevronDown, RefreshCw, ArrowUpDown, Check } from 'lucide-react';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import SeatFlexSheet from '@/components/fanzone/SeatFlexSheet';
 import BucketListSheet from '@/components/fanzone/BucketListSheet';
@@ -13,6 +13,27 @@ const REACTIONS = [
   { key: 'eyes', emoji: '👀' },
   { key: 'peanut', emoji: '🥜' },
 ];
+
+// Sort options shown in the Fan Zone sort sheet — only the active one is ever
+// surfaced on the page itself (compact "⇅ <label> ▾" button).
+const SORT_OPTIONS = [
+  { id: 'upcoming', label: 'Upcoming Soonest' },
+  { id: 'newest_posted', label: 'Newest Posted' },
+  { id: 'recent_activity', label: 'Most Recent Activity' },
+  { id: 'most_liked', label: 'Most Liked' },
+  { id: 'most_commented', label: 'Most Commented' },
+  { id: 'closest', label: 'Closest Distance' },
+  { id: 'oldest_event', label: 'Oldest' },
+];
+
+const deg2rad = (d) => (d * Math.PI) / 180;
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const dLat = deg2rad(lat2 - lat1);
+  const dLng = deg2rad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 
 export default function FanZone() {
   const location = useLocation();
@@ -50,6 +71,7 @@ export default function FanZone() {
   // dateFilter: 'all' | 'upcoming' | 'past' | 'recent'
   const [dateSort, setDateSort] = useState('upcoming');
   const [dateFilter, setDateFilter] = useState('all');
+  const [sortSheetOpen, setSortSheetOpen] = useState(false);
   const [bucketList, setBucketList] = useState([]);
   const [showBucketList, setShowBucketList] = useState(false);
   const [userLocation, setUserLocation] = useState(null);
@@ -270,6 +292,35 @@ export default function FanZone() {
         if (tb === null) return -1;
         return tb - ta; // most recent past event first (retrospective)
       });
+    } else if (dateSort === 'recent_activity') {
+      const actTime = (p) => (p.updated_date ? new Date(p.updated_date).getTime() : getPostDate(p));
+      base.sort((a, b) => {
+        const ta = actTime(a), tb = actTime(b);
+        if (ta === null && tb === null) return 0;
+        if (ta === null) return 1;
+        if (tb === null) return -1;
+        return tb - ta; // most recent activity first
+      });
+    } else if (dateSort === 'most_liked') {
+      base.sort((a, b) => b._score - a._score);
+    } else if (dateSort === 'most_commented') {
+      const commentCount = (p) => (Array.isArray(p.comments) ? p.comments.length : (p.comments_count || 0));
+      base.sort((a, b) => commentCount(b) - commentCount(a));
+    } else if (dateSort === 'closest') {
+      if (userLocation) {
+        const postDistance = (p) => {
+          const ev = p.event_id ? events.find(e => e.id === p.event_id) : null;
+          if (ev && ev.venue_lat && ev.venue_lng) return haversineKm(userLocation.lat, userLocation.lng, ev.venue_lat, ev.venue_lng);
+          return null;
+        };
+        base.sort((a, b) => {
+          const da = postDistance(a), db = postDistance(b);
+          if (da === null && db === null) return 0;
+          if (da === null) return 1;
+          if (db === null) return -1;
+          return da - db; // closest first
+        });
+      }
     }
 
     return base;
@@ -278,6 +329,8 @@ export default function FanZone() {
   const { containerRef, innerRef, pulling } = usePullToRefresh(() => {
     loadPosts();
   });
+
+  const currentSortLabel = SORT_OPTIONS.find(o => o.id === dateSort)?.label || 'Sort';
 
   return (
     <>
@@ -353,15 +406,14 @@ export default function FanZone() {
         )}
       </div>
 
-      {/* ── Date Sort & Filter controls ── */}
-      <div className="px-4 mb-4 space-y-2">
-        {/* Filter chips: what time range of events to show */}
-        <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+      {/* ── Event filter + Sort (compact, one row) ── */}
+      <div className="px-4 mb-3">
+        <div className="flex items-center gap-1.5">
+          {/* Event filter pills */}
           {[
-            { id: 'all', label: '📋 All' },
-            { id: 'upcoming', label: '🗓 Upcoming' },
-            { id: 'past', label: '🏟 Past Events' },
-            { id: 'recent', label: '⚡ Recently Posted' },
+            { id: 'all', label: 'All' },
+            { id: 'upcoming', label: 'Upcoming' },
+            { id: 'past', label: 'Past' },
           ].map(opt => (
             <button key={opt.id} onClick={() => setDateFilter(opt.id)}
               className="px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap flex-shrink-0 transition-all"
@@ -371,24 +423,15 @@ export default function FanZone() {
               {opt.label}
             </button>
           ))}
-        </div>
-        {/* Sort: how to order the results */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
-          <ArrowUpDown className="w-3 h-3 text-muted-foreground flex-shrink-0" />
-          {[
-            { id: 'upcoming', label: 'Upcoming Soonest' },
-            { id: 'newest_posted', label: 'Newest Posted' },
-            { id: 'past', label: 'Most Recent Past' },
-            { id: 'oldest_event', label: 'Oldest Event' },
-          ].map(opt => (
-            <button key={opt.id} onClick={() => setDateSort(opt.id)}
-              className="px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap flex-shrink-0 transition-all"
-              style={dateSort === opt.id
-                ? { background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }
-                : { background: 'hsl(var(--card))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }}>
-              {opt.label}
-            </button>
-          ))}
+          {/* Sort — single compact control showing the active sort; opens a sheet */}
+          <button onClick={() => setSortSheetOpen(true)}
+            className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap flex-shrink-0 transition-all"
+            style={{ background: 'hsl(var(--card))', color: 'hsl(var(--foreground))', border: '1px solid hsl(var(--border))' }}
+            aria-label={`Sort posts. Current: ${currentSortLabel}`}>
+            <ArrowUpDown className="w-3.5 h-3.5" />
+            <span>{currentSortLabel}</span>
+            <ChevronDown className="w-3 h-3 opacity-50" />
+          </button>
         </div>
       </div>
 
@@ -615,6 +658,35 @@ export default function FanZone() {
             onClose={closeAll}
             onPosted={async () => { closeAll(); await loadPosts(); }}
           />
+        </div>
+      )}
+
+      {/* Sort bottom sheet */}
+      {sortSheetOpen && (
+        <div className="fixed inset-0 z-50 flex flex-col justify-end">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSortSheetOpen(false)} />
+          <div className="relative z-10 rounded-t-3xl px-5 pt-5 overflow-y-auto"
+            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', paddingBottom: 'calc(7rem + env(safe-area-inset-bottom))' }}>
+            <div className="w-10 h-1 rounded-full mx-auto mb-5" style={{ background: 'hsl(var(--border))' }} />
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-bold text-base text-foreground">Sort by</h2>
+              <button onClick={() => setSortSheetOpen(false)} aria-label="Close sort sheet"><X className="w-5 h-5 text-muted-foreground" /></button>
+            </div>
+            <div className="space-y-1">
+              {SORT_OPTIONS.map(opt => {
+                if (opt.id === 'closest' && !(feedTab === 'nearby' && userLocation)) return null;
+                const active = dateSort === opt.id;
+                return (
+                  <button key={opt.id} onClick={() => { setDateSort(opt.id); setSortSheetOpen(false); }}
+                    className="w-full flex items-center justify-between px-3 py-3 rounded-xl text-left transition-all"
+                    style={{ background: active ? 'rgba(var(--neon-cyan-rgb),0.1)' : 'transparent' }}>
+                    <span className="text-sm font-semibold" style={{ color: active ? 'var(--neon-cyan)' : 'hsl(var(--foreground))' }}>{opt.label}</span>
+                    {active && <Check className="w-4 h-4" style={{ color: 'var(--neon-cyan)' }} />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
 
