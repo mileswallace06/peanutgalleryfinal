@@ -3,21 +3,27 @@ import { base44 } from '@/api/base44Client';
 import { formatDistanceToNow } from 'date-fns';
 import { RefreshCw, ShieldCheck, XCircle, Eye } from 'lucide-react';
 
-const STATUS_META = {
-  closed: { label: 'Closed', color: '#FF2D78', bg: 'rgba(255,45,120,0.08)', border: 'rgba(255,45,120,0.3)', icon: '🚫' },
+const REC_META = {
+  open: { label: 'Open', color: '#00FF87', bg: 'rgba(0,255,135,0.08)', border: 'rgba(0,255,135,0.3)', icon: '✅' },
   closing_soon: { label: 'Closing Soon', color: '#FF8C00', bg: 'rgba(255,140,0,0.08)', border: 'rgba(255,140,0,0.3)', icon: '⚠️' },
-  open: { label: 'Open', color: '#00C8FF', bg: 'rgba(0,200,255,0.08)', border: 'rgba(0,200,255,0.25)', icon: '✅' },
+  closed: { label: 'Closed', color: '#FF2D78', bg: 'rgba(255,45,120,0.08)', border: 'rgba(255,45,120,0.3)', icon: '🚫' },
   unknown: { label: 'Unknown', color: '#BF5FFF', bg: 'rgba(191,95,255,0.08)', border: 'rgba(191,95,255,0.25)', icon: '❓' },
+  admin_review: { label: 'Admin Review', color: '#FFE600', bg: 'rgba(255,230,0,0.08)', border: 'rgba(255,230,0,0.3)', icon: '🧐' },
   manually_verified_open: { label: 'Admin: Open', color: '#00FF87', bg: 'rgba(0,255,135,0.08)', border: 'rgba(0,255,135,0.3)', icon: '🛡️' },
   manually_verified_closed: { label: 'Admin: Closed', color: '#FF2D78', bg: 'rgba(255,45,120,0.08)', border: 'rgba(255,45,120,0.3)', icon: '🛡️' },
 };
 
-function scoreColor(s) {
+function closedColor(s) {
   if (s == null) return '#71717a';
   if (s >= 90) return '#FF2D78';
   if (s >= 70) return '#FF8C00';
+  return '#71717a';
+}
+function openColor(s) {
+  if (s == null) return '#71717a';
+  if (s >= 80) return '#00FF87';
   if (s >= 40) return '#00C8FF';
-  return '#BF5FFF';
+  return '#71717a';
 }
 
 export default function EventConfidenceOverview() {
@@ -42,7 +48,6 @@ export default function EventConfidenceOverview() {
 
   useEffect(() => { load(); }, []);
 
-  // Venue historical success rates
   const venueStats = {};
   intel.forEach(i => {
     if (!i.venue) return;
@@ -55,19 +60,16 @@ export default function EventConfidenceOverview() {
     .sort((a, b) => b[1].total - a[1].total)
     .slice(0, 5);
 
+  // Sort by closed-confidence desc (most at-risk first)
   const sorted = [...events].sort(
-    (a, b) => (b.transfer_confidence_score ?? -1) - (a.transfer_confidence_score ?? -1)
+    (a, b) => (b.transfer_closed_confidence_score ?? -1) - (a.transfer_closed_confidence_score ?? -1)
   );
 
-  const counts = { closed: 0, closing_soon: 0, open: 0, unknown: 0, scored: 0 };
+  const counts = { closed: 0, closing_soon: 0, open: 0, unknown: 0, admin_review: 0 };
   events.forEach(e => {
-    const s = e.transfer_confidence_score;
-    if (s == null) return;
-    counts.scored++;
-    if (s >= 90) counts.closed++;
-    else if (s >= 70) counts.closing_soon++;
-    else if (s >= 40) counts.open++;
-    else counts.unknown++;
+    const r = e.transfer_confidence_recommendation;
+    if (!r) return;
+    counts[r] = (counts[r] || 0) + 1;
   });
 
   const override = async (ev, status) => {
@@ -105,7 +107,7 @@ export default function EventConfidenceOverview() {
             <span className="text-base">🧠</span> Transfer Confidence Engine
           </h3>
           <p className="text-[11px] text-muted-foreground">
-            Event-level confidence that transfers are closed · single source of truth for badges, visibility & upgrades
+            Directional confidence · open vs closed · single source of truth for badges, visibility & upgrades
           </p>
         </div>
         <button onClick={load} disabled={loading} className="p-1.5 rounded-lg hover:bg-muted flex-shrink-0">
@@ -113,18 +115,19 @@ export default function EventConfidenceOverview() {
         </button>
       </div>
 
-      {/* Tier summary */}
-      <div className="grid grid-cols-4 gap-2">
+      {/* Recommendation summary */}
+      <div className="grid grid-cols-5 gap-1.5">
         {[
-          { label: 'Closed 90+', value: counts.closed, color: '#FF2D78' },
-          { label: 'Closing 70-89', value: counts.closing_soon, color: '#FF8C00' },
-          { label: 'Open 40-69', value: counts.open, color: '#00C8FF' },
-          { label: 'Unknown 0-39', value: counts.unknown, color: '#BF5FFF' },
+          { label: 'Closed', value: counts.closed, color: '#FF2D78' },
+          { label: 'Closing', value: counts.closing_soon, color: '#FF8C00' },
+          { label: 'Open', value: counts.open, color: '#00FF87' },
+          { label: 'Unknown', value: counts.unknown, color: '#BF5FFF' },
+          { label: 'Review', value: counts.admin_review, color: '#FFE600' },
         ].map(s => (
-          <div key={s.label} className="rounded-xl p-2.5 text-center"
+          <div key={s.label} className="rounded-xl p-2 text-center"
             style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${s.value > 0 ? s.color + '30' : 'rgba(255,255,255,0.06)'}` }}>
             <div className="text-lg font-black" style={{ color: s.color }}>{s.value}</div>
-            <div className="text-[9px] text-muted-foreground leading-tight">{s.label}</div>
+            <div className="text-[8px] text-muted-foreground leading-tight">{s.label}</div>
           </div>
         ))}
       </div>
@@ -151,15 +154,17 @@ export default function EventConfidenceOverview() {
 
       {/* Event list */}
       {loading ? (
-        <div className="space-y-2">{[1, 2, 3].map(i => <div key={i} className="h-16 rounded-xl bg-white/5 animate-pulse" />)}</div>
+        <div className="space-y-2">{[1, 2, 3].map(i => <div key={i} className="h-20 rounded-xl bg-white/5 animate-pulse" />)}</div>
       ) : sorted.length === 0 ? (
         <p className="text-xs text-muted-foreground text-center py-4">No events loaded.</p>
       ) : (
-        <div className="space-y-2 max-h-[420px] overflow-y-auto -mr-1 pr-1">
+        <div className="space-y-2 max-h-[440px] overflow-y-auto -mr-1 pr-1">
           {sorted.map(ev => {
-            const s = ev.transfer_confidence_score;
-            const meta = STATUS_META[ev.transfer_window_status] || STATUS_META.unknown;
+            const rec = ev.transfer_confidence_recommendation;
+            const meta = REC_META[rec] || REC_META.unknown;
             const isOverride = ev.transfer_window_status === 'manually_verified_open' || ev.transfer_window_status === 'manually_verified_closed';
+            const oc = ev.transfer_open_confidence_score;
+            const cc = ev.transfer_closed_confidence_score;
             const updated = ev.transfer_confidence_last_updated ? formatDistanceToNow(new Date(ev.transfer_confidence_last_updated), { addSuffix: true }) : null;
             return (
               <div key={ev.id} className="rounded-xl p-3 space-y-2"
@@ -175,12 +180,22 @@ export default function EventConfidenceOverview() {
                   </span>
                 </div>
 
-                {/* Score bar */}
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
-                    <div className="h-full rounded-full transition-all" style={{ width: `${s ?? 0}%`, background: scoreColor(s) }} />
+                {/* Directional score bars */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9px] font-bold w-12 flex-shrink-0" style={{ color: closedColor(cc) }}>CLOSED</span>
+                    <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                      <div className="h-full rounded-full transition-all" style={{ width: `${cc ?? 0}%`, background: closedColor(cc) }} />
+                    </div>
+                    <span className="text-[10px] font-black w-6 text-right flex-shrink-0" style={{ color: closedColor(cc) }}>{cc ?? '—'}</span>
                   </div>
-                  <span className="text-xs font-black flex-shrink-0" style={{ color: scoreColor(s) }}>{s ?? '—'}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9px] font-bold w-12 flex-shrink-0" style={{ color: openColor(oc) }}>OPEN</span>
+                    <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                      <div className="h-full rounded-full transition-all" style={{ width: `${oc ?? 0}%`, background: openColor(oc) }} />
+                    </div>
+                    <span className="text-[10px] font-black w-6 text-right flex-shrink-0" style={{ color: openColor(oc) }}>{oc ?? '—'}</span>
+                  </div>
                 </div>
 
                 {/* Reason */}

@@ -118,15 +118,30 @@
     },
     "transfer_window_confidence": {
       "type": "number",
-      "description": "Legacy confidence score 0\u2013100 for the transfer window status. Kept in sync with transfer_confidence_score on transitions."
+      "description": "Legacy confidence score 0\u2013100 (max of open/closed). Kept in sync with the directional scores."
     },
-    "transfer_confidence_score": {
+    "transfer_open_confidence_score": {
       "type": "number",
-      "description": "Transfer Confidence Engine score 0\u2013100 representing confidence that the transfer window is CLOSED (transfers unavailable). Single source of truth for badges, listing visibility, and live upgrade eligibility. 90-100 closed, 70-89 closing soon, 40-69 uncertain, 0-39 unknown."
+      "description": "Confidence 0\u2013100 that transfers are currently AVAILABLE (window open). High + closed-low \u2192 open recommendation."
+    },
+    "transfer_closed_confidence_score": {
+      "type": "number",
+      "description": "Confidence 0\u2013100 that transfers are currently CLOSED (window closed). >=90 \u2192 hide listings & disable upgrades; 70-89 \u2192 closing soon."
+    },
+    "transfer_confidence_recommendation": {
+      "type": "string",
+      "enum": [
+        "open",
+        "closing_soon",
+        "closed",
+        "unknown",
+        "admin_review"
+      ],
+      "description": "Engine recommendation derived from the directional scores. admin_review = conflicting/ambiguous signals needing manual review."
     },
     "transfer_confidence_reason": {
       "type": "string",
-      "description": "Human-readable breakdown of why the Transfer Confidence Engine assigned the current score (contributing signals)."
+      "description": "Human-readable breakdown of why the Transfer Confidence Engine assigned the current scores (contributing signals)."
     },
     "transfer_confidence_last_updated": {
       "type": "string",
