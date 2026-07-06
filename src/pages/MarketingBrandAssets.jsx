@@ -8,11 +8,13 @@
  *   - Better color swatch grid (responsive)
  *   - Gradient preview as actual CSS
  */
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
 import { ArrowLeft, Copy, Check } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { NEON, NEON_RGB, GRADIENTS, FONTS, PG_LOGO_URL, TEXT } from '@/lib/marketingTokens';
-import { SectionLabel } from '@/components/marketing/shared/UiPrimitives';
+import { SectionLabel, LoadingSpinner } from '@/components/marketing/shared/UiPrimitives';
+import { useAuth } from '@/lib/AuthContext';
+import { isAdmin } from '@/lib/isAdmin';
 
 function CopyableSwatch({ name, value, type = 'color' }) {
   const [copied, setCopied] = useState(false);
@@ -48,6 +50,10 @@ function CopyableSwatch({ name, value, type = 'color' }) {
 
 export default function MarketingBrandAssets() {
   const navigate = useNavigate();
+  const { user, isLoadingAuth } = useAuth();
+
+  if (isLoadingAuth) return <LoadingSpinner />;
+  if (!user || !isAdmin(user)) return <Navigate to="/events" replace />;
 
   return (
     <div className="max-w-lg mx-auto px-4 pb-32 dark:rave-bg min-h-full"
