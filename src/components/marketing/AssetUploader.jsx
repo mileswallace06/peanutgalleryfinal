@@ -53,6 +53,8 @@ export default function AssetUploader({ value, onChange, label = 'Image / Screen
   const handleInputChange = (e) => {
     const file = e.target.files[0];
     if (file) handleUpload(file);
+    // Reset so re-selecting the same file still fires onChange
+    e.target.value = '';
   };
 
   const handleDrop = (e) => {

@@ -53,6 +53,9 @@ export default function MarketingMockup() {
   const [saveError, setSaveError] = useState(null);
   const [saved, setSaved] = useState(false);
   const [mobilePanel, setMobilePanel] = useState('device');
+  const navTimerRef = useRef(null);
+
+  useEffect(() => () => clearTimeout(navTimerRef.current), []);
 
   const preset = CANVAS_PRESETS[canvasPreset];
   const { previewRef, scale: previewScale } = usePreviewScale(preset, 0.5);
@@ -104,7 +107,7 @@ export default function MarketingMockup() {
         setEditingId(created.id);
       }
       setSaved(true);
-      setTimeout(() => navigate('/marketing-studio'), 600);
+      navTimerRef.current = setTimeout(() => navigate('/marketing-studio'), 600);
     } catch (e) {
       setSaveError(e.message || 'Failed to save. Please try again.');
     }

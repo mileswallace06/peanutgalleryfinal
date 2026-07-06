@@ -9,10 +9,9 @@
  *   - File size indicator
  */
 import { useState } from 'react';
-import html2canvas from 'html2canvas';
 import { Download, Loader2, Check, AlertCircle } from 'lucide-react';
 import { NEON, GRADIENTS, TEXT } from '@/lib/marketingTokens';
-import { downloadCanvas } from '@/components/marketing/shared/hooks';
+import { downloadCanvas, captureCanvasElement } from '@/components/marketing/shared/hooks';
 
 export default function ExportPanel({ canvasRef, preset, fileName = 'pg-graphic' }) {
   const [exporting, setExporting] = useState(false);
@@ -25,17 +24,8 @@ export default function ExportPanel({ canvasRef, preset, fileName = 'pg-graphic'
     setSuccess(false);
     try {
       if (!canvasRef?.current) throw new Error('Canvas not ready');
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const canvas = await html2canvas(canvasRef.current, {
-        width: preset.w,
-        height: preset.h,
-        scale: dpr,
-        backgroundColor: '#050308',
-        useCORS: true,
-        allowTaint: true,
-        logging: false,
-        imageTimeout: 15000,
-      });
+      const canvas = await captureCanvasElement(canvasRef.current, preset);
+      if (!canvas) throw new Error('Canvas not ready');
       downloadCanvas(canvas, format, fileName);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 2500);
@@ -99,11 +89,7 @@ export default function ExportPanel({ canvasRef, preset, fileName = 'pg-graphic'
 /** Export a single canvas to image (for carousels). */
 export async function exportCanvasToImage(canvasRef, preset, format = 'png', fileName = 'pg-graphic') {
   if (!canvasRef?.current) throw new Error('Canvas not ready');
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const canvas = await html2canvas(canvasRef.current, {
-    width: preset.w, height: preset.h, scale: dpr,
-    backgroundColor: '#050308', useCORS: true, allowTaint: true,
-    logging: false, imageTimeout: 15000,
-  });
+  const canvas = await captureCanvasElement(canvasRef.current, preset);
+  if (!canvas) throw new Error('Canvas not ready');
   downloadCanvas(canvas, format, fileName);
 }

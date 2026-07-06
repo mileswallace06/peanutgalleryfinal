@@ -32,24 +32,40 @@ export function usePreviewScale(preset, maxScale = 0.5) {
 }
 
 /**
+ * Shared html2canvas options — single source of truth for all export paths.
+ * Any change here propagates to the hook, ExportPanel, and exportCanvasToImage.
+ */
+const CAPTURE_OPTIONS = {
+  backgroundColor: '#050308',
+  useCORS: true,
+  allowTaint: true,
+  logging: false,
+  imageTimeout: 15000,
+};
+
+/**
+ * Capture a DOM element to a canvas at retina quality.
+ * Used by the hook below and by standalone export functions.
+ */
+export async function captureCanvasElement(element, preset) {
+  if (!element) return null;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  return await html2canvas(element, {
+    width: preset.w,
+    height: preset.h,
+    scale: dpr,
+    ...CAPTURE_OPTIONS,
+  });
+}
+
+/**
  * High-fidelity canvas capture for export.
  * Uses devicePixelRatio for retina-quality output (2x on retina screens).
- * Includes allowTaint as fallback for cross-origin images.
  */
 export function useCanvasCapture(preset) {
   const capture = useCallback(async (canvasRef) => {
     if (!canvasRef?.current) return null;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    return await html2canvas(canvasRef.current, {
-      width: preset.w,
-      height: preset.h,
-      scale: dpr,
-      backgroundColor: '#050308',
-      useCORS: true,
-      allowTaint: true,
-      logging: false,
-      imageTimeout: 15000,
-    });
+    return await captureCanvasElement(canvasRef.current, preset);
   }, [preset.w, preset.h]);
 
   return capture;

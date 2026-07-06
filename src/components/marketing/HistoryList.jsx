@@ -9,7 +9,7 @@
  *   - Better thumbnail rendering with aspect ratio
  *   - Relative timestamps
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { Copy, Trash2, Heart, Edit2, Image as ImageIcon, RefreshCw, LayoutTemplate, Plus, AlertCircle } from 'lucide-react';
@@ -27,8 +27,13 @@ export default function HistoryList({ assets, onRefresh, loading, emptyAction })
   const [filter, setFilter] = useState('all');
   const [busyId, setBusyId] = useState(null);
   const [error, setError] = useState(null);
+  // Local mirror of assets for optimistic updates — avoids full refetch + scroll
+  // jump + spinner flash on single-field toggles (favorite/template).
+  const [localAssets, setLocalAssets] = useState(assets);
 
-  const filtered = assets.filter(a => {
+  useEffect(() => { setLocalAssets(assets); }, [assets]);
+
+  const filtered = localAssets.filter(a => {
     if (filter === 'favorites') return a.is_favorite;
     if (filter === 'templates') return a.is_template;
     return true;
@@ -52,20 +57,30 @@ export default function HistoryList({ assets, onRefresh, loading, emptyAction })
   };
 
   const handleToggleFavorite = async (asset) => {
+    const newValue = !asset.is_favorite;
+    // Optimistic update — instant UI feedback, no scroll jump or spinner.
+    setLocalAssets(prev => prev.map(a => a.id === asset.id ? { ...a, is_favorite: newValue } : a));
     setBusyId(asset.id);
     try {
-      await base44.entities.MarketingAsset.update(asset.id, { is_favorite: !asset.is_favorite });
-      await onRefresh();
-    } catch (e) { setError('Failed to update'); }
+      await base44.entities.MarketingAsset.update(asset.id, { is_favorite: newValue });
+    } catch (e) {
+      // Revert on failure
+      setLocalAssets(prev => prev.map(a => a.id === asset.id ? { ...a, is_favorite: asset.is_favorite } : a));
+      setError('Failed to update favorite');
+    }
     setBusyId(null);
   };
 
   const handleToggleTemplate = async (asset) => {
+    const newValue = !asset.is_template;
+    setLocalAssets(prev => prev.map(a => a.id === asset.id ? { ...a, is_template: newValue } : a));
     setBusyId(asset.id);
     try {
-      await base44.entities.MarketingAsset.update(asset.id, { is_template: !asset.is_template });
-      await onRefresh();
-    } catch (e) { setError('Failed to update'); }
+      await base44.entities.MarketingAsset.update(asset.id, { is_template: newValue });
+    } catch (e) {
+      setLocalAssets(prev => prev.map(a => a.id === asset.id ? { ...a, is_template: asset.is_template } : a));
+      setError('Failed to update template');
+    }
     setBusyId(null);
   };
 

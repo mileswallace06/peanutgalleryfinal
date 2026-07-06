@@ -47,7 +47,7 @@ export function PanelSwitcher({ panels, active, onChange }) {
       {panels.map(p => {
         const Icon = p.icon;
         return (
-          <button key={p.id} onClick={() => onChange(p.id)}
+          <button key={p.id} onClick={() => onChange(p.id)} aria-pressed={active === p.id}
             className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all"
             style={active === p.id
               ? { background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }
