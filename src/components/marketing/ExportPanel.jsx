@@ -8,7 +8,7 @@
  *   - Export success feedback
  *   - File size indicator
  */
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Download, Loader2, Check, AlertCircle } from 'lucide-react';
 import { NEON, GRADIENTS, TEXT } from '@/lib/marketingTokens';
 import { downloadCanvas, captureCanvasElement } from '@/components/marketing/shared/hooks';
@@ -17,6 +17,9 @@ export default function ExportPanel({ canvasRef, preset, fileName = 'pg-graphic'
   const [exporting, setExporting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState(null);
+  const successTimerRef = useRef(null);
+
+  useEffect(() => () => clearTimeout(successTimerRef.current), []);
 
   const handleExport = async (format) => {
     setExporting(true);
@@ -28,7 +31,8 @@ export default function ExportPanel({ canvasRef, preset, fileName = 'pg-graphic'
       if (!canvas) throw new Error('Canvas not ready');
       downloadCanvas(canvas, format, fileName);
       setSuccess(true);
-      setTimeout(() => setSuccess(false), 2500);
+      clearTimeout(successTimerRef.current);
+      successTimerRef.current = setTimeout(() => setSuccess(false), 2500);
     } catch (e) {
       setError(e.message || 'Export failed. Try JPEG format or check your image URLs.');
     }
