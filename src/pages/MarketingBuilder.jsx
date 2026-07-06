@@ -106,6 +106,8 @@ export default function MarketingBuilder() {
   const [saved, setSaved] = useState(false);
   const [activeTab, setActiveTab] = useState('content');
   const [conceptId, setConceptId] = useState(null);
+  const [executionStyleId, setExecutionStyleId] = useState(null);
+  const [strategyId, setStrategyId] = useState(null);
   const navTimerRef = useRef(null);
 
   useEffect(() => () => clearTimeout(navTimerRef.current), []);
@@ -127,6 +129,8 @@ export default function MarketingBuilder() {
           setTheme(asset.theme || 'dark');
           setContent({ ...EMPTY_CONTENT, ...(asset.content || {}) });
           setConceptId(asset.content?.concept_id || asset.content?.composition_variant || null);
+          setExecutionStyleId(asset.content?.execution_style_id || null);
+          setStrategyId(asset.content?.strategy_id || null);
         }
       }).catch(() => {});
     }
@@ -150,7 +154,7 @@ export default function MarketingBuilder() {
       const title = assetTitle.trim() || `${graphicType.replace(/_/g, ' ')} graphic`;
       const payload = {
         title, asset_type: 'social_graphic', graphic_type: graphicType,
-        canvas_preset: canvasPreset, content: { ...content, concept_id: conceptId }, theme,
+        canvas_preset: canvasPreset, content: { ...content, concept_id: conceptId, execution_style_id: executionStyleId, strategy_id: strategyId }, theme,
         thumbnail_url: thumbnailUrl, created_by_email: user?.email,
       };
 
@@ -216,7 +220,7 @@ export default function MarketingBuilder() {
             transform: `scale(${previewScale})`, transformOrigin: 'top left',
             position: 'absolute', top: 0, left: 0,
           }}>
-            <GraphicCanvas canvasRef={canvasRef} preset={preset} graphicType={graphicType} content={content} theme={theme} conceptId={conceptId} />
+            <GraphicCanvas canvasRef={canvasRef} preset={preset} graphicType={graphicType} content={content} theme={theme} conceptId={conceptId} executionStyleId={executionStyleId} />
           </div>
         </div>
       </div>
@@ -247,8 +251,14 @@ export default function MarketingBuilder() {
               graphicType={graphicType}
               theme={theme}
               preset={preset}
-              selectedId={conceptId}
-              onSelect={setConceptId}
+              conceptId={conceptId}
+              executionStyleId={executionStyleId}
+              strategyId={strategyId}
+              onSelect={(changes) => {
+                if (changes.conceptId !== undefined) setConceptId(changes.conceptId);
+                if (changes.executionStyleId !== undefined) setExecutionStyleId(changes.executionStyleId);
+                if (changes.strategyId !== undefined) setStrategyId(changes.strategyId);
+              }}
             />
 
             {/* AI Copy Assistant */}

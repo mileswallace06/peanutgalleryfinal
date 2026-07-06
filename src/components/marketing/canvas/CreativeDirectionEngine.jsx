@@ -1,0 +1,565 @@
+/**
+ * Creative Direction Engine
+ * --------------------------------------------------------------------
+ * The SINGLE rendering engine that interprets a Creative Concept's
+ * structured design system data and constructs the graphic dynamically.
+ *
+ * There is NO per-concept rendering code. Every concept is data.
+ * The engine reads that data and builds the graphic.
+ *
+ * Pipeline:
+ *   1. Merge concept designSystem + execution style modifiers
+ *   2. Render background (flat, gradient, radial-glow, banded, pattern)
+ *   3. Render texture overlay (grain, vignette, paper)
+ *   4. Render background-layer decorative elements
+ *   5. Calculate content zone (anchor, negativeSpace, maxWidth)
+ *   6. Render content elements in hierarchy order
+ *   7. Render inline decorative elements in hierarchy flow
+ *   8. Render logo at specified position
+ *
+ * The engine thinks like a Creative Director:
+ *   "What is the visual world? Where does content live?
+ *    What surrounds it? What is the hierarchy?"
+ *
+ * Text placement is the FINAL step, not the first.
+ */
+import { NEON, NEON_RGB, FONTS, TEXT, GRADIENTS, THEMES, PG_LOGO_URL } from '@/lib/marketingTokens';
+import { getConceptById } from '@/lib/marketing/creativeConcepts';
+import { getExecutionStyleById, EXECUTION_STYLES } from '@/lib/marketing/executionStyles';
+import { renderDecorative, BACKGROUND_DECORATIVES, INLINE_DECORATIVES } from './decoratives';
+
+// ── Typography resolution ───────────────────────────────────────────────
+const FONT_MAP = { display: FONTS.display, body: FONTS.body };
+const WEIGHT_MAP = { light: 300, normal: 400, bold: 700, heavy: 900 };
+const TRACKING_MAP = { normal: '0em', wide: '0.05em', 'extra-wide': '0.15em' };
+
+function resolveTypo(typeDef, baseSize, execModifiers) {
+  const weight = typeDef.weight;
+  const resolvedWeight = execModifiers.weightReduction && weight === 'heavy' ? 700 : WEIGHT_MAP[weight];
+  return {
+    fontFamily: FONT_MAP[typeDef.font] || FONTS.body,
+    fontWeight: resolvedWeight,
+    textTransform: typeDef.transform || 'none',
+    letterSpacing: TRACKING_MAP[typeDef.tracking] || '0em',
+    fontSize: baseSize * (typeDef.scale || 1) * (execModifiers.typographyScale || 1),
+  };
+}
+
+// ── Content zone calculation ────────────────────────────────────────────
+function getContentZone(composition, w, h, execModifiers) {
+  const ns = Math.max(0, Math.min(0.9, composition.negativeSpace + (execModifiers.negativeSpaceBoost || 0)));
+  const maxW = Math.max(0.3, Math.min(1.0, composition.maxWidth - (execModifiers.maxWidthReduction || 0)));
+
+  const padX = w * (1 - maxW) / 2;
+  const padY = h * ns * 0.5;
+  const zoneW = w * maxW;
+  const zoneH = h - padY * 2;
+
+  let zoneTop;
+  switch (composition.anchor) {
+    case 'top':       zoneTop = padY; break;
+    case 'bottom':    zoneTop = h - zoneH - padY; break;
+    case 'lower-third': zoneTop = h * 0.6; break;
+    case 'center':
+    default:          zoneTop = (h - zoneH) / 2; break;
+  }
+
+  return {
+    left: padX,
+    top: zoneTop,
+    width: zoneW,
+    height: zoneH,
+    padding: w * 0.04,
+  };
+}
+
+// ── Background renderer ─────────────────────────────────────────────────
+function renderBackground(bg, w, h) {
+  const { type, baseColor, glow, bands, patternColor } = bg;
+
+  switch (type) {
+    case 'flat':
+      return (
+        <>
+          <div style={{ position: 'absolute', inset: 0, background: baseColor }} />
+          {glow && (
+            <div style={{
+              position: 'absolute', inset: 0,
+              background: `radial-gradient(ellipse 60% 50% at ${glow.x}% ${glow.y}%, ${glow.color}${Math.round(glow.intensity * 255).toString(16).padStart(2, '0')}, transparent 70%)`,
+            }} />
+          )}
+        </>
+      );
+
+    case 'radial-glow':
+      return (
+        <>
+          <div style={{ position: 'absolute', inset: 0, background: baseColor }} />
+          {glow && (
+            <div style={{
+              position: 'absolute', inset: 0,
+              background: `radial-gradient(ellipse 80% 60% at ${glow.x}% ${glow.y}%, ${glow.color}${Math.round(glow.intensity * 255).toString(16).padStart(2, '0')}, transparent 65%)`,
+            }} />
+          )}
+          {/* Secondary subtle glow for depth */}
+          <div style={{
+            position: 'absolute', inset: 0,
+            background: `radial-gradient(ellipse 50% 40% at 80% 90%, ${NEON.green}06, transparent 60%)`,
+          }} />
+        </>
+      );
+
+    case 'banded':
+      return (
+        <>
+          <div style={{ position: 'absolute', inset: 0, background: baseColor }} />
+          {(bands || []).map((band, i) => {
+            const heights = { top: '12%', middle: '76%', bottom: '12%' };
+            const positions = { top: 0, middle: '12%', bottom: '88%' };
+            return (
+              <div key={i} style={{
+                position: 'absolute', left: 0, right: 0,
+                top: positions[band.position] || 0,
+                height: heights[band.position] || '12%',
+                background: band.color,
+              }} />
+            );
+          })}
+        </>
+      );
+
+    case 'pattern-grid':
+      return (
+        <>
+          <div style={{ position: 'absolute', inset: 0, background: baseColor }} />
+          <div style={{
+            position: 'absolute', inset: 0,
+            backgroundImage: `
+              linear-gradient(${patternColor || 'rgba(0,200,255,0.06)'} 1px, transparent 1px),
+              linear-gradient(90deg, ${patternColor || 'rgba(0,200,255,0.06)'} 1px, transparent 1px)
+            `,
+            backgroundSize: `${w / 40}px ${w / 40}px`,
+          }} />
+          {glow && (
+            <div style={{
+              position: 'absolute', inset: 0,
+              background: `radial-gradient(ellipse 70% 50% at ${glow.x}% ${glow.y}%, ${glow.color}${Math.round(glow.intensity * 255).toString(16).padStart(2, '0')}, transparent 70%)`,
+            }} />
+          )}
+        </>
+      );
+
+    case 'pattern-dots':
+      return (
+        <>
+          <div style={{ position: 'absolute', inset: 0, background: baseColor }} />
+          <div style={{
+            position: 'absolute', inset: 0,
+            backgroundImage: `radial-gradient(circle, ${patternColor || 'rgba(0,255,135,0.04)'} 1px, transparent 1px)`,
+            backgroundSize: `${w / 50}px ${w / 50}px`,
+          }} />
+          {glow && (
+            <div style={{
+              position: 'absolute', inset: 0,
+              background: `radial-gradient(ellipse 60% 50% at ${glow.x}% ${glow.y}%, ${glow.color}${Math.round(glow.intensity * 255).toString(16).padStart(2, '0')}, transparent 70%)`,
+            }} />
+          )}
+        </>
+      );
+
+    case 'pattern-lines':
+      return (
+        <>
+          <div style={{ position: 'absolute', inset: 0, background: baseColor }} />
+          <div style={{
+            position: 'absolute', inset: 0,
+            backgroundImage: `repeating-linear-gradient(0deg, ${patternColor || 'rgba(255,140,0,0.04)'} 0, ${patternColor || 'rgba(255,140,0,0.04)'} 2px, transparent 2px, transparent 8px)`,
+          }} />
+          {glow && (
+            <div style={{
+              position: 'absolute', inset: 0,
+              background: `radial-gradient(ellipse 70% 50% at ${glow.x}% ${glow.y}%, ${glow.color}${Math.round(glow.intensity * 255).toString(16).padStart(2, '0')}, transparent 70%)`,
+            }} />
+          )}
+        </>
+      );
+
+    default:
+      return <div style={{ position: 'absolute', inset: 0, background: baseColor }} />;
+  }
+}
+
+// ── Texture overlay renderer ────────────────────────────────────────────
+function renderTexture(texture, w, h, execModifiers) {
+  const intensity = (texture.intensity || 0) * (execModifiers.textureIntensityMultiplier || 1);
+  if (intensity <= 0) return null;
+
+  switch (texture.type) {
+    case 'vignette':
+      return (
+        <div style={{
+          position: 'absolute', inset: 0, pointerEvents: 'none',
+          background: `radial-gradient(ellipse 80% 80% at 50% 50%, transparent 40%, rgba(0,0,0,${intensity}) 100%)`,
+        }} />
+      );
+
+    case 'grain':
+      return (
+        <div style={{
+          position: 'absolute', inset: 0, pointerEvents: 'none',
+          opacity: intensity,
+          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' /%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E")`,
+          mixBlendMode: 'overlay',
+        }} />
+      );
+
+    case 'paper':
+      return (
+        <>
+          <div style={{
+            position: 'absolute', inset: 0, pointerEvents: 'none',
+            opacity: intensity * 0.5,
+            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='p'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.04' numOctaves='5' /%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23p)' opacity='0.3'/%3E%3C/svg%3E")`,
+          }} />
+          <div style={{
+            position: 'absolute', inset: 0, pointerEvents: 'none',
+            background: `radial-gradient(ellipse 90% 90% at 50% 50%, transparent 60%, rgba(0,0,0,${intensity * 0.3}) 100%)`,
+          }} />
+        </>
+      );
+
+    default:
+      return null;
+  }
+}
+
+// ── Content element renderer ────────────────────────────────────────────
+function resolveTextColor(colorScheme) {
+  if (colorScheme.text === 'dark') return TEXT.dark;
+  if (colorScheme.text === 'accent') return colorScheme.accent;
+  return TEXT.white;
+}
+
+function renderContentElement(elementId, content, designSystem, zone, u, execModifiers, colorScheme) {
+  const { typography, color, composition } = designSystem;
+  const textColor = resolveTextColor(colorScheme);
+  const align = composition.alignment;
+  const baseFontSize = zone.width * 0.07;
+
+  switch (elementId) {
+    case 'headline': {
+      if (!content.headline) return null;
+      const typo = resolveTypo(typography.headline, baseFontSize, execModifiers);
+      return (
+        <div key={elementId} style={{
+          ...typo,
+          color: color.textGradient ? undefined : textColor,
+          background: color.textGradient || undefined,
+          WebkitBackgroundClip: color.textGradient ? 'text' : undefined,
+          WebkitTextFillColor: color.textGradient ? 'transparent' : undefined,
+          backgroundClip: color.textGradient ? 'text' : undefined,
+          textAlign: align,
+          lineHeight: 1.05,
+          maxWidth: '100%',
+          wordBreak: 'break-word',
+        }}>
+          {content.headline}
+        </div>
+      );
+    }
+
+    case 'subheadline': {
+      if (!content.subheadline) return null;
+      const typo = resolveTypo(typography.subheadline, baseFontSize * 0.42, execModifiers);
+      return (
+        <div key={elementId} style={{
+          ...typo,
+          color: textColor,
+          opacity: 0.82,
+          textAlign: align,
+          lineHeight: 1.4,
+          maxWidth: '100%',
+        }}>
+          {content.subheadline}
+        </div>
+      );
+    }
+
+    case 'body': {
+      if (!content.body) return null;
+      const typo = resolveTypo(typography.body, baseFontSize * 0.32, execModifiers);
+      return (
+        <div key={elementId} style={{
+          ...typo,
+          color: textColor,
+          opacity: 0.7,
+          textAlign: align,
+          lineHeight: 1.5,
+          maxWidth: '100%',
+        }}>
+          {content.body}
+        </div>
+      );
+    }
+
+    case 'cta': {
+      if (!content.cta) return null;
+      const typo = resolveTypo(typography.cta, baseFontSize * 0.3, execModifiers);
+      const isDarkText = color.text === 'dark';
+      return (
+        <div key={elementId} style={{
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          padding: `${10 * u}px ${28 * u}px`,
+          borderRadius: 999,
+          background: GRADIENTS.cta_primary,
+          ...typo,
+          color: isDarkText ? TEXT.dark : TEXT.dark,
+          alignSelf: align === 'center' ? 'center' : align === 'right' ? 'flex-end' : 'flex-start',
+        }}>
+          {content.cta}
+        </div>
+      );
+    }
+
+    case 'badge': {
+      if (!content.badge) return null;
+      const typo = resolveTypo(typography.badge, baseFontSize * 0.22, execModifiers);
+      return (
+        <div key={elementId} style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6 * u,
+          padding: `${4 * u}px ${12 * u}px`,
+          borderRadius: 999,
+          background: `${color.accent}18`,
+          border: `1px solid ${color.accent}40`,
+          ...typo,
+          color: color.accent,
+          alignSelf: align === 'center' ? 'center' : align === 'right' ? 'flex-end' : 'flex-start',
+        }}>
+          {content.badge}
+        </div>
+      );
+    }
+
+    case 'stat': {
+      if (!content.stat_number) return null;
+      const typo = resolveTypo(typography.stat, baseFontSize * 0.8, execModifiers);
+      const labelTypo = resolveTypo(typography.subheadline, baseFontSize * 0.28, execModifiers);
+      return (
+        <div key={elementId} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 * u }}>
+          <div style={{
+            ...typo,
+            background: GRADIENTS.stat,
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
+            lineHeight: 1,
+          }}>
+            {content.stat_number}
+          </div>
+          {content.stat_label && (
+            <div style={{ ...labelTypo, color: textColor, opacity: 0.7, textAlign: 'center' }}>
+              {content.stat_label}
+            </div>
+          )}
+          {content.stat_explanation && (
+            <div style={{ ...labelTypo, color: textColor, opacity: 0.4, fontSize: labelTypo.fontSize * 0.8, textAlign: 'center' }}>
+              {content.stat_explanation}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    case 'quote': {
+      if (!content.quote_text) return null;
+      const typo = resolveTypo(typography.headline, baseFontSize * 0.45, execModifiers);
+      const authorTypo = resolveTypo(typography.subheadline, baseFontSize * 0.25, execModifiers);
+      return (
+        <div key={elementId} style={{ display: 'flex', flexDirection: 'column', gap: 8 * u, alignItems: 'center' }}>
+          <div style={{
+            ...typo,
+            color: textColor,
+            opacity: 0.9,
+            textAlign: align,
+            lineHeight: 1.3,
+            fontStyle: 'italic',
+            maxWidth: '90%',
+          }}>
+            "{content.quote_text}"
+          </div>
+          {content.author && (
+            <div style={{ ...authorTypo, color: color.accent, textAlign: 'center' }}>
+              — {content.author}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    case 'signature': {
+      if (!content.signature) return null;
+      const typo = resolveTypo(typography.subheadline, baseFontSize * 0.25, execModifiers);
+      return (
+        <div key={elementId} style={{
+          ...typo, color: textColor, opacity: 0.5, fontStyle: 'italic', textAlign: align,
+        }}>
+          {content.signature}
+        </div>
+      );
+    }
+
+    default:
+      // Inline decorative element
+      if (INLINE_DECORATIVES.has(elementId)) {
+        const props = { u, w: zone.width + zone.padding * 2, h: zone.height, color: color.accent, content };
+        return (
+          <div key={elementId} style={{
+            display: 'flex', justifyContent: align === 'center' ? 'center' : align === 'right' ? 'flex-end' : 'flex-start',
+          }}>
+            {renderDecorative(elementId, props)}
+          </div>
+        );
+      }
+      return null;
+  }
+}
+
+// ── Logo renderer ───────────────────────────────────────────────────────
+function renderLogo(logoConfig, u, w, h, colorScheme) {
+  if (logoConfig.position === 'none') return null;
+
+  const sizes = { xs: 16 * u, sm: 20 * u, md: 28 * u };
+  const logoSize = sizes[logoConfig.size] || sizes.sm;
+
+  const positions = {
+    'top-left':     { top: 20 * u, left: 20 * u },
+    'top-center':   { top: 20 * u, left: '50%', transform: 'translateX(-50%)' },
+    'top-right':    { top: 20 * u, right: 20 * u },
+    'bottom-left':  { bottom: 20 * u, left: 20 * u },
+    'bottom-center':{ bottom: 20 * u, left: '50%', transform: 'translateX(-50%)' },
+    'bottom-right': { bottom: 20 * u, right: 20 * u },
+  };
+
+  const pos = positions[logoConfig.position];
+  if (!pos) return null;
+
+  return (
+    <div style={{
+      position: 'absolute',
+      ...pos,
+      display: 'flex', alignItems: 'center', gap: 6 * u,
+      opacity: 0.6,
+      zIndex: 10,
+    }}>
+      <img src={PG_LOGO_URL} alt="PG" style={{ width: logoSize, height: logoSize, objectFit: 'contain' }} crossOrigin="anonymous" />
+      <span style={{
+        fontFamily: FONTS.display,
+        fontSize: logoSize * 0.5,
+        color: resolveTextColor(colorScheme),
+        opacity: 0.5,
+        letterSpacing: '0.05em',
+      }}>
+        PG
+      </span>
+    </div>
+  );
+}
+
+// ── Main Engine ─────────────────────────────────────────────────────────
+/**
+ * CreativeDirectionEngine
+ *
+ * Props:
+ *   conceptId — which Creative Concept to render
+ *   executionStyleId — which Execution Style modifies it
+ *   content — the user's text content
+ *   preset — canvas dimensions { w, h }
+ *   theme — color theme override (unused if concept defines background)
+ */
+export default function CreativeDirectionEngine({ conceptId, executionStyleId, content = {}, preset, theme }) {
+  const concept = getConceptById(conceptId);
+  if (!concept) return null;
+
+  const execStyle = getExecutionStyleById(executionStyleId) || EXECUTION_STYLES[1]; // default to 'editorial'
+  const execModifiers = execStyle.modifiers;
+
+  const { designSystem } = concept;
+  const { background, composition, typography, color, texture, decorative, logo, hierarchy } = designSystem;
+
+  const w = preset.w;
+  const h = preset.h;
+  const u = w / 1080;
+
+  const zone = getContentZone(composition, w, h, execModifiers);
+
+  // Separate decoratives into background-layer and inline
+  const bgDecoratives = decorative.filter(d => BACKGROUND_DECORATIVES.has(d));
+  const inlineDecoratives = decorative.filter(d => INLINE_DECORATIVES.has(d));
+
+  // Determine if concept uses a structural card (paper_card, newsprint_card, ticket_card)
+  const hasCard = decorative.some(d => ['paper_card', 'newsprint_card', 'ticket_card'].includes(d));
+
+  // Apply rotation if specified
+  const contentRotation = composition.rotation || 0;
+
+  return (
+    <div style={{ width: w, height: h, position: 'relative', overflow: 'hidden' }}>
+      {/* Layer 1: Background */}
+      {renderBackground(background, w, h)}
+
+      {/* Layer 2: Texture overlay */}
+      {renderTexture(texture, w, h, execModifiers)}
+
+      {/* Layer 3: Background-layer decorative elements */}
+      {bgDecoratives.map(decId => {
+        const props = { u, w, h, color: color.accent, content };
+        return (
+          <div key={decId}>
+            {renderDecorative(decId, props)}
+          </div>
+        );
+      })}
+
+      {/* Layer 4: Content zone */}
+      <div style={{
+        position: 'absolute',
+        left: zone.left,
+        top: zone.top,
+        width: zone.width,
+        height: zone.height,
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: composition.alignment === 'center' ? 'center' : composition.alignment === 'right' ? 'flex-end' : 'flex-start',
+        gap: 16 * u,
+        padding: zone.padding,
+        transform: contentRotation ? `rotate(${contentRotation}deg)` : undefined,
+        zIndex: 5,
+      }}>
+        {/* Render hierarchy — content elements and inline decoratives in order */}
+        {hierarchy.map(elementId =>
+          renderContentElement(elementId, content, designSystem, zone, u, execModifiers, color)
+        )}
+
+        {/* Render any inline decoratives not already in hierarchy */}
+        {inlineDecoratives
+          .filter(d => !hierarchy.includes(d))
+          .map(decId => {
+            const props = { u, w: zone.width, h: zone.height, color: color.accent, content };
+            return (
+              <div key={decId} style={{
+                display: 'flex',
+                justifyContent: composition.alignment === 'center' ? 'center' : composition.alignment === 'right' ? 'flex-end' : 'flex-start',
+              }}>
+                {renderDecorative(decId, props)}
+              </div>
+            );
+          })
+        }
+      </div>
+
+      {/* Layer 5: Logo */}
+      {renderLogo(logo, u, w, h, color)}
+    </div>
+  );
+}
