@@ -17,6 +17,7 @@ import GraphicCanvas from '@/components/marketing/canvas/GraphicCanvas';
 import CopyAssistant from '@/components/marketing/CopyAssistant';
 import AssetUploader from '@/components/marketing/AssetUploader';
 import ExportPanel from '@/components/marketing/ExportPanel';
+import ConceptPicker from '@/components/marketing/ConceptPicker';
 import { SectionLabel, FormField, LoadingSpinner, ThemePicker } from '@/components/marketing/shared/UiPrimitives';
 import { usePreviewScale, useCanvasCapture } from '@/components/marketing/shared/hooks';
 import { CANVAS_PRESETS, GRAPHIC_TYPES, NEON, NEON_RGB, GRADIENTS, TEXT } from '@/lib/marketingTokens';
@@ -104,6 +105,7 @@ export default function MarketingBuilder() {
   const [saveError, setSaveError] = useState(null);
   const [saved, setSaved] = useState(false);
   const [activeTab, setActiveTab] = useState('content');
+  const [compositionId, setCompositionId] = useState(null);
   const navTimerRef = useRef(null);
 
   useEffect(() => () => clearTimeout(navTimerRef.current), []);
@@ -124,6 +126,7 @@ export default function MarketingBuilder() {
           setGraphicType(asset.graphic_type || 'industry_truth');
           setTheme(asset.theme || 'dark');
           setContent({ ...EMPTY_CONTENT, ...(asset.content || {}) });
+          setCompositionId(asset.content?.composition_variant || null);
         }
       }).catch(() => {});
     }
@@ -147,7 +150,7 @@ export default function MarketingBuilder() {
       const title = assetTitle.trim() || `${graphicType.replace(/_/g, ' ')} graphic`;
       const payload = {
         title, asset_type: 'social_graphic', graphic_type: graphicType,
-        canvas_preset: canvasPreset, content, theme,
+        canvas_preset: canvasPreset, content: { ...content, composition_variant: compositionId }, theme,
         thumbnail_url: thumbnailUrl, created_by_email: user?.email,
       };
 
@@ -213,7 +216,7 @@ export default function MarketingBuilder() {
             transform: `scale(${previewScale})`, transformOrigin: 'top left',
             position: 'absolute', top: 0, left: 0,
           }}>
-            <GraphicCanvas canvasRef={canvasRef} preset={preset} graphicType={graphicType} content={content} theme={theme} />
+            <GraphicCanvas canvasRef={canvasRef} preset={preset} graphicType={graphicType} content={content} theme={theme} compositionId={compositionId} />
           </div>
         </div>
       </div>
@@ -237,6 +240,16 @@ export default function MarketingBuilder() {
               <SectionLabel color={NEON.purple}>Layout</SectionLabel>
               <LayoutDropdown value={graphicType} onChange={setGraphicType} />
             </div>
+
+            {/* Concept Picker — multi-concept generation */}
+            <ConceptPicker
+              content={content}
+              graphicType={graphicType}
+              theme={theme}
+              preset={preset}
+              selectedId={compositionId}
+              onSelect={setCompositionId}
+            />
 
             {/* AI Copy Assistant */}
             <CopyAssistant content={content} onApply={updateContent} />
