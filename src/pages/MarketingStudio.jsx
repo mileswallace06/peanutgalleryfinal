@@ -14,7 +14,7 @@ import { base44 } from '@/api/base44Client';
 import { isAdmin } from '@/lib/isAdmin';
 import { useAuth } from '@/lib/AuthContext';
 import { Navigate } from 'react-router-dom';
-import { Sparkles, Image, Layers, Megaphone, Quote, BarChart3, Star, User, Smartphone, History, FolderOpen, LayoutTemplate, Heart, FileText, TrendingUp } from 'lucide-react';
+import { Sparkles, Image, Layers, Megaphone, Quote, BarChart3, Star, User, Smartphone, History, FolderOpen, LayoutTemplate, Heart, FileText, TrendingUp, AlertCircle, RefreshCw } from 'lucide-react';
 import { NEON, NEON_RGB, GRADIENTS, TEXT } from '@/lib/marketingTokens';
 import HistoryList from '@/components/marketing/HistoryList';
 import { SectionLabel, LoadingSpinner } from '@/components/marketing/shared/UiPrimitives';
@@ -105,16 +105,19 @@ export default function MarketingStudio() {
   const { user, isLoadingAuth } = useAuth();
   const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
 
   const loadAssets = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const list = await base44.entities.MarketingAsset.list('-created_date', 100);
       setAssets(list || []);
     } catch (e) {
-      // entity might not exist yet
+      setLoadError('Failed to load assets. Pull to refresh or try again.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -126,6 +129,25 @@ export default function MarketingStudio() {
   if (isLoadingAuth) return <LoadingSpinner />;
   if (!user || !isAdmin(user)) return <Navigate to="/events" replace />;
   if (loading) return <DashboardSkeleton />;
+
+  if (loadError && assets.length === 0) {
+    return (
+      <div className="max-w-lg mx-auto px-4 pb-32 dark:rave-bg min-h-full flex flex-col items-center justify-center"
+        style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
+        <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
+          style={{ background: `rgba(${NEON_RGB.pink}, 0.08)`, border: `1px solid rgba(${NEON_RGB.pink}, 0.15)` }}>
+          <AlertCircle className="w-6 h-6" style={{ color: NEON.pink }} />
+        </div>
+        <p className="text-sm font-bold text-foreground mb-1">Couldn't load assets</p>
+        <p className="text-xs text-muted-foreground mb-4 text-center max-w-[220px]">{loadError}</p>
+        <button onClick={loadAssets}
+          className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full font-black text-xs"
+          style={{ background: GRADIENTS.cta_primary, color: TEXT.dark }}>
+          <RefreshCw className="w-3.5 h-3.5" /> Retry
+        </button>
+      </div>
+    );
+  }
 
   const navigateToAsset = (asset) => {
     if (asset.asset_type === 'carousel') navigate(`/marketing-studio/carousel?edit=${asset.id}`);

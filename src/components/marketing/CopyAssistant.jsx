@@ -10,7 +10,7 @@
  *   - Better result rendering with apply-to-field buttons
  *   - Action-specific JSON schemas (lighter payloads)
  */
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Sparkles, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { NEON, NEON_RGB } from '@/lib/marketingTokens';
@@ -80,7 +80,12 @@ export default function CopyAssistant({ content, onApply, onApplyCarousel, carou
   const [loading, setLoading] = useState(null);
   const [results, setResults] = useState(null);
   const [error, setError] = useState(null);
-  const [copied, setCopied] = useState(false);
+  // Track which specific item was copied (key string) — not a shared boolean,
+  // so only the tapped button shows "✓", not every copy button on screen.
+  const [copiedKey, setCopiedKey] = useState(null);
+  const copyTimerRef = useRef(null);
+
+  useEffect(() => () => clearTimeout(copyTimerRef.current), []);
 
   const runAction = async (actionId) => {
     setLoading(actionId);
@@ -115,10 +120,11 @@ export default function CopyAssistant({ content, onApply, onApplyCarousel, carou
     onApply(field, text);
   };
 
-  const copyToClipboard = (text) => {
+  const copyToClipboard = (text, key = 'default') => {
     navigator.clipboard?.writeText(text).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      setCopiedKey(key);
+      clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = setTimeout(() => setCopiedKey(null), 1500);
     }).catch(() => {});
   };
 
@@ -199,8 +205,8 @@ export default function CopyAssistant({ content, onApply, onApplyCarousel, carou
                         {f.label}
                       </button>
                     ))}
-                    <button onClick={() => copyToClipboard(opt)} className="px-2 py-1 rounded-lg text-[10px] font-bold text-muted-foreground" style={{ background: 'hsl(var(--muted))' }}>
-                      {copied ? '✓' : 'Copy'}
+                    <button onClick={() => copyToClipboard(opt, `opt-${i}`)} className="px-2 py-1 rounded-lg text-[10px] font-bold text-muted-foreground" style={{ background: 'hsl(var(--muted))' }}>
+                      {copiedKey === `opt-${i}` ? '✓' : 'Copy'}
                     </button>
                   </div>
                 </div>
@@ -210,8 +216,8 @@ export default function CopyAssistant({ content, onApply, onApplyCarousel, carou
               {results.data?.caption && (
                 <div className="px-3 py-2.5 rounded-xl" style={{ background: 'hsl(var(--card))' }}>
                   <p className="text-sm text-foreground whitespace-pre-wrap mb-2">{results.data.caption}</p>
-                  <button onClick={() => copyToClipboard(results.data.caption)} className="px-2 py-1 rounded-lg text-[10px] font-bold text-muted-foreground" style={{ background: 'hsl(var(--muted))' }}>
-                    {copied ? '✓ Copied' : 'Copy to clipboard'}
+                  <button onClick={() => copyToClipboard(results.data.caption, 'caption')} className="px-2 py-1 rounded-lg text-[10px] font-bold text-muted-foreground" style={{ background: 'hsl(var(--muted))' }}>
+                    {copiedKey === 'caption' ? '✓ Copied' : 'Copy to clipboard'}
                   </button>
                 </div>
               )}
@@ -220,8 +226,8 @@ export default function CopyAssistant({ content, onApply, onApplyCarousel, carou
               {results.data?.hashtags && (
                 <div className="px-3 py-2.5 rounded-xl" style={{ background: 'hsl(var(--card))' }}>
                   <p className="text-sm text-foreground mb-2 break-words">{results.data.hashtags.join(' ')}</p>
-                  <button onClick={() => copyToClipboard(results.data.hashtags.join(' '))} className="px-2 py-1 rounded-lg text-[10px] font-bold text-muted-foreground" style={{ background: 'hsl(var(--muted))' }}>
-                    {copied ? '✓ Copied' : 'Copy all'}
+                  <button onClick={() => copyToClipboard(results.data.hashtags.join(' '), 'hashtags')} className="px-2 py-1 rounded-lg text-[10px] font-bold text-muted-foreground" style={{ background: 'hsl(var(--muted))' }}>
+                    {copiedKey === 'hashtags' ? '✓ Copied' : 'Copy all'}
                   </button>
                 </div>
               )}
@@ -256,9 +262,9 @@ export default function CopyAssistant({ content, onApply, onApplyCarousel, carou
                       Populate all slides
                     </button>
                   ) : (
-                    <button onClick={() => copyToClipboard(JSON.stringify(results.data.slides, null, 2))}
+                    <button onClick={() => copyToClipboard(JSON.stringify(results.data.slides, null, 2), 'slides-json')}
                       className="px-2 py-1 rounded-lg text-[10px] font-bold text-muted-foreground" style={{ background: 'hsl(var(--muted))' }}>
-                      {copied ? '✓ Copied' : 'Copy as JSON'}
+                      {copiedKey === 'slides-json' ? '✓ Copied' : 'Copy as JSON'}
                     </button>
                   )}
                 </div>

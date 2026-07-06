@@ -10,16 +10,21 @@
  */
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Copy, Check } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { NEON, NEON_RGB, GRADIENTS, FONTS, PG_LOGO_URL, TEXT } from '@/lib/marketingTokens';
 import { SectionLabel } from '@/components/marketing/shared/UiPrimitives';
 
 function CopyableSwatch({ name, value, type = 'color' }) {
   const [copied, setCopied] = useState(false);
+  const timerRef = useRef(null);
+
+  useEffect(() => () => clearTimeout(timerRef.current), []);
+
   const handleCopy = () => {
     navigator.clipboard?.writeText(value);
     setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setCopied(false), 1500);
   };
   const isGradient = type === 'gradient';
   return (

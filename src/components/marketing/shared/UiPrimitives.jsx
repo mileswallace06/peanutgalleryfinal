@@ -3,6 +3,7 @@
  * Eliminates duplicate SectionLabel, FormField, loading spinners,
  * admin gates, and panel switchers across all builder pages.
  */
+import { useId } from 'react';
 import { Loader2 } from 'lucide-react';
 import { NEON } from '@/lib/marketingTokens';
 
@@ -16,7 +17,9 @@ export function SectionLabel({ children, color = NEON.cyan, className = '' }) {
 }
 
 export function FormField({ label, value, onChange, placeholder, multiline = false, rows = 2, maxLength }) {
+  const id = useId();
   const common = {
+    id,
     value: value || '',
     onChange: e => onChange(e.target.value),
     placeholder,
@@ -25,7 +28,7 @@ export function FormField({ label, value, onChange, placeholder, multiline = fal
   };
   return (
     <div>
-      <label className="text-[10px] font-bold text-muted-foreground block mb-1">{label}</label>
+      <label htmlFor={id} className="text-[10px] font-bold text-muted-foreground block mb-1">{label}</label>
       {multiline
         ? <textarea {...common} rows={rows} className={`${common.className} resize-none`} />
         : <input type="text" {...common} />}

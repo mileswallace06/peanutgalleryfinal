@@ -36,7 +36,7 @@ const SLIDE_PRESETS = {
   10: ['Hook', 'The Problem', 'Why It Matters', 'Current Industry', 'The Gap', 'How PG Fixes It', 'Key Feature', 'Proof', 'The Future', 'CTA'],
 };
 
-const PRESET_TYPES = ['announcement', 'problem', 'industry_truth', 'feature_spotlight', 'launch', 'milestone', 'announcement', 'statistic', 'quote', 'launch'];
+const PRESET_TYPES = ['announcement', 'problem', 'industry_truth', 'feature_spotlight', 'launch', 'milestone', 'statistic', 'quote', 'update', 'coming_soon'];
 
 const PANELS = [
   { id: 'slides', label: 'Slide Setup', icon: Layers },
