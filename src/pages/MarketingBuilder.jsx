@@ -1,7 +1,8 @@
 /**
  * Marketing Builder — Social Graphic Builder
- * The user chooses content; the system chooses the design.
- * No layout controls, no positioning — just content + live preview.
+ * Responsive design: canvas preview on top, tabbed editing panel below.
+ * Content tab: layout dropdown + all text fields with character counters + AI assistant.
+ * Style tab: canvas size, theme, export.
  *
  * Uses shared UI primitives for consistency with other builder pages.
  */
@@ -11,14 +12,14 @@ import { base44 } from '@/api/base44Client';
 import { isAdmin } from '@/lib/isAdmin';
 import { useAuth } from '@/lib/AuthContext';
 import { Navigate } from 'react-router-dom';
-import { ArrowLeft, Save, Loader2, Type, Layout, Download, AlertCircle, Check } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, Type, Palette, Download, AlertCircle, Check, ChevronDown } from 'lucide-react';
 import GraphicCanvas from '@/components/marketing/canvas/GraphicCanvas';
 import CopyAssistant from '@/components/marketing/CopyAssistant';
 import AssetUploader from '@/components/marketing/AssetUploader';
 import ExportPanel from '@/components/marketing/ExportPanel';
-import { SectionLabel, FormField, LoadingSpinner, PanelSwitcher, ThemePicker } from '@/components/marketing/shared/UiPrimitives';
+import { SectionLabel, FormField, LoadingSpinner, ThemePicker } from '@/components/marketing/shared/UiPrimitives';
 import { usePreviewScale, useCanvasCapture } from '@/components/marketing/shared/hooks';
-import { CANVAS_PRESETS, GRAPHIC_TYPES, NEON, NEON_RGB, THEMES, GRADIENTS, TEXT } from '@/lib/marketingTokens';
+import { CANVAS_PRESETS, GRAPHIC_TYPES, NEON, NEON_RGB, GRADIENTS, TEXT } from '@/lib/marketingTokens';
 
 const EMPTY_CONTENT = {
   headline: '', subheadline: '', body: '', cta: '', badge: '',
@@ -26,11 +27,67 @@ const EMPTY_CONTENT = {
   image_url: '', author: '', quote_text: '', signature: '',
 };
 
-const PANELS = [
-  { id: 'type', label: 'Type & Canvas', icon: Layout },
-  { id: 'content', label: 'Content', icon: Type },
-  { id: 'export', label: 'Theme & Export', icon: Download },
-];
+/** Compact layout dropdown — replaces the 3-col grid for a cleaner editing experience. */
+function LayoutDropdown({ value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const selected = GRAPHIC_TYPES.find(gt => gt.id === value) || GRAPHIC_TYPES[0];
+
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-sm bg-background border border-border text-foreground outline-none focus:border-primary transition-colors"
+      >
+        <span className="flex items-center gap-2">
+          <span className="text-base">{selected.icon}</span>
+          <span className="font-bold">{selected.label}</span>
+        </span>
+        <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 w-full max-h-64 overflow-y-auto rounded-xl border border-border shadow-lg"
+          style={{ background: 'hsl(var(--popover))' }}>
+          {GRAPHIC_TYPES.map(gt => (
+            <button
+              key={gt.id}
+              onClick={() => { onChange(gt.id); setOpen(false); }}
+              className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left transition-colors hover:bg-muted"
+              style={value === gt.id ? { background: `rgba(${NEON_RGB.purple}, 0.08)` } : {}}
+            >
+              <span className="text-base flex-shrink-0">{gt.icon}</span>
+              <span className="font-bold text-foreground">{gt.label}</span>
+              {value === gt.id && <Check className="w-3.5 h-3.5 ml-auto flex-shrink-0" style={{ color: NEON.green }} />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Tab button for Content/Style switcher. */
+function TabButton({ active, onClick, icon: Icon, children }) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-bold transition-all"
+      style={active
+        ? { background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }
+        : { color: 'hsl(var(--muted-foreground))' }}
+    >
+      <Icon className="w-3.5 h-3.5" /> {children}
+    </button>
+  );
+}
 
 export default function MarketingBuilder() {
   const navigate = useNavigate();
@@ -46,7 +103,7 @@ export default function MarketingBuilder() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
   const [saved, setSaved] = useState(false);
-  const [mobilePanel, setMobilePanel] = useState('type');
+  const [activeTab, setActiveTab] = useState('content');
   const navTimerRef = useRef(null);
 
   useEffect(() => () => clearTimeout(navTimerRef.current), []);
@@ -116,7 +173,7 @@ export default function MarketingBuilder() {
       {/* Header */}
       <div className="px-4 py-3 flex items-center gap-3 border-b border-border sticky top-0 z-30 frosted-bar">
         <button onClick={() => navigate('/marketing-studio')} aria-label="Back to Marketing Studio"
-          className="p-1.5 -ml-1.5 rounded-lg transition-colors hover:bg-muted">
+          className="p-1.5 -ml-1.5 rounded-lg transition-colors hover:bg-muted flex-shrink-0">
           <ArrowLeft className="w-5 h-5 text-foreground" />
         </button>
         <div className="flex-1 min-w-0">
@@ -127,9 +184,10 @@ export default function MarketingBuilder() {
             placeholder="Untitled graphic"
             className="font-display text-base text-foreground bg-transparent border-none outline-none w-full placeholder:text-muted-foreground"
           />
+          <p className="text-[10px] text-muted-foreground">{preset.label} · {preset.w}×{preset.h}</p>
         </div>
         <button onClick={handleSave} disabled={saving}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-black transition-all active:scale-95 disabled:opacity-50"
+          className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-black transition-all active:scale-95 disabled:opacity-50 flex-shrink-0"
           style={{ background: saved ? NEON.green : GRADIENTS.cta_primary, color: TEXT.dark }}>
           {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : saved ? <Check className="w-3.5 h-3.5" /> : <Save className="w-3.5 h-3.5" />}
           {saved ? 'Saved!' : 'Save'}
@@ -160,50 +218,30 @@ export default function MarketingBuilder() {
         </div>
       </div>
 
-      <PanelSwitcher panels={PANELS} active={mobilePanel} onChange={setMobilePanel} />
+      {/* Tab switcher — Content / Style */}
+      <div className="flex gap-1 px-4 py-2 border-b border-border sticky top-[57px] z-20 frosted-bar">
+        <TabButton active={activeTab === 'content'} onClick={() => setActiveTab('content')} icon={Type}>
+          Content
+        </TabButton>
+        <TabButton active={activeTab === 'style'} onClick={() => setActiveTab('style')} icon={Palette}>
+          Style
+        </TabButton>
+      </div>
 
-      {/* Panels */}
-      <div className="px-4 space-y-4">
-        {mobilePanel === 'type' && (
-          <div className="space-y-4">
+      {/* Tab content */}
+      <div className="px-4 py-4 space-y-4">
+        {activeTab === 'content' && (
+          <>
+            {/* Layout dropdown */}
             <div>
-              <SectionLabel color={NEON.cyan}>Canvas Size</SectionLabel>
-              <div className="grid grid-cols-3 gap-2">
-                {Object.entries(CANVAS_PRESETS).map(([key, p]) => (
-                  <button key={key} onClick={() => setCanvasPreset(key)}
-                    className="flex flex-col items-center gap-1 py-3 rounded-xl transition-all active:scale-95"
-                    style={canvasPreset === key
-                      ? { background: `rgba(${NEON_RGB.cyan}, 0.12)`, border: `1px solid rgba(${NEON_RGB.cyan}, 0.4)` }
-                      : { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
-                    <span className="text-[10px] font-bold text-foreground">{p.label}</span>
-                    <span className="text-[8px] text-muted-foreground">{p.w}×{p.h}</span>
-                  </button>
-                ))}
-              </div>
+              <SectionLabel color={NEON.purple}>Layout</SectionLabel>
+              <LayoutDropdown value={graphicType} onChange={setGraphicType} />
             </div>
 
-            <div>
-              <SectionLabel color={NEON.purple}>Graphic Type</SectionLabel>
-              <div className="grid grid-cols-3 gap-2">
-                {GRAPHIC_TYPES.map(gt => (
-                  <button key={gt.id} onClick={() => setGraphicType(gt.id)}
-                    className="flex flex-col items-center gap-1 py-3 px-1 rounded-xl transition-all active:scale-95"
-                    style={graphicType === gt.id
-                      ? { background: `rgba(${NEON_RGB.purple}, 0.12)`, border: `1px solid rgba(${NEON_RGB.purple}, 0.4)` }
-                      : { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
-                    <span className="text-lg">{gt.icon}</span>
-                    <span className="text-[9px] font-bold text-foreground text-center leading-tight">{gt.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {mobilePanel === 'content' && (
-          <div className="space-y-4">
+            {/* AI Copy Assistant */}
             <CopyAssistant content={content} onApply={updateContent} />
 
+            {/* Content fields */}
             <div className="rounded-2xl p-4 space-y-3" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
               <SectionLabel color={NEON.green}>Content</SectionLabel>
 
@@ -231,25 +269,45 @@ export default function MarketingBuilder() {
                 <AssetUploader label="Image / Screenshot (optional)" value={content.image_url} onChange={v => updateContent('image_url', v)} />
               </div>
             </div>
-          </div>
+          </>
         )}
 
-        {mobilePanel === 'export' && (
-          <div className="space-y-4">
+        {activeTab === 'style' && (
+          <>
+            {/* Canvas size */}
+            <div className="rounded-2xl p-4" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+              <SectionLabel color={NEON.cyan}>Canvas Size</SectionLabel>
+              <div className="grid grid-cols-3 gap-2">
+                {Object.entries(CANVAS_PRESETS).map(([key, p]) => (
+                  <button key={key} onClick={() => setCanvasPreset(key)}
+                    className="flex flex-col items-center gap-1 py-3 rounded-xl transition-all active:scale-95"
+                    style={canvasPreset === key
+                      ? { background: `rgba(${NEON_RGB.cyan}, 0.12)`, border: `1px solid rgba(${NEON_RGB.cyan}, 0.4)` }
+                      : { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+                    <span className="text-[10px] font-bold text-foreground">{p.label}</span>
+                    <span className="text-[8px] text-muted-foreground">{p.w}×{p.h}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Theme */}
             <div className="rounded-2xl p-4" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
               <SectionLabel color={NEON.pink}>Theme</SectionLabel>
               <ThemePicker theme={theme} onChange={setTheme} />
             </div>
 
+            {/* Export */}
             <ExportPanel canvasRef={canvasRef} preset={preset} fileName={`pg-${graphicType}`} />
 
+            {/* Save button */}
             <button onClick={handleSave} disabled={saving}
               className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-black transition-all active:scale-95 disabled:opacity-50"
               style={{ background: `rgba(${NEON_RGB.purple}, 0.12)`, border: `1px solid rgba(${NEON_RGB.purple}, 0.3)`, color: NEON.purple }}>
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
               {editingId ? 'Update Asset' : 'Save to History'}
             </button>
-          </div>
+          </>
         )}
       </div>
     </div>

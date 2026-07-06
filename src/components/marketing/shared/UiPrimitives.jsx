@@ -18,6 +18,7 @@ export function SectionLabel({ children, color = NEON.cyan, className = '' }) {
 
 export function FormField({ label, value, onChange, placeholder, multiline = false, rows = 2, maxLength }) {
   const id = useId();
+  const len = (value || '').length;
   const common = {
     id,
     value: value || '',
@@ -28,7 +29,12 @@ export function FormField({ label, value, onChange, placeholder, multiline = fal
   };
   return (
     <div>
-      <label htmlFor={id} className="text-[10px] font-bold text-muted-foreground block mb-1">{label}</label>
+      <div className="flex items-center justify-between mb-1">
+        <label htmlFor={id} className="text-[10px] font-bold text-muted-foreground">{label}</label>
+        {maxLength && (
+          <span className="text-[9px] text-muted-foreground tabular-nums">{len}/{maxLength}</span>
+        )}
+      </div>
       {multiline
         ? <textarea {...common} rows={rows} className={`${common.className} resize-none`} />
         : <input type="text" {...common} />}
