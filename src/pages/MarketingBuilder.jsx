@@ -105,7 +105,7 @@ export default function MarketingBuilder() {
   const [saveError, setSaveError] = useState(null);
   const [saved, setSaved] = useState(false);
   const [activeTab, setActiveTab] = useState('content');
-  const [compositionId, setCompositionId] = useState(null);
+  const [conceptId, setConceptId] = useState(null);
   const navTimerRef = useRef(null);
 
   useEffect(() => () => clearTimeout(navTimerRef.current), []);
@@ -126,7 +126,7 @@ export default function MarketingBuilder() {
           setGraphicType(asset.graphic_type || 'industry_truth');
           setTheme(asset.theme || 'dark');
           setContent({ ...EMPTY_CONTENT, ...(asset.content || {}) });
-          setCompositionId(asset.content?.composition_variant || null);
+          setConceptId(asset.content?.concept_id || asset.content?.composition_variant || null);
         }
       }).catch(() => {});
     }
@@ -150,7 +150,7 @@ export default function MarketingBuilder() {
       const title = assetTitle.trim() || `${graphicType.replace(/_/g, ' ')} graphic`;
       const payload = {
         title, asset_type: 'social_graphic', graphic_type: graphicType,
-        canvas_preset: canvasPreset, content: { ...content, composition_variant: compositionId }, theme,
+        canvas_preset: canvasPreset, content: { ...content, concept_id: conceptId }, theme,
         thumbnail_url: thumbnailUrl, created_by_email: user?.email,
       };
 
@@ -216,7 +216,7 @@ export default function MarketingBuilder() {
             transform: `scale(${previewScale})`, transformOrigin: 'top left',
             position: 'absolute', top: 0, left: 0,
           }}>
-            <GraphicCanvas canvasRef={canvasRef} preset={preset} graphicType={graphicType} content={content} theme={theme} compositionId={compositionId} />
+            <GraphicCanvas canvasRef={canvasRef} preset={preset} graphicType={graphicType} content={content} theme={theme} conceptId={conceptId} />
           </div>
         </div>
       </div>
@@ -247,8 +247,8 @@ export default function MarketingBuilder() {
               graphicType={graphicType}
               theme={theme}
               preset={preset}
-              selectedId={compositionId}
-              onSelect={setCompositionId}
+              selectedId={conceptId}
+              onSelect={setConceptId}
             />
 
             {/* AI Copy Assistant */}
