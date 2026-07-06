@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { Ticket, TrendingUp, Shield, LogIn, Edit2, Tag, Zap, ChevronRight, Camera, ImagePlus, UserPlus, UserCheck, Settings, Eye, EyeOff, Star } from 'lucide-react';
+import { Ticket, TrendingUp, Shield, LogIn, Edit2, Tag, Zap, ChevronRight, Camera, ImagePlus, UserPlus, UserCheck, Settings, Eye, EyeOff, Star, Sparkles } from 'lucide-react';
 import PeanutPointsCard from '@/components/points/PeanutPointsCard';
 import RecentPointsActivity from '@/components/points/RecentPointsActivity';
 import CommunityImpactCard from '@/components/donations/CommunityImpactCard';
@@ -411,21 +411,39 @@ export default function Me() {
           </div>
 
           {isAdmin(user) && (
-            <Link
-              to="/admin"
-              className="flex items-center gap-4 px-5 py-4 rounded-2xl transition-all active:scale-[0.98]"
-              style={{ background: 'rgba(var(--neon-yellow-rgb), 0.08)', border: '1px solid rgba(var(--neon-yellow-rgb), 0.2)' }}
-            >
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{ background: 'rgba(var(--neon-yellow-rgb), 0.12)' }}>
-                <Shield className="w-5 h-5 dark:!text-[#FFE600] dark:drop-shadow-[0_0_8px_rgba(255,230,0,0.8)]" style={{ color: 'var(--neon-yellow)' }} />
-              </div>
-              <div className="flex-1">
-                <div className="font-bold text-sm dark:!text-[#FFFF00]" style={{ color: 'var(--neon-yellow)' }}>Admin Panel</div>
-                <div className="text-[9px] dark:!text-[#FFFF99]" style={{ color: 'var(--neon-yellow)' }}>Manage events and listings</div>
-              </div>
-              <ChevronRight className="w-4 h-4 text-muted-foreground" />
-            </Link>
+            <>
+              <Link
+                to="/admin"
+                className="flex items-center gap-4 px-5 py-4 rounded-2xl transition-all active:scale-[0.98]"
+                style={{ background: 'rgba(var(--neon-yellow-rgb), 0.08)', border: '1px solid rgba(var(--neon-yellow-rgb), 0.2)' }}
+              >
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{ background: 'rgba(var(--neon-yellow-rgb), 0.12)' }}>
+                  <Shield className="w-5 h-5 dark:!text-[#FFE600] dark:drop-shadow-[0_0_8px_rgba(255,230,0,0.8)]" style={{ color: 'var(--neon-yellow)' }} />
+                </div>
+                <div className="flex-1">
+                  <div className="font-bold text-sm dark:!text-[#FFFF00]" style={{ color: 'var(--neon-yellow)' }}>Admin Panel</div>
+                  <div className="text-[9px] dark:!text-[#FFFF99]" style={{ color: 'var(--neon-yellow)' }}>Manage events and listings</div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+              </Link>
+
+              <Link
+                to="/marketing-studio"
+                className="flex items-center gap-4 px-5 py-4 rounded-2xl transition-all active:scale-[0.98]"
+                style={{ background: 'rgba(var(--neon-purple-rgb), 0.08)', border: '1px solid rgba(var(--neon-purple-rgb), 0.2)' }}
+              >
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{ background: 'rgba(var(--neon-purple-rgb), 0.12)' }}>
+                  <Sparkles className="w-5 h-5 dark:!text-[#BF5FFF] dark:drop-shadow-[0_0_8px_rgba(191,95,255,0.8)]" style={{ color: 'var(--neon-purple)' }} />
+                </div>
+                <div className="flex-1">
+                  <div className="font-bold text-sm dark:!text-[#FF00FF]" style={{ color: 'var(--neon-purple)' }}>Marketing Studio</div>
+                  <div className="text-[9px] dark:!text-[#FF99FF]" style={{ color: 'var(--neon-purple)' }}>Create on-brand graphics</div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+              </Link>
+            </>
           )}
         </div>}
 

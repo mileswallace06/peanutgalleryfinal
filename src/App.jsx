@@ -43,6 +43,8 @@ const BetaRecruitment = lazy(() => import('@/pages/BetaRecruitment'));
 const BetaDashboard = lazy(() => import('@/pages/BetaDashboard'));
 const Notifications = lazy(() => import('@/pages/Notifications'));
 const EventMode = lazy(() => import('@/pages/EventMode'));
+const MarketingStudio = lazy(() => import('@/pages/MarketingStudio'));
+const MarketingBuilder = lazy(() => import('@/pages/MarketingBuilder'));
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, checkAppState, isAuthenticated, user } = useAuth();
@@ -105,6 +107,8 @@ const AuthenticatedApp = () => {
             <Route path="/beta-dashboard" element={<BetaDashboard />} />
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/event-mode/:id" element={<EventMode />} />
+            <Route path="/marketing-studio" element={<MarketingStudio />} />
+            <Route path="/marketing-studio/builder" element={<MarketingBuilder />} />
           </Route>
           <Route path="*" element={<PageNotFound />} />
         </Routes>
