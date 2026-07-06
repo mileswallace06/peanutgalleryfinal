@@ -8,25 +8,148 @@
  * The engine reads that data and builds the graphic.
  *
  * Pipeline:
- *   1. Merge concept designSystem + execution style modifiers
+ *   1. Merge: base concept designSystem + execution style modifiers
+ *      + user designOverrides (always win)
  *   2. Render background (flat, gradient, radial-glow, banded, pattern)
- *   3. Render texture overlay (grain, vignette, paper)
- *   4. Render background-layer decorative elements
- *   5. Calculate content zone (anchor, negativeSpace, maxWidth)
- *   6. Render content elements in hierarchy order
- *   7. Render inline decorative elements in hierarchy flow
- *   8. Render logo at specified position
+ *   3. Render background overlays (darken, lighten from overrides)
+ *   4. Render texture overlay (grain, vignette, paper)
+ *   5. Render background-layer decorative elements
+ *   6. Calculate content zone (anchor, negativeSpace, maxWidth, offsets)
+ *   7. Render content elements in hierarchy order
+ *   8. Render inline decorative elements in hierarchy flow
+ *   9. Render logo at specified position
  *
- * The engine thinks like a Creative Director:
- *   "What is the visual world? Where does content live?
- *    What surrounds it? What is the hierarchy?"
- *
- * Text placement is the FINAL step, not the first.
+ * Design Overrides do NOT mutate the base concept. They are merged
+ * at render time and can be undone/reset at any time.
  */
 import { NEON, NEON_RGB, FONTS, TEXT, GRADIENTS, THEMES, PG_LOGO_URL } from '@/lib/marketingTokens';
 import { getConceptById } from '@/lib/marketing/creativeConcepts';
 import { getExecutionStyleById, EXECUTION_STYLES } from '@/lib/marketing/executionStyles';
 import { renderDecorative, BACKGROUND_DECORATIVES, INLINE_DECORATIVES } from './decoratives';
+
+// ── Design Override Application ─────────────────────────────────────────
+const COLOR_NAMES = {
+  purple: NEON.purple, pink: NEON.pink, green: NEON.green,
+  cyan: NEON.cyan, yellow: NEON.yellow, orange: NEON.orange,
+  white: '#ffffff', dark: TEXT.dark,
+};
+
+function resolveColorName(color) {
+  if (!color) return undefined;
+  if (typeof color !== 'string') return color;
+  if (color.startsWith('#') || color.startsWith('rgb')) return color;
+  return COLOR_NAMES[color.toLowerCase()] || color;
+}
+
+function getEmphasisStyle(treatment, accentColor) {
+  switch (treatment) {
+    case 'fracture':
+    case 'crack':
+      return {
+        background: GRADIENTS.broken,
+        WebkitBackgroundClip: 'text',
+        WebkitTextFillColor: 'transparent',
+        backgroundClip: 'text',
+      };
+    case 'gradient':
+      return {
+        background: GRADIENTS.headline,
+        WebkitBackgroundClip: 'text',
+        WebkitTextFillColor: 'transparent',
+        backgroundClip: 'text',
+      };
+    case 'highlight':
+      return {
+        background: `${accentColor}30`,
+        padding: '0 0.1em',
+        borderRadius: '0.05em',
+        color: accentColor,
+      };
+    case 'underline':
+      return {
+        textDecoration: 'underline',
+        textDecorationColor: accentColor,
+        textDecorationThickness: '2px',
+        textUnderlineOffset: '0.05em',
+      };
+    case 'bold':
+      return { fontWeight: 900, color: accentColor };
+    default:
+      return { color: accentColor };
+  }
+}
+
+/**
+ * Merge design overrides into a concept's design system.
+ * Overrides always win. Does NOT mutate the original.
+ */
+function applyDesignOverrides(baseDesignSystem, overrides) {
+  if (!overrides) return baseDesignSystem;
+
+  const ds = JSON.parse(JSON.stringify(baseDesignSystem));
+
+  // Typography — deep merge per element
+  if (overrides.typography) {
+    for (const [element, props] of Object.entries(overrides.typography)) {
+      if (ds.typography[element]) {
+        ds.typography[element] = { ...ds.typography[element], ...props };
+      } else {
+        ds.typography[element] = { ...props };
+      }
+    }
+  }
+
+  // Composition — merge fields
+  if (overrides.composition) {
+    ds.composition = { ...ds.composition, ...overrides.composition };
+  }
+
+  // Color — merge, resolve color names
+  if (overrides.color) {
+    const co = { ...overrides.color };
+    if (co.accent) co.accent = resolveColorName(co.accent);
+    ds.color = { ...ds.color, ...co };
+  }
+
+  // Background — deep merge, resolve glow color
+  if (overrides.background) {
+    const bo = { ...overrides.background };
+    if (bo.glow) {
+      const glow = { ...bo.glow };
+      if (glow.color) glow.color = resolveColorName(glow.color);
+      bo.glow = { ...ds.background.glow, ...glow };
+    }
+    ds.background = { ...ds.background, ...bo };
+  }
+
+  // Decorative — add/remove elements
+  if (overrides.decorative) {
+    const dec = overrides.decorative;
+    if (dec.add) {
+      ds.decorative = [...new Set([...(ds.decorative || []), ...dec.add])];
+    }
+    if (dec.remove) {
+      ds.decorative = (ds.decorative || []).filter(d => !dec.remove.includes(d));
+    }
+  }
+
+  // Logo — merge
+  if (overrides.logo) {
+    ds.logo = { ...ds.logo, ...overrides.logo };
+  }
+
+  // Emphasis — store for headline renderer
+  if (overrides.emphasis) {
+    ds._emphasis = { ...ds._emphasis, ...overrides.emphasis };
+  }
+
+  // CTA — store for CTA renderer
+  if (overrides.cta) {
+    ds._ctaOverrides = { ...ds._ctaOverrides, ...overrides.cta };
+  }
+
+  return ds;
+}
 
 // ── Typography resolution ───────────────────────────────────────────────
 const FONT_MAP = { display: FONTS.display, body: FONTS.body };
@@ -64,8 +187,17 @@ function getContentZone(composition, w, h, execModifiers) {
     default:          zoneTop = (h - zoneH) / 2; break;
   }
 
+  // Apply vertical/horizontal offsets from design overrides
+  if (composition.verticalOffset) {
+    zoneTop += composition.verticalOffset * h;
+  }
+  let zoneLeft = padX;
+  if (composition.horizontalOffset) {
+    zoneLeft += composition.horizontalOffset * w;
+  }
+
   return {
-    left: padX,
+    left: zoneLeft,
     top: zoneTop,
     width: zoneW,
     height: zoneH,
@@ -250,6 +382,36 @@ function renderContentElement(elementId, content, designSystem, zone, u, execMod
     case 'headline': {
       if (!content.headline) return null;
       const typo = resolveTypo(typography.headline, baseFontSize, execModifiers);
+      const emphasis = designSystem._emphasis;
+
+      // If emphasis word is set and exists in headline, split and style
+      if (emphasis && emphasis.word && content.headline.toLowerCase().includes(emphasis.word.toLowerCase())) {
+        const word = emphasis.word;
+        const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(`(${escaped})`, 'gi');
+        const parts = content.headline.split(regex).filter(p => p.length > 0);
+        const emphStyle = getEmphasisStyle(emphasis.treatment, color.accent);
+
+        return (
+          <div key={elementId} style={{
+            ...typo,
+            color: textColor,
+            textAlign: align,
+            lineHeight: 1.05,
+            maxWidth: '100%',
+            wordBreak: 'break-word',
+          }}>
+            {parts.map((part, i) => {
+              if (part.toLowerCase() === word.toLowerCase()) {
+                return <span key={i} style={emphStyle}>{part}</span>;
+              }
+              return <span key={i}>{part}</span>;
+            })}
+          </div>
+        );
+      }
+
+      // Default rendering (with optional text gradient)
       return (
         <div key={elementId} style={{
           ...typo,
@@ -304,16 +466,40 @@ function renderContentElement(elementId, content, designSystem, zone, u, execMod
 
     case 'cta': {
       if (!content.cta) return null;
+      const ctaOverrides = designSystem._ctaOverrides || {};
+
+      // Visibility override
+      if (ctaOverrides.visibility === 'hidden') return null;
+
       const typo = resolveTypo(typography.cta, baseFontSize * 0.3, execModifiers);
-      const isDarkText = color.text === 'dark';
+      const prominence = ctaOverrides.prominence || 'normal';
+      const paddingScale = prominence === 'high' ? 1.3 : prominence === 'low' ? 0.7 : 1.0;
+      const opacity = prominence === 'low' ? 0.55 : 1.0;
+      const ctaStyle = ctaOverrides.style || 'pill';
+
+      let ctaBg = GRADIENTS.cta_primary;
+      let ctaBorderRadius = 999;
+      let ctaBorder = 'none';
+      let ctaColor = TEXT.dark;
+
+      if (ctaStyle === 'flat') {
+        ctaBorderRadius = 8 * u;
+      } else if (ctaStyle === 'outline') {
+        ctaBg = 'transparent';
+        ctaBorder = `2px solid ${color.accent}`;
+        ctaColor = color.accent;
+      }
+
       return (
         <div key={elementId} style={{
           display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          padding: `${10 * u}px ${28 * u}px`,
-          borderRadius: 999,
-          background: GRADIENTS.cta_primary,
+          padding: `${10 * u * paddingScale}px ${28 * u * paddingScale}px`,
+          borderRadius: ctaBorderRadius,
+          background: ctaBg,
+          border: ctaBorder,
+          opacity,
           ...typo,
-          color: isDarkText ? TEXT.dark : TEXT.dark,
+          color: ctaColor,
           alignSelf: align === 'center' ? 'center' : align === 'right' ? 'flex-end' : 'flex-start',
         }}>
           {content.cta}
@@ -430,6 +616,7 @@ function renderLogo(logoConfig, u, w, h, colorScheme) {
 
   const sizes = { xs: 16 * u, sm: 20 * u, md: 28 * u };
   const logoSize = sizes[logoConfig.size] || sizes.sm;
+  const logoOpacity = logoConfig.opacity !== undefined ? logoConfig.opacity : 0.6;
 
   const positions = {
     'top-left':     { top: 20 * u, left: 20 * u },
@@ -448,7 +635,7 @@ function renderLogo(logoConfig, u, w, h, colorScheme) {
       position: 'absolute',
       ...pos,
       display: 'flex', alignItems: 'center', gap: 6 * u,
-      opacity: 0.6,
+      opacity: logoOpacity,
       zIndex: 10,
     }}>
       <img src={PG_LOGO_URL} alt="PG" style={{ width: logoSize, height: logoSize, objectFit: 'contain' }} crossOrigin="anonymous" />
@@ -472,18 +659,26 @@ function renderLogo(logoConfig, u, w, h, colorScheme) {
  * Props:
  *   conceptId — which Creative Concept to render
  *   executionStyleId — which Execution Style modifies it
- *   content — the user's text content
+ *   content — the user's text content (may include design_overrides)
  *   preset — canvas dimensions { w, h }
- *   theme — color theme override (unused if concept defines background)
+ *   theme — color theme override
+ *   designOverrides — per-asset override object (also read from content.design_overrides)
+ *
+ * Render order: base concept + execution style + design overrides
  */
-export default function CreativeDirectionEngine({ conceptId, executionStyleId, content = {}, preset, theme }) {
+export default function CreativeDirectionEngine({ conceptId, executionStyleId, content = {}, preset, theme, designOverrides }) {
   const concept = getConceptById(conceptId);
   if (!concept) return null;
 
-  const execStyle = getExecutionStyleById(executionStyleId) || EXECUTION_STYLES[1]; // default to 'editorial'
+  const execStyle = getExecutionStyleById(executionStyleId) || EXECUTION_STYLES[1];
   const execModifiers = execStyle.modifiers;
 
-  const { designSystem } = concept;
+  // Resolve overrides: explicit prop, or from content.design_overrides
+  const overrides = designOverrides || content?.design_overrides;
+  const designSystem = overrides
+    ? applyDesignOverrides(concept.designSystem, overrides)
+    : concept.designSystem;
+
   const { background, composition, typography, color, texture, decorative, logo, hierarchy } = designSystem;
 
   const w = preset.w;
@@ -496,9 +691,6 @@ export default function CreativeDirectionEngine({ conceptId, executionStyleId, c
   const bgDecoratives = decorative.filter(d => BACKGROUND_DECORATIVES.has(d));
   const inlineDecoratives = decorative.filter(d => INLINE_DECORATIVES.has(d));
 
-  // Determine if concept uses a structural card (paper_card, newsprint_card, ticket_card)
-  const hasCard = decorative.some(d => ['paper_card', 'newsprint_card', 'ticket_card'].includes(d));
-
   // Apply rotation if specified
   const contentRotation = composition.rotation || 0;
 
@@ -506,6 +698,14 @@ export default function CreativeDirectionEngine({ conceptId, executionStyleId, c
     <div style={{ width: w, height: h, position: 'relative', overflow: 'hidden' }}>
       {/* Layer 1: Background */}
       {renderBackground(background, w, h)}
+
+      {/* Layer 1b: Background overlays (darken/lighten from overrides) */}
+      {background.darken > 0 && (
+        <div style={{ position: 'absolute', inset: 0, background: `rgba(0,0,0,${background.darken})`, pointerEvents: 'none', zIndex: 2 }} />
+      )}
+      {background.lighten > 0 && (
+        <div style={{ position: 'absolute', inset: 0, background: `rgba(255,255,255,${background.lighten})`, pointerEvents: 'none', zIndex: 2 }} />
+      )}
 
       {/* Layer 2: Texture overlay */}
       {renderTexture(texture, w, h, execModifiers)}

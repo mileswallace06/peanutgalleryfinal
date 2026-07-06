@@ -84,7 +84,7 @@
     },
     "content": {
       "type": "object",
-      "description": "The user-authored content payload rendered into the graphic. For carousels, contains a 'slides' array.",
+      "description": "The user-authored content payload rendered into the graphic. For carousels, contains a 'slides' array. Includes creative direction IDs and design overrides.",
       "properties": {
         "headline": {
           "type": "string"
@@ -121,6 +121,86 @@
         },
         "signature": {
           "type": "string"
+        },
+        "strategy_id": {
+          "type": "string",
+          "description": "Creative Strategy ID (Decision 1)"
+        },
+        "concept_id": {
+          "type": "string",
+          "description": "Creative Concept ID (Decision 2)"
+        },
+        "execution_style_id": {
+          "type": "string",
+          "description": "Execution Style ID (Decision 3)"
+        },
+        "design_overrides": {
+          "type": "object",
+          "description": "Per-asset AI creative edit overrides. Merged on top of base concept + execution style at render time.",
+          "properties": {
+            "typography": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "composition": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "color": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "background": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "decorative": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "logo": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "emphasis": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "cta": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "custom_notes": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "creative_edit_history": {
+          "type": "array",
+          "description": "History of applied creative edits for undo support.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "instruction": {
+                "type": "string"
+              },
+              "summary": {
+                "type": "string"
+              },
+              "timestamp": {
+                "type": "string"
+              },
+              "previous_overrides": {
+                "type": "object"
+              },
+              "next_overrides": {
+                "type": "object"
+              }
+            }
+          }
         },
         "slides": {
           "type": "array",

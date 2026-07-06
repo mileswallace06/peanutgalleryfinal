@@ -21,11 +21,17 @@ import ConceptPicker from '@/components/marketing/ConceptPicker';
 import { SectionLabel, FormField, LoadingSpinner, ThemePicker } from '@/components/marketing/shared/UiPrimitives';
 import { usePreviewScale, useCanvasCapture } from '@/components/marketing/shared/hooks';
 import { CANVAS_PRESETS, GRAPHIC_TYPES, NEON, NEON_RGB, GRADIENTS, TEXT } from '@/lib/marketingTokens';
+import CreativeEditPanel from '@/components/marketing/CreativeEditPanel';
+import { applyCreativeEdit, mergeOverrides, hasActiveOverrides } from '@/lib/marketing/creativeEdit';
+import { getConceptById } from '@/lib/marketing/creativeConcepts';
+import { getExecutionStyleById } from '@/lib/marketing/executionStyles';
 
 const EMPTY_CONTENT = {
   headline: '', subheadline: '', body: '', cta: '', badge: '',
   stat_number: '', stat_label: '', stat_explanation: '',
   image_url: '', author: '', quote_text: '', signature: '',
+  design_overrides: null,
+  creative_edit_history: [],
 };
 
 /** Compact layout dropdown — replaces the 3-col grid for a cleaner editing experience. */
@@ -108,6 +114,7 @@ export default function MarketingBuilder() {
   const [conceptId, setConceptId] = useState(null);
   const [executionStyleId, setExecutionStyleId] = useState(null);
   const [strategyId, setStrategyId] = useState(null);
+  const [editApplying, setEditApplying] = useState(false);
   const navTimerRef = useRef(null);
 
   useEffect(() => () => clearTimeout(navTimerRef.current), []);
@@ -139,6 +146,57 @@ export default function MarketingBuilder() {
   const updateContent = useCallback((field, value) => {
     setContent(prev => ({ ...prev, [field]: value }));
   }, []);
+
+  // ── Creative Edit handlers ──────────────────────────────────────────────
+  const handleApplyEdit = async (instruction) => {
+    setEditApplying(true);
+    try {
+      const concept = getConceptById(conceptId);
+      const execStyle = getExecutionStyleById(executionStyleId);
+      const result = await applyCreativeEdit(instruction, {
+        concept: concept ? { name: concept.name, mood: concept.mood, visualLanguage: concept.visualLanguage } : null,
+        executionStyle: execStyle ? { name: execStyle.name } : null,
+        currentOverrides: content.design_overrides || {},
+      });
+
+      const newOverrides = mergeOverrides(content.design_overrides || {}, result.overrides || {});
+      const historyEntry = {
+        instruction,
+        summary: result.summary,
+        timestamp: new Date().toISOString(),
+        previous_overrides: content.design_overrides || {},
+        next_overrides: newOverrides,
+      };
+
+      setContent(prev => ({
+        ...prev,
+        design_overrides: newOverrides,
+        creative_edit_history: [...(prev.creative_edit_history || []), historyEntry],
+      }));
+    } catch (e) {
+      console.error('Creative edit failed:', e);
+    }
+    setEditApplying(false);
+  };
+
+  const handleUndoEdit = () => {
+    const history = content.creative_edit_history || [];
+    if (history.length === 0) return;
+    const lastEntry = history[history.length - 1];
+    setContent(prev => ({
+      ...prev,
+      design_overrides: lastEntry.previous_overrides || null,
+      creative_edit_history: history.slice(0, -1),
+    }));
+  };
+
+  const handleResetEdits = () => {
+    setContent(prev => ({
+      ...prev,
+      design_overrides: null,
+      creative_edit_history: [],
+    }));
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -259,6 +317,16 @@ export default function MarketingBuilder() {
                 if (changes.executionStyleId !== undefined) setExecutionStyleId(changes.executionStyleId);
                 if (changes.strategyId !== undefined) setStrategyId(changes.strategyId);
               }}
+            />
+
+            {/* Creative Edit — conversational design adjustments */}
+            <CreativeEditPanel
+              editHistory={content.creative_edit_history || []}
+              hasOverrides={hasActiveOverrides(content.design_overrides)}
+              isApplying={editApplying}
+              onApplyEdit={handleApplyEdit}
+              onUndo={handleUndoEdit}
+              onReset={handleResetEdits}
             />
 
             {/* AI Copy Assistant */}

@@ -33,6 +33,7 @@ export function renderLayout(graphicType, props) {
       executionStyleId={resolvedExecId}
       content={content}
       preset={{ w, h }}
+      designOverrides={content?.design_overrides}
     />
   );
 }
@@ -55,6 +56,7 @@ export default function GraphicCanvas({ canvasRef, preset, graphicType, content,
         content={content}
         preset={preset}
         theme={theme}
+        designOverrides={content?.design_overrides}
       />
     </div>
   );
