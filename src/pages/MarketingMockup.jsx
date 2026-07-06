@@ -1,23 +1,25 @@
 /**
  * Marketing Mockup Generator
- * --------------------------------------------------------------------
  * Places screenshots inside device frames (iPhone, laptop, billboard, etc.)
- * The user uploads a screenshot and selects a device — the system handles
- * the frame, shadows, and composition.
  *
- * Uses the same PG design patterns as the rest of the app.
+ * Improvements:
+ *   - Shared UI primitives
+ *   - Save success/error states
+ *   - Better empty state when no screenshot uploaded
+ *   - Retina-quality export
  */
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { isAdmin } from '@/lib/isAdmin';
 import { useAuth } from '@/lib/AuthContext';
 import { Navigate } from 'react-router-dom';
-import html2canvas from 'html2canvas';
-import { ArrowLeft, Save, Loader2, Download, Smartphone, Type, Palette } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, Download, Smartphone, Type, AlertCircle, Check, ImagePlus } from 'lucide-react';
 import AssetUploader from '@/components/marketing/AssetUploader';
 import ExportPanel from '@/components/marketing/ExportPanel';
 import { MOCKUP_TYPES } from '@/components/marketing/canvas/DeviceMockups';
+import { SectionLabel, FormField, LoadingSpinner, PanelSwitcher, ThemePicker } from '@/components/marketing/shared/UiPrimitives';
+import { usePreviewScale, useCanvasCapture } from '@/components/marketing/shared/hooks';
 import { NEON, NEON_RGB, THEMES, GRADIENTS, TEXT, FONTS, PG_LOGO_URL } from '@/lib/marketingTokens';
 
 const CANVAS_PRESETS = {
@@ -27,29 +29,11 @@ const CANVAS_PRESETS = {
   'story':     { w: 1080, h: 1920, label: 'Story 9:16' },
 };
 
-function SectionLabel({ children, color = NEON.cyan }) {
-  return (
-    <p className="text-[10px] font-black tracking-widest uppercase mb-3 flex items-center gap-2" style={{ color }}>
-      <span className="w-4 h-px inline-block" style={{ background: color }} />
-      {children}
-    </p>
-  );
-}
-
-function FormField({ label, value, onChange, placeholder, multiline = false, rows = 2 }) {
-  return (
-    <div>
-      <label className="text-[10px] font-bold text-muted-foreground block mb-1">{label}</label>
-      {multiline ? (
-        <textarea value={value || ''} onChange={e => onChange(e.target.value)} placeholder={placeholder} rows={rows}
-          className="w-full px-3 py-2 rounded-xl text-sm bg-background border border-border text-foreground placeholder:text-muted-foreground resize-none outline-none focus:border-primary" />
-      ) : (
-        <input type="text" value={value || ''} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-          className="w-full px-3 py-2 rounded-xl text-sm bg-background border border-border text-foreground placeholder:text-muted-foreground outline-none focus:border-primary" />
-      )}
-    </div>
-  );
-}
+const PANELS = [
+  { id: 'device', label: 'Device & Canvas', icon: Smartphone },
+  { id: 'content', label: 'Content', icon: Type },
+  { id: 'export', label: 'Theme & Export', icon: Download },
+];
 
 export default function MarketingMockup() {
   const navigate = useNavigate();
@@ -66,13 +50,14 @@ export default function MarketingMockup() {
   const [assetTitle, setAssetTitle] = useState('');
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
+  const [saved, setSaved] = useState(false);
   const [mobilePanel, setMobilePanel] = useState('device');
 
-  const previewRef = useRef(null);
-  const canvasRef = useRef(null);
-  const [previewScale, setPreviewScale] = useState(0.3);
-
   const preset = CANVAS_PRESETS[canvasPreset];
+  const { previewRef, scale: previewScale } = usePreviewScale(preset, 0.5);
+  const canvasRef = useRef(null);
+  const capture = useCanvasCapture(preset);
 
   useEffect(() => {
     const editId = searchParams.get('edit');
@@ -93,37 +78,18 @@ export default function MarketingMockup() {
     }
   }, [searchParams]);
 
-  useEffect(() => {
-    const updateScale = () => {
-      if (previewRef.current) {
-        const containerWidth = previewRef.current.offsetWidth - 32;
-        const scale = Math.min(containerWidth / preset.w, 0.5);
-        setPreviewScale(Math.max(0.1, scale));
-      }
-    };
-    updateScale();
-    window.addEventListener('resize', updateScale);
-    return () => window.removeEventListener('resize', updateScale);
-  }, [canvasPreset, preset]);
-
-  const captureCanvas = async () => {
-    if (!canvasRef.current) return null;
-    return await html2canvas(canvasRef.current, {
-      width: preset.w, height: preset.h, scale: 1,
-      backgroundColor: '#050308', useCORS: true, logging: false,
-    });
-  };
-
   const handleSave = async () => {
     setSaving(true);
+    setSaveError(null);
+    setSaved(false);
     try {
       let thumbnailUrl = null;
       try {
-        const canvas = await captureCanvas();
+        const canvas = await capture(canvasRef);
         if (canvas) thumbnailUrl = canvas.toDataURL('image/jpeg', 0.6);
       } catch (_) {}
 
-      const title = assetTitle || `${mockupType} mockup`;
+      const title = assetTitle.trim() || `${mockupType} mockup`;
       const payload = {
         title, asset_type: 'mockup', graphic_type: mockupType,
         canvas_preset: canvasPreset, theme,
@@ -137,19 +103,16 @@ export default function MarketingMockup() {
         const created = await base44.entities.MarketingAsset.create(payload);
         setEditingId(created.id);
       }
-      navigate('/marketing-studio');
+      setSaved(true);
+      setTimeout(() => navigate('/marketing-studio'), 600);
     } catch (e) {
-      console.error('Save failed:', e);
+      setSaveError(e.message || 'Failed to save. Please try again.');
     }
     setSaving(false);
   };
 
-  if (isLoadingAuth) {
-    return <div className="min-h-full flex items-center justify-center"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>;
-  }
-  if (!user || !isAdmin(user)) {
-    return <Navigate to="/events" replace />;
-  }
+  if (isLoadingAuth) return <LoadingSpinner />;
+  if (!user || !isAdmin(user)) return <Navigate to="/events" replace />;
 
   const MockupComponent = MOCKUP_TYPES[mockupType]?.Component;
   const u = preset.w / 1080;
@@ -158,7 +121,8 @@ export default function MarketingMockup() {
     <div className="pb-28 dark:rave-bg min-h-full flex flex-col" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
       {/* Header */}
       <div className="px-4 py-3 flex items-center gap-3 border-b border-border sticky top-0 z-30 frosted-bar">
-        <button onClick={() => navigate('/marketing-studio')} className="p-1.5 -ml-1.5">
+        <button onClick={() => navigate('/marketing-studio')} aria-label="Back to Marketing Studio"
+          className="p-1.5 -ml-1.5 rounded-lg transition-colors hover:bg-muted">
           <ArrowLeft className="w-5 h-5 text-foreground" />
         </button>
         <div className="flex-1 min-w-0">
@@ -167,11 +131,19 @@ export default function MarketingMockup() {
             className="font-display text-base text-foreground bg-transparent border-none outline-none w-full placeholder:text-muted-foreground" />
         </div>
         <button onClick={handleSave} disabled={saving}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-black"
-          style={{ background: GRADIENTS.cta_primary, color: TEXT.dark }}>
-          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Save
+          className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-black transition-all active:scale-95 disabled:opacity-50"
+          style={{ background: saved ? NEON.green : GRADIENTS.cta_primary, color: TEXT.dark }}>
+          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : saved ? <Check className="w-3.5 h-3.5" /> : <Save className="w-3.5 h-3.5" />}
+          {saved ? 'Saved!' : 'Save'}
         </button>
       </div>
+
+      {saveError && (
+        <div className="mx-4 mt-3 flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-destructive"
+          style={{ background: 'rgba(255,0,0,0.06)' }}>
+          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" /> {saveError}
+        </div>
+      )}
 
       {/* Live Preview */}
       <div ref={previewRef} className="px-4 py-4 flex justify-center" style={{ background: 'rgba(0,0,0,0.3)' }}>
@@ -235,10 +207,22 @@ export default function MarketingMockup() {
                   }}>{subheadline}</p>
                 )}
 
-                {/* Mockup */}
-                {screenshotUrl && MockupComponent && (
+                {/* Mockup or empty state */}
+                {screenshotUrl && MockupComponent ? (
                   <div style={{ position: 'relative', zIndex: 1 }}>
                     <MockupComponent u={u} src={screenshotUrl} />
+                  </div>
+                ) : (
+                  <div style={{
+                    position: 'relative', zIndex: 1,
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 * u,
+                    padding: `${40 * u}px ${60 * u}px`,
+                    borderRadius: 16 * u,
+                    border: `2px dashed rgba(255,255,255,0.15)`,
+                    color: TEXT.faint,
+                  }}>
+                    <ImagePlus style={{ width: 32 * u, height: 32 * u }} />
+                    <span style={{ fontFamily: FONTS.body, fontSize: 14 * u }}>Upload a screenshot in the Content tab</span>
                   </div>
                 )}
 
@@ -247,7 +231,7 @@ export default function MarketingMockup() {
                   position: 'absolute', bottom: 50 * u, left: 70 * u, right: 70 * u,
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                 }}>
-                  <img src={PG_LOGO_URL} alt="" crossOrigin="anonymous" style={{
+                  <img src={PG_LOGO_URL} alt="Peanut Gallery" crossOrigin="anonymous" style={{
                     width: 36 * u, height: 36 * u, borderRadius: 8 * u, objectFit: 'cover',
                   }} />
                   <span style={{
@@ -261,25 +245,7 @@ export default function MarketingMockup() {
         </div>
       </div>
 
-      {/* Mobile panel switcher */}
-      <div className="flex gap-2 px-4 mb-3">
-        {[
-          { id: 'device', label: 'Device & Canvas', icon: Smartphone },
-          { id: 'content', label: 'Content', icon: Type },
-          { id: 'export', label: 'Theme & Export', icon: Download },
-        ].map(p => {
-          const Icon = p.icon;
-          return (
-            <button key={p.id} onClick={() => setMobilePanel(p.id)}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all"
-              style={mobilePanel === p.id
-                ? { background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }
-                : { background: 'hsl(var(--card))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }}>
-              <Icon className="w-3.5 h-3.5" /> {p.label}
-            </button>
-          );
-        })}
-      </div>
+      <PanelSwitcher panels={PANELS} active={mobilePanel} onChange={setMobilePanel} />
 
       {/* Panels */}
       <div className="px-4 space-y-4">
@@ -322,9 +288,9 @@ export default function MarketingMockup() {
           <div className="space-y-4">
             <div className="rounded-2xl p-4 space-y-3" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
               <SectionLabel color={NEON.green}>Content</SectionLabel>
-              <FormField label="Badge" value={badge} onChange={setBadge} placeholder="e.g. NEW FEATURE" />
-              <FormField label="Headline" value={headline} onChange={setHeadline} placeholder="Your headline" multiline />
-              <FormField label="Subheadline" value={subheadline} onChange={setSubheadline} placeholder="Supporting line" multiline />
+              <FormField label="Badge" value={badge} onChange={setBadge} placeholder="e.g. NEW FEATURE" maxLength={30} />
+              <FormField label="Headline" value={headline} onChange={setHeadline} placeholder="Your headline" multiline maxLength={100} />
+              <FormField label="Subheadline" value={subheadline} onChange={setSubheadline} placeholder="Supporting line" multiline maxLength={150} />
               <div className="pt-2 border-t border-border">
                 <AssetUploader label="Screenshot" value={screenshotUrl} onChange={setScreenshotUrl} />
               </div>
@@ -336,30 +302,15 @@ export default function MarketingMockup() {
           <div className="space-y-4">
             <div className="rounded-2xl p-4" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
               <SectionLabel color={NEON.pink}>Theme</SectionLabel>
-              <div className="flex gap-2 flex-wrap">
-                {Object.entries(THEMES).map(([key, _]) => {
-                  const themeColors = { dark: NEON.purple, dark_purple: NEON.purple, dark_green: NEON.green, dark_cyan: NEON.cyan, dark_pink: NEON.pink };
-                  const color = themeColors[key] || NEON.purple;
-                  return (
-                    <button key={key} onClick={() => setTheme(key)}
-                      className="flex items-center gap-2 px-3 py-2 rounded-xl transition-all active:scale-95"
-                      style={theme === key
-                        ? { background: 'hsl(var(--background))', border: `2px solid ${color}` }
-                        : { background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}>
-                      <span className="w-4 h-4 rounded-full" style={{ background: color }} />
-                      <span className="text-xs font-bold text-foreground capitalize">{key.replace('dark_', '')}</span>
-                    </button>
-                  );
-                })}
-              </div>
+              <ThemePicker theme={theme} onChange={setTheme} />
             </div>
 
             <ExportPanel canvasRef={canvasRef} preset={preset} fileName={`pg-mockup-${mockupType}`} />
 
             <button onClick={handleSave} disabled={saving}
-              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-black transition-all active:scale-95"
+              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-black transition-all active:scale-95 disabled:opacity-50"
               style={{ background: `rgba(${NEON_RGB.purple}, 0.12)`, border: `1px solid rgba(${NEON_RGB.purple}, 0.3)`, color: NEON.purple }}>
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
               {editingId ? 'Update Mockup' : 'Save to History'}
             </button>
           </div>

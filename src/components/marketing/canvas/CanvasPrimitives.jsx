@@ -80,6 +80,7 @@ export function CanvasBadge({ u = 1, children, color = NEON.cyan, style }) {
  * Display headline — exact pattern from Onboarding.jsx headlineWords.
  * Black Han Sans, gradient text, tight leading, uppercase.
  * Includes broken-text treatment when triggered.
+ * Auto-wraps long text with proper line height.
  */
 export function CanvasHeadline({ u = 1, children, gradient = true, align = 'left', broken = false, size = 80, style }) {
   const isBroken = broken;
@@ -89,7 +90,7 @@ export function CanvasHeadline({ u = 1, children, gradient = true, align = 'left
     <span style={{
       fontFamily: FONTS.display,
       fontSize: size * u,
-      lineHeight: 1.0,
+      lineHeight: 1.05,
       letterSpacing: '0.01em',
       textTransform: 'uppercase',
       ...(gradient ? {
@@ -99,6 +100,8 @@ export function CanvasHeadline({ u = 1, children, gradient = true, align = 'left
         backgroundClip: 'text',
       } : { color: TEXT.white }),
       display: 'block',
+      wordBreak: 'break-word',
+      overflowWrap: 'break-word',
     }}>{children}</span>
   );
 

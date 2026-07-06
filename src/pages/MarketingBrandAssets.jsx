@@ -1,62 +1,42 @@
 /**
  * Brand Assets — PG brand reference page.
  * Shows the official Peanut Gallery design system: colors, gradients,
- * logo, typography, and spacing. Not user-uploaded assets — this is
- * the brand reference that every Marketing Studio graphic uses.
+ * logo, typography, and spacing.
  *
- * Uses the same design patterns as WhyPeanutGallery / InstantListingsGuide.
+ * Improvements:
+ *   - Shared UI primitives
+ *   - Better color swatch grid (responsive)
+ *   - Gradient preview as actual CSS
  */
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Copy, Check } from 'lucide-react';
 import { useState } from 'react';
 import { NEON, NEON_RGB, GRADIENTS, FONTS, PG_LOGO_URL, TEXT } from '@/lib/marketingTokens';
+import { SectionLabel } from '@/components/marketing/shared/UiPrimitives';
 
-function SectionLabel({ children, color = NEON.purple }) {
-  return (
-    <p className="text-[10px] font-black tracking-widest uppercase mb-4 flex items-center gap-2" style={{ color }}>
-      <span className="w-4 h-px inline-block" style={{ background: color }} />
-      {children}
-    </p>
-  );
-}
-
-function ColorSwatch({ name, hex, rgb }) {
+function CopyableSwatch({ name, value, type = 'color' }) {
   const [copied, setCopied] = useState(false);
   const handleCopy = () => {
-    navigator.clipboard?.writeText(hex);
+    navigator.clipboard?.writeText(value);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
+  const isGradient = type === 'gradient';
   return (
     <button onClick={handleCopy}
       className="flex flex-col items-center gap-2 p-3 rounded-2xl transition-all active:scale-95"
       style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
-      <div className="w-12 h-12 rounded-xl" style={{ background: hex, boxShadow: `0 0 16px rgba(${rgb}, 0.3)` }} />
+      <div
+        className={isGradient ? 'w-full h-12 rounded-xl' : 'w-12 h-12 rounded-xl'}
+        style={isGradient ? { background: value } : { background: value, boxShadow: `0 0 16px ${value}40` }}
+      />
       <div className="text-center">
         <p className="text-[10px] font-bold text-foreground capitalize">{name}</p>
-        <p className="text-[9px] text-muted-foreground">{hex}</p>
+        <p className="text-[9px] text-muted-foreground font-mono">{value.length > 30 ? value.slice(0, 28) + '...' : value}</p>
       </div>
-      {copied ? <Check className="w-3 h-3" style={{ color: NEON.green }} /> : <Copy className="w-3 h-3 text-muted-foreground" />}
-    </button>
-  );
-}
-
-function GradientSwatch({ name, gradient }) {
-  const [copied, setCopied] = useState(false);
-  const handleCopy = () => {
-    navigator.clipboard?.writeText(gradient);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  };
-  return (
-    <button onClick={handleCopy}
-      className="flex flex-col items-center gap-2 p-3 rounded-2xl transition-all active:scale-95"
-      style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
-      <div className="w-full h-16 rounded-xl" style={{ background: gradient }} />
-      <div className="text-center w-full">
-        <p className="text-[10px] font-bold text-foreground capitalize">{name.replace(/_/g, ' ')}</p>
-        {copied ? <Check className="w-3 h-3 mx-auto" style={{ color: NEON.green }} /> : <Copy className="w-3 h-3 mx-auto text-muted-foreground" />}
-      </div>
+      {copied
+        ? <Check className="w-3 h-3" style={{ color: NEON.green }} />
+        : <Copy className="w-3 h-3 text-muted-foreground" />}
     </button>
   );
 }
@@ -113,7 +93,7 @@ export default function MarketingBrandAssets() {
         <SectionLabel color={NEON.cyan}>Neon Palette</SectionLabel>
         <div className="grid grid-cols-3 gap-3">
           {Object.entries(NEON).map(([name, hex]) => (
-            <ColorSwatch key={name} name={name} hex={hex} rgb={NEON_RGB[name]} />
+            <CopyableSwatch key={name} name={name} value={hex} type="color" />
           ))}
         </div>
       </div>
@@ -123,7 +103,7 @@ export default function MarketingBrandAssets() {
         <SectionLabel color={NEON.pink}>Gradients</SectionLabel>
         <div className="grid grid-cols-2 gap-3">
           {Object.entries(GRADIENTS).map(([name, gradient]) => (
-            <GradientSwatch key={name} name={name} gradient={gradient} />
+            <CopyableSwatch key={name} name={name} value={gradient} type="gradient" />
           ))}
         </div>
       </div>

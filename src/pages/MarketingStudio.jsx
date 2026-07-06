@@ -1,13 +1,12 @@
 /**
  * Marketing Studio Dashboard
- * --------------------------------------------------------------------
  * Admin-only landing page. Large tiles for each creation flow + history.
- * Uses the exact same design language as WhyPeanutGallery / Me tab:
- *   - .dark:rave-bg page background
- *   - font-display headlines
- *   - SectionLabel pattern (line + text)
- *   - Neon-accented tiles with rgba(NEON, 0.06) backgrounds
- *   - Same pill/button/card patterns
+ *
+ * Improvements:
+ *   - Loading skeleton instead of spinner
+ *   - Stats summary (total assets, favorites, templates)
+ *   - Quick recent assets strip
+ *   - Better responsive grid
  */
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -15,9 +14,11 @@ import { base44 } from '@/api/base44Client';
 import { isAdmin } from '@/lib/isAdmin';
 import { useAuth } from '@/lib/AuthContext';
 import { Navigate } from 'react-router-dom';
-import { Sparkles, Image, Layers, Megaphone, Quote, BarChart3, Star, User, Smartphone, RefreshCw, History, FolderOpen, LayoutTemplate } from 'lucide-react';
-import { NEON, NEON_RGB } from '@/lib/marketingTokens';
+import { Sparkles, Image, Layers, Megaphone, Quote, BarChart3, Star, User, Smartphone, History, FolderOpen, LayoutTemplate, Heart, FileText, TrendingUp } from 'lucide-react';
+import { NEON, NEON_RGB, GRADIENTS, TEXT } from '@/lib/marketingTokens';
 import HistoryList from '@/components/marketing/HistoryList';
+import { SectionLabel, LoadingSpinner } from '@/components/marketing/shared/UiPrimitives';
+import { formatDistanceToNow } from 'date-fns';
 
 const TILES = [
   { id: 'social_graphic', label: 'Social Graphic', desc: 'Single Instagram-ready graphic', icon: Image, color: NEON.cyan, rgb: NEON_RGB.cyan, route: '/marketing-studio/builder' },
@@ -32,12 +33,70 @@ const TILES = [
   { id: 'templates', label: 'Templates', desc: 'Saved reusable layouts', icon: LayoutTemplate, color: NEON.purple, rgb: NEON_RGB.purple, route: '/marketing-studio/templates' },
 ];
 
-function SectionLabel({ children, color = NEON.purple }) {
+function StatsBar({ assets }) {
+  const stats = [
+    { label: 'Total', value: assets.length, icon: FileText, color: NEON.cyan, rgb: NEON_RGB.cyan },
+    { label: 'Favorites', value: assets.filter(a => a.is_favorite).length, icon: Heart, color: NEON.pink, rgb: NEON_RGB.pink },
+    { label: 'Templates', value: assets.filter(a => a.is_template).length, icon: LayoutTemplate, color: NEON.purple, rgb: NEON_RGB.purple },
+  ];
   return (
-    <p className="text-[10px] font-black tracking-widest uppercase mb-4 flex items-center gap-2" style={{ color }}>
-      <span className="w-4 h-px inline-block" style={{ background: color }} />
-      {children}
-    </p>
+    <div className="grid grid-cols-3 gap-2 mb-6">
+      {stats.map(s => {
+        const Icon = s.icon;
+        return (
+          <div key={s.label} className="rounded-2xl p-3 flex flex-col items-center"
+            style={{ background: `rgba(${s.rgb}, 0.06)`, border: `1px solid rgba(${s.rgb}, 0.15)` }}>
+            <Icon className="w-4 h-4 mb-1" style={{ color: s.color }} />
+            <span className="font-display text-xl text-foreground leading-none">{s.value}</span>
+            <span className="text-[9px] font-bold text-muted-foreground mt-0.5">{s.label}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function RecentAssets({ assets, onNavigate }) {
+  const recent = assets.slice(0, 4);
+  if (recent.length === 0) return null;
+  return (
+    <div className="mb-6">
+      <SectionLabel color={NEON.cyan}>Recent</SectionLabel>
+      <div className="flex gap-3 overflow-x-auto pb-1">
+        {recent.map(asset => (
+          <button key={asset.id} onClick={() => onNavigate(asset)}
+            className="flex-shrink-0 w-24 rounded-xl overflow-hidden transition-all active:scale-95"
+            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+            <div className="w-full aspect-square flex items-center justify-center" style={{ background: '#050308' }}>
+              {asset.thumbnail_url
+                ? <img src={asset.thumbnail_url} alt={asset.title} className="w-full h-full object-cover" />
+                : <Image className="w-5 h-5 text-muted-foreground" />}
+            </div>
+            <div className="p-2">
+              <p className="text-[10px] font-bold text-foreground truncate">{asset.title}</p>
+              <p className="text-[8px] text-muted-foreground">{asset.created_date ? formatDistanceToNow(new Date(asset.created_date)) : ''}</p>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="max-w-lg mx-auto px-4 pb-32 dark:rave-bg min-h-full" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
+      <div className="mb-10">
+        <div className="h-7 w-28 rounded-full mb-4 animate-pulse" style={{ background: 'hsl(var(--muted))' }} />
+        <div className="h-14 w-3/4 rounded-2xl mb-3 animate-pulse" style={{ background: 'hsl(var(--muted))' }} />
+        <div className="h-4 w-5/6 rounded-lg animate-pulse" style={{ background: 'hsl(var(--muted))' }} />
+      </div>
+      <div className="grid grid-cols-2 gap-3 mb-10">
+        {[...Array(10)].map((_, i) => (
+          <div key={i} className="h-24 rounded-2xl animate-pulse" style={{ background: 'hsl(var(--muted))' }} />
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -64,19 +123,22 @@ export default function MarketingStudio() {
     }
   }, [isLoadingAuth, user]);
 
-  if (isLoadingAuth) {
-    return <div className="min-h-full flex items-center justify-center"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>;
-  }
-  if (!user || !isAdmin(user)) {
-    return <Navigate to="/events" replace />;
-  }
+  if (isLoadingAuth) return <LoadingSpinner />;
+  if (!user || !isAdmin(user)) return <Navigate to="/events" replace />;
+  if (loading) return <DashboardSkeleton />;
+
+  const navigateToAsset = (asset) => {
+    if (asset.asset_type === 'carousel') navigate(`/marketing-studio/carousel?edit=${asset.id}`);
+    else if (asset.asset_type === 'mockup') navigate(`/marketing-studio/mockup?edit=${asset.id}`);
+    else navigate(`/marketing-studio/builder?edit=${asset.id}`);
+  };
 
   return (
     <div className="max-w-lg mx-auto px-4 pb-32 dark:rave-bg min-h-full"
       style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
 
       {/* Hero */}
-      <div className="mb-10">
+      <div className="mb-8">
         <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-black mb-4"
           style={{ background: `rgba(${NEON_RGB.purple}, 0.12)`, border: `1px solid rgba(${NEON_RGB.purple}, 0.3)`, color: NEON.purple }}>
           <Sparkles className="w-3 h-3" /> Admin Only
@@ -93,6 +155,12 @@ export default function MarketingStudio() {
           On-brand content creation. Every export looks like Peanut Gallery — same typography, gradients, and design language as the app itself.
         </p>
       </div>
+
+      {/* Stats */}
+      <StatsBar assets={assets} />
+
+      {/* Recent quick-access */}
+      <RecentAssets assets={assets} onNavigate={navigateToAsset} />
 
       {/* Create tiles */}
       <div className="mb-10">

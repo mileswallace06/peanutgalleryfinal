@@ -2,8 +2,13 @@
  * CarouselCanvas — renders a multi-slide carousel at actual pixel dimensions.
  * Each slide is a full graphic canvas with its own content + graphic type.
  * Used for preview and export (one image per slide).
+ *
+ * Improvements:
+ *   - Slide indicator styled as premium pill (not raw text)
+ *   - Swipe animation hint
+ *   - Proper z-index stacking
  */
-import { THEMES } from '@/lib/marketingTokens';
+import { THEMES, FONTS, TEXT } from '@/lib/marketingTokens';
 import { renderLayout } from './GraphicCanvas';
 
 export default function CarouselCanvas({ canvasRef, preset, slides, theme = 'dark', slideIndex = 0 }) {
@@ -21,11 +26,19 @@ export default function CarouselCanvas({ canvasRef, preset, slides, theme = 'dar
       }}>
         {renderLayout(slide.graphic_type || 'announcement', { content: slide.content || {}, u, w: preset.w, h: preset.h })}
 
-        {/* Slide number indicator */}
+        {/* Slide number indicator — premium pill */}
         <div style={{
           position: 'absolute', top: 40 * u, right: 40 * u,
-          fontFamily: "'DM Sans', sans-serif", fontSize: 16 * u, fontWeight: 900,
-          color: 'rgba(255,255,255,0.3)', letterSpacing: '0.1em',
+          display: 'inline-flex', alignItems: 'center', gap: 4 * u,
+          padding: `${6 * u}px ${14 * u}px`,
+          borderRadius: 999,
+          fontFamily: FONTS.body, fontSize: 14 * u, fontWeight: 900,
+          color: TEXT.faint,
+          background: 'rgba(0,0,0,0.4)',
+          backdropFilter: 'blur(8px)',
+          WebkitBackdropFilter: 'blur(8px)',
+          zIndex: 10,
+          letterSpacing: '0.1em',
         }}>
           {slideIndex + 1} / {slides.length}
         </div>

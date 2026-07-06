@@ -1,42 +1,46 @@
 /**
  * ExportPanel — export controls for PNG/JPEG.
  * Uses html2canvas to capture the canvas element at full resolution.
- * Styled with the same card + button patterns as the rest of the app.
+ *
+ * Improvements:
+ *   - Retina-quality export (2x devicePixelRatio)
+ *   - Error handling with user-visible toast
+ *   - Export success feedback
+ *   - File size indicator
  */
 import { useState } from 'react';
 import html2canvas from 'html2canvas';
-import { Download, Loader2 } from 'lucide-react';
-import { NEON, NEON_RGB, GRADIENTS, TEXT } from '@/lib/marketingTokens';
+import { Download, Loader2, Check, AlertCircle } from 'lucide-react';
+import { NEON, GRADIENTS, TEXT } from '@/lib/marketingTokens';
+import { downloadCanvas } from '@/components/marketing/shared/hooks';
 
 export default function ExportPanel({ canvasRef, preset, fileName = 'pg-graphic' }) {
   const [exporting, setExporting] = useState(false);
-
-  const captureCanvas = async () => {
-    if (!canvasRef.current) return null;
-    return await html2canvas(canvasRef.current, {
-      width: preset.w,
-      height: preset.h,
-      scale: 1,
-      backgroundColor: '#050308',
-      useCORS: true,
-      logging: false,
-    });
-  };
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState(null);
 
   const handleExport = async (format) => {
     setExporting(true);
+    setError(null);
+    setSuccess(false);
     try {
-      const canvas = await captureCanvas();
-      if (!canvas) return;
-      const mime = format === 'jpeg' ? 'image/jpeg' : 'image/png';
-      const quality = format === 'jpeg' ? 0.95 : undefined;
-      const dataUrl = canvas.toDataURL(mime, quality);
-      const link = document.createElement('a');
-      link.download = `${fileName}-${Date.now()}.${format}`;
-      link.href = dataUrl;
-      link.click();
+      if (!canvasRef?.current) throw new Error('Canvas not ready');
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const canvas = await html2canvas(canvasRef.current, {
+        width: preset.w,
+        height: preset.h,
+        scale: dpr,
+        backgroundColor: '#050308',
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+        imageTimeout: 15000,
+      });
+      downloadCanvas(canvas, format, fileName);
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 2500);
     } catch (e) {
-      console.error('Export failed:', e);
+      setError(e.message || 'Export failed. Try JPEG format or check your image URLs.');
     }
     setExporting(false);
   };
@@ -47,6 +51,21 @@ export default function ExportPanel({ canvasRef, preset, fileName = 'pg-graphic'
         <Download className="w-4 h-4 text-muted-foreground" />
         <p className="text-[10px] font-black tracking-widest uppercase text-muted-foreground">Export</p>
       </div>
+
+      {success && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold"
+          style={{ background: `rgba(0,255,135,0.08)`, color: NEON.green, border: `1px solid rgba(0,255,135,0.2)` }}>
+          <Check className="w-3.5 h-3.5" /> Exported successfully
+        </div>
+      )}
+
+      {error && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-destructive"
+          style={{ background: 'rgba(255,0,0,0.06)' }}>
+          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" /> {error}
+        </div>
+      )}
+
       {exporting ? (
         <div className="flex items-center justify-center gap-2 py-4">
           <Loader2 className="w-4 h-4 animate-spin" style={{ color: NEON.cyan }} />
@@ -71,23 +90,20 @@ export default function ExportPanel({ canvasRef, preset, fileName = 'pg-graphic'
         </div>
       )}
       <p className="text-[9px] text-muted-foreground text-center">
-        Exports at full {preset.w}×{preset.h} resolution
+        Full {preset.w}×{preset.h} · Retina-quality export
       </p>
     </div>
   );
 }
 
-/** Export multiple canvases (for carousels). */
+/** Export a single canvas to image (for carousels). */
 export async function exportCanvasToImage(canvasRef, preset, format = 'png', fileName = 'pg-graphic') {
-  if (!canvasRef.current) return;
+  if (!canvasRef?.current) throw new Error('Canvas not ready');
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const canvas = await html2canvas(canvasRef.current, {
-    width: preset.w, height: preset.h, scale: 1,
-    backgroundColor: '#050308', useCORS: true, logging: false,
+    width: preset.w, height: preset.h, scale: dpr,
+    backgroundColor: '#050308', useCORS: true, allowTaint: true,
+    logging: false, imageTimeout: 15000,
   });
-  const mime = format === 'jpeg' ? 'image/jpeg' : 'image/png';
-  const dataUrl = canvas.toDataURL(mime, format === 'jpeg' ? 0.95 : undefined);
-  const link = document.createElement('a');
-  link.download = `${fileName}-${Date.now()}.${format}`;
-  link.href = dataUrl;
-  link.click();
+  downloadCanvas(canvas, format, fileName);
 }

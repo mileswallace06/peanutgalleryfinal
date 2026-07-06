@@ -6,7 +6,7 @@
  * Uses the layout registry — the system chooses the layout based on
  * graphic_type. The user never positions elements.
  */
-import { THEMES } from '@/lib/marketingTokens';
+import { THEMES, FONTS, TEXT } from '@/lib/marketingTokens';
 import * as Layouts from './layouts';
 
 export function renderLayout(graphicType, props) {
@@ -22,6 +22,8 @@ export default function GraphicCanvas({ canvasRef, preset, graphicType, content,
         width: '100%', height: '100%',
         background: THEMES[theme] || THEMES.dark,
         position: 'relative', overflow: 'hidden',
+        fontFamily: FONTS.body,
+        color: TEXT.white,
       }}>
         {renderLayout(graphicType, { content, u, w: preset.w, h: preset.h })}
       </div>
