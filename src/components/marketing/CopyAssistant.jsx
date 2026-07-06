@@ -2,25 +2,34 @@
  * CopyAssistant — AI-powered content generation.
  * Uses InvokeLLM to help write headlines, captions, CTAs, etc.
  * The AI generates COPY only — never artwork or layouts.
+ *
+ * Styled with the same patterns as WhyPeanutGallery / InstantListingsGuide:
+ *   - SectionLabel with line + text
+ *   - Glass cards with rgba(NEON, 0.06) backgrounds
+ *   - Neon-accented buttons
  */
 import { useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Sparkles, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Sparkles, Loader2, ChevronDown, ChevronUp, Wand2 } from 'lucide-react';
+import { NEON, NEON_RGB } from '@/lib/marketingTokens';
 
 const ACTIONS = [
-  { id: 'headline', label: '✍️ Write Headline', desc: 'Generate a bold headline from a topic' },
-  { id: 'rewrite', label: '🔄 Rewrite Headline', desc: 'Improve your existing headline' },
-  { id: 'shorten', label: '✂️ Shorten Copy', desc: 'Tighten your subheadline/body' },
-  { id: 'expand', label: '📈 Expand Copy', desc: 'Add depth to your body copy' },
-  { id: 'cta', label: '🔘 Generate CTA', desc: 'Create a call-to-action' },
-  { id: 'ig_caption', label: '📸 Instagram Caption', desc: 'Full caption for Instagram' },
-  { id: 'li_caption', label: '💼 LinkedIn Caption', desc: 'Professional LinkedIn post' },
-  { id: 'x_post', label: '𝕏 X Post', desc: 'Concise post for X/Twitter' },
-  { id: 'hashtags', label: '#️⃣ Hashtags', desc: 'Relevant hashtags' },
+  { id: 'headline', label: 'Write Headline', icon: '✍️' },
+  { id: 'rewrite', label: 'Rewrite Headline', icon: '🔄' },
+  { id: 'shorten', label: 'Shorten Copy', icon: '✂️' },
+  { id: 'expand', label: 'Expand Copy', icon: '📈' },
+  { id: 'cta', label: 'Generate CTA', icon: '🔘' },
+  { id: 'ig_caption', label: 'Instagram Caption', icon: '📸' },
+  { id: 'li_caption', label: 'LinkedIn Post', icon: '💼' },
+  { id: 'x_post', label: 'X Post', icon: '𝕏' },
+  { id: 'hashtags', label: 'Hashtags', icon: '#️⃣' },
+  { id: 'carousel', label: 'Carousel Copy', icon: '🎠' },
+  { id: 'hook', label: 'Generate Hook', icon: '🪝' },
+  { id: 'announcement', label: 'Announcement', icon: '📢' },
 ];
 
 function buildPrompt(action, context) {
-  const brand = `You are the in-house copywriter for Peanut Gallery, a fan-first ticket marketplace. Brand voice: bold, confident, modern, premium, trustworthy. No hype-bro language. No emojis in headlines. Headlines should be punchy and short (3-7 words). Subheadlines should be one sentence.`;
+  const brand = `You are the in-house copywriter for Peanut Gallery, a fan-first ticket marketplace. Brand voice: bold, confident, modern, premium, trustworthy. No hype-bro language. No emojis in headlines. Headlines should be punchy and short (3-7 words). Subheadlines should be one sentence. The brand colors are neon green, cyan, purple, and pink — but you only generate text, not visuals.`;
   const ctx = context.headline || context.body || context.subheadline || context.topic || '(no context provided)';
 
   switch (action) {
@@ -42,12 +51,18 @@ function buildPrompt(action, context) {
       return `${brand}\n\nWrite a concise X/Twitter post (max 200 chars) about: ${ctx}\n\nReturn JSON: { "caption": "..." }`;
     case 'hashtags':
       return `${brand}\n\nGenerate 15 relevant hashtags for a post about: ${ctx}\n\nReturn JSON: { "hashtags": ["#tag1", "#tag2", ...] }`;
+    case 'carousel':
+      return `${brand}\n\nGenerate copy for a 7-slide Instagram carousel about: ${ctx}\nSlide structure: Hook, Problem, Why, Current Industry, How PG Fixes It, Future, CTA.\n\nReturn JSON: { "slides": [{ "headline": "...", "body": "..." }, ...] }`;
+    case 'hook':
+      return `${brand}\n\nGenerate 5 attention-grabbing hooks for a social media post about: ${ctx}\n\nReturn JSON: { "options": ["hook1", "hook2", ...] }`;
+    case 'announcement':
+      return `${brand}\n\nWrite an announcement post about: ${ctx}\nInclude a headline, subheadline, and body. 2-3 sentences for body.\n\nReturn JSON: { "headline": "...", "subheadline": "...", "body": "..." }`;
     default:
       return `${brand}\n\nGenerate copy about: ${ctx}\n\nReturn JSON: { "options": ["option1"] }`;
   }
 }
 
-export default function CopyAssistant({ content, onApply }) {
+export default function CopyAssistant({ content, onApply, targetField = 'headline' }) {
   const [open, setOpen] = useState(false);
   const [topic, setTopic] = useState('');
   const [loading, setLoading] = useState(null);
@@ -68,6 +83,10 @@ export default function CopyAssistant({ content, onApply }) {
             options: { type: 'array', items: { type: 'string' } },
             caption: { type: 'string' },
             hashtags: { type: 'array', items: { type: 'string' } },
+            slides: { type: 'array', items: { type: 'object', properties: { headline: { type: 'string' }, body: { type: 'string' } } } },
+            headline: { type: 'string' },
+            subheadline: { type: 'string' },
+            body: { type: 'string' },
           },
         },
       });
@@ -89,13 +108,13 @@ export default function CopyAssistant({ content, onApply }) {
   };
 
   return (
-    <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))' }}>
+    <div className="rounded-2xl overflow-hidden" style={{ background: `rgba(${NEON_RGB.purple}, 0.04)`, border: `1px solid rgba(${NEON_RGB.purple}, 0.15)` }}>
       <button
         onClick={() => setOpen(!open)}
         className="w-full flex items-center justify-between px-4 py-3.5 transition-colors hover:bg-muted/50"
       >
         <div className="flex items-center gap-2">
-          <Sparkles className="w-4 h-4" style={{ color: 'var(--neon-purple)' }} />
+          <Sparkles className="w-4 h-4" style={{ color: NEON.purple }} />
           <span className="text-sm font-bold text-foreground">AI Copy Assistant</span>
         </div>
         {open ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
@@ -103,7 +122,9 @@ export default function CopyAssistant({ content, onApply }) {
 
       {open && (
         <div className="px-4 pb-4 space-y-3">
-          <p className="text-[10px] text-muted-foreground">AI helps with copy only — layouts always follow Peanut Gallery's design system.</p>
+          <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: NEON.purple }}>
+            AI generates copy only — layouts always follow PG's design system
+          </p>
 
           <input
             type="text"
@@ -113,24 +134,24 @@ export default function CopyAssistant({ content, onApply }) {
             className="w-full px-3 py-2 rounded-xl text-sm bg-background border border-border text-foreground placeholder:text-muted-foreground"
           />
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             {ACTIONS.map(a => (
               <button
                 key={a.id}
                 onClick={() => runAction(a.id)}
                 disabled={loading !== null}
-                className="flex flex-col items-start gap-0.5 px-3 py-2.5 rounded-xl text-left transition-all active:scale-95 disabled:opacity-50"
-                style={{ background: 'rgba(191,95,255,0.06)', border: '1px solid rgba(191,95,255,0.2)' }}
+                className="flex flex-col items-center gap-1 px-2 py-2.5 rounded-xl text-center transition-all active:scale-95 disabled:opacity-50"
+                style={{ background: `rgba(${NEON_RGB.purple}, 0.06)`, border: `1px solid rgba(${NEON_RGB.purple}, 0.15)` }}
               >
-                <span className="text-xs font-bold text-foreground">{a.label}</span>
-                <span className="text-[9px] text-muted-foreground leading-tight">{a.desc}</span>
+                <span className="text-base">{a.icon}</span>
+                <span className="text-[9px] font-bold text-foreground leading-tight">{a.label}</span>
               </button>
             ))}
           </div>
 
           {loading && (
             <div className="flex items-center justify-center gap-2 py-4">
-              <Loader2 className="w-4 h-4 animate-spin text-primary" />
+              <Loader2 className="w-4 h-4 animate-spin" style={{ color: NEON.purple }} />
               <span className="text-xs text-muted-foreground">Generating...</span>
             </div>
           )}
@@ -144,25 +165,45 @@ export default function CopyAssistant({ content, onApply }) {
           {results && (
             <div className="space-y-2">
               {results.data?.options?.map((opt, i) => (
-                <div key={i} className="flex items-start gap-2 px-3 py-2.5 rounded-xl" style={{ background: 'hsl(var(--muted))' }}>
+                <div key={i} className="flex items-start gap-2 px-3 py-2.5 rounded-xl" style={{ background: 'hsl(var(--card))' }}>
                   <p className="flex-1 text-sm text-foreground">{opt}</p>
                   <div className="flex gap-1 flex-shrink-0">
-                    <button onClick={() => applyText(opt, 'headline')} className="px-2 py-1 rounded-lg text-[10px] font-bold" style={{ background: 'rgba(0,255,135,0.12)', color: 'var(--neon-green)' }}>Headline</button>
-                    <button onClick={() => applyText(opt, 'subheadline')} className="px-2 py-1 rounded-lg text-[10px] font-bold" style={{ background: 'rgba(0,200,255,0.12)', color: 'var(--neon-cyan)' }}>Sub</button>
-                    <button onClick={() => copyToClipboard(opt)} className="px-2 py-1 rounded-lg text-[10px] font-bold text-muted-foreground" style={{ background: 'hsl(var(--card))' }}>Copy</button>
+                    <button onClick={() => applyText(opt, 'headline')} className="px-2 py-1 rounded-lg text-[10px] font-bold" style={{ background: `rgba(${NEON_RGB.green}, 0.12)`, color: NEON.green }}>Headline</button>
+                    <button onClick={() => applyText(opt, 'subheadline')} className="px-2 py-1 rounded-lg text-[10px] font-bold" style={{ background: `rgba(${NEON_RGB.cyan}, 0.12)`, color: NEON.cyan }}>Sub</button>
+                    <button onClick={() => copyToClipboard(opt)} className="px-2 py-1 rounded-lg text-[10px] font-bold text-muted-foreground" style={{ background: 'hsl(var(--muted))' }}>Copy</button>
                   </div>
                 </div>
               ))}
               {results.data?.caption && (
-                <div className="px-3 py-2.5 rounded-xl" style={{ background: 'hsl(var(--muted))' }}>
+                <div className="px-3 py-2.5 rounded-xl" style={{ background: 'hsl(var(--card))' }}>
                   <p className="text-sm text-foreground whitespace-pre-wrap mb-2">{results.data.caption}</p>
-                  <button onClick={() => copyToClipboard(results.data.caption)} className="px-2 py-1 rounded-lg text-[10px] font-bold text-muted-foreground" style={{ background: 'hsl(var(--card))' }}>Copy to clipboard</button>
+                  <button onClick={() => copyToClipboard(results.data.caption)} className="px-2 py-1 rounded-lg text-[10px] font-bold text-muted-foreground" style={{ background: 'hsl(var(--muted))' }}>Copy to clipboard</button>
                 </div>
               )}
               {results.data?.hashtags && (
-                <div className="px-3 py-2.5 rounded-xl" style={{ background: 'hsl(var(--muted))' }}>
+                <div className="px-3 py-2.5 rounded-xl" style={{ background: 'hsl(var(--card))' }}>
                   <p className="text-sm text-foreground mb-2">{results.data.hashtags.join(' ')}</p>
-                  <button onClick={() => copyToClipboard(results.data.hashtags.join(' '))} className="px-2 py-1 rounded-lg text-[10px] font-bold text-muted-foreground" style={{ background: 'hsl(var(--card))' }}>Copy all</button>
+                  <button onClick={() => copyToClipboard(results.data.hashtags.join(' '))} className="px-2 py-1 rounded-lg text-[10px] font-bold text-muted-foreground" style={{ background: 'hsl(var(--muted))' }}>Copy all</button>
+                </div>
+              )}
+              {results.data?.headline && (
+                <div className="px-3 py-2.5 rounded-xl space-y-2" style={{ background: 'hsl(var(--card))' }}>
+                  <p className="text-sm font-bold text-foreground">{results.data.headline}</p>
+                  {results.data.subheadline && <p className="text-sm text-muted-foreground">{results.data.subheadline}</p>}
+                  {results.data.body && <p className="text-xs text-muted-foreground">{results.data.body}</p>}
+                  <button onClick={() => { applyText(results.data.headline, 'headline'); onApply('subheadline', results.data.subheadline || ''); onApply('body', results.data.body || ''); }} className="px-2 py-1 rounded-lg text-[10px] font-bold" style={{ background: `rgba(${NEON_RGB.green}, 0.12)`, color: NEON.green }}>Apply all</button>
+                </div>
+              )}
+              {results.data?.slides && (
+                <div className="px-3 py-2.5 rounded-xl space-y-3" style={{ background: 'hsl(var(--card))' }}>
+                  {results.data.slides.map((s, i) => (
+                    <div key={i}>
+                      <p className="text-xs font-black tracking-widest uppercase mb-1" style={{ color: NEON.purple }}>Slide {i + 1}</p>
+                      <p className="text-sm font-bold text-foreground">{s.headline}</p>
+                      <p className="text-xs text-muted-foreground">{s.body}</p>
+                    </div>
+                  ))}
+                  <button onClick={() => copyToClipboard(JSON.stringify(results.data.slides, null, 2))} className="px-2 py-1 rounded-lg text-[10px] font-bold text-muted-foreground" style={{ background: 'hsl(var(--muted))' }}>Copy as JSON</button>
                 </div>
               )}
             </div>

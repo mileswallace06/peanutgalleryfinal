@@ -33,11 +33,6 @@
       "enum": [
         "social_graphic",
         "carousel",
-        "announcement",
-        "quote",
-        "statistic",
-        "feature_spotlight",
-        "founder_story",
         "mockup"
       ],
       "default": "social_graphic"
@@ -62,7 +57,15 @@
         "ticket_tip",
         "fan_story",
         "comparison",
-        "question"
+        "question",
+        "iphone",
+        "laptop",
+        "billboard",
+        "jumbotron",
+        "floating_card",
+        "website_hero",
+        "instagram_post",
+        "presentation"
       ],
       "default": "industry_truth"
     },
@@ -81,7 +84,7 @@
     },
     "content": {
       "type": "object",
-      "description": "The user-authored content payload rendered into the graphic.",
+      "description": "The user-authored content payload rendered into the graphic. For carousels, contains a 'slides' array.",
       "properties": {
         "headline": {
           "type": "string"
@@ -118,6 +121,20 @@
         },
         "signature": {
           "type": "string"
+        },
+        "slides": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "graphic_type": {
+                "type": "string"
+              },
+              "content": {
+                "type": "object"
+              }
+            }
+          }
         }
       }
     },
