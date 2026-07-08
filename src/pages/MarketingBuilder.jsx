@@ -22,7 +22,7 @@ import { SectionLabel, FormField, LoadingSpinner, ThemePicker } from '@/componen
 import { usePreviewScale, useCanvasCapture } from '@/components/marketing/shared/hooks';
 import { CANVAS_PRESETS, GRAPHIC_TYPES, NEON, NEON_RGB, GRADIENTS, TEXT } from '@/lib/marketingTokens';
 import CreativeEditPanel from '@/components/marketing/CreativeEditPanel';
-import { applyCreativeEdit, regenerateSystem, createVersionSnapshot, restoreFromSnapshot } from '@/lib/marketing/creativeEdit';
+import { applyCreativeEdit, regenerateSystem, createVersionSnapshot, restoreFromSnapshot, describeDirection } from '@/lib/marketing/creativeEdit';
 import { mergeIntent, defaultLocks, hasActiveIntent } from '@/lib/marketing/creativeIntent';
 import { getConceptById } from '@/lib/marketing/creativeConcepts';
 import { getExecutionStyleById } from '@/lib/marketing/executionStyles';
@@ -118,6 +118,7 @@ export default function MarketingBuilder() {
   const [strategyId, setStrategyId] = useState(null);
   const [editApplying, setEditApplying] = useState(false);
   const [regeneratingSystem, setRegeneratingSystem] = useState(null);
+  const [directionDescription, setDirectionDescription] = useState('');
   const navTimerRef = useRef(null);
 
   useEffect(() => () => clearTimeout(navTimerRef.current), []);
@@ -141,6 +142,14 @@ export default function MarketingBuilder() {
           setConceptId(asset.content?.concept_id || asset.content?.composition_variant || null);
           setExecutionStyleId(asset.content?.execution_style_id || null);
           setStrategyId(asset.content?.strategy_id || null);
+          // Restore the latest direction description from the most recent version, or generate one
+          const versions = asset.content?.creative_versions || [];
+          const latestVersion = versions[versions.length - 1];
+          if (latestVersion?.direction_description) {
+            setDirectionDescription(latestVersion.direction_description);
+          } else {
+            setDirectionDescription(describeDirection(asset.content?.creative_intent || {}));
+          }
         }
       }).catch(() => {});
     }
@@ -167,14 +176,16 @@ export default function MarketingBuilder() {
       });
 
       const newIntent = mergeIntent(currentIntent, result.intent || {});
+      const desc = result.direction_description || describeDirection(newIntent, concept?.name);
       const version = createVersionSnapshot(instruction, result.summary, {
         creative_intent: currentIntent,
         creative_locks: currentLocks,
         concept_id: conceptId,
         execution_style_id: executionStyleId,
         strategy_id: strategyId,
-      });
+      }, desc);
 
+      setDirectionDescription(desc);
       setContent(prev => ({
         ...prev,
         creative_intent: newIntent,
@@ -199,14 +210,16 @@ export default function MarketingBuilder() {
       });
 
       const newIntent = mergeIntent(currentIntent, result.intent || {});
+      const desc = result.direction_description || describeDirection(newIntent, concept?.name);
       const version = createVersionSnapshot(`Regenerate ${systemKey}`, result.summary, {
         creative_intent: currentIntent,
         creative_locks: currentLocks,
         concept_id: conceptId,
         execution_style_id: executionStyleId,
         strategy_id: strategyId,
-      });
+      }, desc);
 
+      setDirectionDescription(desc);
       setContent(prev => ({
         ...prev,
         creative_intent: newIntent,
@@ -234,6 +247,7 @@ export default function MarketingBuilder() {
     setConceptId(restored.concept_id);
     setExecutionStyleId(restored.execution_style_id);
     setStrategyId(restored.strategy_id);
+    setDirectionDescription(version.direction_description || describeDirection(restored.creative_intent));
   };
 
   const handleFavoriteVersion = (versionId) => {
@@ -262,6 +276,7 @@ export default function MarketingBuilder() {
       execution_style_id: executionStyleId,
       strategy_id: strategyId,
     });
+    setDirectionDescription('');
     setContent(prev => ({
       ...prev,
       creative_intent: null,
@@ -393,7 +408,7 @@ export default function MarketingBuilder() {
 
             {/* Creative Edit — conversational design adjustments */}
             <CreativeEditPanel
-              creativeIntent={currentIntent}
+              directionSummary={directionDescription || describeDirection(currentIntent, getConceptById(conceptId)?.name)}
               creativeLocks={currentLocks}
               creativeVersions={content.creative_versions || []}
               isApplying={editApplying}

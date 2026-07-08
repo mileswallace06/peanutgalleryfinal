@@ -98,9 +98,18 @@ RULES:
 - If the instruction is vague, interpret it as a Creative Director would
 - Respect locked systems — do not return dimensions that map to locked categories
 
+After merging your intent changes with the existing intent, write a natural-language description of the OVERALL creative direction as a Creative Director would describe it to a colleague. This is what the user sees — it must feel conversational, not technical. Never mention intent dimension names (mood, energy, hierarchy, etc.). Instead describe the aesthetic, the feel, the focus, the atmosphere.
+
+Example direction_description:
+"Premium editorial aesthetic with restrained typography and generous spacing. Primary focus is the headline."
+
+Another example:
+"Dark, cinematic atmosphere with dramatic glow and bold, dominant headline. High energy and visual tension."
+
 Return JSON only:
 {
   "summary": "One sentence describing the creative change you made",
+  "direction_description": "Natural-language description of the overall creative direction after this edit",
   "intent": {
     // only dimensions that changed
   }
@@ -112,6 +121,7 @@ Return JSON only:
       type: 'object',
       properties: {
         summary: { type: 'string' },
+        direction_description: { type: 'string' },
         intent: {
           type: 'object',
           additionalProperties: true,
@@ -123,6 +133,7 @@ Return JSON only:
 
   return {
     summary: response.summary || 'Applied creative edit',
+    direction_description: response.direction_description || '',
     intent: response.intent || {},
   };
 }
@@ -163,9 +174,12 @@ Suggest a fresh ${systemDef.label} treatment that works with the content and con
 
 ${dimsForSystem}
 
+Also write a natural-language description of the OVERALL creative direction after this regeneration, as a Creative Director would describe it. Never mention intent dimension names.
+
 Return JSON only:
 {
   "summary": "One sentence describing the new ${systemDef.label} direction",
+  "direction_description": "Natural-language description of the overall creative direction",
   "intent": {
     // only dimensions for this system
   }
@@ -177,6 +191,7 @@ Return JSON only:
       type: 'object',
       properties: {
         summary: { type: 'string' },
+        direction_description: { type: 'string' },
         intent: {
           type: 'object',
           additionalProperties: true,
@@ -187,20 +202,81 @@ Return JSON only:
 
   return {
     summary: response.summary || `Regenerated ${systemDef.label}`,
+    direction_description: response.direction_description || '',
     intent: response.intent || {},
   };
+}
+
+// ── Direction Description ───────────────────────────────────────────────
+/**
+ * Generate a natural-language description of the current creative
+ * direction from the intent state, WITHOUT an AI call.
+ *
+ * Used on initial load or when no AI description is available yet.
+ * Falls back to a generic description if intent is empty.
+ *
+ * This is the ONLY part of the intent model the user ever sees,
+ * and it's always in plain English.
+ */
+export function describeDirection(intent = {}, conceptName = '') {
+  const parts = [];
+
+  // Mood
+  if (intent.mood) parts.push(intent.mood);
+
+  // Energy → intensity descriptor
+  if (intent.energy === 'low') parts.push('restrained');
+  if (intent.energy === 'high') parts.push('high-energy');
+  if (intent.energy === 'extreme') parts.push('electric');
+
+  // Spacing → atmosphere descriptor
+  if (intent.spacing === 'airy') parts.push('with generous breathing room');
+  if (intent.spacing === 'expansive') parts.push('with expansive whitespace');
+  if (intent.spacing === 'tight') parts.push('dense and compact');
+
+  // Background
+  if (intent.background === 'minimal') parts.push('clean background');
+  if (intent.background === 'dramatic') parts.push('dramatic background');
+  if (intent.background === 'atmospheric') parts.push('atmospheric background');
+
+  // Focus
+  if (intent.focus === 'headline') parts.push('headline-led composition');
+  if (intent.focus === 'stat') parts.push('statistic-focused');
+  if (intent.focus === 'cta') parts.push('CTA-driven');
+
+  // Typography
+  if (intent.typography_tone === 'editorial') parts.push('editorial typography');
+  if (intent.typography_tone === 'expressive') parts.push('expressive type');
+
+  // CTA
+  if (intent.cta_prominence === 'dominant') parts.push('prominent call to action');
+  if (intent.cta_prominence === 'subtle') parts.push('subtle CTA');
+
+  if (parts.length === 0) {
+    return conceptName
+      ? `Using the ${conceptName} concept with default treatment.`
+      : 'Default creative direction — describe a change to get started.';
+  }
+
+  // Join naturally
+  let desc = parts.join(', ');
+  // Capitalize first letter
+  desc = desc.charAt(0).toUpperCase() + desc.slice(1);
+  if (!desc.endsWith('.')) desc += '.';
+  return desc;
 }
 
 // ── Version Management ──────────────────────────────────────────────────
 /**
  * Create a version snapshot of the current creative state.
  */
-export function createVersionSnapshot(instruction, summary, state) {
+export function createVersionSnapshot(instruction, summary, state, directionDescription = '') {
   return {
     id: `v_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     timestamp: new Date().toISOString(),
     instruction,
     summary,
+    direction_description: directionDescription,
     name: null,
     is_favorite: false,
     snapshot: {

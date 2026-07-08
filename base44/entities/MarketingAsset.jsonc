@@ -84,7 +84,7 @@
     },
     "content": {
       "type": "object",
-      "description": "The user-authored content payload rendered into the graphic. Includes creative direction IDs, creative intent, locks, and version history.",
+      "description": "The user-authored content payload rendered into the graphic. Includes creative direction IDs, creative intent (semantic, internal), locks, and version history with natural-language direction descriptions.",
       "properties": {
         "headline": {
           "type": "string"
@@ -136,7 +136,7 @@
         },
         "creative_intent": {
           "type": "object",
-          "description": "Semantic creative direction from the AI Creative Director. The Intent Translator converts this into rendering modifications at render time.",
+          "description": "Semantic creative direction from the AI Creative Director. Internal reasoning layer \u2014 never exposed to users directly. The Intent Translator converts this into rendering modifications at render time.",
           "additionalProperties": true
         },
         "creative_locks": {
@@ -171,7 +171,7 @@
         },
         "creative_versions": {
           "type": "array",
-          "description": "Snapshots of creative state after each AI edit. Supports restore, favorite, branch, and naming.",
+          "description": "Snapshots of creative state after each AI edit. Each version includes a natural-language direction description. Supports restore, favorite, and naming.",
           "items": {
             "type": "object",
             "properties": {
@@ -186,6 +186,10 @@
               },
               "summary": {
                 "type": "string"
+              },
+              "direction_description": {
+                "type": "string",
+                "description": "Natural-language description of the overall creative direction at this version"
               },
               "name": {
                 "type": "string"
