@@ -84,7 +84,7 @@
     },
     "content": {
       "type": "object",
-      "description": "The user-authored content payload rendered into the graphic. Includes creative direction IDs, creative intent (semantic, internal), locks, and version history with natural-language direction descriptions.",
+      "description": "The user-authored content payload rendered into the graphic. Includes creative direction IDs, creative intent (semantic, internal), locks, and version history with natural-language direction descriptions and explanations.",
       "properties": {
         "headline": {
           "type": "string"
@@ -171,7 +171,7 @@
         },
         "creative_versions": {
           "type": "array",
-          "description": "Snapshots of creative state after each AI edit. Each version includes a natural-language direction description. Supports restore, favorite, and naming.",
+          "description": "Snapshots of creative state after each AI edit. Each version includes a natural-language direction description and a detailed explanation of what changed. Supports restore, favorite, and naming.",
           "items": {
             "type": "object",
             "properties": {
@@ -186,6 +186,10 @@
               },
               "summary": {
                 "type": "string"
+              },
+              "explanation": {
+                "type": "string",
+                "description": "Detailed natural-language explanation of what the AI changed and why"
               },
               "direction_description": {
                 "type": "string",

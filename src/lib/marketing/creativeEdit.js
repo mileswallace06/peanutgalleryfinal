@@ -270,12 +270,13 @@ export function describeDirection(intent = {}, conceptName = '') {
 /**
  * Create a version snapshot of the current creative state.
  */
-export function createVersionSnapshot(instruction, summary, state, directionDescription = '') {
+export function createVersionSnapshot(instruction, summary, state, directionDescription = '', explanation = '') {
   return {
     id: `v_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     timestamp: new Date().toISOString(),
     instruction,
     summary,
+    explanation,
     direction_description: directionDescription,
     name: null,
     is_favorite: false,

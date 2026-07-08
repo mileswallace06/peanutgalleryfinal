@@ -21,8 +21,9 @@ import ConceptPicker from '@/components/marketing/ConceptPicker';
 import { SectionLabel, FormField, LoadingSpinner, ThemePicker } from '@/components/marketing/shared/UiPrimitives';
 import { usePreviewScale, useCanvasCapture } from '@/components/marketing/shared/hooks';
 import { CANVAS_PRESETS, GRAPHIC_TYPES, NEON, NEON_RGB, GRADIENTS, TEXT } from '@/lib/marketingTokens';
-import CreativeEditPanel from '@/components/marketing/CreativeEditPanel';
+import CreativeDirector from '@/components/marketing/CreativeDirector';
 import { applyCreativeEdit, regenerateSystem, createVersionSnapshot, restoreFromSnapshot, describeDirection } from '@/lib/marketing/creativeEdit';
+import { editElement, globalDirect, observeComposition } from '@/lib/marketing/creativeConversation';
 import { mergeIntent, defaultLocks, hasActiveIntent } from '@/lib/marketing/creativeIntent';
 import { getConceptById } from '@/lib/marketing/creativeConcepts';
 import { getExecutionStyleById } from '@/lib/marketing/executionStyles';
@@ -119,6 +120,9 @@ export default function MarketingBuilder() {
   const [editApplying, setEditApplying] = useState(false);
   const [regeneratingSystem, setRegeneratingSystem] = useState(null);
   const [directionDescription, setDirectionDescription] = useState('');
+  const [editMode, setEditMode] = useState(false);
+  const [selectedElement, setSelectedElement] = useState(null);
+  const [observations, setObservations] = useState([]);
   const navTimerRef = useRef(null);
 
   useEffect(() => () => clearTimeout(navTimerRef.current), []);
@@ -168,11 +172,13 @@ export default function MarketingBuilder() {
     try {
       const concept = getConceptById(conceptId);
       const execStyle = getExecutionStyleById(executionStyleId);
-      const result = await applyCreativeEdit(instruction, {
+      const result = await globalDirect(instruction, {
         concept: concept ? { name: concept.name, mood: concept.mood, visualLanguage: concept.visualLanguage } : null,
         executionStyle: execStyle ? { name: execStyle.name } : null,
         currentIntent,
         lockedSystems: currentLocks,
+        content,
+        directionDescription,
       });
 
       const newIntent = mergeIntent(currentIntent, result.intent || {});
@@ -183,7 +189,7 @@ export default function MarketingBuilder() {
         concept_id: conceptId,
         execution_style_id: executionStyleId,
         strategy_id: strategyId,
-      }, desc);
+      }, desc, result.explanation);
 
       setDirectionDescription(desc);
       setContent(prev => ({
@@ -196,6 +202,71 @@ export default function MarketingBuilder() {
     }
     setEditApplying(false);
   };
+
+  const handleElementEdit = async (elementId, instruction) => {
+    setEditApplying(true);
+    try {
+      const concept = getConceptById(conceptId);
+      const execStyle = getExecutionStyleById(executionStyleId);
+      const result = await editElement(elementId, instruction, {
+        concept: concept ? { name: concept.name, mood: concept.mood, visualLanguage: concept.visualLanguage } : null,
+        executionStyle: execStyle ? { name: execStyle.name } : null,
+        currentIntent,
+        lockedSystems: currentLocks,
+        content,
+        directionDescription,
+      });
+
+      const newIntent = mergeIntent(currentIntent, result.intent || {});
+      const desc = result.direction_description || describeDirection(newIntent, concept?.name);
+      const version = createVersionSnapshot(instruction, result.summary, {
+        creative_intent: currentIntent,
+        creative_locks: currentLocks,
+        concept_id: conceptId,
+        execution_style_id: executionStyleId,
+        strategy_id: strategyId,
+      }, desc, result.explanation);
+
+      setDirectionDescription(desc);
+      setContent(prev => ({
+        ...prev,
+        creative_intent: newIntent,
+        creative_versions: [...(prev.creative_versions || []), version],
+      }));
+    } catch (e) {
+      console.error('Element edit failed:', e);
+    }
+    setEditApplying(false);
+  };
+
+  // ── Proactive observations — AI reviews the composition like a senior designer ──
+  useEffect(() => {
+    const concept = getConceptById(conceptId);
+    if (!concept) return;
+    if (!content.headline && !content.badge && !content.cta && !content.quote_text) return;
+
+    const timer = setTimeout(() => {
+      const execStyle = getExecutionStyleById(executionStyleId);
+      observeComposition({
+        concept: { name: concept.name, mood: concept.mood },
+        executionStyle: execStyle ? { name: execStyle.name } : null,
+        currentIntent: content.creative_intent || {},
+        content,
+        directionDescription,
+      }).then(obs => {
+        if (obs && obs.length > 0) {
+          setObservations(prev => {
+            const existing = new Set(prev.map(o => o.text));
+            const newOnes = obs.filter(o => !existing.has(o.text));
+            if (newOnes.length === 0) return prev;
+            return [...prev.slice(-2), ...newOnes];
+          });
+        }
+      }).catch(() => {});
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, [conceptId, executionStyleId, directionDescription, content]);
 
   const handleRegenerateSystem = async (systemKey) => {
     setRegeneratingSystem(systemKey);
@@ -365,9 +436,33 @@ export default function MarketingBuilder() {
             transform: `scale(${previewScale})`, transformOrigin: 'top left',
             position: 'absolute', top: 0, left: 0,
           }}>
-            <GraphicCanvas canvasRef={canvasRef} preset={preset} graphicType={graphicType} content={content} theme={theme} conceptId={conceptId} executionStyleId={executionStyleId} />
+            <GraphicCanvas canvasRef={canvasRef} preset={preset} graphicType={graphicType} content={content} theme={theme} conceptId={conceptId} executionStyleId={executionStyleId} editMode={editMode} selectedElement={selectedElement} onSelectElement={setSelectedElement} />
           </div>
         </div>
+      </div>
+
+      {/* Creative Director — the conversation is the product */}
+      <div className="px-4 pt-2 pb-4">
+        <CreativeDirector
+          concept={getConceptById(conceptId)}
+          executionStyle={getExecutionStyleById(executionStyleId)}
+          currentIntent={currentIntent}
+          currentLocks={currentLocks}
+          directionDescription={directionDescription || describeDirection(currentIntent, getConceptById(conceptId)?.name)}
+          creativeVersions={content.creative_versions || []}
+          observations={observations}
+          editMode={editMode}
+          selectedElement={selectedElement}
+          onToggleEditMode={() => { setEditMode(!editMode); setSelectedElement(null); }}
+          onDeselectElement={() => setSelectedElement(null)}
+          onApplyEdit={handleApplyEdit}
+          onApplyElementEdit={handleElementEdit}
+          onRestoreVersion={handleRestoreVersion}
+          onFavoriteVersion={handleFavoriteVersion}
+          onToggleLock={handleToggleLock}
+          onReset={handleResetEdits}
+          isApplying={editApplying}
+        />
       </div>
 
       {/* Tab switcher — Content / Style */}
@@ -404,22 +499,6 @@ export default function MarketingBuilder() {
                 if (changes.executionStyleId !== undefined) setExecutionStyleId(changes.executionStyleId);
                 if (changes.strategyId !== undefined) setStrategyId(changes.strategyId);
               }}
-            />
-
-            {/* Creative Edit — conversational design adjustments */}
-            <CreativeEditPanel
-              directionSummary={directionDescription || describeDirection(currentIntent, getConceptById(conceptId)?.name)}
-              creativeLocks={currentLocks}
-              creativeVersions={content.creative_versions || []}
-              isApplying={editApplying}
-              regeneratingSystem={regeneratingSystem}
-              onApplyEdit={handleApplyEdit}
-              onRegenerateSystem={handleRegenerateSystem}
-              onToggleLock={handleToggleLock}
-              onRestoreVersion={handleRestoreVersion}
-              onFavoriteVersion={handleFavoriteVersion}
-              onNameVersion={handleNameVersion}
-              onReset={handleResetEdits}
             />
 
             {/* AI Copy Assistant */}

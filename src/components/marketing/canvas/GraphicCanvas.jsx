@@ -39,7 +39,7 @@ export function renderLayout(graphicType, props) {
   );
 }
 
-export default function GraphicCanvas({ canvasRef, preset, graphicType, content, theme, conceptId, executionStyleId }) {
+export default function GraphicCanvas({ canvasRef, preset, graphicType, content, theme, conceptId, executionStyleId, editMode, selectedElement, onSelectElement }) {
   // Auto-select if no concept specified
   let resolvedConceptId = conceptId;
   let resolvedExecId = executionStyleId;
@@ -58,7 +58,10 @@ export default function GraphicCanvas({ canvasRef, preset, graphicType, content,
         preset={preset}
         theme={theme}
         creativeIntent={content?.creative_intent}
-      creativeLocks={content?.creative_locks}
+        creativeLocks={content?.creative_locks}
+        editMode={editMode}
+        selectedElement={selectedElement}
+        onSelectElement={onSelectElement}
       />
     </div>
   );

@@ -28,6 +28,24 @@ import { getConceptById } from '@/lib/marketing/creativeConcepts';
 import { getExecutionStyleById, EXECUTION_STYLES } from '@/lib/marketing/executionStyles';
 import { renderDecorative, BACKGROUND_DECORATIVES, INLINE_DECORATIVES } from './decoratives';
 import { translateIntent } from '@/lib/marketing/intentTranslator';
+import { cloneElement } from 'react';
+
+// ── Edit Mode wrapper ───────────────────────────────────────────────────
+function withEditMode(element, elementId, editMode, selectedElement, onSelectElement) {
+  if (!element || !editMode) return element;
+  const isSelected = selectedElement === elementId;
+  return cloneElement(element, {
+    'data-pg-element': elementId,
+    onClick: (e) => { e.stopPropagation(); onSelectElement?.(elementId); },
+    style: {
+      ...element.props.style,
+      cursor: 'pointer',
+      outline: isSelected ? `2px solid ${NEON.pink}` : '1px dashed rgba(255,255,255,0.12)',
+      outlineOffset: '2px',
+      borderRadius: '4px',
+    },
+  });
+}
 
 // ── Emphasis Style (used by content renderer) ───────────────────────────
 function getEmphasisStyle(treatment, accentColor) {
@@ -581,7 +599,7 @@ function renderLogo(logoConfig, u, w, h, colorScheme) {
  *
  * Render order: base concept + execution style + creative intent (translated)
  */
-export default function CreativeDirectionEngine({ conceptId, executionStyleId, content = {}, preset, theme, creativeIntent, creativeLocks }) {
+export default function CreativeDirectionEngine({ conceptId, executionStyleId, content = {}, preset, theme, creativeIntent, creativeLocks, editMode, selectedElement, onSelectElement }) {
   const concept = getConceptById(conceptId);
   if (!concept) return null;
 
@@ -611,7 +629,10 @@ export default function CreativeDirectionEngine({ conceptId, executionStyleId, c
   const contentRotation = composition.rotation || 0;
 
   return (
-    <div style={{ width: w, height: h, position: 'relative', overflow: 'hidden' }}>
+    <div style={{
+      width: w, height: h, position: 'relative', overflow: 'hidden',
+      ...(editMode ? { cursor: 'pointer', onClick: () => onSelectElement?.('background') } : {}),
+    }}>
       {/* Layer 1: Background */}
       {renderBackground(background, w, h)}
 
@@ -630,7 +651,15 @@ export default function CreativeDirectionEngine({ conceptId, executionStyleId, c
       {bgDecoratives.map(decId => {
         const props = { u, w, h, color: color.accent, content };
         return (
-          <div key={decId}>
+          <div key={decId} {...(editMode ? {
+            'data-pg-element': 'decorations',
+            onClick: (e) => { e.stopPropagation(); onSelectElement?.('decorations'); },
+            style: {
+              cursor: 'pointer',
+              outline: selectedElement === 'decorations' ? `2px solid ${NEON.pink}` : '1px dashed rgba(255,255,255,0.1)',
+              outlineOffset: '2px',
+            },
+          } : {})}>
             {renderDecorative(decId, props)}
           </div>
         );
@@ -653,9 +682,11 @@ export default function CreativeDirectionEngine({ conceptId, executionStyleId, c
         zIndex: 5,
       }}>
         {/* Render hierarchy — content elements and inline decoratives in order */}
-        {hierarchy.map(elementId =>
-          renderContentElement(elementId, content, designSystem, zone, u, execModifiers, color)
-        )}
+        {hierarchy.map(elementId => {
+          const el = renderContentElement(elementId, content, designSystem, zone, u, execModifiers, color);
+          if (!el) return null;
+          return editMode ? withEditMode(el, elementId, editMode, selectedElement, onSelectElement) : el;
+        })}
 
         {/* Render any inline decoratives not already in hierarchy */}
         {inlineDecoratives
@@ -675,7 +706,11 @@ export default function CreativeDirectionEngine({ conceptId, executionStyleId, c
       </div>
 
       {/* Layer 5: Logo */}
-      {renderLogo(logo, u, w, h, color)}
+      {(() => {
+        const logoEl = renderLogo(logo, u, w, h, color);
+        if (!logoEl) return null;
+        return editMode ? withEditMode(logoEl, 'logo', editMode, selectedElement, onSelectElement) : logoEl;
+      })()}
     </div>
   );
 }
