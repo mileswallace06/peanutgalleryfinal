@@ -191,6 +191,34 @@
                 "type": "string",
                 "description": "Detailed natural-language explanation of what the AI changed and why"
               },
+              "confidence": {
+                "type": "string",
+                "enum": [
+                  "high",
+                  "medium",
+                  "low"
+                ],
+                "description": "AI confidence level for this edit"
+              },
+              "critique": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "reason": {
+                    "type": "string"
+                  },
+                  "suggestion": {
+                    "type": "string"
+                  }
+                },
+                "description": "AI critique if it disagreed with the edit, null otherwise"
+              },
+              "element_id": {
+                "type": "string",
+                "description": "Element ID if this was an element-specific edit, null for global edits"
+              },
               "direction_description": {
                 "type": "string",
                 "description": "Natural-language description of the overall creative direction at this version"
