@@ -188,7 +188,7 @@ export default function MarketingBuilder() {
       const newIntent = mergeIntent(currentIntent, result.intent || {});
       const desc = result.direction_description || describeDirection(newIntent, concept?.name);
       const version = createVersionSnapshot(instruction, result.summary, {
-        creative_intent: currentIntent,
+        creative_intent: newIntent,
         creative_locks: currentLocks,
         concept_id: conceptId,
         execution_style_id: executionStyleId,
@@ -227,7 +227,7 @@ export default function MarketingBuilder() {
       const newIntent = mergeIntent(currentIntent, result.intent || {});
       const desc = result.direction_description || describeDirection(newIntent, concept?.name);
       const version = createVersionSnapshot(instruction, result.summary, {
-        creative_intent: currentIntent,
+        creative_intent: newIntent,
         creative_locks: currentLocks,
         concept_id: conceptId,
         execution_style_id: executionStyleId,
@@ -323,7 +323,7 @@ export default function MarketingBuilder() {
       const newIntent = mergeIntent(currentIntent, result.intent || {});
       const desc = result.direction_description || describeDirection(newIntent, concept?.name);
       const version = createVersionSnapshot(`Regenerate ${systemKey}`, result.summary, {
-        creative_intent: currentIntent,
+        creative_intent: newIntent,
         creative_locks: currentLocks,
         concept_id: conceptId,
         execution_style_id: executionStyleId,
@@ -381,8 +381,8 @@ export default function MarketingBuilder() {
 
   const handleResetEdits = () => {
     const version = createVersionSnapshot('Reset', 'Cleared all creative intent', {
-      creative_intent: currentIntent,
-      creative_locks: currentLocks,
+      creative_intent: null,
+      creative_locks: defaultLocks(),
       concept_id: conceptId,
       execution_style_id: executionStyleId,
       strategy_id: strategyId,
