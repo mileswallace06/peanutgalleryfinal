@@ -19,7 +19,7 @@ import AssetUploader from '@/components/marketing/AssetUploader';
 import ExportPanel from '@/components/marketing/ExportPanel';
 import ConceptPicker from '@/components/marketing/ConceptPicker';
 import { SectionLabel, FormField, LoadingSpinner, ThemePicker } from '@/components/marketing/shared/UiPrimitives';
-import { usePreviewScale, useCanvasCapture } from '@/components/marketing/shared/hooks';
+import { usePreviewScale, useCanvasCapture, captureCanvasElement, downloadCanvas } from '@/components/marketing/shared/hooks';
 import { CANVAS_PRESETS, GRAPHIC_TYPES, NEON, NEON_RGB, GRADIENTS, TEXT } from '@/lib/marketingTokens';
 import CreativeDirector from '@/components/marketing/CreativeDirector';
 import { applyCreativeEdit, regenerateSystem, createVersionSnapshot, restoreFromSnapshot, describeDirection } from '@/lib/marketing/creativeEdit';
@@ -30,10 +30,19 @@ import { mergeIntent, defaultLocks, hasActiveIntent } from '@/lib/marketing/crea
 import { getConceptById } from '@/lib/marketing/creativeConcepts';
 import { getExecutionStyleById } from '@/lib/marketing/executionStyles';
 
-const EMPTY_CONTENT = {
-  headline: '', subheadline: '', body: '', cta: '', badge: '',
-  stat_number: '', stat_label: '', stat_explanation: '',
-  image_url: '', author: '', quote_text: '', signature: '',
+const SAMPLE_CONTENT = {
+  badge: 'PEANUT GALLERY',
+  headline: 'Tickets should cost what tickets cost',
+  subheadline: 'Fan-to-fan transfers at face value. No bots, no scalpers, no surprise fees.',
+  body: "We built Peanut Gallery because buying tickets shouldn't feel like a scam. Escrow-protected payments, AI-verified transfers, and a community that has your back.",
+  cta: 'Join the Gallery',
+  stat_number: '0%',
+  stat_label: 'Bot tickets on our platform',
+  stat_explanation: 'Every seller is a verified fan',
+  quote_text: "Finally a ticket app that doesn't feel sketchy",
+  author: 'Verified Fan, Phoenix',
+  signature: '— The PG Team',
+  image_url: '',
   creative_intent: null,
   creative_locks: null,
   creative_versions: [],
@@ -109,12 +118,13 @@ export default function MarketingBuilder() {
   const [canvasPreset, setCanvasPreset] = useState('1080x1350');
   const [graphicType, setGraphicType] = useState(searchParams.get('type') || 'industry_truth');
   const [theme, setTheme] = useState('dark');
-  const [content, setContent] = useState(EMPTY_CONTENT);
+  const [content, setContent] = useState(SAMPLE_CONTENT);
   const [assetTitle, setAssetTitle] = useState('');
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
   const [saved, setSaved] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [activeTab, setActiveTab] = useState('content');
   const [conceptId, setConceptId] = useState(null);
   const [executionStyleId, setExecutionStyleId] = useState(null);
@@ -146,7 +156,7 @@ export default function MarketingBuilder() {
           setCanvasPreset(asset.canvas_preset || '1080x1350');
           setGraphicType(asset.graphic_type || 'industry_truth');
           setTheme(asset.theme || 'dark');
-          setContent({ ...EMPTY_CONTENT, ...(asset.content || {}) });
+          setContent({ ...SAMPLE_CONTENT, ...(asset.content || {}) });
           setConceptId(asset.content?.concept_id || asset.content?.composition_variant || null);
           setExecutionStyleId(asset.content?.execution_style_id || null);
           setStrategyId(asset.content?.strategy_id || null);
@@ -396,6 +406,17 @@ export default function MarketingBuilder() {
     }));
   };
 
+  const handleQuickExport = async () => {
+    setDownloading(true);
+    try {
+      const canvas = await captureCanvasElement(canvasRef.current, preset);
+      if (canvas) downloadCanvas(canvas, 'png', `pg-${graphicType}`);
+    } catch (e) {
+      console.error('Export failed:', e);
+    }
+    setDownloading(false);
+  };
+
   const handleSave = async () => {
     setSaving(true);
     setSaveError(null);
@@ -449,12 +470,20 @@ export default function MarketingBuilder() {
           />
           <p className="text-[10px] text-muted-foreground">{preset.label} · {preset.w}×{preset.h}</p>
         </div>
-        <button onClick={handleSave} disabled={saving}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-black transition-all active:scale-95 disabled:opacity-50 flex-shrink-0"
-          style={{ background: saved ? NEON.green : GRADIENTS.cta_primary, color: TEXT.dark }}>
-          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : saved ? <Check className="w-3.5 h-3.5" /> : <Save className="w-3.5 h-3.5" />}
-          {saved ? 'Saved!' : 'Save'}
-        </button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <button onClick={handleQuickExport} disabled={downloading}
+            className="flex items-center justify-center w-9 h-9 rounded-full text-xs font-black transition-all active:scale-95 disabled:opacity-50"
+            style={{ background: 'hsl(var(--muted))', color: 'hsl(var(--foreground))' }}
+            aria-label="Download PNG">
+            {downloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+          </button>
+          <button onClick={handleSave} disabled={saving}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-black transition-all active:scale-95 disabled:opacity-50"
+            style={{ background: saved ? NEON.green : GRADIENTS.cta_primary, color: TEXT.dark }}>
+            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : saved ? <Check className="w-3.5 h-3.5" /> : <Save className="w-3.5 h-3.5" />}
+            {saved ? 'Saved!' : 'Save'}
+          </button>
+        </div>
       </div>
 
       {saveError && (

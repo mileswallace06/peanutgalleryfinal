@@ -187,8 +187,32 @@ export default function MarketingStudio() {
       {/* Create tiles */}
       <div className="mb-10">
         <SectionLabel color={NEON.cyan}>Create</SectionLabel>
+
+        {/* Primary CTA — full-width hero */}
+        {(() => {
+          const tile = TILES[0];
+          const Icon = tile.icon;
+          return (
+            <button
+              onClick={() => navigate(tile.route)}
+              className="w-full flex items-center gap-4 p-5 rounded-2xl transition-all active:scale-[0.98] text-left mb-3"
+              style={{ background: GRADIENTS.cta_primary, border: 'none' }}
+            >
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{ background: 'rgba(0,0,0,0.12)' }}>
+                <Icon className="w-6 h-6" style={{ color: TEXT.dark }} />
+              </div>
+              <div className="flex-1">
+                <p className="font-display text-lg leading-tight" style={{ color: TEXT.dark }}>{tile.label}</p>
+                <p className="text-xs mt-0.5" style={{ color: TEXT.dark, opacity: 0.65 }}>{tile.desc}</p>
+              </div>
+            </button>
+          );
+        })()}
+
+        {/* Secondary tiles */}
         <div className="grid grid-cols-2 gap-3">
-          {TILES.map(tile => {
+          {TILES.slice(1).map(tile => {
             const Icon = tile.icon;
             return (
               <button
