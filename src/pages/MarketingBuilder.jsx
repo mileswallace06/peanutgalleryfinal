@@ -23,7 +23,9 @@ import { usePreviewScale, useCanvasCapture } from '@/components/marketing/shared
 import { CANVAS_PRESETS, GRAPHIC_TYPES, NEON, NEON_RGB, GRADIENTS, TEXT } from '@/lib/marketingTokens';
 import CreativeDirector from '@/components/marketing/CreativeDirector';
 import { applyCreativeEdit, regenerateSystem, createVersionSnapshot, restoreFromSnapshot, describeDirection } from '@/lib/marketing/creativeEdit';
-import { editElement, globalDirect, observeComposition } from '@/lib/marketing/creativeConversation';
+import { editElement, globalDirect, observeComposition, explainElement } from '@/lib/marketing/creativeConversation';
+import ElementToolbar from '@/components/marketing/canvas/ElementToolbar';
+import { getElementBrain, buildElementAIContext } from '@/lib/marketing/elementBrain';
 import { mergeIntent, defaultLocks, hasActiveIntent } from '@/lib/marketing/creativeIntent';
 import { getConceptById } from '@/lib/marketing/creativeConcepts';
 import { getExecutionStyleById } from '@/lib/marketing/executionStyles';
@@ -123,9 +125,11 @@ export default function MarketingBuilder() {
   const [editMode, setEditMode] = useState(false);
   const [selectedElement, setSelectedElement] = useState(null);
   const [observations, setObservations] = useState([]);
+  const [toolbarResponse, setToolbarResponse] = useState(null);
   const navTimerRef = useRef(null);
 
   useEffect(() => () => clearTimeout(navTimerRef.current), []);
+  useEffect(() => { setToolbarResponse(null); }, [selectedElement]);
 
   const preset = CANVAS_PRESETS[canvasPreset];
   const { previewRef, scale: previewScale } = usePreviewScale(preset, 0.5);
@@ -189,7 +193,7 @@ export default function MarketingBuilder() {
         concept_id: conceptId,
         execution_style_id: executionStyleId,
         strategy_id: strategyId,
-      }, desc, result.explanation);
+      }, desc, result.explanation, result.confidence, result.critique, null);
 
       setDirectionDescription(desc);
       setContent(prev => ({
@@ -199,8 +203,9 @@ export default function MarketingBuilder() {
       }));
     } catch (e) {
       console.error('Creative edit failed:', e);
+    } finally {
+      setEditApplying(false);
     }
-    setEditApplying(false);
   };
 
   const handleElementEdit = async (elementId, instruction) => {
@@ -208,6 +213,7 @@ export default function MarketingBuilder() {
     try {
       const concept = getConceptById(conceptId);
       const execStyle = getExecutionStyleById(executionStyleId);
+      const brainContext = buildElementAIContext(elementId, currentIntent, content);
       const result = await editElement(elementId, instruction, {
         concept: concept ? { name: concept.name, mood: concept.mood, visualLanguage: concept.visualLanguage } : null,
         executionStyle: execStyle ? { name: execStyle.name } : null,
@@ -215,6 +221,7 @@ export default function MarketingBuilder() {
         lockedSystems: currentLocks,
         content,
         directionDescription,
+        elementBrainContext: brainContext,
       });
 
       const newIntent = mergeIntent(currentIntent, result.intent || {});
@@ -225,7 +232,7 @@ export default function MarketingBuilder() {
         concept_id: conceptId,
         execution_style_id: executionStyleId,
         strategy_id: strategyId,
-      }, desc, result.explanation);
+      }, desc, result.explanation, result.confidence, result.critique, elementId);
 
       setDirectionDescription(desc);
       setContent(prev => ({
@@ -233,10 +240,43 @@ export default function MarketingBuilder() {
         creative_intent: newIntent,
         creative_versions: [...(prev.creative_versions || []), version],
       }));
+      return { ...result, elementId };
     } catch (e) {
       console.error('Element edit failed:', e);
+      return null;
+    } finally {
+      setEditApplying(false);
     }
-    setEditApplying(false);
+  };
+
+  const handleToolbarAsk = async (instruction) => {
+    if (!selectedElement) return;
+    setToolbarResponse(null);
+    const result = await handleElementEdit(selectedElement, instruction);
+    if (result) setToolbarResponse(result);
+  };
+
+  const handleToolbarExplain = async () => {
+    if (!selectedElement) return;
+    setToolbarResponse(null);
+    setEditApplying(true);
+    try {
+      const concept = getConceptById(conceptId);
+      const execStyle = getExecutionStyleById(executionStyleId);
+      const brainContext = buildElementAIContext(selectedElement, currentIntent, content);
+      const result = await explainElement(selectedElement, {
+        concept: concept ? { name: concept.name, mood: concept.mood } : null,
+        executionStyle: execStyle ? { name: execStyle.name } : null,
+        currentIntent,
+        content,
+        elementBrainContext: brainContext,
+      });
+      setToolbarResponse(result);
+    } catch (e) {
+      console.error('Explain failed:', e);
+    } finally {
+      setEditApplying(false);
+    }
   };
 
   // ── Proactive observations — AI reviews the composition like a senior designer ──
@@ -425,7 +465,21 @@ export default function MarketingBuilder() {
       )}
 
       {/* Live Preview */}
-      <div ref={previewRef} className="px-4 py-4 flex justify-center" style={{ background: 'rgba(0,0,0,0.3)' }}>
+      <div ref={previewRef} className="px-4 py-4 flex justify-center relative" style={{ background: 'rgba(0,0,0,0.3)' }}>
+        {editMode && selectedElement && (() => {
+          const brain = getElementBrain(selectedElement);
+          if (!brain) return null;
+          return (
+            <ElementToolbar
+              brain={brain}
+              onAskAI={handleToolbarAsk}
+              onExplain={handleToolbarExplain}
+              onClose={() => setSelectedElement(null)}
+              isApplying={editApplying}
+              aiResponse={toolbarResponse}
+            />
+          );
+        })()}
         <div style={{
           width: preset.w * previewScale,
           height: preset.h * previewScale,

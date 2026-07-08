@@ -29,18 +29,20 @@ import { getExecutionStyleById, EXECUTION_STYLES } from '@/lib/marketing/executi
 import { renderDecorative, BACKGROUND_DECORATIVES, INLINE_DECORATIVES } from './decoratives';
 import { translateIntent } from '@/lib/marketing/intentTranslator';
 import { cloneElement } from 'react';
+import { getImportanceForElement, getImportanceStyle } from '@/lib/marketing/elementBrain';
 
 // ── Edit Mode wrapper ───────────────────────────────────────────────────
 function withEditMode(element, elementId, editMode, selectedElement, onSelectElement) {
   if (!element || !editMode) return element;
   const isSelected = selectedElement === elementId;
+  const imp = getImportanceStyle(getImportanceForElement(elementId));
   return cloneElement(element, {
     'data-pg-element': elementId,
     onClick: (e) => { e.stopPropagation(); onSelectElement?.(elementId); },
     style: {
       ...element.props.style,
       cursor: 'pointer',
-      outline: isSelected ? `2px solid ${NEON.pink}` : '1px dashed rgba(255,255,255,0.12)',
+      outline: isSelected ? `2px solid ${imp.color}` : `1px dashed ${imp.color}40`,
       outlineOffset: '2px',
       borderRadius: '4px',
     },
@@ -631,7 +633,13 @@ export default function CreativeDirectionEngine({ conceptId, executionStyleId, c
   return (
     <div style={{
       width: w, height: h, position: 'relative', overflow: 'hidden',
-      ...(editMode ? { cursor: 'pointer', onClick: () => onSelectElement?.('background') } : {}),
+      ...(editMode ? {
+        cursor: 'pointer',
+        onClick: () => onSelectElement?.('background'),
+        boxShadow: selectedElement === 'background'
+          ? `inset 0 0 0 2px ${getImportanceStyle('high').color}`
+          : `inset 0 0 0 1px ${getImportanceStyle('high').color}30`,
+      } : {}),
     }}>
       {/* Layer 1: Background */}
       {renderBackground(background, w, h)}
@@ -656,7 +664,7 @@ export default function CreativeDirectionEngine({ conceptId, executionStyleId, c
             onClick: (e) => { e.stopPropagation(); onSelectElement?.('decorations'); },
             style: {
               cursor: 'pointer',
-              outline: selectedElement === 'decorations' ? `2px solid ${NEON.pink}` : '1px dashed rgba(255,255,255,0.1)',
+              outline: selectedElement === 'decorations' ? `2px solid ${getImportanceStyle('medium').color}` : `1px dashed ${getImportanceStyle('medium').color}30`,
               outlineOffset: '2px',
             },
           } : {})}>

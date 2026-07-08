@@ -18,6 +18,7 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import {
   Sparkles, Send, Loader2, MousePointerClick, X, Star, RotateCcw,
   ChevronDown, ChevronUp, Lock, Eye, Lightbulb, Check, MessageSquare,
+  AlertTriangle, Info,
 } from 'lucide-react';
 import { NEON, NEON_RGB } from '@/lib/marketingTokens';
 import { getElementLabel } from '@/lib/marketing/elementRegistry';
@@ -64,6 +65,7 @@ export default function CreativeDirector({
         type: 'ai', text: v.explanation || v.summary,
         direction: v.direction_description, id: v.id + '_a',
         timestamp: v.timestamp, versionId: v.id, isFavorite: v.is_favorite,
+        confidence: v.confidence, critique: v.critique, elementId: v.element_id,
       });
     }
     for (const obs of observations) {
@@ -340,11 +342,40 @@ function MessageBubble({ message, onRestore, onFavorite }) {
   }
 
   // AI response
+  const confConfig = message.confidence
+    ? { high: { color: NEON.green, label: 'Very confident', icon: Check },
+        medium: { color: NEON.cyan, label: 'Pretty confident', icon: Sparkles },
+        low: { color: NEON.yellow, label: 'Not fully confident', icon: Info } }[message.confidence]
+    : null;
+  const hasCritique = message.critique && message.critique.reason;
   return (
     <div className="flex justify-start">
       <div className="max-w-[90%] px-3 py-1.5 rounded-2xl rounded-bl-md"
         style={{ background: 'hsl(var(--muted))' }}>
+        {confConfig && (
+          <div className="flex items-center gap-1 mb-0.5">
+            <div className="w-1 h-1 rounded-full" style={{ background: confConfig.color }} />
+            <span className="text-[8px] font-black uppercase tracking-wider" style={{ color: confConfig.color }}>
+              {confConfig.label}
+            </span>
+            {hasCritique && (
+              <span className="text-[8px] font-bold text-destructive flex items-center gap-0.5">
+                <AlertTriangle className="w-2 h-2" /> Pushing back
+              </span>
+            )}
+          </div>
+        )}
         <p className="text-[11px] text-foreground leading-snug">{message.text}</p>
+        {hasCritique && (
+          <div className="mt-1 rounded-lg p-1.5" style={{ background: 'rgba(255,140,0,0.06)', border: '1px solid rgba(255,140,0,0.12)' }}>
+            <p className="text-[9px] text-foreground leading-snug">{message.critique.reason}</p>
+            {message.critique.suggestion && (
+              <p className="text-[9px] leading-snug mt-0.5" style={{ color: NEON.cyan }}>
+                {"→ "}{message.critique.suggestion}
+              </p>
+            )}
+          </div>
+        )}
         {message.direction && (
           <p className="text-[9px] text-muted-foreground italic mt-1 leading-tight">{message.direction}</p>
         )}

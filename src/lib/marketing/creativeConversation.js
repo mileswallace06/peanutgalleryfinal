@@ -21,6 +21,7 @@
 import { base44 } from '@/api/base44Client';
 import { INTENT_DIMENSIONS } from '@/lib/marketing/creativeIntent';
 import { ELEMENTS, getElementDescription } from '@/lib/marketing/elementRegistry';
+import { buildElementAIContext } from '@/lib/marketing/elementBrain';
 
 // ── Shared reference vocabulary ─────────────────────────────────────────
 const REFERENCE_CONTEXT = `
@@ -54,6 +55,7 @@ export async function editElement(elementId, instruction, context = {}) {
   const {
     concept, executionStyle, currentIntent = {},
     lockedSystems = {}, content = {}, directionDescription = '',
+    elementBrainContext,
   } = context;
 
   const isLocked = lockedSystems[element.lockCategory];
@@ -63,8 +65,13 @@ export async function editElement(elementId, instruction, context = {}) {
       explanation: `The ${element.label.toLowerCase()} is currently protected from changes. Unlock it in the advanced settings to edit it.`,
       direction_description: directionDescription,
       intent: {},
+      agrees: false,
+      confidence: 'low',
+      critique: { reason: `${element.label} is locked`, suggestion: null },
     };
   }
+
+  const brainContext = elementBrainContext || buildElementAIContext(elementId, currentIntent, content);
 
   const dimsList = element.intentDims
     .map(d => `- ${d}: ${INTENT_DIMENSIONS[d]?.values.join(' | ') || 'string'}`)
@@ -76,9 +83,11 @@ export async function editElement(elementId, instruction, context = {}) {
 
   const prompt = `You are an elite Creative Director working in Peanut Gallery's Marketing Studio. You are sitting beside the user, looking at their marketing graphic together.
 
-The user has clicked on the ${element.label}.
+The user has selected an element on the canvas. Here is what they selected:
 
-What the ${element.label} is: ${element.description}
+${brainContext}
+
+Element identity: ${element.description}
 
 Current creative context:
 - Concept: ${conceptDesc}
@@ -96,16 +105,41 @@ ${dimsList}
 
 Return ONLY the dimensions that should change based on the instruction. Merge with existing intent for this element — don't lose previous directions unless the instruction contradicts them.
 
+CRITICAL — Evaluate this change like a senior Creative Director:
+- Will this actually improve the design?
+- Could it create unintended problems (hierarchy competition, readability loss, overwhelming the composition)?
+- Is there a better alternative that would achieve the user's goal more effectively?
+
+If you disagree with the change (it won't improve the design or could cause problems):
+- Set "agrees" to false
+- Provide "critique" with your reasoning and a better suggestion
+- Still provide the intent changes (the user asked for it), but flag your concern
+
+If you agree:
+- Set "agrees" to true
+- Set "critique" to null
+
+Always communicate your confidence level:
+- "high": Very confident this will noticeably improve the design
+- "medium": Think it will help, but some uncertainty
+- "low": There are trade-offs and you are not sure
+
 After determining your changes, write:
-1. "summary" — one short sentence describing the change (e.g. "Increased headline dominance")
-2. "explanation" — 1-2 sentences explaining what you changed and WHY, as if talking to a colleague. Be specific and conversational. Example: "I increased the headline scale and reduced the surrounding decoration so the message becomes the first thing people notice." Never mention intent dimension names.
-3. "direction_description" — a natural-language description of the OVERALL creative direction after this change (not just the element). Never mention intent dimension names.
-4. "intent" — only the dimensions that changed
+1. "agrees" — true or false
+2. "confidence" — "high", "medium", or "low"
+3. "summary" — one short sentence describing the change
+4. "explanation" — 1-2 sentences explaining what you changed and WHY, as if talking to a colleague. Be specific and conversational. Never mention intent dimension names.
+5. "critique" — null if you agree, or { "reason": "why you disagree", "suggestion": "what you'd recommend instead" }
+6. "direction_description" — a natural-language description of the OVERALL creative direction after this change
+7. "intent" — only the dimensions that changed
 
 Return JSON only:
 {
+  "agrees": true,
+  "confidence": "high",
   "summary": "One sentence",
   "explanation": "1-2 sentences explaining what and why, conversational",
+  "critique": null,
   "direction_description": "Overall direction after this change",
   "intent": {}
 }`;
@@ -115,8 +149,17 @@ Return JSON only:
     response_json_schema: {
       type: 'object',
       properties: {
+        agrees: { type: 'boolean' },
+        confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
         summary: { type: 'string' },
         explanation: { type: 'string' },
+        critique: {
+          type: ['object', 'null'],
+          properties: {
+            reason: { type: 'string' },
+            suggestion: { type: 'string' },
+          },
+        },
         direction_description: { type: 'string' },
         intent: { type: 'object', additionalProperties: true },
       },
@@ -124,10 +167,70 @@ Return JSON only:
   });
 
   return {
+    type: 'edit',
+    agrees: response.agrees !== false,
+    confidence: response.confidence || 'medium',
     summary: response.summary || `Adjusted the ${element.label}`,
     explanation: response.explanation || response.summary || '',
+    critique: response.critique || null,
     direction_description: response.direction_description || '',
     intent: response.intent || {},
+  };
+}
+
+// ── Explain element — the element explains itself ──────────────────────
+/**
+ * The user clicked "Explain" on an element. The AI gives a concise,
+ * insightful read on the element's role, current state, and recommendations.
+ * This is what makes every object "alive" — it can explain itself.
+ */
+export async function explainElement(elementId, context = {}) {
+  const {
+    concept, executionStyle, currentIntent = {},
+    content = {}, elementBrainContext,
+  } = context;
+
+  const brainContext = elementBrainContext || buildElementAIContext(elementId, currentIntent, content);
+  const contentSummary = buildContentSummary(content);
+  const conceptDesc = concept ? `${concept.name} — mood: ${concept.mood || 'n/a'}` : 'auto-selected';
+
+  const prompt = `You are an elite Creative Director. The user clicked "Explain" on an element in their marketing graphic. Give them a concise, insightful read on what this element is doing in the composition right now.
+
+${brainContext}
+
+Current creative context:
+- Concept: ${conceptDesc}
+- Content: ${contentSummary}
+- Current creative intent: ${JSON.stringify(currentIntent)}
+
+Give a concise, insightful read on:
+1. What this element is doing right now in the composition
+2. How well it's performing its role
+3. One specific, actionable recommendation (if any) — or confirm it's working well
+
+Be conversational, like a senior designer giving a quick read. Never mention intent dimension names or technical terms. Be honest — if something isn't working, say so.
+
+Return JSON:
+{
+  "explanation": "2-3 sentences, conversational and insightful",
+  "confidence": "high" | "medium" | "low"
+}`;
+
+  const response = await base44.integrations.Core.InvokeLLM({
+    prompt,
+    response_json_schema: {
+      type: 'object',
+      properties: {
+        explanation: { type: 'string' },
+        confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
+      },
+    },
+  });
+
+  return {
+    type: 'explain',
+    explanation: response.explanation || '',
+    confidence: response.confidence || 'medium',
   };
 }
 
@@ -173,16 +276,35 @@ Convert this instruction into creative intent. Think like a Creative Director �
 
 Only return dimensions that the instruction actually affects. Merge with existing intent — don't lose previous directions unless contradicted.
 
+CRITICAL — Evaluate this change like a senior Creative Director:
+- Will this actually improve the design?
+- Could it create unintended problems?
+- Is there a better alternative?
+
+If you disagree, set "agrees" to false and provide "critique" with reasoning and a better suggestion.
+If you agree, set "agrees" to true and "critique" to null.
+
+Communicate your confidence:
+- "high": Very confident this will noticeably improve the design
+- "medium": Think it will help, but some uncertainty
+- "low": There are trade-offs and you are not sure
+
 After determining your changes, write:
-1. "summary" — one short sentence
-2. "explanation" — 1-2 sentences explaining what you changed and WHY, as if talking to a colleague. Be specific and conversational. Never mention intent dimension names. Example: "I reduced the decorative noise, increased spacing around the headline, and strengthened the contrast so the message becomes the first thing people notice."
-3. "direction_description" — overall creative direction after this change
-4. "intent" — only changed dimensions
+1. "agrees" — true or false
+2. "confidence" — "high", "medium", or "low"
+3. "summary" — one short sentence
+4. "explanation" — 1-2 sentences explaining what you changed and WHY, as if talking to a colleague. Be specific and conversational. Never mention intent dimension names.
+5. "critique" — null or { "reason": "...", "suggestion": "..." }
+6. "direction_description" — overall creative direction after this change
+7. "intent" — only changed dimensions
 
 Return JSON only:
 {
+  "agrees": true,
+  "confidence": "high",
   "summary": "One sentence",
   "explanation": "1-2 sentences explaining what and why, conversational",
+  "critique": null,
   "direction_description": "Overall direction after this change",
   "intent": {}
 }`;
@@ -192,8 +314,17 @@ Return JSON only:
     response_json_schema: {
       type: 'object',
       properties: {
+        agrees: { type: 'boolean' },
+        confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
         summary: { type: 'string' },
         explanation: { type: 'string' },
+        critique: {
+          type: ['object', 'null'],
+          properties: {
+            reason: { type: 'string' },
+            suggestion: { type: 'string' },
+          },
+        },
         direction_description: { type: 'string' },
         intent: { type: 'object', additionalProperties: true },
       },
@@ -201,8 +332,12 @@ Return JSON only:
   });
 
   return {
+    type: 'edit',
+    agrees: response.agrees !== false,
+    confidence: response.confidence || 'medium',
     summary: response.summary || 'Applied creative direction',
     explanation: response.explanation || response.summary || '',
+    critique: response.critique || null,
     direction_description: response.direction_description || '',
     intent: response.intent || {},
   };
