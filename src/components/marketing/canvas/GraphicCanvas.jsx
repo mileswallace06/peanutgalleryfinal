@@ -33,7 +33,8 @@ export function renderLayout(graphicType, props) {
       executionStyleId={resolvedExecId}
       content={content}
       preset={{ w, h }}
-      designOverrides={content?.design_overrides}
+      creativeIntent={content?.creative_intent}
+      creativeLocks={content?.creative_locks}
     />
   );
 }
@@ -56,7 +57,8 @@ export default function GraphicCanvas({ canvasRef, preset, graphicType, content,
         content={content}
         preset={preset}
         theme={theme}
-        designOverrides={content?.design_overrides}
+        creativeIntent={content?.creative_intent}
+      creativeLocks={content?.creative_locks}
       />
     </div>
   );

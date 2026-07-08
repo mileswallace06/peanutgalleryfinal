@@ -22,7 +22,8 @@ import { SectionLabel, FormField, LoadingSpinner, ThemePicker } from '@/componen
 import { usePreviewScale, useCanvasCapture } from '@/components/marketing/shared/hooks';
 import { CANVAS_PRESETS, GRAPHIC_TYPES, NEON, NEON_RGB, GRADIENTS, TEXT } from '@/lib/marketingTokens';
 import CreativeEditPanel from '@/components/marketing/CreativeEditPanel';
-import { applyCreativeEdit, mergeOverrides, hasActiveOverrides } from '@/lib/marketing/creativeEdit';
+import { applyCreativeEdit, regenerateSystem, createVersionSnapshot, restoreFromSnapshot } from '@/lib/marketing/creativeEdit';
+import { mergeIntent, defaultLocks, hasActiveIntent } from '@/lib/marketing/creativeIntent';
 import { getConceptById } from '@/lib/marketing/creativeConcepts';
 import { getExecutionStyleById } from '@/lib/marketing/executionStyles';
 
@@ -30,8 +31,9 @@ const EMPTY_CONTENT = {
   headline: '', subheadline: '', body: '', cta: '', badge: '',
   stat_number: '', stat_label: '', stat_explanation: '',
   image_url: '', author: '', quote_text: '', signature: '',
-  design_overrides: null,
-  creative_edit_history: [],
+  creative_intent: null,
+  creative_locks: null,
+  creative_versions: [],
 };
 
 /** Compact layout dropdown — replaces the 3-col grid for a cleaner editing experience. */
@@ -115,6 +117,7 @@ export default function MarketingBuilder() {
   const [executionStyleId, setExecutionStyleId] = useState(null);
   const [strategyId, setStrategyId] = useState(null);
   const [editApplying, setEditApplying] = useState(false);
+  const [regeneratingSystem, setRegeneratingSystem] = useState(null);
   const navTimerRef = useRef(null);
 
   useEffect(() => () => clearTimeout(navTimerRef.current), []);
@@ -147,7 +150,10 @@ export default function MarketingBuilder() {
     setContent(prev => ({ ...prev, [field]: value }));
   }, []);
 
-  // ── Creative Edit handlers ──────────────────────────────────────────────
+  // ── Creative Edit handlers (intent-based) ───────────────────────────────
+  const currentIntent = content.creative_intent || {};
+  const currentLocks = content.creative_locks || defaultLocks();
+
   const handleApplyEdit = async (instruction) => {
     setEditApplying(true);
     try {
@@ -156,22 +162,23 @@ export default function MarketingBuilder() {
       const result = await applyCreativeEdit(instruction, {
         concept: concept ? { name: concept.name, mood: concept.mood, visualLanguage: concept.visualLanguage } : null,
         executionStyle: execStyle ? { name: execStyle.name } : null,
-        currentOverrides: content.design_overrides || {},
+        currentIntent,
+        lockedSystems: currentLocks,
       });
 
-      const newOverrides = mergeOverrides(content.design_overrides || {}, result.overrides || {});
-      const historyEntry = {
-        instruction,
-        summary: result.summary,
-        timestamp: new Date().toISOString(),
-        previous_overrides: content.design_overrides || {},
-        next_overrides: newOverrides,
-      };
+      const newIntent = mergeIntent(currentIntent, result.intent || {});
+      const version = createVersionSnapshot(instruction, result.summary, {
+        creative_intent: currentIntent,
+        creative_locks: currentLocks,
+        concept_id: conceptId,
+        execution_style_id: executionStyleId,
+        strategy_id: strategyId,
+      });
 
       setContent(prev => ({
         ...prev,
-        design_overrides: newOverrides,
-        creative_edit_history: [...(prev.creative_edit_history || []), historyEntry],
+        creative_intent: newIntent,
+        creative_versions: [...(prev.creative_versions || []), version],
       }));
     } catch (e) {
       console.error('Creative edit failed:', e);
@@ -179,22 +186,87 @@ export default function MarketingBuilder() {
     setEditApplying(false);
   };
 
-  const handleUndoEdit = () => {
-    const history = content.creative_edit_history || [];
-    if (history.length === 0) return;
-    const lastEntry = history[history.length - 1];
+  const handleRegenerateSystem = async (systemKey) => {
+    setRegeneratingSystem(systemKey);
+    try {
+      const concept = getConceptById(conceptId);
+      const execStyle = getExecutionStyleById(executionStyleId);
+      const result = await regenerateSystem(systemKey, {
+        content,
+        concept: concept ? { name: concept.name } : null,
+        executionStyle: execStyle ? { name: execStyle.name } : null,
+        currentIntent,
+      });
+
+      const newIntent = mergeIntent(currentIntent, result.intent || {});
+      const version = createVersionSnapshot(`Regenerate ${systemKey}`, result.summary, {
+        creative_intent: currentIntent,
+        creative_locks: currentLocks,
+        concept_id: conceptId,
+        execution_style_id: executionStyleId,
+        strategy_id: strategyId,
+      });
+
+      setContent(prev => ({
+        ...prev,
+        creative_intent: newIntent,
+        creative_versions: [...(prev.creative_versions || []), version],
+      }));
+    } catch (e) {
+      console.error('System regeneration failed:', e);
+    }
+    setRegeneratingSystem(null);
+  };
+
+  const handleToggleLock = (systemKey) => {
     setContent(prev => ({
       ...prev,
-      design_overrides: lastEntry.previous_overrides || null,
-      creative_edit_history: history.slice(0, -1),
+      creative_locks: { ...currentLocks, [systemKey]: !currentLocks[systemKey] },
+    }));
+  };
+
+  const handleRestoreVersion = (versionId) => {
+    const version = (content.creative_versions || []).find(v => v.id === versionId);
+    if (!version) return;
+    const restored = restoreFromSnapshot(version);
+    if (!restored) return;
+    setContent(prev => ({ ...prev, creative_intent: restored.creative_intent, creative_locks: restored.creative_locks }));
+    setConceptId(restored.concept_id);
+    setExecutionStyleId(restored.execution_style_id);
+    setStrategyId(restored.strategy_id);
+  };
+
+  const handleFavoriteVersion = (versionId) => {
+    setContent(prev => ({
+      ...prev,
+      creative_versions: (prev.creative_versions || []).map(v =>
+        v.id === versionId ? { ...v, is_favorite: !v.is_favorite } : v
+      ),
+    }));
+  };
+
+  const handleNameVersion = (versionId, name) => {
+    setContent(prev => ({
+      ...prev,
+      creative_versions: (prev.creative_versions || []).map(v =>
+        v.id === versionId ? { ...v, name } : v
+      ),
     }));
   };
 
   const handleResetEdits = () => {
+    const version = createVersionSnapshot('Reset', 'Cleared all creative intent', {
+      creative_intent: currentIntent,
+      creative_locks: currentLocks,
+      concept_id: conceptId,
+      execution_style_id: executionStyleId,
+      strategy_id: strategyId,
+    });
     setContent(prev => ({
       ...prev,
-      design_overrides: null,
-      creative_edit_history: [],
+      creative_intent: null,
+      creative_locks: defaultLocks(),
+      creative_versions: [...(prev.creative_versions || []), version],
     }));
   };
 
@@ -321,11 +393,17 @@ export default function MarketingBuilder() {
 
             {/* Creative Edit — conversational design adjustments */}
             <CreativeEditPanel
-              editHistory={content.creative_edit_history || []}
-              hasOverrides={hasActiveOverrides(content.design_overrides)}
+              creativeIntent={currentIntent}
+              creativeLocks={currentLocks}
+              creativeVersions={content.creative_versions || []}
               isApplying={editApplying}
+              regeneratingSystem={regeneratingSystem}
               onApplyEdit={handleApplyEdit}
-              onUndo={handleUndoEdit}
+              onRegenerateSystem={handleRegenerateSystem}
+              onToggleLock={handleToggleLock}
+              onRestoreVersion={handleRestoreVersion}
+              onFavoriteVersion={handleFavoriteVersion}
+              onNameVersion={handleNameVersion}
               onReset={handleResetEdits}
             />
 

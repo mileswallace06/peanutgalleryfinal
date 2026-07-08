@@ -1,200 +1,108 @@
 /**
  * Creative Edit — AI-powered conversational design adjustments.
  * --------------------------------------------------------------------
- * Converts a natural-language design instruction into structured
- * designOverrides that the Creative Direction Engine merges into
- * the base concept before rendering.
+ * REFACTORED: The AI now returns Creative Intent (semantic), NOT
+ * low-level design overrides. The Intent Translator converts intent
+ * into rendering decisions.
  *
- * Does NOT regenerate the concept, strategy, or execution style.
- * Does NOT rewrite user content.
- * Only returns override fields the instruction actually affects.
+ * Architecture:
+ *   User Prompt → AI → Creative Intent → Intent Translator → Renderer
+ *
+ * The AI thinks like a Creative Director: emotion, story, hierarchy,
+ * atmosphere, energy, personality. It never specifies implementation
+ * details like pixel sizes or color values.
+ *
+ * Also provides:
+ *   - System regeneration (regenerate just background, typography, etc.)
+ *   - Version snapshot management
  */
 import { base44 } from '@/api/base44Client';
-
-// ── Override factory ────────────────────────────────────────────────────
-export function emptyOverrides() {
-  return {
-    typography: {},
-    composition: {},
-    color: {},
-    background: {},
-    decorative: {},
-    logo: {},
-    emphasis: {},
-    cta: {},
-    custom_notes: [],
-  };
-}
-
-// ── Deep merge utilities ────────────────────────────────────────────────
-function mergeDeep(target, source) {
-  const result = { ...target };
-  for (const [key, value] of Object.entries(source)) {
-    if (value && typeof value === 'object' && !Array.isArray(value)) {
-      result[key] = mergeDeep(result[key] || {}, value);
-    } else {
-      result[key] = value;
-    }
-  }
-  return result;
-}
-
-function mergeDecorative(existing, updates) {
-  let add = [...(existing.add || [])];
-  let remove = [...(existing.remove || [])];
-
-  if (updates.add) add = [...new Set([...add, ...updates.add])];
-  if (updates.remove) remove = [...new Set([...remove, ...updates.remove])];
-
-  // Anything in `remove` is pulled from `add`
-  add = add.filter(id => !remove.includes(id));
-
-  return {
-    ...existing,
-    ...updates,
-    add,
-    remove,
-  };
-}
-
-/**
- * Merge a new set of overrides into an existing overrides object.
- * Returns a new object — does not mutate either input.
- */
-export function mergeOverrides(existing = {}, newOverrides = {}) {
-  const e = { ...emptyOverrides(), ...existing };
-  const n = { ...emptyOverrides(), ...newOverrides };
-
-  return {
-    typography:  mergeDeep(e.typography, n.typography),
-    composition: { ...e.composition, ...n.composition },
-    color:       { ...e.color, ...n.color },
-    background:  mergeDeep(e.background, n.background),
-    decorative:  mergeDecorative(e.decorative, n.decorative),
-    logo:        { ...e.logo, ...n.logo },
-    emphasis:    { ...e.emphasis, ...n.emphasis },
-    cta:         { ...e.cta, ...n.cta },
-    custom_notes: [...e.custom_notes, ...n.custom_notes],
-  };
-}
-
-/**
- * Check if an overrides object has any active (non-empty) values.
- */
-export function hasActiveOverrides(overrides) {
-  if (!overrides) return false;
-  return Object.entries(overrides).some(([key, value]) => {
-    if (key === 'custom_notes') return value && value.length > 0;
-    return value && typeof value === 'object' && Object.keys(value).length > 0;
-  });
-}
+import { INTENT_DIMENSIONS, REGENERATABLE_SYSTEMS, mergeIntent } from '@/lib/marketing/creativeIntent';
 
 // ── Quick edit presets ──────────────────────────────────────────────────
 export const QUICK_EDITS = [
-  { label: 'Bigger headline',     instruction: 'Make the headline significantly bigger.' },
-  { label: 'More negative space', instruction: 'Increase the negative space around the content.' },
-  { label: 'Darker',              instruction: 'Make the overall graphic darker and moodier.' },
-  { label: 'More premium',        instruction: 'Make this feel more premium and luxurious with lighter type and more whitespace.' },
-  { label: 'More rave',           instruction: 'Make this feel more rave, electric, and energetic with stronger glow and bolder colors.' },
-  { label: 'More editorial',      instruction: 'Make this feel more editorial and magazine-like with a structured, refined layout.' },
-  { label: 'Smaller logo',        instruction: 'Make the logo smaller and less prominent.' },
-  { label: 'Stronger background', instruction: 'Make the background glow stronger and more dramatic.' },
-  { label: 'Softer background',   instruction: 'Soften the background, reduce glow intensity.' },
-  { label: 'More depth',          instruction: 'Add more visual depth with stronger vignette and shadows.' },
-  { label: 'Less text-heavy',     instruction: 'Reduce text density, make it feel less text-heavy and more spacious.' },
-  { label: 'Move text lower',     instruction: 'Move the content lower on the canvas.' },
-];
-
-// ── Available decorative IDs (for AI reference) ─────────────────────────
-const DECORATIVE_IDS = [
-  'crack_lines', 'shard_fragments', 'dust_particles',
-  'seat_dot_grid', 'stage_shape', 'highlighted_zone', 'compass',
-  'grid_lines', 'column_rules', 'measurement_marks', 'dimension_lines',
-  'thin_border', 'gold_border', 'border_frame', 'card_frame', 'scoreboard_frame',
-  'perforation', 'lanyard_strip', 'holographic_strip', 'wristband_band', 'repeating_pattern',
-  'spotlight_cone', 'light_beams', 'color_washes', 'haze_particles', 'stage_floor',
-  'speed_lines', 'carbon_fiber', 'single_light_glow',
-  'starburst', 'arrows', 'glow_accents', 'sign_frame', 'spray_accent', 'tape_strip',
-  'barcode', 'serial_number', 'timestamp', 'official_stamp',
-  'credits_block', 'info_pile', 'masthead', 'cover_lines', 'ticker_bar', 'breaking_banner',
-  'stat_bars', 'color_blocks', 'chevron_accents', 'brand_wordmark', 'feature_bullets',
+  { label: 'More premium',       instruction: 'Make this feel more premium and luxurious.' },
+  { label: 'More energetic',     instruction: 'Make this feel more energetic and electric.' },
+  { label: 'More breathing room', instruction: 'Give this more breathing room and negative space.' },
+  { label: 'Darker',             instruction: 'Make the overall graphic darker and moodier.' },
+  { label: 'More editorial',     instruction: 'Make this feel more editorial and magazine-like.' },
+  { label: 'Bold headline',      instruction: 'Make the headline dominate the composition.' },
+  { label: 'Minimal background', instruction: 'Make the background more minimal and restrained.' },
+  { label: 'More decoration',    instruction: 'Add more decorative energy and visual texture.' },
+  { label: 'Less decoration',    instruction: 'Reduce decorative clutter, make it cleaner.' },
+  { label: 'Higher contrast',    instruction: 'Increase the visual contrast dramatically.' },
+  { label: 'More cinematic',     instruction: 'Give this a more cinematic, film-poster atmosphere.' },
+  { label: 'More playful',       instruction: 'Make this feel more playful and fun.' },
 ];
 
 // ── AI Creative Edit ────────────────────────────────────────────────────
 /**
- * Ask the AI to convert a natural-language instruction into structured
- * design overrides.
+ * Ask the AI to convert a natural-language instruction into Creative Intent.
  *
  * @param {string} instruction — user's natural-language edit request
- * @param {object} currentDesignState — { concept, executionStyle, currentOverrides }
- * @returns {Promise<{ summary: string, overrides: object }>}
+ * @param {object} context — { concept, executionStyle, currentIntent, lockedSystems }
+ * @returns {Promise<{ summary: string, intent: object }>}
  */
-export async function applyCreativeEdit(instruction, currentDesignState = {}) {
-  const { concept, executionStyle, currentOverrides } = currentDesignState;
+export async function applyCreativeEdit(instruction, context = {}) {
+  const { concept, executionStyle, currentIntent = {}, lockedSystems = {} } = context;
 
   const conceptDesc = concept
-    ? `Concept: ${concept.name} — mood: ${concept.mood || 'n/a'}, visual language: ${concept.visualLanguage || 'n/a'}`
+    ? `Concept: ${concept.name} — mood: ${concept.mood || 'n/a'}`
     : 'Concept: auto-selected';
 
   const execDesc = executionStyle
     ? `Execution Style: ${executionStyle.name}`
     : 'Execution Style: auto-selected';
 
-  const overridesDesc = currentOverrides && Object.keys(currentOverrides).length > 0
-    ? `Current overrides already applied:\n${JSON.stringify(currentOverrides, null, 2)}`
-    : 'Current overrides: none';
+  const intentDesc = Object.keys(currentIntent).length > 0
+    ? `Current creative intent:\n${JSON.stringify(currentIntent, null, 2)}`
+    : 'Current creative intent: none (using concept defaults)';
 
-  const prompt = `You are a Creative Director for Peanut Gallery, adjusting an EXISTING marketing graphic design.
+  const lockedList = Object.entries(lockedSystems).filter(([, v]) => v).map(([k]) => k);
+  const lockedDesc = lockedList.length > 0
+    ? `LOCKED systems (do NOT modify): ${lockedList.join(', ')}`
+    : 'No systems are locked.';
+
+  const dimensionsList = Object.entries(INTENT_DIMENSIONS)
+    .map(([key, def]) => `- ${key}: ${def.values.join(' | ')}`)
+    .join('\n');
+
+  const prompt = `You are an experienced Creative Director for Peanut Gallery, adjusting an EXISTING marketing graphic.
+
+You think in terms of emotion, story, hierarchy, visual emphasis, atmosphere, pacing, energy, and personality.
+You do NOT think in implementation details like pixel sizes, color values, or CSS properties.
 
 The user has a graphic with this art direction:
 ${conceptDesc}
 ${execDesc}
-${overridesDesc}
+${intentDesc}
+${lockedDesc}
 
 The user's instruction: "${instruction}"
 
-Convert this instruction into structured design overrides. Only change what the user asked for — do NOT rewrite the entire design.
+Convert this instruction into Creative Intent. Creative Intent is a semantic model — you describe the creative direction, not the implementation.
 
-Available override categories and their valid values:
+Available intent dimensions and their valid values:
+${dimensionsList}
 
-═══ TYPOGRAPHY ═══
-Keys are element names: "headline", "subheadline", "body", "cta", "badge", "stat"
-Each can have: scale (number, e.g. 1.25 = 25% bigger), weight ("light"|"normal"|"bold"|"heavy"), tracking ("normal"|"wide"|"extra-wide"), transform ("none"|"uppercase")
+Special fields (optional):
+- emphasis_word: a word from the headline to visually emphasize (case-insensitive)
+- emphasis_treatment: "fracture" | "gradient" | "highlight" | "underline" | "bold"
 
-═══ COMPOSITION ═══
-anchor ("top"|"center"|"bottom"|"lower-third"), alignment ("left"|"center"|"right"), negativeSpace (0.0-0.9, higher=more empty space), maxWidth (0.3-1.0), verticalOffset (-0.3 to 0.3, positive=lower), rotation (degrees)
-
-═══ COLOR ═══
-accent (color name: "purple"|"pink"|"green"|"cyan"|"yellow"|"orange" or hex), text ("white"|"dark"|"accent")
-
-═══ BACKGROUND ═══
-glow: { color (name or hex), intensity (0.0-0.5), x (0-100), y (0-100) }, darken (0.0-0.8, adds black overlay), lighten (0.0-0.5)
-
-═══ DECORATIVE ═══
-add (array of IDs from: ${DECORATIVE_IDS.join(', ')}), remove (array of IDs), intensity (0.0-1.0)
-
-═══ LOGO ═══
-size ("xs"|"sm"|"md"), position ("top-left"|"top-center"|"top-right"|"bottom-left"|"bottom-center"|"bottom-right"|"none"), opacity (0.0-1.0)
-
-═══ EMPHASIS ═══
-word (the word to emphasize, case-insensitive match), treatment ("fracture"|"gradient"|"highlight"|"underline"|"bold")
-
-═══ CTA ═══
-prominence ("high"|"normal"|"low"), visibility ("visible"|"hidden"), style ("pill"|"flat"|"outline")
-
-SAFETY RULES:
-- Do NOT change the concept, strategy, or execution style
+RULES:
+- Think like a Creative Director, not a graphics engine
+- Only return dimensions that the instruction actually affects
+- Merge with existing intent — don't lose previous creative directions unless the instruction contradicts them
+- Do NOT change the Creative Concept, Creative Strategy, or Execution Style — those are preserved unless the user explicitly requests a different one (note it in summary if they do, but don't change it)
 - Do NOT rewrite the user's content
-- Brand colors: purple #BF5FFF, pink #FF2D78, green #00FF87, cyan #00C8FF, yellow #FFE600, orange #FF8C00
-- Only return override fields that the user's instruction actually affects
 - If the instruction is vague, interpret it as a Creative Director would
-- Merge with existing overrides — don't lose previous edits
+- Respect locked systems — do not return dimensions that map to locked categories
 
 Return JSON only:
 {
-  "summary": "One sentence describing what you changed",
-  "overrides": {
-    // only include categories that changed
+  "summary": "One sentence describing the creative change you made",
+  "intent": {
+    // only dimensions that changed
   }
 }`;
 
@@ -204,26 +112,118 @@ Return JSON only:
       type: 'object',
       properties: {
         summary: { type: 'string' },
-        overrides: {
+        intent: {
           type: 'object',
-          properties: {
-            typography:  { type: 'object', additionalProperties: true },
-            composition: { type: 'object', additionalProperties: true },
-            color:       { type: 'object', additionalProperties: true },
-            background:  { type: 'object', additionalProperties: true },
-            decorative:  { type: 'object', additionalProperties: true },
-            logo:        { type: 'object', additionalProperties: true },
-            emphasis:    { type: 'object', additionalProperties: true },
-            cta:         { type: 'object', additionalProperties: true },
-            custom_notes: { type: 'array', items: { type: 'string' } },
-          },
+          additionalProperties: true,
+          description: 'Creative Intent dimensions (mood, energy, hierarchy, spacing, etc.)',
         },
       },
     },
   });
 
   return {
-    summary: response.summary || 'Applied edit',
-    overrides: response.overrides || {},
+    summary: response.summary || 'Applied creative edit',
+    intent: response.intent || {},
+  };
+}
+
+// ── System Regeneration ─────────────────────────────────────────────────
+/**
+ * Ask the AI to suggest a fresh treatment for a specific design system.
+ * Only the intent dimensions for that system are returned — everything
+ * else is preserved.
+ *
+ * @param {string} systemKey — key from REGENERATABLE_SYSTEMS
+ * @param {object} context — { content, concept, executionStyle, currentIntent }
+ * @returns {Promise<{ summary: string, intent: object }>}
+ */
+export async function regenerateSystem(systemKey, context = {}) {
+  const systemDef = REGENERATABLE_SYSTEMS[systemKey];
+  if (!systemDef) throw new Error(`Unknown system: ${systemKey}`);
+
+  const { content = {}, concept, executionStyle, currentIntent = {} } = context;
+
+  const dimsForSystem = systemDef.intentDims
+    .map(d => `- ${d}: ${INTENT_DIMENSIONS[d]?.values.join(' | ') || 'string'}`)
+    .join('\n');
+
+  const prompt = `You are a Creative Director for Peanut Gallery. Regenerate the ${systemDef.label} for this marketing graphic.
+
+Content:
+- Headline: "${content.headline || 'n/a'}"
+- Subheadline: "${content.subheadline || 'n/a'}"
+- Body: "${content.body || 'n/a'}"
+- CTA: "${content.cta || 'n/a'}"
+
+Concept: ${concept?.name || 'auto-selected'}
+Execution Style: ${executionStyle?.name || 'auto-selected'}
+Current intent: ${JSON.stringify(currentIntent)}
+
+Suggest a fresh ${systemDef.label} treatment that works with the content and concept. Only return the intent dimensions relevant to ${systemDef.label}:
+
+${dimsForSystem}
+
+Return JSON only:
+{
+  "summary": "One sentence describing the new ${systemDef.label} direction",
+  "intent": {
+    // only dimensions for this system
+  }
+}`;
+
+  const response = await base44.integrations.Core.InvokeLLM({
+    prompt,
+    response_json_schema: {
+      type: 'object',
+      properties: {
+        summary: { type: 'string' },
+        intent: {
+          type: 'object',
+          additionalProperties: true,
+        },
+      },
+    },
+  });
+
+  return {
+    summary: response.summary || `Regenerated ${systemDef.label}`,
+    intent: response.intent || {},
+  };
+}
+
+// ── Version Management ──────────────────────────────────────────────────
+/**
+ * Create a version snapshot of the current creative state.
+ */
+export function createVersionSnapshot(instruction, summary, state) {
+  return {
+    id: `v_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    timestamp: new Date().toISOString(),
+    instruction,
+    summary,
+    name: null,
+    is_favorite: false,
+    snapshot: {
+      creative_intent: { ...state.creative_intent },
+      creative_locks: { ...state.creative_locks },
+      concept_id: state.concept_id,
+      execution_style_id: state.execution_style_id,
+      strategy_id: state.strategy_id,
+    },
+  };
+}
+
+/**
+ * Restore state from a version snapshot.
+ */
+export function restoreFromSnapshot(version) {
+  if (!version?.snapshot) return null;
+  const s = version.snapshot;
+  return {
+    creative_intent: { ...s.creative_intent },
+    creative_locks: { ...s.creative_locks },
+    concept_id: s.concept_id,
+    execution_style_id: s.execution_style_id,
+    strategy_id: s.strategy_id,
   };
 }

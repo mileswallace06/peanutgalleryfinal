@@ -8,10 +8,10 @@
  * The engine reads that data and builds the graphic.
  *
  * Pipeline:
- *   1. Merge: base concept designSystem + execution style modifiers
- *      + user designOverrides (always win)
+ *   1. Resolve: base concept designSystem + execution style modifiers
+ *      + Creative Intent (translated by Intent Translator, respecting locks)
  *   2. Render background (flat, gradient, radial-glow, banded, pattern)
- *   3. Render background overlays (darken, lighten from overrides)
+ *   3. Render background overlays (darken, lighten from intent)
  *   4. Render texture overlay (grain, vignette, paper)
  *   5. Render background-layer decorative elements
  *   6. Calculate content zone (anchor, negativeSpace, maxWidth, offsets)
@@ -19,28 +19,17 @@
  *   8. Render inline decorative elements in hierarchy flow
  *   9. Render logo at specified position
  *
- * Design Overrides do NOT mutate the base concept. They are merged
- * at render time and can be undone/reset at any time.
+ * Creative Intent does NOT mutate the base concept. The Intent Translator
+ * converts semantic intent into rendering modifications at render time.
+ * Locked design categories are never modified by intent.
  */
 import { NEON, NEON_RGB, FONTS, TEXT, GRADIENTS, THEMES, PG_LOGO_URL } from '@/lib/marketingTokens';
 import { getConceptById } from '@/lib/marketing/creativeConcepts';
 import { getExecutionStyleById, EXECUTION_STYLES } from '@/lib/marketing/executionStyles';
 import { renderDecorative, BACKGROUND_DECORATIVES, INLINE_DECORATIVES } from './decoratives';
+import { translateIntent } from '@/lib/marketing/intentTranslator';
 
-// ── Design Override Application ─────────────────────────────────────────
-const COLOR_NAMES = {
-  purple: NEON.purple, pink: NEON.pink, green: NEON.green,
-  cyan: NEON.cyan, yellow: NEON.yellow, orange: NEON.orange,
-  white: '#ffffff', dark: TEXT.dark,
-};
-
-function resolveColorName(color) {
-  if (!color) return undefined;
-  if (typeof color !== 'string') return color;
-  if (color.startsWith('#') || color.startsWith('rgb')) return color;
-  return COLOR_NAMES[color.toLowerCase()] || color;
-}
-
+// ── Emphasis Style (used by content renderer) ───────────────────────────
 function getEmphasisStyle(treatment, accentColor) {
   switch (treatment) {
     case 'fracture':
@@ -77,78 +66,6 @@ function getEmphasisStyle(treatment, accentColor) {
     default:
       return { color: accentColor };
   }
-}
-
-/**
- * Merge design overrides into a concept's design system.
- * Overrides always win. Does NOT mutate the original.
- */
-function applyDesignOverrides(baseDesignSystem, overrides) {
-  if (!overrides) return baseDesignSystem;
-
-  const ds = JSON.parse(JSON.stringify(baseDesignSystem));
-
-  // Typography — deep merge per element
-  if (overrides.typography) {
-    for (const [element, props] of Object.entries(overrides.typography)) {
-      if (ds.typography[element]) {
-        ds.typography[element] = { ...ds.typography[element], ...props };
-      } else {
-        ds.typography[element] = { ...props };
-      }
-    }
-  }
-
-  // Composition — merge fields
-  if (overrides.composition) {
-    ds.composition = { ...ds.composition, ...overrides.composition };
-  }
-
-  // Color — merge, resolve color names
-  if (overrides.color) {
-    const co = { ...overrides.color };
-    if (co.accent) co.accent = resolveColorName(co.accent);
-    ds.color = { ...ds.color, ...co };
-  }
-
-  // Background — deep merge, resolve glow color
-  if (overrides.background) {
-    const bo = { ...overrides.background };
-    if (bo.glow) {
-      const glow = { ...bo.glow };
-      if (glow.color) glow.color = resolveColorName(glow.color);
-      bo.glow = { ...ds.background.glow, ...glow };
-    }
-    ds.background = { ...ds.background, ...bo };
-  }
-
-  // Decorative — add/remove elements
-  if (overrides.decorative) {
-    const dec = overrides.decorative;
-    if (dec.add) {
-      ds.decorative = [...new Set([...(ds.decorative || []), ...dec.add])];
-    }
-    if (dec.remove) {
-      ds.decorative = (ds.decorative || []).filter(d => !dec.remove.includes(d));
-    }
-  }
-
-  // Logo — merge
-  if (overrides.logo) {
-    ds.logo = { ...ds.logo, ...overrides.logo };
-  }
-
-  // Emphasis — store for headline renderer
-  if (overrides.emphasis) {
-    ds._emphasis = { ...ds._emphasis, ...overrides.emphasis };
-  }
-
-  // CTA — store for CTA renderer
-  if (overrides.cta) {
-    ds._ctaOverrides = { ...ds._ctaOverrides, ...overrides.cta };
-  }
-
-  return ds;
 }
 
 // ── Typography resolution ───────────────────────────────────────────────
@@ -466,16 +383,13 @@ function renderContentElement(elementId, content, designSystem, zone, u, execMod
 
     case 'cta': {
       if (!content.cta) return null;
-      const ctaOverrides = designSystem._ctaOverrides || {};
-
-      // Visibility override
-      if (ctaOverrides.visibility === 'hidden') return null;
+      const ctaIntent = designSystem._ctaIntent || {};
 
       const typo = resolveTypo(typography.cta, baseFontSize * 0.3, execModifiers);
-      const prominence = ctaOverrides.prominence || 'normal';
+      const prominence = ctaIntent.prominence || 'normal';
       const paddingScale = prominence === 'high' ? 1.3 : prominence === 'low' ? 0.7 : 1.0;
       const opacity = prominence === 'low' ? 0.55 : 1.0;
-      const ctaStyle = ctaOverrides.style || 'pill';
+      const ctaStyle = ctaIntent.style || 'pill';
 
       let ctaBg = GRADIENTS.cta_primary;
       let ctaBorderRadius = 999;
@@ -659,24 +573,26 @@ function renderLogo(logoConfig, u, w, h, colorScheme) {
  * Props:
  *   conceptId — which Creative Concept to render
  *   executionStyleId — which Execution Style modifies it
- *   content — the user's text content (may include design_overrides)
+ *   content — the user's text content (may include creative_intent)
  *   preset — canvas dimensions { w, h }
  *   theme — color theme override
- *   designOverrides — per-asset override object (also read from content.design_overrides)
+ *   creativeIntent — semantic creative direction (also read from content.creative_intent)
+ *   creativeLocks — locked design categories (also read from content.creative_locks)
  *
- * Render order: base concept + execution style + design overrides
+ * Render order: base concept + execution style + creative intent (translated)
  */
-export default function CreativeDirectionEngine({ conceptId, executionStyleId, content = {}, preset, theme, designOverrides }) {
+export default function CreativeDirectionEngine({ conceptId, executionStyleId, content = {}, preset, theme, creativeIntent, creativeLocks }) {
   const concept = getConceptById(conceptId);
   if (!concept) return null;
 
   const execStyle = getExecutionStyleById(executionStyleId) || EXECUTION_STYLES[1];
   const execModifiers = execStyle.modifiers;
 
-  // Resolve overrides: explicit prop, or from content.design_overrides
-  const overrides = designOverrides || content?.design_overrides;
-  const designSystem = overrides
-    ? applyDesignOverrides(concept.designSystem, overrides)
+  // Resolve creative intent: explicit prop, or from content.creative_intent
+  const intent = creativeIntent || content?.creative_intent;
+  const locks = creativeLocks || content?.creative_locks;
+  const designSystem = intent
+    ? translateIntent(concept.designSystem, intent, locks)
     : concept.designSystem;
 
   const { background, composition, typography, color, texture, decorative, logo, hierarchy } = designSystem;
