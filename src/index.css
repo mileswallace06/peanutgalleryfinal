@@ -75,6 +75,24 @@
     --neon-pink-light-rgb: 196, 69, 131;
   }
 
+  /* ── Event Mode visual tokens (dark, always on for event screens) ── */
+  :root {
+    --ev-bg: #07090c;
+    --ev-surface: #0d1117;
+    --ev-surface-2: #131a23;
+    --ev-border: rgba(255, 255, 255, 0.08);
+    --ev-border-strong: rgba(255, 255, 255, 0.14);
+    --ev-text: rgba(255, 255, 255, 0.95);
+    --ev-text-2: rgba(255, 255, 255, 0.62);
+    --ev-text-muted: rgba(255, 255, 255, 0.40);
+    --ev-teal: #00C8FF;
+    --ev-teal-soft: rgba(0, 200, 255, 0.12);
+    --ev-teal-border: rgba(0, 200, 255, 0.30);
+    --ev-live: #FF2D78;
+    --ev-radius: 1.25rem;
+    --ev-gap: 1.75rem;
+  }
+
   .dark {
     --neon-green: #00FF87;
     --neon-cyan: #00C8FF;

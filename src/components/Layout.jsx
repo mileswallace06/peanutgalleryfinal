@@ -39,11 +39,11 @@ function MountedTab({ tabKey, activeKey, direction, pathname }) {
 }
 
 const NAV = [
-  { to: '/events', label: 'Tickets', icon: MapPin, color: '#BF5FFF', key: 'events' },
-  { to: '/upgrades', label: 'Upgrades', sublabel: 'Better seats', icon: Zap, color: '#00FF87', key: 'upgrades' },
-  { to: '/sell', label: 'Sell', icon: Tag, color: '#FF8C00', key: 'sell' },
+  { to: '/events', label: 'Tickets', icon: MapPin, color: '#00C8FF', key: 'events' },
+  { to: '/upgrades', label: 'Upgrades', sublabel: 'Better seats', icon: Zap, color: '#00C8FF', key: 'upgrades' },
+  { to: '/sell', label: 'Sell', icon: Tag, color: '#00C8FF', key: 'sell' },
   { to: '/fan-zone', label: 'Fan Zone', icon: Flame, color: '#00C8FF', key: 'fanzone' },
-  { to: '/me', label: 'Me', icon: User, color: '#FF2D78', key: 'me' }
+  { to: '/me', label: 'Me', icon: User, color: '#00C8FF', key: 'me' }
 ];
 
 export default function Layout() {
@@ -259,8 +259,7 @@ export default function Layout() {
                     }} />
                 )}
                 <div
-                  className="w-11 h-9 flex items-center justify-center rounded-xl transition-all relative"
-                  style={active ? { background: `${color}18` } : {}}>
+                  className="w-11 h-9 flex items-center justify-center transition-all relative">
                   <NavIcon
                     className="w-5 h-5"
                     style={active ? { filter: isLight ? 'none' : `drop-shadow(0 0 6px ${color}bb)`, strokeWidth: 2.5 } : { strokeWidth: 1.8 }} />

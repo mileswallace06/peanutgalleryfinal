@@ -1,23 +1,28 @@
 /**
- * EventDetailUpgrade — Live Hub page for a specific event.
+ * EventDetailUpgrade — redesigned Event Mode screen for a specific event.
  * Route: /upgrades/:id
- * Three tabs: Flash Drops | Upgrades | Fan Karma
+ *
+ * Cinematic hero → YOUR TICKET (when owned) → MOVE CLOSER rail (existing
+ * upgrade listings) → sell-your-seats module. Flash Drops and Fan Karma remain
+ * accessible via the preserved hub tabs so no existing behavior is lost.
  */
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Zap } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
-import LiveHubHero from '@/components/eventmode/LiveHubHero';
 import FlashDropCenter from '@/components/eventmode/FlashDropCenter';
-import UpgradeFeed from '@/components/eventmode/UpgradeFeed';
 import FanKarmaCard from '@/components/eventmode/FanKarmaCard';
 import CreateFlashDropSheet from '@/components/flashdrops/CreateFlashDropSheet';
 import EventLookupDebugPanel from '@/components/debug/EventLookupDebugPanel';
 import { logNavEvent } from '@/lib/navLogger';
-import LiveHubEmptyState from '@/components/eventmode/LiveHubEmptyState';
 import UpgradeEligibilityGate from '@/components/upgrades/UpgradeEligibilityGate.jsx';
 import { UPGRADE_LISTING_TYPES } from '@/lib/listingTypes';
 import { isListingVisible } from '@/lib/listingVisibility';
+import EventHero from '@/components/eventmode/EventHero';
+import CurrentTicketModule from '@/components/eventmode/CurrentTicketModule';
+import MoveCloserRail from '@/components/eventmode/MoveCloserRail';
+import SellSeatsModule from '@/components/eventmode/SellSeatsModule';
+import PurchaseDialog from '@/components/events/PurchaseDialog';
 
 const TABS = [
   { key: 'Upgrades', label: 'Upgrades', sub: 'Better seats' },
@@ -37,6 +42,7 @@ export default function EventDetailUpgrade() {
   const [lookupTrace, setLookupTrace] = useState(null);
   const [lookupError, setLookupError] = useState(false);
   const [hubEligibilityPassed, setHubEligibilityPassed] = useState(false);
+  const [selectedListing, setSelectedListing] = useState(null);
 
   useEffect(() => {
     if (!id) return;
@@ -132,24 +138,22 @@ export default function EventDetailUpgrade() {
 
   if (!loading && (!event || lookupError)) {
     return (
-      <div className="min-h-screen bg-background pb-32">
+      <div className="min-h-screen" style={{ background: 'var(--ev-bg)', paddingBottom: 'calc(6rem + env(safe-area-inset-bottom))' }}>
         <div className="px-4 py-20 text-center space-y-4">
           <Zap className="w-8 h-8 mx-auto opacity-20" />
           <div>
-            <p className="font-bold text-foreground text-lg">Event not found</p>
-            <p className="text-sm text-muted-foreground mt-1 max-w-xs mx-auto">
+            <p className="font-bold text-lg" style={{ color: 'var(--ev-text)' }}>Event not found</p>
+            <p className="text-sm mt-1 max-w-xs mx-auto" style={{ color: 'var(--ev-text-muted)' }}>
               This event may still be syncing. Try refreshing or go back.
             </p>
           </div>
           <div className="flex flex-col gap-2 items-center">
-            <button
-              onClick={() => window.location.reload()}
+            <button onClick={() => window.location.reload()}
               className="px-5 py-2.5 rounded-full font-bold text-sm"
-              style={{ background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}
-            >
+              style={{ background: 'var(--ev-teal)', color: '#021018' }}>
               Retry
             </button>
-            <Link to="/upgrades" className="text-sm text-muted-foreground underline">← Back to Upgrades</Link>
+            <Link to="/upgrades" className="text-sm underline" style={{ color: 'var(--ev-text-2)' }}>← Back to Upgrades</Link>
           </div>
         </div>
         {user?.role === 'admin' && <EventLookupDebugPanel routeId={id} lookupTrace={lookupTrace} />}
@@ -158,61 +162,63 @@ export default function EventDetailUpgrade() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Hero */}
-      <LiveHubHero event={event} listings={listings} drops={drops} />
+    <div className="min-h-screen" style={{ background: 'var(--ev-bg)', paddingBottom: 'calc(6rem + env(safe-area-inset-bottom))' }}>
+      <EventHero event={event} />
+      <CurrentTicketModule event={event} user={user} />
 
       {/* Tab bar */}
       <div className="sticky top-0 z-20 flex border-b"
-        style={{ background: 'hsl(var(--background))', borderColor: 'hsl(var(--border))' }}>
+        style={{ background: 'var(--ev-bg)', borderColor: 'var(--ev-border)' }}>
         {TABS.map(tab => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
+          <button key={tab.key} onClick={() => setActiveTab(tab.key)}
             className="flex-1 py-2.5 transition-colors relative flex flex-col items-center gap-0"
-            style={{ color: activeTab === tab.key ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))' }}
-          >
+            style={{ color: activeTab === tab.key ? 'var(--ev-teal)' : 'var(--ev-text-muted)' }}>
             <span className="text-[11px] font-black tracking-wide uppercase leading-none">{tab.label}</span>
             <span className="text-[9px] leading-none mt-0.5 opacity-60">{tab.sub}</span>
             {activeTab === tab.key && (
-              <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full"
-                style={{ background: 'hsl(var(--primary))' }} />
+              <span className="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 w-8 rounded-b"
+                style={{ background: 'var(--ev-teal)' }} />
             )}
           </button>
         ))}
       </div>
 
       {/* Tab content */}
-      <div className="px-4 py-5 space-y-4">
-        {activeTab === 'Upgrades' && ( // eslint-disable-line
+      <div className="px-4 py-5 space-y-6">
+        {activeTab === 'Upgrades' && (
           <>
-            {/* Hub-level eligibility gate — shown if any upgrade listing has requirements */}
+            {/* Hub-level eligibility gate — preserved as-is */}
             {!loading && (() => {
               const upgradeListings = listings.filter(l => UPGRADE_LISTING_TYPES.includes(l.listing_type));
               const anyHasGate = upgradeListings.some(l => l.requires_location || l.requires_existing_ticket);
               const isDemo = upgradeListings.some(l => l.is_demo_listing || l.notes?.startsWith('[DEMO]'));
               if (!anyHasGate) return null;
-              // Use the strictest listing as the representative gate
               const strictest = upgradeListings.find(l => l.requires_location && l.requires_existing_ticket)
                 || upgradeListings.find(l => l.requires_location)
                 || upgradeListings.find(l => l.requires_existing_ticket);
               return (
                 <div className="mb-2">
-                  <p className="text-xs font-bold text-muted-foreground mb-2 uppercase tracking-widest">Upgrade Eligibility</p>
-                  <UpgradeEligibilityGate
-                    listing={strictest}
-                    isDemo={isDemo}
-                    onEligible={() => setHubEligibilityPassed(true)}
-                  />
+                  <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--ev-text-muted)' }}>
+                    Upgrade Eligibility
+                  </p>
+                  <UpgradeEligibilityGate listing={strictest} isDemo={isDemo} onEligible={() => setHubEligibilityPassed(true)} />
                   {hubEligibilityPassed && (
-                    <p className="text-[11px] mt-2 text-center font-semibold" style={{ color: '#00FF87' }}>
+                    <p className="text-[11px] mt-2 text-center font-semibold" style={{ color: 'var(--ev-teal)' }}>
                       ✓ Eligible — browse available upgrades below
                     </p>
                   )}
                 </div>
               );
             })()}
-            <UpgradeFeed listings={listings} eventId={id} loading={loading} event={event} currentUserEmail={user?.email} />
+
+            <MoveCloserRail
+              listings={listings}
+              event={event}
+              currentUserEmail={user?.email}
+              loading={loading}
+              onView={setSelectedListing}
+            />
+            <SellSeatsModule event={event} />
           </>
         )}
 
@@ -232,7 +238,7 @@ export default function EventDetailUpgrade() {
         )}
       </div>
 
-      {/* Flash Drop creation sheet */}
+      {/* Flash Drop creation sheet — preserved */}
       {showDropSheet && event && (
         <CreateFlashDropSheet
           event={event}
@@ -242,6 +248,16 @@ export default function EventDetailUpgrade() {
             setDrops(prev => [drop, ...prev]);
             setShowDropSheet(false);
           }}
+        />
+      )}
+
+      {/* Reuses the existing checkout / reservation system — no second checkout */}
+      {selectedListing && (
+        <PurchaseDialog
+          event={event}
+          listing={selectedListing}
+          onClose={() => setSelectedListing(null)}
+          mode="ticket"
         />
       )}
     </div>
