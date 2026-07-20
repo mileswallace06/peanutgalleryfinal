@@ -43,12 +43,6 @@ const BetaRecruitment = lazy(() => import('@/pages/BetaRecruitment'));
 const BetaDashboard = lazy(() => import('@/pages/BetaDashboard'));
 const Notifications = lazy(() => import('@/pages/Notifications'));
 const EventMode = lazy(() => import('@/pages/EventMode'));
-const MarketingStudio = lazy(() => import('@/pages/MarketingStudio'));
-const MarketingBuilder = lazy(() => import('@/pages/MarketingBuilder'));
-const MarketingCarousel = lazy(() => import('@/pages/MarketingCarousel'));
-const MarketingMockup = lazy(() => import('@/pages/MarketingMockup'));
-const MarketingBrandAssets = lazy(() => import('@/pages/MarketingBrandAssets'));
-const MarketingTemplates = lazy(() => import('@/pages/MarketingTemplates'));
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, checkAppState, isAuthenticated, user } = useAuth();
@@ -111,12 +105,6 @@ const AuthenticatedApp = () => {
             <Route path="/beta-dashboard" element={<BetaDashboard />} />
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/event-mode/:id" element={<EventMode />} />
-            <Route path="/marketing-studio" element={<MarketingStudio />} />
-            <Route path="/marketing-studio/builder" element={<MarketingBuilder />} />
-            <Route path="/marketing-studio/carousel" element={<MarketingCarousel />} />
-            <Route path="/marketing-studio/mockup" element={<MarketingMockup />} />
-            <Route path="/marketing-studio/brand-assets" element={<MarketingBrandAssets />} />
-            <Route path="/marketing-studio/templates" element={<MarketingTemplates />} />
           </Route>
           <Route path="*" element={<PageNotFound />} />
         </Routes>
