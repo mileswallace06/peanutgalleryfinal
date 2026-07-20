@@ -50,6 +50,7 @@ Deno.serve(async (req) => {
       return {
         tm_id: e.id,
         title: e.name,
+        tm_venue_id: venue?.id || '',
         date: dateInfo?.dateTime || (dateInfo?.localDate ? `${dateInfo.localDate}T${dateInfo.localTime || '00:00:00'}` : null),
         venue: venue?.name || '',
         city: venue?.city?.name || '',

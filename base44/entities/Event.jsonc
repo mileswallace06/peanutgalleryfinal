@@ -55,7 +55,11 @@
     },
     "image_url": {
       "type": "string",
-      "description": "Hero image URL"
+      "description": "Raw Ticketmaster event artwork URL (kept untouched for traceability)."
+    },
+    "hero_image_url": {
+      "type": "string",
+      "description": "Resolved hero image actually displayed by the UI (Ticketmaster artwork \u2192 Venue hero). Empty/missing \u21d2 render the GeneratedHero component. Written at sync time."
     },
     "status": {
       "type": "string",
@@ -85,6 +89,10 @@
     },
     "tm_url": {
       "type": "string"
+    },
+    "tm_venue_id": {
+      "type": "string",
+      "description": "Ticketmaster's stable venue identifier. FK to Venue.tm_venue_id. The permanent relationship \u2014 never rely on venue name."
     },
     "transfer_window_status": {
       "type": "string",

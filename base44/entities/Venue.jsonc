@@ -1,0 +1,62 @@
+{
+  "name": "Venue",
+  "type": "object",
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": true,
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  },
+  "properties": {
+    "tm_venue_id": {
+      "type": "string",
+      "description": "Ticketmaster's stable venue identifier \u2014 the permanent relationship key."
+    },
+    "name": {
+      "type": "string",
+      "description": "Canonical venue display name"
+    },
+    "city": {
+      "type": "string"
+    },
+    "state": {
+      "type": "string",
+      "description": "e.g. AZ"
+    },
+    "hero_image": {
+      "type": "string",
+      "description": "Optional PG-hosted venue hero image URL. When present and an event has no Ticketmaster artwork, this is used as the event hero."
+    },
+    "identity_type": {
+      "type": "string",
+      "enum": [
+        "sports",
+        "concert",
+        "theater",
+        "comedy",
+        "festival",
+        "racing",
+        "convention",
+        "other"
+      ],
+      "default": "other",
+      "description": "Primary identity of the venue. Inferred from the first event's category on creation; admin-owned thereafter."
+    }
+  },
+  "required": [
+    "tm_venue_id",
+    "name"
+  ]
+}

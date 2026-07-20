@@ -447,6 +447,7 @@ function EventCard({ event, mode }) {
         image_url: event.image_url,
         tm_url: event.tm_url,
         category: event.category,
+        tm_venue_id: event.tm_venue_id,
       });
       const internalId = res?.data?.id;
       if (internalId) {
