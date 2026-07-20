@@ -84,7 +84,7 @@
     },
     "content": {
       "type": "object",
-      "description": "The user-authored content payload rendered into the graphic. Includes creative direction IDs, creative intent (semantic, internal), locks, and version history with natural-language direction descriptions and explanations.",
+      "description": "The user-authored content payload rendered into the graphic. For carousels, contains a 'slides' array.",
       "properties": {
         "headline": {
           "type": "string"
@@ -121,138 +121,6 @@
         },
         "signature": {
           "type": "string"
-        },
-        "strategy_id": {
-          "type": "string",
-          "description": "Creative Strategy ID (Decision 1)"
-        },
-        "concept_id": {
-          "type": "string",
-          "description": "Creative Concept ID (Decision 2)"
-        },
-        "execution_style_id": {
-          "type": "string",
-          "description": "Execution Style ID (Decision 3)"
-        },
-        "creative_intent": {
-          "type": "object",
-          "description": "Semantic creative direction from the AI Creative Director. Internal reasoning layer \u2014 never exposed to users directly. The Intent Translator converts this into rendering modifications at render time.",
-          "additionalProperties": true
-        },
-        "creative_locks": {
-          "type": "object",
-          "description": "Lockable design categories. When locked, AI edits must never modify that category.",
-          "properties": {
-            "layout": {
-              "type": "boolean"
-            },
-            "typography": {
-              "type": "boolean"
-            },
-            "background": {
-              "type": "boolean"
-            },
-            "colors": {
-              "type": "boolean"
-            },
-            "decorative": {
-              "type": "boolean"
-            },
-            "imagery": {
-              "type": "boolean"
-            },
-            "logo": {
-              "type": "boolean"
-            },
-            "cta": {
-              "type": "boolean"
-            }
-          }
-        },
-        "creative_versions": {
-          "type": "array",
-          "description": "Snapshots of creative state after each AI edit. Each version includes a natural-language direction description and a detailed explanation of what changed. Supports restore, favorite, and naming.",
-          "items": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string"
-              },
-              "timestamp": {
-                "type": "string"
-              },
-              "instruction": {
-                "type": "string"
-              },
-              "summary": {
-                "type": "string"
-              },
-              "explanation": {
-                "type": "string",
-                "description": "Detailed natural-language explanation of what the AI changed and why"
-              },
-              "confidence": {
-                "type": "string",
-                "enum": [
-                  "high",
-                  "medium",
-                  "low"
-                ],
-                "description": "AI confidence level for this edit"
-              },
-              "critique": {
-                "type": [
-                  "object",
-                  "null"
-                ],
-                "properties": {
-                  "reason": {
-                    "type": "string"
-                  },
-                  "suggestion": {
-                    "type": "string"
-                  }
-                },
-                "description": "AI critique if it disagreed with the edit, null otherwise"
-              },
-              "element_id": {
-                "type": "string",
-                "description": "Element ID if this was an element-specific edit, null for global edits"
-              },
-              "direction_description": {
-                "type": "string",
-                "description": "Natural-language description of the overall creative direction at this version"
-              },
-              "name": {
-                "type": "string"
-              },
-              "is_favorite": {
-                "type": "boolean"
-              },
-              "snapshot": {
-                "type": "object",
-                "properties": {
-                  "creative_intent": {
-                    "type": "object",
-                    "additionalProperties": true
-                  },
-                  "creative_locks": {
-                    "type": "object",
-                    "additionalProperties": true
-                  },
-                  "concept_id": {
-                    "type": "string"
-                  },
-                  "execution_style_id": {
-                    "type": "string"
-                  },
-                  "strategy_id": {
-                    "type": "string"
-                  }
-                }
-              }
-            }
-          }
         },
         "slides": {
           "type": "array",

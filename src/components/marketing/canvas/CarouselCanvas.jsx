@@ -24,7 +24,7 @@ export default function CarouselCanvas({ canvasRef, preset, slides, theme = 'dar
         background: THEMES[theme] || THEMES.dark,
         position: 'relative', overflow: 'hidden',
       }}>
-        {renderLayout(slide.graphic_type || 'announcement', { content: slide.content || {}, conceptId: slide.concept_id, executionStyleId: slide.execution_style_id, u, w: preset.w, h: preset.h })}
+        {renderLayout(slide.graphic_type || 'announcement', { content: slide.content || {}, u, w: preset.w, h: preset.h })}
 
         {/* Slide number indicator — premium pill */}
         <div style={{

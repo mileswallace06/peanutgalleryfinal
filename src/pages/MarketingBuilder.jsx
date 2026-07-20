@@ -1,8 +1,7 @@
 /**
  * Marketing Builder — Social Graphic Builder
- * Responsive design: canvas preview on top, tabbed editing panel below.
- * Content tab: layout dropdown + all text fields with character counters + AI assistant.
- * Style tab: canvas size, theme, export.
+ * The user chooses content; the system chooses the design.
+ * No layout controls, no positioning — just content + live preview.
  *
  * Uses shared UI primitives for consistency with other builder pages.
  */
@@ -12,103 +11,26 @@ import { base44 } from '@/api/base44Client';
 import { isAdmin } from '@/lib/isAdmin';
 import { useAuth } from '@/lib/AuthContext';
 import { Navigate } from 'react-router-dom';
-import { ArrowLeft, Save, Loader2, Type, Palette, Download, AlertCircle, Check, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, Type, Layout, Download, AlertCircle, Check } from 'lucide-react';
 import GraphicCanvas from '@/components/marketing/canvas/GraphicCanvas';
 import CopyAssistant from '@/components/marketing/CopyAssistant';
 import AssetUploader from '@/components/marketing/AssetUploader';
 import ExportPanel from '@/components/marketing/ExportPanel';
-import ConceptPicker from '@/components/marketing/ConceptPicker';
-import { SectionLabel, FormField, LoadingSpinner, ThemePicker } from '@/components/marketing/shared/UiPrimitives';
-import { usePreviewScale, useCanvasCapture, captureCanvasElement, downloadCanvas } from '@/components/marketing/shared/hooks';
-import { CANVAS_PRESETS, GRAPHIC_TYPES, NEON, NEON_RGB, GRADIENTS, TEXT } from '@/lib/marketingTokens';
-import CreativeDirector from '@/components/marketing/CreativeDirector';
-import { applyCreativeEdit, regenerateSystem, createVersionSnapshot, restoreFromSnapshot, describeDirection } from '@/lib/marketing/creativeEdit';
-import { editElement, globalDirect, observeComposition, explainElement } from '@/lib/marketing/creativeConversation';
-import ElementToolbar from '@/components/marketing/canvas/ElementToolbar';
-import { getElementBrain, buildElementAIContext } from '@/lib/marketing/elementBrain';
-import { mergeIntent, defaultLocks, hasActiveIntent } from '@/lib/marketing/creativeIntent';
-import { getConceptById } from '@/lib/marketing/creativeConcepts';
-import { getExecutionStyleById } from '@/lib/marketing/executionStyles';
+import { SectionLabel, FormField, LoadingSpinner, PanelSwitcher, ThemePicker } from '@/components/marketing/shared/UiPrimitives';
+import { usePreviewScale, useCanvasCapture } from '@/components/marketing/shared/hooks';
+import { CANVAS_PRESETS, GRAPHIC_TYPES, NEON, NEON_RGB, THEMES, GRADIENTS, TEXT } from '@/lib/marketingTokens';
 
-const SAMPLE_CONTENT = {
-  badge: 'PEANUT GALLERY',
-  headline: 'Tickets should cost what tickets cost',
-  subheadline: 'Fan-to-fan transfers at face value. No bots, no scalpers, no surprise fees.',
-  body: "We built Peanut Gallery because buying tickets shouldn't feel like a scam. Escrow-protected payments, AI-verified transfers, and a community that has your back.",
-  cta: 'Join the Gallery',
-  stat_number: '0%',
-  stat_label: 'Bot tickets on our platform',
-  stat_explanation: 'Every seller is a verified fan',
-  quote_text: "Finally a ticket app that doesn't feel sketchy",
-  author: 'Verified Fan, Phoenix',
-  signature: '— The PG Team',
-  image_url: '',
-  creative_intent: null,
-  creative_locks: null,
-  creative_versions: [],
+const EMPTY_CONTENT = {
+  headline: '', subheadline: '', body: '', cta: '', badge: '',
+  stat_number: '', stat_label: '', stat_explanation: '',
+  image_url: '', author: '', quote_text: '', signature: '',
 };
 
-/** Compact layout dropdown — replaces the 3-col grid for a cleaner editing experience. */
-function LayoutDropdown({ value, onChange }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  const selected = GRAPHIC_TYPES.find(gt => gt.id === value) || GRAPHIC_TYPES[0];
-
-  useEffect(() => {
-    const handleClick = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, []);
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-sm bg-background border border-border text-foreground outline-none focus:border-primary transition-colors"
-      >
-        <span className="flex items-center gap-2">
-          <span className="text-base">{selected.icon}</span>
-          <span className="font-bold">{selected.label}</span>
-        </span>
-        <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
-      {open && (
-        <div className="absolute z-50 mt-1 w-full max-h-64 overflow-y-auto rounded-xl border border-border shadow-lg"
-          style={{ background: 'hsl(var(--popover))' }}>
-          {GRAPHIC_TYPES.map(gt => (
-            <button
-              key={gt.id}
-              onClick={() => { onChange(gt.id); setOpen(false); }}
-              className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-left transition-colors hover:bg-muted"
-              style={value === gt.id ? { background: `rgba(${NEON_RGB.purple}, 0.08)` } : {}}
-            >
-              <span className="text-base flex-shrink-0">{gt.icon}</span>
-              <span className="font-bold text-foreground">{gt.label}</span>
-              {value === gt.id && <Check className="w-3.5 h-3.5 ml-auto flex-shrink-0" style={{ color: NEON.green }} />}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/** Tab button for Content/Style switcher. */
-function TabButton({ active, onClick, icon: Icon, children }) {
-  return (
-    <button
-      onClick={onClick}
-      className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-bold transition-all"
-      style={active
-        ? { background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }
-        : { color: 'hsl(var(--muted-foreground))' }}
-    >
-      <Icon className="w-3.5 h-3.5" /> {children}
-    </button>
-  );
-}
+const PANELS = [
+  { id: 'type', label: 'Type & Canvas', icon: Layout },
+  { id: 'content', label: 'Content', icon: Type },
+  { id: 'export', label: 'Theme & Export', icon: Download },
+];
 
 export default function MarketingBuilder() {
   const navigate = useNavigate();
@@ -118,28 +40,16 @@ export default function MarketingBuilder() {
   const [canvasPreset, setCanvasPreset] = useState('1080x1350');
   const [graphicType, setGraphicType] = useState(searchParams.get('type') || 'industry_truth');
   const [theme, setTheme] = useState('dark');
-  const [content, setContent] = useState(SAMPLE_CONTENT);
+  const [content, setContent] = useState(EMPTY_CONTENT);
   const [assetTitle, setAssetTitle] = useState('');
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
   const [saved, setSaved] = useState(false);
-  const [downloading, setDownloading] = useState(false);
-  const [activeTab, setActiveTab] = useState('content');
-  const [conceptId, setConceptId] = useState(null);
-  const [executionStyleId, setExecutionStyleId] = useState(null);
-  const [strategyId, setStrategyId] = useState(null);
-  const [editApplying, setEditApplying] = useState(false);
-  const [regeneratingSystem, setRegeneratingSystem] = useState(null);
-  const [directionDescription, setDirectionDescription] = useState('');
-  const [editMode, setEditMode] = useState(false);
-  const [selectedElement, setSelectedElement] = useState(null);
-  const [observations, setObservations] = useState([]);
-  const [toolbarResponse, setToolbarResponse] = useState(null);
+  const [mobilePanel, setMobilePanel] = useState('type');
   const navTimerRef = useRef(null);
 
   useEffect(() => () => clearTimeout(navTimerRef.current), []);
-  useEffect(() => { setToolbarResponse(null); }, [selectedElement]);
 
   const preset = CANVAS_PRESETS[canvasPreset];
   const { previewRef, scale: previewScale } = usePreviewScale(preset, 0.5);
@@ -156,18 +66,7 @@ export default function MarketingBuilder() {
           setCanvasPreset(asset.canvas_preset || '1080x1350');
           setGraphicType(asset.graphic_type || 'industry_truth');
           setTheme(asset.theme || 'dark');
-          setContent({ ...SAMPLE_CONTENT, ...(asset.content || {}) });
-          setConceptId(asset.content?.concept_id || asset.content?.composition_variant || null);
-          setExecutionStyleId(asset.content?.execution_style_id || null);
-          setStrategyId(asset.content?.strategy_id || null);
-          // Restore the latest direction description from the most recent version, or generate one
-          const versions = asset.content?.creative_versions || [];
-          const latestVersion = versions[versions.length - 1];
-          if (latestVersion?.direction_description) {
-            setDirectionDescription(latestVersion.direction_description);
-          } else {
-            setDirectionDescription(describeDirection(asset.content?.creative_intent || {}));
-          }
+          setContent({ ...EMPTY_CONTENT, ...(asset.content || {}) });
         }
       }).catch(() => {});
     }
@@ -176,246 +75,6 @@ export default function MarketingBuilder() {
   const updateContent = useCallback((field, value) => {
     setContent(prev => ({ ...prev, [field]: value }));
   }, []);
-
-  // ── Creative Edit handlers (intent-based) ───────────────────────────────
-  const currentIntent = content.creative_intent || {};
-  const currentLocks = content.creative_locks || defaultLocks();
-
-  const handleApplyEdit = async (instruction) => {
-    setEditApplying(true);
-    try {
-      const concept = getConceptById(conceptId);
-      const execStyle = getExecutionStyleById(executionStyleId);
-      const result = await globalDirect(instruction, {
-        concept: concept ? { name: concept.name, mood: concept.mood, visualLanguage: concept.visualLanguage } : null,
-        executionStyle: execStyle ? { name: execStyle.name } : null,
-        currentIntent,
-        lockedSystems: currentLocks,
-        content,
-        directionDescription,
-      });
-
-      const newIntent = mergeIntent(currentIntent, result.intent || {});
-      const desc = result.direction_description || describeDirection(newIntent, concept?.name);
-      const version = createVersionSnapshot(instruction, result.summary, {
-        creative_intent: newIntent,
-        creative_locks: currentLocks,
-        concept_id: conceptId,
-        execution_style_id: executionStyleId,
-        strategy_id: strategyId,
-      }, desc, result.explanation, result.confidence, result.critique, null);
-
-      setDirectionDescription(desc);
-      setContent(prev => ({
-        ...prev,
-        creative_intent: newIntent,
-        creative_versions: [...(prev.creative_versions || []), version],
-      }));
-    } catch (e) {
-      console.error('Creative edit failed:', e);
-    } finally {
-      setEditApplying(false);
-    }
-  };
-
-  const handleElementEdit = async (elementId, instruction) => {
-    setEditApplying(true);
-    try {
-      const concept = getConceptById(conceptId);
-      const execStyle = getExecutionStyleById(executionStyleId);
-      const brainContext = buildElementAIContext(elementId, currentIntent, content);
-      const result = await editElement(elementId, instruction, {
-        concept: concept ? { name: concept.name, mood: concept.mood, visualLanguage: concept.visualLanguage } : null,
-        executionStyle: execStyle ? { name: execStyle.name } : null,
-        currentIntent,
-        lockedSystems: currentLocks,
-        content,
-        directionDescription,
-        elementBrainContext: brainContext,
-      });
-
-      const newIntent = mergeIntent(currentIntent, result.intent || {});
-      const desc = result.direction_description || describeDirection(newIntent, concept?.name);
-      const version = createVersionSnapshot(instruction, result.summary, {
-        creative_intent: newIntent,
-        creative_locks: currentLocks,
-        concept_id: conceptId,
-        execution_style_id: executionStyleId,
-        strategy_id: strategyId,
-      }, desc, result.explanation, result.confidence, result.critique, elementId);
-
-      setDirectionDescription(desc);
-      setContent(prev => ({
-        ...prev,
-        creative_intent: newIntent,
-        creative_versions: [...(prev.creative_versions || []), version],
-      }));
-      return { ...result, elementId };
-    } catch (e) {
-      console.error('Element edit failed:', e);
-      return null;
-    } finally {
-      setEditApplying(false);
-    }
-  };
-
-  const handleToolbarAsk = async (instruction) => {
-    if (!selectedElement) return;
-    setToolbarResponse(null);
-    const result = await handleElementEdit(selectedElement, instruction);
-    if (result) setToolbarResponse(result);
-  };
-
-  const handleToolbarExplain = async () => {
-    if (!selectedElement) return;
-    setToolbarResponse(null);
-    setEditApplying(true);
-    try {
-      const concept = getConceptById(conceptId);
-      const execStyle = getExecutionStyleById(executionStyleId);
-      const brainContext = buildElementAIContext(selectedElement, currentIntent, content);
-      const result = await explainElement(selectedElement, {
-        concept: concept ? { name: concept.name, mood: concept.mood } : null,
-        executionStyle: execStyle ? { name: execStyle.name } : null,
-        currentIntent,
-        content,
-        elementBrainContext: brainContext,
-      });
-      setToolbarResponse(result);
-    } catch (e) {
-      console.error('Explain failed:', e);
-    } finally {
-      setEditApplying(false);
-    }
-  };
-
-  // ── Proactive observations — AI reviews the composition like a senior designer ──
-  useEffect(() => {
-    const concept = getConceptById(conceptId);
-    if (!concept) return;
-    if (!content.headline && !content.badge && !content.cta && !content.quote_text) return;
-
-    const timer = setTimeout(() => {
-      const execStyle = getExecutionStyleById(executionStyleId);
-      observeComposition({
-        concept: { name: concept.name, mood: concept.mood },
-        executionStyle: execStyle ? { name: execStyle.name } : null,
-        currentIntent: content.creative_intent || {},
-        content,
-        directionDescription,
-      }).then(obs => {
-        if (obs && obs.length > 0) {
-          setObservations(prev => {
-            const existing = new Set(prev.map(o => o.text));
-            const newOnes = obs.filter(o => !existing.has(o.text));
-            if (newOnes.length === 0) return prev;
-            return [...prev.slice(-2), ...newOnes];
-          });
-        }
-      }).catch(() => {});
-    }, 3000);
-
-    return () => clearTimeout(timer);
-  }, [conceptId, executionStyleId, directionDescription, content]);
-
-  const handleRegenerateSystem = async (systemKey) => {
-    setRegeneratingSystem(systemKey);
-    try {
-      const concept = getConceptById(conceptId);
-      const execStyle = getExecutionStyleById(executionStyleId);
-      const result = await regenerateSystem(systemKey, {
-        content,
-        concept: concept ? { name: concept.name } : null,
-        executionStyle: execStyle ? { name: execStyle.name } : null,
-        currentIntent,
-      });
-
-      const newIntent = mergeIntent(currentIntent, result.intent || {});
-      const desc = result.direction_description || describeDirection(newIntent, concept?.name);
-      const version = createVersionSnapshot(`Regenerate ${systemKey}`, result.summary, {
-        creative_intent: newIntent,
-        creative_locks: currentLocks,
-        concept_id: conceptId,
-        execution_style_id: executionStyleId,
-        strategy_id: strategyId,
-      }, desc);
-
-      setDirectionDescription(desc);
-      setContent(prev => ({
-        ...prev,
-        creative_intent: newIntent,
-        creative_versions: [...(prev.creative_versions || []), version],
-      }));
-    } catch (e) {
-      console.error('System regeneration failed:', e);
-    }
-    setRegeneratingSystem(null);
-  };
-
-  const handleToggleLock = (systemKey) => {
-    setContent(prev => ({
-      ...prev,
-      creative_locks: { ...currentLocks, [systemKey]: !currentLocks[systemKey] },
-    }));
-  };
-
-  const handleRestoreVersion = (versionId) => {
-    const version = (content.creative_versions || []).find(v => v.id === versionId);
-    if (!version) return;
-    const restored = restoreFromSnapshot(version);
-    if (!restored) return;
-    setContent(prev => ({ ...prev, creative_intent: restored.creative_intent, creative_locks: restored.creative_locks }));
-    setConceptId(restored.concept_id);
-    setExecutionStyleId(restored.execution_style_id);
-    setStrategyId(restored.strategy_id);
-    setDirectionDescription(version.direction_description || describeDirection(restored.creative_intent));
-  };
-
-  const handleFavoriteVersion = (versionId) => {
-    setContent(prev => ({
-      ...prev,
-      creative_versions: (prev.creative_versions || []).map(v =>
-        v.id === versionId ? { ...v, is_favorite: !v.is_favorite } : v
-      ),
-    }));
-  };
-
-  const handleNameVersion = (versionId, name) => {
-    setContent(prev => ({
-      ...prev,
-      creative_versions: (prev.creative_versions || []).map(v =>
-        v.id === versionId ? { ...v, name } : v
-      ),
-    }));
-  };
-
-  const handleResetEdits = () => {
-    const version = createVersionSnapshot('Reset', 'Cleared all creative intent', {
-      creative_intent: null,
-      creative_locks: defaultLocks(),
-      concept_id: conceptId,
-      execution_style_id: executionStyleId,
-      strategy_id: strategyId,
-    });
-    setDirectionDescription('');
-    setContent(prev => ({
-      ...prev,
-      creative_intent: null,
-      creative_locks: defaultLocks(),
-      creative_versions: [...(prev.creative_versions || []), version],
-    }));
-  };
-
-  const handleQuickExport = async () => {
-    setDownloading(true);
-    try {
-      const canvas = await captureCanvasElement(canvasRef.current, preset);
-      if (canvas) downloadCanvas(canvas, 'png', `pg-${graphicType}`);
-    } catch (e) {
-      console.error('Export failed:', e);
-    }
-    setDownloading(false);
-  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -431,7 +90,7 @@ export default function MarketingBuilder() {
       const title = assetTitle.trim() || `${graphicType.replace(/_/g, ' ')} graphic`;
       const payload = {
         title, asset_type: 'social_graphic', graphic_type: graphicType,
-        canvas_preset: canvasPreset, content: { ...content, concept_id: conceptId, execution_style_id: executionStyleId, strategy_id: strategyId }, theme,
+        canvas_preset: canvasPreset, content, theme,
         thumbnail_url: thumbnailUrl, created_by_email: user?.email,
       };
 
@@ -457,7 +116,7 @@ export default function MarketingBuilder() {
       {/* Header */}
       <div className="px-4 py-3 flex items-center gap-3 border-b border-border sticky top-0 z-30 frosted-bar">
         <button onClick={() => navigate('/marketing-studio')} aria-label="Back to Marketing Studio"
-          className="p-1.5 -ml-1.5 rounded-lg transition-colors hover:bg-muted flex-shrink-0">
+          className="p-1.5 -ml-1.5 rounded-lg transition-colors hover:bg-muted">
           <ArrowLeft className="w-5 h-5 text-foreground" />
         </button>
         <div className="flex-1 min-w-0">
@@ -468,22 +127,13 @@ export default function MarketingBuilder() {
             placeholder="Untitled graphic"
             className="font-display text-base text-foreground bg-transparent border-none outline-none w-full placeholder:text-muted-foreground"
           />
-          <p className="text-[10px] text-muted-foreground">{preset.label} · {preset.w}×{preset.h}</p>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <button onClick={handleQuickExport} disabled={downloading}
-            className="flex items-center justify-center w-9 h-9 rounded-full text-xs font-black transition-all active:scale-95 disabled:opacity-50"
-            style={{ background: 'hsl(var(--muted))', color: 'hsl(var(--foreground))' }}
-            aria-label="Download PNG">
-            {downloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-          </button>
-          <button onClick={handleSave} disabled={saving}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-black transition-all active:scale-95 disabled:opacity-50"
-            style={{ background: saved ? NEON.green : GRADIENTS.cta_primary, color: TEXT.dark }}>
-            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : saved ? <Check className="w-3.5 h-3.5" /> : <Save className="w-3.5 h-3.5" />}
-            {saved ? 'Saved!' : 'Save'}
-          </button>
-        </div>
+        <button onClick={handleSave} disabled={saving}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-black transition-all active:scale-95 disabled:opacity-50"
+          style={{ background: saved ? NEON.green : GRADIENTS.cta_primary, color: TEXT.dark }}>
+          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : saved ? <Check className="w-3.5 h-3.5" /> : <Save className="w-3.5 h-3.5" />}
+          {saved ? 'Saved!' : 'Save'}
+        </button>
       </div>
 
       {saveError && (
@@ -494,21 +144,7 @@ export default function MarketingBuilder() {
       )}
 
       {/* Live Preview */}
-      <div ref={previewRef} className="px-4 py-4 flex justify-center relative" style={{ background: 'rgba(0,0,0,0.3)' }}>
-        {editMode && selectedElement && (() => {
-          const brain = getElementBrain(selectedElement);
-          if (!brain) return null;
-          return (
-            <ElementToolbar
-              brain={brain}
-              onAskAI={handleToolbarAsk}
-              onExplain={handleToolbarExplain}
-              onClose={() => setSelectedElement(null)}
-              isApplying={editApplying}
-              aiResponse={toolbarResponse}
-            />
-          );
-        })()}
+      <div ref={previewRef} className="px-4 py-4 flex justify-center" style={{ background: 'rgba(0,0,0,0.3)' }}>
         <div style={{
           width: preset.w * previewScale,
           height: preset.h * previewScale,
@@ -519,75 +155,55 @@ export default function MarketingBuilder() {
             transform: `scale(${previewScale})`, transformOrigin: 'top left',
             position: 'absolute', top: 0, left: 0,
           }}>
-            <GraphicCanvas canvasRef={canvasRef} preset={preset} graphicType={graphicType} content={content} theme={theme} conceptId={conceptId} executionStyleId={executionStyleId} editMode={editMode} selectedElement={selectedElement} onSelectElement={setSelectedElement} />
+            <GraphicCanvas canvasRef={canvasRef} preset={preset} graphicType={graphicType} content={content} theme={theme} />
           </div>
         </div>
       </div>
 
-      {/* Creative Director — the conversation is the product */}
-      <div className="px-4 pt-2 pb-4">
-        <CreativeDirector
-          concept={getConceptById(conceptId)}
-          executionStyle={getExecutionStyleById(executionStyleId)}
-          currentIntent={currentIntent}
-          currentLocks={currentLocks}
-          directionDescription={directionDescription || describeDirection(currentIntent, getConceptById(conceptId)?.name)}
-          creativeVersions={content.creative_versions || []}
-          observations={observations}
-          editMode={editMode}
-          selectedElement={selectedElement}
-          onToggleEditMode={() => { setEditMode(!editMode); setSelectedElement(null); }}
-          onDeselectElement={() => setSelectedElement(null)}
-          onApplyEdit={handleApplyEdit}
-          onApplyElementEdit={handleElementEdit}
-          onRestoreVersion={handleRestoreVersion}
-          onFavoriteVersion={handleFavoriteVersion}
-          onToggleLock={handleToggleLock}
-          onReset={handleResetEdits}
-          isApplying={editApplying}
-        />
-      </div>
+      <PanelSwitcher panels={PANELS} active={mobilePanel} onChange={setMobilePanel} />
 
-      {/* Tab switcher — Content / Style */}
-      <div className="flex gap-1 px-4 py-2 border-b border-border sticky top-[57px] z-20 frosted-bar">
-        <TabButton active={activeTab === 'content'} onClick={() => setActiveTab('content')} icon={Type}>
-          Content
-        </TabButton>
-        <TabButton active={activeTab === 'style'} onClick={() => setActiveTab('style')} icon={Palette}>
-          Style
-        </TabButton>
-      </div>
-
-      {/* Tab content */}
-      <div className="px-4 py-4 space-y-4">
-        {activeTab === 'content' && (
-          <>
-            {/* Layout dropdown */}
+      {/* Panels */}
+      <div className="px-4 space-y-4">
+        {mobilePanel === 'type' && (
+          <div className="space-y-4">
             <div>
-              <SectionLabel color={NEON.purple}>Layout</SectionLabel>
-              <LayoutDropdown value={graphicType} onChange={setGraphicType} />
+              <SectionLabel color={NEON.cyan}>Canvas Size</SectionLabel>
+              <div className="grid grid-cols-3 gap-2">
+                {Object.entries(CANVAS_PRESETS).map(([key, p]) => (
+                  <button key={key} onClick={() => setCanvasPreset(key)}
+                    className="flex flex-col items-center gap-1 py-3 rounded-xl transition-all active:scale-95"
+                    style={canvasPreset === key
+                      ? { background: `rgba(${NEON_RGB.cyan}, 0.12)`, border: `1px solid rgba(${NEON_RGB.cyan}, 0.4)` }
+                      : { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+                    <span className="text-[10px] font-bold text-foreground">{p.label}</span>
+                    <span className="text-[8px] text-muted-foreground">{p.w}×{p.h}</span>
+                  </button>
+                ))}
+              </div>
             </div>
 
-            {/* Concept Picker — multi-concept generation */}
-            <ConceptPicker
-              content={content}
-              graphicType={graphicType}
-              theme={theme}
-              preset={preset}
-              conceptId={conceptId}
-              executionStyleId={executionStyleId}
-              strategyId={strategyId}
-              onSelect={(changes) => {
-                if (changes.conceptId !== undefined) setConceptId(changes.conceptId);
-                if (changes.executionStyleId !== undefined) setExecutionStyleId(changes.executionStyleId);
-                if (changes.strategyId !== undefined) setStrategyId(changes.strategyId);
-              }}
-            />
+            <div>
+              <SectionLabel color={NEON.purple}>Graphic Type</SectionLabel>
+              <div className="grid grid-cols-3 gap-2">
+                {GRAPHIC_TYPES.map(gt => (
+                  <button key={gt.id} onClick={() => setGraphicType(gt.id)}
+                    className="flex flex-col items-center gap-1 py-3 px-1 rounded-xl transition-all active:scale-95"
+                    style={graphicType === gt.id
+                      ? { background: `rgba(${NEON_RGB.purple}, 0.12)`, border: `1px solid rgba(${NEON_RGB.purple}, 0.4)` }
+                      : { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+                    <span className="text-lg">{gt.icon}</span>
+                    <span className="text-[9px] font-bold text-foreground text-center leading-tight">{gt.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
-            {/* AI Copy Assistant */}
+        {mobilePanel === 'content' && (
+          <div className="space-y-4">
             <CopyAssistant content={content} onApply={updateContent} />
 
-            {/* Content fields */}
             <div className="rounded-2xl p-4 space-y-3" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
               <SectionLabel color={NEON.green}>Content</SectionLabel>
 
@@ -615,45 +231,25 @@ export default function MarketingBuilder() {
                 <AssetUploader label="Image / Screenshot (optional)" value={content.image_url} onChange={v => updateContent('image_url', v)} />
               </div>
             </div>
-          </>
+          </div>
         )}
 
-        {activeTab === 'style' && (
-          <>
-            {/* Canvas size */}
-            <div className="rounded-2xl p-4" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
-              <SectionLabel color={NEON.cyan}>Canvas Size</SectionLabel>
-              <div className="grid grid-cols-3 gap-2">
-                {Object.entries(CANVAS_PRESETS).map(([key, p]) => (
-                  <button key={key} onClick={() => setCanvasPreset(key)}
-                    className="flex flex-col items-center gap-1 py-3 rounded-xl transition-all active:scale-95"
-                    style={canvasPreset === key
-                      ? { background: `rgba(${NEON_RGB.cyan}, 0.12)`, border: `1px solid rgba(${NEON_RGB.cyan}, 0.4)` }
-                      : { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
-                    <span className="text-[10px] font-bold text-foreground">{p.label}</span>
-                    <span className="text-[8px] text-muted-foreground">{p.w}×{p.h}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Theme */}
+        {mobilePanel === 'export' && (
+          <div className="space-y-4">
             <div className="rounded-2xl p-4" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
               <SectionLabel color={NEON.pink}>Theme</SectionLabel>
               <ThemePicker theme={theme} onChange={setTheme} />
             </div>
 
-            {/* Export */}
             <ExportPanel canvasRef={canvasRef} preset={preset} fileName={`pg-${graphicType}`} />
 
-            {/* Save button */}
             <button onClick={handleSave} disabled={saving}
               className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-black transition-all active:scale-95 disabled:opacity-50"
               style={{ background: `rgba(${NEON_RGB.purple}, 0.12)`, border: `1px solid rgba(${NEON_RGB.purple}, 0.3)`, color: NEON.purple }}>
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
               {editingId ? 'Update Asset' : 'Save to History'}
             </button>
-          </>
+          </div>
         )}
       </div>
     </div>
