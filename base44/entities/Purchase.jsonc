@@ -2,7 +2,11 @@
   "name": "Purchase",
   "type": "object",
   "rls": {
-    "create": true,
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
     "read": {
       "$or": [
         {
@@ -19,19 +23,9 @@
       ]
     },
     "update": {
-      "$or": [
-        {
-          "buyer_email": "{{user.email}}"
-        },
-        {
-          "seller_email": "{{user.email}}"
-        },
-        {
-          "user_condition": {
-            "role": "admin"
-          }
-        }
-      ]
+      "user_condition": {
+        "role": "admin"
+      }
     },
     "delete": {
       "user_condition": {
@@ -49,7 +43,8 @@
       "description": "FK to Event"
     },
     "buyer_email": {
-      "type": "string"
+      "type": "string",
+      "description": "Authoritative buyer identity. Derived server-side from the authenticated user at checkout \u2014 never from frontend input."
     },
     "buyer_name": {
       "type": "string"
@@ -315,6 +310,11 @@
     "admin_override_at": {
       "type": "string",
       "description": "ISO timestamp of admin override"
+    },
+    "is_demo": {
+      "type": "boolean",
+      "default": false,
+      "description": "True for simulated demo-upgrade purchases. Demo records never affect real revenue, points, trust, transfer intelligence, or operational analytics."
     }
   },
   "required": [
