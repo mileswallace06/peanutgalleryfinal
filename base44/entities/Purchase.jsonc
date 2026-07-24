@@ -107,11 +107,11 @@
     },
     "authorization_confirmed_at": {
       "type": "string",
-      "description": "ISO timestamp set by confirmCheckoutAuthorized the moment the Stripe PaymentIntent is verified as authorized. This is the one-time atomic CLAIM (DB compare-and-set) that serializes concurrent confirmations \u2014 NOT proof that the seller notification was delivered."
+      "description": "ISO timestamp set by confirmCheckoutAuthorized after the Stripe PaymentIntent is verified as authorized. This is an IDEMPOTENT marker (not an atomic claim \u2014 Base44 has no compare-and-set): concurrent calls both set it; setting it twice is harmless. It records that authorization was verified, and is NOT proof that the seller notification was delivered."
     },
     "seller_notified_at": {
       "type": "string",
-      "description": "ISO timestamp set AFTER the durable in-app seller-sale Notification record is persisted. Separate from authorization_confirmed_at: a failed notification enqueue leaves this null so a retry re-attempts delivery."
+      "description": "ISO timestamp set AFTER the durable in-app seller-sale Notification record is created by confirmCheckoutAuthorized. Idempotent marker: a failed notification create leaves this null so a retry re-attempts delivery; reconcilePurchaseOutcomes clears a stuck marker (set but no notification exists)."
     },
     "seller_push_status": {
       "type": "string",
@@ -132,22 +132,6 @@
         "skipped"
       ],
       "description": "Transactional email delivery status for the seller-sale notification. Tracked separately from push so each channel can be retried independently."
-    },
-    "outcome_claim": {
-      "type": "string",
-      "description": "Atomic claim key set by recordTransferOutcome. Exactly one concurrent invocation per terminal (purchase, status) wins this claim via DB compare-and-set; losers exit before creating any TransferOutcome / TransferIntelligence / trust change / alert."
-    },
-    "outcome_claimed_at": {
-      "type": "string",
-      "description": "ISO timestamp of the outcome claim. A claim older than 10 minutes is reclaimable so a crashed invocation's work can be finished by a retry (with per-record existence checks preventing duplicates)."
-    },
-    "capture_claim": {
-      "type": "string",
-      "description": "Atomic claim key set by capturePayment. Exactly one concurrent invocation wins; prevents a double 'confirm receipt' from capturing twice or awarding points/listing-sold twice. Stripe capture itself is also idempotent via idempotencyKey."
-    },
-    "capture_claimed_at": {
-      "type": "string",
-      "description": "ISO timestamp of the capture claim. Released on Stripe capture failure so the buyer can retry immediately."
     },
     "payment_captured": {
       "type": "boolean",
@@ -232,7 +216,7 @@
     "false_claim_recorded": {
       "type": "boolean",
       "default": false,
-      "description": "Dedup flag \u2014 true once a transfer_false_claim_count strike has been issued for this purchase. Prevents AI rejection + admin rejection + dispute from all counting separately. Set via atomic compare-and-set (claimFlag)."
+      "description": "Dedup flag \u2014 true once this purchase has been counted as a false-claim strike for its seller. Set with an idempotent $set (true\u2192true) by verifyTransferProof (AI rejection), recordTerminalOutcome (dispute), and admin rejection. The seller's transfer_false_claim_count is DERIVED from all their flagged purchases, so a duplicate invocation recomputes the same count and cannot double-count."
     },
     "fulfillment_status": {
       "type": "string",

@@ -2,19 +2,19 @@
  * confirmCheckoutAuthorized — the ONLY way the frontend triggers the
  * post-authorization seller notification.
  *
- * CONCURRENCY & DELIVERY-INTEGRITY MODEL:
+ * CONCURRENCY & DELIVERY-INTEGRITY MODEL (Base44 has NO atomic claim — proven):
  *   1. Browser completes stripe.confirmCardPayment (authorize only).
  *   2. Browser calls this function with ONLY { purchase_id }.
  *   3. Backend authenticates the buyer + verifies the Purchase belongs to them.
- *   4. Authorization claim: if not already claimed, verify the Stripe PI is in
- *      an authorized state and atomically stamp `authorization_confirmed_at`
- *      (DB compare-and-set). Exactly one concurrent call does verification.
- *   5. Notification claim: a SEPARATE atomic compare-and-set on
- *      `seller_notified_at`. The winner creates the durable in-app Notification
- *      (awaited — the buyer request waits for this record before succeeding).
- *      A failed create releases the claim so a retry re-attempts; a crash in
- *      the tiny claim→create window is repaired by reconcilePurchaseOutcomes.
- *      `authorization_confirmed_at` is NOT proof of delivery.
+ *   4. Authorization: verify the Stripe PI is authorized (idempotent retrieve),
+ *      then stamp `authorization_confirmed_at` with an idempotent $set. The PI
+ *      retrieve is safe to repeat; the timestamp is a marker (last writer wins,
+ *      harmless). No conditional claim — it is non-atomic on this platform.
+ *   5. Durable seller-sale Notification: existence check (filter for an existing
+ *      sale_created notification for this purchase). Create only if absent
+ *      (sequentially safe). Set `seller_notified_at` (idempotent marker) after.
+ *      Concurrent calls can rarely win the existence-check race and create a
+ *      duplicate notification; reconcilePurchaseOutcomes dedupes these to one.
  *   6. Push + email are attempted after the durable record and their per-channel
  *      status is recorded (seller_push_status / seller_email_status) so a failed
  *      channel can be retried without implying the in-app record is missing.
@@ -24,7 +24,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import Stripe from 'npm:stripe@14.21.0';
 import { sendUserNotification } from '../../shared/notifications.ts';
-import { releaseClaim } from '../../shared/atomicClaim.ts';
 
 Deno.serve(async (req) => {
   try {
@@ -38,7 +37,6 @@ Deno.serve(async (req) => {
     const [purchase] = await base44.asServiceRole.entities.Purchase.filter({ id: purchase_id });
     if (!purchase) return Response.json({ error: 'Purchase not found' }, { status: 404 });
 
-    // Only the buyer (or admin) may confirm their own checkout.
     if (purchase.buyer_email !== user.email && user.role !== 'admin') {
       return Response.json({ error: 'Not authorized for this purchase' }, { status: 403 });
     }
@@ -47,7 +45,7 @@ Deno.serve(async (req) => {
     if (purchase.transfer_status === 'disputed') return Response.json({ error: 'Purchase is disputed' }, { status: 409 });
     if (purchase.transfer_status === 'completed') return Response.json({ status: 'already_completed' });
 
-    // ── Step 1: Verify + claim authorization (exactly once) ──────────────────
+    // ── Step 1: Verify authorization (idempotent; skip if already confirmed) ──
     if (!purchase.authorization_confirmed_at) {
       const secretKey = Deno.env.get('STRIPELIVESECRETKEY');
       if (!secretKey || (!secretKey.startsWith('sk_test_') && !secretKey.startsWith('sk_live_'))) {
@@ -104,86 +102,62 @@ Deno.serve(async (req) => {
         return Response.json({ error: 'Payment verification failed' }, { status: 500 });
       }
 
-      // Atomic claim: exactly one concurrent call records authorization.
-      const nowIso = new Date().toISOString();
-      const claimRes = await base44.asServiceRole.entities.Purchase.updateMany(
-        { id: purchase.id, authorization_confirmed_at: null },
-        { $set: { authorization_confirmed_at: nowIso } }
-      ).catch(() => ({ updated: 0 }));
-      // If claim lost, a concurrent call verified+claimed first — fall through.
-      if ((claimRes?.updated || 0) === 0) {
-        console.log('[confirmCheckoutAuthorized] authorization claim lost to concurrent call', purchase.id);
-      }
+      // Idempotent marker — concurrent calls both set it (last timestamp wins,
+      // harmless). No conditional claim (non-atomic on this platform).
+      await base44.asServiceRole.entities.Purchase.update(purchase.id, {
+        authorization_confirmed_at: new Date().toISOString(),
+      }).catch(() => {});
     }
 
-    // ── Step 2: Durable seller-sale notification (exactly once) ──────────────
-    // Re-fetch latest (a concurrent call may have just notified).
-    const [fresh] = await base44.asServiceRole.entities.Purchase.filter({ id: purchase.id });
-    let sellerNotifiedAt = fresh?.seller_notified_at || null;
+    // ── Step 2: Durable seller-sale notification (existence-check, idempotent) ─
+    const existingNotif = await base44.asServiceRole.entities.Notification.filter({
+      user_email: purchase.seller_email, type: 'sale_created', reference_id: purchase.id,
+    }).catch(() => []);
 
-    if (!sellerNotifiedAt) {
-      const nowIso = new Date().toISOString();
-      const staleIso = new Date(Date.now() - 5 * 60000).toISOString();
-      // Atomic claim with 5-min stale reclaim (self-heal after a crash).
-      const claimRes = await base44.asServiceRole.entities.Purchase.updateMany(
-        { id: purchase.id, $or: [ { seller_notified_at: null }, { seller_notified_at: '' }, { seller_notified_at: { $lt: staleIso } } ] },
-        { $set: { seller_notified_at: nowIso } }
-      ).catch(() => ({ updated: 0 }));
-
-      if ((claimRes?.updated || 0) > 0) {
-        const [listing] = await base44.asServiceRole.entities.Listing.filter({ id: purchase.listing_id }).catch(() => []);
-
-        // Re-check for an existing durable notification (crash-reclaim safety).
-        const existingNotif = await base44.asServiceRole.entities.Notification.filter({
-          user_email: purchase.seller_email, type: 'sale_created', reference_id: purchase.id,
-        }).catch(() => []);
-
-        if (existingNotif.length === 0) {
-          try {
-            // Durable in-app record FIRST (await) — buyer request waits for this.
-            await base44.asServiceRole.entities.Notification.create({
-              user_email: purchase.seller_email,
-              type: 'sale_created',
-              title: '🎉 Your ticket sold!',
-              body: `Tap to transfer your tickets and receive payment. Sec ${listing?.section || ''}, Row ${listing?.row || ''}.`,
-              read: false,
-              reference_type: 'purchase',
-              reference_id: purchase.id,
-              action_url: `/purchase/${purchase.id}`,
-              icon: '🎟️',
-            });
-          } catch (err) {
-            // Enqueue failed — release the claim so a retry re-attempts delivery.
-            console.error('[confirmCheckoutAuthorized] notification create failed', purchase.id, err?.message);
-            await releaseClaim(base44, 'Purchase', purchase.id, 'seller_notified_at', 'seller_notified_at');
-            return Response.json({ error: 'Could not notify seller — please retry' }, { status: 500 });
-          }
-        }
-
-        // Push + email: best-effort, tracked per channel (retryable later).
-        let pushStatus = 'skipped', emailStatus = 'skipped';
-        try {
-          const dispatch = await sendUserNotification(base44, {
-            user_email: purchase.seller_email,
-            title: '🎉 Your ticket sold!',
-            body: `Tap to transfer your tickets and receive payment. Sec ${listing?.section || ''}, Row ${listing?.row || ''}.`,
-            type: 'sale_created',
-            purchase_id: purchase.id,
-          }).catch(() => ({}));
-          pushStatus = dispatch?.push?.sent ? 'sent' : 'failed';
-          emailStatus = dispatch?.email?.sent ? 'sent' : 'failed';
-        } catch (_) {
-          pushStatus = 'failed'; emailStatus = 'failed';
-        }
-        await base44.asServiceRole.entities.Purchase.update(purchase.id, {
-          seller_push_status: pushStatus,
-          seller_email_status: emailStatus,
-        }).catch(() => {});
+    if (existingNotif.length === 0) {
+      const [listing] = await base44.asServiceRole.entities.Listing.filter({ id: purchase.listing_id }).catch(() => []);
+      try {
+        await base44.asServiceRole.entities.Notification.create({
+          user_email: purchase.seller_email,
+          type: 'sale_created',
+          title: '🎉 Your ticket sold!',
+          body: `Tap to transfer your tickets and receive payment. Sec ${listing?.section || ''}, Row ${listing?.row || ''}.`,
+          read: false,
+          reference_type: 'purchase',
+          reference_id: purchase.id,
+          action_url: `/purchase/${purchase.id}`,
+          icon: '🎟️',
+        });
+      } catch (err) {
+        console.error('[confirmCheckoutAuthorized] notification create failed', purchase.id, err?.message);
+        return Response.json({ error: 'Could not notify seller — please retry' }, { status: 500 });
       }
-      // If claim lost, a concurrent call is notifying/notified — nothing to do.
+      // Idempotent marker after the durable record is created.
+      await base44.asServiceRole.entities.Purchase.update(purchase.id, {
+        seller_notified_at: new Date().toISOString(),
+      }).catch(() => {});
+
+      // Push + email: best-effort, tracked per channel (retryable later).
+      let pushStatus = 'skipped', emailStatus = 'skipped';
+      try {
+        const dispatch = await sendUserNotification(base44, {
+          user_email: purchase.seller_email,
+          title: '🎉 Your ticket sold!',
+          body: `Tap to transfer your tickets and receive payment. Sec ${listing?.section || ''}, Row ${listing?.row || ''}.`,
+          type: 'sale_created',
+          purchase_id: purchase.id,
+        }).catch(() => ({}));
+        pushStatus = dispatch?.push?.sent ? 'sent' : 'failed';
+        emailStatus = dispatch?.email?.sent ? 'sent' : 'failed';
+      } catch (_) {
+        pushStatus = 'failed'; emailStatus = 'failed';
+      }
+      await base44.asServiceRole.entities.Purchase.update(purchase.id, {
+        seller_push_status: pushStatus,
+        seller_email_status: emailStatus,
+      }).catch(() => {});
     }
 
-    // Re-fetch final state for the response.
     const [finalPurchase] = await base44.asServiceRole.entities.Purchase.filter({ id: purchase.id });
     return Response.json({
       status: 'confirmed',

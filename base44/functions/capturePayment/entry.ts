@@ -2,28 +2,41 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import Stripe from 'npm:stripe@14.21.0';
 import { awardPoints, notify, calcPlatformFee } from '../../shared/purchaseNotifications.ts';
 import { sendTransactionalEmail } from '../../shared/notifications.ts';
-import { releaseClaim } from '../../shared/atomicClaim.ts';
+import { recordTerminalOutcome } from '../../shared/recordOutcome.ts';
 
 /**
  * capturePayment — STRICT state-machine for finalizing a real (non-demo) purchase.
  *
- * CONCURRENCY MODEL:
- *   An ATOMIC CLAIM (DB compare-and-set on Purchase.capture_claim) guarantees
- *   exactly one concurrent "confirm receipt" proceeds. A double-click or a
- *   concurrent retry cannot capture twice, mark the listing sold twice, or
- *   award points twice. Stripe capture is ALSO idempotent via idempotencyKey.
- *   The claim is released on any Stripe failure so the buyer can retry
- *   immediately; it is retained only on full success.
+ * THE SINGLE TRUSTED TERMINAL-TRANSITION FUNCTION.
+ *
+ * CONCURRENCY MODEL (Base44 has NO atomic compare-and-set — proven):
+ *   There is no DB-enforced claim available on this platform, so this function
+ *   does NOT attempt one. Instead, each operation is safe under concurrency
+ *   by construction:
+ *     - The Stripe capture itself is exactly-once via `idempotencyKey`
+ *       (Stripe enforces it).
+ *     - Setting `transfer_status='completed'` / `payment_captured=true` is an
+ *       idempotent $set (setting the same value twice is harmless).
+ *     - Marking the Listing sold is an idempotent $set.
+ *     - Terminal-outcome recording (TransferOutcome, TransferIntelligence,
+ *       seller trust, prediction, alert) uses existence checks + DERIVED trust
+ *       counters (recomputed, never incremented) — a duplicate invocation
+ *       recomputes identical state; any duplicate record it creates is repaired
+ *       to exactly-one by reconcilePurchaseOutcomes (eventual exactly-once).
+ *     - Points use awardPointsInternal's isDuplicate guard (sequentially safe;
+ *       a concurrent double-capture can rarely double-award, repaired by
+ *       reconcilePurchaseOutcomes).
  *
  * Stripe PaymentIntent state transition table:
  *   requires_capture     | capture (idempotent), then require finalStatus==='succeeded'
- *                        |   capture throws   → release claim, payment_capture_failed=true, STOP
+ *                        |   capture throws → payment_capture_failed=true, STOP
  *   succeeded            | continue to completion (already captured)
- *   any other            | release claim, return 402 — do NOT complete, do NOT mark
- *                        | listing sold, do NOT award points, do NOT notify either party
+ *   any other            | return 402 — do NOT complete, do NOT mark listing
+ *                        | sold, do NOT award points, do NOT notify either party
  *
  * Only after Stripe confirms `succeeded` do we set payment_captured=true,
- * mark the Purchase completed, mark the Listing sold, award points, and notify.
+ * mark the Purchase completed, mark the Listing sold, record the terminal
+ * outcome, award points, and notify.
  */
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
@@ -59,42 +72,11 @@ Deno.serve(async (req) => {
     return Response.json({ error: 'Cannot confirm receipt before seller confirms transfer' }, { status: 409 });
   }
 
-  // ── ATOMIC CAPTURE CLAIM (DB compare-and-set) ────────────────────────────
-  // Exactly one concurrent invocation proceeds past this point. Gated on
-  // not-already-completed; a stale claim (>5 min) is reclaimable so a crashed
-  // attempt can be retried by the buyer. Released on any failure.
-  const now = new Date();
-  const staleIso = new Date(now.getTime() - 5 * 60000).toISOString();
-  const claimKey = `Purchase:${purchase.id}:capture_claim`;
-  const claimRes = await base44.asServiceRole.entities.Purchase.updateMany(
-    {
-      id: purchase.id,
-      payment_captured: { $ne: true },
-      transfer_status: { $ne: 'completed' },
-      $or: [ { capture_claim: null }, { capture_claim: '' }, { capture_claimed_at: { $lt: staleIso } } ],
-    },
-    { $set: { capture_claim: claimKey, capture_claimed_at: now.toISOString() } }
-  ).catch(() => ({ updated: 0 }));
-
-  if ((claimRes?.updated || 0) === 0) {
-    // Either already completed/captured, or a concurrent invocation holds a
-    // fresh (non-stale) claim. Re-fetch to distinguish.
-    const [recheck] = await base44.asServiceRole.entities.Purchase.filter({ id: purchase.id });
-    if (recheck?.payment_captured === true || recheck?.transfer_status === 'completed') {
-      return Response.json({ status: 'already_completed' });
-    }
-    return Response.json({ status: 'capture_in_progress', error: 'A capture is already in progress. Please wait and retry.' }, { status: 409 });
-  }
-
-  // We won the claim. Helper to release it on failure.
-  const releaseCaptureClaim = () => releaseClaim(base44, 'Purchase', purchase.id, 'capture_claim', 'capture_claimed_at');
-
   // Set ONLY the buyer-confirmation field.
   await base44.asServiceRole.entities.Purchase.update(purchase.id, { buyer_confirmed: true });
 
   if (!purchase.payment_intent_id) {
     console.error('[capturePayment] missing payment_intent_id', purchase.id);
-    await releaseCaptureClaim();
     return Response.json({ error: 'Payment verification failed' }, { status: 500 });
   }
 
@@ -103,7 +85,6 @@ Deno.serve(async (req) => {
     pi = await stripe.paymentIntents.retrieve(purchase.payment_intent_id);
   } catch (err) {
     console.error('[capturePayment] Failed to retrieve PaymentIntent', purchase.id, err?.message);
-    await releaseCaptureClaim();
     return Response.json({ error: 'Payment verification failed' }, { status: 500 });
   }
 
@@ -117,12 +98,10 @@ Deno.serve(async (req) => {
         md.purchase_id = purchase.id;
       } catch (err) {
         console.error('[capturePayment] Failed to set purchase_id metadata', purchase.id, err?.message);
-        await releaseCaptureClaim();
         return Response.json({ error: 'Payment verification failed' }, { status: 500 });
       }
     } else {
       console.error('[capturePayment] metadata purchase_id mismatch', purchase.id, { md_pid: md.purchase_id });
-      await releaseCaptureClaim();
       return Response.json({ error: 'Payment verification failed' }, { status: 500 });
     }
   }
@@ -130,34 +109,28 @@ Deno.serve(async (req) => {
   // ── Fetch the authoritative Listing ──────────────────────────────────────
   const [listing] = await base44.asServiceRole.entities.Listing.filter({ id: purchase.listing_id }).catch(() => []);
   if (!listing) {
-    await releaseCaptureClaim();
     return Response.json({ error: 'Listing not found' }, { status: 404 });
   }
 
   // ── STRICT reservation-ownership verification (all required, no optional) ─
   if (listing.seller_email !== purchase.seller_email) {
     console.error('[capturePayment] Listing seller mismatch', purchase.id, { listingSeller: listing.seller_email, purchaseSeller: purchase.seller_email });
-    await releaseCaptureClaim();
     return Response.json({ error: 'Payment verification failed' }, { status: 500 });
   }
   if (md.purchase_id !== purchase.id) {
     console.error('[capturePayment] metadata purchase_id mismatch', purchase.id);
-    await releaseCaptureClaim();
     return Response.json({ error: 'Payment verification failed' }, { status: 500 });
   }
   if (!md.reservation_token || !purchase.reservation_token || md.reservation_token !== purchase.reservation_token) {
     console.error('[capturePayment] PI reservation token mismatch/missing', purchase.id);
-    await releaseCaptureClaim();
     return Response.json({ error: 'Payment verification failed' }, { status: 500 });
   }
   if (!purchase.reservation_token || !listing.reservation_token || purchase.reservation_token !== listing.reservation_token) {
     console.error('[capturePayment] Listing reservation token mismatch/missing', purchase.id);
-    await releaseCaptureClaim();
     return Response.json({ error: 'Payment verification failed' }, { status: 500 });
   }
   if (listing.status !== 'pending_transfer' || listing.reserved_by_email !== purchase.buyer_email) {
     console.error('[capturePayment] Listing not in pending state for this buyer', purchase.id, { status: listing.status, reservedBy: listing.reserved_by_email });
-    await releaseCaptureClaim();
     return Response.json({ error: 'Payment verification failed' }, { status: 500 });
   }
 
@@ -168,7 +141,6 @@ Deno.serve(async (req) => {
     md.seller_email === purchase.seller_email;
   if (!metadataMatches) {
     console.error('[capturePayment] Stripe metadata mismatch', purchase.id, { md, purchase });
-    await releaseCaptureClaim();
     return Response.json({ error: 'Payment verification failed' }, { status: 500 });
   }
 
@@ -178,12 +150,10 @@ Deno.serve(async (req) => {
   const expectedAmountCents = Math.round(expectedBuyerTotal * 100);
   if (pi.amount !== expectedAmountCents || (pi.currency || 'usd') !== 'usd') {
     console.error('[capturePayment] Amount/currency mismatch', purchase.id, { piAmount: pi.amount, expected: expectedAmountCents, currency: pi.currency });
-    await releaseCaptureClaim();
     return Response.json({ error: 'Payment verification failed' }, { status: 500 });
   }
   if (Math.round((purchase.amount || 0) * 100) !== expectedAmountCents) {
     console.error('[capturePayment] Purchase amount mismatch', purchase.id, { stored: purchase.amount, expected: expectedBuyerTotal });
-    await releaseCaptureClaim();
     return Response.json({ error: 'Payment verification failed' }, { status: 500 });
   }
 
@@ -194,12 +164,10 @@ Deno.serve(async (req) => {
   if (sellerStripeAccountId) {
     if (!pi.transfer_data?.destination) {
       console.error('[capturePayment] Missing transfer_data.destination for connected seller', purchase.id, { seller: sellerStripeAccountId });
-      await releaseCaptureClaim();
       return Response.json({ error: 'Payment verification failed' }, { status: 500 });
     }
     if (pi.transfer_data.destination !== sellerStripeAccountId) {
       console.error('[capturePayment] Destination account mismatch', purchase.id, { piDest: pi.transfer_data.destination, seller: sellerStripeAccountId });
-      await releaseCaptureClaim();
       return Response.json({ error: 'Payment verification failed' }, { status: 500 });
     }
   }
@@ -215,7 +183,6 @@ Deno.serve(async (req) => {
     } catch (stripeErr) {
       console.error('[capturePayment] Stripe capture FAILED:', purchase.id, stripeErr?.message);
       await base44.asServiceRole.entities.Purchase.update(purchase.id, { payment_capture_failed: true }).catch(() => {});
-      await releaseCaptureClaim();
       sendTransactionalEmail(base44, 'experience@peanutgallery.store',
         `🚨 Stripe Capture Failed — Purchase ${purchase.id}`,
         `Stripe payment capture failed.\n\nPurchase: ${purchase.id}\nBuyer: ${purchase.buyer_email}\nSeller: ${purchase.seller_email}\nAmount: $${purchase.amount?.toFixed(2)}\nError: ${stripeErr?.message}\n\nReview and retry capture in Stripe dashboard.`
@@ -226,12 +193,10 @@ Deno.serve(async (req) => {
 
   if (finalStatus !== 'succeeded') {
     console.error('[capturePayment] PI not in succeeded state:', purchase.id, finalStatus);
-    // Release the claim so a retry can re-attempt when the webhook reports success.
-    await releaseCaptureClaim();
     return Response.json({ error: `Payment not completed (status: ${finalStatus}). No charge was finalized.` }, { status: 402 });
   }
 
-  // ── Stripe confirmed success — finalize (claim retained as completion marker) ─
+  // ── Stripe confirmed success — finalize (idempotent $sets) ─────────────────
   await base44.asServiceRole.entities.Purchase.update(purchase.id, {
     transfer_status: 'completed',
     payment_captured: true,
@@ -244,6 +209,16 @@ Deno.serve(async (req) => {
     reservation_expires_at: null,
     reserved_by_email: null,
   }).catch(() => {});
+
+  // ── Record the terminal outcome (shared, idempotent; the authoritative
+  //    writer of TransferOutcome / TransferIntelligence / derived trust /
+  //    prediction resolution / dispute alert). The recordTransferOutcome
+  //    automation is a repair safety-net for the same logic.
+  try {
+    await recordTerminalOutcome(base44, purchase);
+  } catch (err) {
+    console.error('[capturePayment] recordTerminalOutcome failed (automation/reconciliation will repair)', purchase.id, err?.message);
+  }
 
   const isSelfPurchase = purchase.seller_email === purchase.buyer_email;
   if (isSelfPurchase) {

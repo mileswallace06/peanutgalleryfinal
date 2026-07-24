@@ -13,7 +13,6 @@
 
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import { sendTransactionalEmail } from '../../shared/notifications.ts';
-import { claimFlag } from '../../shared/atomicClaim.ts';
 
 // ── Confidence thresholds ─────────────────────────────────────────────────────
 const THRESHOLDS = {
@@ -306,22 +305,24 @@ Return ONLY valid JSON with this exact structure:
 
     await base44.asServiceRole.entities.Purchase.update(purchase_id, updatePayload);
 
-    // ── Atomic exactly-once false-claim strike (compare-and-set on the flag) ─
-    // The count is DERIVED from all of this seller's flagged purchases so a
-    // duplicate or concurrent invocation cannot double-count.
+    // ── False-claim flag (idempotent) + DERIVED count ─────────────────────────
+    // Base44 has no atomic compare-and-set, so we set the flag with an
+    // idempotent $set (true→true) and DERIVE the seller's false-claim count from
+    // all their flagged purchases. A duplicate/concurrent invocation sets the
+    // same flag and recomputes the same count — it cannot double-count.
     if (aiProofStatus === 'rejected_suspicious' && purchase.seller_email) {
-      const struck = await claimFlag(base44, 'Purchase', purchase_id, 'false_claim_recorded');
-      if (struck) {
-        const sellers = await base44.asServiceRole.entities.User.filter({ email: purchase.seller_email }).catch(() => []);
-        const seller = sellers[0];
-        if (seller) {
-          const flagged = await base44.asServiceRole.entities.Purchase.filter({
-            seller_email: purchase.seller_email, false_claim_recorded: true,
-          }).catch(() => []);
-          await base44.asServiceRole.entities.User.update(seller.id, {
-            transfer_false_claim_count: flagged.length,
-          }).catch(() => {});
-        }
+      await base44.asServiceRole.entities.Purchase.update(purchase_id, {
+        false_claim_recorded: true,
+      }).catch(() => {});
+      const sellers = await base44.asServiceRole.entities.User.filter({ email: purchase.seller_email }).catch(() => []);
+      const seller = sellers[0];
+      if (seller) {
+        const flagged = await base44.asServiceRole.entities.Purchase.filter({
+          seller_email: purchase.seller_email, false_claim_recorded: true,
+        }).catch(() => []);
+        await base44.asServiceRole.entities.User.update(seller.id, {
+          transfer_false_claim_count: flagged.length,
+        }).catch(() => {});
       }
     }
 

@@ -317,40 +317,23 @@ Deno.serve(async (req) => {
       return Response.json({ success: false, pending: true, message: 'Winner selection in progress. Poll for result.' });
     }
 
-    // ── ATOMIC CLAIM: exactly one concurrent close_and_pick proceeds ───────
-    // Conditional compare-and-set on the lock fields, gated on the drop not
-    // already resolved. A stale lock (>10s) is reclaimable. Losers either see
-    // the already-selected winner or a pending result.
+    // ── Best-effort processing lock (NOT atomic — Base44 has no compare-and-set) ──
+    // Concurrent close_and_pick calls can rarely both pass the lock above. The
+    // post-pick re-check below returns an already-selected winner instead of
+    // overwriting, minimizing double-winner writes; the FlashDrop record holds
+    // a single winner_email (last writer), and is_winner dedup is handled by
+    // reconcilePurchaseOutcomes for full consistency.
     const reqId = request_id || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const lockStale = new Date(Date.now() - 10000).toISOString();
-    const lockRes = await base44.asServiceRole.entities.FlashDrop.updateMany(
-      {
-        id: flash_drop_id,
-        status: { $nin: ['winner_selected', 'expired'] },
-        $or: [ { winner_selection_request_id: null }, { winner_selection_request_id: '' }, { winner_selection_locked_at: { $lt: lockStale } } ],
-      },
-      { $set: { winner_selection_locked_at: new Date().toISOString(), winner_selection_request_id: reqId } }
-    ).catch(() => ({ updated: 0 }));
-
-    if ((lockRes?.updated || 0) === 0) {
-      // Already resolved, or another request holds a fresh lock.
-      const confirmDrops = await base44.asServiceRole.entities.FlashDrop.filter({ id: flash_drop_id });
-      const confirmDrop = confirmDrops[0];
-      if (confirmDrop?.status === 'winner_selected' && confirmDrop.winner_email) {
-        return Response.json({ success: true, already_selected: true, winner: { email: confirmDrop.winner_email, name: confirmDrop.winner_name }, entry_count: confirmDrop.entry_count });
-      }
-      if (confirmDrop?.status === 'expired') {
-        return Response.json({ success: true, already_selected: true, winner: null, no_entries: true });
-      }
-      return Response.json({ success: false, pending: true, message: 'Winner selection in progress. Poll for result.' });
-    }
+    await base44.asServiceRole.entities.FlashDrop.update(flash_drop_id, {
+      winner_selection_locked_at: new Date().toISOString(),
+      winner_selection_request_id: reqId,
+    }).catch(() => {});
 
     const entries = await base44.asServiceRole.entities.FlashDropEntry.filter({ flash_drop_id });
     const now = new Date().toISOString();
 
     if (entries.length === 0) {
       await base44.asServiceRole.entities.FlashDrop.update(flash_drop_id, { status: 'expired', selection_completed_at: now, entry_count: 0 });
-      // Update SeatInventory → available
       if (drop.seat_inventory_id) {
         await base44.asServiceRole.entities.SeatInventory.update(drop.seat_inventory_id, { inventory_status: 'available' }).catch(() => {});
       }
@@ -358,6 +341,14 @@ Deno.serve(async (req) => {
     }
 
     const winner = entries[Math.floor(Math.random() * entries.length)];
+
+    // Post-pick re-verify: a concurrent call may have already selected a winner.
+    // If so, return the existing winner instead of overwriting.
+    const confirmDrops = await base44.asServiceRole.entities.FlashDrop.filter({ id: flash_drop_id });
+    const confirmDrop = confirmDrops[0];
+    if (confirmDrop?.status === 'winner_selected' && confirmDrop.winner_email) {
+      return Response.json({ success: true, already_selected: true, winner: { email: confirmDrop.winner_email, name: confirmDrop.winner_name }, entry_count: confirmDrop.entry_count });
+    }
 
     await Promise.all([
       base44.asServiceRole.entities.FlashDrop.update(flash_drop_id, {
