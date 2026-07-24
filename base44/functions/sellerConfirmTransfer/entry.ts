@@ -9,36 +9,7 @@
  * Body: { purchase_id, proof_url?, proof_note? }
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
-
-async function awardPoints(base44, userEmail, action, referenceId, referenceType) {
-  try {
-    await base44.asServiceRole.functions.invoke('awardPoints', {
-      _internal_service_call: true,
-      action,
-      reference_id: referenceId,
-      reference_type: referenceType,
-      target_email: userEmail,
-    });
-  } catch (err) {
-    console.error('[sellerConfirmTransfer] awardPoints failed for', userEmail, '|', err?.message);
-  }
-}
-
-async function notify(base44, userEmail, title, body, type, purchaseId) {
-  try {
-    await base44.asServiceRole.functions.invoke('recordNotification', {
-      user_email: userEmail,
-      title,
-      body,
-      type,
-      reference_id: purchaseId,
-      reference_type: 'purchase',
-      action_url: purchaseId ? `/purchase/${purchaseId}` : null,
-    });
-  } catch (err) {
-    console.error('[sellerConfirmTransfer] notify failed to', userEmail, '|', err?.message);
-  }
-}
+import { awardPoints, notify } from '../../shared/purchaseNotifications.ts';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);

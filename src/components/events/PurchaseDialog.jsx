@@ -25,7 +25,6 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [feeBreakdown, setFeeBreakdown] = useState(null);
   const [eligibilityPassed, setEligibilityPassed] = useState(!hasEligibilityGate);
   // Transfer acknowledgment: low-confidence listings require explicit buyer ack
   const transferScore = listing.transfer_confidence_score ?? null;
@@ -36,7 +35,7 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
   const subtotal = listing.asking_price * qty;
   const estimatedBreakdown = formatFeeBreakdown(listing.asking_price, qty);
   const estimatedFee = estimatedBreakdown.fee;
-  const total = feeBreakdown ? feeBreakdown.buyerTotal : estimatedBreakdown.total;
+  const total = estimatedBreakdown.total;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -45,20 +44,16 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
     setLoading(true);
     setError('');
 
-    let paymentIntentId = null;
-
     try {
-      // 1. Create PaymentIntent (server-side, escrow)
-      const res = await base44.functions.invoke('createPaymentIntent', {
+      // 1. Server-side checkout: authenticate, derive buyer_email, fetch listing,
+      //    calculate fees, create Stripe PaymentIntent, and create the Purchase —
+      //    all server-side. The frontend never creates a Purchase directly.
+      const res = await base44.functions.invoke('createCheckout', {
         listing_id: listing.id,
         buyer_name: name,
-        buyer_email: email,
         buyer_phone: phone,
       });
-      const { clientSecret, paymentIntentId: piId, subtotal, platformFee, buyerTotal, sellerPayout } = res.data;
-      paymentIntentId = piId;
-      setFeeBreakdown({ subtotal, platformFee, buyerTotal, sellerPayout });
-      onReserved(listing.id); // track reservation so dialog close can release it
+      const { purchase_id, clientSecret } = res.data;
 
       // 2. Confirm card payment (authorize only — not captured)
       const result = await stripe.confirmCardPayment(clientSecret, {
@@ -76,40 +71,19 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
         return;
       }
 
-      // 3. Create Purchase entity
-      const fb = feeBreakdown || { subtotal, platformFee: estimatedFee, buyerTotal: total, sellerPayout: subtotal };
-      const purchase = await base44.entities.Purchase.create({
-        listing_id: listing.id,
-        event_id: event.id,
-        buyer_email: email,
-        buyer_name: name,
-        buyer_phone: phone,
-        seller_email: listing.seller_email,
-        amount: fb.buyerTotal,
-        subtotal: fb.subtotal,
-        platform_fee: fb.platformFee,
-        seller_payout: fb.sellerPayout,
-        quantity: listing.quantity || 1,
-        payment_intent_id: paymentIntentId,
-        transfer_status: 'pending_transfer',
-        buyer_confirmed: false,
-        seller_confirmed: false,
-        payment_captured: false,
-      });
-
-      // 4. Notify seller with direct deep-link to Transfer Assistant (fire-and-forget)
+      // 3. Notify seller with a deep-link to the Transfer Assistant (fire-and-forget)
       base44.functions.invoke('recordNotification', {
         user_email: listing.seller_email,
         type: 'sale_created',
         title: '🎉 Your ticket sold!',
         body: `Tap to transfer your tickets and receive payment. Sec ${listing.section}, Row ${listing.row}.`,
         reference_type: 'purchase',
-        reference_id: purchase.id,
-        action_url: `/purchase/${purchase.id}`,
+        reference_id: purchase_id,
+        action_url: `/purchase/${purchase_id}`,
       }).catch(() => {});
 
-      // 5. Navigate to purchase page
-      navigate(`/purchase/${purchase.id}`);
+      // 4. Navigate to the purchase page
+      navigate(`/purchase/${purchase_id}`);
     } catch (err) {
       // Release reservation on any checkout error
       if (listing.id) {
@@ -120,28 +94,20 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
     }
   };
 
-  // Demo upgrade: simulate without real payment
+  // Demo upgrade: simulate without real payment. The Purchase is created
+  // server-side (is_demo=true) so it never affects real revenue, points,
+  // trust, or transfer intelligence.
   const handleDemoUpgradeSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     await new Promise(r => setTimeout(r, 1200));
-    const purchase = await base44.entities.Purchase.create({
-      listing_id: listing.id,
-      event_id: event.id,
-      buyer_email: email,
-      buyer_name: name || 'Demo User',
-      seller_email: listing.seller_email,
-      amount: 0,
-      subtotal: 0,
-      platform_fee: 0,
-      seller_payout: 0,
-      quantity: listing.quantity || 1,
-      transfer_status: 'completed',
-      buyer_confirmed: true,
-      seller_confirmed: true,
-      payment_captured: false,
-    });
-    navigate(`/purchase/${purchase.id}`);
+    try {
+      const res = await base44.functions.invoke('createDemoUpgrade', { listing_id: listing.id });
+      navigate(`/purchase/${res.data.purchase_id}`);
+    } catch (err) {
+      setError(err.response?.data?.error || err.message || 'Demo failed');
+      setLoading(false);
+    }
   };
 
   return (
@@ -193,7 +159,7 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
         <div className="space-y-1.5 text-sm">
           <div className="flex justify-between">
             <span className="text-muted-foreground">{estimatedBreakdown.subtotalLabel}</span>
-            <span className="text-foreground">${(feeBreakdown?.subtotal ?? estimatedBreakdown.subtotal).toFixed(2)}</span>
+            <span className="text-foreground">${estimatedBreakdown.subtotal.toFixed(2)}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground flex items-center gap-1.5">
@@ -202,7 +168,7 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
                 {FEE_MODELS[ACTIVE_FEE_MODEL_ID]?.shortLabel}
               </span>
             </span>
-            <span className="text-foreground">${(feeBreakdown?.platformFee ?? estimatedBreakdown.fee).toFixed(2)}</span>
+            <span className="text-foreground">${estimatedBreakdown.fee.toFixed(2)}</span>
           </div>
         </div>
         <div className="mt-3 pt-2.5 flex justify-between font-black text-base" style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>

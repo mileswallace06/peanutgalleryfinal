@@ -337,25 +337,26 @@ export default function PurchaseSuccess() {
   const handleSellerConfirm = async ({ proofUrl, proofNote }) => {
     setActionLoading(true);
     setError('');
-    await base44.entities.Purchase.update(purchase.id, {
-      ...(proofUrl ? { transfer_proof_url: proofUrl, ai_proof_status: 'pending' } : {}),
-      ...(proofNote ? { transfer_notes: proofNote } : {}),
-    });
-    const res = await base44.functions.invoke('capturePayment', {
-      purchase_id: purchase.id,
-      confirming_role: 'seller',
-    });
-    if (res.data.error) {
-      setError(res.data.error);
-    } else {
-      // Trigger AI verification async — fire-and-forget, non-blocking
-      if (proofUrl) {
-        base44.functions.invoke('verifyTransferProof', {
-          purchase_id: purchase.id,
-          proof_url: proofUrl,
-        }).catch(err => console.warn('[AI verify] failed to trigger:', err?.message));
+    try {
+      const res = await base44.functions.invoke('sellerConfirmTransfer', {
+        purchase_id: purchase.id,
+        proof_url: proofUrl || null,
+        proof_note: proofNote || null,
+      });
+      if (res.data.error) {
+        setError(res.data.error);
+      } else {
+        // Trigger AI verification async — fire-and-forget, non-blocking
+        if (proofUrl) {
+          base44.functions.invoke('verifyTransferProof', {
+            purchase_id: purchase.id,
+            proof_url: proofUrl,
+          }).catch(err => console.warn('[AI verify] failed to trigger:', err?.message));
+        }
+        await load();
       }
-      await load();
+    } catch (err) {
+      setError(err.response?.data?.error || err.message || 'Confirmation failed');
     }
     setActionLoading(false);
   };
@@ -411,36 +412,17 @@ export default function PurchaseSuccess() {
   const handleDispute = async ({ category, details }) => {
     setActionLoading(true);
     const reason = details ? `${category}: ${details}` : category;
-    await base44.entities.Purchase.update(purchase.id, {
-      transfer_status: 'disputed',
-      dispute_reason: reason,
-    });
-
-    // Notify buyer, seller, and support — fire-and-forget
-    base44.functions.invoke('recordNotification', {
-      user_email: purchase.buyer_email,
-      type: 'dispute_opened',
-      title: 'Dispute submitted ⚖️',
-      body: `Your dispute has been received. Our team will review and resolve it promptly. Reason: ${reason}`,
-      reference_id: purchase.id,
-      reference_type: 'purchase',
-      action_url: `/purchase/${purchase.id}`,
-    }).catch(() => {});
-    base44.functions.invoke('recordNotification', {
-      user_email: purchase.seller_email,
-      type: 'dispute_opened',
-      title: 'Buyer opened a dispute ⚖️',
-      body: `The buyer disputed this transaction. Reason: ${reason}. Our team will review and reach out.`,
-      reference_id: purchase.id,
-      reference_type: 'purchase',
-      action_url: `/purchase/${purchase.id}`,
-    }).catch(() => {});
-    base44.functions.invoke('sendNotificationEmail', {
-      to: 'experience@peanutgallery.store',
-      subject: `⚠️ Dispute opened — Purchase ${purchase.id}`,
-      body: `A dispute has been opened on Peanut Gallery.\n\nPurchase ID: ${purchase.id}\nBuyer: ${purchase.buyer_email}${purchase.buyer_name ? ` (${purchase.buyer_name})` : ''}\nSeller: ${purchase.seller_email}\nAmount: $${purchase.amount?.toFixed(2)}\nReason: ${reason}\n\nReview in the admin panel and resolve promptly.\n\n— Peanut Gallery`,
-    }).catch(err => console.error('[dispute] email notify failed:', err?.message));
-
+    try {
+      const res = await base44.functions.invoke('openDispute', {
+        purchase_id: purchase.id,
+        reason,
+      });
+      if (res.data.error) {
+        setError(res.data.error);
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || err.message || 'Dispute failed');
+    }
     setShowDisputeModal(false);
     await load();
     setActionLoading(false);

@@ -1,42 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import Stripe from 'npm:stripe@14.21.0';
-
-// Fire-and-forget points award helper — never throws
-async function awardPoints(base44, userEmail, action, referenceId, referenceType) {
-  try {
-    await base44.asServiceRole.functions.invoke('awardPoints', {
-      _internal_service_call: true,
-      action,
-      reference_id: referenceId,
-      reference_type: referenceType,
-      target_email: userEmail,
-    });
-  } catch (err) {
-    console.error('[capturePayment] awardPoints failed for', userEmail, '|', err?.message);
-  }
-}
-
-// Fire-and-forget notification helper — records in-app + push + email
-async function notify(base44, userEmail, title, body, type, purchaseId) {
-  try {
-    await base44.asServiceRole.functions.invoke('recordNotification', {
-      user_email: userEmail,
-      title,
-      body,
-      type,
-      reference_id: purchaseId,
-      reference_type: 'purchase',
-      action_url: purchaseId ? `/purchase/${purchaseId}` : null,
-    });
-  } catch (err) {
-    console.error('[capturePayment] notify failed to', userEmail, '|', err?.message);
-  }
-}
-
-// ── Fee engine (mirrors feeEngine.js ACTIVE_FEE_MODEL_ID = 'buyer_5_min_1') ──
-function calcPlatformFee(subtotal) {
-  return Math.max(1.00, Math.round(subtotal * 0.05 * 100) / 100);
-}
+import { awardPoints, notify, calcPlatformFee } from '../../shared/purchaseNotifications.ts';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
@@ -152,9 +116,8 @@ Deno.serve(async (req) => {
   }
 
   // Verify the connected Stripe account matches the seller on the Listing.
-  const [sellerUsers] = await base44.asServiceRole.entities.User.filter({ email: purchase.seller_email }).catch(() => []);
-  const seller = sellerUsers || [];
-  const sellerRecord = seller[0];
+  const sellerUsersList = await base44.asServiceRole.entities.User.filter({ email: purchase.seller_email }).catch(() => []);
+  const sellerRecord = sellerUsersList[0];
   const sellerStripeAccountId = sellerRecord?.stripe_account_id || null;
   if (sellerStripeAccountId && pi.transfer_data?.destination && pi.transfer_data.destination !== sellerStripeAccountId) {
     console.error('[capturePayment] Seller account mismatch', purchase.id, { piDest: pi.transfer_data.destination, seller: sellerStripeAccountId });
