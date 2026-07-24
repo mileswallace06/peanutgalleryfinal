@@ -10,7 +10,7 @@ import UpgradeEligibilityGate from '@/components/upgrades/UpgradeEligibilityGate
 import { UPGRADE_LISTING_TYPES } from '@/lib/listingTypes';
 import { formatCountdown } from '@/lib/listingVisibility';
 
-function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
+function CheckoutForm({ event, listing, buyerEmail, onClose, onCheckoutCreated }) {
   const stripe = useStripe();
   const elements = useElements();
   const navigate = useNavigate();
@@ -44,6 +44,7 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
     setLoading(true);
     setError('');
 
+    let purchaseId = null;
     try {
       // 1. Server-side checkout: authenticate, derive buyer_email, fetch listing,
       //    calculate fees, create Stripe PaymentIntent, and create the Purchase —
@@ -54,6 +55,10 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
         buyer_phone: phone,
       });
       const { purchase_id, clientSecret } = res.data;
+      purchaseId = purchase_id;
+      // Lift the purchase id to the parent so any dialog close/abort routes
+      // through abortCheckout (Purchase-scoped), not the generic reservation release.
+      if (onCheckoutCreated) onCheckoutCreated(purchase_id);
 
       // 2. Confirm card payment (authorize only — not captured)
       const result = await stripe.confirmCardPayment(clientSecret, {
@@ -64,8 +69,12 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
       });
 
       if (result.error) {
-        // Release reservation on Stripe failure
-        await base44.functions.invoke('releaseReservation', { listing_id: listing.id }).catch(() => {});
+        // Card confirmation failed AFTER the Purchase was created — abort the
+        // checkout through the backend (cancels the PaymentIntent, expires the
+        // Purchase, releases the listing). Do NOT use the generic release here.
+        if (purchaseId) {
+          await base44.functions.invoke('abortCheckout', { purchase_id: purchaseId }).catch(() => {});
+        }
         setError(result.error.message);
         setLoading(false);
         return;
@@ -82,11 +91,14 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
         action_url: `/purchase/${purchase_id}`,
       }).catch(() => {});
 
-      // 4. Navigate to the purchase page
+      // 4. Navigate to the purchase page (do NOT release — authorization succeeded)
       navigate(`/purchase/${purchase_id}`);
     } catch (err) {
-      // Release reservation on any checkout error
-      if (listing.id) {
+      // createCheckout failed before a Purchase existed → release the pre-checkout
+      // reservation only. If a Purchase was somehow created, abort it instead.
+      if (purchaseId) {
+        await base44.functions.invoke('abortCheckout', { purchase_id: purchaseId }).catch(() => {});
+      } else if (listing.id) {
         await base44.functions.invoke('releaseReservation', { listing_id: listing.id }).catch(() => {});
       }
       setError(err.response?.data?.error || err.message || 'Something went wrong');
@@ -316,7 +328,7 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onReserved }) {
 export default function PurchaseDialog({ event, listing, onClose, mode = 'ticket' }) {
   const [stripePromise, setStripePromise] = useState(null);
   const [user, setUser] = useState(null);
-  const [reservedListingId, setReservedListingId] = useState(null);
+  const [activePurchaseId, setActivePurchaseId] = useState(null);
   const [reservation, setReservation] = useState(null);
   const [reservationLoading, setReservationLoading] = useState(false);
   const [reservationError, setReservationError] = useState(null);
@@ -362,17 +374,25 @@ export default function PurchaseDialog({ event, listing, onClose, mode = 'ticket
     return () => clearInterval(interval);
   }, [reservation?.expires_at]);
 
-  // If dialog is closed after reservation but before purchase completes, release the listing
-  const handleClose = async () => {
-    if (listing?.id) {
+  // Abandon the in-flight checkout. Once createCheckout has created a Purchase,
+  // ALL cleanup must operate on that Purchase via abortCheckout (Purchase-scoped:
+  // cancels the PaymentIntent, expires the Purchase, releases the listing). The
+  // generic releaseReservation is only used BEFORE a Purchase/authorization exists.
+  const handleAbandon = async () => {
+    if (activePurchaseId) {
+      await base44.functions.invoke('abortCheckout', { purchase_id: activePurchaseId }).catch(() => {});
+    } else if (listing?.id) {
       await base44.functions.invoke('releaseReservation', { listing_id: listing.id }).catch(() => {});
     }
+  };
+
+  const handleClose = async () => {
+    await handleAbandon();
     onClose();
   };
 
   const handleReleaseReservation = async () => {
-    if (!listing?.id) return;
-    await base44.functions.invoke('releaseReservation', { listing_id: listing.id }).catch(() => {});
+    await handleAbandon();
     setReservation(null);
     setCountdown(0);
     onClose();
@@ -496,7 +516,7 @@ export default function PurchaseDialog({ event, listing, onClose, mode = 'ticket
                 </div>
               )}
               <Elements stripe={stripePromise}>
-                <CheckoutForm event={event} listing={listing} buyerEmail={user.email} onClose={handleClose} onReserved={setReservedListingId} />
+                <CheckoutForm event={event} listing={listing} buyerEmail={user.email} onClose={handleClose} onCheckoutCreated={setActivePurchaseId} />
               </Elements>
             </>
           )}

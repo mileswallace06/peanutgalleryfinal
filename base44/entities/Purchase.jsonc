@@ -101,6 +101,10 @@
         }
       }
     },
+    "reservation_token": {
+      "type": "string",
+      "description": "Reservation token linking this Purchase to the Listing reservation at checkout time. Verified by capturePayment as a required security field (must exist and match the Listing + PaymentIntent metadata)."
+    },
     "payment_captured": {
       "type": "boolean",
       "default": false

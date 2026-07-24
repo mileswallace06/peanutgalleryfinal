@@ -231,12 +231,21 @@ Deno.serve(async (req) => {
     seller_payout: sellerPayout,
     quantity: listing.quantity || 1,
     payment_intent_id: paymentIntent.id,
+    reservation_token: reservationToken,
     transfer_status: 'pending_transfer',
     buyer_confirmed: false,
     seller_confirmed: false,
     payment_captured: false,
     is_demo: false,
   });
+
+  // Link the PaymentIntent to this Purchase via metadata. capturePayment
+  // requires md.purchase_id to match the Purchase as a security field.
+  try {
+    await stripe.paymentIntents.update(paymentIntent.id, { metadata: { purchase_id: purchase.id } });
+  } catch (err) {
+    console.warn('[createCheckout] Failed to set purchase_id metadata', err?.message);
+  }
 
   return Response.json({
     purchase_id: purchase.id,
