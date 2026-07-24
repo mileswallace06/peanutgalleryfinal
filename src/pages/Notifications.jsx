@@ -83,7 +83,9 @@ export default function Notifications() {
     setUser(me);
     if (me?.email) {
       const data = await base44.entities.Notification.filter({ user_email: me.email },  '-created_date', 80).catch(() => []);
-      setNotifs(data);
+      // Superseded concurrent-duplicate records are hidden from the inbox
+      // (they never dispatched); they remain in the DB for audit.
+      setNotifs(data.filter((n) => n.dispatch_status !== 'superseded'));
     }
     setLoading(false);
   }, []);

@@ -26,7 +26,7 @@
  * record is discarded.
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
-import { sendUserNotification, sendTransactionalEmail } from '../../shared/notifications.ts';
+import { sendTransactionalEmail } from '../../shared/notifications.ts';
 import { recordTerminalOutcome } from '../../shared/recordOutcome.ts';
 
 Deno.serve(async (req) => {
@@ -128,7 +128,9 @@ Deno.serve(async (req) => {
         if (confirm) {
           const sorted = notifs.sort((a, b) => new Date(a.created_date || 0).getTime() - new Date(b.created_date || 0).getTime());
           for (let i = 1; i < sorted.length; i++) {
-            await base44.asServiceRole.entities.Notification.delete(sorted[i].id).catch(() => {});
+            // Supersede (never delete) — preserves audit trail; the dispatcher
+            // and inbox skip superseded records, so they never dispatch.
+            await base44.asServiceRole.entities.Notification.update(sorted[i].id, { dispatch_status: 'superseded' }).catch(() => {});
             findings.repaired.notifications_consolidated++;
           }
         }
@@ -227,34 +229,10 @@ Deno.serve(async (req) => {
           await base44.asServiceRole.entities.Purchase.update(p.id, { seller_notified_at: null }).catch(() => {});
           findings.repaired.seller_notified_cleared++;
         }
-      } else if ((p.seller_push_status === 'failed' || p.seller_email_status === 'failed')) {
-        // Retry ONLY the failed channel(s). A successful channel is never
-        // re-sent, so it cannot be duplicated. Each channel's status is
-        // updated independently so one failure never falsely marks the other
-        // successful (or failed).
-        const pushFailed = p.seller_push_status === 'failed';
-        const emailFailed = p.seller_email_status === 'failed';
-        findings.retried_channels.push({ purchase_id: p.id, retried_push: pushFailed, retried_email: emailFailed });
-        if (confirm) {
-          const [listing] = await base44.asServiceRole.entities.Listing.filter({ id: p.listing_id }).catch(() => []);
-          const dispatch = await sendUserNotification(base44, {
-            user_email: p.seller_email,
-            title: '🎉 Your ticket sold!',
-            body: `Tap to transfer your tickets and receive payment. Sec ${listing?.section || ''}, Row ${listing?.row || ''}.`,
-            type: 'sale_created',
-            purchase_id: p.id,
-            sendPush: pushFailed,
-            sendEmail: emailFailed,
-          }).catch(() => ({}));
-          const update = {};
-          if (pushFailed) update.seller_push_status = dispatch?.push?.sent ? 'sent' : 'failed';
-          if (emailFailed) update.seller_email_status = dispatch?.email?.sent ? 'sent' : 'failed';
-          if (Object.keys(update).length) {
-            await base44.asServiceRole.entities.Purchase.update(p.id, update).catch(() => {});
-          }
-          findings.repaired.channels_retried++;
-        }
       }
+      // Failed-channel retry is owned by dispatchSaleNotifications (every 1 min),
+      // which canonical-selects and only sends channels not already marked 'sent'.
+      // A successful channel is never re-sent, so it cannot be duplicated.
     }
   }
 
@@ -287,9 +265,24 @@ Deno.serve(async (req) => {
       if (confirm) {
         const sorted = group.sort((a, b) => new Date(a.created_date || 0).getTime() - new Date(b.created_date || 0).getTime());
         for (let i = 1; i < sorted.length; i++) {
-          await base44.asServiceRole.entities.Notification.delete(sorted[i].id).catch(() => {});
+          await base44.asServiceRole.entities.Notification.update(sorted[i].id, { dispatch_status: 'superseded' }).catch(() => {});
           if (!alreadyFlagged.has(purchaseId)) findings.repaired.notifications_consolidated++;
         }
+      }
+    }
+  }
+
+  // ── Reset stuck 'dispatching' sale_created notifications (a dispatcher run that
+  //    crashed mid-send). Stuck = 'dispatching' older than 5 min. The next
+  //    dispatcher run retries them. Idempotent; non-terminal.
+  {
+    const stuck = await base44.asServiceRole.entities.Notification.filter(
+      { type: 'sale_created', dispatch_status: 'dispatching' }, '-created_date', 100
+    ).catch(() => []);
+    const cutoff = Date.now() - 5 * 60 * 1000;
+    for (const n of stuck) {
+      if (new Date(n.updated_date || n.created_date || 0).getTime() < cutoff) {
+        await base44.asServiceRole.entities.Notification.update(n.id, { dispatch_status: 'pending' }).catch(() => {});
       }
     }
   }

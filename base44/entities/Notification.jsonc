@@ -98,6 +98,21 @@
     "icon": {
       "type": "string",
       "description": "Emoji icon for the notification"
+    },
+    "idempotency_key": {
+      "type": "string",
+      "description": "Deterministic logical key (e.g. sale_created:<purchase_id>) used to group concurrent duplicate notifications and select the single canonical record for dispatch. Records sharing a key are deduplicated to one sender."
+    },
+    "dispatch_status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "dispatching",
+        "dispatched",
+        "superseded"
+      ],
+      "default": "pending",
+      "description": "Cross-channel dispatch lifecycle. pending = enqueued, NOT yet sent (delivery withheld). dispatching = canonical record claimed for send (best-effort, non-atomic). dispatched = push/email attempted. superseded = concurrent duplicate that must NEVER dispatch; hidden from the user inbox."
     }
   },
   "required": [

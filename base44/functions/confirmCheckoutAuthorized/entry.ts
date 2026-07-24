@@ -23,7 +23,7 @@
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import Stripe from 'npm:stripe@14.21.0';
-import { sendUserNotification } from '../../shared/notifications.ts';
+import { enqueueSaleNotification } from '../../shared/saleNotification.ts';
 
 Deno.serve(async (req) => {
   try {
@@ -109,53 +109,18 @@ Deno.serve(async (req) => {
       }).catch(() => {});
     }
 
-    // ── Step 2: Durable seller-sale notification (existence-check, idempotent) ─
-    const existingNotif = await base44.asServiceRole.entities.Notification.filter({
-      user_email: purchase.seller_email, type: 'sale_created', reference_id: purchase.id,
-    }).catch(() => []);
-
-    if (existingNotif.length === 0) {
-      const [listing] = await base44.asServiceRole.entities.Listing.filter({ id: purchase.listing_id }).catch(() => []);
-      try {
-        await base44.asServiceRole.entities.Notification.create({
-          user_email: purchase.seller_email,
-          type: 'sale_created',
-          title: '🎉 Your ticket sold!',
-          body: `Tap to transfer your tickets and receive payment. Sec ${listing?.section || ''}, Row ${listing?.row || ''}.`,
-          read: false,
-          reference_type: 'purchase',
-          reference_id: purchase.id,
-          action_url: `/purchase/${purchase.id}`,
-          icon: '🎟️',
-        });
-      } catch (err) {
-        console.error('[confirmCheckoutAuthorized] notification create failed', purchase.id, err?.message);
-        return Response.json({ error: 'Could not notify seller — please retry' }, { status: 500 });
-      }
-      // Idempotent marker after the durable record is created.
-      await base44.asServiceRole.entities.Purchase.update(purchase.id, {
-        seller_notified_at: new Date().toISOString(),
-      }).catch(() => {});
-
-      // Push + email: best-effort, tracked per channel (retryable later).
-      let pushStatus = 'skipped', emailStatus = 'skipped';
-      try {
-        const dispatch = await sendUserNotification(base44, {
-          user_email: purchase.seller_email,
-          title: '🎉 Your ticket sold!',
-          body: `Tap to transfer your tickets and receive payment. Sec ${listing?.section || ''}, Row ${listing?.row || ''}.`,
-          type: 'sale_created',
-          purchase_id: purchase.id,
-        }).catch(() => ({}));
-        pushStatus = dispatch?.push?.sent ? 'sent' : 'failed';
-        emailStatus = dispatch?.email?.sent ? 'sent' : 'failed';
-      } catch (_) {
-        pushStatus = 'failed'; emailStatus = 'failed';
-      }
-      await base44.asServiceRole.entities.Purchase.update(purchase.id, {
-        seller_push_status: pushStatus,
-        seller_email_status: emailStatus,
-      }).catch(() => {});
+    // ── Step 2: Enqueue the seller-sale notification (NO inline send) ──────────
+    // Delivery is WITHHELD until the scheduled dispatcher (dispatchSaleNotifications,
+    // every 1 min) selects ONE canonical record per idempotency key and sends. This
+    // holds provider calls to <=1 push and <=1 email per logical sale notification
+    // even when N concurrent calls each win the existence-check race —
+    // reconciliation can dedupe DB records but cannot un-send a delivered push/email.
+    const [listing] = await base44.asServiceRole.entities.Listing.filter({ id: purchase.listing_id }).catch(() => []);
+    try {
+      await enqueueSaleNotification(base44, purchase, listing);
+    } catch (err) {
+      console.error('[confirmCheckoutAuthorized] enqueue failed', purchase.id, err?.message);
+      return Response.json({ error: 'Could not notify seller — please retry' }, { status: 500 });
     }
 
     const [finalPurchase] = await base44.asServiceRole.entities.Purchase.filter({ id: purchase.id });

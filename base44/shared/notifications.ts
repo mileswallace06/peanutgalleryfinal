@@ -20,6 +20,15 @@ const APP_URL = 'https://app.peanutgallery.store';
 const ONESIGNAL_APP_ID = '8c9896d6-d4d6-4cdf-a094-3ba25bdd4585';
 const FROM_NAME = 'Peanut Gallery';
 
+// ── Provider-call counters (audit/test only) ─────────────────────────────────
+// Counts the RAW number of outbound provider calls (OneSignal POSTs and
+// Core.SendEmail invocations) at the send boundary, regardless of success.
+// Used to prove the dispatch architecture makes <=1 push and <=1 email call per
+// logical notification under concurrency. No-ops in production.
+let __providerCallCounts = { push: 0, email: 0 };
+export function resetProviderCallCounters() { __providerCallCounts = { push: 0, email: 0 }; }
+export function getProviderCallCounters() { return { ...__providerCallCounts }; }
+
 // ── Allowed notification types ────────────────────────────────────────────────
 export const NOTIFICATION_TYPES = new Set([
   'purchase_confirmed', 'tickets_sent', 'transfer_verified', 'transfer_rejected',
@@ -198,6 +207,7 @@ export async function sendTransactionalEmail(base44, to, subject, body) {
     return { sent: false, error: 'invalid recipient' };
   }
   try {
+    __providerCallCounts.email++;
     await base44.asServiceRole.integrations.Core.SendEmail({
       from_name: FROM_NAME,
       to: safeTo,
@@ -228,6 +238,7 @@ async function sendOneSignalPush(userEmail, title, body, data) {
     data: data || {},
     ...(data?.purchase_id && { url: `${APP_URL}/purchase/${data.purchase_id}` }),
   };
+  __providerCallCounts.push++;
   const res = await fetch('https://onesignal.com/api/v1/notifications', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Key ${apiKey}` },
