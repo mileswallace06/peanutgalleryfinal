@@ -26,17 +26,25 @@
  * record is discarded.
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
-import { sendUserNotification } from '../../shared/notifications.ts';
+import { sendUserNotification, sendTransactionalEmail } from '../../shared/notifications.ts';
 import { recordTerminalOutcome } from '../../shared/recordOutcome.ts';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
-  let isAdmin = false;
+
+  // Auth: allow the automation scheduler (no session), allow admins, reject
+  // everyone else. Mirrors the processTransferReminders pattern so this can
+  // run as a scheduled task for guaranteed eventual repair.
+  let callerRole = null;
   try {
     const user = await base44.auth.me();
-    isAdmin = user?.role === 'admin';
-  } catch (_) { /* no session */ }
-  if (!isAdmin) return Response.json({ error: 'Admin only' }, { status: 403 });
+    callerRole = user?.role;
+    if (callerRole && callerRole !== 'admin') {
+      return Response.json({ error: 'Forbidden' }, { status: 403 });
+    }
+  } catch (_) {
+    // No session = called by the automation scheduler — allow.
+  }
 
   const body = await req.json().catch(() => ({}));
   const confirm = body?.confirm === true;
@@ -220,7 +228,13 @@ Deno.serve(async (req) => {
           findings.repaired.seller_notified_cleared++;
         }
       } else if ((p.seller_push_status === 'failed' || p.seller_email_status === 'failed')) {
-        findings.retried_channels.push({ purchase_id: p.id, push: p.seller_push_status, email: p.seller_email_status });
+        // Retry ONLY the failed channel(s). A successful channel is never
+        // re-sent, so it cannot be duplicated. Each channel's status is
+        // updated independently so one failure never falsely marks the other
+        // successful (or failed).
+        const pushFailed = p.seller_push_status === 'failed';
+        const emailFailed = p.seller_email_status === 'failed';
+        findings.retried_channels.push({ purchase_id: p.id, retried_push: pushFailed, retried_email: emailFailed });
         if (confirm) {
           const [listing] = await base44.asServiceRole.entities.Listing.filter({ id: p.listing_id }).catch(() => []);
           const dispatch = await sendUserNotification(base44, {
@@ -229,14 +243,104 @@ Deno.serve(async (req) => {
             body: `Tap to transfer your tickets and receive payment. Sec ${listing?.section || ''}, Row ${listing?.row || ''}.`,
             type: 'sale_created',
             purchase_id: p.id,
+            sendPush: pushFailed,
+            sendEmail: emailFailed,
           }).catch(() => ({}));
-          await base44.asServiceRole.entities.Purchase.update(p.id, {
-            seller_push_status: dispatch?.push?.sent ? 'sent' : 'failed',
-            seller_email_status: dispatch?.email?.sent ? 'sent' : 'failed',
-          }).catch(() => {});
+          const update = {};
+          if (pushFailed) update.seller_push_status = dispatch?.push?.sent ? 'sent' : 'failed';
+          if (emailFailed) update.seller_email_status = dispatch?.email?.sent ? 'sent' : 'failed';
+          if (Object.keys(update).length) {
+            await base44.asServiceRole.entities.Purchase.update(p.id, update).catch(() => {});
+          }
           findings.repaired.channels_retried++;
         }
       }
+    }
+  }
+
+  // ── Global notification-dedup pass (independent of terminal status) ──────
+  // Duplicate sale_created notifications are created at AUTHORIZATION time
+  // (confirmCheckoutAuthorized), while the purchase is still pending_transfer.
+  // The completed/disputed loop above therefore does NOT catch duplicates for
+  // purchases that never reach a terminal status. This pass consolidates
+  // duplicate sale_created notifications by their deterministic logical key
+  // (type='sale_created' + reference_id=purchase_id) across ALL purchase
+  // statuses, so the seller's inbox is eventually clean regardless of the
+  // purchase lifecycle. Idempotent: a second run finds one notification and
+  // skips. Purchases already consolidated by the loop above are found as 1
+  // here and skipped (no double-delete, no double-count).
+  {
+    const allSaleNotifs = await base44.asServiceRole.entities.Notification.filter(
+      { type: 'sale_created' }, '-created_date', 500
+    ).catch(() => []);
+    const byPurchase = {};
+    for (const n of allSaleNotifs) {
+      const key = n.reference_id || n.id;
+      (byPurchase[key] ||= []).push(n);
+    }
+    const alreadyFlagged = new Set(findings.duplicate_notifications.map(d => d.purchase_id));
+    for (const [purchaseId, group] of Object.entries(byPurchase)) {
+      if (group.length <= 1) continue;
+      if (!alreadyFlagged.has(purchaseId)) {
+        findings.duplicate_notifications.push({ purchase_id: purchaseId, count: group.length });
+      }
+      if (confirm) {
+        const sorted = group.sort((a, b) => new Date(a.created_date || 0).getTime() - new Date(b.created_date || 0).getTime());
+        for (let i = 1; i < sorted.length; i++) {
+          await base44.asServiceRole.entities.Notification.delete(sorted[i].id).catch(() => {});
+          if (!alreadyFlagged.has(purchaseId)) findings.repaired.notifications_consolidated++;
+        }
+      }
+    }
+  }
+
+  // ── Admin audit trail: when applying repairs, email a durable summary of
+  //    every repair to the admin log so duplicate evidence is preserved even
+  //    though the duplicate records themselves are consolidated (deleted).
+  //    Duplicates of user-facing notifications and the financial points ledger
+  //    MUST be deleted (not marked superseded) to avoid polluting the seller's
+  //    inbox / point totals; the audit email preserves the duplicate IDs and
+  //    counts as the persistent evidence trail.
+  if (confirm) {
+    const r = findings.repaired;
+    const totalRepairs = r.outcomes_created + r.outcomes_consolidated + r.intelligence_consolidated +
+      r.notifications_consolidated + r.points_reversed + r.counters_fixed +
+      r.seller_notified_cleared + r.channels_retried;
+    if (totalRepairs > 0) {
+      const lines = [
+        `Scheduled/admin reconciliation applied ${totalRepairs} repair(s).`,
+        ``,
+        `Scanned: ${findings.scanned} terminal (completed/disputed) non-demo purchases.`,
+        ``,
+        `Repairs:`,
+        `  - Missing outcomes created:        ${r.outcomes_created}`,
+        `  - Duplicate outcomes consolidated: ${r.outcomes_consolidated}`,
+        `  - Duplicate intelligence consolidated: ${r.intelligence_consolidated}`,
+        `  - Duplicate notifications consolidated: ${r.notifications_consolidated}`,
+        `  - Duplicate points reversed:        ${r.points_reversed}`,
+        `  - Seller counters recomputed:       ${r.counters_fixed}`,
+        `  - Stuck seller_notified cleared:    ${r.seller_notified_cleared}`,
+        `  - Failed delivery channels retried: ${r.channels_retried}`,
+        ``,
+        `Duplicate outcome IDs (consolidated to oldest):`,
+        ...findings.duplicate_outcomes.map(d => `  ${d.purchase_id}: ${d.ids?.join(', ') || d.count}`),
+        ``,
+        `Duplicate intelligence IDs (consolidated to oldest):`,
+        ...findings.duplicate_intelligence.map(d => `  ${d.purchase_id}: ${d.ids?.join(', ') || d.count}`),
+        ``,
+        `Duplicate notifications (consolidated to oldest):`,
+        ...findings.duplicate_notifications.map(d => `  ${d.purchase_id}: count ${d.count}`),
+        ``,
+        `Duplicate points reversed:`,
+        ...findings.duplicate_points.map(d => `  ${d.purchase_id} (${d.action}): ${d.points} pts, activity ${d.activity_id}`),
+        ``,
+        `Counter recomputations:`,
+        ...findings.counter_mismatches.map(d => `  ${d.seller_email}: ${JSON.stringify(d.before)} -> ${JSON.stringify(d.after)}`),
+      ];
+      sendTransactionalEmail(base44, 'experience@peanutgallery.store',
+        `📋 Reconciliation Report — ${totalRepairs} repair(s)`,
+        lines.join('\n')
+      ).catch(() => {});
     }
   }
 

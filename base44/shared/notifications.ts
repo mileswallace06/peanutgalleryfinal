@@ -140,7 +140,7 @@ const PUSH_PREF_MAP = {
 };
 
 export async function sendUserNotification(base44, opts) {
-  const { user_email, title, body, type, purchase_id } = opts || {};
+  const { user_email, title, body, type, purchase_id, sendPush = true, sendEmail = true } = opts || {};
   if (!user_email || !title || !body) return { skipped: 'missing' };
 
   // Preference check
@@ -157,21 +157,32 @@ export async function sendUserNotification(base44, opts) {
     }
   }
 
+  // Per-channel send control: callers (e.g. reconciliation retry) can request
+  // push-only or email-only so a successful channel is NOT re-sent when only
+  // the other channel failed.
   const results = { push: null, email: null };
 
-  try {
-    results.push = await sendOneSignalPush(user_email, clamp(title, 140), clamp(body, 1000), { type, purchase_id });
-  } catch (err) {
-    console.error('[sendUserNotification] push failed:', err?.message);
-    results.push = { sent: false };
+  if (sendPush) {
+    try {
+      results.push = await sendOneSignalPush(user_email, clamp(title, 140), clamp(body, 1000), { type, purchase_id });
+    } catch (err) {
+      console.error('[sendUserNotification] push failed:', err?.message);
+      results.push = { sent: false };
+    }
+  } else {
+    results.push = { skipped: 'sendPush_false' };
   }
 
-  try {
-    const { subject, body: emailBody } = buildEmail(title, body, type, purchase_id);
-    results.email = await sendTransactionalEmail(base44, user_email, subject, emailBody);
-  } catch (err) {
-    console.error('[sendUserNotification] email failed:', err?.message);
-    results.email = { sent: false };
+  if (sendEmail) {
+    try {
+      const { subject, body: emailBody } = buildEmail(title, body, type, purchase_id);
+      results.email = await sendTransactionalEmail(base44, user_email, subject, emailBody);
+    } catch (err) {
+      console.error('[sendUserNotification] email failed:', err?.message);
+      results.email = { sent: false };
+    }
+  } else {
+    results.email = { skipped: 'sendEmail_false' };
   }
 
   return results;
