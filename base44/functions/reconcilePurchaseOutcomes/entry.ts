@@ -163,13 +163,21 @@ Deno.serve(async (req) => {
       const sellers = await base44.asServiceRole.entities.User.filter({ email: p.seller_email }).catch(() => []);
       const seller = sellers[0];
       if (seller) {
-        const allOutcomes = await base44.asServiceRole.entities.TransferOutcome.filter({ seller_email: p.seller_email }).catch(() => []);
-        const successCount = allOutcomes.filter(o => o.transfer_successful).length;
-        const failCount = allOutcomes.filter(o => !o.transfer_successful).length;
+        // RACE-PROOF: derive from authoritative Purchase rows (transfer_status),
+        // not from TransferOutcome records which can be duplicated by the
+        // existence-check race. Mirrors recordTerminalOutcome's derivation.
+        const completedPurchases = await base44.asServiceRole.entities.Purchase.filter({
+          seller_email: p.seller_email, transfer_status: 'completed',
+        }).catch(() => []);
+        const disputedPurchases = await base44.asServiceRole.entities.Purchase.filter({
+          seller_email: p.seller_email, transfer_status: 'disputed',
+        }).catch(() => []);
         const flagged = await base44.asServiceRole.entities.Purchase.filter({
           seller_email: p.seller_email, false_claim_recorded: true,
         }).catch(() => []);
-        const falseClaimCount = flagged.length;
+        const successCount = completedPurchases.filter(x => !x.is_demo).length;
+        const failCount = disputedPurchases.filter(x => !x.is_demo).length;
+        const falseClaimCount = flagged.filter(x => !x.is_demo).length;
         const total = successCount + failCount;
         let reliability = total > 0 ? Math.round((successCount / total) * 100) : 70;
         if (failCount > 0) reliability = Math.max(0, reliability - 5);

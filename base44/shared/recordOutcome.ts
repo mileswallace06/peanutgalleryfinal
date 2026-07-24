@@ -147,10 +147,16 @@ export async function recordTerminalOutcome(base44, purchase) {
     // self-calibration is best-effort
   }
 
-  // 4. Seller trust — DERIVED from authoritative records (idempotent recompute).
-  //    The false-claim flag is an idempotent $set; the false-claim count is
-  //    derived from flagged purchases. A duplicate invocation cannot
-  //    double-count: it recomputes the same totals.
+  // 4. Seller trust — DERIVED from authoritative Purchase rows (RACE-PROOF).
+  //    Counts come from distinct Purchase records (transfer_status completed
+  //    vs disputed) — the source of truth that can never be duplicated — NOT
+  //    from TransferOutcome records, which a concurrent existence-check race
+  //    can duplicate. This makes duplicate outcome records harmless to trust:
+  //    a duplicate invocation recomputes the SAME totals and cannot
+  //    double-count. (Only a duplicate RECORD inflated the old outcome-derived
+  //    count; reconciling the records now leaves trust untouched either way.)
+  //    The false-claim flag is an idempotent $set; its count is derived from
+  //    flagged purchases.
   if (purchase.seller_email) {
     try {
       if (!isSuccess) {
@@ -161,15 +167,20 @@ export async function recordTerminalOutcome(base44, purchase) {
       const sellers = await base44.asServiceRole.entities.User.filter({ email: purchase.seller_email });
       const seller = sellers[0];
       if (seller) {
-        const outcomes = await base44.asServiceRole.entities.TransferOutcome.filter({
-          seller_email: purchase.seller_email,
+        const completedPurchases = await base44.asServiceRole.entities.Purchase.filter({
+          seller_email: purchase.seller_email, transfer_status: 'completed',
         }).catch(() => []);
-        const successCount = outcomes.filter(o => o.transfer_successful).length;
-        const failCount = outcomes.filter(o => !o.transfer_successful).length;
+        const disputedPurchases = await base44.asServiceRole.entities.Purchase.filter({
+          seller_email: purchase.seller_email, transfer_status: 'disputed',
+        }).catch(() => []);
         const flagged = await base44.asServiceRole.entities.Purchase.filter({
           seller_email: purchase.seller_email, false_claim_recorded: true,
         }).catch(() => []);
-        const falseClaimCount = flagged.length;
+
+        // Exclude demo purchases from real trust scoring.
+        const successCount = completedPurchases.filter(p => !p.is_demo).length;
+        const failCount = disputedPurchases.filter(p => !p.is_demo).length;
+        const falseClaimCount = flagged.filter(p => !p.is_demo).length;
 
         const total = successCount + failCount;
         let reliability = total > 0 ? Math.round((successCount / total) * 100) : 70;
