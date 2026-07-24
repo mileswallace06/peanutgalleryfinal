@@ -31,6 +31,9 @@ Deno.serve(async (req) => {
     if (newStatus === oldStatus) return Response.json({ skipped: 'no status change' });
     if (!['completed', 'disputed'].includes(newStatus)) return Response.json({ skipped: 'not a terminal status' });
 
+    // Demo purchases never affect real revenue, trust, or transfer intelligence.
+    if (purchase.is_demo === true) return Response.json({ skipped: 'demo purchase' });
+
     const isSuccess = newStatus === 'completed';
     const now = new Date().toISOString();
 

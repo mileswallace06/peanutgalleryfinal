@@ -33,6 +33,11 @@ async function notify(base44, userEmail, title, body, type, purchaseId) {
   }
 }
 
+// ── Fee engine (mirrors feeEngine.js ACTIVE_FEE_MODEL_ID = 'buyer_5_min_1') ──
+function calcPlatformFee(subtotal) {
+  return Math.max(1.00, Math.round(subtotal * 0.05 * 100) / 100);
+}
+
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
   const user = await base44.auth.me();
@@ -46,159 +51,179 @@ Deno.serve(async (req) => {
   }
 
   const stripe = new Stripe(secretKey);
-  const { purchase_id, confirming_role, optimistic_id } = await req.json();
+  const { purchase_id, optimistic_id } = await req.json();
 
-  if (!purchase_id || !confirming_role) {
-    return Response.json({ error: 'purchase_id and confirming_role are required' }, { status: 400 });
+  if (!purchase_id) {
+    return Response.json({ error: 'purchase_id is required' }, { status: 400 });
   }
 
+  // ── Re-fetch the authoritative Purchase ──────────────────────────────────
   const purchases = await base44.asServiceRole.entities.Purchase.filter({ id: purchase_id });
   const purchase = purchases[0];
   if (!purchase) {
     return Response.json({ error: 'Purchase not found' }, { status: 404 });
   }
 
+  // Demo purchases are never captured.
+  if (purchase.is_demo) {
+    return Response.json({ error: 'Cannot capture a demo purchase' }, { status: 409 });
+  }
+
   if (purchase.transfer_status === 'completed') {
     return Response.json({ status: 'already_completed' });
   }
-
   if (purchase.transfer_status === 'disputed') {
     return Response.json({ error: 'Cannot capture payment on a disputed purchase' }, { status: 409 });
   }
+  if (purchase.transfer_status === 'expired') {
+    return Response.json({ error: 'Cannot capture payment on an expired purchase' }, { status: 409 });
+  }
 
-  // FRAUD-3: Block buyer confirmation before seller has confirmed
-  if (confirming_role === 'buyer' && !purchase.seller_confirmed) {
+  // ── Authorization: only the buyer (or admin) may confirm receipt ──────────
+  if (purchase.buyer_email !== user.email && user.role !== 'admin') {
+    return Response.json({ error: 'Not authorized as buyer' }, { status: 403 });
+  }
+
+  // Buyer may not confirm before the seller has confirmed transfer.
+  if (!purchase.seller_confirmed) {
     return Response.json({ error: 'Cannot confirm receipt before seller confirms transfer' }, { status: 409 });
   }
 
-  // RISK-3: Server-side proof validation — seller must provide proof before confirming
-  if (confirming_role === 'seller') {
-    const hasProof = (purchase.transfer_proof_url && purchase.transfer_proof_url.trim()) ||
-                     (purchase.transfer_notes && purchase.transfer_notes.trim());
-    if (!hasProof) {
-      return Response.json({ error: 'Please upload a screenshot or add a transfer note before confirming.' }, { status: 400 });
-    }
+  // Set ONLY the buyer-confirmation field.
+  await base44.asServiceRole.entities.Purchase.update(purchase.id, { buyer_confirmed: true });
+
+  // If the seller has not yet confirmed, there is nothing to capture yet.
+  if (!purchase.seller_confirmed) {
+    return Response.json({ status: 'confirmed', buyer_confirmed: true, seller_confirmed: false, optimistic_id });
   }
 
-  // CRITICAL-3: Block point awards on self-purchase (alt-account farming)
+  // ── Both confirmations present — verify + capture ─────────────────────────
+  // Atomic guard: re-fetch before capturing to prevent double-charge.
+  const [freshPurchase] = await base44.asServiceRole.entities.Purchase.filter({ id: purchase.id });
+  if (freshPurchase?.payment_captured === true || freshPurchase?.transfer_status === 'completed') {
+    return Response.json({ status: 'already_completed' });
+  }
+
+  // Re-fetch the authoritative Listing to verify reservation + seller.
+  const [listing] = await base44.asServiceRole.entities.Listing.filter({ id: purchase.listing_id }).catch(() => []);
+  if (!listing) {
+    return Response.json({ error: 'Listing not found' }, { status: 404 });
+  }
+
+  // ── Verify the Stripe PaymentIntent matches the Purchase ──────────────────
+  if (!purchase.payment_intent_id || purchase.payment_intent_id !== freshPurchase.payment_intent_id) {
+    console.error('[capturePayment] PaymentIntent id mismatch', purchase.id);
+    return Response.json({ error: 'Payment verification failed' }, { status: 500 });
+  }
+
+  let pi;
+  try {
+    pi = await stripe.paymentIntents.retrieve(purchase.payment_intent_id);
+  } catch (err) {
+    console.error('[capturePayment] Failed to retrieve PaymentIntent', purchase.id, err?.message);
+    return Response.json({ error: 'Payment verification failed' }, { status: 500 });
+  }
+
+  // Verify Stripe metadata matches the authoritative Purchase + Listing.
+  const md = pi.metadata || {};
+  const metadataMatches =
+    md.listing_id === purchase.listing_id &&
+    md.event_id === (purchase.event_id || '') &&
+    md.buyer_email === purchase.buyer_email &&
+    md.seller_email === purchase.seller_email;
+  if (!metadataMatches) {
+    console.error('[capturePayment] Stripe metadata mismatch', purchase.id, { md, purchase });
+    return Response.json({ error: 'Payment verification failed' }, { status: 500 });
+  }
+
+  // Verify amount + currency match the server-calculated values.
+  const expectedSubtotal = Math.round(listing.asking_price * (listing.quantity || 1) * 100) / 100;
+  const expectedPlatformFee = calcPlatformFee(expectedSubtotal);
+  const expectedBuyerTotal = Math.round((expectedSubtotal + expectedPlatformFee) * 100) / 100;
+  const expectedAmountCents = Math.round(expectedBuyerTotal * 100);
+  if (pi.amount !== expectedAmountCents || (pi.currency || 'usd') !== 'usd') {
+    console.error('[capturePayment] Amount/currency mismatch', purchase.id, { piAmount: pi.amount, expected: expectedAmountCents, currency: pi.currency });
+    return Response.json({ error: 'Payment verification failed' }, { status: 500 });
+  }
+  // Cross-check the Purchase's stored amount against the recalculated value.
+  if (Math.round((purchase.amount || 0) * 100) !== expectedAmountCents) {
+    console.error('[capturePayment] Purchase amount mismatch', purchase.id, { stored: purchase.amount, expected: expectedBuyerTotal });
+    return Response.json({ error: 'Payment verification failed' }, { status: 500 });
+  }
+
+  // Verify the connected Stripe account matches the seller on the Listing.
+  const [sellerUsers] = await base44.asServiceRole.entities.User.filter({ email: purchase.seller_email }).catch(() => []);
+  const seller = sellerUsers || [];
+  const sellerRecord = seller[0];
+  const sellerStripeAccountId = sellerRecord?.stripe_account_id || null;
+  if (sellerStripeAccountId && pi.transfer_data?.destination && pi.transfer_data.destination !== sellerStripeAccountId) {
+    console.error('[capturePayment] Seller account mismatch', purchase.id, { piDest: pi.transfer_data.destination, seller: sellerStripeAccountId });
+    return Response.json({ error: 'Payment verification failed' }, { status: 500 });
+  }
+
+  // Verify the reservation token on the Listing matches the PaymentIntent metadata.
+  if (md.reservation_token && listing.reservation_token && md.reservation_token !== listing.reservation_token) {
+    console.error('[capturePayment] Reservation token mismatch', purchase.id);
+    return Response.json({ error: 'Payment verification failed' }, { status: 500 });
+  }
+
+  // ── Capture (idempotent) ───────────────────────────────────────────────────
+  if (pi.status === 'requires_capture') {
+    try {
+      await stripe.paymentIntents.capture(purchase.payment_intent_id, {
+        idempotencyKey: `capture-${purchase.id}`,
+      });
+    } catch (stripeErr) {
+      console.error('[capturePayment] Stripe capture FAILED:', purchase.id, stripeErr?.message);
+      await base44.asServiceRole.entities.Purchase.update(purchase.id, {
+        payment_capture_failed: true,
+      }).catch(() => {});
+      base44.asServiceRole.functions.invoke('sendNotificationEmail', {
+        to: 'experience@peanutgallery.store',
+        subject: `🚨 Stripe Capture Failed — Purchase ${purchase.id}`,
+        body: `Stripe payment capture failed.\n\nPurchase: ${purchase.id}\nBuyer: ${purchase.buyer_email}\nSeller: ${purchase.seller_email}\nAmount: $${purchase.amount?.toFixed(2)}\nError: ${stripeErr?.message}\n\nReview and retry capture in Stripe dashboard.`,
+      }).catch(() => {});
+      return Response.json({ error: 'Payment capture failed. Our team has been notified.' }, { status: 500 });
+    }
+  } else if (pi.status !== 'succeeded') {
+    console.warn('[capturePayment] PI in unexpected state:', pi.status, purchase.payment_intent_id);
+  }
+
+  // Stripe capture succeeded — now mark DB complete.
+  await base44.asServiceRole.entities.Purchase.update(purchase.id, {
+    transfer_status: 'completed',
+    payment_captured: true,
+    payment_capture_failed: false,
+  });
+
+  // Clear listing reservation and mark sold.
+  await base44.asServiceRole.entities.Listing.update(purchase.listing_id, {
+    status: 'sold',
+    reservation_token: null,
+    reservation_expires_at: null,
+    reserved_by_email: null,
+  }).catch(() => {});
+
+  // Award points only if not a self-purchase.
   const isSelfPurchase = purchase.seller_email === purchase.buyer_email;
   if (isSelfPurchase) {
-    console.warn('[capturePayment] SELF-PURCHASE DETECTED — blocking point awards:', {
-      seller: purchase.seller_email,
-      buyer: purchase.buyer_email,
-      purchase_id: purchase.id,
-    });
-  }
-
-  // Update the confirming party
-  const update = {};
-  if (confirming_role === 'seller') {
-    if (purchase.seller_email !== user.email && user.role !== 'admin') {
-      return Response.json({ error: 'Not authorized as seller' }, { status: 403 });
-    }
-    update.seller_confirmed = true;
-  } else if (confirming_role === 'buyer') {
-    if (purchase.buyer_email !== user.email && user.role !== 'admin') {
-      return Response.json({ error: 'Not authorized as buyer' }, { status: 403 });
-    }
-    update.buyer_confirmed = true;
+    console.warn('[capturePayment] SELF-PURCHASE DETECTED — blocking point awards:', purchase.id);
   } else {
-    return Response.json({ error: 'confirming_role must be buyer or seller' }, { status: 400 });
+    awardPoints(base44, purchase.seller_email, 'sale_completed', purchase.id, 'purchase');
+    awardPoints(base44, purchase.buyer_email, 'purchase', purchase.id, 'purchase');
   }
 
-  await base44.asServiceRole.entities.Purchase.update(purchase.id, update);
+  notify(base44, purchase.seller_email, 'Sale complete 💸', 'Your payout is processing. Stripe deposits typically take 2–7 business days. First-time payouts may take up to 14 days.', 'sale_complete', purchase.id);
+  notify(base44, purchase.buyer_email, 'Transfer confirmed ✅', 'You confirmed receiving your tickets. Payment has been released to the seller. Enjoy the show!', 'buyer_confirmed', purchase.id);
 
-  const updatedBuyerConfirmed = confirming_role === 'buyer' ? true : purchase.buyer_confirmed;
-  const updatedSellerConfirmed = confirming_role === 'seller' ? true : purchase.seller_confirmed;
-
-  if (updatedBuyerConfirmed && updatedSellerConfirmed) {
-    // CRITICAL-6: Atomic capture guard — re-fetch before capturing
-    const [freshPurchase] = await base44.asServiceRole.entities.Purchase.filter({ id: purchase.id });
-    if (freshPurchase?.payment_captured === true || freshPurchase?.transfer_status === 'completed') {
-      return Response.json({ status: 'already_completed' });
-    }
-
-    // HIGH-D: Attempt Stripe capture FIRST, then mark DB complete
-    const pi = await stripe.paymentIntents.retrieve(purchase.payment_intent_id);
-    if (pi.status === 'requires_capture') {
-      try {
-        await stripe.paymentIntents.capture(purchase.payment_intent_id, {
-          idempotencyKey: `capture-${purchase.id}`,
-        });
-      } catch (stripeErr) {
-        console.error('[capturePayment] Stripe capture FAILED:', purchase.id, stripeErr?.message);
-        // Mark as capture failed so admin can review and retry
-        await base44.asServiceRole.entities.Purchase.update(purchase.id, {
-          payment_capture_failed: true,
-        }).catch(() => {});
-        // Notify admin
-        base44.asServiceRole.functions.invoke('sendNotificationEmail', {
-          to: 'experience@peanutgallery.store',
-          subject: `🚨 Stripe Capture Failed — Purchase ${purchase.id}`,
-          body: `Stripe payment capture failed.\n\nPurchase: ${purchase.id}\nBuyer: ${purchase.buyer_email}\nSeller: ${purchase.seller_email}\nAmount: $${purchase.amount?.toFixed(2)}\nError: ${stripeErr?.message}\n\nReview and retry capture in Stripe dashboard.`,
-        }).catch(() => {});
-        return Response.json({ error: 'Payment capture failed. Our team has been notified.' }, { status: 500 });
-      }
-    } else if (pi.status !== 'succeeded') {
-      console.warn('[capturePayment] PI in unexpected state:', pi.status, purchase.payment_intent_id);
-    }
-
-    // Stripe capture succeeded — now mark DB complete
-    await base44.asServiceRole.entities.Purchase.update(purchase.id, {
-      transfer_status: 'completed',
-      payment_captured: true,
-      payment_capture_failed: false,
-    });
-
-    // Clear listing reservation and mark sold
-    await base44.asServiceRole.entities.Listing.update(purchase.listing_id, {
-      status: 'sold',
-      reservation_token: null,
-      reservation_expires_at: null,
-      reserved_by_email: null,
-    }).catch(() => {});
-
-    // Award points only if not a self-purchase
-    if (!isSelfPurchase) {
-      awardPoints(base44, purchase.seller_email, 'sale_completed', purchase.id, 'purchase');
-      awardPoints(base44, purchase.buyer_email, 'purchase', purchase.id, 'purchase');
-    }
-
-    notify(base44, purchase.seller_email, 'Sale complete 💸', 'Your payout is processing. Stripe deposits typically take 2–7 business days. First-time payouts may take up to 14 days.', 'sale_complete', purchase.id);
-    notify(base44, purchase.buyer_email, 'Transfer confirmed ✅', 'You confirmed receiving your tickets. Payment has been released to the seller. Enjoy the show!', 'buyer_confirmed', purchase.id);
-
-    return Response.json({ status: 'completed', payment_captured: true, optimistic_id: optimistic_id });
-  }
-
-  // ── Mid-flow: seller just confirmed transfer ──────────────────────────────
-  if (confirming_role === 'seller') {
-    await base44.asServiceRole.entities.Purchase.update(purchase.id, {
-      seller_confirmed_at: new Date().toISOString(),
-    });
-    // Quick fulfillment bonus: if seller confirms within 4 hours of purchase
-    const purchasedAt = new Date(purchase.created_date).getTime();
-    const hoursElapsed = (Date.now() - purchasedAt) / 3600000;
-    if (hoursElapsed <= 1) {
-      awardPoints(base44, purchase.seller_email, 'seller_transfer_1hr', purchase.id, 'purchase');
-    } else if (hoursElapsed <= 4) {
-      // no bonus tier for >1hr but still within same-day — no action
-    }
-    notify(base44, purchase.buyer_email, 'Tickets sent 🚀', 'Your seller has sent the tickets! Check your email and ticket app (Ticketmaster, SeatGeek, etc.), then confirm receipt in the app to release payment.', 'tickets_sent', purchase.id);
-  }
-
-  // Quick buyer confirm bonus
-  if (confirming_role === 'buyer' && purchase.seller_confirmed_at) {
+  // Quick buyer confirm bonus (within 1 hour of seller confirm).
+  if (purchase.seller_confirmed_at) {
     const sentAt = new Date(purchase.seller_confirmed_at).getTime();
     const hoursElapsed = (Date.now() - sentAt) / 3600000;
-    if (hoursElapsed <= 1) {
+    if (hoursElapsed <= 1 && !isSelfPurchase) {
       awardPoints(base44, purchase.buyer_email, 'buyer_confirm_1hr', purchase.id, 'purchase');
     }
   }
 
-  return Response.json({
-    status: 'confirmed',
-    buyer_confirmed: updatedBuyerConfirmed,
-    seller_confirmed: updatedSellerConfirmed,
-    optimistic_id: optimistic_id
-  });
+  return Response.json({ status: 'completed', payment_captured: true, optimistic_id });
 });

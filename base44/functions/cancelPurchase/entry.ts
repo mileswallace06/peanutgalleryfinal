@@ -26,21 +26,53 @@ Deno.serve(async (req) => {
     return Response.json({ error: 'Purchase not found' }, { status: 404 });
   }
 
-  // Only buyer can cancel
+  // Only the buyer can cancel.
   if (purchase.buyer_email !== user.email && user.role !== 'admin') {
     return Response.json({ error: 'Only the buyer can cancel a purchase' }, { status: 403 });
+  }
+
+  // Demo purchases have no real payment — no refund path.
+  if (purchase.is_demo) {
+    await base44.asServiceRole.entities.Purchase.update(purchase.id, { transfer_status: 'expired' }).catch(() => {});
+    return Response.json({ status: 'cancelled' });
   }
 
   const terminal = ['completed', 'expired'];
   if (terminal.includes(purchase.transfer_status)) {
     return Response.json({ error: `Cannot cancel a ${purchase.transfer_status} purchase` }, { status: 409 });
   }
-  // disputed purchases can be refunded (by admin or buyer)
   if (purchase.payment_captured) {
     return Response.json({ error: 'Payment already captured' }, { status: 409 });
   }
 
-  // Cancel or refund the PaymentIntent
+  // ── Prevent unsafe cancellation after the seller confirms transfer ────────
+  // Once the seller has confirmed, the tickets may already have been sent.
+  // A buyer cancellation must NOT immediately cancel/refund the PaymentIntent —
+  // it opens a dispute / administrative-review state instead.
+  if (purchase.seller_confirmed) {
+    await base44.asServiceRole.entities.Purchase.update(purchase.id, {
+      transfer_status: 'disputed',
+      dispute_reason: 'Buyer cancelled after seller confirmed transfer',
+    });
+
+    base44.asServiceRole.functions.invoke('sendUserNotification', {
+      user_email: purchase.seller_email,
+      title: 'Buyer cancelled after you confirmed',
+      body: 'The buyer cancelled after you confirmed transfer. If you already sent tickets on Ticketmaster/SeatGeek, please contact support immediately. The payment is frozen pending review.',
+      type: 'listing_expired',
+      purchase_id: purchase.id,
+    }).catch(() => {});
+
+    base44.asServiceRole.functions.invoke('sendNotificationEmail', {
+      to: 'experience@peanutgallery.store',
+      subject: `⚠️ Buyer cancelled after seller confirmed — ${purchase.id}`,
+      body: `Buyer cancelled purchase AFTER seller confirmed transfer. Payment is NOT refunded — dispute opened for admin review.\n\nPurchase: ${purchase.id}\nBuyer: ${purchase.buyer_email}\nSeller: ${purchase.seller_email}\nAmount: $${purchase.amount?.toFixed(2)}\n\nINVESTIGATE: Were tickets already transferred? Contact seller to confirm, then resolve the dispute in the admin panel.`,
+    }).catch(() => {});
+
+    return Response.json({ status: 'disputed', message: 'Because the seller already confirmed transfer, your request has been opened as a dispute for admin review instead of an automatic refund.' });
+  }
+
+  // ── Safe cancellation (before seller confirmed) ───────────────────────────
   const pi = await stripe.paymentIntents.retrieve(purchase.payment_intent_id);
   if (pi.status === 'requires_capture') {
     await stripe.paymentIntents.cancel(purchase.payment_intent_id);
@@ -49,12 +81,10 @@ Deno.serve(async (req) => {
   }
 
   await base44.asServiceRole.entities.Purchase.update(purchase.id, {
-    transfer_status: 'expired'
+    transfer_status: 'expired',
   });
 
-  // Only restore listing to active if it's currently pending_transfer.
-  // Don't override cancelled/sold/hidden — that would re-list a cancelled listing
-  // or un-lock a sold listing, causing double-sale or inventory conflicts.
+  // Only restore the listing if it is currently pending_transfer.
   const [currentListing] = await base44.asServiceRole.entities.Listing.filter({ id: purchase.listing_id });
   if (currentListing && currentListing.status === 'pending_transfer') {
     await base44.asServiceRole.entities.Listing.update(purchase.listing_id, {
@@ -65,27 +95,13 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Notify seller that the purchase was cancelled — they may have already
-  // initiated a ticket transfer on Ticketmaster/SeatGeek and must be warned.
-  const sellerMessage = purchase.seller_confirmed
-    ? 'The buyer cancelled after you confirmed transfer. If you already sent tickets on Ticketmaster/SeatGeek, please contact support immediately.'
-    : 'The buyer cancelled their purchase. Your listing has been restored to active.';
   base44.asServiceRole.functions.invoke('sendUserNotification', {
     user_email: purchase.seller_email,
     title: 'Purchase cancelled',
-    body: sellerMessage,
+    body: 'The buyer cancelled their purchase. Your listing has been restored to active.',
     type: 'listing_expired',
     purchase_id: purchase.id,
   }).catch(() => {});
-
-  // If seller had already confirmed, alert admin — tickets may have been transferred
-  if (purchase.seller_confirmed) {
-    base44.asServiceRole.functions.invoke('sendNotificationEmail', {
-      to: 'experience@peanutgallery.store',
-      subject: `⚠️ Purchase cancelled after seller confirmed — ${purchase.id}`,
-      body: `Buyer cancelled purchase AFTER seller confirmed transfer.\n\nPurchase: ${purchase.id}\nBuyer: ${purchase.buyer_email}\nSeller: ${purchase.seller_email}\nAmount: $${purchase.amount?.toFixed(2)}\nSeller had confirmed: ${purchase.seller_confirmed}\n\nINVESTIGATE: Were tickets already transferred? Contact seller to confirm.`,
-    }).catch(() => {});
-  }
 
   return Response.json({ status: 'cancelled' });
 });
