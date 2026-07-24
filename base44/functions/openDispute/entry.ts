@@ -9,6 +9,7 @@
  * Body: { purchase_id, reason }
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { recordNotification, sendTransactionalEmail } from '../../shared/notifications.ts';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
@@ -48,8 +49,8 @@ Deno.serve(async (req) => {
     dispute_reason: disputeReason,
   });
 
-  // Notify buyer, seller, and support — fire-and-forget.
-  base44.asServiceRole.functions.invoke('recordNotification', {
+  // Notify buyer, seller, and support — fire-and-forget via shared module (in-process).
+  recordNotification(base44, {
     user_email: purchase.buyer_email,
     type: 'dispute_opened',
     title: 'Dispute submitted ⚖️',
@@ -58,7 +59,7 @@ Deno.serve(async (req) => {
     reference_type: 'purchase',
     action_url: `/purchase/${purchase.id}`,
   }).catch(() => {});
-  base44.asServiceRole.functions.invoke('recordNotification', {
+  recordNotification(base44, {
     user_email: purchase.seller_email,
     type: 'dispute_opened',
     title: 'Buyer opened a dispute ⚖️',
@@ -67,11 +68,10 @@ Deno.serve(async (req) => {
     reference_type: 'purchase',
     action_url: `/purchase/${purchase.id}`,
   }).catch(() => {});
-  base44.asServiceRole.functions.invoke('sendNotificationEmail', {
-    to: 'experience@peanutgallery.store',
-    subject: `⚠️ Dispute opened — Purchase ${purchase.id}`,
-    body: `A dispute has been opened on Peanut Gallery.\n\nPurchase ID: ${purchase.id}\nBuyer: ${purchase.buyer_email}${purchase.buyer_name ? ` (${purchase.buyer_name})` : ''}\nSeller: ${purchase.seller_email}\nAmount: $${purchase.amount?.toFixed(2)}\nReason: ${disputeReason}\n\nReview in the admin panel and resolve promptly.\n\n— Peanut Gallery`,
-  }).catch(err => console.error('[openDispute] email notify failed:', err?.message));
+  sendTransactionalEmail(base44, 'experience@peanutgallery.store',
+    `⚠️ Dispute opened — Purchase ${purchase.id}`,
+    `A dispute has been opened on Peanut Gallery.\n\nPurchase ID: ${purchase.id}\nBuyer: ${purchase.buyer_email}${purchase.buyer_name ? ` (${purchase.buyer_name})` : ''}\nSeller: ${purchase.seller_email}\nAmount: $${purchase.amount?.toFixed(2)}\nReason: ${disputeReason}\n\nReview in the admin panel and resolve promptly.\n\n— Peanut Gallery`
+  ).catch(err => console.error('[openDispute] email notify failed:', err?.message));
 
   return Response.json({ status: 'disputed' });
 });

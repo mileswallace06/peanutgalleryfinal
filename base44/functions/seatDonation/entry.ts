@@ -1,4 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { recordNotification } from '../../shared/notifications.ts';
+import { awardPointsInternal } from '../../shared/points.ts';
 
 /**
  * seatDonation — Seat Donation System backend
@@ -233,15 +235,8 @@ Deno.serve(async (req) => {
         source_purchase_id: source_purchase_id || null,
       });
 
-      // Award donor points via awardPoints function (internal trusted call)
-      await base44.asServiceRole.functions.invoke('awardPoints', {
-        _internal_service_call: true,
-        action: 'seat_donation_created',
-        reference_id: donation.id,
-        reference_type: 'listing',
-        description: 'Donated seats to the community',
-        target_email: user.email,
-      }).catch(() => {});
+      // Award donor points via shared points module (in-process trusted call)
+      await awardPointsInternal(base44, user.email, 'seat_donation_created', donation.id, 'listing', { description: 'Donated seats to the community' }).catch(() => {});
 
       // Immediately run a draw for the new donation
       const drawResult = await runDraw(base44, donation.id, user.email);
@@ -286,24 +281,10 @@ Deno.serve(async (req) => {
           });
         }
 
-        // Award points to both recipient and donor in parallel (internal trusted calls)
+        // Award points to both recipient and donor in parallel (in-process trusted calls)
         await Promise.all([
-          base44.asServiceRole.functions.invoke('awardPoints', {
-            _internal_service_call: true,
-            action: 'donation_received',
-            reference_id: donation_id,
-            reference_type: 'listing',
-            description: `${donation.is_anonymous ? 'A fan' : (donation.donor_name || 'A fan')} upgraded your night`,
-            target_email: user.email,
-          }).catch(() => {}),
-          base44.asServiceRole.functions.invoke('awardPoints', {
-            _internal_service_call: true,
-            action: 'donation_accepted',
-            reference_id: donation_id + '_accepted',
-            reference_type: 'listing',
-            description: 'Your seat donation was accepted',
-            target_email: donation.donor_email,
-          }).catch(() => {}),
+          awardPointsInternal(base44, user.email, 'donation_received', donation_id, 'listing', { description: `${donation.is_anonymous ? 'A fan' : (donation.donor_name || 'A fan')} upgraded your night` }).catch(() => {}),
+          awardPointsInternal(base44, donation.donor_email, 'donation_accepted', donation_id + '_accepted', 'listing', { description: 'Your seat donation was accepted' }).catch(() => {}),
         ]);
 
         return Response.json({ success: true, status: 'accepted' });
@@ -388,8 +369,8 @@ async function runDraw(base44, donationId, excludeEmail) {
     reroll_count: rerollCount,
   });
 
-  // Notify winner — in-app + push + email
-  base44.asServiceRole.functions.invoke('recordNotification', {
+  // Notify winner — in-app + push + email (shared module, in-process)
+  recordNotification(base44, {
     user_email: winner.user.email,
     type: 'donation_won',
     title: '🎁 You won a seat donation!',

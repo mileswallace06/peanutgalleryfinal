@@ -1,28 +1,28 @@
 /**
  * Shared fire-and-forget helpers for purchase-related backend functions.
- * Plain module — no Deno.serve. Import from functions that need to award
- * points or record notifications without blocking the main response.
+ * Plain module — no Deno.serve. Imported by trusted backend functions and run
+ * in-process; never re-invokes a public function, so there is no spoofable
+ * internal-call header.
  */
 
-// Fire-and-forget points award — never throws
+import { recordNotification } from './notifications.ts';
+import { awardPointsInternal } from './points.ts';
+
+// Fire-and-forget points award — never throws. Trusted: the caller has already
+// verified the marketplace state; awardPointsInternal re-validates the record.
 export async function awardPoints(base44, userEmail, action, referenceId, referenceType) {
   try {
-    await base44.asServiceRole.functions.invoke('awardPoints', {
-      _internal_service_call: true,
-      action,
-      reference_id: referenceId,
-      reference_type: referenceType,
-      target_email: userEmail,
-    });
+    await awardPointsInternal(base44, userEmail, action, referenceId, referenceType);
   } catch (err) {
     console.error('[purchase] awardPoints failed for', userEmail, '|', err?.message);
   }
 }
 
-// Fire-and-forget notification — records in-app + push + email
+// Fire-and-forget notification — records in-app + push + email. Title/body/type
+// are produced server-side by the caller; the buyer never supplies content.
 export async function notify(base44, userEmail, title, body, type, purchaseId) {
   try {
-    await base44.asServiceRole.functions.invoke('recordNotification', {
+    await recordNotification(base44, {
       user_email: userEmail,
       title,
       body,

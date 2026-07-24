@@ -12,6 +12,7 @@
  */
 
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { sendTransactionalEmail } from '../../shared/notifications.ts';
 
 // ── Confidence thresholds ─────────────────────────────────────────────────────
 const THRESHOLDS = {
@@ -314,11 +315,10 @@ Return ONLY valid JSON with this exact structure:
 
     // ── Admin alerts for high-risk results ───────────────────────────────────
     if (aiProofStatus === 'rejected_suspicious' || fraudRiskScore >= 60) {
-      base44.asServiceRole.functions.invoke('sendNotificationEmail', {
-        to: 'experience@peanutgallery.store',
-        subject: `🚨 AI Flagged Suspicious Transfer Proof — Purchase ${purchase_id}`,
-        body: `AI Transfer Verification flagged a suspicious proof upload.\n\nPurchase: ${purchase_id}\nSeller: ${purchase.seller_email}\nBuyer: ${purchase.buyer_email}\nAmount: $${purchase.amount?.toFixed(2)}\n\nAI Status: ${aiProofStatus}\nConfidence: ${score}/100\nFraud Risk: ${fraudRiskScore}/100\nFlags: ${flags.join(', ') || 'none'}\n\nAI Summary: ${aiResult.verification_summary}\n\nReview in admin panel immediately.`,
-      }).catch(() => {});
+      sendTransactionalEmail(base44, 'experience@peanutgallery.store',
+        `🚨 AI Flagged Suspicious Transfer Proof — Purchase ${purchase_id}`,
+        `AI Transfer Verification flagged a suspicious proof upload.\n\nPurchase: ${purchase_id}\nSeller: ${purchase.seller_email}\nBuyer: ${purchase.buyer_email}\nAmount: $${purchase.amount?.toFixed(2)}\n\nAI Status: ${aiProofStatus}\nConfidence: ${score}/100\nFraud Risk: ${fraudRiskScore}/100\nFlags: ${flags.join(', ') || 'none'}\n\nAI Summary: ${aiResult.verification_summary}\n\nReview in admin panel immediately.`
+      ).catch(() => {});
     }
 
     console.log(`[verifyTransferProof] purchase=${purchase_id} status=${aiProofStatus} score=${score} fraud_risk=${fraudRiskScore}`);

@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { recordNotification } from '../../shared/notifications.ts';
 
 Deno.serve(async (req) => {
   try {
@@ -53,8 +54,8 @@ Deno.serve(async (req) => {
       notes: `Admin rejected listing. Reason: ${reason.trim()}`,
     });
 
-    // 6. Notify seller (fire-and-forget)
-    base44.asServiceRole.functions.invoke('recordNotification', {
+    // 6. Notify seller (fire-and-forget, shared module — in-process)
+    recordNotification(base44, {
       user_email: listing.seller_email,
       type: 'listing_rejected',
       title: 'Listing not approved',

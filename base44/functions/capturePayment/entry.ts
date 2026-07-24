@@ -1,6 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import Stripe from 'npm:stripe@14.21.0';
 import { awardPoints, notify, calcPlatformFee } from '../../shared/purchaseNotifications.ts';
+import { sendTransactionalEmail } from '../../shared/notifications.ts';
 
 /**
  * capturePayment — STRICT state-machine for finalizing a real (non-demo) purchase.
@@ -184,11 +185,10 @@ Deno.serve(async (req) => {
     } catch (stripeErr) {
       console.error('[capturePayment] Stripe capture FAILED:', purchase.id, stripeErr?.message);
       await base44.asServiceRole.entities.Purchase.update(purchase.id, { payment_capture_failed: true }).catch(() => {});
-      base44.asServiceRole.functions.invoke('sendNotificationEmail', {
-        to: 'experience@peanutgallery.store',
-        subject: `🚨 Stripe Capture Failed — Purchase ${purchase.id}`,
-        body: `Stripe payment capture failed.\n\nPurchase: ${purchase.id}\nBuyer: ${purchase.buyer_email}\nSeller: ${purchase.seller_email}\nAmount: $${purchase.amount?.toFixed(2)}\nError: ${stripeErr?.message}\n\nReview and retry capture in Stripe dashboard.`,
-      }).catch(() => {});
+      sendTransactionalEmail(base44, 'experience@peanutgallery.store',
+        `🚨 Stripe Capture Failed — Purchase ${purchase.id}`,
+        `Stripe payment capture failed.\n\nPurchase: ${purchase.id}\nBuyer: ${purchase.buyer_email}\nSeller: ${purchase.seller_email}\nAmount: $${purchase.amount?.toFixed(2)}\nError: ${stripeErr?.message}\n\nReview and retry capture in Stripe dashboard.`
+      ).catch(() => {});
       return Response.json({ error: 'Payment capture failed. Our team has been notified.' }, { status: 500 });
     }
   }

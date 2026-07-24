@@ -1,8 +1,18 @@
 /**
- * recordTransferOutcome
- * 
- * Triggered by Purchase entity automation on status changes to 'completed' or 'disputed'.
- * Records a TransferOutcome and updates the seller's reliability score.
+ * recordTransferOutcome — Purchase entity-automation handler (update).
+ *
+ * SECURITY MODEL (automation replay/forgery hardening):
+ *   - NEVER trust `data` / `old_data` / emails / status supplied in the request
+ *     body. A public caller could POST an entity-shaped body.
+ *   - Extract ONLY the entity id from the automation payload, then re-fetch the
+ *     authoritative Purchase via service role. Base ALL writes on the fetched
+ *     record.
+ *   - Idempotent: a (purchase_id, transfer_successful) outcome is created at
+ *     most once. Replayed triggers or irrelevant updates cannot duplicate
+ *     TransferOutcome, TransferIntelligence, trust changes, false-claim
+ *     strikes, points, or admin alerts.
+ *   - Demo purchases are skipped entirely.
+ *   - Only completed/disputed transitions produce an outcome.
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
@@ -19,25 +29,41 @@ function predVerdict(recommendation, outcome) {
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const body = await req.json();
+    const body = await req.json().catch(() => ({}));
 
-    const { event, data: purchase, old_data } = body;
-    if (!purchase) return Response.json({ skipped: 'no data' });
+    // Extract ONLY the entity id — never the record itself.
+    const entityId = body?.event?.entity_id || body?.data?.id;
+    if (!entityId) return Response.json({ skipped: 'no entity id' });
 
-    const newStatus = purchase.transfer_status;
-    const oldStatus = old_data?.transfer_status;
-
-    // Only act on transitions TO completed or disputed
-    if (newStatus === oldStatus) return Response.json({ skipped: 'no status change' });
-    if (!['completed', 'disputed'].includes(newStatus)) return Response.json({ skipped: 'not a terminal status' });
+    // Re-fetch the authoritative Purchase.
+    const fetched = await base44.asServiceRole.entities.Purchase.filter({ id: entityId }).catch(() => []);
+    const purchase = fetched[0];
+    if (!purchase) return Response.json({ skipped: 'purchase not found' });
 
     // Demo purchases never affect real revenue, trust, or transfer intelligence.
     if (purchase.is_demo === true) return Response.json({ skipped: 'demo purchase' });
 
+    const newStatus = purchase.transfer_status;
+    // Only act on terminal statuses.
+    if (!['completed', 'disputed'].includes(newStatus)) {
+      return Response.json({ skipped: 'not a terminal status' });
+    }
+
     const isSuccess = newStatus === 'completed';
+
+    // ── Idempotency guard: at most one outcome per (purchase, success-flag).
+    // Blocks replays and duplicate processing on repeated updates.
+    const existing = await base44.asServiceRole.entities.TransferOutcome.filter({
+      purchase_id: purchase.id,
+      transfer_successful: isSuccess,
+    }).catch(() => []);
+    if (existing.length > 0) {
+      return Response.json({ skipped: 'duplicate outcome already recorded' });
+    }
+
     const now = new Date().toISOString();
 
-    // Compute minutes to transfer
+    // Compute minutes to transfer from the authoritative record.
     let minutesToTransfer = null;
     if (purchase.seller_confirmed_at && purchase.created_date) {
       minutesToTransfer = Math.round(
@@ -45,7 +71,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Create TransferOutcome record
+    // 1. Create TransferOutcome record (authoritative fields from fetched purchase).
     await base44.asServiceRole.entities.TransferOutcome.create({
       listing_id: purchase.listing_id,
       event_id: purchase.event_id,
@@ -62,8 +88,7 @@ Deno.serve(async (req) => {
       notes: !isSuccess ? purchase.dispute_reason : null,
     });
 
-    // Learning: feed the Transfer Confidence Engine with this outcome so it
-    // can learn venue / platform transfer trends over time.
+    // 2. Feed the Transfer Confidence Engine (best-effort).
     try {
       let listing = null;
       if (purchase.listing_id) {
@@ -103,7 +128,7 @@ Deno.serve(async (req) => {
       // learning is best-effort
     }
 
-    // Self-calibration: resolve the event's active confidence prediction with this outcome.
+    // 3. Self-calibration: resolve the event's active prediction (best-effort).
     try {
       const preds = await base44.asServiceRole.entities.TransferConfidencePrediction.filter({ event_id: purchase.event_id, resolved: false });
       const pred = preds[0];
@@ -115,7 +140,7 @@ Deno.serve(async (req) => {
           actual_outcome: outcome,
           prediction_correct: predVerdict(pred.recommendation, outcome),
           resolution_source: 'transfer_outcome',
-          platform: listing?.transfer_platform || null,
+          platform: null,
           seller_email: purchase.seller_email || null,
         });
       }
@@ -123,19 +148,19 @@ Deno.serve(async (req) => {
       // self-calibration is best-effort
     }
 
-    // Beta log
+    // 4. Beta log (best-effort).
     base44.asServiceRole.entities.BetaTransferLog.create({
       log_type: isSuccess ? 'transfer_complete' : 'transfer_failed',
       actor_role: 'system',
       listing_id: purchase.listing_id,
       purchase_id: purchase.id,
       event_id: purchase.event_id,
-      before_state: { transfer_status: oldStatus },
+      before_state: { transfer_status: null },
       after_state: { transfer_status: newStatus },
       metadata: { minutes_to_transfer: minutesToTransfer, seller: purchase.seller_email },
     }).catch(() => {});
 
-    // Update seller reliability score
+    // 5. Update seller reliability score (authoritative, deduped via false_claim_recorded).
     if (purchase.seller_email) {
       const sellers = await base44.asServiceRole.entities.User.filter({ email: purchase.seller_email });
       const seller = sellers[0];
@@ -144,20 +169,14 @@ Deno.serve(async (req) => {
         const failCount = (seller.transfer_fail_count || 0) + (!isSuccess ? 1 : 0);
         const total = successCount + failCount;
 
-        // Weighted reliability: recent failures weigh more
         let reliability = total > 0 ? Math.round((successCount / total) * 100) : 70;
-
-        // Penalty for disputes
         if (!isSuccess) reliability = Math.max(0, reliability - 5);
-        // Clamp
         reliability = Math.max(0, Math.min(100, reliability));
 
-        // Factor in false claim count for reliability penalty
         const falseClaims = seller.transfer_false_claim_count || 0;
         if (falseClaims >= 1) reliability = Math.max(0, reliability - (falseClaims * 3));
 
-        // If dispute, strike false claim ONLY if not already recorded for this purchase
-        // (AI rejection or admin override may have already set false_claim_recorded = true)
+        // Strike a false-claim only once per purchase, based on the fetched record's flag.
         let newFalseClaimCount = falseClaims;
         if (!isSuccess && !purchase.false_claim_recorded) {
           await base44.asServiceRole.entities.Purchase.update(purchase.id, { false_claim_recorded: true }).catch(() => {});
@@ -173,14 +192,14 @@ Deno.serve(async (req) => {
       }
     }
 
-    // If disputed → create admin alert
+    // 6. Dispute → admin alert (deduped against existing unresolved alert).
     if (!isSuccess) {
-      const existing = await base44.asServiceRole.entities.AdminAlert.filter({
+      const existingAlerts = await base44.asServiceRole.entities.AdminAlert.filter({
         reference_id: purchase.id,
         alert_type: 'failed_transfer_after_payment',
         resolved: false,
       });
-      if (existing.length === 0) {
+      if (existingAlerts.length === 0) {
         await base44.asServiceRole.entities.AdminAlert.create({
           alert_type: 'failed_transfer_after_payment',
           priority: 'critical',

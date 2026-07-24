@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { recordNotification } from '../../shared/notifications.ts';
 
 Deno.serve(async (req) => {
   try {
@@ -48,8 +49,8 @@ Deno.serve(async (req) => {
       notes: `Admin approved listing via Review Queue`,
     });
 
-    // 6. Notify seller (fire-and-forget)
-    base44.asServiceRole.functions.invoke('recordNotification', {
+    // 6. Notify seller (fire-and-forget, shared module — in-process)
+    recordNotification(base44, {
       user_email: listing.seller_email,
       type: 'listing_approved',
       title: 'Listing approved ✅',

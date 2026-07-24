@@ -1,5 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import Stripe from 'npm:stripe@14.21.0';
+import { sendUserNotification, sendTransactionalEmail } from '../../shared/notifications.ts';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
@@ -55,7 +56,7 @@ Deno.serve(async (req) => {
       dispute_reason: 'Buyer cancelled after seller confirmed transfer',
     });
 
-    base44.asServiceRole.functions.invoke('sendUserNotification', {
+    sendUserNotification(base44, {
       user_email: purchase.seller_email,
       title: 'Buyer cancelled after you confirmed',
       body: 'The buyer cancelled after you confirmed transfer. If you already sent tickets on Ticketmaster/SeatGeek, please contact support immediately. The payment is frozen pending review.',
@@ -63,11 +64,10 @@ Deno.serve(async (req) => {
       purchase_id: purchase.id,
     }).catch(() => {});
 
-    base44.asServiceRole.functions.invoke('sendNotificationEmail', {
-      to: 'experience@peanutgallery.store',
-      subject: `⚠️ Buyer cancelled after seller confirmed — ${purchase.id}`,
-      body: `Buyer cancelled purchase AFTER seller confirmed transfer. Payment is NOT refunded — dispute opened for admin review.\n\nPurchase: ${purchase.id}\nBuyer: ${purchase.buyer_email}\nSeller: ${purchase.seller_email}\nAmount: $${purchase.amount?.toFixed(2)}\n\nINVESTIGATE: Were tickets already transferred? Contact seller to confirm, then resolve the dispute in the admin panel.`,
-    }).catch(() => {});
+    sendTransactionalEmail(base44, 'experience@peanutgallery.store',
+      `⚠️ Buyer cancelled after seller confirmed — ${purchase.id}`,
+      `Buyer cancelled purchase AFTER seller confirmed transfer. Payment is NOT refunded — dispute opened for admin review.\n\nPurchase: ${purchase.id}\nBuyer: ${purchase.buyer_email}\nSeller: ${purchase.seller_email}\nAmount: $${purchase.amount?.toFixed(2)}\n\nINVESTIGATE: Were tickets already transferred? Contact seller to confirm, then resolve the dispute in the admin panel.`
+    ).catch(() => {});
 
     return Response.json({ status: 'disputed', message: 'Because the seller already confirmed transfer, your request has been opened as a dispute for admin review instead of an automatic refund.' });
   }
@@ -95,7 +95,7 @@ Deno.serve(async (req) => {
     });
   }
 
-  base44.asServiceRole.functions.invoke('sendUserNotification', {
+  sendUserNotification(base44, {
     user_email: purchase.seller_email,
     title: 'Purchase cancelled',
     body: 'The buyer cancelled their purchase. Your listing has been restored to active.',

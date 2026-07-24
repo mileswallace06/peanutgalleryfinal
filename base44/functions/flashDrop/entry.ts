@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { recordNotification } from '../../shared/notifications.ts';
 
 // ── Config ──────────────────────────────────────────────────────────────────
 const MAX_DROPS_PER_USER_PER_EVENT = 2;
@@ -361,14 +362,13 @@ Deno.serve(async (req) => {
       await base44.asServiceRole.entities.SeatInventory.update(drop.seat_inventory_id, { inventory_status: 'claimed_by_winner' }).catch(() => {});
     }
 
-    base44.asServiceRole.functions.invoke('recordNotification', {
+    recordNotification(base44, {
       user_email: winner.entrant_email,
       type: 'donation_won',
       title: '🎁 You won a Flash Drop!',
       body: `Section ${drop.section}${drop.row ? ` Row ${drop.row}` : ''} — ${drop.event_title}. Contact the donor to claim your seat.`,
       reference_id: flash_drop_id,
       reference_type: 'donation',
-      icon: '🎁',
       action_url: `/upgrades/${drop.event_id}`,
     }).catch(() => {});
 

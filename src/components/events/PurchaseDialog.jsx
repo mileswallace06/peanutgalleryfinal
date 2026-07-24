@@ -80,16 +80,11 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onCheckoutCreated }
         return;
       }
 
-      // 3. Notify seller with a deep-link to the Transfer Assistant (fire-and-forget)
-      base44.functions.invoke('recordNotification', {
-        user_email: listing.seller_email,
-        type: 'sale_created',
-        title: '🎉 Your ticket sold!',
-        body: `Tap to transfer your tickets and receive payment. Sec ${listing.section}, Row ${listing.row}.`,
-        reference_type: 'purchase',
-        reference_id: purchase_id,
-        action_url: `/purchase/${purchase_id}`,
-      }).catch(() => {});
+      // 3. Confirm authorization server-side. The backend authenticates the
+      //    buyer, verifies the Stripe PaymentIntent is authorized, stamps an
+      //    idempotency field, and sends the predefined seller notification. The
+      //    buyer never supplies the seller's notification content.
+      base44.functions.invoke('confirmCheckoutAuthorized', { purchase_id }).catch(() => {});
 
       // 4. Navigate to the purchase page (do NOT release — authorization succeeded)
       navigate(`/purchase/${purchase_id}`);
