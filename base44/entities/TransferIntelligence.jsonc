@@ -28,6 +28,10 @@
       "type": "string",
       "description": "FK to Event"
     },
+    "purchase_id": {
+      "type": "string",
+      "description": "FK to Purchase \u2014 used for per-purchase idempotency so a reclaim-after-partial-failure cannot create a duplicate intelligence record for the same terminal outcome."
+    },
     "event_title": {
       "type": "string",
       "description": "Cached event title at time of recording"

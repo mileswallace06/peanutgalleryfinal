@@ -317,18 +317,32 @@ Deno.serve(async (req) => {
       return Response.json({ success: false, pending: true, message: 'Winner selection in progress. Poll for result.' });
     }
 
-    // Acquire lock
+    // ── ATOMIC CLAIM: exactly one concurrent close_and_pick proceeds ───────
+    // Conditional compare-and-set on the lock fields, gated on the drop not
+    // already resolved. A stale lock (>10s) is reclaimable. Losers either see
+    // the already-selected winner or a pending result.
     const reqId = request_id || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    await base44.asServiceRole.entities.FlashDrop.update(flash_drop_id, {
-      winner_selection_locked_at: new Date().toISOString(),
-      winner_selection_request_id: reqId,
-    });
+    const lockStale = new Date(Date.now() - 10000).toISOString();
+    const lockRes = await base44.asServiceRole.entities.FlashDrop.updateMany(
+      {
+        id: flash_drop_id,
+        status: { $nin: ['winner_selected', 'expired'] },
+        $or: [ { winner_selection_request_id: null }, { winner_selection_request_id: '' }, { winner_selection_locked_at: { $lt: lockStale } } ],
+      },
+      { $set: { winner_selection_locked_at: new Date().toISOString(), winner_selection_request_id: reqId } }
+    ).catch(() => ({ updated: 0 }));
 
-    // Re-fetch to confirm we own lock
-    const confirmDrops = await base44.asServiceRole.entities.FlashDrop.filter({ id: flash_drop_id });
-    const confirmDrop = confirmDrops[0];
-    if (confirmDrop.status === 'winner_selected' && confirmDrop.winner_email) {
-      return Response.json({ success: true, already_selected: true, winner: { email: confirmDrop.winner_email, name: confirmDrop.winner_name }, entry_count: confirmDrop.entry_count });
+    if ((lockRes?.updated || 0) === 0) {
+      // Already resolved, or another request holds a fresh lock.
+      const confirmDrops = await base44.asServiceRole.entities.FlashDrop.filter({ id: flash_drop_id });
+      const confirmDrop = confirmDrops[0];
+      if (confirmDrop?.status === 'winner_selected' && confirmDrop.winner_email) {
+        return Response.json({ success: true, already_selected: true, winner: { email: confirmDrop.winner_email, name: confirmDrop.winner_name }, entry_count: confirmDrop.entry_count });
+      }
+      if (confirmDrop?.status === 'expired') {
+        return Response.json({ success: true, already_selected: true, winner: null, no_entries: true });
+      }
+      return Response.json({ success: false, pending: true, message: 'Winner selection in progress. Poll for result.' });
     }
 
     const entries = await base44.asServiceRole.entities.FlashDropEntry.filter({ flash_drop_id });

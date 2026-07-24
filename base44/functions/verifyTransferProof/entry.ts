@@ -13,6 +13,7 @@
 
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import { sendTransactionalEmail } from '../../shared/notifications.ts';
+import { claimFlag } from '../../shared/atomicClaim.ts';
 
 // ── Confidence thresholds ─────────────────────────────────────────────────────
 const THRESHOLDS = {
@@ -77,10 +78,20 @@ Deno.serve(async (req) => {
       return Response.json({ skipped: true, reason: 'already_processing_or_verified', ai_proof_status: purchase.ai_proof_status });
     }
 
-    // Mark as processing
-    await base44.asServiceRole.entities.Purchase.update(purchase_id, {
-      ai_proof_status: 'processing',
-    });
+    // Atomic processing claim: only one concurrent verifyTransferProof runs the
+    // (credit-costly) LLM. Conditional compare-and-set on ai_proof_status.
+    if (!force_reprocess) {
+      const procRes = await base44.asServiceRole.entities.Purchase.updateMany(
+        { id: purchase_id, ai_proof_status: { $nin: ['processing', 'verified_high_confidence'] } },
+        { $set: { ai_proof_status: 'processing' } }
+      ).catch(() => ({ updated: 0 }));
+      if ((procRes?.updated || 0) === 0) {
+        console.warn(`[verifyTransferProof] concurrent processing claim lost — purchase=${purchase_id} triggered_by=${user.email}`);
+        return Response.json({ skipped: true, reason: 'concurrent_processing_claim_lost', ai_proof_status: 'processing' });
+      }
+    } else {
+      await base44.asServiceRole.entities.Purchase.update(purchase_id, { ai_proof_status: 'processing' });
+    }
 
     // Fetch listing + event for context matching
     const [listings, events] = await Promise.all([
@@ -295,19 +306,20 @@ Return ONLY valid JSON with this exact structure:
 
     await base44.asServiceRole.entities.Purchase.update(purchase_id, updatePayload);
 
-    // ── Increment transfer_false_claim_count on rejection (deduped per purchase) ─
-    // Only strike once per purchase — false_claim_recorded prevents AI + admin + dispute
-    // from all counting separately for the same incident.
-    if (aiProofStatus === 'rejected_suspicious' && purchase.seller_email && !purchase.false_claim_recorded) {
-      // Re-fetch to get the latest false_claim_recorded state (avoids race with admin action)
-      const [freshPurchase] = await base44.asServiceRole.entities.Purchase.filter({ id: purchase_id }).catch(() => []);
-      if (!freshPurchase?.false_claim_recorded) {
-        await base44.asServiceRole.entities.Purchase.update(purchase_id, { false_claim_recorded: true }).catch(() => {});
+    // ── Atomic exactly-once false-claim strike (compare-and-set on the flag) ─
+    // The count is DERIVED from all of this seller's flagged purchases so a
+    // duplicate or concurrent invocation cannot double-count.
+    if (aiProofStatus === 'rejected_suspicious' && purchase.seller_email) {
+      const struck = await claimFlag(base44, 'Purchase', purchase_id, 'false_claim_recorded');
+      if (struck) {
         const sellers = await base44.asServiceRole.entities.User.filter({ email: purchase.seller_email }).catch(() => []);
         const seller = sellers[0];
         if (seller) {
+          const flagged = await base44.asServiceRole.entities.Purchase.filter({
+            seller_email: purchase.seller_email, false_claim_recorded: true,
+          }).catch(() => []);
           await base44.asServiceRole.entities.User.update(seller.id, {
-            transfer_false_claim_count: (seller.transfer_false_claim_count || 0) + 1,
+            transfer_false_claim_count: flagged.length,
           }).catch(() => {});
         }
       }
