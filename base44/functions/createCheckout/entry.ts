@@ -83,6 +83,14 @@ Deno.serve(async (req) => {
   if (!listing) {
     return Response.json({ error: 'Listing not found' }, { status: 404 });
   }
+  // Hard reject test/demo/hidden/draft listings — a real Stripe PaymentIntent
+  // is NEVER created for a non-marketplace listing. Admin role does not bypass.
+  if (listing.is_demo_listing === true) {
+    return Response.json({ error: 'Test/demo listings cannot be purchased.' }, { status: 409 });
+  }
+  if (listing.notes && /\[(TEST|DEMO)\]/i.test(listing.notes)) {
+    return Response.json({ error: 'Test/demo listings cannot be purchased.' }, { status: 409 });
+  }
   if (listing.status !== 'active') {
     return Response.json({ error: 'Listing is no longer available' }, { status: 409 });
   }

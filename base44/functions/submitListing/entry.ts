@@ -31,11 +31,19 @@ Deno.serve(async (req) => {
   const isTest = body.is_test === true;
 
   // Phase 0 maintenance gate — fail-closed. During maintenance a listing may
-  // be created ONLY by an admin exercising an explicit is_test=true dry run;
-  // the resulting record is forced to is_demo_listing=true (never a real
-  // listing). Zero writes occur before this returns for blocked callers.
+  // be created ONLY by an admin exercising an explicit is_test=true request,
+  // and that path is a TRUE DRY RUN: it creates NOTHING (no Listing, no
+  // SeatInventory, no TransferVerificationLog). Blocked callers get a 503;
+  // the admin dry-run returns a no-op. Zero writes occur for any caller.
   if (isMaintenanceActive() && !(isAdmin && isTest)) {
     return maintenance503('Listing creation is temporarily unavailable for scheduled maintenance.');
+  }
+  if (isMaintenanceActive() && isAdmin && isTest) {
+    return Response.json({
+      dry_run: true,
+      created: false,
+      message: 'Maintenance dry run: no listing, SeatInventory, or verification log was created.',
+    });
   }
 
   if (!isAdmin) {
