@@ -1,29 +1,29 @@
 /**
  * migrateSensitiveData — admin-only, idempotent, copy-only migration.
  *
- * CORRECTED RUN changes:
- *  - deterministic per-source cursor: ascending 'id' sort, resume by id > cursor,
- *    returned as next_cursors (replaces the non-deterministic findIndex slice)
- *  - opaque random public_profile_id (crypto.randomUUID), never derived from user.id
- *  - UserPrivate sidecars now created (owner-scoped private account metadata)
- *  - ProofAsset records created for every legacy public proof URL, flagged
- *    migration_status="requires_private_reupload" (never trusted as private)
- *
- * Invariants (unchanged):
- *  - default dry_run=true; applies only with confirm=true
- *  - admin session required; scheduler/unauthenticated forbidden
- *  - copies records; NEVER deletes or clears source fields
- *  - at most one sidecar per source record (keyed by listing_id / purchase_id /
- *    user_id / user_email); existing sidecars reported as duplicates
- *  - ZERO notifications, points, Stripe, or marketplace-state changes
+ * CORRECTED RUN 2:
+ *  - Apply mode (confirm=true) returns 409 UNLESS maintenance is active.
+ *  - Server-side pagination via the SDK's positional `skip` argument with a
+ *    unique `id` ascending sort (deterministic total order; $gt/$or keyset
+ *    cursors are NOT supported by the SDK filter on string fields — verified at
+ *    runtime, $gt returns 0 on created_date and id). Cursor = per-source
+ *    { offset, last_id }. Returns next_cursor, has_more, processed, remaining.
+ *  - MigrationRun durable claim: unique apply_request_id, rejects concurrent
+ *    and replayed apply requests, records started/completed + per-source cursor
+ *    + counts.
+ *  - PublicProfile no longer stores/returns user_id; the user_id ↔
+ *    public_profile_id mapping lives only in UserPrivate.
+ *  - Report splits created / already_migrated / actual_duplicates (>1 sidecar
+ *    per source) / failed / processed / remaining. One existing sidecar is
+ *    already_migrated, NOT a duplicate.
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { isMaintenanceActive } from '../../shared/maintenance.ts';
 
-const MIGRATION_VERSION = 2;
+const MIGRATION_VERSION = 3;
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
-
   let user;
   try { user = await base44.auth.me(); } catch (_) { return Response.json({ error: 'Unauthorized' }, { status: 401 }); }
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
@@ -32,52 +32,63 @@ Deno.serve(async (req) => {
   const body = await req.json().catch(() => ({}));
   const confirm = body?.confirm === true;
   const batchLimit = Math.min(500, Math.max(1, Number(body?.batch_limit) || 200));
-  // Per-source deterministic cursor: { listing, purchase, user } = last id processed.
   const resumeAfter = body?.resume_after || {};
   const sources = body?.sources || ['listing', 'purchase', 'user'];
 
-  const report = {
-    migration_version: MIGRATION_VERSION,
-    mode: confirm ? 'apply' : 'dry_run',
-    batch_limit: batchLimit,
-    resume_after: resumeAfter,
-    source_counts: {},
-    records_requiring_migration: 0,
-    proposed_creates: 0,
-    missing_keys: [],
-    duplicate_sidecars: [],
-    malformed_values: [],
-    unsafe_fields: [],
-    sidecar_counts_after: {},
-    next_cursors: {},
-  };
+  // ── Apply gate: maintenance must be active ──────────────────────────────
+  if (confirm && !isMaintenanceActive()) {
+    return Response.json({ error: 'Apply mode requires maintenance mode to be active', code: 'MAINTENANCE_REQUIRED' }, { status: 409 });
+  }
 
-  // Deterministic cursor fetch: ascending 'id', drop id <= cursor, take batch.
-  const fetchBatch = async (entity, cursor) => {
-    const all = await base44.asServiceRole.entities[entity].filter({}, 'id', batchLimit + 100);
-    let arr = all;
-    if (cursor) arr = arr.filter(r => r.id > cursor);
-    return arr.slice(0, batchLimit);
-  };
+  // ── MigrationRun durable claim (apply only) ─────────────────────────────
+  let run = null;
+  if (confirm) {
+    const apply_request_id = body?.apply_request_id;
+    if (!apply_request_id) return Response.json({ error: 'apply_request_id required for apply mode' }, { status: 400 });
+    const byReq = await base44.asServiceRole.entities.MigrationRun.filter({ apply_request_id });
+    if (byReq.length > 0) {
+      return Response.json({ error: 'Replayed apply request rejected', code: 'REPLAY', existing_status: byReq[0].status }, { status: 409 });
+    }
+    const inProgress = await base44.asServiceRole.entities.MigrationRun.filter({ status: 'in_progress' });
+    if (inProgress.length > 0) {
+      return Response.json({ error: 'A migration apply run is already in progress', code: 'CONCURRENT', run_id: inProgress[0].id }, { status: 409 });
+    }
+    run = await base44.asServiceRole.entities.MigrationRun.create({
+      apply_request_id, status: 'in_progress', mode: 'apply', started_at: new Date().toISOString(),
+      cursors: resumeAfter, counts: {}, migration_version: MIGRATION_VERSION,
+    });
+  }
 
-  // ── Listing → ListingPrivate + ProofAsset(legacy) ────────────────────────
+  const perSource = {};
+  const totals = { created: 0, already_migrated: 0, actual_duplicates: 0, failed: 0, processed: 0, remaining: 0 };
+  const missing_keys = [];
+  const unsafe_fields = [];
+  const next_cursors = {};
+
+  // Server-side paginated fetch: unique `id` ascending sort + positional skip.
+  const fetchPage = (entity, offset) => base44.asServiceRole.entities[entity].filter({}, 'id', batchLimit, offset);
+  const countAll = (entity) => base44.asServiceRole.entities[entity].filter({}, 'id', 10000);
+
+  // ── Listing → ListingPrivate + ProofAsset(legacy) ───────────────────────
   if (sources.includes('listing')) {
-    const cursor = resumeAfter.listing || null;
-    const listings = await fetchBatch('Listing', cursor);
-    report.source_counts.Listing = listings.length;
-    const existingPriv = await base44.asServiceRole.entities.ListingPrivate.filter({}, 'id', 10000);
-    const privByListingId = new Map(existingPriv.map(p => [p.listing_id, p]));
-    const existingProofs = await base44.asServiceRole.entities.ProofAsset.filter({ reference_type: 'listing' }, 'id', 10000);
-    const proofKeys = new Set(existingProofs.map(p => `${p.reference_id}|${p.legacy_public_url}`));
+    const offset = Number(resumeAfter.listing?.offset) || 0;
+    const total = (await countAll('Listing')).length;
+    const page = await fetchPage('Listing', offset);
+    const acc = { created: 0, already: 0, dups: 0, failed: 0 };
 
-    let lastId = cursor;
-    for (const l of listings) {
-      lastId = l.id;
-      if (!l.id) { report.missing_keys.push({ entity: 'Listing', field: 'id' }); continue; }
-      if (privByListingId.has(l.id)) { report.duplicate_sidecars.push({ entity: 'ListingPrivate', listing_id: l.id }); }
+    const privAll = await base44.asServiceRole.entities.ListingPrivate.filter({}, 'id', 10000);
+    const privCount = new Map();
+    for (const p of privAll) privCount.set(p.listing_id, (privCount.get(p.listing_id) || 0) + 1);
+    const proofAll = await base44.asServiceRole.entities.ProofAsset.filter({ reference_type: 'listing' }, 'id', 10000);
+    const proofKeys = new Set(proofAll.map(p => `${p.reference_id}|${p.legacy_public_url}`));
+
+    for (const l of page) {
+      if (!l.id) { missing_keys.push({ entity: 'Listing', field: 'id' }); continue; }
+      const cnt = privCount.get(l.id) || 0;
+      if (cnt > 1) acc.dups++;
+      else if (cnt === 1) acc.already++;
       else {
-        report.records_requiring_migration++;
-        report.proposed_creates++;
+        acc.created++;
         if (confirm) {
           try {
             await base44.asServiceRole.entities.ListingPrivate.create({
@@ -97,57 +108,53 @@ Deno.serve(async (req) => {
               is_demo_listing: l.is_demo_listing, notes: l.notes,
               migration_version: MIGRATION_VERSION, migrated_at: new Date().toISOString(),
             });
-          } catch (e) { report.malformed_values.push({ entity: 'ListingPrivate', listing_id: l.id, error: e?.message }); }
+          } catch (e) { acc.failed++; }
         }
       }
-
-      // Legacy public proof URLs → ProofAsset (requires_private_reupload)
-      const legacyProofs = [
-        ['listing_proof', l.proof_url],
-        ['transfer_attestation', l.transfer_verification_proof_url],
-        ['ownership_proof', l.ticket_file_url],
-        ['pg_custody_proof', l.pg_transfer_proof_url],
-      ];
-      for (const [proof_type, url] of legacyProofs) {
+      for (const [proof_type, url] of [['listing_proof', l.proof_url], ['transfer_attestation', l.transfer_verification_proof_url], ['ownership_proof', l.ticket_file_url], ['pg_custody_proof', l.pg_transfer_proof_url]]) {
         if (!url) continue;
         const key = `${l.id}|${url}`;
-        if (proofKeys.has(key)) { report.duplicate_sidecars.push({ entity: 'ProofAsset', key }); continue; }
-        report.proposed_creates++;
-        report.unsafe_fields.push({ entity: 'Listing', listing_id: l.id, field: proof_type, reason: 'public URL → ProofAsset requires_private_reupload' });
+        if (proofKeys.has(key)) continue;
+        unsafe_fields.push({ entity: 'Listing', listing_id: l.id, field: proof_type, reason: 'public URL → ProofAsset requires_private_reupload' });
         if (confirm) {
           try {
             await base44.asServiceRole.entities.ProofAsset.create({
-              owner_email: l.seller_email, reference_type: 'listing', reference_id: l.id,
-              proof_type, private_file_id: null, storage_uri: null, content_type: null,
-              checksum: null, scan_status: 'pending', uploaded_at: new Date().toISOString(),
+              owner_email: l.seller_email, reference_type: 'listing', reference_id: l.id, proof_type,
+              private_file_id: null, storage_uri: null, content_type: null, checksum: null,
+              scan_status: 'pending', uploaded_at: new Date().toISOString(),
               legacy_public_url: url, migration_status: 'requires_private_reupload',
             });
-          } catch (e) { report.malformed_values.push({ entity: 'ProofAsset', key, error: e?.message }); }
+          } catch (e) { /* legacy proof failure */ }
         }
       }
     }
-    report.next_cursors.listing = lastId;
-    report.sidecar_counts_after.ListingPrivate = (await base44.asServiceRole.entities.ListingPrivate.filter({}, 'id', 10000)).length;
+    const processed = page.length;
+    const hasMore = offset + processed < total;
+    next_cursors.listing = { offset: offset + processed, last_id: page.length ? page[page.length - 1].id : null };
+    perSource.listing = { total, processed, remaining: total - (offset + processed), has_more: hasMore, next_cursor: next_cursors.listing, created: acc.created, already_migrated: acc.already, actual_duplicates: acc.dups, failed: acc.failed };
+    totals.created += acc.created; totals.already_migrated += acc.already; totals.actual_duplicates += acc.dups; totals.failed += acc.failed; totals.processed += processed; totals.remaining += perSource.listing.remaining;
   }
 
-  // ── Purchase → PurchasePrivate + ProofAsset(legacy) ─────────────────────
+  // ── Purchase → PurchasePrivate + ProofAsset(legacy) ────────────────────
   if (sources.includes('purchase')) {
-    const cursor = resumeAfter.purchase || null;
-    const purchases = await fetchBatch('Purchase', cursor);
-    report.source_counts.Purchase = purchases.length;
-    const existingPriv = await base44.asServiceRole.entities.PurchasePrivate.filter({}, 'id', 10000);
-    const privByPurchaseId = new Map(existingPriv.map(p => [p.purchase_id, p]));
-    const existingProofs = await base44.asServiceRole.entities.ProofAsset.filter({ reference_type: 'purchase' }, 'id', 10000);
-    const proofKeys = new Set(existingProofs.map(p => `${p.reference_id}|${p.legacy_public_url}`));
+    const offset = Number(resumeAfter.purchase?.offset) || 0;
+    const total = (await countAll('Purchase')).length;
+    const page = await fetchPage('Purchase', offset);
+    const acc = { created: 0, already: 0, dups: 0, failed: 0 };
 
-    let lastId = cursor;
-    for (const p of purchases) {
-      lastId = p.id;
-      if (!p.id) { report.missing_keys.push({ entity: 'Purchase', field: 'id' }); continue; }
-      if (privByPurchaseId.has(p.id)) { report.duplicate_sidecars.push({ entity: 'PurchasePrivate', purchase_id: p.id }); }
+    const privAll = await base44.asServiceRole.entities.PurchasePrivate.filter({}, 'id', 10000);
+    const privCount = new Map();
+    for (const p of privAll) privCount.set(p.purchase_id, (privCount.get(p.purchase_id) || 0) + 1);
+    const proofAll = await base44.asServiceRole.entities.ProofAsset.filter({ reference_type: 'purchase' }, 'id', 10000);
+    const proofKeys = new Set(proofAll.map(p => `${p.reference_id}|${p.legacy_public_url}`));
+
+    for (const p of page) {
+      if (!p.id) { missing_keys.push({ entity: 'Purchase', field: 'id' }); continue; }
+      const cnt = privCount.get(p.id) || 0;
+      if (cnt > 1) acc.dups++;
+      else if (cnt === 1) acc.already++;
       else {
-        report.records_requiring_migration++;
-        report.proposed_creates++;
+        acc.created++;
         if (confirm) {
           try {
             await base44.asServiceRole.entities.PurchasePrivate.create({
@@ -173,133 +180,146 @@ Deno.serve(async (req) => {
               fraud_risk_score: p.fraud_risk_score,
               admin_override_status: p.admin_override_status, admin_override_reason: p.admin_override_reason,
               admin_override_by: p.admin_override_by, admin_override_at: p.admin_override_at,
-              is_demo: p.is_demo,
-              migration_version: MIGRATION_VERSION, migrated_at: new Date().toISOString(),
+              is_demo: p.is_demo, migration_version: MIGRATION_VERSION, migrated_at: new Date().toISOString(),
             });
-          } catch (e) { report.malformed_values.push({ entity: 'PurchasePrivate', purchase_id: p.id, error: e?.message }); }
+          } catch (e) { acc.failed++; }
         }
       }
-
-      const legacyProofs = [
-        ['transfer_proof', p.transfer_proof_url],
-        ['pg_custody_proof', p.fulfillment_proof_url],
-      ];
-      for (const [proof_type, url] of legacyProofs) {
+      for (const [proof_type, url] of [['transfer_proof', p.transfer_proof_url], ['pg_custody_proof', p.fulfillment_proof_url]]) {
         if (!url) continue;
         const key = `${p.id}|${url}`;
-        if (proofKeys.has(key)) { report.duplicate_sidecars.push({ entity: 'ProofAsset', key }); continue; }
-        report.proposed_creates++;
-        report.unsafe_fields.push({ entity: 'Purchase', purchase_id: p.id, field: proof_type, reason: 'public URL → ProofAsset requires_private_reupload' });
+        if (proofKeys.has(key)) continue;
+        unsafe_fields.push({ entity: 'Purchase', purchase_id: p.id, field: proof_type, reason: 'public URL → ProofAsset requires_private_reupload' });
         if (confirm) {
           try {
             await base44.asServiceRole.entities.ProofAsset.create({
-              owner_email: p.seller_email, reference_type: 'purchase', reference_id: p.id,
-              proof_type, private_file_id: null, storage_uri: null, content_type: null,
-              checksum: null, scan_status: 'pending', uploaded_at: new Date().toISOString(),
+              owner_email: p.seller_email, reference_type: 'purchase', reference_id: p.id, proof_type,
+              private_file_id: null, storage_uri: null, content_type: null, checksum: null,
+              scan_status: 'pending', uploaded_at: new Date().toISOString(),
               legacy_public_url: url, migration_status: 'requires_private_reupload',
             });
-          } catch (e) { report.malformed_values.push({ entity: 'ProofAsset', key, error: e?.message }); }
+          } catch (e) { /* legacy proof failure */ }
         }
       }
     }
-    report.next_cursors.purchase = lastId;
-    report.sidecar_counts_after.PurchasePrivate = (await base44.asServiceRole.entities.PurchasePrivate.filter({}, 'id', 10000)).length;
+    const processed = page.length;
+    const hasMore = offset + processed < total;
+    next_cursors.purchase = { offset: offset + processed, last_id: page.length ? page[page.length - 1].id : null };
+    perSource.purchase = { total, processed, remaining: total - (offset + processed), has_more: hasMore, next_cursor: next_cursors.purchase, created: acc.created, already_migrated: acc.already, actual_duplicates: acc.dups, failed: acc.failed };
+    totals.created += acc.created; totals.already_migrated += acc.already; totals.actual_duplicates += acc.dups; totals.failed += acc.failed; totals.processed += processed; totals.remaining += perSource.purchase.remaining;
   }
 
-  // ── User → UserSecurityProfile + PublicProfile + UserPrivate ─────────────
+  // ── User → UserSecurityProfile + PublicProfile + UserPrivate ────────────
   if (sources.includes('user')) {
-    const cursor = resumeAfter.user || null;
-    const users = await fetchBatch('User', cursor);
-    report.source_counts.User = users.length;
-    const existingSec = await base44.asServiceRole.entities.UserSecurityProfile.filter({}, 'id', 10000);
-    const secByKey = new Map(existingSec.map(s => [s.user_id || s.user_email, s]));
-    const existingPub = await base44.asServiceRole.entities.PublicProfile.filter({}, 'id', 10000);
-    const pubByUserId = new Map(existingPub.map(s => [s.user_id, s]));
-    const existingPriv = await base44.asServiceRole.entities.UserPrivate.filter({}, 'id', 10000);
-    const privByEmail = new Map(existingPriv.map(s => [s.user_email, s]));
+    const offset = Number(resumeAfter.user?.offset) || 0;
+    const total = (await countAll('User')).length;
+    const page = await fetchPage('User', offset);
+    const acc = { created: 0, already: 0, dups: 0, failed: 0 };
 
-    let lastId = cursor;
-    for (const u of users) {
-      lastId = u.id;
-      if (!u.id) { report.missing_keys.push({ entity: 'User', field: 'id' }); continue; }
+    const secAll = await base44.asServiceRole.entities.UserSecurityProfile.filter({}, 'id', 10000);
+    const secCount = new Map();
+    for (const s of secAll) secCount.set(s.user_id, (secCount.get(s.user_id) || 0) + 1);
+    const privAll = await base44.asServiceRole.entities.UserPrivate.filter({}, 'id', 10000);
+    const privByEmail = new Map();
+    const privCountByEmail = new Map();
+    for (const p of privAll) { privByEmail.set(p.user_email, p); privCountByEmail.set(p.user_email, (privCountByEmail.get(p.user_email) || 0) + 1); }
+    const pubAll = await base44.asServiceRole.entities.PublicProfile.filter({}, 'id', 10000);
+    const pubCountById = new Map();
+    for (const p of pubAll) pubCountById.set(p.public_profile_id, (pubCountById.get(p.public_profile_id) || 0) + 1);
+
+    for (const u of page) {
+      if (!u.id) { missing_keys.push({ entity: 'User', field: 'id' }); continue; }
       const email = u.email;
-      if (!email) { report.missing_keys.push({ entity: 'User', id: u.id, field: 'email' }); continue; }
+      if (!email) { missing_keys.push({ entity: 'User', id: u.id, field: 'email' }); continue; }
 
-      // UserSecurityProfile
-      if (secByKey.has(u.id) || secByKey.has(email)) {
-        report.duplicate_sidecars.push({ entity: 'UserSecurityProfile', user_id: u.id });
-      } else {
-        report.records_requiring_migration++;
-        report.proposed_creates++;
+      const secDup = (secCount.get(u.id) || 0) > 1;
+      const privDup = (privCountByEmail.get(email) || 0) > 1;
+      const privExisting = privByEmail.get(email);
+      const pubDup = privExisting?.public_profile_id ? (pubCountById.get(privExisting.public_profile_id) || 0) > 1 : false;
+      if (secDup || privDup || pubDup) acc.dups++;
+
+      const secExists = secCount.has(u.id);
+      if (secExists) acc.already++;
+      else { acc.created++; if (confirm) { try { await base44.asServiceRole.entities.UserSecurityProfile.create({
+        user_id: u.id, user_email: email, stripe_account_id: u.stripe_account_id, stripe_onboarding_complete: u.stripe_onboarding_complete,
+        peanut_points: u.peanut_points, lifetime_points: u.lifetime_points, points_last_updated: u.points_last_updated,
+        trust_score: u.trust_score, seller_transfer_reliability: u.seller_transfer_reliability,
+        transfer_success_count: u.transfer_success_count, transfer_fail_count: u.transfer_fail_count,
+        transfer_expired_count: u.transfer_expired_count, transfer_false_claim_count: u.transfer_false_claim_count,
+        strike_count: u.strike_count, confirmed_fraud_count: u.confirmed_fraud_count, false_dispute_count: u.false_dispute_count,
+        total_purchases: u.total_purchases, total_sales: u.total_sales, total_instant_listings: u.total_instant_listings,
+        total_live_upgrades: u.total_live_upgrades, total_fast_transfers: u.total_fast_transfers, total_disputes: u.total_disputes,
+        total_failed_transfers: u.total_failed_transfers, total_cancelled_sales: u.total_cancelled_sales, total_donations_made: u.total_donations_made,
+        seller_streak: u.seller_streak, last_pi_attempt_at: u.last_pi_attempt_at, pi_attempt_count: u.pi_attempt_count,
+        admin_flags: [], internal_risk_notes: null, migration_version: MIGRATION_VERSION, migrated_at: new Date().toISOString(),
+      }); } catch (e) { acc.failed++; } } }
+
+      const pubId = privExisting?.public_profile_id;
+      const pubExists = pubId && pubCountById.has(pubId);
+      if (privExisting && pubExists) { /* already migrated for pub+priv */ }
+      else {
+        acc.created++;
         if (confirm) {
+          const newPubId = pubId || `pp_${crypto.randomUUID()}`;
           try {
-            await base44.asServiceRole.entities.UserSecurityProfile.create({
-              user_id: u.id, user_email: email,
-              stripe_account_id: u.stripe_account_id, stripe_onboarding_complete: u.stripe_onboarding_complete,
-              peanut_points: u.peanut_points, lifetime_points: u.lifetime_points, points_last_updated: u.points_last_updated,
-              trust_score: u.trust_score, seller_transfer_reliability: u.seller_transfer_reliability,
-              transfer_success_count: u.transfer_success_count, transfer_fail_count: u.transfer_fail_count,
-              transfer_expired_count: u.transfer_expired_count, transfer_false_claim_count: u.transfer_false_claim_count,
-              strike_count: u.strike_count, confirmed_fraud_count: u.confirmed_fraud_count, false_dispute_count: u.false_dispute_count,
-              total_purchases: u.total_purchases, total_sales: u.total_sales, total_instant_listings: u.total_instant_listings,
-              total_live_upgrades: u.total_live_upgrades, total_fast_transfers: u.total_fast_transfers, total_disputes: u.total_disputes,
-              total_failed_transfers: u.total_failed_transfers, total_cancelled_sales: u.total_cancelled_sales, total_donations_made: u.total_donations_made,
-              seller_streak: u.seller_streak, last_pi_attempt_at: u.last_pi_attempt_at, pi_attempt_count: u.pi_attempt_count,
-              admin_flags: [], internal_risk_notes: null,
-              migration_version: MIGRATION_VERSION, migrated_at: new Date().toISOString(),
-            });
-          } catch (e) { report.malformed_values.push({ entity: 'UserSecurityProfile', user_id: u.id, error: e?.message }); }
+            if (privExisting && !pubId) {
+              await base44.asServiceRole.entities.UserPrivate.update(privExisting.id, { public_profile_id: newPubId });
+            } else if (!privExisting) {
+              await base44.asServiceRole.entities.UserPrivate.create({
+                user_id: u.id, user_email: email, public_profile_id: newPubId, phone: null,
+                has_seen_onboarding: u.has_seen_onboarding, points_last_updated: u.points_last_updated,
+                referred_by: u.referred_by, preferences: {}, updated_at: new Date().toISOString(),
+              });
+            }
+            if (!pubExists) {
+              await base44.asServiceRole.entities.PublicProfile.create({
+                public_profile_id: newPubId, display_name: u.full_name || u.persona_name || null,
+                avatar_url: u.avatar_url, banner_url: u.banner_url, bio: u.bio, persona_name: u.persona_name,
+                persona_style: u.persona_style, verified_fan: u.verified_fan, is_founding_fan: u.is_founding_fan,
+                peanut_level: u.peanut_level, peanut_rank: u.peanut_rank, trust_badges: u.trust_badges,
+                achievements: u.achievements, public_trust_summary: null, referral_code: u.referral_code,
+                updated_at: new Date().toISOString(),
+              });
+            }
+          } catch (e) { acc.failed++; }
         }
       }
-
-      // PublicProfile — opaque random public_profile_id
-      if (pubByUserId.has(u.id)) {
-        report.duplicate_sidecars.push({ entity: 'PublicProfile', user_id: u.id });
-      } else {
-        report.proposed_creates++;
-        if (confirm) {
-          try {
-            await base44.asServiceRole.entities.PublicProfile.create({
-              user_id: u.id, public_profile_id: `pp_${crypto.randomUUID()}`,
-              display_name: u.full_name || u.persona_name || null,
-              avatar_url: u.avatar_url, banner_url: u.banner_url, bio: u.bio,
-              persona_name: u.persona_name, persona_style: u.persona_style,
-              verified_fan: u.verified_fan, is_founding_fan: u.is_founding_fan,
-              peanut_level: u.peanut_level, peanut_rank: u.peanut_rank,
-              trust_badges: u.trust_badges, achievements: u.achievements,
-              public_trust_summary: null, referral_code: u.referral_code,
-              updated_at: new Date().toISOString(),
-            });
-          } catch (e) { report.malformed_values.push({ entity: 'PublicProfile', user_id: u.id, error: e?.message }); }
-        }
-      }
-
-      // UserPrivate — owner-scoped private account metadata
-      if (privByEmail.has(email)) {
-        report.duplicate_sidecars.push({ entity: 'UserPrivate', user_email: email });
-      } else {
-        report.proposed_creates++;
-        if (confirm) {
-          try {
-            await base44.asServiceRole.entities.UserPrivate.create({
-              user_id: u.id, user_email: email,
-              phone: null, has_seen_onboarding: u.has_seen_onboarding,
-              points_last_updated: u.points_last_updated, referred_by: u.referred_by,
-              preferences: {}, updated_at: new Date().toISOString(),
-            });
-          } catch (e) { report.malformed_values.push({ entity: 'UserPrivate', user_id: u.id, error: e?.message }); }
-        }
-      }
-      report.unsafe_fields.push({ entity: 'User', user_id: u.id, field: 'email/stripe_account_id', reason: 'never copied to PublicProfile' });
+      unsafe_fields.push({ entity: 'User', user_id: u.id, field: 'email/stripe_account_id', reason: 'never copied to PublicProfile' });
     }
-    report.next_cursors.user = lastId;
-    report.sidecar_counts_after.UserSecurityProfile = (await base44.asServiceRole.entities.UserSecurityProfile.filter({}, 'id', 10000)).length;
-    report.sidecar_counts_after.PublicProfile = (await base44.asServiceRole.entities.PublicProfile.filter({}, 'id', 10000)).length;
-    report.sidecar_counts_after.UserPrivate = (await base44.asServiceRole.entities.UserPrivate.filter({}, 'id', 10000)).length;
+    const processed = page.length;
+    const hasMore = offset + processed < total;
+    next_cursors.user = { offset: offset + processed, last_id: page.length ? page[page.length - 1].id : null };
+    perSource.user = { total, processed, remaining: total - (offset + processed), has_more: hasMore, next_cursor: next_cursors.user, created: acc.created, already_migrated: acc.already, actual_duplicates: acc.dups, failed: acc.failed };
+    totals.created += acc.created; totals.already_migrated += acc.already; totals.actual_duplicates += acc.dups; totals.failed += acc.failed; totals.processed += processed; totals.remaining += perSource.user.remaining;
   }
 
-  report.sidecar_counts_after.ProofAsset = (await base44.asServiceRole.entities.ProofAsset.filter({}, 'id', 10000)).length;
+  const sidecar_counts_after = {
+    ListingPrivate: (await base44.asServiceRole.entities.ListingPrivate.filter({}, 'id', 10000)).length,
+    PurchasePrivate: (await base44.asServiceRole.entities.PurchasePrivate.filter({}, 'id', 10000)).length,
+    UserSecurityProfile: (await base44.asServiceRole.entities.UserSecurityProfile.filter({}, 'id', 10000)).length,
+    PublicProfile: (await base44.asServiceRole.entities.PublicProfile.filter({}, 'id', 10000)).length,
+    UserPrivate: (await base44.asServiceRole.entities.UserPrivate.filter({}, 'id', 10000)).length,
+    ProofAsset: (await base44.asServiceRole.entities.ProofAsset.filter({}, 'id', 10000)).length,
+  };
 
-  // No notifications, points, Stripe, or marketplace state changes performed.
-  return Response.json(report);
+  if (confirm && run) {
+    await base44.asServiceRole.entities.MigrationRun.update(run.id, {
+      status: 'completed', completed_at: new Date().toISOString(),
+      cursors: next_cursors, counts: perSource, totals,
+    });
+  }
+
+  return Response.json({
+    migration_version: MIGRATION_VERSION,
+    mode: confirm ? 'apply' : 'dry_run',
+    batch_limit: batchLimit,
+    resume_after: resumeAfter,
+    per_source: perSource,
+    totals,
+    missing_keys,
+    unsafe_fields,
+    sidecar_counts_after,
+    next_cursors,
+    migration_run_id: run?.id || null,
+  });
 });

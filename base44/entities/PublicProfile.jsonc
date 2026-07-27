@@ -20,13 +20,9 @@
     }
   },
   "properties": {
-    "user_id": {
-      "type": "string",
-      "description": "FK to User \u2014 primary key."
-    },
     "public_profile_id": {
       "type": "string",
-      "description": "Stable public identifier (pp_<user_id>). Never the email."
+      "description": "Opaque random public identifier (pp_<uuid>). The ONLY key exposed publicly. user_id is NEVER stored on this entity."
     },
     "display_name": {
       "type": "string"
@@ -77,7 +73,7 @@
     },
     "public_trust_summary": {
       "type": "string",
-      "description": "Derived, deliberately-public trust summary. Never raw scores or internals."
+      "description": "Derived public trust summary. Never raw scores or internals."
     },
     "referral_code": {
       "type": "string"
@@ -87,7 +83,6 @@
     }
   },
   "required": [
-    "user_id",
     "public_profile_id"
   ]
 }

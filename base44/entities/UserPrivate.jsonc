@@ -33,15 +33,18 @@
   "properties": {
     "user_id": {
       "type": "string",
-      "description": "FK to User \u2014 primary key."
+      "description": "FK to User \u2014 primary key. Private; never exposed via PublicProfile."
     },
     "user_email": {
       "type": "string",
-      "description": "Owner email \u2014 RLS key. Used to scope owner reads."
+      "description": "Owner email \u2014 RLS key for owner reads."
+    },
+    "public_profile_id": {
+      "type": "string",
+      "description": "Opaque public_profile_id (pp_<uuid>) pointing to this user's PublicProfile. This is the ONLY durable user_id \u2194 public_profile_id mapping and it is private."
     },
     "phone": {
-      "type": "string",
-      "description": "Private contact phone."
+      "type": "string"
     },
     "has_seen_onboarding": {
       "type": "boolean",
@@ -54,8 +57,7 @@
       "type": "string"
     },
     "preferences": {
-      "type": "object",
-      "description": "Private user preferences (notifications, locale, etc.)."
+      "type": "object"
     },
     "updated_at": {
       "type": "string"

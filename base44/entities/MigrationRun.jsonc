@@ -1,0 +1,77 @@
+{
+  "name": "MigrationRun",
+  "type": "object",
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  },
+  "properties": {
+    "apply_request_id": {
+      "type": "string",
+      "description": "Client-supplied unique id for one apply run. Replays with the same id are rejected."
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "in_progress",
+        "completed",
+        "failed",
+        "rejected"
+      ],
+      "default": "in_progress"
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "dry_run",
+        "apply"
+      ]
+    },
+    "started_at": {
+      "type": "string"
+    },
+    "completed_at": {
+      "type": "string"
+    },
+    "cursors": {
+      "type": "object",
+      "description": "Per-source compound cursor consumed/produced: { listing:{created_date,id}, purchase:{...}, user:{...} }"
+    },
+    "counts": {
+      "type": "object",
+      "description": "Per-source: { created, already_migrated, actual_duplicates, failed, processed, remaining }"
+    },
+    "totals": {
+      "type": "object",
+      "description": "Aggregate created/already_migrated/actual_duplicates/failed/processed/remaining."
+    },
+    "rejection_reason": {
+      "type": "string"
+    },
+    "migration_version": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "apply_request_id",
+    "status"
+  ]
+}

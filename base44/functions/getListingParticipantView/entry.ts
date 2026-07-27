@@ -11,8 +11,8 @@ Deno.serve(async (req) => {
   try { user = await base44.auth.me(); } catch (_) { return Response.json({ error: 'Unauthorized' }, { status: 401 }); }
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const url = new URL(req.url);
-  const listing_id = url.searchParams.get('listing_id');
+  const body = await req.json().catch(() => ({}));
+  const listing_id = body?.listing_id;
   if (!listing_id) return Response.json({ error: 'listing_id required' }, { status: 400 });
 
   const rows = await base44.asServiceRole.entities.Listing.filter({ id: listing_id });
