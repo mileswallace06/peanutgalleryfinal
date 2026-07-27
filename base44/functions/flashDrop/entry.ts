@@ -67,6 +67,11 @@ Deno.serve(async (req) => {
   const user = await base44.auth.me();
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
+  // Phase 0 maintenance gate — blocks Flash Drops unless caller is admin.
+  if (Deno.env.get('MAINTENANCE_MODE') === 'true' && user.role !== 'admin') {
+    return Response.json({ error: 'Flash Drops are temporarily unavailable for scheduled maintenance.', code: 'MAINTENANCE' }, { status: 503 });
+  }
+
   const body = await req.json().catch(() => ({}));
   const { action } = body;
 
@@ -221,7 +226,7 @@ Deno.serve(async (req) => {
     }
 
     // ── Create FlashDrop ────────────────────────────────────────────────────
-    const drop = await base44.entities.FlashDrop.create({
+    const drop = await base44.asServiceRole.entities.FlashDrop.create({
       event_id,
       event_title: event?.title || '',
       donor_email: user.email,
@@ -275,7 +280,7 @@ Deno.serve(async (req) => {
     const existing = await base44.asServiceRole.entities.FlashDropEntry.filter({ flash_drop_id, entrant_email: user.email });
     if (existing.length > 0) return Response.json({ error: 'Already entered', entry: existing[0] }, { status: 409 });
 
-    const entry = await base44.entities.FlashDropEntry.create({
+    const entry = await base44.asServiceRole.entities.FlashDropEntry.create({
       flash_drop_id,
       event_id: drop.event_id,
       entrant_email: user.email,

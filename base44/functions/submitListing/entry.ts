@@ -23,6 +23,11 @@ Deno.serve(async (req) => {
   const user = await base44.auth.me();
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
+  // Phase 0 maintenance gate — blocks new listings unless caller is admin.
+  if (Deno.env.get('MAINTENANCE_MODE') === 'true' && user.role !== 'admin') {
+    return Response.json({ error: 'Listing creation is temporarily unavailable for scheduled maintenance.', code: 'MAINTENANCE' }, { status: 503 });
+  }
+
   const body = await req.json().catch(() => ({}));
   const askingPrice = parseFloat(body.asking_price) || 0;
   const optimisticId = body.optimistic_id;

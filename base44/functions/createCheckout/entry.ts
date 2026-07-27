@@ -40,6 +40,11 @@ Deno.serve(async (req) => {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  // Phase 0 maintenance gate — blocks new checkouts unless caller is admin.
+  if (Deno.env.get('MAINTENANCE_MODE') === 'true' && user.role !== 'admin') {
+    return Response.json({ error: 'Checkout is temporarily unavailable for scheduled maintenance.', code: 'MAINTENANCE' }, { status: 503 });
+  }
+
   const secretKey = Deno.env.get('STRIPELIVESECRETKEY');
   if (!secretKey || (!secretKey.startsWith('sk_test_') && !secretKey.startsWith('sk_live_'))) {
     return Response.json({ error: 'Stripe secret key misconfigured' }, { status: 500 });
