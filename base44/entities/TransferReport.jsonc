@@ -5,7 +5,18 @@
     "create": {
       "data.reporter_email": "{{user.email}}"
     },
-    "read": true,
+    "read": {
+      "$or": [
+        {
+          "data.reporter_email": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
     "update": {
       "user_condition": {
         "role": "admin"
