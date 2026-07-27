@@ -1,0 +1,93 @@
+{
+  "name": "PublicProfile",
+  "type": "object",
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": true,
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  },
+  "properties": {
+    "user_id": {
+      "type": "string",
+      "description": "FK to User \u2014 primary key."
+    },
+    "public_profile_id": {
+      "type": "string",
+      "description": "Stable public identifier (pp_<user_id>). Never the email."
+    },
+    "display_name": {
+      "type": "string"
+    },
+    "avatar_url": {
+      "type": "string"
+    },
+    "banner_url": {
+      "type": "string"
+    },
+    "bio": {
+      "type": "string"
+    },
+    "persona_name": {
+      "type": "string"
+    },
+    "persona_style": {
+      "type": "string"
+    },
+    "verified_fan": {
+      "type": "boolean",
+      "default": false
+    },
+    "is_founding_fan": {
+      "type": "boolean",
+      "default": false
+    },
+    "peanut_level": {
+      "type": "number",
+      "default": 1
+    },
+    "peanut_rank": {
+      "type": "string",
+      "default": "Rookie Fan"
+    },
+    "trust_badges": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Public trust badge keys only."
+    },
+    "achievements": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "public_trust_summary": {
+      "type": "string",
+      "description": "Derived, deliberately-public trust summary. Never raw scores or internals."
+    },
+    "referral_code": {
+      "type": "string"
+    },
+    "updated_at": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "user_id",
+    "public_profile_id"
+  ]
+}

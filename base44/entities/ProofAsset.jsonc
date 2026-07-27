@@ -1,0 +1,110 @@
+{
+  "name": "ProofAsset",
+  "type": "object",
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  },
+  "properties": {
+    "owner_email": {
+      "type": "string",
+      "description": "Authenticated uploader email (derived server-side, never request-supplied)."
+    },
+    "reference_type": {
+      "type": "string",
+      "enum": [
+        "listing",
+        "purchase",
+        "transfer_report",
+        "flash_drop"
+      ],
+      "description": "Owning entity type."
+    },
+    "reference_id": {
+      "type": "string",
+      "description": "ID of the owning entity."
+    },
+    "proof_type": {
+      "type": "string",
+      "enum": [
+        "listing_proof",
+        "transfer_proof",
+        "ownership_proof",
+        "transfer_attestation",
+        "pg_custody_proof",
+        "community_report_screenshot"
+      ]
+    },
+    "private_file_id": {
+      "type": "string",
+      "description": "Private storage file identifier from UploadPrivateFile. Never publicly readable."
+    },
+    "storage_uri": {
+      "type": "string",
+      "description": "Private storage URI. Never publicly readable."
+    },
+    "content_type": {
+      "type": "string",
+      "description": "Validated MIME type."
+    },
+    "checksum": {
+      "type": "string",
+      "description": "Content checksum (SHA-256) when available."
+    },
+    "scan_status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "scanning",
+        "clean",
+        "flagged",
+        "failed"
+      ],
+      "default": "pending"
+    },
+    "uploaded_at": {
+      "type": "string"
+    },
+    "legacy_public_url": {
+      "type": "string",
+      "description": "Pre-migration public URL kept for traceability. Not trusted as private."
+    },
+    "migration_status": {
+      "type": "string",
+      "enum": [
+        "private",
+        "requires_private_reupload",
+        "migrated_from_public"
+      ],
+      "default": "private"
+    },
+    "signed_url_expires_at": {
+      "type": "string",
+      "description": "Optional last-issued signed-URL expiry (TTL \u2264 5 min)."
+    }
+  },
+  "required": [
+    "owner_email",
+    "reference_type",
+    "reference_id",
+    "proof_type"
+  ]
+}

@@ -1,0 +1,243 @@
+{
+  "name": "PurchasePrivate",
+  "type": "object",
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  },
+  "properties": {
+    "purchase_id": {
+      "type": "string",
+      "description": "FK to Purchase \u2014 primary key. One sidecar per Purchase."
+    },
+    "listing_id": {
+      "type": "string"
+    },
+    "event_id": {
+      "type": "string"
+    },
+    "buyer_email": {
+      "type": "string",
+      "description": "Private authoritative buyer identity."
+    },
+    "seller_email": {
+      "type": "string"
+    },
+    "payment_intent_id": {
+      "type": "string",
+      "description": "Stripe PaymentIntent ID \u2014 private."
+    },
+    "reservation_token": {
+      "type": "string",
+      "description": "Private reservation token linking Purchase to Listing reservation."
+    },
+    "buyer_phone": {
+      "type": "string",
+      "description": "Private buyer contact phone."
+    },
+    "authorization_confirmed_at": {
+      "type": "string"
+    },
+    "seller_notified_at": {
+      "type": "string"
+    },
+    "seller_push_status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "sent",
+        "failed",
+        "skipped"
+      ]
+    },
+    "seller_email_status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "sent",
+        "failed",
+        "skipped"
+      ]
+    },
+    "payment_capture_failed": {
+      "type": "boolean",
+      "default": false
+    },
+    "transfer_proof_url": {
+      "type": "string",
+      "description": "Legacy public transfer-proof URL \u2014 requires private re-upload."
+    },
+    "dispute_reason": {
+      "type": "string"
+    },
+    "buyer_lat": {
+      "type": "number",
+      "description": "Private buyer location."
+    },
+    "buyer_lng": {
+      "type": "number"
+    },
+    "location_verified": {
+      "type": "boolean",
+      "default": false
+    },
+    "reminder_flags": {
+      "type": "object",
+      "properties": {
+        "seller_r1": {
+          "type": "boolean"
+        },
+        "seller_r2": {
+          "type": "boolean"
+        },
+        "buyer_r1": {
+          "type": "boolean"
+        },
+        "buyer_r2": {
+          "type": "boolean"
+        },
+        "stale_pi_warned": {
+          "type": "boolean"
+        }
+      }
+    },
+    "auto_review_flagged": {
+      "type": "boolean",
+      "default": false
+    },
+    "auto_review_flagged_at": {
+      "type": "string"
+    },
+    "false_claim_recorded": {
+      "type": "boolean",
+      "default": false
+    },
+    "fulfillment_status": {
+      "type": "string",
+      "enum": [
+        "awaiting_pg_transfer",
+        "transfer_in_progress",
+        "fulfilled",
+        "buyer_confirmed",
+        "issue_reported"
+      ]
+    },
+    "fulfillment_proof_url": {
+      "type": "string",
+      "description": "Legacy public fulfillment-proof URL \u2014 requires private re-upload."
+    },
+    "fulfillment_notes": {
+      "type": "string"
+    },
+    "fulfillment_started_at": {
+      "type": "string"
+    },
+    "fulfillment_completed_at": {
+      "type": "string"
+    },
+    "ai_proof_status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "processing",
+        "verified_high_confidence",
+        "verified_medium_confidence",
+        "needs_human_review",
+        "rejected_suspicious",
+        "failed_processing"
+      ],
+      "default": "pending"
+    },
+    "ai_confidence_score": {
+      "type": "number"
+    },
+    "ai_review_notes": {
+      "type": "string"
+    },
+    "ai_detected_platform": {
+      "type": "string"
+    },
+    "ai_extracted_event_name": {
+      "type": "string"
+    },
+    "ai_extracted_recipient": {
+      "type": "string"
+    },
+    "ai_extracted_transfer_time": {
+      "type": "string"
+    },
+    "ai_extracted_section": {
+      "type": "string"
+    },
+    "ai_extracted_row": {
+      "type": "string"
+    },
+    "ai_extracted_seats": {
+      "type": "string"
+    },
+    "ai_flags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "ai_processed_at": {
+      "type": "string"
+    },
+    "ai_processed_by_model": {
+      "type": "string"
+    },
+    "fraud_risk_score": {
+      "type": "number"
+    },
+    "admin_override_status": {
+      "type": "string",
+      "enum": [
+        "approved",
+        "rejected",
+        "escalated",
+        "marked_fraudulent"
+      ]
+    },
+    "admin_override_reason": {
+      "type": "string"
+    },
+    "admin_override_by": {
+      "type": "string"
+    },
+    "admin_override_at": {
+      "type": "string"
+    },
+    "is_demo": {
+      "type": "boolean",
+      "default": false
+    },
+    "migration_version": {
+      "type": "number"
+    },
+    "migrated_at": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "purchase_id"
+  ]
+}

@@ -1,0 +1,171 @@
+{
+  "name": "ListingPrivate",
+  "type": "object",
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  },
+  "properties": {
+    "listing_id": {
+      "type": "string",
+      "description": "FK to Listing \u2014 primary key. One sidecar per Listing."
+    },
+    "event_id": {
+      "type": "string"
+    },
+    "seller_email": {
+      "type": "string",
+      "description": "Exact private seller identity."
+    },
+    "section": {
+      "type": "string",
+      "description": "Exact private seat location."
+    },
+    "row": {
+      "type": "string"
+    },
+    "seats": {
+      "type": "string",
+      "description": "Exact private seat numbers."
+    },
+    "quantity": {
+      "type": "number"
+    },
+    "proof_url": {
+      "type": "string",
+      "description": "Legacy public proof URL \u2014 copied for traceability only; NOT trusted as private. Re-upload required via ProofAsset."
+    },
+    "proof_status": {
+      "type": "string",
+      "enum": [
+        "pending_review",
+        "approved",
+        "rejected"
+      ]
+    },
+    "proof_rejection_reason": {
+      "type": "string"
+    },
+    "ticket_file_url": {
+      "type": "string"
+    },
+    "reservation_token": {
+      "type": "string",
+      "description": "Private checkout reservation token."
+    },
+    "reservation_expires_at": {
+      "type": "string"
+    },
+    "reserved_by_email": {
+      "type": "string",
+      "description": "Private buyer holding the reservation."
+    },
+    "transfer_verification_proof_url": {
+      "type": "string",
+      "description": "Legacy public transfer-verification URL \u2014 requires private re-upload."
+    },
+    "transfer_verified_by": {
+      "type": "string"
+    },
+    "transfer_verified_notes": {
+      "type": "string"
+    },
+    "pg_transfer_proof_url": {
+      "type": "string"
+    },
+    "pg_transfer_notes": {
+      "type": "string"
+    },
+    "pg_fulfilled_at": {
+      "type": "string"
+    },
+    "pg_fulfilled_by": {
+      "type": "string"
+    },
+    "seller_ownership_confirmed": {
+      "type": "boolean",
+      "default": false
+    },
+    "limited_transfer_authorization": {
+      "type": "boolean",
+      "default": false
+    },
+    "ticket_custody_status": {
+      "type": "string",
+      "enum": [
+        "not_received",
+        "pending",
+        "received",
+        "delivered_to_buyer",
+        "returned_to_seller",
+        "failed",
+        "expired"
+      ]
+    },
+    "custody_received_at": {
+      "type": "string"
+    },
+    "buyer_delivered_at": {
+      "type": "string"
+    },
+    "returned_to_seller_at": {
+      "type": "string"
+    },
+    "transfer_failure_reason": {
+      "type": "string"
+    },
+    "seller_release_deadline": {
+      "type": "string"
+    },
+    "custody_status": {
+      "type": "string",
+      "enum": [
+        "none",
+        "pending_pg_verification",
+        "verified",
+        "rejected"
+      ]
+    },
+    "seat_inventory_id": {
+      "type": "string",
+      "description": "FK to SeatInventory."
+    },
+    "is_demo_listing": {
+      "type": "boolean",
+      "default": false
+    },
+    "notes": {
+      "type": "string",
+      "description": "May contain [TEST]/[DEMO] markers."
+    },
+    "migration_version": {
+      "type": "number",
+      "description": "Migration schema version that produced this sidecar."
+    },
+    "migrated_at": {
+      "type": "string",
+      "description": "ISO timestamp when the sidecar was created."
+    }
+  },
+  "required": [
+    "listing_id"
+  ]
+}

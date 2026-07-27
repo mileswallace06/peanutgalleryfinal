@@ -1,0 +1,68 @@
+{
+  "name": "UserPrivate",
+  "type": "object",
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "$or": [
+        {
+          "data.user_email": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  },
+  "properties": {
+    "user_id": {
+      "type": "string",
+      "description": "FK to User \u2014 primary key."
+    },
+    "user_email": {
+      "type": "string",
+      "description": "Owner email \u2014 RLS key. Used to scope owner reads."
+    },
+    "phone": {
+      "type": "string",
+      "description": "Private contact phone."
+    },
+    "has_seen_onboarding": {
+      "type": "boolean",
+      "default": false
+    },
+    "points_last_updated": {
+      "type": "string"
+    },
+    "referred_by": {
+      "type": "string"
+    },
+    "preferences": {
+      "type": "object",
+      "description": "Private user preferences (notifications, locale, etc.)."
+    },
+    "updated_at": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "user_id",
+    "user_email"
+  ]
+}

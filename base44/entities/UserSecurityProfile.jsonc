@@ -1,0 +1,159 @@
+{
+  "name": "UserSecurityProfile",
+  "type": "object",
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  },
+  "properties": {
+    "user_id": {
+      "type": "string",
+      "description": "FK to User \u2014 primary key."
+    },
+    "user_email": {
+      "type": "string",
+      "description": "Owner email \u2014 secondary key."
+    },
+    "stripe_account_id": {
+      "type": "string",
+      "description": "Stripe Connect account ID."
+    },
+    "stripe_onboarding_complete": {
+      "type": "boolean",
+      "default": false
+    },
+    "peanut_points": {
+      "type": "number",
+      "default": 0
+    },
+    "lifetime_points": {
+      "type": "number",
+      "default": 0
+    },
+    "points_last_updated": {
+      "type": "string"
+    },
+    "trust_score": {
+      "type": "number"
+    },
+    "seller_transfer_reliability": {
+      "type": "number"
+    },
+    "transfer_success_count": {
+      "type": "number",
+      "default": 0
+    },
+    "transfer_fail_count": {
+      "type": "number",
+      "default": 0
+    },
+    "transfer_expired_count": {
+      "type": "number",
+      "default": 0
+    },
+    "transfer_false_claim_count": {
+      "type": "number",
+      "default": 0
+    },
+    "strike_count": {
+      "type": "number",
+      "default": 0
+    },
+    "confirmed_fraud_count": {
+      "type": "number",
+      "default": 0
+    },
+    "false_dispute_count": {
+      "type": "number",
+      "default": 0
+    },
+    "total_purchases": {
+      "type": "number",
+      "default": 0
+    },
+    "total_sales": {
+      "type": "number",
+      "default": 0
+    },
+    "total_instant_listings": {
+      "type": "number",
+      "default": 0
+    },
+    "total_live_upgrades": {
+      "type": "number",
+      "default": 0
+    },
+    "total_fast_transfers": {
+      "type": "number",
+      "default": 0
+    },
+    "total_disputes": {
+      "type": "number",
+      "default": 0
+    },
+    "total_failed_transfers": {
+      "type": "number",
+      "default": 0
+    },
+    "total_cancelled_sales": {
+      "type": "number",
+      "default": 0
+    },
+    "total_donations_made": {
+      "type": "number",
+      "default": 0
+    },
+    "seller_streak": {
+      "type": "number",
+      "default": 0
+    },
+    "last_pi_attempt_at": {
+      "type": "string",
+      "description": "PI rate-limit timestamp."
+    },
+    "pi_attempt_count": {
+      "type": "number",
+      "default": 0,
+      "description": "PI attempt fraud signal."
+    },
+    "admin_flags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Administrative flags (e.g. suspended, manual_review)."
+    },
+    "internal_risk_notes": {
+      "type": "string",
+      "description": "Internal risk/fraud investigation notes."
+    },
+    "migration_version": {
+      "type": "number"
+    },
+    "migrated_at": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "user_id",
+    "user_email"
+  ]
+}
