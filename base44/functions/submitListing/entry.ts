@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { maintenanceBlock } from '../../shared/maintenance.ts';
 
 async function checkSuspicious(base44, sellerEmail, askingPrice) {
   const [purchases, allListings, sellerUsers] = await Promise.all([
@@ -23,10 +24,11 @@ Deno.serve(async (req) => {
   const user = await base44.auth.me();
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-  // Phase 0 maintenance gate — blocks new listings unless caller is admin.
-  if (Deno.env.get('MAINTENANCE_MODE') === 'true' && user.role !== 'admin') {
-    return Response.json({ error: 'Listing creation is temporarily unavailable for scheduled maintenance.', code: 'MAINTENANCE' }, { status: 503 });
-  }
+  // Phase 0 maintenance gate — fail-closed (MAINTENANCE_MODE !== "false").
+  // Non-admins blocked; admins may still exercise demo/test-listing paths.
+  // Zero writes occur before this returns for blocked callers.
+  const _maint = maintenanceBlock(user, { allowAdmin: true });
+  if (_maint) return _maint;
 
   const body = await req.json().catch(() => ({}));
   const askingPrice = parseFloat(body.asking_price) || 0;
