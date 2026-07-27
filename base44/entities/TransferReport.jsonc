@@ -1,6 +1,22 @@
 {
   "name": "TransferReport",
   "type": "object",
+  "rls": {
+    "create": {
+      "data.reporter_email": "{{user.email}}"
+    },
+    "read": true,
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  },
   "properties": {
     "event_id": {
       "type": "string",
