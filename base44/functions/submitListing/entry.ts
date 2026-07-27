@@ -1,5 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
-import { maintenanceBlock } from '../../shared/maintenance.ts';
+import { isMaintenanceActive, maintenance503 } from '../../shared/maintenance.ts';
 
 async function checkSuspicious(base44, sellerEmail, askingPrice) {
   const [purchases, allListings, sellerUsers] = await Promise.all([
@@ -24,17 +24,19 @@ Deno.serve(async (req) => {
   const user = await base44.auth.me();
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-  // Phase 0 maintenance gate — fail-closed (MAINTENANCE_MODE !== "false").
-  // Non-admins blocked; admins may still exercise demo/test-listing paths.
-  // Zero writes occur before this returns for blocked callers.
-  const _maint = maintenanceBlock(user, { allowAdmin: true });
-  if (_maint) return _maint;
-
   const body = await req.json().catch(() => ({}));
   const askingPrice = parseFloat(body.asking_price) || 0;
   const optimisticId = body.optimistic_id;
   const isAdmin = user.role === 'admin';
   const isTest = body.is_test === true;
+
+  // Phase 0 maintenance gate — fail-closed. During maintenance a listing may
+  // be created ONLY by an admin exercising an explicit is_test=true dry run;
+  // the resulting record is forced to is_demo_listing=true (never a real
+  // listing). Zero writes occur before this returns for blocked callers.
+  if (isMaintenanceActive() && !(isAdmin && isTest)) {
+    return maintenance503('Listing creation is temporarily unavailable for scheduled maintenance.');
+  }
 
   if (!isAdmin) {
     const freshUsers = await base44.asServiceRole.entities.User.filter({ email: user.email });
@@ -118,6 +120,7 @@ Deno.serve(async (req) => {
     proof_rejection_reason: flagged ? reason : proofDuplicate ? 'Duplicate proof image detected — requires manual review' : undefined,
     status: 'active',
     notes: (isAdmin || isTest) ? '[TEST] Admin/demo listing' : undefined,
+    is_demo_listing: (isAdmin && isTest),
     last_transfer_verification: now,
     transfer_status: 'transfer_confirmed',
     transfer_verification_method: verificationMethod,

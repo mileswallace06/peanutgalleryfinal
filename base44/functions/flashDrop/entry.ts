@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import { recordNotification } from '../../shared/notifications.ts';
-import { maintenanceBlock } from '../../shared/maintenance.ts';
+import { isMaintenanceActive, maintenance503 } from '../../shared/maintenance.ts';
 
 // ── Config ──────────────────────────────────────────────────────────────────
 const MAX_DROPS_PER_USER_PER_EVENT = 2;
@@ -68,14 +68,16 @@ Deno.serve(async (req) => {
   const user = await base44.auth.me();
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-  // Phase 0 maintenance gate — fail-closed (MAINTENANCE_MODE !== "false").
-  // Non-admins blocked; admins may still exercise demo/dry-run paths.
-  // Zero writes occur before this returns for blocked callers.
-  const _maint = maintenanceBlock(user, { allowAdmin: true });
-  if (_maint) return _maint;
-
   const body = await req.json().catch(() => ({}));
   const { action } = body;
+
+  // Phase 0 maintenance gate — fail-closed. During maintenance EVERY mutating
+  // action is blocked, including for admins. track_view and track_loser_action
+  // mutate (metrics / entry writes) so they are blocked too. Only the genuinely
+  // read-only poll_result diagnostic is permitted, and only for admins.
+  if (isMaintenanceActive() && !(user.role === 'admin' && action === 'poll_result')) {
+    return maintenance503('Flash Drops are temporarily unavailable for scheduled maintenance.');
+  }
 
   // ── CREATE FLASH DROP ─────────────────────────────────────────────────────
   if (action === 'create') {

@@ -25,7 +25,7 @@
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import Stripe from 'npm:stripe@14.21.0';
-import { maintenanceBlock } from '../../shared/maintenance.ts';
+import { isMaintenanceActive, maintenance503 } from '../../shared/maintenance.ts';
 
 // ── Fee engine (mirrors feeEngine.js ACTIVE_FEE_MODEL_ID = 'buyer_5_min_1') ──
 function calcPlatformFee(subtotal) {
@@ -41,11 +41,10 @@ Deno.serve(async (req) => {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Phase 0 maintenance gate — fail-closed (MAINTENANCE_MODE !== "false").
-  // createCheckout is real-money only with no dry-run path, so admins are
-  // blocked too. Zero writes / zero Stripe calls occur before this returns.
-  const _maint = maintenanceBlock(user, { allowAdmin: false });
-  if (_maint) return _maint;
+  // Phase 0 maintenance gate — fail-closed. createCheckout is real-money only
+  // with no dry-run path, so EVERY caller (including admins) is blocked while
+  // maintenance is active. Zero writes / zero Stripe calls occur before this.
+  if (isMaintenanceActive()) return maintenance503('Checkout is temporarily unavailable for scheduled maintenance.');
 
   const secretKey = Deno.env.get('STRIPELIVESECRETKEY');
   if (!secretKey || (!secretKey.startsWith('sk_test_') && !secretKey.startsWith('sk_live_'))) {

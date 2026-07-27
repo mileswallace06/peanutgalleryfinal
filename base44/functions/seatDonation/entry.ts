@@ -1,7 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import { recordNotification } from '../../shared/notifications.ts';
 import { awardPointsInternal } from '../../shared/points.ts';
-import { maintenanceBlock } from '../../shared/maintenance.ts';
+import { isMaintenanceActive, maintenance503 } from '../../shared/maintenance.ts';
 
 /**
  * seatDonation — Seat Donation System backend
@@ -78,14 +78,22 @@ Deno.serve(async (req) => {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-    // Phase 0 maintenance gate — fail-closed (MAINTENANCE_MODE !== "false").
-    // Non-admins blocked; admins may still exercise demo/dry-run paths.
-    // Zero writes occur before this returns for blocked callers.
-    const _maint = maintenanceBlock(user, { allowAdmin: true });
-    if (_maint) return _maint;
-
     const body = await req.json();
     const { action } = body;
+
+    // dry_run: admin-only diagnostic. Zero writes, points awards, draws,
+    // notifications, or provider calls. Available in all modes.
+    if (action === 'dry_run') {
+      if (user.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: 403 });
+      return Response.json({ dry_run: true, maintenance_active: isMaintenanceActive() });
+    }
+
+    // Phase 0 maintenance gate — fail-closed. During maintenance EVERY mutating
+    // action (opt_in, create_donation, run_draw, respond) is blocked for all
+    // callers; admins may use only the dry_run diagnostic above.
+    if (isMaintenanceActive()) {
+      return maintenance503('Donations are temporarily unavailable for scheduled maintenance.');
+    }
 
     // ── OPT IN ────────────────────────────────────────────────────────────────
     if (action === 'opt_in') {
