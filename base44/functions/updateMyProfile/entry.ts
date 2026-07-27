@@ -21,7 +21,7 @@ Deno.serve(async (req) => {
   const profile = rows[0];
   if (!profile) {
     await base44.asServiceRole.entities.PublicProfile.create({
-      user_id: user.id, public_profile_id: `pp_${user.id}`, ...allowed,
+      user_id: user.id, public_profile_id: `pp_${crypto.randomUUID()}`, ...allowed,
     });
   } else {
     await base44.asServiceRole.entities.PublicProfile.update(profile.id, allowed);
