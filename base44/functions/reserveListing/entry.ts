@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { upsertListingPrivate } from '../../shared/privateData.ts';
 
 const RESERVATION_MINUTES = 10;
 
@@ -82,6 +83,12 @@ Deno.serve(async (req) => {
     reservation_token: token,
     reservation_expires_at: expiresAt,
   });
+  // Phase 1B: mirror reservation to ListingPrivate (authoritative private destination)
+  upsertListingPrivate(base44, listing.id, {
+    reserved_by_email: user.email,
+    reservation_token: token,
+    reservation_expires_at: expiresAt,
+  }).catch(() => {});
 
   // ── Race condition: re-fetch and verify we own the reservation ──────────
   const [reservedListing] = await base44.asServiceRole.entities.Listing.filter({ id: listing.id });

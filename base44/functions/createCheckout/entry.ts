@@ -26,6 +26,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import Stripe from 'npm:stripe@14.21.0';
 import { isMaintenanceActive, maintenance503 } from '../../shared/maintenance.ts';
+import { upsertListingPrivate, upsertPurchasePrivate, upsertUserSecurityProfile, ensureListingPrivate } from '../../shared/privateData.ts';
 
 // ── Fee engine (mirrors feeEngine.js ACTIVE_FEE_MODEL_ID = 'buyer_5_min_1') ──
 function calcPlatformFee(subtotal) {
@@ -76,6 +77,13 @@ Deno.serve(async (req) => {
     last_pi_attempt_at: new Date().toISOString(),
     pi_attempt_count: (freshRequester.pi_attempt_count || 0) + 1,
   }).catch(() => {});
+  // Phase 1B: mirror PI rate-limit fields to UserSecurityProfile (authoritative)
+  if (freshRequester) {
+    upsertUserSecurityProfile(base44, { user_id: freshRequester.id, user_email: buyerEmail }, {
+      last_pi_attempt_at: new Date().toISOString(),
+      pi_attempt_count: (freshRequester.pi_attempt_count || 0) + 1,
+    }).catch(() => {});
+  }
 
   // ── Fetch authoritative listing ──────────────────────────────────────────
   const listings = await base44.asServiceRole.entities.Listing.filter({ id: listing_id });
@@ -153,6 +161,13 @@ Deno.serve(async (req) => {
     reservation_expires_at: reservationExpiresAt,
     reserved_by_email: buyerEmail,
   });
+  // Phase 1B: mirror reservation to ListingPrivate (authoritative private destination)
+  upsertListingPrivate(base44, listing.id, {
+    status: 'pending_transfer',
+    reservation_token: reservationToken,
+    reservation_expires_at: reservationExpiresAt,
+    reserved_by_email: buyerEmail,
+  }).catch(() => {});
 
   // Re-fetch to verify we own the reservation (last-write-wins check)
   const [reservedListing] = await base44.asServiceRole.entities.Listing.filter({ id: listing.id });
@@ -252,6 +267,21 @@ Deno.serve(async (req) => {
     payment_captured: false,
     is_demo: false,
   });
+
+  // ── Phase 1B: create PurchasePrivate + ensure ListingPrivate sidecars ─────
+  await upsertPurchasePrivate(base44, purchase.id, {
+    listing_id: listing.id, event_id: listing.event_id,
+    buyer_email: buyerEmail, seller_email: listing.seller_email,
+    payment_intent_id: paymentIntent.id, reservation_token: reservationToken,
+    buyer_phone: buyer_phone || null, buyer_name: buyer_name || null,
+    payment_captured: false, is_demo: false,
+    migration_version: 3, migrated_at: new Date().toISOString(),
+  }).catch(err => console.error('[createCheckout] PurchasePrivate create failed:', err?.message));
+  await ensureListingPrivate(base44, listing.id, {
+    event_id: listing.event_id, seller_email: listing.seller_email,
+    section: listing.section, row: listing.row, seats: listing.seats, quantity: listing.quantity,
+    migration_version: 3, migrated_at: new Date().toISOString(),
+  }).catch(() => {});
 
   // Link the PaymentIntent to this Purchase via metadata. capturePayment
   // requires md.purchase_id to match the Purchase as a security field.

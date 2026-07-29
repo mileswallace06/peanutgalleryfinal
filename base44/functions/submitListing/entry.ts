@@ -1,5 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import { isMaintenanceActive, maintenance503 } from '../../shared/maintenance.ts';
+import { upsertListingPrivate, recordLegacyProofUrl, readUserSecurity } from '../../shared/privateData.ts';
 
 async function checkSuspicious(base44, sellerEmail, askingPrice) {
   const [purchases, allListings, sellerUsers] = await Promise.all([
@@ -8,7 +9,8 @@ async function checkSuspicious(base44, sellerEmail, askingPrice) {
     base44.asServiceRole.entities.User.filter({ email: sellerEmail }),
   ]);
   const seller = sellerUsers[0];
-  if (seller && (seller.strike_count || 0) > 0) return { flagged: true, reason: `Seller has ${seller.strike_count} strike(s)` };
+  const strikeCount = seller ? await readUserSecurity(base44, seller, 'strike_count') : 0;
+  if (strikeCount > 0) return { flagged: true, reason: `Seller has ${strikeCount} strike(s)` };
   const disputed = purchases.filter(p => p.transfer_status === 'disputed');
   if (disputed.length > 0) return { flagged: true, reason: `Seller has ${disputed.length} prior dispute(s)` };
   const expired = purchases.filter(p => p.transfer_status === 'expired' && !p.seller_confirmed);
@@ -137,6 +139,25 @@ Deno.serve(async (req) => {
     transfer_verified_by: user.email,
     transfer_platform: body.transfer_source || undefined,
   });
+
+  // ── Phase 1B: create ListingPrivate sidecar (authoritative private destination) ──
+  await upsertListingPrivate(base44, listing.id, {
+    event_id: body.event_id, seller_email: user.email, section: body.section, row: body.row,
+    seats: body.seats || null, quantity: body.quantity || 1,
+    proof_url: body.proof_url || null, proof_status: listing.proof_status,
+    proof_rejection_reason: listing.proof_rejection_reason || null,
+    transfer_verification_proof_url: body.transfer_attestation_proof_url || null,
+    transfer_verified_by: user.email,
+    is_demo_listing: (isAdmin && isTest), notes: listing.notes,
+    migration_version: 3, migrated_at: now,
+  }).catch(err => console.error('[submitListing] ListingPrivate create failed:', err?.message));
+
+  if (body.proof_url) {
+    await recordLegacyProofUrl(base44, { owner_email: user.email, reference_type: 'listing', reference_id: listing.id, proof_type: 'listing_proof', legacy_url: body.proof_url }).catch(() => {});
+  }
+  if (body.transfer_attestation_proof_url) {
+    await recordLegacyProofUrl(base44, { owner_email: user.email, reference_type: 'listing', reference_id: listing.id, proof_type: 'transfer_attestation', legacy_url: body.transfer_attestation_proof_url }).catch(() => {});
+  }
 
   // ── Create/update SeatInventory for this listing ─────────────────────────
   if (!isTest) {

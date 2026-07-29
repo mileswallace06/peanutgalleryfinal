@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { upsertListingPrivate } from '../../shared/privateData.ts';
 
 Deno.serve(async (req) => {
   try {
@@ -34,6 +35,12 @@ Deno.serve(async (req) => {
   }
 
     await base44.asServiceRole.entities.Listing.update(listing.id, update);
+    // Phase 1B: mirror reservation clear to ListingPrivate (authoritative private destination)
+    upsertListingPrivate(base44, listing.id, {
+      reserved_by_email: null,
+      reservation_token: null,
+      reservation_expires_at: null,
+    }).catch(() => {});
 
     return Response.json({ status: 'released' });
   } catch (error) {
