@@ -1,5 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { isMaintenanceActive, maintenance503 } from '../../shared/maintenance.ts';
 import { recordNotification } from '../../shared/notifications.ts';
+import { getListingPrivate, upsertListingPrivate, alertPrivateWriteFailure } from '../../shared/privateData.ts';
 
 Deno.serve(async (req) => {
   try {
@@ -16,6 +18,8 @@ Deno.serve(async (req) => {
       return Response.json({ success: false, reason: 'Forbidden: admin access required' }, { status: 403 });
     }
 
+    if (isMaintenanceActive()) return maintenance503('Listing review is temporarily unavailable for scheduled maintenance.');
+
     const { listing_id } = await req.json();
     if (!listing_id) {
       return Response.json({ success: false, reason: 'listing_id is required' }, { status: 400 });
@@ -28,8 +32,13 @@ Deno.serve(async (req) => {
       return Response.json({ success: false, reason: 'Listing not found' }, { status: 404 });
     }
 
-    if (listing.proof_status !== 'pending_review') {
-      return Response.json({ success: false, reason: `Listing is not pending review (current: ${listing.proof_status})` }, { status: 409 });
+    // Phase 1B: read authoritative proof_status + seller_email from ListingPrivate
+    const lp = await getListingPrivate(base44, listing.id);
+    const authoritativeProofStatus = lp?.proof_status ?? listing.proof_status;
+    const authoritativeSellerEmail = lp?.seller_email ?? listing.seller_email;
+
+    if (authoritativeProofStatus !== 'pending_review') {
+      return Response.json({ success: false, reason: `Listing is not pending review (current: ${authoritativeProofStatus})` }, { status: 409 });
     }
 
     // 4. Mutate listing (server-side only)
@@ -37,6 +46,13 @@ Deno.serve(async (req) => {
       proof_status: 'approved',
       status: 'active',
     });
+    // Phase 1B: mirror proof_status to ListingPrivate (authoritative)
+    try {
+      await upsertListingPrivate(base44, listing_id, { proof_status: 'approved' });
+    } catch (err) {
+      await alertPrivateWriteFailure(base44, { entity: 'ListingPrivate', reference_id: listing_id, reference_type: 'listing', error: err });
+      return Response.json({ success: false, reason: 'Failed to update private proof record. Please try again.' }, { status: 500 });
+    }
 
     // 5. Audit log
     await base44.asServiceRole.entities.BetaTransferLog.create({
@@ -51,7 +67,7 @@ Deno.serve(async (req) => {
 
     // 6. Notify seller (fire-and-forget, shared module — in-process)
     recordNotification(base44, {
-      user_email: listing.seller_email,
+      user_email: authoritativeSellerEmail,
       type: 'listing_approved',
       title: 'Listing approved ✅',
       body: `Your listing (Sec ${listing.section}, Row ${listing.row}) is now live and visible to buyers.`,

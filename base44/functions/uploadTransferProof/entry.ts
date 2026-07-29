@@ -4,6 +4,8 @@
  * (buyer_email or seller_email) and references it.
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { isMaintenanceActive, maintenance503 } from '../../shared/maintenance.ts';
+import { getPurchasePrivate } from '../../shared/privateData.ts';
 
 const ALLOWED_MIME = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'application/pdf'];
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -32,6 +34,8 @@ Deno.serve(async (req) => {
   try { user = await base44.auth.me(); } catch (_) { return Response.json({ error: 'Unauthorized' }, { status: 401 }); }
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
+  if (isMaintenanceActive()) return maintenance503('Proof uploads are temporarily unavailable for scheduled maintenance.');
+
   const formData = await req.formData().catch(() => null);
   if (!formData) return Response.json({ error: 'multipart/form-data with a file is required' }, { status: 400 });
   const file = formData.get('file');
@@ -52,7 +56,11 @@ Deno.serve(async (req) => {
   const purchases = await base44.asServiceRole.entities.Purchase.filter({ id: purchase_id });
   const purchase = purchases[0];
   if (!purchase) return Response.json({ error: 'Purchase not found' }, { status: 404 });
-  if (purchase.buyer_email !== user.email && purchase.seller_email !== user.email && user.role !== 'admin') {
+  // Phase 1B: read authoritative buyer/seller identity from PurchasePrivate
+  const pp = await getPurchasePrivate(base44, purchase.id);
+  const authoritativeBuyerEmail = pp?.buyer_email ?? purchase.buyer_email;
+  const authoritativeSellerEmail = pp?.seller_email ?? purchase.seller_email;
+  if (authoritativeBuyerEmail !== user.email && authoritativeSellerEmail !== user.email && user.role !== 'admin') {
     return Response.json({ error: 'Forbidden' }, { status: 403 });
   }
 

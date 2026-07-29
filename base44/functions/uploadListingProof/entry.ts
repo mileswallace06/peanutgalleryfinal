@@ -10,6 +10,8 @@
  *    (platform has no private-file delete API; pre-upload validation minimizes orphans)
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { isMaintenanceActive, maintenance503 } from '../../shared/maintenance.ts';
+import { getListingPrivate } from '../../shared/privateData.ts';
 
 const ALLOWED_MIME = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'application/pdf'];
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -38,6 +40,8 @@ Deno.serve(async (req) => {
   try { user = await base44.auth.me(); } catch (_) { return Response.json({ error: 'Unauthorized' }, { status: 401 }); }
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
+  if (isMaintenanceActive()) return maintenance503('Proof uploads are temporarily unavailable for scheduled maintenance.');
+
   const formData = await req.formData().catch(() => null);
   if (!formData) return Response.json({ error: 'multipart/form-data with a file is required' }, { status: 400 });
   const file = formData.get('file');
@@ -58,7 +62,10 @@ Deno.serve(async (req) => {
   const listings = await base44.asServiceRole.entities.Listing.filter({ id: listing_id });
   const listing = listings[0];
   if (!listing) return Response.json({ error: 'Listing not found' }, { status: 404 });
-  if (listing.seller_email !== user.email && user.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: 403 });
+  // Phase 1B: read authoritative seller_email from ListingPrivate
+  const lp = await getListingPrivate(base44, listing.id);
+  const authoritativeSellerEmail = lp?.seller_email ?? listing.seller_email;
+  if (authoritativeSellerEmail !== user.email && user.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: 403 });
 
   let file_uri;
   try {

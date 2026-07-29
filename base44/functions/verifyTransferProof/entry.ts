@@ -12,7 +12,9 @@
  */
 
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { isMaintenanceActive, maintenance503 } from '../../shared/maintenance.ts';
 import { sendTransactionalEmail } from '../../shared/notifications.ts';
+import { getPurchasePrivate, upsertPurchasePrivate, alertPrivateWriteFailure } from '../../shared/privateData.ts';
 
 // ── Confidence thresholds ─────────────────────────────────────────────────────
 const THRESHOLDS = {
@@ -51,6 +53,8 @@ Deno.serve(async (req) => {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
+    if (isMaintenanceActive()) return maintenance503('AI proof verification is temporarily unavailable for scheduled maintenance.');
+
     const body = await req.json();
     const { purchase_id, proof_url, force_reprocess } = body;
 
@@ -63,18 +67,24 @@ Deno.serve(async (req) => {
     const purchase = purchases[0];
     if (!purchase) return Response.json({ error: 'Purchase not found' }, { status: 404 });
 
+    // Phase 1B: read authoritative seller/buyer identity + ai_proof_status from PurchasePrivate
+    const pp = await getPurchasePrivate(base44, purchase.id);
+    const authoritativeSellerEmail = pp?.seller_email ?? purchase.seller_email;
+    const authoritativeBuyerEmail = pp?.buyer_email ?? purchase.buyer_email;
+    const authoritativeAiProofStatus = pp?.ai_proof_status ?? purchase.ai_proof_status;
+
     // Auth: only seller, buyer, or admin can trigger verification
-    const isSeller = purchase.seller_email === user.email;
-    const isBuyer  = purchase.buyer_email === user.email;
+    const isSeller = authoritativeSellerEmail === user.email;
+    const isBuyer  = authoritativeBuyerEmail === user.email;
     const isAdmin  = user.role === 'admin';
     if (!isSeller && !isBuyer && !isAdmin) {
       return Response.json({ error: 'Not authorized for this purchase' }, { status: 403 });
     }
 
     // Skip if already processing or verified at high confidence (prevents duplicate LLM runs / credit waste)
-    if (!force_reprocess && ['processing', 'verified_high_confidence'].includes(purchase.ai_proof_status)) {
-      console.warn(`[verifyTransferProof] duplicate trigger blocked — purchase=${purchase_id} status=${purchase.ai_proof_status} triggered_by=${user.email}`);
-      return Response.json({ skipped: true, reason: 'already_processing_or_verified', ai_proof_status: purchase.ai_proof_status });
+    if (!force_reprocess && ['processing', 'verified_high_confidence'].includes(authoritativeAiProofStatus)) {
+      console.warn(`[verifyTransferProof] duplicate trigger blocked — purchase=${purchase_id} status=${authoritativeAiProofStatus} triggered_by=${user.email}`);
+      return Response.json({ skipped: true, reason: 'already_processing_or_verified', ai_proof_status: authoritativeAiProofStatus });
     }
 
     // Atomic processing claim: only one concurrent verifyTransferProof runs the
@@ -90,6 +100,15 @@ Deno.serve(async (req) => {
       }
     } else {
       await base44.asServiceRole.entities.Purchase.update(purchase_id, { ai_proof_status: 'processing' });
+    }
+    // Phase 1B: mirror ai_proof_status='processing' to PurchasePrivate (authoritative)
+    try {
+      await upsertPurchasePrivate(base44, purchase_id, { ai_proof_status: 'processing' });
+    } catch (err) {
+      // Revert Purchase to previous status so retry can proceed
+      await base44.asServiceRole.entities.Purchase.update(purchase_id, { ai_proof_status: authoritativeAiProofStatus || 'pending' }).catch(() => {});
+      await alertPrivateWriteFailure(base44, { entity: 'PurchasePrivate', reference_id: purchase_id, reference_type: 'purchase', error: err });
+      return Response.json({ error: 'Failed to set processing state. Please try again.' }, { status: 500 });
     }
 
     // Fetch listing + event for context matching
@@ -111,9 +130,9 @@ Deno.serve(async (req) => {
     const contextStr = [
       event   ? `Event: "${event.title}" at ${event.venue}, ${event.city} on ${event.date ? new Date(event.date).toLocaleDateString() : 'unknown date'}` : '',
       listing ? `Section: ${listing.section}, Row: ${listing.row}, Seats: ${listing.seats || 'not specified'}, Qty: ${listing.quantity}` : '',
-      `Buyer email: ${purchase.buyer_email}`,
+      `Buyer email: ${authoritativeBuyerEmail}`,
       `Buyer name: ${purchase.buyer_name || 'not specified'}`,
-      `Seller email: ${purchase.seller_email}`,
+      `Seller email: ${authoritativeSellerEmail}`,
       `Expected quantity: ${purchase.quantity}`,
     ].filter(Boolean).join('\n');
 
@@ -227,12 +246,19 @@ Return ONLY valid JSON with this exact structure:
 
     // ── Handle LLM failure gracefully ─────────────────────────────────────────
     if (!aiResult || processingError) {
-      await base44.asServiceRole.entities.Purchase.update(purchase_id, {
+      const failPayload = {
         ai_proof_status: 'failed_processing',
         ai_review_notes: `AI processing failed: ${processingError || 'unknown error'}. Requires human review.`,
         ai_processed_at: new Date().toISOString(),
         ai_processed_by_model: modelUsed,
-      });
+      };
+      await base44.asServiceRole.entities.Purchase.update(purchase_id, failPayload);
+      // Phase 1B: mirror failure fields to PurchasePrivate (authoritative)
+      try {
+        await upsertPurchasePrivate(base44, purchase_id, failPayload);
+      } catch (err) {
+        await alertPrivateWriteFailure(base44, { entity: 'PurchasePrivate', reference_id: purchase_id, reference_type: 'purchase', error: err });
+      }
       return Response.json({
         success: false,
         ai_proof_status: 'failed_processing',
@@ -304,17 +330,30 @@ Return ONLY valid JSON with this exact structure:
     }
 
     await base44.asServiceRole.entities.Purchase.update(purchase_id, updatePayload);
+    // Phase 1B: mirror all AI review fields to PurchasePrivate (authoritative)
+    try {
+      await upsertPurchasePrivate(base44, purchase_id, updatePayload);
+    } catch (err) {
+      await alertPrivateWriteFailure(base44, { entity: 'PurchasePrivate', reference_id: purchase_id, reference_type: 'purchase', error: err });
+      return Response.json({ error: 'AI verification completed but private record sync failed. Please contact support.' }, { status: 500 });
+    }
 
     // ── False-claim flag (idempotent) + DERIVED count ─────────────────────────
     // Base44 has no atomic compare-and-set, so we set the flag with an
     // idempotent $set (true→true) and DERIVE the seller's false-claim count from
     // all their flagged purchases. A duplicate/concurrent invocation sets the
     // same flag and recomputes the same count — it cannot double-count.
-    if (aiProofStatus === 'rejected_suspicious' && purchase.seller_email) {
+    if (aiProofStatus === 'rejected_suspicious' && authoritativeSellerEmail) {
       await base44.asServiceRole.entities.Purchase.update(purchase_id, {
         false_claim_recorded: true,
       }).catch(() => {});
-      const sellers = await base44.asServiceRole.entities.User.filter({ email: purchase.seller_email }).catch(() => []);
+      // Phase 1B: mirror false_claim_recorded to PurchasePrivate (authoritative)
+      try {
+        await upsertPurchasePrivate(base44, purchase_id, { false_claim_recorded: true });
+      } catch (err) {
+        await alertPrivateWriteFailure(base44, { entity: 'PurchasePrivate', reference_id: purchase_id, reference_type: 'purchase', error: err });
+      }
+      const sellers = await base44.asServiceRole.entities.User.filter({ email: authoritativeSellerEmail }).catch(() => []);
       const seller = sellers[0];
       if (seller) {
         const flagged = await base44.asServiceRole.entities.Purchase.filter({
@@ -330,7 +369,7 @@ Return ONLY valid JSON with this exact structure:
     if (aiProofStatus === 'rejected_suspicious' || fraudRiskScore >= 60) {
       sendTransactionalEmail(base44, 'experience@peanutgallery.store',
         `🚨 AI Flagged Suspicious Transfer Proof — Purchase ${purchase_id}`,
-        `AI Transfer Verification flagged a suspicious proof upload.\n\nPurchase: ${purchase_id}\nSeller: ${purchase.seller_email}\nBuyer: ${purchase.buyer_email}\nAmount: $${purchase.amount?.toFixed(2)}\n\nAI Status: ${aiProofStatus}\nConfidence: ${score}/100\nFraud Risk: ${fraudRiskScore}/100\nFlags: ${flags.join(', ') || 'none'}\n\nAI Summary: ${aiResult.verification_summary}\n\nReview in admin panel immediately.`
+        `AI Transfer Verification flagged a suspicious proof upload.\n\nPurchase: ${purchase_id}\nSeller: ${authoritativeSellerEmail}\nBuyer: ${authoritativeBuyerEmail}\nAmount: $${purchase.amount?.toFixed(2)}\n\nAI Status: ${aiProofStatus}\nConfidence: ${score}/100\nFraud Risk: ${fraudRiskScore}/100\nFlags: ${flags.join(', ') || 'none'}\n\nAI Summary: ${aiResult.verification_summary}\n\nReview in admin panel immediately.`
       ).catch(() => {});
     }
 
