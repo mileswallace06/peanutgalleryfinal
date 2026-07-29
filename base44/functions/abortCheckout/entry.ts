@@ -20,6 +20,8 @@
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import Stripe from 'npm:stripe@14.21.0';
+import { isMaintenanceActive, maintenance503 } from '../../shared/maintenance.ts';
+import { getPurchasePrivate, getListingPrivate, upsertListingPrivate, alertPrivateWriteFailure } from '../../shared/privateData.ts';
 
 const CANCELLABLE_STATUSES = [
   'requires_payment_method',
@@ -34,6 +36,8 @@ Deno.serve(async (req) => {
   const user = await base44.auth.me();
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
+  if (isMaintenanceActive()) return maintenance503('Checkout abort is temporarily unavailable for scheduled maintenance.');
+
   const secretKey = Deno.env.get('STRIPELIVESECRETKEY');
   if (!secretKey || (!secretKey.startsWith('sk_test_') && !secretKey.startsWith('sk_live_'))) {
     return Response.json({ error: 'Stripe secret key misconfigured' }, { status: 500 });
@@ -46,8 +50,14 @@ Deno.serve(async (req) => {
   const [purchase] = await base44.asServiceRole.entities.Purchase.filter({ id: purchase_id });
   if (!purchase) return Response.json({ error: 'Purchase not found' }, { status: 404 });
 
+  // Phase 1B: read authoritative buyer identity, payment_intent_id, payment_captured from PurchasePrivate
+  const pp = await getPurchasePrivate(base44, purchase.id);
+  const authoritativeBuyerEmail = pp?.buyer_email ?? purchase.buyer_email;
+  const authoritativePaymentIntentId = pp?.payment_intent_id ?? purchase.payment_intent_id;
+  const authoritativePaymentCaptured = pp?.payment_captured ?? purchase.payment_captured;
+
   // Only the buyer (or admin) may abort their own checkout.
-  if (purchase.buyer_email !== user.email && user.role !== 'admin') {
+  if (authoritativeBuyerEmail !== user.email && user.role !== 'admin') {
     return Response.json({ error: 'Not authorized' }, { status: 403 });
   }
 
@@ -56,7 +66,7 @@ Deno.serve(async (req) => {
   if (purchase.transfer_status === 'disputed') return Response.json({ status: 'already_disputed' });
 
   // Refuse to abort captured / completed purchases.
-  if (purchase.payment_captured || purchase.transfer_status === 'completed') {
+  if (authoritativePaymentCaptured || purchase.transfer_status === 'completed') {
     return Response.json({ error: 'Cannot abort a completed purchase' }, { status: 409 });
   }
   if (purchase.is_demo) {
@@ -65,13 +75,13 @@ Deno.serve(async (req) => {
 
   // Safely cancel the PaymentIntent when appropriate.
   let piStatus = null;
-  if (purchase.payment_intent_id) {
+  if (authoritativePaymentIntentId) {
     try {
-      const pi = await stripe.paymentIntents.retrieve(purchase.payment_intent_id);
+      const pi = await stripe.paymentIntents.retrieve(authoritativePaymentIntentId);
       piStatus = pi.status;
       if (CANCELLABLE_STATUSES.includes(pi.status)) {
         try {
-          await stripe.paymentIntents.cancel(purchase.payment_intent_id);
+          await stripe.paymentIntents.cancel(authoritativePaymentIntentId);
         } catch (e) {
           // Already canceled / incompatible state — safe to ignore.
           console.warn('[abortCheckout] cancel failed', purchase.id, e?.message);
@@ -87,10 +97,21 @@ Deno.serve(async (req) => {
 
   // Release the Listing only if it still belongs to this Purchase/reservation.
   const [listing] = await base44.asServiceRole.entities.Listing.filter({ id: purchase.listing_id }).catch(() => []);
+  const lp = listing ? await getListingPrivate(base44, listing.id) : null;
+  const authoritativeReservedBy = lp?.reserved_by_email ?? listing?.reserved_by_email;
+  const authoritativeResToken = lp?.reservation_token ?? listing?.reservation_token;
   if (listing && listing.status === 'pending_transfer') {
-    const ownsByBuyer = listing.reserved_by_email === purchase.buyer_email;
-    const ownsByToken = !!(purchase.reservation_token && listing.reservation_token === purchase.reservation_token);
+    const ownsByBuyer = authoritativeReservedBy === authoritativeBuyerEmail;
+    const ownsByToken = !!(purchase.reservation_token && authoritativeResToken === purchase.reservation_token);
     if (ownsByBuyer || ownsByToken) {
+      // Phase 1B: write authoritative ListingPrivate first, then legacy Listing mirror
+      try {
+        await upsertListingPrivate(base44, listing.id, {
+          reserved_by_email: null, reservation_token: null, reservation_expires_at: null,
+        });
+      } catch (err) {
+        await alertPrivateWriteFailure(base44, { entity: 'ListingPrivate', reference_id: listing.id, reference_type: 'listing', error: err });
+      }
       await base44.asServiceRole.entities.Listing.update(listing.id, {
         status: 'active',
         reservation_token: null,

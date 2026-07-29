@@ -22,6 +22,7 @@
  * independently retryable on the next run.
  */
 import { sendUserNotification } from './notifications.ts';
+import { upsertPurchasePrivate } from './privateData.ts';
 
 export function saleIdempotencyKey(purchaseId) {
   return `sale_created:${purchaseId}`;
@@ -50,9 +51,12 @@ export async function enqueueSaleNotification(base44, purchase, listing, opts = 
     dispatch_status: 'pending',
   });
   // Idempotent marker: the durable record exists. (Dispatch happens later.)
+  const notifiedAt = new Date().toISOString();
   await base44.asServiceRole.entities.Purchase.update(purchase.id, {
-    seller_notified_at: new Date().toISOString(),
+    seller_notified_at: notifiedAt,
   }).catch(() => {});
+  // Phase 1B: mirror seller_notified_at to PurchasePrivate (authoritative private destination)
+  await upsertPurchasePrivate(base44, purchase.id, { seller_notified_at: notifiedAt });
   return { enqueued: true, idempotency_key: key };
 }
 

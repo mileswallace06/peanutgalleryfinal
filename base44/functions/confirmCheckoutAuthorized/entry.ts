@@ -23,7 +23,9 @@
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import Stripe from 'npm:stripe@14.21.0';
+import { isMaintenanceActive, maintenance503 } from '../../shared/maintenance.ts';
 import { enqueueSaleNotification } from '../../shared/saleNotification.ts';
+import { getPurchasePrivate, upsertPurchasePrivate, getListingPrivate, alertPrivateWriteFailure } from '../../shared/privateData.ts';
 
 Deno.serve(async (req) => {
   try {
@@ -31,13 +33,22 @@ Deno.serve(async (req) => {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
+    if (isMaintenanceActive()) return maintenance503('Checkout confirmation is temporarily unavailable for scheduled maintenance.');
+
     const { purchase_id } = await req.json();
     if (!purchase_id) return Response.json({ error: 'purchase_id is required' }, { status: 400 });
 
     const [purchase] = await base44.asServiceRole.entities.Purchase.filter({ id: purchase_id });
     if (!purchase) return Response.json({ error: 'Purchase not found' }, { status: 404 });
 
-    if (purchase.buyer_email !== user.email && user.role !== 'admin') {
+    // Phase 1B: read authoritative buyer/seller identity, payment_intent_id from PurchasePrivate
+    const pp = await getPurchasePrivate(base44, purchase.id);
+    const authoritativeBuyerEmail = pp?.buyer_email ?? purchase.buyer_email;
+    const authoritativeSellerEmail = pp?.seller_email ?? purchase.seller_email;
+    const authoritativePaymentIntentId = pp?.payment_intent_id ?? purchase.payment_intent_id;
+    const authoritativeListingId = pp?.listing_id ?? purchase.listing_id;
+
+    if (authoritativeBuyerEmail !== user.email && user.role !== 'admin') {
       return Response.json({ error: 'Not authorized for this purchase' }, { status: 403 });
     }
     if (purchase.is_demo) return Response.json({ status: 'demo' });
@@ -53,14 +64,14 @@ Deno.serve(async (req) => {
       }
       const stripe = new Stripe(secretKey);
 
-      if (!purchase.payment_intent_id) {
+      if (!authoritativePaymentIntentId) {
         console.error('[confirmCheckoutAuthorized] missing payment_intent_id', purchase.id);
         return Response.json({ error: 'Payment verification failed' }, { status: 500 });
       }
 
       let pi;
       try {
-        pi = await stripe.paymentIntents.retrieve(purchase.payment_intent_id);
+        pi = await stripe.paymentIntents.retrieve(authoritativePaymentIntentId);
       } catch (err) {
         console.error('[confirmCheckoutAuthorized] PI retrieve failed', purchase.id, err?.message);
         return Response.json({ error: 'Payment verification failed' }, { status: 500 });
@@ -87,7 +98,7 @@ Deno.serve(async (req) => {
           return Response.json({ error: 'Payment verification failed' }, { status: 500 });
         }
       }
-      if (md.listing_id !== purchase.listing_id || md.buyer_email !== purchase.buyer_email || md.seller_email !== purchase.seller_email) {
+      if (md.listing_id !== authoritativeListingId || md.buyer_email !== authoritativeBuyerEmail || md.seller_email !== authoritativeSellerEmail) {
         console.error('[confirmCheckoutAuthorized] metadata mismatch', purchase.id);
         return Response.json({ error: 'Payment verification failed' }, { status: 500 });
       }
@@ -96,17 +107,27 @@ Deno.serve(async (req) => {
         return Response.json({ error: 'Payment verification failed' }, { status: 500 });
       }
 
-      const [listing] = await base44.asServiceRole.entities.Listing.filter({ id: purchase.listing_id }).catch(() => []);
-      if (!listing || listing.seller_email !== purchase.seller_email) {
+      const [listing] = await base44.asServiceRole.entities.Listing.filter({ id: authoritativeListingId }).catch(() => []);
+      const lp = listing ? await getListingPrivate(base44, listing.id) : null;
+      const authoritativeListingSeller = lp?.seller_email ?? listing?.seller_email;
+      if (!listing || authoritativeListingSeller !== authoritativeSellerEmail) {
         console.error('[confirmCheckoutAuthorized] listing/seller mismatch', purchase.id);
         return Response.json({ error: 'Payment verification failed' }, { status: 500 });
       }
 
       // Idempotent marker — concurrent calls both set it (last timestamp wins,
       // harmless). No conditional claim (non-atomic on this platform).
+      const confirmedAt = new Date().toISOString();
       await base44.asServiceRole.entities.Purchase.update(purchase.id, {
-        authorization_confirmed_at: new Date().toISOString(),
+        authorization_confirmed_at: confirmedAt,
       }).catch(() => {});
+      // Phase 1B: mirror authorization_confirmed_at to PurchasePrivate (authoritative)
+      try {
+        await upsertPurchasePrivate(base44, purchase.id, { authorization_confirmed_at: confirmedAt });
+      } catch (err) {
+        await alertPrivateWriteFailure(base44, { entity: 'PurchasePrivate', reference_id: purchase.id, reference_type: 'purchase', error: err });
+        return Response.json({ error: 'Failed to confirm authorization. Please try again.' }, { status: 500 });
+      }
     }
 
     // ── Step 2: Enqueue the seller-sale notification (NO inline send) ──────────

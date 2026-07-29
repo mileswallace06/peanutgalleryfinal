@@ -9,7 +9,9 @@
  * Body: { purchase_id, reason }
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { isMaintenanceActive, maintenance503 } from '../../shared/maintenance.ts';
 import { recordNotification, sendTransactionalEmail } from '../../shared/notifications.ts';
+import { getPurchasePrivate, upsertPurchasePrivate, alertPrivateWriteFailure } from '../../shared/privateData.ts';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
@@ -17,6 +19,8 @@ Deno.serve(async (req) => {
   if (!user) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  if (isMaintenanceActive()) return maintenance503('Disputes are temporarily unavailable for scheduled maintenance.');
 
   const { purchase_id, reason } = await req.json().catch(() => ({}));
   if (!purchase_id) {
@@ -29,8 +33,13 @@ Deno.serve(async (req) => {
     return Response.json({ error: 'Purchase not found' }, { status: 404 });
   }
 
+  // Phase 1B: read authoritative buyer/seller identity from PurchasePrivate first
+  const pp = await getPurchasePrivate(base44, purchase.id);
+  const authoritativeBuyerEmail = pp?.buyer_email ?? purchase.buyer_email;
+  const authoritativeSellerEmail = pp?.seller_email ?? purchase.seller_email;
+
   // Only the buyer (or an admin) may open a dispute.
-  if (purchase.buyer_email !== user.email && user.role !== 'admin') {
+  if (authoritativeBuyerEmail !== user.email && user.role !== 'admin') {
     return Response.json({ error: 'Not authorized as buyer' }, { status: 403 });
   }
 
@@ -48,10 +57,17 @@ Deno.serve(async (req) => {
     transfer_status: 'disputed',
     dispute_reason: disputeReason,
   });
+  // Phase 1B: mirror dispute_reason to PurchasePrivate (authoritative private destination)
+  try {
+    await upsertPurchasePrivate(base44, purchase.id, { dispute_reason: disputeReason });
+  } catch (err) {
+    await alertPrivateWriteFailure(base44, { entity: 'PurchasePrivate', reference_id: purchase.id, reference_type: 'purchase', error: err });
+    return Response.json({ error: 'Failed to record dispute. Please try again.' }, { status: 500 });
+  }
 
   // Notify buyer, seller, and support — fire-and-forget via shared module (in-process).
   recordNotification(base44, {
-    user_email: purchase.buyer_email,
+    user_email: authoritativeBuyerEmail,
     type: 'dispute_opened',
     title: 'Dispute submitted ⚖️',
     body: `Your dispute has been received. Our team will review and resolve it promptly. Reason: ${disputeReason}`,
@@ -60,7 +76,7 @@ Deno.serve(async (req) => {
     action_url: `/purchase/${purchase.id}`,
   }).catch(() => {});
   recordNotification(base44, {
-    user_email: purchase.seller_email,
+    user_email: authoritativeSellerEmail,
     type: 'dispute_opened',
     title: 'Buyer opened a dispute ⚖️',
     body: `The buyer disputed this transaction. Reason: ${disputeReason}. Our team will review and reach out.`,
@@ -70,7 +86,7 @@ Deno.serve(async (req) => {
   }).catch(() => {});
   sendTransactionalEmail(base44, 'experience@peanutgallery.store',
     `⚠️ Dispute opened — Purchase ${purchase.id}`,
-    `A dispute has been opened on Peanut Gallery.\n\nPurchase ID: ${purchase.id}\nBuyer: ${purchase.buyer_email}${purchase.buyer_name ? ` (${purchase.buyer_name})` : ''}\nSeller: ${purchase.seller_email}\nAmount: $${purchase.amount?.toFixed(2)}\nReason: ${disputeReason}\n\nReview in the admin panel and resolve promptly.\n\n— Peanut Gallery`
+    `A dispute has been opened on Peanut Gallery.\n\nPurchase ID: ${purchase.id}\nBuyer: ${authoritativeBuyerEmail}\nSeller: ${authoritativeSellerEmail}\nAmount: $${purchase.amount?.toFixed(2)}\nReason: ${disputeReason}\n\nReview in the admin panel and resolve promptly.\n\n— Peanut Gallery`
   ).catch(err => console.error('[openDispute] email notify failed:', err?.message));
 
   return Response.json({ status: 'disputed' });
