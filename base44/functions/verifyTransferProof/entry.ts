@@ -12,7 +12,7 @@
  */
 
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
-import { isMaintenanceActive, maintenance503 } from '../../shared/maintenance.ts';
+import { isMaintenanceActive, maintenance503, isProofScanningEnabled, proofScannerUnavailable503 } from '../../shared/maintenance.ts';
 import { sendTransactionalEmail } from '../../shared/notifications.ts';
 import { getPurchasePrivate, upsertPurchasePrivate, alertPrivateWriteFailure } from '../../shared/privateData.ts';
 
@@ -54,6 +54,7 @@ Deno.serve(async (req) => {
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
     if (isMaintenanceActive()) return maintenance503('AI proof verification is temporarily unavailable for scheduled maintenance.');
+    if (!isProofScanningEnabled()) return proofScannerUnavailable503();
 
     const body = await req.json();
     const { purchase_id, proof_asset_id, force_reprocess } = body;

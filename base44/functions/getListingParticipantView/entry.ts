@@ -4,12 +4,12 @@
  * included for admins; reservation token is never exposed to non-admins.
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { getListingPrivate } from '../../shared/privateData.ts';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
-  let user;
-  try { user = await base44.auth.me(); } catch (_) { return Response.json({ error: 'Unauthorized' }, { status: 401 }); }
-  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  let user = null;
+  try { user = await base44.auth.me(); } catch (_) { user = null; }
 
   const body = await req.json().catch(() => ({}));
   const listing_id = body?.listing_id;
@@ -19,31 +19,52 @@ Deno.serve(async (req) => {
   const listing = rows[0];
   if (!listing) return Response.json({ error: 'Listing not found' }, { status: 404 });
 
-  const isSeller = listing.seller_email === user.email;
-  const isAdmin = user.role === 'admin';
+  // Phase 1B: read authoritative seller_email from ListingPrivate
+  const lp = await getListingPrivate(base44, listing.id);
+  const authoritativeSellerEmail = lp?.seller_email ?? listing.seller_email;
 
-  const base = {
+  // ── Strict role-specific allowlists ──────────────────────────────────────
+  // Never expose: emails, reservation tokens, payment IDs, proof storage
+  // details, fraud data, or private notes — to any role in the participant view.
+
+  const publicFields = {
     id: listing.id, event_id: listing.event_id, section: listing.section, row: listing.row,
     seats: listing.seats, quantity: listing.quantity, tier: listing.tier,
     asking_price: listing.asking_price, original_price: listing.original_price,
     transfer_method: listing.transfer_method, status: listing.status,
     listing_mode: listing.listing_mode, listing_type: listing.listing_type,
-    transfer_status: listing.transfer_status, transfer_confidence_score: listing.transfer_confidence_score,
-    proof_status: listing.proof_status, is_demo_listing: listing.is_demo_listing,
-    listing_transfer_mode: listing.listing_transfer_mode,
+    transfer_status: listing.transfer_status, listing_transfer_mode: listing.listing_transfer_mode,
   };
+
+  // Unauthenticated: only active listings, only explicitly public fields
+  if (!user) {
+    if (listing.status !== 'active') return Response.json({ error: 'Listing not found' }, { status: 404 });
+    return Response.json({ listing: publicFields });
+  }
+
+  const isSeller = authoritativeSellerEmail === user.email;
+  const isAdmin = user.role === 'admin';
+
+  // Authenticated buyer (not seller, not admin): public + verification status
+  const buyerExtra = {
+    proof_status: listing.proof_status,
+    transfer_confidence_score: listing.transfer_confidence_score,
+    is_demo_listing: listing.is_demo_listing,
+  };
+
+  // Seller: buyer fields + own listing management (no emails exposed)
   const sellerExtra = isSeller ? {
-    reserved_by_email: listing.reserved_by_email,
-    reservation_expires_at: listing.reservation_expires_at,
     proof_rejection_reason: listing.proof_rejection_reason,
     notes: listing.notes,
+    is_reserved: !!listing.reserved_by_email,
+    reservation_expires_at: listing.reservation_expires_at,
   } : {};
+
+  // Admin: seller fields + internal linkage (no emails, tokens, or fraud data)
   const adminExtra = isAdmin ? {
-    seller_email: listing.seller_email,
-    reservation_token: listing.reservation_token,
     seat_inventory_id: listing.seat_inventory_id,
     transfer_verified_by: listing.transfer_verified_by,
   } : {};
 
-  return Response.json({ listing: { ...base, ...sellerExtra, ...adminExtra } });
+  return Response.json({ listing: { ...publicFields, ...buyerExtra, ...sellerExtra, ...adminExtra } });
 });

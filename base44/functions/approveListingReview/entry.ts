@@ -1,5 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
-import { isMaintenanceActive, maintenance503 } from '../../shared/maintenance.ts';
+import { isMaintenanceActive, maintenance503, isProofScanningEnabled, proofScannerUnavailable503 } from '../../shared/maintenance.ts';
 import { recordNotification } from '../../shared/notifications.ts';
 import { getListingPrivate, upsertListingPrivate, alertPrivateWriteFailure } from '../../shared/privateData.ts';
 
@@ -19,6 +19,7 @@ Deno.serve(async (req) => {
     }
 
     if (isMaintenanceActive()) return maintenance503('Listing review is temporarily unavailable for scheduled maintenance.');
+    if (!isProofScanningEnabled()) return proofScannerUnavailable503();
 
     const { listing_id } = await req.json();
     if (!listing_id) {

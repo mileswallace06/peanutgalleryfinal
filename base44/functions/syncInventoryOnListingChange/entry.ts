@@ -12,25 +12,36 @@
  *     skip the write. Replays and irrelevant updates are no-ops.
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { isMaintenanceActive } from '../../shared/maintenance.ts';
+import { getListingPrivate } from '../../shared/privateData.ts';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
+
+  if (isMaintenanceActive()) return Response.json({ ok: true, skipped: 'maintenance mode' });
+
   const body = await req.json().catch(() => ({}));
 
-  // Extract ONLY the entity id — never the record itself.
+  // Extract ONLY the entity id — never the record itself. Forged event-body
+  // values (status, emails, etc.) are never trusted; we re-fetch by ID.
   const entityId = body?.event?.entity_id || body?.data?.id;
   if (!entityId) return Response.json({ ok: true, skipped: 'no listing id' });
 
-  // Re-fetch the authoritative Listing.
+  // Re-fetch the authoritative Listing by ID only.
   const fetched = await base44.asServiceRole.entities.Listing.filter({ id: entityId }).catch(() => []);
   const listing = fetched[0];
   if (!listing) return Response.json({ ok: true, skipped: 'listing not found' });
 
-  // Resolve the linked SeatInventory (prefer the stored FK; fall back to lookup).
+  // Phase 1B: re-fetch the authoritative ListingPrivate by ID for seller_email.
+  const lp = await getListingPrivate(base44, listing.id);
+  const authoritativeSellerEmail = lp?.seller_email ?? listing.seller_email;
+
+  // Resolve the linked SeatInventory (prefer the stored FK; fall back to lookup
+  // using the authoritative seller_email, never a forged body value).
   let inventoryId = listing.seat_inventory_id;
   if (!inventoryId) {
     const all = await base44.asServiceRole.entities.SeatInventory.filter({
-      owner_email: listing.seller_email,
+      owner_email: authoritativeSellerEmail,
       event_id: listing.event_id,
     }).catch(() => []);
     const match = all.find(inv =>

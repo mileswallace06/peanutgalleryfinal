@@ -9,12 +9,15 @@
  *  - TTL ≤ 5 minutes (300s); private file_uri never exposed
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { isProofScanningEnabled, proofScannerUnavailable503 } from '../../shared/maintenance.ts';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
   let user;
   try { user = await base44.auth.me(); } catch (_) { return Response.json({ error: 'Unauthorized' }, { status: 401 }); }
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+
+  if (!isProofScanningEnabled()) return proofScannerUnavailable503();
 
   const body = await req.json().catch(() => ({}));
   const { proof_asset_id } = body;

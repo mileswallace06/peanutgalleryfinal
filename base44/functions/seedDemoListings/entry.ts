@@ -1,4 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { isMaintenanceActive, maintenance503 } from '../../shared/maintenance.ts';
+import { upsertListingPrivate } from '../../shared/privateData.ts';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
@@ -6,6 +8,8 @@ Deno.serve(async (req) => {
   if (!user || user.role !== 'admin') {
     return Response.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
   }
+
+  if (isMaintenanceActive()) return maintenance503('Demo seeding is temporarily unavailable for scheduled maintenance.');
 
   // Optional: override seller email so the admin can buy their own demo listings for testing
   const body = await req.json().catch(() => ({}));
@@ -114,7 +118,18 @@ Deno.serve(async (req) => {
       is_demo_listing: true,
       notes: `[DEMO] Great seats! Willing to move to a lower section. Seller: ${sellerEmail}`
     };
-    await base44.asServiceRole.entities.Listing.create(listing);
+    const createdListing = await base44.asServiceRole.entities.Listing.create(listing);
+    // Phase 1B: create ListingPrivate sidecar for each demo listing
+    try {
+      await upsertListingPrivate(base44, createdListing.id, {
+        event_id: createdListing.event_id, seller_email: sellerEmail,
+        section: t.section, row: t.row, seats: t.seats || null, quantity: t.quantity,
+        proof_status: 'approved', is_demo_listing: true, notes: listing.notes,
+        migration_version: 3, migrated_at: new Date().toISOString(),
+      });
+    } catch (err) {
+      console.error('[seedDemoListings] ListingPrivate creation failed for', createdListing.id, err?.message);
+    }
     listingsCreated++;
   }
 
