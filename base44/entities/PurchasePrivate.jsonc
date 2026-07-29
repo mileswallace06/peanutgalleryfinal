@@ -94,6 +94,10 @@
       "type": "string",
       "description": "Legacy public transfer-proof URL \u2014 requires private re-upload."
     },
+    "current_transfer_proof_asset_id": {
+      "type": "string",
+      "description": "FK to the current authoritative ProofAsset for this purchase's transfer proof. Only this asset may be AI-verified. Re-uploads supersede the previous asset, reset this field, and clear all stale AI results."
+    },
     "dispute_reason": {
       "type": "string"
     },

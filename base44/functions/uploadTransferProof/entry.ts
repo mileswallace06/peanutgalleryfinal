@@ -5,7 +5,7 @@
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import { isMaintenanceActive, maintenance503 } from '../../shared/maintenance.ts';
-import { getPurchasePrivate } from '../../shared/privateData.ts';
+import { getPurchasePrivate, upsertPurchasePrivate, alertPrivateWriteFailure } from '../../shared/privateData.ts';
 
 const ALLOWED_MIME = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'application/pdf'];
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -72,15 +72,53 @@ Deno.serve(async (req) => {
     return Response.json({ error: 'Private upload failed', details: e?.message }, { status: 500 });
   }
 
+  let asset;
   try {
-    const asset = await base44.asServiceRole.entities.ProofAsset.create({
+    asset = await base44.asServiceRole.entities.ProofAsset.create({
       owner_email: user.email, reference_type: 'purchase', reference_id: purchase_id, proof_type,
       private_file_id: file_uri, storage_uri: file_uri, content_type: contentType, checksum,
       scan_status: 'pending', uploaded_at: new Date().toISOString(),
       legacy_public_url: null, migration_status: 'private',
     });
-    return Response.json({ proof_asset_id: asset.id, scan_status: 'pending', storage: 'private' });
   } catch (e) {
     return Response.json({ error: 'ProofAsset creation failed; orphan private upload', orphan_file_uri: file_uri, details: e?.message }, { status: 500 });
   }
+
+  // ── Phase 1B: link asset to PurchasePrivate as current, supersede previous, clear stale AI ──
+  const prevAssetId = pp?.current_transfer_proof_asset_id || null;
+  if (prevAssetId && prevAssetId !== asset.id) {
+    await base44.asServiceRole.entities.ProofAsset.update(prevAssetId, {
+      superseded_by_asset_id: asset.id,
+      superseded_at: new Date().toISOString(),
+    }).catch(() => {});
+  }
+
+  try {
+    await upsertPurchasePrivate(base44, purchase_id, {
+      current_transfer_proof_asset_id: asset.id,
+      ai_proof_status: 'pending',
+      ai_confidence_score: null,
+      ai_review_notes: null,
+      ai_detected_platform: null,
+      ai_extracted_event_name: null,
+      ai_extracted_recipient: null,
+      ai_extracted_transfer_time: null,
+      ai_extracted_section: null,
+      ai_extracted_row: null,
+      ai_extracted_seats: null,
+      ai_flags: [],
+      ai_processed_at: null,
+      ai_processed_by_model: null,
+      fraud_risk_score: null,
+      auto_review_flagged: false,
+      auto_review_flagged_at: null,
+    });
+  } catch (err) {
+    // Cleanup: delete the just-created asset so no orphan current pointer remains
+    await base44.asServiceRole.entities.ProofAsset.delete(asset.id).catch(() => {});
+    await alertPrivateWriteFailure(base44, { entity: 'PurchasePrivate', reference_id: purchase_id, reference_type: 'purchase', error: err });
+    return Response.json({ error: 'Failed to link proof to purchase record. Upload cleaned up.' }, { status: 500 });
+  }
+
+  return Response.json({ proof_asset_id: asset.id, scan_status: 'pending', storage: 'private' });
 });

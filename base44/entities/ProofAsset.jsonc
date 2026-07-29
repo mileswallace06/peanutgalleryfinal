@@ -80,6 +80,14 @@
       ],
       "default": "pending"
     },
+    "superseded_by_asset_id": {
+      "type": "string",
+      "description": "If set, this asset has been superseded by a newer upload. Superseded assets cannot be reviewed or verified."
+    },
+    "superseded_at": {
+      "type": "string",
+      "description": "ISO timestamp when this asset was superseded."
+    },
     "uploaded_at": {
       "type": "string"
     },

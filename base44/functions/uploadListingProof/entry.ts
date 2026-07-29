@@ -11,7 +11,7 @@
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import { isMaintenanceActive, maintenance503 } from '../../shared/maintenance.ts';
-import { getListingPrivate } from '../../shared/privateData.ts';
+import { getListingPrivate, upsertListingPrivate, alertPrivateWriteFailure } from '../../shared/privateData.ts';
 
 const ALLOWED_MIME = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'application/pdf'];
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -75,16 +75,39 @@ Deno.serve(async (req) => {
     return Response.json({ error: 'Private upload failed', details: e?.message }, { status: 500 });
   }
 
+  let asset;
   try {
-    const asset = await base44.asServiceRole.entities.ProofAsset.create({
+    asset = await base44.asServiceRole.entities.ProofAsset.create({
       owner_email: user.email, reference_type: 'listing', reference_id: listing_id, proof_type,
       private_file_id: file_uri, storage_uri: file_uri, content_type: contentType, checksum,
       scan_status: 'pending', uploaded_at: new Date().toISOString(),
       legacy_public_url: null, migration_status: 'private',
     });
-    return Response.json({ proof_asset_id: asset.id, scan_status: 'pending', storage: 'private' });
   } catch (e) {
-    // Orphan: platform has no private-file delete API. Surface the uri for manual purge.
     return Response.json({ error: 'ProofAsset creation failed; orphan private upload', orphan_file_uri: file_uri, details: e?.message }, { status: 500 });
   }
+
+  // ── Phase 1B: link asset to ListingPrivate as current, supersede previous ──
+  const prevAssetId = lp?.current_proof_asset_id || null;
+  if (prevAssetId && prevAssetId !== asset.id) {
+    await base44.asServiceRole.entities.ProofAsset.update(prevAssetId, {
+      superseded_by_asset_id: asset.id,
+      superseded_at: new Date().toISOString(),
+    }).catch(() => {});
+  }
+
+  try {
+    await upsertListingPrivate(base44, listing_id, {
+      current_proof_asset_id: asset.id,
+      proof_status: 'pending_review',
+      proof_rejection_reason: null,
+    });
+  } catch (err) {
+    // Cleanup: delete the just-created asset so no orphan current pointer remains
+    await base44.asServiceRole.entities.ProofAsset.delete(asset.id).catch(() => {});
+    await alertPrivateWriteFailure(base44, { entity: 'ListingPrivate', reference_id: listing_id, reference_type: 'listing', error: err });
+    return Response.json({ error: 'Failed to link proof to listing record. Upload cleaned up.' }, { status: 500 });
+  }
+
+  return Response.json({ proof_asset_id: asset.id, scan_status: 'pending', storage: 'private' });
 });

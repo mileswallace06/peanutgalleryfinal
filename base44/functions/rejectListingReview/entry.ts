@@ -44,6 +44,17 @@ Deno.serve(async (req) => {
       return Response.json({ success: false, reason: `Listing is not pending review (current: ${authoritativeProofStatus})` }, { status: 409 });
     }
 
+    // Phase 1B: approve/reject operate ONLY on the current proof asset — an older
+    // superseded asset cannot be reviewed accidentally.
+    const currentAssetId = lp?.current_proof_asset_id;
+    if (!currentAssetId) {
+      return Response.json({ success: false, reason: 'No current proof asset. Upload proof before review.' }, { status: 409 });
+    }
+    const [currentAsset] = await base44.asServiceRole.entities.ProofAsset.filter({ id: currentAssetId }).catch(() => []);
+    if (!currentAsset || currentAsset.superseded_by_asset_id) {
+      return Response.json({ success: false, reason: 'Current proof asset is superseded or missing. Upload new proof.' }, { status: 409 });
+    }
+
     // 4. Mutate listing (server-side only)
     await base44.asServiceRole.entities.Listing.update(listing_id, {
       proof_status: 'rejected',

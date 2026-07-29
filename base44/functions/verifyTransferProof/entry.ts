@@ -56,10 +56,10 @@ Deno.serve(async (req) => {
     if (isMaintenanceActive()) return maintenance503('AI proof verification is temporarily unavailable for scheduled maintenance.');
 
     const body = await req.json();
-    const { purchase_id, proof_url, force_reprocess } = body;
+    const { purchase_id, proof_asset_id, force_reprocess } = body;
 
-    if (!purchase_id || !proof_url) {
-      return Response.json({ error: 'purchase_id and proof_url are required' }, { status: 400 });
+    if (!purchase_id || !proof_asset_id) {
+      return Response.json({ error: 'purchase_id and proof_asset_id are required' }, { status: 400 });
     }
 
     // Fetch purchase
@@ -85,6 +85,28 @@ Deno.serve(async (req) => {
     if (!force_reprocess && ['processing', 'verified_high_confidence'].includes(authoritativeAiProofStatus)) {
       console.warn(`[verifyTransferProof] duplicate trigger blocked — purchase=${purchase_id} status=${authoritativeAiProofStatus} triggered_by=${user.email}`);
       return Response.json({ skipped: true, reason: 'already_processing_or_verified', ai_proof_status: authoritativeAiProofStatus });
+    }
+
+    // ── Verify the proof asset is the current, clean, authorized asset ────────
+    const currentAssetId = pp?.current_transfer_proof_asset_id;
+    if (!currentAssetId || proof_asset_id !== currentAssetId) {
+      return Response.json({ error: 'Proof asset is not the current upload for this purchase' }, { status: 409 });
+    }
+    const [proofAsset] = await base44.asServiceRole.entities.ProofAsset.filter({ id: proof_asset_id }).catch(() => []);
+    if (!proofAsset) {
+      return Response.json({ error: 'Proof asset not found' }, { status: 404 });
+    }
+    if (proofAsset.reference_type !== 'purchase' || proofAsset.reference_id !== purchase_id) {
+      return Response.json({ error: 'Proof asset reference mismatch' }, { status: 403 });
+    }
+    if (proofAsset.proof_type !== 'transfer_proof') {
+      return Response.json({ error: 'Proof asset type mismatch' }, { status: 403 });
+    }
+    if (proofAsset.superseded_by_asset_id) {
+      return Response.json({ error: 'Proof asset has been superseded by a newer upload' }, { status: 409 });
+    }
+    if (proofAsset.scan_status !== 'clean') {
+      return Response.json({ error: 'Proof has not passed scan clearance', scan_status: proofAsset.scan_status }, { status: 403 });
     }
 
     // Atomic processing claim: only one concurrent verifyTransferProof runs the
@@ -119,12 +141,24 @@ Deno.serve(async (req) => {
     const listing = listings[0] || null;
     const event   = events[0]   || null;
 
-    // ── FRAUD-PROBE: Duplicate image detection ────────────────────────────────
-    // Check if this same proof URL was used on another purchase (reuse attack)
-    const proofMatches = await base44.asServiceRole.entities.Purchase.filter({
-      transfer_proof_url: proof_url,
-    }).catch(() => []);
-    const isDuplicateProof = proofMatches.filter(p => p.id !== purchase_id).length > 0;
+    // ── Create short-lived signed URL for the AI call ────────────────────────
+    let signedProofUrl;
+    try {
+      const res = await base44.integrations.Core.CreateFileSignedUrl({ file_uri: proofAsset.storage_uri, expires_in: 300 });
+      signedProofUrl = res.signed_url;
+    } catch (e) {
+      return Response.json({ error: 'Signed URL issuance failed', details: e?.message }, { status: 500 });
+    }
+
+    // ── FRAUD-PROBE: Duplicate checksum detection ────────────────────────────
+    let isDuplicateProof = false;
+    if (proofAsset.checksum) {
+      const checksumMatches = await base44.asServiceRole.entities.ProofAsset.filter({
+        checksum: proofAsset.checksum,
+        reference_type: 'purchase',
+      }).catch(() => []);
+      isDuplicateProof = checksumMatches.some(a => a.reference_id !== purchase_id);
+    }
 
     // ── Build AI analysis prompt ──────────────────────────────────────────────
     const contextStr = [
@@ -222,7 +256,7 @@ Return ONLY valid JSON with this exact structure:
     try {
       const llmResponse = await base44.asServiceRole.integrations.Core.InvokeLLM({
         prompt: analysisPrompt,
-        file_urls: [proof_url],
+        file_urls: [signedProofUrl],
         model: modelUsed,
         response_json_schema: {
           type: 'object',

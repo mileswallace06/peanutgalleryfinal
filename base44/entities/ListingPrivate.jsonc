@@ -64,6 +64,10 @@
     "proof_rejection_reason": {
       "type": "string"
     },
+    "current_proof_asset_id": {
+      "type": "string",
+      "description": "FK to the current authoritative ProofAsset for this listing's proof. Only this asset may be reviewed/approved/rejected. Re-uploads supersede the previous asset and reset this field."
+    },
     "ticket_file_url": {
       "type": "string"
     },
