@@ -1,5 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
-import { upsertListingPrivate } from '../../shared/privateData.ts';
+import { isMaintenanceActive, maintenance503 } from '../../shared/maintenance.ts';
+import { upsertListingPrivate, getListingPrivate, alertPrivateWriteFailure } from '../../shared/privateData.ts';
 
 const RESERVATION_MINUTES = 10;
 
@@ -12,9 +13,18 @@ Deno.serve(async (req) => {
     const { listing_id } = await req.json().catch(() => ({}));
     if (!listing_id) return Response.json({ error: 'listing_id required' }, { status: 400 });
 
+    // Phase 0 maintenance gate — fail-closed for all callers
+    if (isMaintenanceActive()) return maintenance503('Reservations are temporarily unavailable for scheduled maintenance.');
+
     const listings = await base44.asServiceRole.entities.Listing.filter({ id: listing_id });
     const listing = listings[0];
     if (!listing) return Response.json({ error: 'Listing not found' }, { status: 404 });
+
+    // Phase 1B: read reservation ownership/token/expiry from ListingPrivate first (legacy fallback)
+    const lp = await getListingPrivate(base44, listing.id);
+    const reservedBy = lp?.reserved_by_email ?? listing.reserved_by_email;
+    const resToken = lp?.reservation_token ?? listing.reservation_token;
+    const resExpiry = lp?.reservation_expires_at ?? listing.reservation_expires_at;
 
   // Must be active + approved
   if (listing.status === 'sold') {
@@ -35,16 +45,16 @@ Deno.serve(async (req) => {
   const now = Date.now();
 
   // Already reserved by current user (not expired) — return existing token
-  if (listing.reserved_by_email === user.email && listing.reservation_expires_at && new Date(listing.reservation_expires_at).getTime() > now) {
+  if (reservedBy === user.email && resExpiry && new Date(resExpiry).getTime() > now) {
     return Response.json({
-      reservation_token: listing.reservation_token,
-      reservation_expires_at: listing.reservation_expires_at,
+      reservation_token: resToken,
+      reservation_expires_at: resExpiry,
       already_reserved: true,
     });
   }
 
   // Reserved by someone else (not expired) — block
-  if (listing.reserved_by_email && listing.reservation_expires_at && listing.reserved_by_email !== user.email && new Date(listing.reservation_expires_at).getTime() > now) {
+  if (reservedBy && resExpiry && reservedBy !== user.email && new Date(resExpiry).getTime() > now) {
     return Response.json({
       error: 'This listing is currently reserved by another buyer. If they do not complete checkout, it may become available again shortly.',
       code: 'RESERVED_BY_OTHER',
@@ -84,11 +94,20 @@ Deno.serve(async (req) => {
     reservation_expires_at: expiresAt,
   });
   // Phase 1B: mirror reservation to ListingPrivate (authoritative private destination)
-  upsertListingPrivate(base44, listing.id, {
-    reserved_by_email: user.email,
-    reservation_token: token,
-    reservation_expires_at: expiresAt,
-  }).catch(() => {});
+  try {
+    await upsertListingPrivate(base44, listing.id, {
+      reserved_by_email: user.email,
+      reservation_token: token,
+      reservation_expires_at: expiresAt,
+    });
+  } catch (err) {
+    // Required private write failed — safe compensation: revert Listing reservation, alert
+    await base44.asServiceRole.entities.Listing.update(listing.id, {
+      reserved_by_email: null, reservation_token: null, reservation_expires_at: null,
+    }).catch(() => {});
+    await alertPrivateWriteFailure(base44, { entity: 'ListingPrivate', reference_id: listing.id, reference_type: 'listing', error: err });
+    return Response.json({ error: 'Failed to persist reservation. Please try again.' }, { status: 500 });
+  }
 
   // ── Race condition: re-fetch and verify we own the reservation ──────────
   const [reservedListing] = await base44.asServiceRole.entities.Listing.filter({ id: listing.id });

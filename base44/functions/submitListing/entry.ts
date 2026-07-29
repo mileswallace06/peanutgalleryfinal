@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import { isMaintenanceActive, maintenance503 } from '../../shared/maintenance.ts';
-import { upsertListingPrivate, recordLegacyProofUrl, readUserSecurity } from '../../shared/privateData.ts';
+import { upsertListingPrivate, recordLegacyProofUrl, readUserSecurity, alertPrivateWriteFailure } from '../../shared/privateData.ts';
 
 async function checkSuspicious(base44, sellerEmail, askingPrice) {
   const [purchases, allListings, sellerUsers] = await Promise.all([
@@ -141,22 +141,37 @@ Deno.serve(async (req) => {
   });
 
   // ── Phase 1B: create ListingPrivate sidecar (authoritative private destination) ──
-  await upsertListingPrivate(base44, listing.id, {
-    event_id: body.event_id, seller_email: user.email, section: body.section, row: body.row,
-    seats: body.seats || null, quantity: body.quantity || 1,
-    proof_url: body.proof_url || null, proof_status: listing.proof_status,
-    proof_rejection_reason: listing.proof_rejection_reason || null,
-    transfer_verification_proof_url: body.transfer_attestation_proof_url || null,
-    transfer_verified_by: user.email,
-    is_demo_listing: (isAdmin && isTest), notes: listing.notes,
-    migration_version: 3, migrated_at: now,
-  }).catch(err => console.error('[submitListing] ListingPrivate create failed:', err?.message));
+  try {
+    await upsertListingPrivate(base44, listing.id, {
+      event_id: body.event_id, seller_email: user.email, section: body.section, row: body.row,
+      seats: body.seats || null, quantity: body.quantity || 1,
+      proof_url: body.proof_url || null, proof_status: listing.proof_status,
+      proof_rejection_reason: listing.proof_rejection_reason || null,
+      transfer_verification_proof_url: body.transfer_attestation_proof_url || null,
+      transfer_verified_by: user.email,
+      is_demo_listing: (isAdmin && isTest), notes: listing.notes,
+      migration_version: 3, migrated_at: now,
+    });
+  } catch (err) {
+    // Required private write failed — safe compensation: cancel listing, alert
+    await base44.asServiceRole.entities.Listing.update(listing.id, { status: 'cancelled' }).catch(() => {});
+    await alertPrivateWriteFailure(base44, { entity: 'ListingPrivate', reference_id: listing.id, reference_type: 'listing', error: err });
+    return Response.json({ error: 'Failed to create private listing record. Listing cancelled.' }, { status: 500 });
+  }
 
   if (body.proof_url) {
-    await recordLegacyProofUrl(base44, { owner_email: user.email, reference_type: 'listing', reference_id: listing.id, proof_type: 'listing_proof', legacy_url: body.proof_url }).catch(() => {});
+    try {
+      await recordLegacyProofUrl(base44, { owner_email: user.email, reference_type: 'listing', reference_id: listing.id, proof_type: 'listing_proof', legacy_url: body.proof_url });
+    } catch (err) {
+      await alertPrivateWriteFailure(base44, { entity: 'ProofAsset', reference_id: listing.id, reference_type: 'listing', error: err });
+    }
   }
   if (body.transfer_attestation_proof_url) {
-    await recordLegacyProofUrl(base44, { owner_email: user.email, reference_type: 'listing', reference_id: listing.id, proof_type: 'transfer_attestation', legacy_url: body.transfer_attestation_proof_url }).catch(() => {});
+    try {
+      await recordLegacyProofUrl(base44, { owner_email: user.email, reference_type: 'listing', reference_id: listing.id, proof_type: 'transfer_attestation', legacy_url: body.transfer_attestation_proof_url });
+    } catch (err) {
+      await alertPrivateWriteFailure(base44, { entity: 'ProofAsset', reference_id: listing.id, reference_type: 'listing', error: err });
+    }
   }
 
   // ── Create/update SeatInventory for this listing ─────────────────────────

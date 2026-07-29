@@ -26,7 +26,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import Stripe from 'npm:stripe@14.21.0';
 import { isMaintenanceActive, maintenance503 } from '../../shared/maintenance.ts';
-import { upsertListingPrivate, upsertPurchasePrivate, upsertUserSecurityProfile, ensureListingPrivate } from '../../shared/privateData.ts';
+import { upsertListingPrivate, upsertPurchasePrivate, upsertUserSecurityProfile, ensureListingPrivate, getListingPrivate, alertPrivateWriteFailure } from '../../shared/privateData.ts';
 
 // ── Fee engine (mirrors feeEngine.js ACTIVE_FEE_MODEL_ID = 'buyer_5_min_1') ──
 function calcPlatformFee(subtotal) {
@@ -79,10 +79,14 @@ Deno.serve(async (req) => {
   }).catch(() => {});
   // Phase 1B: mirror PI rate-limit fields to UserSecurityProfile (authoritative)
   if (freshRequester) {
-    upsertUserSecurityProfile(base44, { user_id: freshRequester.id, user_email: buyerEmail }, {
-      last_pi_attempt_at: new Date().toISOString(),
-      pi_attempt_count: (freshRequester.pi_attempt_count || 0) + 1,
-    }).catch(() => {});
+    try {
+      await upsertUserSecurityProfile(base44, { user_id: freshRequester.id, user_email: buyerEmail }, {
+        last_pi_attempt_at: new Date().toISOString(),
+        pi_attempt_count: (freshRequester.pi_attempt_count || 0) + 1,
+      });
+    } catch (err) {
+      await alertPrivateWriteFailure(base44, { entity: 'UserSecurityProfile', reference_id: freshRequester.id, reference_type: 'user', error: err });
+    }
   }
 
   // ── Fetch authoritative listing ──────────────────────────────────────────
@@ -91,6 +95,12 @@ Deno.serve(async (req) => {
   if (!listing) {
     return Response.json({ error: 'Listing not found' }, { status: 404 });
   }
+  // Phase 1B: read authoritative seller identity + reservation from ListingPrivate first (legacy fallback)
+  const listingPrivate = await getListingPrivate(base44, listing.id);
+  const authoritativeSellerEmail = listingPrivate?.seller_email || listing.seller_email;
+  const authoritativeReservedBy = listingPrivate?.reserved_by_email ?? listing.reserved_by_email;
+  const authoritativeResToken = listingPrivate?.reservation_token ?? listing.reservation_token;
+  const authoritativeResExpiry = listingPrivate?.reservation_expires_at ?? listing.reservation_expires_at;
   // Hard reject test/demo/hidden/draft listings — a real Stripe PaymentIntent
   // is NEVER created for a non-marketplace listing. Admin role does not bypass.
   if (listing.is_demo_listing === true) {
@@ -105,18 +115,18 @@ Deno.serve(async (req) => {
   if (listing.proof_status !== 'approved') {
     return Response.json({ error: 'Listing is not yet approved' }, { status: 409 });
   }
-  if (listing.seller_email === buyerEmail) {
+  if (authoritativeSellerEmail === buyerEmail) {
     return Response.json({ error: 'You cannot purchase your own listing' }, { status: 400 });
   }
 
   // ── Reservation enforcement (10-minute lock) ─────────────────────────────
   const now = Date.now();
   if (
-    listing.reservation_token &&
-    listing.reservation_expires_at &&
-    new Date(listing.reservation_expires_at).getTime() > now
+    authoritativeResToken &&
+    authoritativeResExpiry &&
+    new Date(authoritativeResExpiry).getTime() > now
   ) {
-    if (listing.reserved_by_email !== buyerEmail) {
+    if (authoritativeReservedBy !== buyerEmail) {
       return Response.json({ error: 'This listing is currently being purchased by another buyer. Try again in a few minutes.' }, { status: 409 });
     }
   }
@@ -162,12 +172,15 @@ Deno.serve(async (req) => {
     reserved_by_email: buyerEmail,
   });
   // Phase 1B: mirror reservation to ListingPrivate (authoritative private destination)
-  upsertListingPrivate(base44, listing.id, {
-    status: 'pending_transfer',
-    reservation_token: reservationToken,
-    reservation_expires_at: reservationExpiresAt,
-    reserved_by_email: buyerEmail,
-  }).catch(() => {});
+  try {
+    await upsertListingPrivate(base44, listing.id, {
+      reservation_token: reservationToken,
+      reservation_expires_at: reservationExpiresAt,
+      reserved_by_email: buyerEmail,
+    });
+  } catch (err) {
+    await alertPrivateWriteFailure(base44, { entity: 'ListingPrivate', reference_id: listing.id, reference_type: 'listing', error: err });
+  }
 
   // Re-fetch to verify we own the reservation (last-write-wins check)
   const [reservedListing] = await base44.asServiceRole.entities.Listing.filter({ id: listing.id });
@@ -269,19 +282,37 @@ Deno.serve(async (req) => {
   });
 
   // ── Phase 1B: create PurchasePrivate + ensure ListingPrivate sidecars ─────
-  await upsertPurchasePrivate(base44, purchase.id, {
-    listing_id: listing.id, event_id: listing.event_id,
-    buyer_email: buyerEmail, seller_email: listing.seller_email,
-    payment_intent_id: paymentIntent.id, reservation_token: reservationToken,
-    buyer_phone: buyer_phone || null, buyer_name: buyer_name || null,
-    payment_captured: false, is_demo: false,
-    migration_version: 3, migrated_at: new Date().toISOString(),
-  }).catch(err => console.error('[createCheckout] PurchasePrivate create failed:', err?.message));
-  await ensureListingPrivate(base44, listing.id, {
-    event_id: listing.event_id, seller_email: listing.seller_email,
-    section: listing.section, row: listing.row, seats: listing.seats, quantity: listing.quantity,
-    migration_version: 3, migrated_at: new Date().toISOString(),
-  }).catch(() => {});
+  let ppError = null, lpError = null;
+  try {
+    await upsertPurchasePrivate(base44, purchase.id, {
+      listing_id: listing.id, event_id: listing.event_id,
+      buyer_email: buyerEmail, seller_email: authoritativeSellerEmail,
+      payment_intent_id: paymentIntent.id, reservation_token: reservationToken,
+      buyer_phone: buyer_phone || null, buyer_name: buyer_name || null,
+      payment_captured: false, is_demo: false,
+      migration_version: 3, migrated_at: new Date().toISOString(),
+    });
+  } catch (err) { ppError = err; }
+  try {
+    await ensureListingPrivate(base44, listing.id, {
+      event_id: listing.event_id, seller_email: authoritativeSellerEmail,
+      section: listing.section, row: listing.row, seats: listing.seats, quantity: listing.quantity,
+      migration_version: 3, migrated_at: new Date().toISOString(),
+    });
+  } catch (err) { lpError = err; }
+
+  if (ppError || lpError) {
+    // Safe compensation: cancel PI (test mode only), expire Purchase, release Listing, alert
+    if (secretKey.startsWith('sk_test_')) {
+      try { await stripe.paymentIntents.cancel(paymentIntent.id); } catch (_) {}
+    }
+    await base44.asServiceRole.entities.Purchase.update(purchase.id, { transfer_status: 'expired' }).catch(() => {});
+    await base44.asServiceRole.entities.Listing.update(listing.id, {
+      status: 'active', reservation_token: null, reservation_expires_at: null, reserved_by_email: null,
+    }).catch(() => {});
+    await alertPrivateWriteFailure(base44, { entity: ppError ? 'PurchasePrivate' : 'ListingPrivate', reference_id: purchase.id, reference_type: 'purchase', error: ppError || lpError });
+    return Response.json({ error: 'Checkout failed during private record creation. Your payment was not charged.' }, { status: 500 });
+  }
 
   // Link the PaymentIntent to this Purchase via metadata. capturePayment
   // requires md.purchase_id to match the Purchase as a security field.

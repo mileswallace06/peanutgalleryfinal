@@ -1,5 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
-import { upsertListingPrivate } from '../../shared/privateData.ts';
+import { isMaintenanceActive, maintenance503 } from '../../shared/maintenance.ts';
+import { upsertListingPrivate, getListingPrivate, alertPrivateWriteFailure } from '../../shared/privateData.ts';
 
 Deno.serve(async (req) => {
   try {
@@ -10,12 +11,19 @@ Deno.serve(async (req) => {
     const { listing_id } = await req.json().catch(() => ({}));
     if (!listing_id) return Response.json({ error: 'listing_id required' }, { status: 400 });
 
+    // Phase 0 maintenance gate — fail-closed for all callers
+    if (isMaintenanceActive()) return maintenance503('Reservation release is temporarily unavailable for scheduled maintenance.');
+
     const listings = await base44.asServiceRole.entities.Listing.filter({ id: listing_id });
     const listing = listings[0];
     if (!listing) return Response.json({ error: 'Listing not found' }, { status: 404 });
 
+    // Phase 1B: read reservation ownership from ListingPrivate first (legacy fallback)
+    const lp = await getListingPrivate(base44, listing.id);
+    const reservedBy = lp?.reserved_by_email ?? listing.reserved_by_email;
+
   // Only the reserver or admin can release
-  if (listing.reserved_by_email !== user.email && user.role !== 'admin') {
+  if (reservedBy !== user.email && user.role !== 'admin') {
     return Response.json({ error: 'Not authorized' }, { status: 403 });
   }
 
@@ -36,11 +44,16 @@ Deno.serve(async (req) => {
 
     await base44.asServiceRole.entities.Listing.update(listing.id, update);
     // Phase 1B: mirror reservation clear to ListingPrivate (authoritative private destination)
-    upsertListingPrivate(base44, listing.id, {
-      reserved_by_email: null,
-      reservation_token: null,
-      reservation_expires_at: null,
-    }).catch(() => {});
+    try {
+      await upsertListingPrivate(base44, listing.id, {
+        reserved_by_email: null,
+        reservation_token: null,
+        reservation_expires_at: null,
+      });
+    } catch (err) {
+      // Required private write failed — legacy already cleared; alert for reconciliation
+      await alertPrivateWriteFailure(base44, { entity: 'ListingPrivate', reference_id: listing.id, reference_type: 'listing', error: err });
+    }
 
     return Response.json({ status: 'released' });
   } catch (error) {
