@@ -163,14 +163,19 @@ Deno.serve(async (req) => {
     try {
       await recordLegacyProofUrl(base44, { owner_email: user.email, reference_type: 'listing', reference_id: listing.id, proof_type: 'listing_proof', legacy_url: body.proof_url });
     } catch (err) {
+      // ProofAsset is required when a proof URL is supplied — cancel listing, alert
+      await base44.asServiceRole.entities.Listing.update(listing.id, { status: 'cancelled' }).catch(() => {});
       await alertPrivateWriteFailure(base44, { entity: 'ProofAsset', reference_id: listing.id, reference_type: 'listing', error: err });
+      return Response.json({ error: 'Failed to create proof record. Listing cancelled.' }, { status: 500 });
     }
   }
   if (body.transfer_attestation_proof_url) {
     try {
       await recordLegacyProofUrl(base44, { owner_email: user.email, reference_type: 'listing', reference_id: listing.id, proof_type: 'transfer_attestation', legacy_url: body.transfer_attestation_proof_url });
     } catch (err) {
+      await base44.asServiceRole.entities.Listing.update(listing.id, { status: 'cancelled' }).catch(() => {});
       await alertPrivateWriteFailure(base44, { entity: 'ProofAsset', reference_id: listing.id, reference_type: 'listing', error: err });
+      return Response.json({ error: 'Failed to create proof record. Listing cancelled.' }, { status: 500 });
     }
   }
 

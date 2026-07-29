@@ -77,7 +77,8 @@ Deno.serve(async (req) => {
     last_pi_attempt_at: new Date().toISOString(),
     pi_attempt_count: (freshRequester.pi_attempt_count || 0) + 1,
   }).catch(() => {});
-  // Phase 1B: mirror PI rate-limit fields to UserSecurityProfile (authoritative)
+  // Phase 1B: mirror PI rate-limit fields to UserSecurityProfile (authoritative).
+  // Required private write — failure must STOP before any Stripe PaymentIntent call.
   if (freshRequester) {
     try {
       await upsertUserSecurityProfile(base44, { user_id: freshRequester.id, user_email: buyerEmail }, {
@@ -86,6 +87,7 @@ Deno.serve(async (req) => {
       });
     } catch (err) {
       await alertPrivateWriteFailure(base44, { entity: 'UserSecurityProfile', reference_id: freshRequester.id, reference_type: 'user', error: err });
+      return Response.json({ error: 'Checkout unavailable. Please try again.' }, { status: 500 });
     }
   }
 
@@ -165,13 +167,19 @@ Deno.serve(async (req) => {
   // Establish / refresh reservation token (10-minute expiry)
   const reservationToken = crypto.randomUUID();
   const reservationExpiresAt = new Date(now + 10 * 60 * 1000).toISOString();
+  // Capture exact previous reservation values for compensation
+  const prevListingStatus = listing.status;
+  const prevReservedBy = authoritativeReservedBy ?? null;
+  const prevResToken = authoritativeResToken ?? null;
+  const prevResExpiry = authoritativeResExpiry ?? null;
   await base44.asServiceRole.entities.Listing.update(listing.id, {
     status: 'pending_transfer',
     reservation_token: reservationToken,
     reservation_expires_at: reservationExpiresAt,
     reserved_by_email: buyerEmail,
   });
-  // Phase 1B: mirror reservation to ListingPrivate (authoritative private destination)
+  // Phase 1B: mirror reservation to ListingPrivate (authoritative private destination).
+  // Required private write — failure must STOP before any Stripe PaymentIntent is created.
   try {
     await upsertListingPrivate(base44, listing.id, {
       reservation_token: reservationToken,
@@ -179,7 +187,15 @@ Deno.serve(async (req) => {
       reserved_by_email: buyerEmail,
     });
   } catch (err) {
+    // Revert Listing to exact previous values, alert, stop
+    await base44.asServiceRole.entities.Listing.update(listing.id, {
+      status: prevListingStatus,
+      reserved_by_email: prevReservedBy,
+      reservation_token: prevResToken,
+      reservation_expires_at: prevResExpiry,
+    }).catch(() => {});
     await alertPrivateWriteFailure(base44, { entity: 'ListingPrivate', reference_id: listing.id, reference_type: 'listing', error: err });
+    return Response.json({ error: 'Checkout unavailable. Please try again.' }, { status: 500 });
   }
 
   // Re-fetch to verify we own the reservation (last-write-wins check)
@@ -302,16 +318,47 @@ Deno.serve(async (req) => {
   } catch (err) { lpError = err; }
 
   if (ppError || lpError) {
-    // Safe compensation: cancel PI (test mode only), expire Purchase, release Listing, alert
-    if (secretKey.startsWith('sk_test_')) {
-      try { await stripe.paymentIntents.cancel(paymentIntent.id); } catch (_) {}
+    // Safe compensation: cancel the PaymentIntent regardless of test/live mode.
+    // Only return "not charged" if cancellation succeeded OR Stripe confirms the
+    // PI cannot be charged. If cancellation fails, return a neutral error and
+    // create a CRITICAL AdminAlert containing the PaymentIntent ID.
+    let cancelOk = false;
+    let piFinalStatus = null;
+    let cancelError = null;
+    try {
+      const canceled = await stripe.paymentIntents.cancel(paymentIntent.id);
+      piFinalStatus = canceled.status;
+      cancelOk = ['canceled', 'requires_payment_method'].includes(canceled.status);
+    } catch (cancelErr) {
+      cancelError = cancelErr;
+      try {
+        const retrieved = await stripe.paymentIntents.retrieve(paymentIntent.id);
+        piFinalStatus = retrieved.status;
+        if (['canceled', 'requires_payment_method'].includes(retrieved.status)) cancelOk = true;
+      } catch (retErr) {
+        cancelError = retErr;
+      }
     }
     await base44.asServiceRole.entities.Purchase.update(purchase.id, { transfer_status: 'expired' }).catch(() => {});
     await base44.asServiceRole.entities.Listing.update(listing.id, {
       status: 'active', reservation_token: null, reservation_expires_at: null, reserved_by_email: null,
     }).catch(() => {});
     await alertPrivateWriteFailure(base44, { entity: ppError ? 'PurchasePrivate' : 'ListingPrivate', reference_id: purchase.id, reference_type: 'purchase', error: ppError || lpError });
-    return Response.json({ error: 'Checkout failed during private record creation. Your payment was not charged.' }, { status: 500 });
+    if (cancelOk) {
+      return Response.json({ error: 'Checkout failed during private record creation. Your payment was not charged.' }, { status: 500 });
+    }
+    // Cancellation failed and Stripe does not confirm non-chargeable — critical alert with PI ID
+    try {
+      await base44.asServiceRole.entities.AdminAlert.create({
+        alert_type: 'admin_action_required',
+        priority: 'critical',
+        title: `UNCCANCELLED PaymentIntent ${paymentIntent.id}`,
+        description: `Checkout failed (private write) but PaymentIntent ${paymentIntent.id} could NOT be cancelled (status: ${piFinalStatus || 'unknown'}). PI may be authorizable/capturable — immediate manual intervention required. Error: ${cancelError?.message || 'unknown'}`,
+        reference_type: 'purchase',
+        reference_id: purchase.id,
+      });
+    } catch (_) {}
+    return Response.json({ error: 'Checkout failed. Please contact support.' }, { status: 500 });
   }
 
   // Link the PaymentIntent to this Purchase via metadata. capturePayment
