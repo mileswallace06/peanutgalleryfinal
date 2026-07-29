@@ -18,11 +18,15 @@
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import Stripe from 'npm:stripe@14.21.0';
+import { isMaintenanceActive } from '../../shared/maintenance.ts';
+import { getPurchasePrivate, upsertListingPrivate } from '../../shared/privateData.ts';
 
 const ABANDONED_MS = 10 * 60 * 1000; // 10-minute checkout window
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
+
+  if (isMaintenanceActive()) return Response.json({ ok: true, skipped: 'maintenance mode' });
 
   const secretKey = Deno.env.get('STRIPELIVESECRETKEY');
   if (!secretKey || (!secretKey.startsWith('sk_test_') && !secretKey.startsWith('sk_live_'))) {
@@ -48,15 +52,21 @@ Deno.serve(async (req) => {
       // Skip demo purchases — they never involve real authorization.
       if (p.is_demo === true) { skippedDemo++; continue; }
 
+      // Phase 1B: read authoritative payment_intent_id + buyer_email + reservation_token from PurchasePrivate
+      const pp = await getPurchasePrivate(base44, p.id);
+      const authoritativePaymentIntentId = pp?.payment_intent_id ?? p.payment_intent_id;
+      const authoritativeBuyerEmail = pp?.buyer_email ?? p.buyer_email;
+      const authoritativeReservationToken = pp?.reservation_token ?? p.reservation_token;
+
       // Only process purchases older than the checkout window.
       const created = p.created_date ? new Date(p.created_date).getTime() : 0;
       if (now - created < ABANDONED_MS) { skippedRecent++; continue; }
 
       // Retrieve the PaymentIntent to determine its actual state.
       let piStatus = null;
-      if (p.payment_intent_id) {
+      if (authoritativePaymentIntentId) {
         try {
-          const pi = await stripe.paymentIntents.retrieve(p.payment_intent_id);
+          const pi = await stripe.paymentIntents.retrieve(authoritativePaymentIntentId);
           piStatus = pi.status;
         } catch (err) {
           console.warn('[cleanupAbandonedCheckouts] PI retrieve failed', p.id, err?.message);
@@ -71,9 +81,9 @@ Deno.serve(async (req) => {
       }
 
       // Never authorized — cancel the PI when possible.
-      if (p.payment_intent_id && piStatus) {
+      if (authoritativePaymentIntentId && piStatus) {
         try {
-          await stripe.paymentIntents.cancel(p.payment_intent_id);
+          await stripe.paymentIntents.cancel(authoritativePaymentIntentId);
         } catch (_) {
           // Already canceled / incompatible — ignore.
         }
@@ -86,8 +96,8 @@ Deno.serve(async (req) => {
       // Release the Listing if it still belongs to this buyer/reservation.
       const [listing] = await base44.asServiceRole.entities.Listing.filter({ id: p.listing_id }).catch(() => []);
       if (listing && listing.status === 'pending_transfer') {
-        const ownsByBuyer = listing.reserved_by_email === p.buyer_email;
-        const ownsByToken = !!(p.reservation_token && listing.reservation_token === p.reservation_token);
+        const ownsByBuyer = listing.reserved_by_email === authoritativeBuyerEmail;
+        const ownsByToken = !!(authoritativeReservationToken && listing.reservation_token === authoritativeReservationToken);
         if (ownsByBuyer || ownsByToken) {
           await base44.asServiceRole.entities.Listing.update(listing.id, {
             status: 'active',
@@ -95,6 +105,8 @@ Deno.serve(async (req) => {
             reservation_expires_at: null,
             reserved_by_email: null,
           }).catch(() => {});
+          // Phase 1B: clear ListingPrivate reservation
+          try { await upsertListingPrivate(base44, listing.id, { reservation_token: null, reservation_expires_at: null, reserved_by_email: null }); } catch (_) {}
           released++;
         }
       }

@@ -34,6 +34,8 @@
  * Neither caller relies on an atomic claim. Both call the same idempotent
  * logic, so duplicate work between them is harmless.
  */
+import { getPurchasePrivate, upsertPurchasePrivate, getUserSecurityProfile, upsertUserSecurityProfile, alertPrivateWriteFailure } from './privateData.ts';
+
 function predVerdict(recommendation, outcome) {
   const openRecs = ['open', 'likely_open'];
   const closedRecs = ['closed', 'closing_soon'];
@@ -46,6 +48,11 @@ function predVerdict(recommendation, outcome) {
 export async function recordTerminalOutcome(base44, purchase) {
   const isSuccess = purchase.transfer_status === 'completed';
   const now = new Date().toISOString();
+
+  // Phase 1B: read authoritative identities from PurchasePrivate
+  const pp = await getPurchasePrivate(base44, purchase.id);
+  const authoritativeSellerEmail = pp?.seller_email ?? purchase.seller_email;
+  const authoritativeBuyerEmail = pp?.buyer_email ?? purchase.buyer_email;
 
   let minutesToTransfer = null;
   if (purchase.seller_confirmed_at && purchase.created_date) {
@@ -65,8 +72,8 @@ export async function recordTerminalOutcome(base44, purchase) {
       listing_id: purchase.listing_id,
       event_id: purchase.event_id,
       purchase_id: purchase.id,
-      seller_email: purchase.seller_email,
-      buyer_email: purchase.buyer_email,
+      seller_email: authoritativeSellerEmail,
+      buyer_email: authoritativeBuyerEmail,
       transfer_successful: isSuccess,
       transfer_completed_at: isSuccess ? now : null,
       minutes_to_transfer: minutesToTransfer,
@@ -115,8 +122,8 @@ export async function recordTerminalOutcome(base44, purchase) {
         seller_response_time_min: minutesToTransfer,
         buyer_confirmed: purchase.buyer_confirmed || false,
         seller_confirmed: purchase.seller_confirmed || false,
-        seller_email: purchase.seller_email,
-        buyer_email: purchase.buyer_email,
+        seller_email: authoritativeSellerEmail,
+        buyer_email: authoritativeBuyerEmail,
         source: 'transfer_outcome',
         recorded_at: now,
       });
@@ -140,7 +147,7 @@ export async function recordTerminalOutcome(base44, purchase) {
         prediction_correct: predVerdict(pred.recommendation, outcome),
         resolution_source: 'transfer_outcome',
         platform: null,
-        seller_email: purchase.seller_email || null,
+        seller_email: authoritativeSellerEmail || null,
       });
     }
   } catch (_) {
@@ -150,53 +157,73 @@ export async function recordTerminalOutcome(base44, purchase) {
   // 4. Seller trust — DERIVED from authoritative Purchase rows (RACE-PROOF).
   //    Counts come from distinct Purchase records (transfer_status completed
   //    vs disputed) — the source of truth that can never be duplicated — NOT
-  //    from TransferOutcome records, which a concurrent existence-check race
-  //    can duplicate. This makes duplicate outcome records harmless to trust:
-  //    a duplicate invocation recomputes the SAME totals and cannot
-  //    double-count. (Only a duplicate RECORD inflated the old outcome-derived
-  //    count; reconciling the records now leaves trust untouched either way.)
-  //    The false-claim flag is an idempotent $set; its count is derived from
-  //    flagged purchases.
-  if (purchase.seller_email) {
+  //    from TransferOutcome records. Phase 1B: trust counters are written to
+  //    UserSecurityProfile (authoritative) and mirrored to User (legacy fallback).
+  //    All writes awaited; failures alert and must not produce partial state.
+  if (authoritativeSellerEmail) {
     try {
       if (!isSuccess) {
         await base44.asServiceRole.entities.Purchase.update(purchase.id, {
           false_claim_recorded: true,
         }).catch(() => {});
+        // Phase 1B: mirror false_claim_recorded to PurchasePrivate (authoritative)
+        try {
+          await upsertPurchasePrivate(base44, purchase.id, { false_claim_recorded: true });
+        } catch (err) {
+          await alertPrivateWriteFailure(base44, { entity: 'PurchasePrivate', reference_id: purchase.id, reference_type: 'purchase', error: err });
+        }
       }
-      const sellers = await base44.asServiceRole.entities.User.filter({ email: purchase.seller_email });
+
+      // DERIVE from distinct Purchase rows (not TransferOutcome) — race-proof.
+      const completedPurchases = await base44.asServiceRole.entities.Purchase.filter({
+        seller_email: authoritativeSellerEmail, transfer_status: 'completed',
+      }).catch(() => []);
+      const disputedPurchases = await base44.asServiceRole.entities.Purchase.filter({
+        seller_email: authoritativeSellerEmail, transfer_status: 'disputed',
+      }).catch(() => []);
+      const flagged = await base44.asServiceRole.entities.Purchase.filter({
+        seller_email: authoritativeSellerEmail, false_claim_recorded: true,
+      }).catch(() => []);
+
+      // Exclude demo purchases from real trust scoring.
+      const successCount = completedPurchases.filter(p => !p.is_demo).length;
+      const failCount = disputedPurchases.filter(p => !p.is_demo).length;
+      const falseClaimCount = flagged.filter(p => !p.is_demo).length;
+
+      const total = successCount + failCount;
+      let reliability = total > 0 ? Math.round((successCount / total) * 100) : 70;
+      if (failCount > 0) reliability = Math.max(0, reliability - 5);
+      if (falseClaimCount >= 1) reliability = Math.max(0, reliability - (falseClaimCount * 3));
+      reliability = Math.max(0, Math.min(100, reliability));
+
+      // Phase 1B: write trust counters to UserSecurityProfile (authoritative)
+      const sec = await getUserSecurityProfile(base44, { user_email: authoritativeSellerEmail });
+      if (sec) {
+        try {
+          await upsertUserSecurityProfile(base44, { user_id: sec.user_id, user_email: authoritativeSellerEmail }, {
+            transfer_success_count: successCount,
+            transfer_fail_count: failCount,
+            transfer_false_claim_count: falseClaimCount,
+            seller_transfer_reliability: reliability,
+          });
+        } catch (err) {
+          await alertPrivateWriteFailure(base44, { entity: 'UserSecurityProfile', reference_id: sec.user_id, reference_type: 'user', error: err });
+        }
+      }
+
+      // Legacy mirror: write to User (temporary fallback)
+      const sellers = await base44.asServiceRole.entities.User.filter({ email: authoritativeSellerEmail }).catch(() => []);
       const seller = sellers[0];
       if (seller) {
-        const completedPurchases = await base44.asServiceRole.entities.Purchase.filter({
-          seller_email: purchase.seller_email, transfer_status: 'completed',
-        }).catch(() => []);
-        const disputedPurchases = await base44.asServiceRole.entities.Purchase.filter({
-          seller_email: purchase.seller_email, transfer_status: 'disputed',
-        }).catch(() => []);
-        const flagged = await base44.asServiceRole.entities.Purchase.filter({
-          seller_email: purchase.seller_email, false_claim_recorded: true,
-        }).catch(() => []);
-
-        // Exclude demo purchases from real trust scoring.
-        const successCount = completedPurchases.filter(p => !p.is_demo).length;
-        const failCount = disputedPurchases.filter(p => !p.is_demo).length;
-        const falseClaimCount = flagged.filter(p => !p.is_demo).length;
-
-        const total = successCount + failCount;
-        let reliability = total > 0 ? Math.round((successCount / total) * 100) : 70;
-        if (failCount > 0) reliability = Math.max(0, reliability - 5);
-        if (falseClaimCount >= 1) reliability = Math.max(0, reliability - (falseClaimCount * 3));
-        reliability = Math.max(0, Math.min(100, reliability));
-
         await base44.asServiceRole.entities.User.update(seller.id, {
           transfer_success_count: successCount,
           transfer_fail_count: failCount,
           transfer_false_claim_count: falseClaimCount,
           seller_transfer_reliability: reliability,
-        });
+        }).catch(() => {});
       }
-    } catch (_) {
-      // trust update is best-effort
+    } catch (err) {
+      await alertPrivateWriteFailure(base44, { entity: 'UserSecurityProfile', reference_id: authoritativeSellerEmail, reference_type: 'user', error: err });
     }
   }
 
@@ -212,11 +239,11 @@ export async function recordTerminalOutcome(base44, purchase) {
         alert_type: 'failed_transfer_after_payment',
         priority: 'critical',
         title: `Transfer failed — $${purchase.amount?.toFixed(2)} in dispute`,
-        description: `Buyer ${purchase.buyer_email} opened dispute. Seller: ${purchase.seller_email}. Reason: ${purchase.dispute_reason || 'not specified'}`,
+        description: `Buyer ${authoritativeBuyerEmail} opened dispute. Seller: ${authoritativeSellerEmail}. Reason: ${purchase.dispute_reason || 'not specified'}`,
         reference_id: purchase.id,
         reference_type: 'purchase',
-        seller_email: purchase.seller_email,
-        buyer_email: purchase.buyer_email,
+        seller_email: authoritativeSellerEmail,
+        buyer_email: authoritativeBuyerEmail,
         event_id: purchase.event_id,
       }).catch(() => {});
     }

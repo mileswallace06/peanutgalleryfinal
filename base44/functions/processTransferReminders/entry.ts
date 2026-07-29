@@ -18,7 +18,9 @@
 
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import Stripe from 'npm:stripe@14.21.0';
+import { isMaintenanceActive } from '../../shared/maintenance.ts';
 import { sendUserNotification, sendTransactionalEmail } from '../../shared/notifications.ts';
+import { getPurchasePrivate, upsertPurchasePrivate, upsertListingPrivate } from '../../shared/privateData.ts';
 
 const SELLER_REMINDER_1_MS  =  5 * 60 * 1000;  //  5 min
 const SELLER_REMINDER_2_MS  = 15 * 60 * 1000;  // 15 min
@@ -43,6 +45,8 @@ Deno.serve(async (req) => {
     // No session = called by automation scheduler — allow
   }
 
+  if (isMaintenanceActive()) return Response.json({ ok: true, skipped: 'maintenance mode' });
+
   const now = Date.now();
   let sent = 0;
   let expired = 0;
@@ -60,7 +64,11 @@ Deno.serve(async (req) => {
   }, '-created_date', 500);
 
   for (const purchase of pending) {
-    const flags = purchase.reminder_flags || {};
+    // Phase 1B: read authoritative identities + reminder flags from PurchasePrivate
+    const pp = await getPurchasePrivate(base44, purchase.id);
+    const authoritativeSellerEmail = pp?.seller_email ?? purchase.seller_email;
+    const authoritativeBuyerEmail = pp?.buyer_email ?? purchase.buyer_email;
+    const flags = pp?.reminder_flags ?? purchase.reminder_flags ?? {};
     const createdMs = new Date(purchase.created_date).getTime();
     const sellerConfirmedAt = purchase.seller_confirmed_at
       ? new Date(purchase.seller_confirmed_at).getTime()
@@ -73,7 +81,7 @@ Deno.serve(async (req) => {
       if (elapsedMs >= SELLER_REMINDER_1_MS && !flags.seller_r1) {
         try {
           await sendUserNotification(base44, {
-            user_email: purchase.seller_email,
+            user_email: authoritativeSellerEmail,
             title: 'Transfer reminder',
             body: 'Your buyer is waiting. Send the tickets when you can.',
             type: 'seller_reminder',
@@ -82,6 +90,7 @@ Deno.serve(async (req) => {
           await base44.asServiceRole.entities.Purchase.update(purchase.id, {
             reminder_flags: { ...flags, seller_r1: true },
           });
+          try { await upsertPurchasePrivate(base44, purchase.id, { reminder_flags: { ...flags, seller_r1: true } }); } catch (_) {}
           sent++;
         } catch (err) {
           console.error('[reminders] seller_r1 failed for', purchase.id, err?.message);
@@ -91,7 +100,7 @@ Deno.serve(async (req) => {
       if (elapsedMs >= SELLER_REMINDER_2_MS && !flags.seller_r2) {
         try {
           await sendUserNotification(base44, {
-            user_email: purchase.seller_email,
+            user_email: authoritativeSellerEmail,
             title: '⚠️ Final transfer reminder',
             body: 'Please transfer tickets within 48 hours or the purchase will be cancelled.',
             type: 'seller_reminder',
@@ -100,6 +109,7 @@ Deno.serve(async (req) => {
           await base44.asServiceRole.entities.Purchase.update(purchase.id, {
             reminder_flags: { ...flags, seller_r2: true },
           });
+          try { await upsertPurchasePrivate(base44, purchase.id, { reminder_flags: { ...flags, seller_r2: true } }); } catch (_) {}
           sent++;
         } catch (err) {
           console.error('[reminders] seller_r2 failed for', purchase.id, err?.message);
@@ -115,7 +125,7 @@ Deno.serve(async (req) => {
       if (elapsedSinceTransfer >= BUYER_REMINDER_1_MS && !flags.buyer_r1) {
         try {
           await sendUserNotification(base44, {
-            user_email: purchase.buyer_email,
+            user_email: authoritativeBuyerEmail,
             title: 'Confirm your tickets',
             body: "Let us know once your tickets are safely received.",
             type: 'buyer_reminder',
@@ -124,6 +134,7 @@ Deno.serve(async (req) => {
           await base44.asServiceRole.entities.Purchase.update(purchase.id, {
             reminder_flags: { ...flags, buyer_r1: true },
           });
+          try { await upsertPurchasePrivate(base44, purchase.id, { reminder_flags: { ...flags, buyer_r1: true } }); } catch (_) {}
           sent++;
         } catch (err) {
           console.error('[reminders] buyer_r1 failed for', purchase.id, err?.message);
@@ -133,7 +144,7 @@ Deno.serve(async (req) => {
       if (elapsedSinceTransfer >= BUYER_REMINDER_2_MS && !flags.buyer_r2) {
         try {
           await sendUserNotification(base44, {
-            user_email: purchase.buyer_email,
+            user_email: authoritativeBuyerEmail,
             title: '⏰ Please confirm your tickets',
             body: "Your seller says tickets are transferred. If you haven't received them, open a dispute.",
             type: 'buyer_reminder',
@@ -142,6 +153,7 @@ Deno.serve(async (req) => {
           await base44.asServiceRole.entities.Purchase.update(purchase.id, {
             reminder_flags: { ...flags, buyer_r2: true },
           });
+          try { await upsertPurchasePrivate(base44, purchase.id, { reminder_flags: { ...flags, buyer_r2: true } }); } catch (_) {}
           sent++;
         } catch (err) {
           console.error('[reminders] buyer_r2 failed for', purchase.id, err?.message);
@@ -171,15 +183,17 @@ Deno.serve(async (req) => {
           reservation_expires_at: null,
           reserved_by_email: null,
         }).catch(() => {});
+        // Phase 1B: clear ListingPrivate reservation
+        try { await upsertListingPrivate(base44, purchase.listing_id, { reservation_token: null, reservation_expires_at: null, reserved_by_email: null }); } catch (_) {}
         await sendUserNotification(base44, {
-          user_email: purchase.buyer_email,
+          user_email: authoritativeBuyerEmail,
           title: 'Purchase expired — refund issued',
           body: 'The seller did not transfer your tickets in time. Your payment was not captured.',
           type: 'listing_expired',
           purchase_id: purchase.id,
         }).catch(() => {});
         await sendUserNotification(base44, {
-          user_email: purchase.seller_email,
+          user_email: authoritativeSellerEmail,
           title: 'Your listing expired',
           body: 'You did not confirm the transfer within 48 hours. The listing has been restored.',
           type: 'listing_expired',
@@ -208,12 +222,12 @@ Deno.serve(async (req) => {
           // Notify admin
           await sendTransactionalEmail(base44, 'experience@peanutgallery.store',
             `⏰ Admin Review Required — Buyer Inactive 24h — Purchase ${purchase.id}`,
-            `A purchase needs admin review.\n\nBuyer (${purchase.buyer_email}) has not confirmed ticket receipt 24 hours after seller confirmation.\n\nPurchase ID: ${purchase.id}\nSeller: ${purchase.seller_email}\nAmount: $${purchase.amount?.toFixed(2)}\nSeller confirmed at: ${purchase.seller_confirmed_at}\n\nOptions:\n1. Approve capture via admin panel if transfer is confirmed legitimate\n2. Open dispute if seller transfer cannot be verified\n3. Wait longer — Stripe PI valid for 7 days from purchase\n\nDo NOT ignore — Stripe PI expires ${new Date(new Date(purchase.created_date).getTime() + 7*24*60*60*1000).toLocaleDateString()}.`
+            `A purchase needs admin review.\n\nBuyer (${authoritativeBuyerEmail}) has not confirmed ticket receipt 24 hours after seller confirmation.\n\nPurchase ID: ${purchase.id}\nSeller: ${authoritativeSellerEmail}\nAmount: $${purchase.amount?.toFixed(2)}\nSeller confirmed at: ${purchase.seller_confirmed_at}\n\nOptions:\n1. Approve capture via admin panel if transfer is confirmed legitimate\n2. Open dispute if seller transfer cannot be verified\n3. Wait longer — Stripe PI valid for 7 days from purchase\n\nDo NOT ignore — Stripe PI expires ${new Date(new Date(purchase.created_date).getTime() + 7*24*60*60*1000).toLocaleDateString()}.`
           ).catch(() => {});
 
           // Notify buyer with urgency
           await sendUserNotification(base44, {
-            user_email: purchase.buyer_email,
+            user_email: authoritativeBuyerEmail,
             title: '⚠️ Action required — confirm your tickets',
             body: 'Your seller confirmed your tickets were sent 24h ago. Please confirm receipt or open a dispute. Your payment is on hold.',
             type: 'buyer_reminder',
@@ -222,7 +236,7 @@ Deno.serve(async (req) => {
 
           // Notify seller
           await sendUserNotification(base44, {
-            user_email: purchase.seller_email,
+            user_email: authoritativeSellerEmail,
             title: 'Awaiting admin review',
             body: 'Your buyer has not confirmed receipt. Our team is reviewing your transfer. Payout may be slightly delayed.',
             type: 'seller_reminder',
@@ -243,11 +257,12 @@ Deno.serve(async (req) => {
       try {
         await sendTransactionalEmail(base44, 'experience@peanutgallery.store',
           `🚨 Stripe PI Expiring Tomorrow — Purchase ${purchase.id}`,
-          `A Stripe PaymentIntent is expiring in less than 24 hours.\n\nPurchase: ${purchase.id}\nBuyer: ${purchase.buyer_email}\nSeller: ${purchase.seller_email}\nAmount: $${purchase.amount?.toFixed(2)}\nCreated: ${purchase.created_date}\n\nSTRIPE WILL AUTO-CANCEL THIS PI AT 7 DAYS. Either capture or cancel immediately.`
+          `A Stripe PaymentIntent is expiring in less than 24 hours.\n\nPurchase: ${purchase.id}\nBuyer: ${authoritativeBuyerEmail}\nSeller: ${authoritativeSellerEmail}\nAmount: $${purchase.amount?.toFixed(2)}\nCreated: ${purchase.created_date}\n\nSTRIPE WILL AUTO-CANCEL THIS PI AT 7 DAYS. Either capture or cancel immediately.`
         ).catch(() => {});
         await base44.asServiceRole.entities.Purchase.update(purchase.id, {
           reminder_flags: { ...flags, stale_pi_warned: true },
         });
+        try { await upsertPurchasePrivate(base44, purchase.id, { reminder_flags: { ...flags, stale_pi_warned: true } }); } catch (_) {}
         console.log('[reminders] STALE PI warning sent for:', purchase.id);
       } catch (err) {
         console.error('[reminders] stale PI warn failed:', purchase.id, err?.message);
@@ -276,6 +291,7 @@ Deno.serve(async (req) => {
               reservation_expires_at: null,
               reserved_by_email: null,
             }).catch(() => {});
+            try { await upsertListingPrivate(base44, l.id, { reservation_token: null, reservation_expires_at: null, reserved_by_email: null }); } catch (_) {}
             reservationsCleared++;
             console.log('[reminders] Cleared expired reservation for listing:', l.id);
           }
@@ -301,6 +317,7 @@ Deno.serve(async (req) => {
             reservation_token: null,
             reservation_expires_at: null,
           }).catch(() => {});
+          try { await upsertListingPrivate(base44, l.id, { reserved_by_email: null, reservation_token: null, reservation_expires_at: null }); } catch (_) {}
           reservationsCleared++;
           console.log('[reminders] Cleared expired reservation on active listing:', l.id);
         }

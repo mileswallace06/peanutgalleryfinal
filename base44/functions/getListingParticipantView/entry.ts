@@ -29,7 +29,7 @@ Deno.serve(async (req) => {
 
   const publicFields = {
     id: listing.id, event_id: listing.event_id, section: listing.section, row: listing.row,
-    seats: listing.seats, quantity: listing.quantity, tier: listing.tier,
+    quantity: listing.quantity, tier: listing.tier,
     asking_price: listing.asking_price, original_price: listing.original_price,
     transfer_method: listing.transfer_method, status: listing.status,
     listing_mode: listing.listing_mode, listing_type: listing.listing_type,
@@ -54,6 +54,7 @@ Deno.serve(async (req) => {
 
   // Seller: buyer fields + own listing management (no emails exposed)
   const sellerExtra = isSeller ? {
+    seats: listing.seats,
     proof_rejection_reason: listing.proof_rejection_reason,
     notes: listing.notes,
     is_reserved: !!listing.reserved_by_email,
@@ -62,6 +63,7 @@ Deno.serve(async (req) => {
 
   // Admin: seller fields + internal linkage (no emails, tokens, or fraud data)
   const adminExtra = isAdmin ? {
+    seats: listing.seats,
     seat_inventory_id: listing.seat_inventory_id,
     transfer_verified_by: listing.transfer_verified_by,
   } : {};

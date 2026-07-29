@@ -7,6 +7,7 @@
  * model. Failed channels remain independently retryable on the next run.
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { isMaintenanceActive } from '../../shared/maintenance.ts';
 import { dispatchSaleNotifications } from '../../shared/saleNotification.ts';
 
 Deno.serve(async (req) => {
@@ -20,6 +21,7 @@ Deno.serve(async (req) => {
   } catch (_) {
     // No session = called by the scheduler — allow.
   }
+  if (isMaintenanceActive()) return Response.json({ ok: true, skipped: 'maintenance mode' });
   const body = await req.json().catch(() => ({}));
   const res = await dispatchSaleNotifications(base44, { limit: body?.limit || 500 }).catch(
     (e) => ({ error: e.message })

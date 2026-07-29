@@ -14,11 +14,13 @@
  * repaired to exactly-one by reconcilePurchaseOutcomes (eventual exactly-once).
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { isMaintenanceActive } from '../../shared/maintenance.ts';
 import { recordTerminalOutcome } from '../../shared/recordOutcome.ts';
 
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
+    if (isMaintenanceActive()) return Response.json({ ok: true, skipped: 'maintenance mode' });
     const body = await req.json().catch(() => ({}));
 
     // Extract ONLY the entity id — never trust the payload's record/emails.

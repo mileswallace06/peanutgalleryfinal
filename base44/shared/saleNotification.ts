@@ -22,7 +22,7 @@
  * independently retryable on the next run.
  */
 import { sendUserNotification } from './notifications.ts';
-import { upsertPurchasePrivate } from './privateData.ts';
+import { getPurchasePrivate, upsertPurchasePrivate } from './privateData.ts';
 
 export function saleIdempotencyKey(purchaseId) {
   return `sale_created:${purchaseId}`;
@@ -138,8 +138,14 @@ export async function dispatchSaleNotifications(base44, opts = {}) {
       continue;
     }
 
-    const pushDone = purchase.seller_push_status === 'sent' || purchase.seller_push_status === 'skipped';
-    const emailDone = purchase.seller_email_status === 'sent' || purchase.seller_email_status === 'skipped';
+    // Phase 1B: read authoritative delivery state from PurchasePrivate
+    const pp = await getPurchasePrivate(base44, purchase.id);
+    const authoritativeSellerEmail = pp?.seller_email ?? purchase.seller_email;
+    const pushStatus = pp?.seller_push_status ?? purchase.seller_push_status;
+    const emailStatus = pp?.seller_email_status ?? purchase.seller_email_status;
+
+    const pushDone = pushStatus === 'sent' || pushStatus === 'skipped';
+    const emailDone = emailStatus === 'sent' || emailStatus === 'skipped';
     const needPush = !pushDone;
     const needEmail = !emailDone;
 
@@ -159,7 +165,7 @@ export async function dispatchSaleNotifications(base44, opts = {}) {
     }).catch(() => {});
 
     const dispatch = await sendUserNotification(base44, {
-      user_email: purchase.seller_email,
+      user_email: authoritativeSellerEmail,
       title: canonical.title,
       body: canonical.body,
       type: 'sale_created',
@@ -181,6 +187,12 @@ export async function dispatchSaleNotifications(base44, opts = {}) {
     }
     if (Object.keys(upd).length) {
       await base44.asServiceRole.entities.Purchase.update(purchase.id, upd).catch(() => {});
+      // Phase 1B: mirror delivery state to PurchasePrivate (authoritative)
+      try {
+        await upsertPurchasePrivate(base44, purchase.id, upd);
+      } catch (err) {
+        console.error('[dispatchSaleNotifications] PurchasePrivate mirror failed:', purchase.id, err?.message);
+      }
     }
 
     await base44.asServiceRole.entities.Notification.update(canonical.id, {

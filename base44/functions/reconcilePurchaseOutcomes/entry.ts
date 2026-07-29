@@ -26,8 +26,10 @@
  * record is discarded.
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { isMaintenanceActive } from '../../shared/maintenance.ts';
 import { sendTransactionalEmail } from '../../shared/notifications.ts';
 import { recordTerminalOutcome } from '../../shared/recordOutcome.ts';
+import { getPurchasePrivate, upsertPurchasePrivate, getUserSecurityProfile, upsertUserSecurityProfile, alertPrivateWriteFailure } from '../../shared/privateData.ts';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
@@ -45,6 +47,8 @@ Deno.serve(async (req) => {
   } catch (_) {
     // No session = called by the automation scheduler — allow.
   }
+
+  if (isMaintenanceActive()) return Response.json({ ok: true, skipped: 'maintenance mode' });
 
   const body = await req.json().catch(() => ({}));
   const confirm = body?.confirm === true;
@@ -81,6 +85,10 @@ Deno.serve(async (req) => {
 
   for (const p of purchases) {
     const isSuccess = p.transfer_status === 'completed';
+
+    // Phase 1B: read authoritative seller_email from PurchasePrivate
+    const pp = await getPurchasePrivate(base44, p.id);
+    const authoritativeSellerEmail = pp?.seller_email ?? p.seller_email;
 
     // ── Missing / duplicate TransferOutcome ────────────────────────────────
     const outcomes = await base44.asServiceRole.entities.TransferOutcome.filter({
@@ -119,9 +127,9 @@ Deno.serve(async (req) => {
     }
 
     // ── Duplicate seller-sale Notifications ────────────────────────────────
-    if (p.seller_email) {
+    if (authoritativeSellerEmail) {
       const notifs = await base44.asServiceRole.entities.Notification.filter({
-        user_email: p.seller_email, type: 'sale_created', reference_id: p.id,
+        user_email: authoritativeSellerEmail, type: 'sale_created', reference_id: p.id,
       }).catch(() => []);
       if (notifs.length > 1) {
         findings.duplicate_notifications.push({ purchase_id: p.id, count: notifs.length });
@@ -169,21 +177,21 @@ Deno.serve(async (req) => {
     }
 
     // ── Mismatched seller counters (derive + write back) ──────────────────
-    if (p.seller_email) {
-      const sellers = await base44.asServiceRole.entities.User.filter({ email: p.seller_email }).catch(() => []);
+    if (authoritativeSellerEmail) {
+      const sellers = await base44.asServiceRole.entities.User.filter({ email: authoritativeSellerEmail }).catch(() => []);
       const seller = sellers[0];
       if (seller) {
         // RACE-PROOF: derive from authoritative Purchase rows (transfer_status),
         // not from TransferOutcome records which can be duplicated by the
         // existence-check race. Mirrors recordTerminalOutcome's derivation.
         const completedPurchases = await base44.asServiceRole.entities.Purchase.filter({
-          seller_email: p.seller_email, transfer_status: 'completed',
+          seller_email: authoritativeSellerEmail, transfer_status: 'completed',
         }).catch(() => []);
         const disputedPurchases = await base44.asServiceRole.entities.Purchase.filter({
-          seller_email: p.seller_email, transfer_status: 'disputed',
+          seller_email: authoritativeSellerEmail, transfer_status: 'disputed',
         }).catch(() => []);
         const flagged = await base44.asServiceRole.entities.Purchase.filter({
-          seller_email: p.seller_email, false_claim_recorded: true,
+          seller_email: authoritativeSellerEmail, false_claim_recorded: true,
         }).catch(() => []);
         const successCount = completedPurchases.filter(x => !x.is_demo).length;
         const failCount = disputedPurchases.filter(x => !x.is_demo).length;
@@ -201,11 +209,25 @@ Deno.serve(async (req) => {
           (seller.seller_transfer_reliability || 0) !== reliability;
         if (mismatch) {
           findings.counter_mismatches.push({
-            purchase_id: p.id, seller_email: p.seller_email,
+            purchase_id: p.id, seller_email: authoritativeSellerEmail,
             before: { success: seller.transfer_success_count, fail: seller.transfer_fail_count, false_claim: seller.transfer_false_claim_count, reliability: seller.seller_transfer_reliability },
             after: { success: successCount, fail: failCount, false_claim: falseClaimCount, reliability },
           });
           if (confirm) {
+            // Phase 1B: write trust counters to UserSecurityProfile (authoritative)
+            const sec = await getUserSecurityProfile(base44, { user_email: authoritativeSellerEmail });
+            if (sec) {
+              try {
+                await upsertUserSecurityProfile(base44, { user_id: sec.user_id, user_email: authoritativeSellerEmail }, {
+                  transfer_success_count: successCount,
+                  transfer_fail_count: failCount,
+                  transfer_false_claim_count: falseClaimCount,
+                  seller_transfer_reliability: reliability,
+                });
+              } catch (err) {
+                await alertPrivateWriteFailure(base44, { entity: 'UserSecurityProfile', reference_id: sec.user_id, reference_type: 'user', error: err });
+              }
+            }
             await base44.asServiceRole.entities.User.update(seller.id, {
               transfer_success_count: successCount,
               transfer_fail_count: failCount,
@@ -219,14 +241,16 @@ Deno.serve(async (req) => {
     }
 
     // ── Stuck seller_notified_at with no durable notification ──────────────
-    if (p.seller_notified_at && p.seller_email) {
+    if (p.seller_notified_at && authoritativeSellerEmail) {
       const notifs = await base44.asServiceRole.entities.Notification.filter({
-        user_email: p.seller_email, type: 'sale_created', reference_id: p.id,
+        user_email: authoritativeSellerEmail, type: 'sale_created', reference_id: p.id,
       }).catch(() => []);
       if (notifs.length === 0) {
         findings.stuck_seller_notified.push({ purchase_id: p.id, seller_notified_at: p.seller_notified_at });
         if (confirm) {
           await base44.asServiceRole.entities.Purchase.update(p.id, { seller_notified_at: null }).catch(() => {});
+          // Phase 1B: mirror to PurchasePrivate
+          try { await upsertPurchasePrivate(base44, p.id, { seller_notified_at: null }); } catch (_) {}
           findings.repaired.seller_notified_cleared++;
         }
       }
