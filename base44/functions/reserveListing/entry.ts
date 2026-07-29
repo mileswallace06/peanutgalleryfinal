@@ -88,11 +88,6 @@ Deno.serve(async (req) => {
   const token = crypto.randomUUID();
   const expiresAt = new Date(now + RESERVATION_MINUTES * 60 * 1000).toISOString();
 
-  // Capture exact previous reservation values for compensation
-  const prevReservedBy = reservedBy ?? null;
-  const prevResToken = resToken ?? null;
-  const prevResExpiry = resExpiry ?? null;
-
   // Write authoritative ListingPrivate FIRST, then legacy Listing mirror
   try {
     await upsertListingPrivate(base44, listing.id, {
@@ -101,7 +96,6 @@ Deno.serve(async (req) => {
       reservation_expires_at: expiresAt,
     });
   } catch (err) {
-    // Authoritative private write failed — legacy not yet updated; alert + stop
     await alertPrivateWriteFailure(base44, { entity: 'ListingPrivate', reference_id: listing.id, reference_type: 'listing', error: err });
     return Response.json({ error: 'Failed to persist reservation. Please try again.' }, { status: 500 });
   }
@@ -112,34 +106,57 @@ Deno.serve(async (req) => {
       reservation_expires_at: expiresAt,
     });
   } catch (err) {
-    // Legacy mirror failed — restore authoritative ListingPrivate to exact previous values
+    // Legacy mirror failed — reconcile ListingPrivate to current Listing state (never restore old blindly)
+    const [failListing] = await base44.asServiceRole.entities.Listing.filter({ id: listing.id });
     try {
       await upsertListingPrivate(base44, listing.id, {
-        reserved_by_email: prevReservedBy, reservation_token: prevResToken, reservation_expires_at: prevResExpiry,
+        reserved_by_email: failListing?.reserved_by_email ?? null,
+        reservation_token: failListing?.reservation_token ?? null,
+        reservation_expires_at: failListing?.reservation_expires_at ?? null,
       });
     } catch (_) {}
     await alertPrivateWriteFailure(base44, { entity: 'Listing (legacy mirror)', reference_id: listing.id, reference_type: 'listing', error: err });
     return Response.json({ error: 'Failed to persist reservation. Please try again.' }, { status: 500 });
   }
 
-  // ── Verify private and legacy records match before returning success ─────
-  const [reservedListing] = await base44.asServiceRole.entities.Listing.filter({ id: listing.id });
-  const verifyLp = await getListingPrivate(base44, listing.id);
-  const legacyMatch = reservedListing?.reserved_by_email === user.email && reservedListing?.reservation_token === token && reservedListing?.reservation_expires_at === expiresAt;
-  const privateMatch = verifyLp?.reserved_by_email === user.email && verifyLp?.reservation_token === token && verifyLp?.reservation_expires_at === expiresAt;
-  if (!legacyMatch || !privateMatch) {
-    // Records diverged (race) — restore exact previous values on both, alert, stop
-    await base44.asServiceRole.entities.Listing.update(listing.id, {
-      reserved_by_email: prevReservedBy, reservation_token: prevResToken, reservation_expires_at: prevResExpiry,
-    }).catch(() => {});
-    await upsertListingPrivate(base44, listing.id, {
-      reserved_by_email: prevReservedBy, reservation_token: prevResToken, reservation_expires_at: prevResExpiry,
-    }).catch(() => {});
-    await alertPrivateWriteFailure(base44, { entity: 'ListingPrivate (divergence)', reference_id: listing.id, reference_type: 'listing', error: new Error('private and legacy reservation records diverged after write') });
+  // ── Verify: re-fetch current Listing (source of truth for the winner) ─────
+  // If another buyer's token is present, that is the winner — copy it into
+  // ListingPrivate and return 409. Never overwrite another request's token.
+  const [curListing] = await base44.asServiceRole.entities.Listing.filter({ id: listing.id });
+  const curLp = await getListingPrivate(base44, listing.id);
+  const curToken = curListing?.reservation_token ?? null;
+  const curLpToken = curLp?.reservation_token ?? null;
+
+  if (curToken !== token) {
+    // Listing contains another buyer's token (or none) — we lost the race.
+    // Copy the current winning Listing state into ListingPrivate (never overwrite Listing).
+    if (curListing) {
+      try {
+        await upsertListingPrivate(base44, listing.id, {
+          reserved_by_email: curListing.reserved_by_email ?? null,
+          reservation_token: curToken,
+          reservation_expires_at: curListing.reservation_expires_at ?? null,
+        });
+      } catch (_) {}
+    }
     return Response.json({
       error: 'This listing was just reserved by another buyer. Please try another listing.',
       code: 'RACE_LOST',
     }, { status: 409 });
+  }
+
+  // Listing still has our token. Ensure ListingPrivate matches (reconcile only, never restore old values).
+  if (curLpToken !== token) {
+    try {
+      await upsertListingPrivate(base44, listing.id, {
+        reserved_by_email: user.email,
+        reservation_token: token,
+        reservation_expires_at: expiresAt,
+      });
+    } catch (err) {
+      await alertPrivateWriteFailure(base44, { entity: 'ListingPrivate (reconcile)', reference_id: listing.id, reference_type: 'listing', error: err });
+      return Response.json({ error: 'Reservation could not be verified. Please try again.' }, { status: 500 });
+    }
   }
 
     return Response.json({

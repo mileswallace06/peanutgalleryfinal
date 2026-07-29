@@ -32,10 +32,8 @@ Deno.serve(async (req) => {
     return Response.json({ error: 'Cannot release a sold listing' }, { status: 409 });
   }
 
-  // Capture exact previous reservation values for compensation
-  const prevReservedBy = reservedBy ?? null;
+  // Capture previous token to distinguish old vs new during verify
   const prevResToken = lp?.reservation_token ?? listing.reservation_token ?? null;
-  const prevResExpiry = lp?.reservation_expires_at ?? listing.reservation_expires_at ?? null;
   const prevStatus = listing.status;
 
   // Clear reservation fields. If pending_transfer (payment was started), restore to active.
@@ -63,35 +61,61 @@ Deno.serve(async (req) => {
     try {
       await base44.asServiceRole.entities.Listing.update(listing.id, legacyUpdate);
     } catch (err) {
-      // Legacy mirror failed — restore authoritative ListingPrivate to exact previous values
+      // Legacy mirror failed — reconcile ListingPrivate to current Listing state (never restore old blindly)
+      const [failListing] = await base44.asServiceRole.entities.Listing.filter({ id: listing.id });
       try {
         await upsertListingPrivate(base44, listing.id, {
-          reserved_by_email: prevReservedBy, reservation_token: prevResToken, reservation_expires_at: prevResExpiry,
+          reserved_by_email: failListing?.reserved_by_email ?? null,
+          reservation_token: failListing?.reservation_token ?? null,
+          reservation_expires_at: failListing?.reservation_expires_at ?? null,
         });
       } catch (_) {}
       await alertPrivateWriteFailure(base44, { entity: 'Listing (legacy mirror)', reference_id: listing.id, reference_type: 'listing', error: err });
       return Response.json({ error: 'Failed to release reservation. Please try again.' }, { status: 500 });
     }
 
-    // Verify private and legacy records match (both cleared)
-    const [verifyListing] = await base44.asServiceRole.entities.Listing.filter({ id: listing.id });
-    const verifyLp = await getListingPrivate(base44, listing.id);
-    const legacyCleared = !verifyListing?.reserved_by_email && !verifyListing?.reservation_token;
-    const privateCleared = !verifyLp?.reserved_by_email && !verifyLp?.reservation_token;
-    if (!legacyCleared || !privateCleared) {
-      // Records diverged — restore exact previous values on both, alert, 500
-      await base44.asServiceRole.entities.Listing.update(listing.id, {
-        status: prevStatus,
-        reserved_by_email: prevReservedBy, reservation_token: prevResToken, reservation_expires_at: prevResExpiry,
-      }).catch(() => {});
-      await upsertListingPrivate(base44, listing.id, {
-        reserved_by_email: prevReservedBy, reservation_token: prevResToken, reservation_expires_at: prevResExpiry,
-      }).catch(() => {});
-      await alertPrivateWriteFailure(base44, { entity: 'ListingPrivate (divergence)', reference_id: listing.id, reference_type: 'listing', error: new Error('private and legacy release records diverged after write') });
-      return Response.json({ error: 'Reservation release could not be verified. Please try again.' }, { status: 500 });
+    // ── Verify: re-fetch current Listing (source of truth) ──────────────────
+    // If a new reservation token appeared while release was finishing, preserve it.
+    const [curListing] = await base44.asServiceRole.entities.Listing.filter({ id: listing.id });
+    const curToken = curListing?.reservation_token ?? null;
+
+    if (!curToken) {
+      // Listing is cleared — reconcile ListingPrivate to cleared, return success
+      const curLp = await getListingPrivate(base44, listing.id);
+      if (curLp?.reservation_token) {
+        try {
+          await upsertListingPrivate(base44, listing.id, {
+            reserved_by_email: null, reservation_token: null, reservation_expires_at: null,
+          });
+        } catch (_) {}
+      }
+      return Response.json({ status: 'released' });
     }
 
-    return Response.json({ status: 'released' });
+    if (curToken !== prevResToken) {
+      // A new reservation appeared while release was finishing — preserve it.
+      // Reconcile ListingPrivate to the current winning Listing state.
+      try {
+        await upsertListingPrivate(base44, listing.id, {
+          reserved_by_email: curListing.reserved_by_email ?? null,
+          reservation_token: curToken,
+          reservation_expires_at: curListing.reservation_expires_at ?? null,
+        });
+      } catch (_) {}
+      return Response.json({ status: 'released', superseded: true });
+    }
+
+    // Listing still holds the old token — our release did not take.
+    // Reconcile ListingPrivate to the current Listing state, alert, return 500.
+    try {
+      await upsertListingPrivate(base44, listing.id, {
+        reserved_by_email: curListing?.reserved_by_email ?? null,
+        reservation_token: curToken,
+        reservation_expires_at: curListing?.reservation_expires_at ?? null,
+      });
+    } catch (_) {}
+    await alertPrivateWriteFailure(base44, { entity: 'ListingPrivate (release not applied)', reference_id: listing.id, reference_type: 'listing', error: new Error('Listing still holds the old reservation after release') });
+    return Response.json({ error: 'Failed to release reservation. Please try again.' }, { status: 500 });
   } catch (error) {
     console.error('[releaseReservation] error:', error?.message);
     return Response.json({ error: error?.message || 'Internal server error' }, { status: 500 });

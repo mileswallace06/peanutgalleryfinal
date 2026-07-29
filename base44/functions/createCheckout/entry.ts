@@ -328,13 +328,13 @@ Deno.serve(async (req) => {
     try {
       const canceled = await stripe.paymentIntents.cancel(paymentIntent.id);
       piFinalStatus = canceled.status;
-      cancelOk = ['canceled', 'requires_payment_method'].includes(canceled.status);
+      cancelOk = canceled.status === 'canceled';
     } catch (cancelErr) {
       cancelError = cancelErr;
       try {
         const retrieved = await stripe.paymentIntents.retrieve(paymentIntent.id);
         piFinalStatus = retrieved.status;
-        if (['canceled', 'requires_payment_method'].includes(retrieved.status)) cancelOk = true;
+        if (retrieved.status === 'canceled') cancelOk = true;
       } catch (retErr) {
         cancelError = retErr;
       }
