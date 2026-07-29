@@ -1,16 +1,59 @@
 /**
  * privateData.ts — shared private-entity access layer for Phase 1B backend cutover.
  *
- * All backend functions read/write sensitive data through these helpers.
  * Pattern:
  *   READ  → private sidecar first, legacy field as temporary fallback
- *   WRITE → private sidecar is the authoritative destination
+ *   WRITE → private sidecar is the authoritative destination; awaited, no silent catch
  *
- * Legacy fields on Listing/Purchase/User are NOT cleared (Phase 1B rule 2).
- * During the transition, callers may also mirror writes to legacy fields so
- * the not-yet-cut-over frontend keeps working; the private record is canonical.
+ * CONCURRENCY: Base44 has no atomic compare-and-set. Upsert/ensure helpers
+ * re-check for duplicate sidecars after create and, if a race produced >1,
+ * delete the extras and emit an AdminAlert rather than silently keeping one.
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+
+// ── Alert helpers ───────────────────────────────────────────────────────────
+async function alertDuplicateSidecar(base44, { entity, key, key_value, dup_count }) {
+  try {
+    const refType = entity === 'ListingPrivate' ? 'listing'
+      : entity === 'PurchasePrivate' ? 'purchase' : 'user';
+    await base44.asServiceRole.entities.AdminAlert.create({
+      alert_type: 'admin_action_required',
+      priority: 'high',
+      title: `Duplicate ${entity} sidecar reconciled`,
+      description: `Race condition created ${dup_count} ${entity} records for ${key}=${key_value}. Extras deleted; one retained.`,
+      reference_type: refType,
+      reference_id: key_value,
+    });
+  } catch (_) { /* alert failure must never throw */ }
+}
+
+export async function alertPrivateWriteFailure(base44, { entity, reference_id, reference_type, error }) {
+  try {
+    await base44.asServiceRole.entities.AdminAlert.create({
+      alert_type: 'admin_action_required',
+      priority: 'high',
+      title: `Private write failure: ${entity}`,
+      description: `Failed to write ${entity} for ${reference_type} ${reference_id}: ${error?.message || String(error)}`,
+      reference_type,
+      reference_id,
+    });
+  } catch (_) { /* alert failure must never throw */ }
+}
+
+/**
+ * Post-create duplicate reconciliation. After a create, re-fetch all sidecars
+ * for the key; if >1 exist (a concurrent create won the race), delete the
+ * extras and alert. Returns the retained record.
+ */
+async function reconcileDuplicates(base44, { entityName, keyField, keyValue, createdId, label }) {
+  const all = await base44.asServiceRole.entities[entityName].filter({ [keyField]: keyValue });
+  if (all.length <= 1) return;
+  const extras = all.filter(r => r.id !== createdId);
+  for (const e of extras) {
+    await base44.asServiceRole.entities[entityName].delete(e.id).catch(() => {});
+  }
+  await alertDuplicateSidecar(base44, { entity: label, key: keyField, key_value: keyValue, dup_count: all.length });
+}
 
 // ── ListingPrivate ─────────────────────────────────────────────────────────
 export async function getListingPrivate(base44, listing_id) {
@@ -25,13 +68,11 @@ export async function upsertListingPrivate(base44, listing_id, fields) {
   if (existing) {
     return base44.asServiceRole.entities.ListingPrivate.update(existing.id, fields);
   }
-  return base44.asServiceRole.entities.ListingPrivate.create({ listing_id, ...fields });
+  const created = await base44.asServiceRole.entities.ListingPrivate.create({ listing_id, ...fields });
+  await reconcileDuplicates(base44, { entityName: 'ListingPrivate', keyField: 'listing_id', keyValue: listing_id, createdId: created.id, label: 'ListingPrivate' });
+  return created;
 }
 
-/**
- * Read a single private Listing field with legacy fallback.
- * Usage: const token = await readListingPrivate(base44, listing, 'reservation_token');
- */
 export async function readListingPrivate(base44, listing, field) {
   const lp = await getListingPrivate(base44, listing.id);
   if (lp && lp[field] !== undefined && lp[field] !== null) return lp[field];
@@ -51,7 +92,9 @@ export async function upsertPurchasePrivate(base44, purchase_id, fields) {
   if (existing) {
     return base44.asServiceRole.entities.PurchasePrivate.update(existing.id, fields);
   }
-  return base44.asServiceRole.entities.PurchasePrivate.create({ purchase_id, ...fields });
+  const created = await base44.asServiceRole.entities.PurchasePrivate.create({ purchase_id, ...fields });
+  await reconcileDuplicates(base44, { entityName: 'PurchasePrivate', keyField: 'purchase_id', keyValue: purchase_id, createdId: created.id, label: 'PurchasePrivate' });
+  return created;
 }
 
 export async function readPurchasePrivate(base44, purchase, field) {
@@ -79,13 +122,11 @@ export async function upsertUserSecurityProfile(base44, { user_id, user_email },
     return base44.asServiceRole.entities.UserSecurityProfile.update(existing.id, fields);
   }
   if (!user_id || !user_email) return null;
-  return base44.asServiceRole.entities.UserSecurityProfile.create({ user_id, user_email, ...fields });
+  const created = await base44.asServiceRole.entities.UserSecurityProfile.create({ user_id, user_email, ...fields });
+  await reconcileDuplicates(base44, { entityName: 'UserSecurityProfile', keyField: 'user_id', keyValue: user_id, createdId: created.id, label: 'UserSecurityProfile' });
+  return created;
 }
 
-/**
- * Read a User security field with legacy User fallback.
- * Usage: const strikes = await readUserSecurity(base44, user, 'strike_count');
- */
 export async function readUserSecurity(base44, user, field) {
   const sec = await getUserSecurityProfile(base44, { user_id: user.id, user_email: user.email });
   if (sec && sec[field] !== undefined && sec[field] !== null) return sec[field];
@@ -131,10 +172,6 @@ export async function getProofAssetsForRef(base44, reference_type, reference_id)
   return base44.asServiceRole.entities.ProofAsset.filter({ reference_type, reference_id });
 }
 
-/**
- * Record a legacy public proof URL as a ProofAsset stub (requires_private_reupload).
- * Idempotent on (reference_id, legacy_public_url).
- */
 export async function recordLegacyProofUrl(base44, { owner_email, reference_type, reference_id, proof_type, legacy_url }) {
   if (!legacy_url || !reference_id) return null;
   const existing = await base44.asServiceRole.entities.ProofAsset.filter({ reference_type, reference_id });
@@ -148,11 +185,6 @@ export async function recordLegacyProofUrl(base44, { owner_email, reference_type
 }
 
 // ── New-entity provisioning ─────────────────────────────────────────────────
-/**
- * Ensure a brand-new User has all three private records (UserSecurityProfile,
- * UserPrivate, PublicProfile). Called when a user is created/onboarded.
- * Idempotent — no-op if records already exist.
- */
 export async function ensureUserRecords(base44, user) {
   const email = user.email;
   const user_id = user.id;
@@ -163,6 +195,7 @@ export async function ensureUserRecords(base44, user) {
     sec = await base44.asServiceRole.entities.UserSecurityProfile.create({
       user_id, user_email: email, migration_version: 3, migrated_at: new Date().toISOString(),
     });
+    await reconcileDuplicates(base44, { entityName: 'UserSecurityProfile', keyField: 'user_id', keyValue: user_id, createdId: sec.id, label: 'UserSecurityProfile' });
   }
 
   let up = await getUserPrivate(base44, email);
@@ -171,6 +204,7 @@ export async function ensureUserRecords(base44, user) {
     up = await base44.asServiceRole.entities.UserPrivate.create({
       user_id, user_email: email, public_profile_id: pubId, updated_at: new Date().toISOString(),
     });
+    await reconcileDuplicates(base44, { entityName: 'UserPrivate', keyField: 'user_email', keyValue: email, createdId: up.id, label: 'UserPrivate' });
   }
 
   const pubId = up.public_profile_id;
@@ -181,26 +215,24 @@ export async function ensureUserRecords(base44, user) {
       display_name: user.full_name || null,
       updated_at: new Date().toISOString(),
     });
+    await reconcileDuplicates(base44, { entityName: 'PublicProfile', keyField: 'public_profile_id', keyValue: pubId, createdId: pubRows[0]?.id, label: 'PublicProfile' });
   }
 
   return { sec, user_private: up, public_profile_id: pubId };
 }
 
-/**
- * Ensure a newly-created Listing has its ListingPrivate sidecar.
- * `fields` should contain the sensitive values to seed.
- */
 export async function ensureListingPrivate(base44, listing_id, fields) {
   const existing = await getListingPrivate(base44, listing_id);
   if (existing) return existing;
-  return base44.asServiceRole.entities.ListingPrivate.create({ listing_id, ...fields });
+  const created = await base44.asServiceRole.entities.ListingPrivate.create({ listing_id, ...fields });
+  await reconcileDuplicates(base44, { entityName: 'ListingPrivate', keyField: 'listing_id', keyValue: listing_id, createdId: created.id, label: 'ListingPrivate' });
+  return created;
 }
 
-/**
- * Ensure a newly-created Purchase has its PurchasePrivate sidecar.
- */
 export async function ensurePurchasePrivate(base44, purchase_id, fields) {
   const existing = await getPurchasePrivate(base44, purchase_id);
   if (existing) return existing;
-  return base44.asServiceRole.entities.PurchasePrivate.create({ purchase_id, ...fields });
+  const created = await base44.asServiceRole.entities.PurchasePrivate.create({ purchase_id, ...fields });
+  await reconcileDuplicates(base44, { entityName: 'PurchasePrivate', keyField: 'purchase_id', keyValue: purchase_id, createdId: created.id, label: 'PurchasePrivate' });
+  return created;
 }

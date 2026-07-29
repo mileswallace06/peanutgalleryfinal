@@ -38,6 +38,10 @@
       "type": "string",
       "description": "Private authoritative buyer identity."
     },
+    "buyer_name": {
+      "type": "string",
+      "description": "Private buyer display name."
+    },
     "seller_email": {
       "type": "string"
     },
@@ -76,6 +80,11 @@
         "failed",
         "skipped"
       ]
+    },
+    "payment_captured": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether payment was captured."
     },
     "payment_capture_failed": {
       "type": "boolean",
