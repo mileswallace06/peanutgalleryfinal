@@ -45,12 +45,28 @@ Deno.serve(async (req) => {
   const isSeller = authoritativeSellerEmail === user.email;
   const isAdmin = user.role === 'admin';
 
+  // Phase 1B: confirmed buyer = authenticated user with a PurchasePrivate
+  // record matching this listing_id + their buyer_email. Only a confirmed
+  // buyer may see exact seat numbers.
+  let isConfirmedBuyer = false;
+  if (!isSeller && !isAdmin) {
+    const buyerPurchases = await base44.asServiceRole.entities.PurchasePrivate.filter({
+      listing_id: listing.id, buyer_email: user.email,
+    }).catch(() => []);
+    isConfirmedBuyer = buyerPurchases.length > 0;
+  }
+
   // Authenticated buyer (not seller, not admin): public + verification status
   const buyerExtra = {
     proof_status: listing.proof_status,
     transfer_confidence_score: listing.transfer_confidence_score,
     is_demo_listing: listing.is_demo_listing,
   };
+
+  // Confirmed buyer: buyer fields + exact seats (they've purchased this listing)
+  const confirmedBuyerExtra = isConfirmedBuyer ? {
+    seats: listing.seats,
+  } : {};
 
   // Seller: buyer fields + own listing management (no emails exposed)
   const sellerExtra = isSeller ? {
@@ -68,5 +84,5 @@ Deno.serve(async (req) => {
     transfer_verified_by: listing.transfer_verified_by,
   } : {};
 
-  return Response.json({ listing: { ...publicFields, ...buyerExtra, ...sellerExtra, ...adminExtra } });
+  return Response.json({ listing: { ...publicFields, ...buyerExtra, ...confirmedBuyerExtra, ...sellerExtra, ...adminExtra } });
 });
