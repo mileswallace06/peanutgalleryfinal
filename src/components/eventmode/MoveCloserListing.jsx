@@ -30,7 +30,7 @@ export default function MoveCloserListing({ listing, currentUserEmail, onView })
         <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--ev-teal)' }}>
           {tierLabel}
         </span>
-        {listing.listing_mode === 'instant' && listing.custody_status === 'verified' && (
+        {listing.is_instant_ready && (
           <span className="text-[10px] font-semibold" style={{ color: 'var(--ev-text-2)' }}>Instant</span>
         )}
       </div>

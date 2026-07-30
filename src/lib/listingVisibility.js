@@ -1,7 +1,10 @@
 /**
  * Shared listing visibility utilities.
- * Used across EventDetail, EventDetailUpgrade, UpgradeFeed, and ListingCard
- * to enforce consistent reservation and sold-listing filtering.
+ * Used across EventDetail, EventDetailUpgrade, UpgradeFeed, MoveCloserRail,
+ * and ListingCard to enforce consistent reservation and sold-listing filtering.
+ *
+ * Phase 1B-2: Uses safe backend-provided fields (is_verified, reservation_state,
+ * is_demo_listing, viewer_is_seller) instead of private entity fields.
  */
 
 const HIDDEN_STATUSES = ['sold', 'expired', 'cancelled', 'hidden', 'pending_payout_setup'];
@@ -9,40 +12,34 @@ const HIDDEN_STATUSES = ['sold', 'expired', 'cancelled', 'hidden', 'pending_payo
 /**
  * Check if a listing should be visible to the given user in public feeds.
  * A listing is visible if:
- *   - status is 'active' (not sold/expired/cancelled/hidden)
- *   - proof_status is 'approved'
- *   - not reserved by another user (or reservation expired)
+ *   - status is not in HIDDEN_STATUSES
+ *   - is_verified is true (authoritative proof_status === 'approved')
+ *   - not reserved by another user (reservation_state !== 'reserved_by_other')
  */
 export function isListingVisible(listing, currentUserEmail) {
   if (!listing) return false;
   if (HIDDEN_STATUSES.includes(listing.status)) return false;
-  if (listing.proof_status !== 'approved') return false;
-
-  // Reserved by another user with a non-expired reservation → hide
+  if (listing.is_verified !== true) return false;
   if (isReservedByOther(listing, currentUserEmail)) return false;
-
   return true;
 }
 
 /**
- * Check if a listing is currently reserved by the current user (reservation not expired).
+ * Check if a listing is currently reserved by the current user.
+ * Uses backend-provided reservation_state.
  */
 export function isReservedByMe(listing, currentUserEmail) {
-  if (!listing || !currentUserEmail) return false;
-  if (listing.reserved_by_email !== currentUserEmail) return false;
-  if (!listing.reservation_expires_at) return false;
-  return new Date(listing.reservation_expires_at).getTime() > Date.now();
+  if (!listing) return false;
+  return listing.reservation_state === 'reserved_for_you';
 }
 
 /**
- * Check if a listing is currently reserved by another user (reservation not expired).
+ * Check if a listing is currently reserved by another user.
+ * Uses backend-provided reservation_state.
  */
 export function isReservedByOther(listing, currentUserEmail) {
   if (!listing) return false;
-  if (!listing.reserved_by_email) return false;
-  if (listing.reserved_by_email === currentUserEmail) return false;
-  if (!listing.reservation_expires_at) return false;
-  return new Date(listing.reservation_expires_at).getTime() > Date.now();
+  return listing.reservation_state === 'reserved_by_other';
 }
 
 /**

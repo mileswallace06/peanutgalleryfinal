@@ -16,7 +16,7 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onCheckoutCreated }
   const navigate = useNavigate();
 
   const isUpgrade = UPGRADE_LISTING_TYPES.includes(listing.listing_type);
-  const isDemo = listing.is_demo_listing || listing.notes?.startsWith('[DEMO]');
+  const isDemo = !!listing.is_demo_listing;
   const isDemoUpgrade = isUpgrade && isDemo;
   const hasEligibilityGate = isUpgrade && (listing.requires_location || listing.requires_existing_ticket);
 
@@ -329,7 +329,7 @@ export default function PurchaseDialog({ event, listing, onClose, mode = 'ticket
   const [reservationError, setReservationError] = useState(null);
   const [countdown, setCountdown] = useState(0);
   const isUpgrade = UPGRADE_LISTING_TYPES.includes(listing.listing_type);
-  const isDemo = listing.is_demo_listing || listing.notes?.startsWith('[DEMO]');
+  const isDemo = !!listing.is_demo_listing;
   const isDemoUpgrade = isUpgrade && isDemo;
 
   useEffect(() => {
@@ -341,7 +341,7 @@ export default function PurchaseDialog({ event, listing, onClose, mode = 'ticket
 
   // Reserve listing when dialog opens (skip if seller viewing own listing)
   useEffect(() => {
-    if (!user || !listing?.id || user.email === listing.seller_email || isDemoUpgrade) return;
+    if (!user || !listing?.id || listing.viewer_is_seller || isDemoUpgrade) return;
     setReservationLoading(true);
     setReservationError(null);
     base44.functions.invoke('reserveListing', { listing_id: listing.id })
@@ -459,7 +459,7 @@ export default function PurchaseDialog({ event, listing, onClose, mode = 'ticket
             <div className="flex justify-center py-8">
               <span className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
             </div>
-          ) : user.email === listing.seller_email ? (
+          ) : listing.viewer_is_seller ? (
             <div className="text-center py-8 space-y-3 px-4">
               <p className="text-4xl">🚫</p>
               <p className="font-bold text-foreground">You can't buy your own listing</p>

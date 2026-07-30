@@ -21,8 +21,6 @@ function inferVendor(url) {
 }
 import ListingCard from '@/components/events/ListingCard';
 import PurchaseDialog from '@/components/events/PurchaseDialog';
-import { isListingVisible } from '@/lib/listingVisibility';
-
 export default function EventDetailTM() {
   const { tmId } = useParams();
   const navigate = useNavigate();
@@ -64,8 +62,8 @@ export default function EventDetailTM() {
         setLocalEventId(eventId);
         setEvent(eventData);
         
-        // Load listings for this local event
-        return base44.entities.Listing.filter({ event_id: eventId, status: 'active', proof_status: 'approved' });
+        // Phase 1B-2: fetch listings through the safe participant view function
+        return base44.functions.invoke('getListingParticipantView', { action: 'list_active_by_event', event_id: eventId }).then(res => res?.data?.listings || []).catch(() => []);
       }
 
       // DB miss — but the Events list passed full TM data via router state.
@@ -97,7 +95,7 @@ export default function EventDetailTM() {
               image_url: localEv.image_url,
               tm_url: localEv.tm_url,
             });
-            return base44.entities.Listing.filter({ event_id: localEv.id, status: 'active', proof_status: 'approved' });
+            return base44.functions.invoke('getListingParticipantView', { action: 'list_active_by_event', event_id: localEv.id }).then(res => res?.data?.listings || []).catch(() => []);
           }
         }
         // syncTMEvent had no data — try a keyword TM search as last resort
@@ -114,10 +112,8 @@ export default function EventDetailTM() {
       }).catch(() => []);
     }).then(async rawListings => {
       if (Array.isArray(rawListings) && rawListings.length > 0) {
-        const me = await base44.auth.me().catch(() => null);
-        const visible = rawListings.filter(l => isListingVisible(l, me?.email));
-        const real = visible.filter(l => !l.notes?.startsWith('[DEMO]'));
-        setListings(real.length > 0 ? real : visible);
+        const real = rawListings.filter(l => !l.is_demo_listing);
+        setListings(real.length > 0 ? real : rawListings);
       }
     }).catch(err => {
       console.error('[EventDetailTM] load error', logCtx, err);

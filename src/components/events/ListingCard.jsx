@@ -13,10 +13,10 @@ const TIER_STYLES = {
 
 
 export default function ListingCard({ listing, onUpgrade, isCheapest, mode = 'upgrade', transferWarning = null, currentUserEmail }) {
-  const isDemo = listing.is_demo_listing || listing.notes?.startsWith('[DEMO]');
+  const isDemo = !!listing.is_demo_listing;
   const isUpgrade = UPGRADE_LISTING_TYPES.includes(listing.listing_type);
-  const isVerified = !!listing.proof_url && !isDemo;
-  const isInstant = listing.listing_mode === 'instant' && listing.custody_status === 'verified';
+  const isVerified = !!listing.is_verified && !isDemo;
+  const isInstant = !!listing.is_instant_ready;
   const isTransferDisabled = listing.transfer_status === 'transfer_disabled';
   const tier = TIER_STYLES[listing.tier];
   const savings = listing.original_price

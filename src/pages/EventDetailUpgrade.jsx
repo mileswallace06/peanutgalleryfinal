@@ -17,7 +17,6 @@ import EventLookupDebugPanel from '@/components/debug/EventLookupDebugPanel';
 import { logNavEvent } from '@/lib/navLogger';
 import UpgradeEligibilityGate from '@/components/upgrades/UpgradeEligibilityGate.jsx';
 import { UPGRADE_LISTING_TYPES } from '@/lib/listingTypes';
-import { isListingVisible } from '@/lib/listingVisibility';
 import EventHero from '@/components/eventmode/EventHero';
 import CurrentTicketModule from '@/components/eventmode/CurrentTicketModule';
 import MoveCloserRail from '@/components/eventmode/MoveCloserRail';
@@ -95,14 +94,26 @@ export default function EventDetailUpgrade() {
         }
 
         const resolvedId = resolvedEvent.id;
-        const [listingData, dropData, me] = await Promise.all([
-          base44.entities.Listing.filter({ event_id: resolvedId, status: 'active' }).catch(() => []),
+        const [dropData, me] = await Promise.all([
           base44.entities.FlashDrop.filter({ event_id: resolvedId }).catch(() => []),
           base44.auth.me().catch(() => null),
         ]);
 
+        // Phase 1B-2: fetch listings through the safe participant view function.
+        let safeListings = [];
+        try {
+          const res = await base44.functions.invoke('getListingParticipantView', {
+            action: 'list_active_by_event',
+            event_id: resolvedId,
+          });
+          safeListings = res?.data?.listings || [];
+        } catch (fnErr) {
+          console.error('[EventDetailUpgrade] listing fetch failed:', fnErr);
+          safeListings = [];
+        }
+
         setEvent(resolvedEvent);
-        setListings(listingData.filter(l => isListingVisible(l, me?.email)));
+        setListings(safeListings);
         setDrops(dropData);
         setUser(me);
 
@@ -191,7 +202,7 @@ export default function EventDetailUpgrade() {
             {!loading && (() => {
               const upgradeListings = listings.filter(l => UPGRADE_LISTING_TYPES.includes(l.listing_type));
               const anyHasGate = upgradeListings.some(l => l.requires_location || l.requires_existing_ticket);
-              const isDemo = upgradeListings.some(l => l.is_demo_listing || l.notes?.startsWith('[DEMO]'));
+              const isDemo = upgradeListings.some(l => l.is_demo_listing);
               if (!anyHasGate) return null;
               const strictest = upgradeListings.find(l => l.requires_location && l.requires_existing_ticket)
                 || upgradeListings.find(l => l.requires_location)
