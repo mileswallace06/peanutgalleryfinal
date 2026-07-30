@@ -13,6 +13,28 @@ export default function MyTickets() {
   const [error, setError] = useState(null);
   const [donatingPurchase, setDonatingPurchase] = useState(null);
 
+  const fetchPurchases = useCallback(async (silent = false) => {
+    try {
+      const res = await base44.functions.invoke('getPurchaseParticipantView', {
+        action: 'list_mine', perspective: 'buyer',
+      });
+      const myPurchases = res?.data?.purchases || [];
+      setPurchases(myPurchases);
+
+      const eventIds = [...new Set(myPurchases.map(p => p.event_id).filter(Boolean))];
+      const eventResults = await Promise.all(
+        eventIds.map(eid => base44.entities.Event.filter({ id: eid }).then(r => r[0]).catch(() => null))
+      );
+      const eventMap = {};
+      eventIds.forEach((eid, i) => { if (eventResults[i]) eventMap[eid] = eventResults[i]; });
+      setEvents(eventMap);
+      return myPurchases;
+    } catch (err) {
+      if (!silent) throw err;
+      return [];
+    }
+  }, []);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -20,39 +42,28 @@ export default function MyTickets() {
       const me = await base44.auth.me();
       if (!me) { setLoading(false); return; }
       setUser(me);
-
-      const myPurchases = await base44.entities.Purchase.filter({ buyer_email: me.email });
-      setPurchases(myPurchases);
-
-      const eventIds = [...new Set(myPurchases.map(p => p.event_id).filter(Boolean))];
-      // SCALE-2: Batch event fetches in parallel instead of sequential per-event queries
-      const eventResults = await Promise.all(
-        eventIds.map(eid => base44.entities.Event.filter({ id: eid }).then(r => r[0]).catch(() => null))
-      );
-      const eventMap = {};
-      eventIds.forEach((eid, i) => { if (eventResults[i]) eventMap[eid] = eventResults[i]; });
-      setEvents(eventMap);
+      await fetchPurchases(false);
     } catch (err) {
       setError(err?.message || 'Failed to load tickets');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fetchPurchases]);
 
   useEffect(() => { load(); }, [load]);
 
-  // Realtime: update purchases when they change
+  // Poll for updates while there are pending purchases (no raw subscriptions)
   useEffect(() => {
-    const unsubscribe = base44.entities.Purchase.subscribe((event) => {
-      if (event.type === 'update') {
-        setPurchases(prev => {
-          if (!prev.some(p => p.id === event.data.id)) return prev;
-          return prev.map(p => p.id === event.data.id ? { ...p, ...event.data } : p);
-        });
-      }
-    });
-    return () => unsubscribe();
-  }, []);
+    const hasPending = purchases.some(p => p.transfer_status === 'pending_transfer');
+    if (!hasPending) return;
+
+    const interval = setInterval(() => {
+      if (document.hidden) return;
+      fetchPurchases(true);
+    }, 20000);
+
+    return () => clearInterval(interval);
+  }, [purchases, fetchPurchases]);
 
   if (loading) {
     return (

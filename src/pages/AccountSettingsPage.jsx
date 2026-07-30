@@ -27,22 +27,20 @@ export default function AccountSettingsPage() {
     base44.auth.me().then(u => {
       setUser(u);
       if (u?.email) {
-        Promise.all([
-          base44.entities.Purchase.filter({ buyer_email: u.email }),
-          base44.entities.Purchase.filter({ seller_email: u.email }),
-        ]).then(([p, s]) => {
-          setPurchases(p.sort((a, b) => new Date(b.created_date) - new Date(a.created_date)));
-          setSales(s.sort((a, b) => new Date(b.created_date) - new Date(a.created_date)));
+        // Phase 1B-2: fetch purchases and sales through the safe participant view
+        base44.functions.invoke('getPurchaseParticipantView', {
+          action: 'list_mine', perspective: 'both',
+        }).then(res => {
+          setPurchases(res?.data?.purchases || []);
+          setSales(res?.data?.sales || []);
         }).catch(() => {});
 
-        // Check Stripe payout status
-        if (u.stripe_account_id) {
-          setLoadingStripe(true);
-          base44.functions.invoke('checkSellerOnboarding', {})
-            .then(res => setStripeStatus(res?.data))
-            .catch(() => {})
-            .finally(() => setLoadingStripe(false));
-        }
+        // Always obtain Stripe onboarding state through checkSellerOnboarding
+        setLoadingStripe(true);
+        base44.functions.invoke('checkSellerOnboarding', {})
+          .then(res => setStripeStatus(res?.data))
+          .catch(() => {})
+          .finally(() => setLoadingStripe(false));
       }
     }).catch(() => {});
   }, []);

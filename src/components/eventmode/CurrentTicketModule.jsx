@@ -31,16 +31,21 @@ export default function CurrentTicketModule({ event, user }) {
 
     (async () => {
       try {
-        const purchases = await base44.entities.Purchase.filter({ event_id: event.id, buyer_email: user.email });
+        const purchaseRes = await base44.functions.invoke('getPurchaseParticipantView', {
+          action: 'list_mine', perspective: 'buyer', event_id: event.id,
+        });
         if (cancelled) return;
-        const sorted = [...(purchases || [])].sort((a, b) => new Date(b.created_date || 0) - new Date(a.created_date || 0));
+        const purchases = purchaseRes?.data?.purchases || [];
+        const sorted = [...purchases].sort((a, b) => new Date(b.created_date || 0) - new Date(a.created_date || 0));
         const completed = sorted.find(p => p.transfer_status === 'completed')
           || sorted.find(p => p.transfer_status !== 'disputed');
 
         if (completed?.listing_id) {
-          const lres = await base44.entities.Listing.filter({ id: completed.listing_id });
+          const lres = await base44.functions.invoke('getListingParticipantView', {
+            listing_id: completed.listing_id,
+          });
           if (cancelled) return;
-          const listing = lres?.[0] || null;
+          const listing = lres?.data?.listing || null;
           if (listing?.section) {
             setSeat({
               section: listing.section,

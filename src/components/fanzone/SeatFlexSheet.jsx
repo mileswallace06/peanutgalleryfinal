@@ -26,10 +26,13 @@ export default function SeatFlexSheet({ user, onClose, onPosted }) {
   useEffect(() => {
     const load = async () => {
       setLoadingEvents(true);
-      const [purchases, events] = await Promise.all([
-        base44.entities.Purchase.filter({ buyer_email: user?.email }),
+      const [purchaseRes, events] = await Promise.all([
+        base44.functions.invoke('getPurchaseParticipantView', {
+          action: 'list_mine', perspective: 'buyer',
+        }).catch(() => ({ data: { purchases: [] } })),
         base44.entities.Event.list('date', 100),
       ]);
+      const purchases = purchaseRes?.data?.purchases || [];
       setMyPurchases(purchases);
       setAllEvents(events.filter(e => e.status !== 'ended'));
       setLoadingEvents(false);

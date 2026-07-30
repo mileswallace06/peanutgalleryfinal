@@ -6,7 +6,7 @@ export default function StripePayoutSection({ user, stripeStatus, loading }) {
   const [open, setOpen] = useState(false);
   const [onboarding, setOnboarding] = useState(false);
 
-  const hasStripe = !!user?.stripe_account_id;
+  const hasStripe = !!stripeStatus?.details_submitted;
   const isReady = stripeStatus?.charges_enabled;
 
   const handleSetupStripe = async () => {
@@ -63,7 +63,7 @@ export default function StripePayoutSection({ user, stripeStatus, loading }) {
             ) : (
               <div className="rounded-xl px-4 py-3 text-xs space-y-1"
                 style={{ background: 'rgba(0,255,135,0.07)', border: '1px solid rgba(0,255,135,0.2)' }}>
-                <p className="font-bold text-foreground">Stripe account: <span className="font-mono text-muted-foreground">{user.stripe_account_id?.slice(0, 16)}…</span></p>
+                <p className="font-bold text-foreground">Stripe account connected</p>
                 <p className="text-muted-foreground">Charges enabled · Payouts routed automatically after transfer confirmation.</p>
               </div>
             )}

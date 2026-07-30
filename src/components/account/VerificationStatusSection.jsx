@@ -2,7 +2,7 @@ import { ShieldCheck, CheckCircle2, Circle } from 'lucide-react';
 
 export default function VerificationStatusSection({ user, stripeStatus }) {
   const hasEmail = !!user?.email;
-  const hasStripe = !!user?.stripe_account_id && stripeStatus?.charges_enabled;
+  const hasStripe = !!stripeStatus?.charges_enabled;
   const hasProfile = !!user?.full_name && !!user?.avatar_url;
   const hasListed = user?.has_listed === true; // set externally if desired
 
