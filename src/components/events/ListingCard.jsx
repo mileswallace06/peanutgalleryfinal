@@ -1,4 +1,4 @@
-import { ArrowUpRight, ShieldCheck, Zap, MapPin, Ticket, AlertTriangle, Clock } from 'lucide-react';
+import { ArrowUpRight, ShieldCheck, Zap, MapPin, AlertTriangle, Clock } from 'lucide-react';
 import TransferStatusBadge from '@/components/listings/TransferStatusBadge';
 import { UPGRADE_LISTING_TYPES } from '@/lib/listingTypes';
 import { isReservedByMe, isReservedByOther, isSold } from '@/lib/listingVisibility';

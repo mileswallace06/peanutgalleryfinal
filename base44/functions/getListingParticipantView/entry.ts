@@ -8,9 +8,9 @@
  *
  * Both paths use the same safe serializer so privacy rules cannot drift.
  *
- * ListingPrivate is authoritative for: seller_email, proof_status,
- * reservation_token, reservation_expires_at, reserved_by_email, seats,
- * is_demo_listing, custody_status.
+ * ListingPrivate is required (Phase 1A migration is complete). No legacy
+ * fallback for sensitive fields. Listings with missing sidecars are omitted
+ * (list) or fail closed (single).
  *
  * Never exposed to any role: seller_email, reserved_by_email,
  * reservation_token, proof_url, ticket_file_url, notes, private file/storage
@@ -21,14 +21,14 @@ import { getListingPrivate } from '../../shared/privateData.ts';
 
 // ── Shared safe serializer ──────────────────────────────────────────────────
 function serializeListing(listing, lp, viewerEmail, role, isConfirmedBuyer) {
-  // Phase 1B: ListingPrivate is authoritative for these fields
-  const authoritativeSellerEmail = lp?.seller_email ?? listing.seller_email;
-  const authoritativeProofStatus = lp?.proof_status ?? listing.proof_status;
-  const authoritativeSeats = lp?.seats ?? listing.seats;
-  const authoritativeIsDemo = lp?.is_demo_listing ?? listing.is_demo_listing;
-  const authoritativeCustodyStatus = lp?.custody_status ?? listing.custody_status;
-  const authoritativeReservedBy = lp?.reserved_by_email ?? listing.reserved_by_email;
-  const authoritativeReservationExpiresAt = lp?.reservation_expires_at ?? listing.reservation_expires_at;
+  // ListingPrivate is authoritative — NO legacy fallback for sensitive fields
+  const authoritativeSellerEmail = lp?.seller_email ?? null;
+  const authoritativeProofStatus = lp?.proof_status ?? null;
+  const authoritativeSeats = lp?.seats ?? null;
+  const authoritativeIsDemo = lp?.is_demo_listing ?? false;
+  const authoritativeCustodyStatus = lp?.custody_status ?? null;
+  const authoritativeReservedBy = lp?.reserved_by_email ?? null;
+  const authoritativeReservationExpiresAt = lp?.reservation_expires_at ?? null;
 
   const isSeller = !!(viewerEmail && authoritativeSellerEmail === viewerEmail);
   const isAdmin = role === 'admin';
@@ -118,21 +118,21 @@ Deno.serve(async (req) => {
       return Response.json({ listings: [] });
     }
 
-    // Batch fetch ListingPrivate sidecars (one query — no N+1)
+    // Batch fetch ListingPrivate sidecars (stable sort + limit 500, no N+1)
     const listingPrivates = await sr.entities.ListingPrivate.filter(
-      { event_id }
+      { event_id }, 'id', 500
     ).catch(() => []);
     const lpMap = new Map();
     for (const lp of listingPrivates) {
       if (lp.listing_id) lpMap.set(lp.listing_id, lp);
     }
 
-    // Batch fetch confirmed buyer purchases (one query)
+    // Batch fetch confirmed buyer purchases (stable sort + limit 500)
     const confirmedListingIds = new Set();
     if (viewerEmail) {
-      const buyerPurchases = await sr.entities.PurchasePrivate.filter({
-        event_id, buyer_email: viewerEmail,
-      }).catch(() => []);
+      const buyerPurchases = await sr.entities.PurchasePrivate.filter(
+        { event_id, buyer_email: viewerEmail }, 'id', 500
+      ).catch(() => []);
       for (const pp of buyerPurchases) {
         if (pp.listing_id) confirmedListingIds.add(pp.listing_id);
       }
@@ -143,19 +143,24 @@ Deno.serve(async (req) => {
     const result = [];
     for (const listing of listings) {
       const lp = lpMap.get(listing.id);
-      const authoritativeProofStatus = lp?.proof_status ?? listing.proof_status;
 
-      // Only return approved listings
-      if (authoritativeProofStatus !== 'approved') continue;
+      // Phase 1A migration complete — ListingPrivate is required.
+      // Omit listings with missing sidecars and log the integrity failure.
+      if (!lp) {
+        console.warn(`[getListingParticipantView] integrity failure: ListingPrivate missing for listing ${listing.id}`);
+        continue;
+      }
+
+      // Authoritative proof_status from ListingPrivate (no legacy fallback)
+      if (lp.proof_status !== 'approved') continue;
 
       // Reservation check (authoritative from ListingPrivate)
-      const reservedBy = lp?.reserved_by_email ?? listing.reserved_by_email;
-      const reservationExpiresAt = lp?.reservation_expires_at ?? listing.reservation_expires_at;
+      const reservedBy = lp.reserved_by_email;
+      const reservationExpiresAt = lp.reservation_expires_at;
       const isReservationActive = !!(reservedBy && reservationExpiresAt &&
         new Date(reservationExpiresAt).getTime() > now);
 
-      const authoritativeSellerEmail = lp?.seller_email ?? listing.seller_email;
-      const isSeller = !!(viewerEmail && authoritativeSellerEmail === viewerEmail);
+      const isSeller = !!(viewerEmail && lp.seller_email === viewerEmail);
       const isAdmin = role === 'admin';
 
       // Omit listings actively reserved by another user
@@ -176,7 +181,7 @@ Deno.serve(async (req) => {
     return Response.json({ error: 'Unknown action' }, { status: 400 });
   }
 
-  // ── Single record (existing behavior, refactored to use serializer) ──
+  // ── Single record ──
   const listing_id = body?.listing_id;
   if (!listing_id) {
     return Response.json({ error: 'listing_id required' }, { status: 400 });
@@ -188,23 +193,65 @@ Deno.serve(async (req) => {
 
   const lp = await getListingPrivate(base44, listing.id);
 
-  // Unauthenticated: only active listings
-  if (!user) {
-    if (listing.status !== 'active') return Response.json({ error: 'Listing not found' }, { status: 404 });
-    return Response.json({ listing: serializeListing(listing, lp, null, null, false) });
+  // ── ListingPrivate integrity check ──
+  // Phase 1A migration is complete — sidecar is required. Never expose
+  // legacy sensitive fields from the Listing entity.
+  if (!lp) {
+    // Admin gets a clear integrity error (not a 404)
+    if (role === 'admin') {
+      console.error(`[getListingParticipantView] integrity failure: ListingPrivate missing for listing ${listing.id} (admin view)`);
+      return Response.json({ error: 'Listing integrity error: private record missing', code: 'INTEGRITY_ERROR' }, { status: 500 });
+    }
+    // Confirmed buyer gets a clear integrity error
+    if (viewerEmail) {
+      const buyerPurchases = await sr.entities.PurchasePrivate.filter(
+        { listing_id: listing.id, buyer_email: viewerEmail }, 'id', 500
+      ).catch(() => []);
+      if (buyerPurchases.length > 0) {
+        console.error(`[getListingParticipantView] integrity failure: ListingPrivate missing for listing ${listing.id} (confirmed buyer view)`);
+        return Response.json({ error: 'Listing integrity error: private record missing', code: 'INTEGRITY_ERROR' }, { status: 500 });
+      }
+    }
+    // Public/unrelated viewer → 404 (fail closed)
+    return Response.json({ error: 'Listing not found' }, { status: 404 });
   }
 
-  // Check confirmed buyer
-  let isConfirmedBuyer = false;
-  const authoritativeSellerEmail = lp?.seller_email ?? listing.seller_email;
+  // ── Determine seller/admin/confirmed-buyer status ──
+  const authoritativeSellerEmail = lp.seller_email;
   const isSeller = !!(viewerEmail && authoritativeSellerEmail === viewerEmail);
   const isAdmin = role === 'admin';
-  if (!isSeller && !isAdmin) {
-    const buyerPurchases = await sr.entities.PurchasePrivate.filter({
-      listing_id: listing.id, buyer_email: viewerEmail,
-    }).catch(() => []);
+
+  let isConfirmedBuyer = false;
+  if (!isSeller && !isAdmin && viewerEmail) {
+    const buyerPurchases = await sr.entities.PurchasePrivate.filter(
+      { listing_id: listing.id, buyer_email: viewerEmail }, 'id', 500
+    ).catch(() => []);
     isConfirmedBuyer = buyerPurchases.length > 0;
   }
 
-  return Response.json({ listing: serializeListing(listing, lp, viewerEmail, role, isConfirmedBuyer) });
+  // ── Authorized viewers: seller, confirmed buyer, admin ──
+  if (isSeller || isConfirmedBuyer || isAdmin) {
+    return Response.json({ listing: serializeListing(listing, lp, viewerEmail, role, isConfirmedBuyer) });
+  }
+
+  // ── Public/unrelated viewer: strict visibility gate ──
+  // 1. status must be active
+  if (listing.status !== 'active') {
+    return Response.json({ error: 'Listing not found' }, { status: 404 });
+  }
+  // 2. authoritative ListingPrivate proof_status must be approved
+  if (lp.proof_status !== 'approved') {
+    return Response.json({ error: 'Listing not found' }, { status: 404 });
+  }
+  // 3. must not be actively reserved by another user
+  const now = Date.now();
+  const reservedBy = lp.reserved_by_email;
+  const reservationExpiresAt = lp.reservation_expires_at;
+  const isReservationActive = !!(reservedBy && reservationExpiresAt &&
+    new Date(reservationExpiresAt).getTime() > now);
+  if (isReservationActive && reservedBy !== viewerEmail) {
+    return Response.json({ error: 'Listing not found' }, { status: 404 });
+  }
+
+  return Response.json({ listing: serializeListing(listing, lp, viewerEmail, role, false) });
 });

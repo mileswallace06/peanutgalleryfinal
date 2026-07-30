@@ -20,11 +20,14 @@ Deno.serve(async (req) => {
     const listing = listings[0];
     if (!listing) return Response.json({ error: 'Listing not found' }, { status: 404 });
 
-    // Phase 1B: read reservation ownership/token/expiry from ListingPrivate first (legacy fallback)
+    // Phase 1B: ListingPrivate is required and authoritative — no legacy fallback
     const lp = await getListingPrivate(base44, listing.id);
-    const reservedBy = lp?.reserved_by_email ?? listing.reserved_by_email;
-    const resToken = lp?.reservation_token ?? listing.reservation_token;
-    const resExpiry = lp?.reservation_expires_at ?? listing.reservation_expires_at;
+    if (!lp) {
+      return Response.json({ error: 'Listing integrity error: missing private record', code: 'INTEGRITY_ERROR' }, { status: 500 });
+    }
+    const reservedBy = lp.reserved_by_email;
+    const resToken = lp.reservation_token;
+    const resExpiry = lp.reservation_expires_at;
 
   // Must be active + approved
   if (listing.status === 'sold') {
@@ -33,12 +36,12 @@ Deno.serve(async (req) => {
   if (listing.status !== 'active') {
     return Response.json({ error: 'Listing is no longer available', code: 'UNAVAILABLE' }, { status: 409 });
   }
-  if (listing.proof_status !== 'approved') {
+  if (lp.proof_status !== 'approved') {
     return Response.json({ error: 'Listing is not yet approved', code: 'NOT_APPROVED' }, { status: 409 });
   }
 
   // Self-purchase guard
-  if (listing.seller_email === user.email) {
+  if (lp.seller_email === user.email) {
     return Response.json({ error: 'You cannot reserve your own listing', code: 'SELF_PURCHASE' }, { status: 400 });
   }
 
@@ -47,7 +50,6 @@ Deno.serve(async (req) => {
   // Already reserved by current user (not expired) — return existing token
   if (reservedBy === user.email && resExpiry && new Date(resExpiry).getTime() > now) {
     return Response.json({
-      reservation_token: resToken,
       reservation_expires_at: resExpiry,
       already_reserved: true,
     });
@@ -160,7 +162,6 @@ Deno.serve(async (req) => {
   }
 
     return Response.json({
-      reservation_token: token,
       reservation_expires_at: expiresAt,
     });
   } catch (error) {

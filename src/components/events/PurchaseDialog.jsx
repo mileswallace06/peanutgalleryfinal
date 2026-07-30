@@ -347,7 +347,6 @@ export default function PurchaseDialog({ event, listing, onClose, mode = 'ticket
     base44.functions.invoke('reserveListing', { listing_id: listing.id })
       .then(res => {
         setReservation({
-          token: res.data.reservation_token,
           expires_at: res.data.reservation_expires_at,
         });
       })
