@@ -15,8 +15,11 @@ Deno.serve(async (req) => {
 
   // Phase 1B: read authoritative stripe_account_id from UserSecurityProfile.
   // Never trust frontend-supplied account IDs — the request body is ignored.
-  const sec = await getUserSecurityProfile(base44, { user_id: user.id, user_email: user.email });
-  const accountId = sec?.stripe_account_id ?? user.stripe_account_id;
+  const sec = await getUserSecurityProfile(base44, { user_id: user.id, user_email: user.email }).catch(() => null);
+  if (!sec) {
+    return Response.json({ error: 'User security profile unavailable', code: 'INTEGRITY_ERROR' }, { status: 500 });
+  }
+  const accountId = sec.stripe_account_id ?? null;
 
   if (!accountId) {
     return Response.json({ complete: false, charges_enabled: false, details_submitted: false });

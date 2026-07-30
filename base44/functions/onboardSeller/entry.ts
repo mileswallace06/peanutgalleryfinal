@@ -24,6 +24,14 @@ Deno.serve(async (req) => {
   // Phase 1B: ensure UserSecurityProfile + UserPrivate + PublicProfile exist
   await ensureUserRecords(base44, user);
 
+  // Phase 1B: read authoritative stripe_account_id from UserSecurityProfile.
+  // Never trust frontend-supplied account IDs — the request body is ignored.
+  // If UserSecurityProfile cannot be loaded, fail with INTEGRITY_ERROR.
+  const sec = await getUserSecurityProfile(base44, { user_id: user.id, user_email: user.email }).catch(() => null);
+  if (!sec) {
+    return Response.json({ error: 'User security profile unavailable', code: 'INTEGRITY_ERROR' }, { status: 500 });
+  }
+
   // Maintenance gate — before any Stripe call
   if (isMaintenanceActive()) {
     return Response.json({ error: 'Seller onboarding is temporarily unavailable for scheduled maintenance.' }, { status: 503 });
@@ -49,9 +57,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Phase 1B: read authoritative stripe_account_id from UserSecurityProfile
-    const sec = await getUserSecurityProfile(base44, { user_id: user.id, user_email: user.email });
-    let accountId = sec?.stripe_account_id ?? user.stripe_account_id;
+    let accountId = sec.stripe_account_id ?? null;
 
     // Validate existing account against current Stripe mode — clear stale test/sandbox accounts
     if (accountId) {
