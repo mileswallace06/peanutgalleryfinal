@@ -57,4 +57,27 @@ export default [
       "react-hooks/rules-of-hooks": "error",
     },
   },
+  {
+    files: ["base44/**/*.ts"],
+    ...pluginJs.configs.recommended,
+    languageOptions: {
+      sourceType: "module",
+      ecmaVersion: 2022,
+      globals: {
+        Deno: "readonly",
+        Response: "readonly",
+        crypto: "readonly",
+        console: "readonly",
+        URL: "readonly",
+        setTimeout: "readonly",
+        setInterval: "readonly",
+        clearTimeout: "readonly",
+        clearInterval: "readonly",
+      },
+    },
+    rules: {
+      "no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
+      "no-empty": ["error", { allowCatch: true }],
+    },
+  },
 ];

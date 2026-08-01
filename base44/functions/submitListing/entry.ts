@@ -183,27 +183,50 @@ Deno.serve(async (req) => {
       }
     }
 
-    // SeatInventory reconciliation — idempotently create/link if missing (legacy listings)
+    // SeatInventory reconciliation — idempotently resolve or create (legacy listings)
     if (invUpdates) {
       let seatInventoryId = lpFresh.seat_inventory_id;
       if (!seatInventoryId) {
-        // Idempotently create SeatInventory for legacy listings without one
+        // Search by linked_listing_id first, then by event+owner+section, then create
         try {
-          const inv = await base44.asServiceRole.entities.SeatInventory.create({
-            event_id: listing.event_id,
-            owner_email: lpFresh.seller_email,
-            owner_name: lpFresh.seller_email,
-            section: lpFresh.section || listing.section,
-            row: lpFresh.row || listing.row || null,
-            seats: lpFresh.seats || listing.seats || null,
-            quantity: lpFresh.quantity || listing.quantity || 1,
-            inventory_status: 'available',
-            inventory_intent: 'undecided',
-            source_type: 'listing',
+          const existingByListing = await base44.asServiceRole.entities.SeatInventory.filter({
             linked_listing_id: listing.id,
           });
-          seatInventoryId = inv.id;
-          // Write to BOTH Listing and ListingPrivate
+          if (existingByListing.length > 0) {
+            seatInventoryId = existingByListing[0].id;
+            // Reconcile duplicates to one canonical record
+            for (let i = 1; i < existingByListing.length; i++) {
+              await base44.asServiceRole.entities.SeatInventory.delete(existingByListing[i].id).catch(() => {});
+            }
+          }
+          if (!seatInventoryId) {
+            const existingBySeat = await base44.asServiceRole.entities.SeatInventory.filter({
+              event_id: listing.event_id, owner_email: lpFresh.seller_email,
+            });
+            const match = existingBySeat.find(inv =>
+              inv.section?.toLowerCase() === (lpFresh.section || listing.section)?.toLowerCase() &&
+              (!lpFresh.row || !inv.row || inv.row?.toLowerCase() === lpFresh.row?.toLowerCase()) &&
+              !['cancelled', 'transferred'].includes(inv.inventory_status)
+            );
+            if (match) seatInventoryId = match.id;
+          }
+          if (!seatInventoryId) {
+            const inv = await base44.asServiceRole.entities.SeatInventory.create({
+              event_id: listing.event_id,
+              owner_email: lpFresh.seller_email,
+              owner_name: lpFresh.seller_email,
+              section: lpFresh.section || listing.section,
+              row: lpFresh.row || listing.row || null,
+              seats: lpFresh.seats || listing.seats || null,
+              quantity: lpFresh.quantity || listing.quantity || 1,
+              inventory_status: 'available',
+              inventory_intent: 'undecided',
+              source_type: 'listing',
+              linked_listing_id: listing.id,
+            });
+            seatInventoryId = inv.id;
+          }
+          // Write canonical ID to BOTH Listing and ListingPrivate
           await base44.asServiceRole.entities.Listing.update(listing.id, { seat_inventory_id: seatInventoryId });
           await upsertListingPrivate(base44, listing.id, { seat_inventory_id: seatInventoryId });
         } catch (err) {
@@ -408,14 +431,27 @@ Deno.serve(async (req) => {
   // ── Create/update SeatInventory for this listing (awaited, required) ──
   if (!isTest) {
     try {
-      const allInv = await base44.asServiceRole.entities.SeatInventory.filter({
-        owner_email: user.email, event_id: body.event_id,
+      // Search by linked_listing_id first to avoid duplicates
+      const byListing = await base44.asServiceRole.entities.SeatInventory.filter({
+        linked_listing_id: listing.id,
       });
-      const existingInv = allInv.find(inv =>
-        inv.section?.toLowerCase() === body.section?.toLowerCase() &&
-        (!body.row || !inv.row || inv.row?.toLowerCase() === body.row?.toLowerCase()) &&
-        !['cancelled', 'transferred'].includes(inv.inventory_status)
-      );
+      let existingInv = byListing[0] || null;
+      // Reconcile duplicates
+      if (byListing.length > 1) {
+        for (let i = 1; i < byListing.length; i++) {
+          await base44.asServiceRole.entities.SeatInventory.delete(byListing[i].id).catch(() => {});
+        }
+      }
+      if (!existingInv) {
+        const allInv = await base44.asServiceRole.entities.SeatInventory.filter({
+          owner_email: user.email, event_id: body.event_id,
+        });
+        existingInv = allInv.find(inv =>
+          inv.section?.toLowerCase() === body.section?.toLowerCase() &&
+          (!body.row || !inv.row || inv.row?.toLowerCase() === body.row?.toLowerCase()) &&
+          !['cancelled', 'transferred'].includes(inv.inventory_status)
+        );
+      }
 
       const invData = {
         event_id: body.event_id,

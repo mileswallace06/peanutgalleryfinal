@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "test": "node tests/checkout-concurrency.test.mjs",
     "lint": "eslint . --quiet",
+    "lint:backend": "eslint base44/functions/createCheckout/entry.ts base44/functions/submitListing/entry.ts base44/shared/privateData.ts",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc -p ./jsconfig.json",
     "preview": "vite preview"
