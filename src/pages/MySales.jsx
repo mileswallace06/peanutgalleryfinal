@@ -4,7 +4,6 @@ import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 import { Ticket, Clock, CheckCircle, Package, ArrowRight, Plus, RefreshCw } from 'lucide-react';
 import SellerMetrics from '@/components/sales/SellerMetrics';
-import TransferStatusBadge from '@/components/listings/TransferStatusBadge';
 import ListingStatusBanner from '@/components/listings/ListingStatusBanner';
 import { isVerificationExpired } from '@/lib/transferConfidence';
 
@@ -15,6 +14,7 @@ export default function MySales() {
   const [events, setEvents] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [actionError, setActionError] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -24,20 +24,22 @@ export default function MySales() {
       if (!me) { setLoading(false); return; }
       setUser(me);
 
-      const [myListings, allPurchases] = await Promise.all([
-        base44.entities.Listing.filter({ seller_email: me.email }),
-        base44.entities.Purchase.filter({ seller_email: me.email }),
+      const [listingRes, purchaseRes] = await Promise.all([
+        base44.functions.invoke('getListingParticipantView', { action: 'list_mine' }),
+        base44.functions.invoke('getPurchaseParticipantView', { action: 'list_mine', perspective: 'seller' }),
       ]);
 
+      const myListings = listingRes?.data?.listings || [];
+      const mySales = purchaseRes?.data?.sales || [];
+
       setListings(myListings);
-      setPurchases(allPurchases);
+      setPurchases(mySales);
 
       const eventIds = [...new Set([
         ...myListings.map(l => l.event_id),
-        ...allPurchases.map(p => p.event_id),
+        ...mySales.map(p => p.event_id),
       ])].filter(Boolean);
 
-      // SCALE-2: Batch event fetches in parallel
       const eventResults = await Promise.all(
         eventIds.map(eid => base44.entities.Event.filter({ id: eid }).then(r => r[0]).catch(() => null))
       );
@@ -45,7 +47,7 @@ export default function MySales() {
       eventIds.forEach((eid, i) => { if (eventResults[i]) eventMap[eid] = eventResults[i]; });
       setEvents(eventMap);
     } catch (err) {
-      setError(err?.message || 'Failed to load sales');
+      setError(err?.response?.data?.error || err?.message || 'Failed to load sales');
     } finally {
       setLoading(false);
     }
@@ -54,19 +56,34 @@ export default function MySales() {
   useEffect(() => { load(); }, [load]);
 
   const handlePauseListing = async (id) => {
-    await base44.entities.Listing.update(id, { status: 'hidden', hidden_reason: 'other' }).catch(() => {});
-    load();
+    setActionError(null);
+    try {
+      await base44.functions.invoke('submitListing', { action: 'manage_existing', operation: 'pause', listing_id: id });
+      load();
+    } catch (err) {
+      setActionError(err?.response?.data?.error || err?.message || 'Failed to pause listing');
+    }
   };
 
   const handleResumeListing = async (id) => {
-    await base44.entities.Listing.update(id, { status: 'active', hidden_reason: null }).catch(() => {});
-    load();
+    setActionError(null);
+    try {
+      await base44.functions.invoke('submitListing', { action: 'manage_existing', operation: 'resume', listing_id: id });
+      load();
+    } catch (err) {
+      setActionError(err?.response?.data?.error || err?.message || 'Failed to resume listing');
+    }
   };
 
-  const handleDeleteListing = async (listing) => {
-    if (!window.confirm(`Delete this listing permanently?\n\nSection ${listing.section} · Row ${listing.row}\nThis action cannot be undone.`)) return;
-    await base44.entities.Listing.delete(listing.id).catch(() => {});
-    load();
+  const handleCancelListing = async (listing) => {
+    if (!window.confirm(`Cancel this listing?\n\nSection ${listing.section} · Row ${listing.row}\nThe listing will be cancelled but preserved for your records. It will no longer be visible to buyers.`)) return;
+    setActionError(null);
+    try {
+      await base44.functions.invoke('submitListing', { action: 'manage_existing', operation: 'cancel', listing_id: listing.id });
+      load();
+    } catch (err) {
+      setActionError(err?.response?.data?.error || err?.message || 'Failed to cancel listing');
+    }
   };
 
   if (loading) {
@@ -120,7 +137,6 @@ export default function MySales() {
           <h1 className="text-2xl font-bold flex items-center gap-2 text-foreground">
             <Package className="w-6 h-6 text-primary" /> My Sales
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">{user.email}</p>
         </div>
         <Link
           to="/create-listing"
@@ -129,6 +145,12 @@ export default function MySales() {
           <Plus className="w-4 h-4" /> List Tickets
         </Link>
       </div>
+
+      {actionError && (
+        <div className="mb-4 rounded-xl px-4 py-3 text-sm" style={{ background: 'rgba(255,45,120,0.08)', border: '1px solid rgba(255,45,120,0.25)', color: '#FF2D78' }}>
+          {actionError}
+        </div>
+      )}
 
       <SellerMetrics purchases={purchases} />
 
@@ -153,9 +175,7 @@ export default function MySales() {
                     <div className="min-w-0">
                       <div className="font-semibold text-sm text-foreground truncate">{ev?.title || 'Event'}</div>
                       <div className="text-xs text-muted-foreground mt-0.5">
-                        Buyer: <span className="font-medium text-foreground">{p.buyer_email}</span>
-                        {p.buyer_name && <> · {p.buyer_name}</>}
-                        {p.buyer_phone && <> · {p.buyer_phone}</>}
+                        Buyer ready for transfer — open the secure transfer page to continue.
                       </div>
                       <div className="text-xs text-muted-foreground mt-0.5">
                         Amount: <span className="font-medium text-foreground">${p.amount?.toFixed(2)}</span>
@@ -177,7 +197,7 @@ export default function MySales() {
         </section>
       )}
 
-      {/* Awaiting buyer confirmation */}
+      {/* Awaiting Buyer Confirmation */}
       {awaitingBuyer.length > 0 && (
         <section className="mb-8">
           <h2 className="font-semibold text-base mb-3 flex items-center gap-2 text-foreground">
@@ -197,7 +217,7 @@ export default function MySales() {
                   <div className="min-w-0">
                     <div className="font-semibold text-foreground truncate">{ev?.title || 'Event'}</div>
                     <div className="text-xs text-muted-foreground mt-0.5">
-                      ${p.amount?.toFixed(2)} · Qty: {p.quantity} · {p.buyer_email}
+                      ${p.amount?.toFixed(2)} · Qty: {p.quantity}
                     </div>
                   </div>
                   <Link to={`/purchase/${p.id}`}
@@ -255,11 +275,11 @@ export default function MySales() {
                       Pause
                     </button>
                     <button
-                      onClick={() => handleDeleteListing(l)}
+                      onClick={() => handleCancelListing(l)}
                       className="text-xs font-bold px-3 py-1.5 rounded-xl transition-colors"
                       style={{ background: 'rgba(255,45,120,0.08)', border: '1px solid rgba(255,45,120,0.2)', color: '#FF2D78' }}
                     >
-                      Delete
+                      Cancel Listing
                     </button>
                   </div>
                 </div>
@@ -306,11 +326,11 @@ export default function MySales() {
                       </button>
                     )}
                     <button
-                      onClick={() => handleDeleteListing(l)}
+                      onClick={() => handleCancelListing(l)}
                       className="text-xs font-bold px-3 py-1.5 rounded-xl transition-colors"
                       style={{ background: 'rgba(255,45,120,0.08)', border: '1px solid rgba(255,45,120,0.2)', color: '#FF2D78' }}
                     >
-                      Delete
+                      Cancel Listing
                     </button>
                   </div>
                 </div>
@@ -323,7 +343,7 @@ export default function MySales() {
       {/* Instant Listings — pending verification */}
       {(() => {
         const instantPending = listings.filter(l => l.listing_mode === 'instant' && l.status === 'pending_verification');
-        const instantActive = listings.filter(l => l.listing_mode === 'instant' && l.status === 'active' && l.custody_status === 'verified');
+        const instantActive = listings.filter(l => l.listing_mode === 'instant' && l.status === 'active' && l.is_instant_ready);
         const instantSold = purchases.filter(p => {
           const l = listings.find(ll => ll.id === p.listing_id);
           return l?.listing_mode === 'instant' && p.transfer_status === 'pending_transfer';
@@ -427,7 +447,6 @@ export default function MySales() {
                         style={{ background: p.payment_captured ? 'rgba(0,255,135,0.1)' : 'rgba(255,140,0,0.1)', color: payoutColor, border: `1px solid ${payoutColor}44` }}>
                         {payoutState}
                       </span>
-                      {/* UX-1: Payout ETA clarity */}
                       {p.payment_captured && (
                         <span className="text-[10px] text-muted-foreground">· Stripe deposits 2–7 days (up to 14 days first payout)</span>
                       )}

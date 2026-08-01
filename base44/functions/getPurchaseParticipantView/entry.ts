@@ -68,6 +68,7 @@ function serializePurchase(p, pp, viewerEmail) {
     base.seller_payout = p.seller_payout ?? null;
     base.payment_captured = !!pp?.payment_captured;
     base.payment_capture_failed = !!pp?.payment_capture_failed;
+    base.updated_date = p.updated_date ?? null;
   }
 
   return base;

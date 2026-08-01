@@ -27,6 +27,145 @@ Deno.serve(async (req) => {
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await req.json().catch(() => ({}));
+  const action = body?.action;
+
+  // ── Input validation: action must be a string when supplied ──
+  if (action !== undefined && typeof action !== 'string') {
+    return Response.json({ error: 'action must be a string', code: 'INVALID_INPUT' }, { status: 400 });
+  }
+
+  // ── Manage existing listing (pause / resume / cancel) ──
+  // This branch runs before all listing-creation logic.
+  if (action === 'manage_existing') {
+    const operation = body?.operation;
+    if (typeof operation !== 'string' || !['pause', 'resume', 'cancel'].includes(operation)) {
+      return Response.json({ error: 'operation must be pause, resume, or cancel', code: 'INVALID_INPUT' }, { status: 400 });
+    }
+    const listing_id = body?.listing_id;
+    if (typeof listing_id !== 'string' || listing_id.length === 0 || listing_id.length > 200 || listing_id.trim().length === 0) {
+      return Response.json({ error: 'listing_id must be a nonempty string', code: 'INVALID_INPUT' }, { status: 400 });
+    }
+
+    // Maintenance gate — before any mutation
+    if (isMaintenanceActive()) {
+      return maintenance503('Listing management is temporarily unavailable for scheduled maintenance.');
+    }
+
+    // Fetch ListingPrivate (authoritative seller identity)
+    const lpResults = await base44.asServiceRole.entities.ListingPrivate.filter({ listing_id });
+    const lp = lpResults[0];
+    if (!lp) {
+      return Response.json({ error: 'Listing not found' }, { status: 404 });
+    }
+
+    // Authorize exclusively through ListingPrivate.seller_email — never Listing.seller_email
+    if (lp.seller_email !== user.email) {
+      return Response.json({ error: 'Listing not found' }, { status: 404 });
+    }
+
+    // Fetch Listing
+    const listingResults = await base44.asServiceRole.entities.Listing.filter({ id: listing_id });
+    const listing = listingResults[0];
+    if (!listing) {
+      return Response.json({ error: 'Listing not found' }, { status: 404 });
+    }
+
+    const listingUpdates = {};
+    let invUpdates = null;
+    let resultStatus = '';
+    let logType = '';
+
+    if (operation === 'pause') {
+      if (listing.status === 'hidden' && listing.hidden_reason === 'other') {
+        return Response.json({ status: 'already_paused', listing_id, idempotent: true });
+      }
+      if (listing.status !== 'active') {
+        return Response.json({ error: `Cannot pause a listing with status: ${listing.status}` }, { status: 409 });
+      }
+      listingUpdates.status = 'hidden';
+      listingUpdates.hidden_reason = 'other';
+      invUpdates = { inventory_status: 'available' };
+      resultStatus = 'paused';
+      logType = 'listing_hidden';
+    } else if (operation === 'resume') {
+      if (listing.status === 'active') {
+        return Response.json({ status: 'already_active', listing_id, idempotent: true });
+      }
+      if (listing.status !== 'hidden' || listing.hidden_reason !== 'other') {
+        return Response.json({ error: `Cannot resume: listing is not seller-paused (status: ${listing.status}, reason: ${listing.hidden_reason})` }, { status: 409 });
+      }
+      if (lp.proof_status !== 'approved') {
+        return Response.json({ error: 'Cannot resume: listing proof must be approved first' }, { status: 409 });
+      }
+      if (listing.transfer_status === 'transfer_disabled' || listing.transfer_status === 'transfer_expired') {
+        return Response.json({ error: 'Cannot resume: transfer is disabled or expired' }, { status: 409 });
+      }
+      // Confirm event has not ended
+      const eventResults = await base44.asServiceRole.entities.Event.filter({ id: listing.event_id }).catch(() => []);
+      const ev = eventResults[0];
+      if (ev) {
+        const startMs = ev.event_start_utc ? new Date(ev.event_start_utc).getTime() : ev.date ? new Date(ev.date).getTime() : null;
+        if (startMs) {
+          const durationHours = ev.duration_hours || 4;
+          if (Date.now() > startMs + durationHours * 60 * 60 * 1000) {
+            return Response.json({ error: 'Cannot resume: this event has already ended' }, { status: 409 });
+          }
+        }
+      }
+      listingUpdates.status = 'active';
+      listingUpdates.hidden_reason = null;
+      invUpdates = { inventory_status: 'listed_for_sale', inventory_intent: 'sell', linked_listing_id: listing.id };
+      resultStatus = 'resumed';
+      logType = 'listing_restored';
+    } else if (operation === 'cancel') {
+      if (listing.status === 'cancelled') {
+        return Response.json({ status: 'already_cancelled', listing_id, idempotent: true });
+      }
+      if (listing.status === 'pending_transfer' || listing.status === 'sold') {
+        return Response.json({ error: `Cannot cancel a listing with status: ${listing.status}` }, { status: 409 });
+      }
+      listingUpdates.status = 'cancelled';
+      invUpdates = { inventory_status: 'available', inventory_intent: 'undecided', linked_listing_id: null };
+      resultStatus = 'cancelled';
+      logType = 'listing_hidden';
+    }
+
+    // Apply listing updates — never delete
+    if (Object.keys(listingUpdates).length > 0) {
+      await base44.asServiceRole.entities.Listing.update(listing.id, listingUpdates);
+    }
+
+    // SeatInventory reconciliation (when a linked record exists)
+    if (invUpdates && lp.seat_inventory_id) {
+      try {
+        await base44.asServiceRole.entities.SeatInventory.update(lp.seat_inventory_id, invUpdates);
+      } catch (err) {
+        // For resume, do not leave the Listing active if inventory preparation fails
+        if (operation === 'resume') {
+          await base44.asServiceRole.entities.Listing.update(listing.id, { status: 'hidden', hidden_reason: 'other' }).catch(() => {});
+          return Response.json({ error: 'Failed to update seat inventory. Listing reverted to hidden.' }, { status: 500 });
+        }
+        await alertPrivateWriteFailure(base44, { entity: 'SeatInventory', reference_id: lp.seat_inventory_id, reference_type: 'listing', error: err });
+      }
+    }
+
+    // BetaTransferLog — server-derived authenticated identity
+    try {
+      await base44.asServiceRole.entities.BetaTransferLog.create({
+        log_type: logType,
+        actor_email: user.email,
+        actor_role: 'seller',
+        listing_id: listing.id,
+        event_id: listing.event_id,
+        before_state: { status: listing.status, hidden_reason: listing.hidden_reason },
+        after_state: { status: listingUpdates.status || listing.status, hidden_reason: listingUpdates.hidden_reason ?? listing.hidden_reason },
+        notes: `Seller ${operation} listing`,
+      });
+    } catch (_) { /* log failure must never break the flow */ }
+
+    return Response.json({ status: resultStatus, listing_id, idempotent: false });
+  }
+
   const askingPrice = parseFloat(body.asking_price) || 0;
   const optimisticId = body.optimistic_id;
   const isAdmin = user.role === 'admin';
