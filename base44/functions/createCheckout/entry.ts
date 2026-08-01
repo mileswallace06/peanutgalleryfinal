@@ -1,80 +1,96 @@
 /**
  * createCheckout — Authoritative server-side checkout.
  *
- * The ONLY path that creates a real Purchase record. The frontend must never
- * call Purchase.create directly.
+ * The ONLY path that creates a real Purchase record.
  *
- * Flow:
- *   1. Authenticate the caller. buyer_email is ALWAYS user.email — any
- *      buyer_email supplied by the frontend is ignored.
- *   2. Fetch the authoritative Listing + ListingPrivate + Event + seller
- *      security profile (service role). ListingPrivate is REQUIRED — no
- *      fallback to Listing for seller_email, proof_status, demo flag, or
- *      reservation fields.
- *   3. Validate the listing is active, approved, and not the seller's own.
- *   4. Enforce the 10-minute reservation (reuse or establish) + per-user PI
- *      rate limit + one-reservation-per-buyer + one-pending-purchase rules.
- *   5. Calculate subtotal, platform fee (5%, min $1), buyer total, and seller
- *      payout (100% of subtotal) server-side.
- *   6. Create the Stripe PaymentIntent (manual capture) with metadata linking
- *      it to the listing, buyer, seller, reservation, and fee breakdown.
- *      Seller identity in metadata is the authoritative private seller email.
- *   7. Create the Purchase record (service role) with all authoritative fields.
- *      Purchase creation failure cancels and verifies the PaymentIntent.
- *   8. Verify listing status + reservation token after Purchase creation.
- *   9. Set Stripe metadata.purchase_id (required). Failure triggers
- *      cancellation/expiry/release compensation.
- *  10. Return { purchase_id, clientSecret, subtotal, platformFee,
- *              buyerTotal, sellerPayout }. No reservationToken or
- *              paymentIntentId in the response.
- *
- * If the card confirmation later fails, the Stripe webhook
- * (payment_intent.payment_failed) expires the Purchase and restores the
- * listing; the reservation also self-expires after 10 minutes.
- *
- * COMPENSATION RULES:
- *   - Every checkout failure after reservation reconciles BOTH Listing and
- *     ListingPrivate.
- *   - A reservation is cleared ONLY if its current token still equals this
- *     checkout's token.
- *   - If Stripe cancellation cannot be verified as canceled, a neutral error
- *     is returned and a CRITICAL AdminAlert containing the PI ID is created.
- *   - If seller management wins during checkout, the PI is cancelled/verified,
- *     the Purchase is expired, the seller's final non-public status is
- *     preserved, and only this checkout's token is cleared.
+ * CONCURRENCY CLOSURE (7C.2):
+ *   - Token-safe reconciliation: re-fetches BOTH Listing and ListingPrivate,
+ *     clears each entity only when THAT entity's current token matches.
+ *   - Uncertain PI cancellation: does NOT expire Purchase or release Listing;
+ *     keeps listing locked, marks private failure state, creates critical alert.
+ *   - Fail-closed queries: no catch-to-empty on safety queries.
+ *   - Checkout idempotency: reuses reservation token, Stripe idempotency key,
+ *     checks for existing Purchase before creating a new one.
+ *   - Pre-write re-fetch: verifies listing is still active before reserving.
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import Stripe from 'npm:stripe@14.21.0';
 import { isMaintenanceActive, maintenance503 } from '../../shared/maintenance.ts';
-import { upsertListingPrivate, upsertPurchasePrivate, upsertUserSecurityProfile, ensureListingPrivate, getListingPrivate, getUserSecurityProfile, alertPrivateWriteFailure } from '../../shared/privateData.ts';
+import { upsertListingPrivate, upsertPurchasePrivate, getPurchasePrivate, upsertUserSecurityProfile, ensureListingPrivate, getListingPrivate, getUserSecurityProfile, alertPrivateWriteFailure } from '../../shared/privateData.ts';
 
 // ── Fee engine (mirrors feeEngine.js ACTIVE_FEE_MODEL_ID = 'buyer_5_min_1') ──
 function calcPlatformFee(subtotal) {
   return Math.max(1.00, Math.round(subtotal * 0.05 * 100) / 100);
 }
 
-const PI_COOLDOWN_MS = 15 * 1000; // 15 seconds between attempts per user
+const PI_COOLDOWN_MS = 15 * 1000;
+const MAX_ID_LENGTH = 200;
 
-// ── Clear reservation only if current token still equals this checkout's token ──
-async function reconcileReservationIfTokenMatches(base44, listing_id, token, revertStatus) {
-  const lpFresh = await getListingPrivate(base44, listing_id);
-  if (!lpFresh) return;
-  // Only clear if the current reservation token still equals this checkout's token
-  if (lpFresh.reservation_token !== token) return;
-  await base44.asServiceRole.entities.Listing.update(listing_id, {
-    status: revertStatus || 'active',
-    reservation_token: null,
-    reservation_expires_at: null,
-    reserved_by_email: null,
-  }).catch(() => {});
-  await upsertListingPrivate(base44, listing_id, {
-    reservation_token: null,
-    reservation_expires_at: null,
-    reserved_by_email: null,
-  }).catch(() => {});
+// ── Token-safe reconciliation ────────────────────────────────────────────────
+// Re-fetches BOTH Listing and ListingPrivate. Clears fields on each entity
+// only when THAT entity's current token equals this checkout's token.
+// Never clears Listing token B merely because ListingPrivate has token A.
+// Awaits writes, reports failure, re-fetches afterward to verify.
+async function reconcileReservationTokenSafe(base44, listing_id, token, revertStatus) {
+  const [listingRows, lpRows] = await Promise.all([
+    base44.asServiceRole.entities.Listing.filter({ id: listing_id }),
+    base44.asServiceRole.entities.ListingPrivate.filter({ listing_id }),
+  ]);
+  const l = listingRows[0];
+  const lp = lpRows[0];
+
+  // Clear Listing only if Listing's current token matches
+  if (l && l.reservation_token === token) {
+    const updateFields = {
+      reservation_token: null,
+      reservation_expires_at: null,
+      reserved_by_email: null,
+    };
+    // Only revert status if the listing is still in our pending_transfer state
+    if (revertStatus && l.status === 'pending_transfer') {
+      updateFields.status = revertStatus;
+    }
+    try {
+      await base44.asServiceRole.entities.Listing.update(listing_id, updateFields);
+    } catch (err) {
+      return { reconciled: false, error: err, entity: 'Listing' };
+    }
+  }
+
+  // Clear ListingPrivate only if ListingPrivate's current token matches
+  if (lp && lp.reservation_token === token) {
+    try {
+      await upsertListingPrivate(base44, listing_id, {
+        reservation_token: null,
+        reservation_expires_at: null,
+        reserved_by_email: null,
+      });
+    } catch (err) {
+      return { reconciled: false, error: err, entity: 'ListingPrivate' };
+    }
+  }
+
+  // Re-fetch afterward to verify no newer winner was overwritten
+  const [listingAfter, lpAfter] = await Promise.all([
+    base44.asServiceRole.entities.Listing.filter({ id: listing_id }),
+    base44.asServiceRole.entities.ListingPrivate.filter({ listing_id }),
+  ]);
+  const lAfter = listingAfter[0];
+  const lpAfterRow = lpAfter[0];
+
+  if (l?.reservation_token === token && lAfter?.reservation_token === token) {
+    return { reconciled: false, error: new Error('Listing token not cleared'), entity: 'Listing' };
+  }
+  if (lp?.reservation_token === token && lpAfterRow?.reservation_token === token) {
+    return { reconciled: false, error: new Error('ListingPrivate token not cleared'), entity: 'ListingPrivate' };
+  }
+
+  return { reconciled: true };
 }
 
-// ── Cancel PI, verify cancellation, expire Purchase, reconcile reservation ──
+// ── Cancel PI, verify, conditionally expire+reconcile ───────────────────────
+// Only verified `canceled` permits Purchase expiry and reservation release.
+// Uncertain cancellation keeps listing locked, preserves state, alerts.
 async function cancelPIAndReconcile(base44, stripe, paymentIntentId, listing_id, purchase_id, reservationToken, sellerFinalStatus) {
   let cancelOk = false;
   let piFinalStatus = null;
@@ -93,25 +109,42 @@ async function cancelPIAndReconcile(base44, stripe, paymentIntentId, listing_id,
       cancelError = retErr;
     }
   }
-  if (purchase_id) {
-    await base44.asServiceRole.entities.Purchase.update(purchase_id, { transfer_status: 'expired' }).catch(() => {});
-  }
-  // Reconcile both Listing and ListingPrivate — clear only if token matches
-  await reconcileReservationIfTokenMatches(base44, listing_id, reservationToken, sellerFinalStatus);
+
   if (!cancelOk) {
+    // ── Uncertain cancellation ──
+    // Do NOT expire Purchase, do NOT release/reactivate Listing.
+    // Keep listing non-public/locked. Preserve state for admin resolution.
+    // Mark private payment failure state where supported.
+    if (purchase_id) {
+      try {
+        const pp = await getPurchasePrivate(base44, purchase_id);
+        if (pp) {
+          await base44.asServiceRole.entities.PurchasePrivate.update(pp.id, {
+            payment_capture_failed: true,
+            dispute_reason: `PI cancellation uncertain: ${piFinalStatus || 'unknown'}`,
+          });
+        }
+      } catch (_) {}
+    }
     try {
       await base44.asServiceRole.entities.AdminAlert.create({
         alert_type: 'admin_action_required',
         priority: 'critical',
         title: `UNCCANCELLED PaymentIntent ${paymentIntentId}`,
-        description: `Checkout failed but PaymentIntent ${paymentIntentId} could NOT be cancelled (status: ${piFinalStatus || 'unknown'}). PI may be authorizable/capturable — immediate manual intervention required. Error: ${cancelError?.message || 'unknown'}`,
+        description: `Checkout failed but PaymentIntent ${paymentIntentId} could NOT be cancelled (status: ${piFinalStatus || 'unknown'}). PI may be authorizable/capturable — immediate manual intervention required. Purchase ${purchase_id || 'N/A'} is NOT expired. Listing ${listing_id} remains locked. Error: ${cancelError?.message || 'unknown'}`,
         reference_type: 'purchase',
         reference_id: purchase_id || listing_id,
       });
     } catch (_) {}
-    return { cancelOk: false };
+    return { cancelOk: false, reconciled: false };
   }
-  return { cancelOk: true };
+
+  // ── Cancellation verified — expire Purchase and reconcile ──
+  if (purchase_id) {
+    await base44.asServiceRole.entities.Purchase.update(purchase_id, { transfer_status: 'expired' }).catch(() => {});
+  }
+  const reconResult = await reconcileReservationTokenSafe(base44, listing_id, reservationToken, sellerFinalStatus);
+  return { cancelOk: true, reconciled: reconResult.reconciled, reconError: reconResult.error };
 }
 
 Deno.serve(async (req) => {
@@ -121,9 +154,6 @@ Deno.serve(async (req) => {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Phase 0 maintenance gate — fail-closed. createCheckout is real-money only
-  // with no dry-run path, so EVERY caller (including admins) is blocked while
-  // maintenance is active. Zero writes / zero Stripe calls occur before this.
   if (isMaintenanceActive()) return maintenance503('Checkout is temporarily unavailable for scheduled maintenance.');
 
   const secretKey = Deno.env.get('STRIPELIVESECRETKEY');
@@ -135,12 +165,13 @@ Deno.serve(async (req) => {
   const body = await req.json().catch(() => ({}));
   const { listing_id, buyer_name, buyer_phone } = body;
 
-  if (!listing_id) {
-    return Response.json({ error: 'listing_id is required' }, { status: 400 });
+  // ── Input validation ──
+  if (typeof listing_id !== 'string' || listing_id.length === 0 || listing_id.length > MAX_ID_LENGTH) {
+    return Response.json({ error: 'listing_id must be a bounded nonempty string', code: 'INVALID_INPUT' }, { status: 400 });
   }
+  const validatedBuyerName = (typeof buyer_name === 'string' && buyer_name.length <= 200) ? buyer_name : null;
+  const validatedBuyerPhone = (typeof buyer_phone === 'string' && buyer_phone.length <= 50) ? buyer_phone : null;
 
-  // buyer_email is ALWAYS the authenticated user. A buyer_email supplied by
-  // the frontend is intentionally ignored — it cannot determine ownership.
   const buyerEmail = user.email;
 
   // ── Per-user PI rate limit ───────────────────────────────────────────────
@@ -156,8 +187,6 @@ Deno.serve(async (req) => {
     last_pi_attempt_at: new Date().toISOString(),
     pi_attempt_count: (freshRequester.pi_attempt_count || 0) + 1,
   }).catch(() => {});
-  // Phase 1B: mirror PI rate-limit fields to UserSecurityProfile (authoritative).
-  // Required private write — failure must STOP before any Stripe PaymentIntent call.
   if (freshRequester) {
     try {
       await upsertUserSecurityProfile(base44, { user_id: freshRequester.id, user_email: buyerEmail }, {
@@ -176,8 +205,7 @@ Deno.serve(async (req) => {
   if (!listing) {
     return Response.json({ error: 'Listing not found' }, { status: 404 });
   }
-  // Phase 1B: ListingPrivate is REQUIRED — no fallback to Listing for
-  // seller_email, proof_status, demo flag, or reservation fields.
+  // ListingPrivate is REQUIRED — no fallback to Listing for any private field.
   const listingPrivate = await getListingPrivate(base44, listing.id);
   if (!listingPrivate) {
     return Response.json({ error: 'Listing integrity error: private record missing', code: 'INTEGRITY_ERROR' }, { status: 500 });
@@ -190,8 +218,6 @@ Deno.serve(async (req) => {
   const authoritativeProofStatus = listingPrivate.proof_status ?? null;
   const authoritativeNotes = listingPrivate.notes ?? null;
 
-  // Hard reject test/demo/hidden/draft listings — a real Stripe PaymentIntent
-  // is NEVER created for a non-marketplace listing. Admin role does not bypass.
   if (authoritativeIsDemo === true) {
     return Response.json({ error: 'Test/demo listings cannot be purchased.' }, { status: 409 });
   }
@@ -210,21 +236,22 @@ Deno.serve(async (req) => {
 
   // ── Reservation enforcement (10-minute lock) ─────────────────────────────
   const now = Date.now();
-  if (
-    authoritativeResToken &&
-    authoritativeResExpiry &&
-    new Date(authoritativeResExpiry).getTime() > now
-  ) {
+  if (authoritativeResToken && authoritativeResExpiry && new Date(authoritativeResExpiry).getTime() > now) {
     if (authoritativeReservedBy !== buyerEmail) {
       return Response.json({ error: 'This listing is currently being purchased by another buyer. Try again in a few minutes.' }, { status: 409 });
     }
   }
 
-  // One-per-buyer: block if user has an active reservation on a DIFFERENT listing
-  // Uses ListingPrivate (authoritative for reservation fields)
-  const userReservations = await base44.asServiceRole.entities.ListingPrivate.filter({
-    reserved_by_email: buyerEmail,
-  }).catch(() => []);
+  // ── One-per-buyer: block if active reservation on a DIFFERENT listing ────
+  // Uses ListingPrivate (authoritative). NO catch-to-empty — fail-closed.
+  let userReservations;
+  try {
+    userReservations = await base44.asServiceRole.entities.ListingPrivate.filter({
+      reserved_by_email: buyerEmail,
+    });
+  } catch (err) {
+    return Response.json({ error: 'Checkout unavailable. Please try again.' }, { status: 500 });
+  }
   for (const r of userReservations) {
     if (r.listing_id === listing.id) continue;
     if (r.reservation_expires_at && new Date(r.reservation_expires_at).getTime() > now) {
@@ -234,32 +261,51 @@ Deno.serve(async (req) => {
         existing_listing_id: r.listing_id,
       }, { status: 409 });
     }
-    // Clear expired reservation on both Listing and ListingPrivate
-    await base44.asServiceRole.entities.Listing.update(r.listing_id, {
-      reserved_by_email: null,
-      reservation_token: null,
-      reservation_expires_at: null,
-    }).catch(() => {});
-    await upsertListingPrivate(base44, r.listing_id, {
-      reserved_by_email: null,
-      reservation_token: null,
-      reservation_expires_at: null,
-    }).catch(() => {});
+    // Clear expired reservation — token-safe (uses the LP's own token)
+    await reconcileReservationTokenSafe(base44, r.listing_id, r.reservation_token, 'active');
   }
 
-  // Block if user already has an active pending purchase for this listing
-  const existingUserPurchase = await base44.asServiceRole.entities.Purchase.filter({
-    listing_id: listing.id,
-    buyer_email: buyerEmail,
-    transfer_status: 'pending_transfer',
-  }).catch(() => []);
-  if (existingUserPurchase.length > 0) {
-    return Response.json({ error: 'You already have a pending purchase for this listing.' }, { status: 409 });
+  // ── Pending-purchase check using PurchasePrivate (authoritative identity) ──
+  // Never uses Purchase.buyer_email for authorization or deduplication.
+  let existingPendingPPs;
+  try {
+    existingPendingPPs = await base44.asServiceRole.entities.PurchasePrivate.filter({
+      listing_id: listing.id,
+      buyer_email: buyerEmail,
+    });
+  } catch (err) {
+    return Response.json({ error: 'Checkout unavailable. Please try again.' }, { status: 500 });
+  }
+  if (existingPendingPPs.length > 0) {
+    const pendingPurchaseIds = existingPendingPPs.map(pp => pp.purchase_id);
+    let existingPurchases;
+    try {
+      existingPurchases = await base44.asServiceRole.entities.Purchase.filter({
+        id: { $in: pendingPurchaseIds },
+      });
+    } catch (err) {
+      return Response.json({ error: 'Checkout unavailable. Please try again.' }, { status: 500 });
+    }
+    const hasPending = existingPurchases.some(p => p.transfer_status === 'pending_transfer');
+    if (hasPending) {
+      return Response.json({ error: 'You already have a pending purchase for this listing.' }, { status: 409 });
+    }
   }
 
-  // Establish / refresh reservation token (10-minute expiry)
-  const reservationToken = crypto.randomUUID();
-  const reservationExpiresAt = new Date(now + 10 * 60 * 1000).toISOString();
+  // ── Checkout idempotency: reuse existing unexpired reservation token ─────
+  const hasExistingReservation = authoritativeResToken &&
+    authoritativeResExpiry &&
+    new Date(authoritativeResExpiry).getTime() > now &&
+    authoritativeReservedBy === buyerEmail;
+  const reservationToken = hasExistingReservation ? authoritativeResToken : crypto.randomUUID();
+  const reservationExpiresAt = hasExistingReservation ? authoritativeResExpiry : new Date(now + 10 * 60 * 1000).toISOString();
+
+  // ── Pre-write re-fetch: verify listing is still active before reserving ──
+  const [listingFreshBeforeReserve] = await base44.asServiceRole.entities.Listing.filter({ id: listing.id });
+  if (!listingFreshBeforeReserve || listingFreshBeforeReserve.status !== 'active') {
+    return Response.json({ error: 'Listing is no longer available' }, { status: 409 });
+  }
+
   // Capture exact previous reservation values for compensation
   const prevListingStatus = listing.status;
   const prevReservedBy = authoritativeReservedBy;
@@ -272,7 +318,6 @@ Deno.serve(async (req) => {
     reserved_by_email: buyerEmail,
   });
   // Phase 1B: mirror reservation to ListingPrivate (authoritative private destination).
-  // Required private write — failure must STOP before any Stripe PaymentIntent is created.
   try {
     await upsertListingPrivate(base44, listing.id, {
       reservation_token: reservationToken,
@@ -280,33 +325,68 @@ Deno.serve(async (req) => {
       reserved_by_email: buyerEmail,
     });
   } catch (err) {
-    // Revert Listing to exact previous values, alert, stop
-    await base44.asServiceRole.entities.Listing.update(listing.id, {
-      status: prevListingStatus,
-      reserved_by_email: prevReservedBy,
-      reservation_token: prevResToken,
-      reservation_expires_at: prevResExpiry,
-    }).catch(() => {});
+    // ListingPrivate write failure — token-safe reconciliation (no blind restore)
+    const reconResult = await reconcileReservationTokenSafe(base44, listing.id, reservationToken, prevListingStatus);
     await alertPrivateWriteFailure(base44, { entity: 'ListingPrivate', reference_id: listing.id, reference_type: 'listing', error: err });
+    if (!reconResult.reconciled) {
+      try {
+        await base44.asServiceRole.entities.AdminAlert.create({
+          alert_type: 'admin_action_required',
+          priority: 'critical',
+          title: `Reservation reconciliation failed for listing ${listing.id}`,
+          description: `ListingPrivate write failed and token-safe reconciliation could not complete. Token: ${reservationToken}. Error: ${reconResult.error?.message || 'unknown'} on ${reconResult.entity}.`,
+          reference_type: 'listing',
+          reference_id: listing.id,
+        });
+      } catch (_) {}
+      return Response.json({ error: 'Checkout failed. Please contact support.' }, { status: 500 });
+    }
     return Response.json({ error: 'Checkout unavailable. Please try again.' }, { status: 500 });
   }
 
-  // Re-fetch to verify we own the reservation (last-write-wins check)
+  // ── Initial verification: re-fetch to verify we own the reservation ──────
   const [reservedListing] = await base44.asServiceRole.entities.Listing.filter({ id: listing.id });
   const reservedLP = await getListingPrivate(base44, listing.id);
   if (!reservedListing || reservedListing.status !== 'pending_transfer' ||
       reservedLP?.reservation_token !== reservationToken) {
+    // Initial verification failure — reconcile only our token, preserve other state
+    const reconResult = await reconcileReservationTokenSafe(base44, listing.id, reservationToken,
+      reservedListing?.status || prevListingStatus);
+    if (!reconResult.reconciled) {
+      try {
+        await base44.asServiceRole.entities.AdminAlert.create({
+          alert_type: 'admin_action_required',
+          priority: 'critical',
+          title: `Reservation reconciliation failed for listing ${listing.id}`,
+          description: `Checkout verification failed and token-safe reconciliation could not complete. Token: ${reservationToken}. Error: ${reconResult.error?.message || 'unknown'} on ${reconResult.entity}.`,
+          reference_type: 'listing',
+          reference_id: listing.id,
+        });
+      } catch (_) {}
+      return Response.json({ error: 'Checkout failed. Please contact support.' }, { status: 500 });
+    }
     return Response.json({ error: 'This listing was just reserved by another buyer. Please try another listing.' }, { status: 409 });
   }
 
   // ── Fetch seller UserSecurityProfile (authoritative for stripe_account_id) ──
   const sellerSec = await getUserSecurityProfile(base44, { user_email: authoritativeSellerEmail });
   if (!sellerSec) {
-    // Reconcile reservation — clear only if our token still matches
-    await reconcileReservationIfTokenMatches(base44, listing.id, reservationToken, 'active');
+    const reconResult = await reconcileReservationTokenSafe(base44, listing.id, reservationToken, 'active');
+    if (!reconResult.reconciled) {
+      try {
+        await base44.asServiceRole.entities.AdminAlert.create({
+          alert_type: 'admin_action_required',
+          priority: 'critical',
+          title: `Reservation reconciliation failed for listing ${listing.id}`,
+          description: `Seller profile missing and token-safe reconciliation could not complete. Token: ${reservationToken}.`,
+          reference_type: 'listing',
+          reference_id: listing.id,
+        });
+      } catch (_) {}
+      return Response.json({ error: 'Checkout failed. Please contact support.' }, { status: 500 });
+    }
     return Response.json({ error: 'Seller security profile unavailable', code: 'INTEGRITY_ERROR' }, { status: 500 });
   }
-  // Fetch seller User for role check only (role is on User, not UserSecurityProfile)
   const sellerUsers = await base44.asServiceRole.entities.User.filter({ email: authoritativeSellerEmail });
   const seller = sellerUsers[0];
 
@@ -320,7 +400,6 @@ Deno.serve(async (req) => {
     } catch (err) {
       console.warn('[createCheckout] Seller account invalid in live mode:', rawStripeAccountId, err?.message);
       sellerStripeAccountId = null;
-      // Clear stale account on UserSecurityProfile (authoritative)
       try {
         await upsertUserSecurityProfile(base44, { user_id: sellerSec.user_id, user_email: authoritativeSellerEmail }, {
           stripe_account_id: null, stripe_onboarding_complete: false,
@@ -333,20 +412,91 @@ Deno.serve(async (req) => {
 
   const isTestOrAdminListing = (authoritativeNotes && /\[TEST\]/i.test(authoritativeNotes)) || seller?.role === 'admin';
   if (!sellerStripeAccountId && !isTestOrAdminListing) {
-    // Reconcile reservation — clear only if our token still matches
-    await reconcileReservationIfTokenMatches(base44, listing.id, reservationToken, 'active');
+    const reconResult = await reconcileReservationTokenSafe(base44, listing.id, reservationToken, 'active');
+    if (!reconResult.reconciled) {
+      try {
+        await base44.asServiceRole.entities.AdminAlert.create({
+          alert_type: 'admin_action_required',
+          priority: 'critical',
+          title: `Reservation reconciliation failed for listing ${listing.id}`,
+          description: `Seller onboarding incomplete and token-safe reconciliation could not complete. Token: ${reservationToken}.`,
+          reference_type: 'listing',
+          reference_id: listing.id,
+        });
+      } catch (_) {}
+      return Response.json({ error: 'Checkout failed. Please contact support.' }, { status: 500 });
+    }
     return Response.json({ error: 'Seller has not completed payout onboarding. Purchase blocked.' }, { status: 402 });
   }
 
-  // ── Fee math (server-side, authoritative) ────────────────────────────────
-  const subtotal = Math.round(listing.asking_price * (listing.quantity || 1) * 100) / 100;
+  // ── Fee math + financial validation (server-side, authoritative) ─────────
+  const askingPriceNum = Number(listing.asking_price);
+  if (!Number.isFinite(askingPriceNum) || askingPriceNum <= 0) {
+    const reconResult = await reconcileReservationTokenSafe(base44, listing.id, reservationToken, 'active');
+    return Response.json({ error: 'Invalid listing price' }, { status: 400 });
+  }
+  const quantityNum = Number(listing.quantity) || 1;
+  if (!Number.isInteger(quantityNum) || quantityNum <= 0 || quantityNum > 100) {
+    const reconResult = await reconcileReservationTokenSafe(base44, listing.id, reservationToken, 'active');
+    return Response.json({ error: 'Invalid quantity' }, { status: 400 });
+  }
+  const subtotal = Math.round(askingPriceNum * quantityNum * 100) / 100;
   const platformFee = calcPlatformFee(subtotal);
   const buyerTotal = Math.round((subtotal + platformFee) * 100) / 100;
   const sellerPayout = subtotal;
   const amountCents = Math.round(buyerTotal * 100);
   const applicationFeeCents = Math.round(platformFee * 100);
+  if (!Number.isFinite(amountCents) || amountCents <= 0 || !Number.isInteger(amountCents)) {
+    const reconResult = await reconcileReservationTokenSafe(base44, listing.id, reservationToken, 'active');
+    return Response.json({ error: 'Invalid calculated amount' }, { status: 500 });
+  }
+  if (!Number.isFinite(applicationFeeCents) || applicationFeeCents <= 0 || !Number.isInteger(applicationFeeCents)) {
+    const reconResult = await reconcileReservationTokenSafe(base44, listing.id, reservationToken, 'active');
+    return Response.json({ error: 'Invalid calculated fee' }, { status: 500 });
+  }
 
-  // ── Create Stripe PaymentIntent (manual capture) ─────────────────────────
+  // ── Checkout idempotency: check for existing Purchase with this token ─────
+  let existingPPWithToken;
+  try {
+    existingPPWithToken = await base44.asServiceRole.entities.PurchasePrivate.filter({
+      listing_id: listing.id,
+      buyer_email: buyerEmail,
+      reservation_token: reservationToken,
+    });
+  } catch (err) {
+    return Response.json({ error: 'Checkout unavailable. Please try again.' }, { status: 500 });
+  }
+  if (existingPPWithToken.length > 0) {
+    const existingPurchaseIds = existingPPWithToken.map(pp => pp.purchase_id);
+    let existingPurchasesWithToken;
+    try {
+      existingPurchasesWithToken = await base44.asServiceRole.entities.Purchase.filter({
+        id: { $in: existingPurchaseIds },
+      });
+    } catch (err) {
+      return Response.json({ error: 'Checkout unavailable. Please try again.' }, { status: 500 });
+    }
+    const pendingPurchase = existingPurchasesWithToken.find(p => p.transfer_status === 'pending_transfer');
+    if (pendingPurchase) {
+      // Idempotent reuse — retrieve existing PI and return its client_secret
+      try {
+        const existingPI = await stripe.paymentIntents.retrieve(existingPPWithToken[0].payment_intent_id);
+        if (existingPI.client_secret && (existingPI.status === 'requires_payment_method' || existingPI.status === 'requires_action')) {
+          return Response.json({
+            purchase_id: pendingPurchase.id,
+            clientSecret: existingPI.client_secret,
+            subtotal,
+            platformFee,
+            buyerTotal,
+            sellerPayout,
+          });
+        }
+      } catch (_) {}
+    }
+  }
+
+  // ── Create Stripe PaymentIntent (manual capture) with idempotency key ────
+  const idempotencyKey = `checkout_${listing.id}_${reservationToken}`;
   let paymentIntent;
   try {
     const piParams = {
@@ -370,29 +520,40 @@ Deno.serve(async (req) => {
       piParams.application_fee_amount = applicationFeeCents;
       piParams.transfer_data = { destination: sellerStripeAccountId };
     }
-    paymentIntent = await stripe.paymentIntents.create(piParams);
+    paymentIntent = await stripe.paymentIntents.create(piParams, { idempotencyKey });
   } catch (err) {
-    // Reconcile both Listing and ListingPrivate — clear only if token matches
-    await reconcileReservationIfTokenMatches(base44, listing.id, reservationToken, 'active');
+    const reconResult = await reconcileReservationTokenSafe(base44, listing.id, reservationToken, 'active');
+    if (!reconResult.reconciled) {
+      try {
+        await base44.asServiceRole.entities.AdminAlert.create({
+          alert_type: 'admin_action_required',
+          priority: 'critical',
+          title: `Reservation reconciliation failed for listing ${listing.id}`,
+          description: `Stripe PI creation failed and token-safe reconciliation could not complete. Token: ${reservationToken}. Error: ${reconResult.error?.message || 'unknown'} on ${reconResult.entity}.`,
+          reference_type: 'listing',
+          reference_id: listing.id,
+        });
+      } catch (_) {}
+      return Response.json({ error: 'Checkout failed. Please contact support.' }, { status: 500 });
+    }
     return Response.json({ error: err.message }, { status: 500 });
   }
 
-  // ── Create the Purchase record (service role — bypasses create RLS) ─────
-  // Wrapped in try/catch — Purchase creation failure cancels and verifies PI.
+  // ── Create the Purchase record (service role) ────────────────────────────
   let purchase;
   try {
     purchase = await base44.asServiceRole.entities.Purchase.create({
       listing_id: listing.id,
       event_id: listing.event_id,
       buyer_email: buyerEmail,
-      buyer_name: buyer_name || null,
-      buyer_phone: buyer_phone || null,
+      buyer_name: validatedBuyerName,
+      buyer_phone: validatedBuyerPhone,
       seller_email: authoritativeSellerEmail,
       amount: buyerTotal,
       subtotal,
       platform_fee: platformFee,
       seller_payout: sellerPayout,
-      quantity: listing.quantity || 1,
+      quantity: quantityNum,
       payment_intent_id: paymentIntent.id,
       reservation_token: reservationToken,
       transfer_status: 'pending_transfer',
@@ -402,7 +563,6 @@ Deno.serve(async (req) => {
       is_demo: false,
     });
   } catch (purchaseErr) {
-    // Purchase creation failure — cancel PI, verify, reconcile both sidecars
     const result = await cancelPIAndReconcile(base44, stripe, paymentIntent.id, listing.id, null, reservationToken, 'active');
     if (result.cancelOk) {
       return Response.json({ error: 'Checkout failed during purchase creation. Your payment was not charged.' }, { status: 500 });
@@ -410,7 +570,7 @@ Deno.serve(async (req) => {
     return Response.json({ error: 'Checkout failed. Please contact support.' }, { status: 500 });
   }
 
-  // ── Post-Purchase verification: verify listing status + token ──
+  // ── Post-Purchase verification: verify listing status + token ─────────────
   const [listingAfterPurchase] = await base44.asServiceRole.entities.Listing.filter({ id: listing.id });
   const lpAfterPurchase = await getListingPrivate(base44, listing.id);
   if (!listingAfterPurchase || listingAfterPurchase.status !== 'pending_transfer' ||
@@ -431,7 +591,7 @@ Deno.serve(async (req) => {
       listing_id: listing.id, event_id: listing.event_id,
       buyer_email: buyerEmail, seller_email: authoritativeSellerEmail,
       payment_intent_id: paymentIntent.id, reservation_token: reservationToken,
-      buyer_phone: buyer_phone || null, buyer_name: buyer_name || null,
+      buyer_phone: validatedBuyerPhone, buyer_name: validatedBuyerName,
       payment_captured: false, is_demo: false,
       migration_version: 3, migrated_at: new Date().toISOString(),
     });
@@ -445,7 +605,6 @@ Deno.serve(async (req) => {
   } catch (err) { lpError = err; }
 
   if (ppError || lpError) {
-    // Safe compensation: cancel PI, verify, expire Purchase, reconcile both sidecars.
     const result = await cancelPIAndReconcile(base44, stripe, paymentIntent.id, listing.id, purchase.id, reservationToken, 'active');
     await alertPrivateWriteFailure(base44, { entity: ppError ? 'PurchasePrivate' : 'ListingPrivate', reference_id: purchase.id, reference_type: 'purchase', error: ppError || lpError });
     if (result.cancelOk) {
@@ -454,12 +613,10 @@ Deno.serve(async (req) => {
     return Response.json({ error: 'Checkout failed. Please contact support.' }, { status: 500 });
   }
 
-  // ── Set Stripe metadata.purchase_id (REQUIRED) ──────────────────────────
-  // Failure triggers cancellation/expiry/release compensation.
+  // ── Set Stripe metadata.purchase_id (REQUIRED) ────────────────────────────
   try {
     await stripe.paymentIntents.update(paymentIntent.id, { metadata: { purchase_id: purchase.id } });
   } catch (err) {
-    // metadata.purchase_id failure — cancel PI, verify, expire Purchase, reconcile
     const result = await cancelPIAndReconcile(base44, stripe, paymentIntent.id, listing.id, purchase.id, reservationToken, 'active');
     await alertPrivateWriteFailure(base44, { entity: 'StripeMetadata', reference_id: purchase.id, reference_type: 'purchase', error: err });
     if (result.cancelOk) {

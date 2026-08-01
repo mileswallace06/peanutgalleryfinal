@@ -163,42 +163,69 @@ Deno.serve(async (req) => {
     }
 
     // ── Re-fetch after writes to verify no race with checkout ──
-    const [lpAfterRows] = await Promise.all([
+    const [lpAfterRows, listingAfterRows] = await Promise.all([
       base44.asServiceRole.entities.ListingPrivate.filter({ listing_id }),
+      base44.asServiceRole.entities.Listing.filter({ id: listing_id }),
     ]);
     const lpAfter = lpAfterRows[0];
+    const listingAfter = listingAfterRows[0];
 
-    // If a checkout reservation appeared during our write, revert and let checkout win
+    // If our write was overwritten by another request, return 409
     if (operation === 'pause' || operation === 'cancel') {
+      if (listingAfter && listingUpdates.status && listingAfter.status !== listingUpdates.status) {
+        return Response.json({ error: 'Listing was modified by another request. Please try again.' }, { status: 409 });
+      }
+      // If a checkout reservation appeared, checkout wins — do NOT revert, just return 409
       const resTokenAfter = lpAfter?.reservation_token;
       const resExpiryAfter = lpAfter?.reservation_expires_at;
       if (resTokenAfter && resExpiryAfter && new Date(resExpiryAfter).getTime() > Date.now()) {
-        await base44.asServiceRole.entities.Listing.update(listing.id, { status: 'active', hidden_reason: null }).catch(() => {});
         return Response.json({ error: 'A checkout reservation was created during your request. Please try again.' }, { status: 409 });
       }
     }
 
-    // SeatInventory reconciliation (when a linked record exists via ListingPrivate)
-    if (invUpdates && lpFresh.seat_inventory_id) {
+    // SeatInventory reconciliation — idempotently create/link if missing (legacy listings)
+    if (invUpdates) {
+      let seatInventoryId = lpFresh.seat_inventory_id;
+      if (!seatInventoryId) {
+        // Idempotently create SeatInventory for legacy listings without one
+        try {
+          const inv = await base44.asServiceRole.entities.SeatInventory.create({
+            event_id: listing.event_id,
+            owner_email: lpFresh.seller_email,
+            owner_name: lpFresh.seller_email,
+            section: lpFresh.section || listing.section,
+            row: lpFresh.row || listing.row || null,
+            seats: lpFresh.seats || listing.seats || null,
+            quantity: lpFresh.quantity || listing.quantity || 1,
+            inventory_status: 'available',
+            inventory_intent: 'undecided',
+            source_type: 'listing',
+            linked_listing_id: listing.id,
+          });
+          seatInventoryId = inv.id;
+          // Write to BOTH Listing and ListingPrivate
+          await base44.asServiceRole.entities.Listing.update(listing.id, { seat_inventory_id: seatInventoryId });
+          await upsertListingPrivate(base44, listing.id, { seat_inventory_id: seatInventoryId });
+        } catch (err) {
+          await alertPrivateWriteFailure(base44, { entity: 'SeatInventory', reference_id: listing.id, reference_type: 'listing', error: err });
+          if (operation === 'resume') {
+            await base44.asServiceRole.entities.Listing.update(listing.id, { status: 'hidden', hidden_reason: 'other' }).catch(() => {});
+            return Response.json({ error: 'Failed to create seat inventory. Listing reverted to hidden.' }, { status: 500 });
+          }
+          return Response.json({ error: 'Listing updated but seat inventory creation failed. Please contact support.' }, { status: 500 });
+        }
+      }
+      // Apply inventory updates
       try {
-        await base44.asServiceRole.entities.SeatInventory.update(lpFresh.seat_inventory_id, invUpdates);
+        await base44.asServiceRole.entities.SeatInventory.update(seatInventoryId, invUpdates);
       } catch (err) {
         if (operation === 'resume') {
           await base44.asServiceRole.entities.Listing.update(listing.id, { status: 'hidden', hidden_reason: 'other' }).catch(() => {});
           return Response.json({ error: 'Failed to update seat inventory. Listing reverted to hidden.' }, { status: 500 });
         }
-        // Pause/cancel: listing is already non-public, return partial-failure error
-        await alertPrivateWriteFailure(base44, { entity: 'SeatInventory', reference_id: lpFresh.seat_inventory_id, reference_type: 'listing', error: err });
+        await alertPrivateWriteFailure(base44, { entity: 'SeatInventory', reference_id: seatInventoryId, reference_type: 'listing', error: err });
         return Response.json({ error: 'Listing updated but seat inventory reconciliation failed. Please contact support.' }, { status: 500 });
       }
-    } else if (invUpdates && !lpFresh.seat_inventory_id) {
-      // Expected inventory record is missing — alert and return error
-      await alertPrivateWriteFailure(base44, { entity: 'SeatInventory', reference_id: listing.id, reference_type: 'listing', error: new Error('seat_inventory_id missing from ListingPrivate') });
-      if (operation === 'resume') {
-        await base44.asServiceRole.entities.Listing.update(listing.id, { status: 'hidden', hidden_reason: 'other' }).catch(() => {});
-        return Response.json({ error: 'Seat inventory record missing. Listing reverted to hidden.' }, { status: 500 });
-      }
-      return Response.json({ error: 'Listing updated but seat inventory record is missing. Please contact support.' }, { status: 500 });
     }
 
     // BetaTransferLog — server-derived authenticated identity
