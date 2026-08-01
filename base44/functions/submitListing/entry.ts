@@ -70,17 +70,37 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Listing not found' }, { status: 404 });
     }
 
+    // ── Re-fetch fresh state immediately before management writes ──
+    const [lpFreshRows, listingFreshRows] = await Promise.all([
+      base44.asServiceRole.entities.ListingPrivate.filter({ listing_id }),
+      base44.asServiceRole.entities.Listing.filter({ id: listing_id }),
+    ]);
+    const lpFresh = lpFreshRows[0];
+    const listingFresh = listingFreshRows[0];
+    if (!lpFresh || !listingFresh) {
+      return Response.json({ error: 'Listing not found' }, { status: 404 });
+    }
+
+    // Block pause/cancel if an active checkout reservation exists
+    if (operation === 'pause' || operation === 'cancel') {
+      const resToken = lpFresh.reservation_token;
+      const resExpiry = lpFresh.reservation_expires_at;
+      if (resToken && resExpiry && new Date(resExpiry).getTime() > Date.now()) {
+        return Response.json({ error: 'Cannot modify listing: an active checkout reservation exists.' }, { status: 409 });
+      }
+    }
+
     const listingUpdates = {};
     let invUpdates = null;
     let resultStatus = '';
     let logType = '';
 
     if (operation === 'pause') {
-      if (listing.status === 'hidden' && listing.hidden_reason === 'other') {
+      if (listingFresh.status === 'hidden' && listingFresh.hidden_reason === 'other') {
         return Response.json({ status: 'already_paused', listing_id, idempotent: true });
       }
-      if (listing.status !== 'active') {
-        return Response.json({ error: `Cannot pause a listing with status: ${listing.status}` }, { status: 409 });
+      if (listingFresh.status !== 'active') {
+        return Response.json({ error: `Cannot pause a listing with status: ${listingFresh.status}` }, { status: 409 });
       }
       listingUpdates.status = 'hidden';
       listingUpdates.hidden_reason = 'other';
@@ -88,29 +108,36 @@ Deno.serve(async (req) => {
       resultStatus = 'paused';
       logType = 'listing_hidden';
     } else if (operation === 'resume') {
-      if (listing.status === 'active') {
+      if (listingFresh.status === 'active') {
         return Response.json({ status: 'already_active', listing_id, idempotent: true });
       }
-      if (listing.status !== 'hidden' || listing.hidden_reason !== 'other') {
-        return Response.json({ error: `Cannot resume: listing is not seller-paused (status: ${listing.status}, reason: ${listing.hidden_reason})` }, { status: 409 });
+      if (listingFresh.status !== 'hidden' || listingFresh.hidden_reason !== 'other') {
+        return Response.json({ error: `Cannot resume: listing is not seller-paused (status: ${listingFresh.status}, reason: ${listingFresh.hidden_reason})` }, { status: 409 });
       }
-      if (lp.proof_status !== 'approved') {
+      if (lpFresh.proof_status !== 'approved') {
         return Response.json({ error: 'Cannot resume: listing proof must be approved first' }, { status: 409 });
       }
-      if (listing.transfer_status === 'transfer_disabled' || listing.transfer_status === 'transfer_expired') {
+      if (listingFresh.transfer_status === 'transfer_disabled' || listingFresh.transfer_status === 'transfer_expired') {
         return Response.json({ error: 'Cannot resume: transfer is disabled or expired' }, { status: 409 });
       }
-      // Confirm event has not ended
-      const eventResults = await base44.asServiceRole.entities.Event.filter({ id: listing.event_id }).catch(() => []);
+      // Confirm event has not ended — fail closed on any lookup/timing issue
+      let eventResults;
+      try {
+        eventResults = await base44.asServiceRole.entities.Event.filter({ id: listing.event_id });
+      } catch (err) {
+        return Response.json({ error: 'Cannot resume: event verification failed' }, { status: 500 });
+      }
       const ev = eventResults[0];
-      if (ev) {
-        const startMs = ev.event_start_utc ? new Date(ev.event_start_utc).getTime() : ev.date ? new Date(ev.date).getTime() : null;
-        if (startMs) {
-          const durationHours = ev.duration_hours || 4;
-          if (Date.now() > startMs + durationHours * 60 * 60 * 1000) {
-            return Response.json({ error: 'Cannot resume: this event has already ended' }, { status: 409 });
-          }
-        }
+      if (!ev) {
+        return Response.json({ error: 'Cannot resume: event not found' }, { status: 409 });
+      }
+      const startMs = ev.event_start_utc ? new Date(ev.event_start_utc).getTime() : ev.date ? new Date(ev.date).getTime() : null;
+      if (!startMs || isNaN(startMs)) {
+        return Response.json({ error: 'Cannot resume: event timing cannot be verified' }, { status: 409 });
+      }
+      const durationHours = ev.duration_hours || 4;
+      if (Date.now() > startMs + durationHours * 60 * 60 * 1000) {
+        return Response.json({ error: 'Cannot resume: this event has already ended' }, { status: 409 });
       }
       listingUpdates.status = 'active';
       listingUpdates.hidden_reason = null;
@@ -118,11 +145,11 @@ Deno.serve(async (req) => {
       resultStatus = 'resumed';
       logType = 'listing_restored';
     } else if (operation === 'cancel') {
-      if (listing.status === 'cancelled') {
+      if (listingFresh.status === 'cancelled') {
         return Response.json({ status: 'already_cancelled', listing_id, idempotent: true });
       }
-      if (listing.status === 'pending_transfer' || listing.status === 'sold') {
-        return Response.json({ error: `Cannot cancel a listing with status: ${listing.status}` }, { status: 409 });
+      if (listingFresh.status === 'pending_transfer' || listingFresh.status === 'sold') {
+        return Response.json({ error: `Cannot cancel a listing with status: ${listingFresh.status}` }, { status: 409 });
       }
       listingUpdates.status = 'cancelled';
       invUpdates = { inventory_status: 'available', inventory_intent: 'undecided', linked_listing_id: null };
@@ -135,18 +162,43 @@ Deno.serve(async (req) => {
       await base44.asServiceRole.entities.Listing.update(listing.id, listingUpdates);
     }
 
-    // SeatInventory reconciliation (when a linked record exists)
-    if (invUpdates && lp.seat_inventory_id) {
+    // ── Re-fetch after writes to verify no race with checkout ──
+    const [lpAfterRows] = await Promise.all([
+      base44.asServiceRole.entities.ListingPrivate.filter({ listing_id }),
+    ]);
+    const lpAfter = lpAfterRows[0];
+
+    // If a checkout reservation appeared during our write, revert and let checkout win
+    if (operation === 'pause' || operation === 'cancel') {
+      const resTokenAfter = lpAfter?.reservation_token;
+      const resExpiryAfter = lpAfter?.reservation_expires_at;
+      if (resTokenAfter && resExpiryAfter && new Date(resExpiryAfter).getTime() > Date.now()) {
+        await base44.asServiceRole.entities.Listing.update(listing.id, { status: 'active', hidden_reason: null }).catch(() => {});
+        return Response.json({ error: 'A checkout reservation was created during your request. Please try again.' }, { status: 409 });
+      }
+    }
+
+    // SeatInventory reconciliation (when a linked record exists via ListingPrivate)
+    if (invUpdates && lpFresh.seat_inventory_id) {
       try {
-        await base44.asServiceRole.entities.SeatInventory.update(lp.seat_inventory_id, invUpdates);
+        await base44.asServiceRole.entities.SeatInventory.update(lpFresh.seat_inventory_id, invUpdates);
       } catch (err) {
-        // For resume, do not leave the Listing active if inventory preparation fails
         if (operation === 'resume') {
           await base44.asServiceRole.entities.Listing.update(listing.id, { status: 'hidden', hidden_reason: 'other' }).catch(() => {});
           return Response.json({ error: 'Failed to update seat inventory. Listing reverted to hidden.' }, { status: 500 });
         }
-        await alertPrivateWriteFailure(base44, { entity: 'SeatInventory', reference_id: lp.seat_inventory_id, reference_type: 'listing', error: err });
+        // Pause/cancel: listing is already non-public, return partial-failure error
+        await alertPrivateWriteFailure(base44, { entity: 'SeatInventory', reference_id: lpFresh.seat_inventory_id, reference_type: 'listing', error: err });
+        return Response.json({ error: 'Listing updated but seat inventory reconciliation failed. Please contact support.' }, { status: 500 });
       }
+    } else if (invUpdates && !lpFresh.seat_inventory_id) {
+      // Expected inventory record is missing — alert and return error
+      await alertPrivateWriteFailure(base44, { entity: 'SeatInventory', reference_id: listing.id, reference_type: 'listing', error: new Error('seat_inventory_id missing from ListingPrivate') });
+      if (operation === 'resume') {
+        await base44.asServiceRole.entities.Listing.update(listing.id, { status: 'hidden', hidden_reason: 'other' }).catch(() => {});
+        return Response.json({ error: 'Seat inventory record missing. Listing reverted to hidden.' }, { status: 500 });
+      }
+      return Response.json({ error: 'Listing updated but seat inventory record is missing. Please contact support.' }, { status: 500 });
     }
 
     // BetaTransferLog — server-derived authenticated identity
@@ -157,13 +209,21 @@ Deno.serve(async (req) => {
         actor_role: 'seller',
         listing_id: listing.id,
         event_id: listing.event_id,
-        before_state: { status: listing.status, hidden_reason: listing.hidden_reason },
-        after_state: { status: listingUpdates.status || listing.status, hidden_reason: listingUpdates.hidden_reason ?? listing.hidden_reason },
+        before_state: { status: listingFresh.status, hidden_reason: listingFresh.hidden_reason ?? null },
+        after_state: {
+          status: listingUpdates.status || listingFresh.status,
+          hidden_reason: 'hidden_reason' in listingUpdates ? listingUpdates.hidden_reason : (listingFresh.hidden_reason ?? null),
+        },
         notes: `Seller ${operation} listing`,
       });
     } catch (_) { /* log failure must never break the flow */ }
 
     return Response.json({ status: resultStatus, listing_id, idempotent: false });
+  }
+
+  // ── Unknown action → 400 before any queries or writes ──
+  if (action !== undefined) {
+    return Response.json({ error: 'Unknown action', code: 'INVALID_INPUT' }, { status: 400 });
   }
 
   const askingPrice = parseFloat(body.asking_price) || 0;
@@ -318,45 +378,56 @@ Deno.serve(async (req) => {
     }
   }
 
-  // ── Create/update SeatInventory for this listing ─────────────────────────
+  // ── Create/update SeatInventory for this listing (awaited, required) ──
   if (!isTest) {
-    base44.asServiceRole.entities.SeatInventory.filter({ owner_email: user.email, event_id: body.event_id })
-      .then(async (allInv) => {
-        const existingInv = allInv.find(inv =>
-          inv.section?.toLowerCase() === body.section?.toLowerCase() &&
-          (!body.row || !inv.row || inv.row?.toLowerCase() === body.row?.toLowerCase()) &&
-          !['cancelled', 'transferred'].includes(inv.inventory_status)
-        );
+    try {
+      const allInv = await base44.asServiceRole.entities.SeatInventory.filter({
+        owner_email: user.email, event_id: body.event_id,
+      });
+      const existingInv = allInv.find(inv =>
+        inv.section?.toLowerCase() === body.section?.toLowerCase() &&
+        (!body.row || !inv.row || inv.row?.toLowerCase() === body.row?.toLowerCase()) &&
+        !['cancelled', 'transferred'].includes(inv.inventory_status)
+      );
 
-        const invData = {
-          event_id: body.event_id,
-          owner_email: user.email,
-          owner_name: user.full_name || user.email,
-          section: body.section,
-          row: body.row || null,
-          seats: body.seats || null,
-          quantity: body.quantity || 1,
-          inventory_status: 'listed_for_sale',
-          inventory_intent: 'sell',
-          source_type: 'listing',
-          ownership_verified: hasScreenshot,
-          ownership_verification_method: hasScreenshot ? 'transfer_capability' : null,
-          ownership_verified_at: hasScreenshot ? now : null,
-          transfer_verified: true,
-          transfer_status: 'transfer_confirmed',
-          last_transfer_verification: now,
-          linked_listing_id: listing.id,
-        };
+      const invData = {
+        event_id: body.event_id,
+        owner_email: user.email,
+        owner_name: user.full_name || user.email,
+        section: body.section,
+        row: body.row || null,
+        seats: body.seats || null,
+        quantity: body.quantity || 1,
+        inventory_status: 'listed_for_sale',
+        inventory_intent: 'sell',
+        source_type: 'listing',
+        ownership_verified: hasScreenshot,
+        ownership_verification_method: hasScreenshot ? 'transfer_capability' : null,
+        ownership_verified_at: hasScreenshot ? now : null,
+        transfer_verified: true,
+        transfer_status: 'transfer_confirmed',
+        last_transfer_verification: now,
+        linked_listing_id: listing.id,
+      };
 
-        if (existingInv) {
-          await base44.asServiceRole.entities.SeatInventory.update(existingInv.id, invData);
-          // Also backlink seat_inventory_id onto the listing
-          await base44.asServiceRole.entities.Listing.update(listing.id, { seat_inventory_id: existingInv.id });
-        } else {
-          const inv = await base44.asServiceRole.entities.SeatInventory.create(invData);
-          await base44.asServiceRole.entities.Listing.update(listing.id, { seat_inventory_id: inv.id });
-        }
-      }).catch(err => console.error('[submitListing] SeatInventory error:', err?.message));
+      let seatInventoryId;
+      if (existingInv) {
+        await base44.asServiceRole.entities.SeatInventory.update(existingInv.id, invData);
+        seatInventoryId = existingInv.id;
+      } else {
+        const inv = await base44.asServiceRole.entities.SeatInventory.create(invData);
+        seatInventoryId = inv.id;
+      }
+
+      // Write seat_inventory_id to BOTH Listing and ListingPrivate (required)
+      await base44.asServiceRole.entities.Listing.update(listing.id, { seat_inventory_id: seatInventoryId });
+      await upsertListingPrivate(base44, listing.id, { seat_inventory_id: seatInventoryId });
+    } catch (err) {
+      // SeatInventory failure — cancel listing, alert, return error
+      await base44.asServiceRole.entities.Listing.update(listing.id, { status: 'cancelled' }).catch(() => {});
+      await alertPrivateWriteFailure(base44, { entity: 'SeatInventory', reference_id: listing.id, reference_type: 'listing', error: err });
+      return Response.json({ error: 'Failed to create seat inventory. Listing cancelled.' }, { status: 500 });
+    }
   }
 
   // Fire-and-forget: TransferVerificationLog

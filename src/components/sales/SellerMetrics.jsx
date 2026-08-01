@@ -1,5 +1,5 @@
 import { Zap, Clock, CheckCircle2, XCircle } from 'lucide-react';
-import { differenceInMinutes, differenceInHours } from 'date-fns';
+import { differenceInMinutes } from 'date-fns';
 
 function formatDuration(minutes) {
   if (minutes == null) return '—';
