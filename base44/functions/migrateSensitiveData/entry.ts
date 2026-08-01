@@ -159,11 +159,11 @@ Deno.serve(async (req) => {
           try {
             await base44.asServiceRole.entities.PurchasePrivate.create({
               purchase_id: p.id, listing_id: p.listing_id, event_id: p.event_id,
-              buyer_email: p.buyer_email, seller_email: p.seller_email,
+              buyer_email: p.buyer_email, buyer_name: p.buyer_name, seller_email: p.seller_email,
               payment_intent_id: p.payment_intent_id, reservation_token: p.reservation_token,
               buyer_phone: p.buyer_phone, authorization_confirmed_at: p.authorization_confirmed_at,
               seller_notified_at: p.seller_notified_at, seller_push_status: p.seller_push_status,
-              seller_email_status: p.seller_email_status, payment_capture_failed: p.payment_capture_failed,
+              seller_email_status: p.seller_email_status, payment_captured: p.payment_captured, payment_capture_failed: p.payment_capture_failed,
               transfer_proof_url: p.transfer_proof_url, dispute_reason: p.dispute_reason,
               buyer_lat: p.buyer_lat, buyer_lng: p.buyer_lng, location_verified: p.location_verified,
               reminder_flags: p.reminder_flags, auto_review_flagged: p.auto_review_flagged,

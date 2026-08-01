@@ -14,18 +14,30 @@
  *
  * Integrity detection:
  *   - Orphan PurchasePrivate (PP exists, Purchase missing) → omit + alert
- *   - Missing PurchasePrivate (Purchase exists, PP missing) → omit + alert
- *   Legacy buyer_email/seller_email queries are used ONLY for missing-sidecar
- *   detection — never to authorize, set viewer flags, cause a return, or
- *   supply response data.
+ *   - Missing PurchasePrivate (Purchase exists, no PP globally) → omit + alert
+ *   - Divergent identity (Purchase legacy user A, PP authoritative user B)
+ *     → omit silently: no alert, no authorization, no identity exposure
  *
- * Never exposed to any role: emails, names, phone, location,
- * payment_intent_id, reservation_token, proof URLs, storage URIs,
- * ProofAsset IDs, dispute_reason, transfer notes, AI/fraud/risk fields,
- * internal flags, notification delivery fields.
+ * Input validation prevents MongoDB-operator objects from entering queries.
+ *
+ * Never exposed: emails, names, phone, location, payment_intent_id,
+ * reservation_token, proof URLs, storage URIs, ProofAsset IDs,
+ * dispute_reason, transfer notes, AI/fraud/risk fields, internal flags.
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import { getPurchasePrivate } from '../../shared/privateData.ts';
+
+const MAX_ID_LENGTH = 200;
+
+// ── Input validation ────────────────────────────────────────────────────────
+// Prevents MongoDB-operator objects and other non-string values from entering
+// entity queries. All ID fields must be plain nonempty strings ≤ 200 chars.
+function validateId(value) {
+  if (typeof value !== 'string') return false;
+  if (value.length === 0 || value.length > MAX_ID_LENGTH) return false;
+  if (value.trim().length === 0) return false;
+  return true;
+}
 
 // ── Shared safe serializer ──────────────────────────────────────────────────
 function serializePurchase(p, pp, viewerEmail) {
@@ -35,7 +47,6 @@ function serializePurchase(p, pp, viewerEmail) {
   const isBuyer = authoritativeBuyerEmail === viewerEmail;
   const isSeller = authoritativeSellerEmail === viewerEmail;
 
-  // ── Common allowlist (all roles) — normalized for stable shape ──
   const base = {
     id: p.id,
     listing_id: p.listing_id ?? null,
@@ -53,8 +64,6 @@ function serializePurchase(p, pp, viewerEmail) {
     viewer_is_seller: isSeller,
   };
 
-  // ── Seller-only allowlist ──
-  // seller_payout from Purchase; payment flags from PurchasePrivate
   if (isSeller) {
     base.seller_payout = p.seller_payout ?? null;
     base.payment_captured = !!pp?.payment_captured;
@@ -65,8 +74,9 @@ function serializePurchase(p, pp, viewerEmail) {
 }
 
 // ── Idempotent integrity alert ────────────────────────────────────────────────
-// Searches for an existing unresolved alert before creating. Calling
-// list_mine twice against the same failure leaves exactly one alert.
+// Searches for an existing unresolved alert before creating. If the lookup
+// itself fails, no create is attempted (avoids duplicates). The outer catch
+// ensures alert failure never throws to the caller.
 async function alertIntegrityFailure(base44, title, purchase_id, description) {
   const sr = base44.asServiceRole;
   try {
@@ -74,10 +84,10 @@ async function alertIntegrityFailure(base44, title, purchase_id, description) {
       title,
       reference_type: 'purchase',
       reference_id: purchase_id,
-    }).catch(() => []);
+    });
 
     const unresolved = existing.filter(a => !a.resolved);
-    if (unresolved.length > 0) return; // Idempotent — don't create duplicate
+    if (unresolved.length > 0) return;
 
     await sr.entities.AdminAlert.create({
       alert_type: 'admin_action_required',
@@ -104,6 +114,20 @@ async function fetchPurchasesByIds(sr, ids) {
   return results;
 }
 
+// ── Fetch PurchasePrivate by purchase_id using $in chunks (one query per ≤500) ─
+async function fetchPurchasePrivatesByPurchaseIds(sr, ids) {
+  const CHUNK_SIZE = 500;
+  const results = [];
+  for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
+    const chunk = ids.slice(i, i + CHUNK_SIZE);
+    const chunkResults = await sr.entities.PurchasePrivate.filter({
+      purchase_id: { $in: chunk }
+    }, 'id', CHUNK_SIZE);
+    results.push(...chunkResults);
+  }
+  return results;
+}
+
 // ── Stable sort: newest-first by created_date, then ID ───────────────────────
 function sortByCreatedThenId(a, b) {
   const dateA = new Date(a.created_date || 0).getTime();
@@ -123,16 +147,30 @@ Deno.serve(async (req) => {
   const sr = base44.asServiceRole;
   const viewerEmail = user.email;
 
+  // ── Input validation: action must be a string when supplied ──
+  if (action !== undefined && typeof action !== 'string') {
+    return Response.json({ error: 'action must be a string', code: 'INVALID_INPUT' }, { status: 400 });
+  }
+
   // ── List action: list_mine ──────────────────────────────────────────────────
   if (action === 'list_mine') {
-    const perspective = body?.perspective || 'buyer';
-    if (!['buyer', 'seller', 'both'].includes(perspective)) {
-      return Response.json({ error: 'Invalid perspective' }, { status: 400 });
+    // ── Input validation: perspective ──
+    const perspective = body?.perspective;
+    if (perspective !== undefined) {
+      if (typeof perspective !== 'string' || !['buyer', 'seller', 'both'].includes(perspective)) {
+        return Response.json({ error: 'perspective must be buyer, seller, or both', code: 'INVALID_INPUT' }, { status: 400 });
+      }
     }
-    const event_id = body?.event_id;
+    const effectivePerspective = perspective || 'buyer';
 
-    const wantsBuyer = perspective === 'buyer' || perspective === 'both';
-    const wantsSeller = perspective === 'seller' || perspective === 'both';
+    // ── Input validation: event_id ──
+    const event_id = body?.event_id;
+    if (event_id !== undefined && !validateId(event_id)) {
+      return Response.json({ error: 'event_id must be a nonempty string', code: 'INVALID_INPUT' }, { status: 400 });
+    }
+
+    const wantsBuyer = effectivePerspective === 'buyer' || effectivePerspective === 'both';
+    const wantsSeller = effectivePerspective === 'seller' || effectivePerspective === 'both';
 
     try {
       // ── Step 1: Fetch PurchasePrivate rows (authoritative, NO catch) ──
@@ -168,29 +206,44 @@ Deno.serve(async (req) => {
       const buyerPurchaseMap = new Map(buyerPurchases.map(p => [p.id, p]));
       const sellerPurchaseMap = new Map(sellerPurchases.map(p => [p.id, p]));
 
-      // ── Step 4: Detect missing sidecars (bounded legacy query — detection only) ──
-      // Legacy identity is used ONLY to find purchases that should have a PP but
-      // don't. It never authorizes access, sets viewer flags, causes a return,
-      // or supplies response data.
+      // ── Step 4: Detect genuinely missing sidecars ──
+      // Legacy Purchase queries find purchases by legacy buyer_email/seller_email.
+      // A purchase absent from the caller's role-specific PP map might:
+      //   (a) have no PurchasePrivate at all (genuine missing sidecar), OR
+      //   (b) have a PurchasePrivate under another authoritative identity.
+      // Only (a) warrants an alert. We verify via a global PurchasePrivate
+      // lookup by purchase_id. Divergent-identity purchases are silently
+      // omitted — no alert, no authorization, no identity exposure.
+      // No catch on any query here — failures propagate to the outer handler.
+      const candidateMissingIds = new Set();
+
       if (wantsBuyer) {
         const legacyQuery = { buyer_email: viewerEmail };
         if (event_id) legacyQuery.event_id = event_id;
-        const legacyPurchases = await sr.entities.Purchase.filter(legacyQuery, '-created_date', 500).catch(() => []);
+        const legacyPurchases = await sr.entities.Purchase.filter(legacyQuery, '-created_date', 500);
         for (const p of legacyPurchases) {
-          if (!buyerPPMap.has(p.id)) {
-            await alertIntegrityFailure(base44, 'PurchasePrivate sidecar missing', p.id,
-              `Purchase ${p.id} exists but has no PurchasePrivate sidecar. Detected via legacy buyer_email query.`);
-          }
+          if (!buyerPPMap.has(p.id)) candidateMissingIds.add(p.id);
         }
       }
       if (wantsSeller) {
         const legacyQuery = { seller_email: viewerEmail };
         if (event_id) legacyQuery.event_id = event_id;
-        const legacyPurchases = await sr.entities.Purchase.filter(legacyQuery, '-created_date', 500).catch(() => []);
+        const legacyPurchases = await sr.entities.Purchase.filter(legacyQuery, '-created_date', 500);
         for (const p of legacyPurchases) {
-          if (!sellerPPMap.has(p.id)) {
-            await alertIntegrityFailure(base44, 'PurchasePrivate sidecar missing', p.id,
-              `Purchase ${p.id} exists but has no PurchasePrivate sidecar. Detected via legacy seller_email query.`);
+          if (!sellerPPMap.has(p.id)) candidateMissingIds.add(p.id);
+        }
+      }
+
+      // Batch-verify which candidates genuinely have no PurchasePrivate globally
+      if (candidateMissingIds.size > 0) {
+        const candidateIds = [...candidateMissingIds];
+        const existingPPs = await fetchPurchasePrivatesByPurchaseIds(sr, candidateIds);
+        const globalPPIds = new Set(existingPPs.map(pp => pp.purchase_id));
+
+        for (const pid of candidateIds) {
+          if (!globalPPIds.has(pid)) {
+            await alertIntegrityFailure(base44, 'PurchasePrivate sidecar missing', pid,
+              `Purchase ${pid} exists but has no PurchasePrivate sidecar.`);
           }
         }
       }
@@ -225,8 +278,8 @@ Deno.serve(async (req) => {
       const buyerFinal = buyerResults.slice(0, 500);
       const sellerFinal = sellerResults.slice(0, 500);
 
-      if (perspective === 'buyer') return Response.json({ purchases: buyerFinal });
-      if (perspective === 'seller') return Response.json({ sales: sellerFinal });
+      if (effectivePerspective === 'buyer') return Response.json({ purchases: buyerFinal });
+      if (effectivePerspective === 'seller') return Response.json({ sales: sellerFinal });
       return Response.json({ purchases: buyerFinal, sales: sellerFinal });
     } catch (err) {
       console.error('[getPurchaseParticipantView] list_mine failed:', err?.message || err);
@@ -244,8 +297,8 @@ Deno.serve(async (req) => {
 
   // ── Single record ──────────────────────────────────────────────────────────
   const purchase_id = body?.purchase_id;
-  if (!purchase_id) {
-    return Response.json({ error: 'purchase_id required' }, { status: 400 });
+  if (!validateId(purchase_id)) {
+    return Response.json({ error: 'purchase_id must be a nonempty string', code: 'INVALID_INPUT' }, { status: 400 });
   }
 
   const rows = await sr.entities.Purchase.filter({ id: purchase_id });
@@ -254,7 +307,6 @@ Deno.serve(async (req) => {
 
   const pp = await getPurchasePrivate(base44, p.id);
 
-  // ── PurchasePrivate integrity check ──
   if (!pp) {
     if (user.role === 'admin') {
       console.error(`[getPurchaseParticipantView] integrity failure: PurchasePrivate missing for purchase ${p.id} (admin view)`);
