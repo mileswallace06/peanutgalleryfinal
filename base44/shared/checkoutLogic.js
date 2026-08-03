@@ -33,6 +33,26 @@ export function verifyReservation(listing, lp, token, buyerEmail) {
   return true;
 }
 
+// ── Cleanup reservation verification (allows expired) ─────────────────────
+// Same as verifyReservation but allows expired expirations.
+// Used by cleanup to release abandoned checkouts where the reservation
+// has naturally expired but all other conditions still hold.
+// Requires matching expirations (same timestamp) but both can be past.
+export function verifyCleanupReservation(listing, lp, token, buyerEmail) {
+  if (!listing || !lp) return false;
+  if (!token || !buyerEmail) return false;
+  if (listing.status !== 'pending_transfer') return false;
+  if (listing.reservation_token !== token) return false;
+  if (listing.reserved_by_email !== buyerEmail) return false;
+  if (lp.reservation_token !== token) return false;
+  if (lp.reserved_by_email !== buyerEmail) return false;
+  const lExpiry = listing.reservation_expires_at ? new Date(listing.reservation_expires_at).getTime() : 0;
+  const lpExpiry = lp.reservation_expires_at ? new Date(lp.reservation_expires_at).getTime() : 0;
+  if (lExpiry === 0 || lpExpiry === 0) return false;
+  if (lExpiry !== lpExpiry) return false;
+  return true;
+}
+
 // ── Derive Stripe idempotency key ──────────────────────────────────────────
 // Key = checkout_<listing_id>_<listing_revision>
 // listing_revision = listing.updated_date captured at fetch time (pre-reservation).
@@ -123,9 +143,11 @@ export function verifyCleanupOwnership(purchase, pp, listing, lp, pi) {
   if (pi.metadata.listing_id !== listing.id) return false;
   if (pi.metadata.buyer_email !== pp.buyer_email) return false;
   if (pi.metadata.reservation_token !== pp.reservation_token) return false;
-  if (pi.metadata.purchase_id && pi.metadata.purchase_id !== purchase.id) return false;
-  // 3. Listing + LP must match PurchasePrivate (full 6-condition verifyReservation)
-  if (!verifyReservation(listing, lp, pp.reservation_token, pp.buyer_email)) return false;
+  // purchase_id is REQUIRED (not optional) for cleanup validation
+  if (!pi.metadata.purchase_id) return false;
+  if (pi.metadata.purchase_id !== purchase.id) return false;
+  // 3. Listing + LP must match PurchasePrivate (cleanup allows expired reservations)
+  if (!verifyCleanupReservation(listing, lp, pp.reservation_token, pp.buyer_email)) return false;
   return true;
 }
 

@@ -65,31 +65,24 @@ export async function runCreateCheckout(deps, params) {
   const validatedBuyerPhone = (typeof buyer_phone === 'string' && buyer_phone.length <= 50) ? buyer_phone : null;
   const buyerEmail = user.email;
 
-  // 4. Rate limit — fix: freshRequester null handling + await rate-limit write
+  // 4. Rate limit — authoritative source: UserSecurityProfile (7C.6 fix #8)
   const [freshRequester] = await entities.User.filter({ email: buyerEmail });
   if (!freshRequester) {
     return { status: 401, body: { error: 'Authenticated user record not found', code: 'USER_NOT_FOUND' } };
   }
-  if (freshRequester.last_pi_attempt_at) {
-    const msSinceLast = now() - new Date(freshRequester.last_pi_attempt_at).getTime();
+  const buyerSec = await getUserSecurityProfile(deps, { user_id: freshRequester.id, user_email: buyerEmail });
+  if (buyerSec?.last_pi_attempt_at) {
+    const msSinceLast = now() - new Date(buyerSec.last_pi_attempt_at).getTime();
     if (msSinceLast < PI_COOLDOWN_MS) {
       const waitSecs = Math.ceil((PI_COOLDOWN_MS - msSinceLast) / 1000);
       return { status: 429, body: { error: `Please wait ${waitSecs}s before trying again.` } };
     }
   }
-  // Await the rate-limit write (no .catch(() => {}))
-  try {
-    await entities.User.update(freshRequester.id, {
-      last_pi_attempt_at: new Date(now()).toISOString(),
-      pi_attempt_count: (freshRequester.pi_attempt_count || 0) + 1,
-    });
-  } catch (err) {
-    console.error('[createCheckout] Rate-limit write failed:', err?.message);
-  }
+  // Write rate-limit to UserSecurityProfile ONLY — if write fails, fail checkout (7C.6 fix #8)
   try {
     await upsertUserSecurityProfile(deps, { user_id: freshRequester.id, user_email: buyerEmail }, {
       last_pi_attempt_at: new Date(now()).toISOString(),
-      pi_attempt_count: (freshRequester.pi_attempt_count || 0) + 1,
+      pi_attempt_count: (buyerSec?.pi_attempt_count || 0) + 1,
     });
   } catch (err) {
     await alertPrivateWriteFailure(deps, { entity: 'UserSecurityProfile', reference_id: freshRequester.id, reference_type: 'user', error: err });
@@ -163,11 +156,20 @@ export async function runCreateCheckout(deps, params) {
         return { status: 500, body: { error: 'Checkout verification unavailable. Please try again.' } };
       }
 
-      // Require PI metadata match (buyer_email, listing_id, reservation_token, purchase_id)
-      if (existingPI.metadata?.buyer_email !== buyerEmail) continue;
-      if (existingPI.metadata?.listing_id !== listing.id) continue;
-      if (existingPI.metadata?.reservation_token !== pp.reservation_token) continue;
-      if (existingPI.metadata?.purchase_id && existingPI.metadata.purchase_id !== pur.id) continue;
+      // Require PI metadata match — fail-closed on mismatch (7C.6 fix #4)
+      // Never permit two live PaymentIntents for one listing/buyer
+      const metadataMatches = existingPI.metadata?.buyer_email === buyerEmail &&
+        existingPI.metadata?.listing_id === listing.id &&
+        existingPI.metadata?.reservation_token === pp.reservation_token &&
+        (!existingPI.metadata?.purchase_id || existingPI.metadata.purchase_id === pur.id);
+      if (!metadataMatches) {
+        // Cancel old PI (if retryable) or quarantine — never continue to new checkout
+        if (isRetryablePIStatus(existingPI.status)) {
+          try { await stripe.paymentIntents.cancel(pp.payment_intent_id); } catch (_) { /* best effort */ }
+        }
+        await quarantineListing(deps, listing.id, `PI metadata mismatch — fail-closed. Metadata: ${JSON.stringify(existingPI.metadata)}`, pur.id, pp.payment_intent_id);
+        return { status: 409, body: { error: 'Checkout verification failed. Please contact support.' } };
+      }
 
       // Use verifyReservation (6-condition with current/equal expirations)
       // Do not return client_secret from stale, expired, hidden, or quarantined state
