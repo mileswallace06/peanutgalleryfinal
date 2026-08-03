@@ -8,7 +8,7 @@
     "build": "vite build",
     "test": "node tests/checkout-concurrency.test.mjs",
     "lint": "eslint . --quiet",
-    "lint:backend": "eslint base44/functions/createCheckout/entry.ts base44/functions/submitListing/entry.ts base44/functions/cleanupAbandonedCheckouts/entry.ts base44/shared/privateData.ts base44/shared/checkoutLogic.js",
+    "lint:backend": "eslint base44/functions/createCheckout/entry.ts base44/functions/submitListing/entry.ts base44/functions/cleanupAbandonedCheckouts/entry.ts base44/shared/privateData.ts base44/shared/checkoutLogic.js base44/shared/orchestratorHelpers.js base44/shared/checkoutOrchestrator.js base44/shared/cleanupOrchestrator.js",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc -p ./jsconfig.json",
     "preview": "vite preview"

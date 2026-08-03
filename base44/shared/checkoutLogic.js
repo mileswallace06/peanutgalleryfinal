@@ -105,3 +105,38 @@ export function isQuarantined(listing, lp) {
   }
   return false;
 }
+
+// ── Check if PI status allows retry (return existing client_secret) ────────
+export function isRetryablePIStatus(piStatus) {
+  return piStatus === 'requires_payment_method' || piStatus === 'requires_action';
+}
+
+// ── Verify cleanup ownership: Purchase ↔ PP ↔ Listing ↔ LP ↔ PI ───────────
+// All conditions must hold. If ANY mismatch, the listing must be quarantined
+// (not released), because Base44 lacks atomic conditional updates.
+export function verifyCleanupOwnership(purchase, pp, listing, lp, pi) {
+  if (!purchase || !pp || !listing || !lp || !pi) return false;
+  // 1. Purchase ↔ PurchasePrivate listing_id match
+  if (purchase.listing_id !== pp.listing_id) return false;
+  // 2. PI metadata must exist and match
+  if (!pi.metadata) return false;
+  if (pi.metadata.listing_id !== listing.id) return false;
+  if (pi.metadata.buyer_email !== pp.buyer_email) return false;
+  if (pi.metadata.reservation_token !== pp.reservation_token) return false;
+  if (pi.metadata.purchase_id && pi.metadata.purchase_id !== purchase.id) return false;
+  // 3. Listing + LP must match PurchasePrivate (full 6-condition verifyReservation)
+  if (!verifyReservation(listing, lp, pp.reservation_token, pp.buyer_email)) return false;
+  return true;
+}
+
+// ── Check if a quarantined listing can be recovered ──────────────────────
+// Only recover if: Listing is hidden+checkout_quarantine, LP is quarantined,
+// PI is canceled, and no pending purchases exist.
+export function canRecoverQuarantine(listing, lp, pi, pendingPurchases) {
+  if (!listing || !lp) return false;
+  if (listing.status !== 'hidden' || listing.hidden_reason !== 'checkout_quarantine') return false;
+  if (!lp.checkout_quarantined) return false;
+  if (!pi || pi.status !== 'canceled') return false;
+  if (pendingPurchases && pendingPurchases.length > 0) return false;
+  return true;
+}
