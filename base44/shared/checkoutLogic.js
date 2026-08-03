@@ -162,3 +162,58 @@ export function canRecoverQuarantine(listing, lp, pi, pendingPurchases) {
   if (pendingPurchases && pendingPurchases.length > 0) return false;
   return true;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 7C.7 — Durable quarantine snapshot, exact metadata, seller intent
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ── Quarantine drain period — recovery must wait this long after quarantine ──
+export const QUARANTINE_DRAIN_MS = 2 * 60 * 1000; // 2 minutes
+
+// ── Verify exact PI metadata (7C.7 fix #2) ──────────────────────────────────
+// All four metadata fields must exist and match exactly.
+// Purchase.payment_intent_id and PurchasePrivate.payment_intent_id must
+// agree with the retrieved PI's id.
+// Missing purchase_id is a mismatch, never optional.
+export function verifyExactPIMetadata(purchase, pp, pi) {
+  if (!purchase || !pp || !pi) return false;
+  if (!pi.metadata) return false;
+  if (!pi.metadata.purchase_id) return false;
+  if (pi.metadata.purchase_id !== purchase.id) return false;
+  if (pi.metadata.listing_id !== purchase.listing_id) return false;
+  if (pi.metadata.buyer_email !== pp.buyer_email) return false;
+  if (pi.metadata.reservation_token !== pp.reservation_token) return false;
+  if (purchase.payment_intent_id !== pi.id) return false;
+  if (pp.payment_intent_id !== pi.id) return false;
+  return true;
+}
+
+// ── Check for durable seller cancel intent (7C.7 fix #5) ────────────────────
+export function hasSellerCancelIntent(lp) {
+  if (!lp) return false;
+  return !!lp.seller_cancel_requested_at;
+}
+
+// ── Check for durable seller pause intent (7C.7 fix #5) ─────────────────────
+export function hasSellerPauseIntent(lp) {
+  if (!lp) return false;
+  return !!lp.seller_pause_requested_at;
+}
+
+// ── Match current LP state against durable quarantine snapshot (7C.7 fix #4)
+// Recovery requires current reservation_token, reserved_by_email, and
+// reservation_expires_at to exactly match the values captured at quarantine
+// time. If any differ (e.g. a new token appeared), leave quarantined.
+export function matchesQuarantineSnapshot(lp) {
+  if (!lp) return false;
+  if (lp.reservation_token !== (lp.quarantined_reservation_token ?? null)) return false;
+  if (lp.reserved_by_email !== (lp.quarantined_buyer ?? null)) return false;
+  if (lp.reservation_expires_at !== (lp.quarantined_expiration ?? null)) return false;
+  return true;
+}
+
+// ── Check if drain period has passed (7C.7 fix #4) ───────────────────────────
+export function drainPeriodPassed(lp, currentTime) {
+  if (!lp || !lp.recovery_not_before) return true;
+  return currentTime >= new Date(lp.recovery_not_before).getTime();
+}

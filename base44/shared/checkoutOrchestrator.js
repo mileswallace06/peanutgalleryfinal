@@ -23,6 +23,7 @@ import {
   isStripeIdempotencyError,
   isQuarantined,
   isRetryablePIStatus,
+  verifyExactPIMetadata,
 } from './checkoutLogic.js';
 import {
   getListingPrivate,
@@ -43,6 +44,20 @@ const RESERVATION_TTL_MS = 10 * 60 * 1000;
 
 function calcPlatformFee(subtotal) {
   return Math.max(1.00, Math.round(subtotal * 0.05 * 100) / 100);
+}
+
+// Critical alert that always includes the PI ID (7C.7 fix #1)
+async function criticalAlertWithPI(deps, listing_id, title, description, piId) {
+  try {
+    await deps.entities.AdminAlert.create({
+      alert_type: 'admin_action_required',
+      priority: 'critical',
+      title,
+      description: `${description} PI ID: ${piId || 'N/A'}.`,
+      reference_type: 'listing',
+      reference_id: listing_id,
+    });
+  } catch (_) { /* alert failure must never throw */ }
 }
 
 export async function runCreateCheckout(deps, params) {
@@ -120,7 +135,10 @@ export async function runCreateCheckout(deps, params) {
   const amountCents = Math.round(buyerTotal * 100);
   const applicationFeeCents = Math.round(platformFee * 100);
 
-  // 7. Retry check — fix: reject quarantined, verifyReservation with expiration, PI metadata match
+  // 7. Retry check — 7C.7: fail-closed, no best-effort cancel-and-continue
+  // Never continue into a new checkout unless cancellation is positively verified.
+  // On cancel failure or unverifiable status: quarantine both sidecars, create a
+  // critical alert containing the PI ID, return 409/500, and create no new PI or Purchase.
   let existingPPs;
   try {
     existingPPs = await entities.PurchasePrivate.filter({ listing_id: listing.id, buyer_email: buyerEmail });
@@ -148,49 +166,76 @@ export async function runCreateCheckout(deps, params) {
         return { status: 409, body: { error: 'This listing is under review. Please try another listing.' } };
       }
 
-      // Retrieve PI
+      // Retrieve PI — failure → quarantine + critical alert + 409 (7C.7 fix #1)
       let existingPI;
       try {
         existingPI = await stripe.paymentIntents.retrieve(pp.payment_intent_id);
       } catch (_) {
-        return { status: 500, body: { error: 'Checkout verification unavailable. Please try again.' } };
+        await quarantineListing(deps, listing.id, `PI retrieval failed during retry. PI ID: ${pp.payment_intent_id}`, pur.id, pp.payment_intent_id);
+        await criticalAlertWithPI(deps, listing.id, `PI RETRIEVAL FAILED during retry for ${listing.id}`, `Manual resolution required.`, pp.payment_intent_id);
+        return { status: 409, body: { error: 'Checkout verification unavailable. Please contact support.' } };
       }
 
-      // Require PI metadata match — fail-closed on mismatch (7C.6 fix #4)
-      // Never permit two live PaymentIntents for one listing/buyer
-      const metadataMatches = existingPI.metadata?.buyer_email === buyerEmail &&
-        existingPI.metadata?.listing_id === listing.id &&
-        existingPI.metadata?.reservation_token === pp.reservation_token &&
-        (!existingPI.metadata?.purchase_id || existingPI.metadata.purchase_id === pur.id);
-      if (!metadataMatches) {
-        // Cancel old PI (if retryable) or quarantine — never continue to new checkout
-        if (isRetryablePIStatus(existingPI.status)) {
-          try { await stripe.paymentIntents.cancel(pp.payment_intent_id); } catch (_) { /* best effort */ }
-        }
+      // Require EXACT PI metadata match (7C.7 fix #2)
+      // Missing purchase_id is a mismatch, never optional.
+      // PI ID must agree across Purchase, PurchasePrivate, and Stripe.
+      if (!verifyExactPIMetadata(pur, pp, existingPI)) {
         await quarantineListing(deps, listing.id, `PI metadata mismatch — fail-closed. Metadata: ${JSON.stringify(existingPI.metadata)}`, pur.id, pp.payment_intent_id);
+        await criticalAlertWithPI(deps, listing.id, `PI METADATA MISMATCH for ${listing.id}`, `Metadata: ${JSON.stringify(existingPI.metadata)}. Manual resolution required.`, pp.payment_intent_id);
         return { status: 409, body: { error: 'Checkout verification failed. Please contact support.' } };
       }
 
-      // Use verifyReservation (6-condition with current/equal expirations)
-      // Do not return client_secret from stale, expired, hidden, or quarantined state
-      if (!verifyReservation(listing, listingPrivate, pp.reservation_token, buyerEmail)) {
-        // Listing reservation doesn't match — cancel old PI to prevent orphan, then proceed to new checkout
-        if (isRetryablePIStatus(existingPI.status)) {
-          try { await stripe.paymentIntents.cancel(pp.payment_intent_id); } catch (_) { /* best effort */ }
-          try { await entities.Purchase.update(pur.id, { transfer_status: 'expired' }); } catch (_) { /* best effort */ }
+      // Check if reservation is still valid (6-condition)
+      if (verifyReservation(listing, listingPrivate, pp.reservation_token, buyerEmail)) {
+        // Reservation is valid — classify retry outcome
+        const outcome = classifyRetryOutcome(existingPI.status, pur.transfer_status);
+        if (outcome === 'retry') {
+          return { status: 200, body: { purchase_id: pur.id, clientSecret: existingPI.client_secret, subtotal, platformFee, buyerTotal, sellerPayout } };
         }
-        continue; // Proceed to new checkout flow
+        if (outcome === 'blocked') {
+          return { status: 409, body: { error: 'A checkout for this listing is already in progress. Please wait for it to complete or expire.' } };
+        }
+        // 'new_flow' shouldn't happen for pending purchase — fall through to fail-closed
       }
 
-      // All match — classify retry outcome
-      const outcome = classifyRetryOutcome(existingPI.status, pur.transfer_status);
-      if (outcome === 'retry') {
-        return { status: 200, body: { purchase_id: pur.id, clientSecret: existingPI.client_secret, subtotal, platformFee, buyerTotal, sellerPayout } };
+      // Reservation is invalid/expired — compensate old attempt (7C.7 fix #1)
+      // NEVER continue to new checkout. NEVER best-effort cancel-and-continue.
+      if (isRetryablePIStatus(existingPI.status)) {
+        // Try to cancel old PI and positively verify canceled
+        let cancelVerified = false;
+        let cancelError = null;
+        try {
+          const canceled = await stripe.paymentIntents.cancel(pp.payment_intent_id);
+          cancelVerified = canceled.status === 'canceled';
+        } catch (err) {
+          cancelError = err;
+          try {
+            const retrieved = await stripe.paymentIntents.retrieve(pp.payment_intent_id);
+            cancelVerified = retrieved.status === 'canceled';
+          } catch (__) { cancelVerified = false; }
+        }
+
+        if (!cancelVerified) {
+          // Cancel failed or unverifiable — quarantine + critical alert with PI ID + 500
+          await quarantineListing(deps, listing.id, `PI cancel failed during stale retry. PI ID: ${pp.payment_intent_id}. Error: ${cancelError?.message || 'unknown'}`, pur.id, pp.payment_intent_id);
+          await criticalAlertWithPI(deps, listing.id, `PI CANCEL FAILED for ${listing.id}`, `Cancel error: ${cancelError?.message || 'unknown'}. Manual cancellation required.`, pp.payment_intent_id);
+          return { status: 500, body: { error: 'Checkout compensation failed. Please contact support.' } };
+        }
+
+        // Cancel succeeded — quarantine with durable snapshot + 409
+        // Let cleanup recover it later (7C.7 fix #1: prefer 409 after successful compensation)
+        await quarantineListing(deps, listing.id, `Stale retry compensated — PI canceled. PI ID: ${pp.payment_intent_id}`, pur.id, pp.payment_intent_id);
+        return { status: 409, body: { error: 'Your previous checkout attempt has expired. Please try again.' } };
+      } else if (existingPI.status === 'canceled') {
+        // PI already canceled — quarantine with durable snapshot + 409
+        await quarantineListing(deps, listing.id, `Stale retry — PI already canceled. PI ID: ${pp.payment_intent_id}`, pur.id, pp.payment_intent_id);
+        return { status: 409, body: { error: 'Your previous checkout attempt has expired. Please try again.' } };
+      } else {
+        // PI is authorized (requires_capture/succeeded/processing) or unknown —
+        // Don't cancel (buyer may still complete). Quarantine + 409.
+        await quarantineListing(deps, listing.id, `Stale retry — PI in state: ${existingPI.status}. PI ID: ${pp.payment_intent_id}`, pur.id, pp.payment_intent_id);
+        return { status: 409, body: { error: 'A checkout for this listing is already in progress.' } };
       }
-      if (outcome === 'blocked') {
-        return { status: 409, body: { error: 'A checkout for this listing is already in progress. Please wait for it to complete or expire.' } };
-      }
-      // 'new_flow' → continue to new checkout
     }
   }
 

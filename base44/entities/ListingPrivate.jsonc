@@ -169,6 +169,38 @@
       "type": "string",
       "description": "Stripe PaymentIntent ID that triggered the quarantine."
     },
+    "quarantined_reservation_token": {
+      "type": "string",
+      "description": "Durable snapshot of reservation_token at quarantine time. Recovery requires exact match against current LP value."
+    },
+    "quarantined_buyer": {
+      "type": "string",
+      "description": "Durable snapshot of reserved_by_email at quarantine time."
+    },
+    "quarantined_expiration": {
+      "type": "string",
+      "description": "Durable snapshot of reservation_expires_at at quarantine time."
+    },
+    "quarantined_purchase_id": {
+      "type": "string",
+      "description": "Durable snapshot of purchase_id at quarantine time."
+    },
+    "quarantine_generation": {
+      "type": "number",
+      "description": "Incremented each time quarantine is applied. Used for optimistic concurrency in recovery."
+    },
+    "recovery_not_before": {
+      "type": "string",
+      "description": "ISO timestamp before which recovery must not run. Enforces a drain period so in-flight reserve/checkout requests finish."
+    },
+    "seller_cancel_requested_at": {
+      "type": "string",
+      "description": "Durable seller cancellation intent. Written BEFORE public Listing status changes. Recovery checks this before and after every write."
+    },
+    "seller_pause_requested_at": {
+      "type": "string",
+      "description": "Durable seller pause intent. Written BEFORE public Listing status changes."
+    },
     "is_demo_listing": {
       "type": "boolean",
       "default": false

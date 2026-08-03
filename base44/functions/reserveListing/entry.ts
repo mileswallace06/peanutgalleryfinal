@@ -40,6 +40,11 @@ Deno.serve(async (req) => {
     return Response.json({ error: 'Listing is not yet approved', code: 'NOT_APPROVED' }, { status: 409 });
   }
 
+  // 7C.7 fix #6: Check quarantine before reservation writes
+  if (lp.checkout_quarantined === true || (listing.status === 'hidden' && listing.hidden_reason === 'checkout_quarantine')) {
+    return Response.json({ error: 'This listing is under review. Please try another listing.', code: 'QUARANTINED' }, { status: 409 });
+  }
+
   // Self-purchase guard
   if (lp.seller_email === user.email) {
     return Response.json({ error: 'You cannot reserve your own listing', code: 'SELF_PURCHASE' }, { status: 400 });
@@ -128,6 +133,11 @@ Deno.serve(async (req) => {
   const curLp = await getListingPrivate(base44, listing.id);
   const curToken = curListing?.reservation_token ?? null;
   const curLpToken = curLp?.reservation_token ?? null;
+
+  // 7C.7 fix #6: Check quarantine after reservation writes
+  if (curLp?.checkout_quarantined === true || (curListing?.status === 'hidden' && curListing?.hidden_reason === 'checkout_quarantine')) {
+    return Response.json({ error: 'This listing was quarantined during your request. Please try another listing.', code: 'QUARANTINED' }, { status: 409 });
+  }
 
   if (curToken !== token) {
     // Listing contains another buyer's token (or none) — we lost the race.

@@ -13,7 +13,7 @@
  *
  * No Deno/Node-specific imports — pure ESM JavaScript.
  */
-import { verifyReservation, isQuarantined } from './checkoutLogic.js';
+import { verifyReservation, isQuarantined, QUARANTINE_DRAIN_MS } from './checkoutLogic.js';
 
 // ── ListingPrivate ─────────────────────────────────────────────────────────
 export async function getListingPrivate(deps, listing_id) {
@@ -90,8 +90,28 @@ export async function alertPrivateWriteFailure(deps, { entity, reference_id, ref
 }
 
 // ── Quarantine listing (writes to BOTH Listing and ListingPrivate, verifies) ──
+// 7C.7 fix #3: Captures a durable quarantine snapshot BEFORE writing.
+// The snapshot (quarantined_reservation_token, quarantined_buyer,
+// quarantined_expiration, quarantined_purchase_id) is stored on ListingPrivate
+// and checked by recovery to ensure no new token appeared.
+// Also sets recovery_not_before (drain period) and increments quarantine_generation.
 export async function quarantineListing(deps, listing_id, reason, purchase_id, pi_id) {
   const quarantineAt = new Date(deps.now()).toISOString();
+  const drainUntil = new Date(deps.now() + QUARANTINE_DRAIN_MS).toISOString();
+
+  // Capture durable snapshot BEFORE quarantining
+  const [listingBefore] = await deps.entities.Listing.filter({ id: listing_id });
+  const lpBefore = await getListingPrivate(deps, listing_id);
+  const currentGeneration = lpBefore?.quarantine_generation || 0;
+
+  const snapshot = {
+    quarantined_reservation_token: lpBefore?.reservation_token ?? listingBefore?.reservation_token ?? null,
+    quarantined_buyer: lpBefore?.reserved_by_email ?? listingBefore?.reserved_by_email ?? null,
+    quarantined_expiration: lpBefore?.reservation_expires_at ?? listingBefore?.reservation_expires_at ?? null,
+    quarantined_purchase_id: purchase_id || null,
+    quarantine_generation: currentGeneration + 1,
+    recovery_not_before: drainUntil,
+  };
 
   try {
     await deps.entities.Listing.update(listing_id, {
@@ -121,6 +141,7 @@ export async function quarantineListing(deps, listing_id, reason, purchase_id, p
       checkout_quarantine_reason: reason,
       checkout_quarantined_at: quarantineAt,
       checkout_quarantine_pi_id: pi_id || null,
+      ...snapshot,
     });
   } catch (err) {
     console.error(`[CRITICAL] quarantineListing: LP write failed for ${listing_id}: ${err?.message}.`);
@@ -129,7 +150,7 @@ export async function quarantineListing(deps, listing_id, reason, purchase_id, p
         alert_type: 'admin_action_required',
         priority: 'critical',
         title: `QUARANTINE LP WRITE FAILED for ${listing_id}`,
-        description: `${reason}. Error: ${err?.message}. Purchase: ${purchase_id || 'N/A'}.`,
+        description: `${reason}. Error: ${err?.message}. Purchase: ${purchase_id || 'N/A'}. PI ID: ${pi_id || 'N/A'}.`,
         reference_type: 'listing',
         reference_id: listing_id,
       });

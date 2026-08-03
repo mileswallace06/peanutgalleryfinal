@@ -102,6 +102,13 @@ Deno.serve(async (req) => {
       if (listingFresh.status !== 'active') {
         return Response.json({ error: `Cannot pause a listing with status: ${listingFresh.status}` }, { status: 409 });
       }
+      // Write durable seller pause intent BEFORE public status change (7C.7 fix #5)
+      try {
+        await upsertListingPrivate(base44, listing_id, { seller_pause_requested_at: new Date().toISOString() });
+      } catch (err) {
+        await alertPrivateWriteFailure(base44, { entity: 'ListingPrivate', reference_id: listing_id, reference_type: 'listing', error: err });
+        return Response.json({ error: 'Failed to record seller intent. Please try again.' }, { status: 500 });
+      }
       listingUpdates.status = 'hidden';
       listingUpdates.hidden_reason = 'other';
       invUpdates = { inventory_status: 'available' };
@@ -150,6 +157,13 @@ Deno.serve(async (req) => {
       }
       if (listingFresh.status === 'pending_transfer' || listingFresh.status === 'sold') {
         return Response.json({ error: `Cannot cancel a listing with status: ${listingFresh.status}` }, { status: 409 });
+      }
+      // Write durable seller cancel intent BEFORE public status change (7C.7 fix #5)
+      try {
+        await upsertListingPrivate(base44, listing_id, { seller_cancel_requested_at: new Date().toISOString() });
+      } catch (err) {
+        await alertPrivateWriteFailure(base44, { entity: 'ListingPrivate', reference_id: listing_id, reference_type: 'listing', error: err });
+        return Response.json({ error: 'Failed to record seller intent. Please try again.' }, { status: 500 });
       }
       listingUpdates.status = 'cancelled';
       invUpdates = { inventory_status: 'available', inventory_intent: 'undecided', linked_listing_id: null };
