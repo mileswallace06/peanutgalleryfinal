@@ -217,3 +217,53 @@ export function drainPeriodPassed(lp, currentTime) {
   if (!lp || !lp.recovery_not_before) return true;
   return currentTime >= new Date(lp.recovery_not_before).getTime();
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 7C.8 — Immutable quarantine snapshot, generation enforcement, recovery block
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ── Check if recovery is blocked by a durable marker (7C.8 fix #1) ──────────
+export function isRecoveryBlocked(lp) {
+  if (!lp) return false;
+  return lp.recovery_blocked === true;
+}
+
+// ── Check if current reservation state matches the immutable snapshot (7C.8 fix #1)
+// If current token/buyer/expiry differ from the snapshot, the quarantine is
+// in a conflicted state and automatic recovery must be blocked.
+export function snapshotMatchesCurrentState(lp) {
+  if (!lp) return false;
+  const currentToken = lp.reservation_token ?? null;
+  const currentBuyer = lp.reserved_by_email ?? null;
+  const currentExpiry = lp.reservation_expires_at ?? null;
+  const snapToken = lp.quarantined_reservation_token ?? null;
+  const snapBuyer = lp.quarantined_buyer ?? null;
+  const snapExpiry = lp.quarantined_expiration ?? null;
+  return currentToken === snapToken && currentBuyer === snapBuyer && currentExpiry === snapExpiry;
+}
+
+// ── Check if both Listing and LP reservation fields are already null (7C.8 fix #3)
+// Automatic recovery may activate only when both are null — no token to erase.
+export function reservationFieldsAlreadyNull(listing, lp) {
+  const lNull = !listing || (!listing.reservation_token && !listing.reserved_by_email && !listing.reservation_expires_at);
+  const lpNull = !lp || (!lp.reservation_token && !lp.reserved_by_email && !lp.reservation_expires_at);
+  return lNull && lpNull;
+}
+
+// ── Verify generation, PI ID, and purchase ID match recovery capture (7C.8 fix #2)
+export function verifyGenerationMatch(capturedGen, capturedPiId, capturedPurchaseId, currentLP) {
+  if (!currentLP) return false;
+  if (currentLP.quarantine_generation !== capturedGen) return false;
+  if (currentLP.checkout_quarantine_pi_id !== capturedPiId) return false;
+  if (currentLP.quarantined_purchase_id !== capturedPurchaseId) return false;
+  return true;
+}
+
+// ── Check if the quarantine snapshot has a token-bearing reservation (7C.8 fix #3)
+// Token-bearing quarantines require clearing before activation. Because Base44
+// lacks atomic conditional updates, we must verify after clearing that no new
+// token appeared.
+export function isTokenBearingQuarantine(lp) {
+  if (!lp) return false;
+  return !!lp.quarantined_reservation_token;
+}

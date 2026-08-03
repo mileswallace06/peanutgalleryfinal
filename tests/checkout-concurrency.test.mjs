@@ -35,9 +35,15 @@ import {
   matchesQuarantineSnapshot,
   drainPeriodPassed,
   QUARANTINE_DRAIN_MS,
+  isRecoveryBlocked,
+  snapshotMatchesCurrentState,
+  reservationFieldsAlreadyNull,
+  verifyGenerationMatch,
+  isTokenBearingQuarantine,
 } from '../base44/shared/checkoutLogic.js';
 import { runCreateCheckout } from '../base44/shared/checkoutOrchestrator.js';
 import { runCleanupAbandonedCheckouts } from '../base44/shared/cleanupOrchestrator.js';
+import { quarantineListing } from '../base44/shared/orchestratorHelpers.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -1054,6 +1060,419 @@ async function testListingUpdateSucceedsLPFails() {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+// 7C.8 TESTS — Immutable quarantine snapshot, generation enforcement,
+//              PurchasePrivate authority, quarantine before expiry,
+//              quarantine result checking, pagination, pause intent clearing
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── 7C.8 Pure function tests ────────────────────────────────────────────────
+
+function testIsRecoveryBlockedHelper() {
+  const blocked = isRecoveryBlocked({ recovery_blocked: true });
+  const notBlocked = !isRecoveryBlocked({ recovery_blocked: false });
+  const undefinedField = !isRecoveryBlocked({});
+  const nullLp = !isRecoveryBlocked(null);
+  return { name: 'is_recovery_blocked_helper', passed: blocked && notBlocked && undefinedField && nullLp };
+}
+
+function testSnapshotMatchesCurrentStateHelper() {
+  const lp = { reservation_token: 'tok', reserved_by_email: 'b@test', reservation_expires_at: 'exp', quarantined_reservation_token: 'tok', quarantined_buyer: 'b@test', quarantined_expiration: 'exp' };
+  const matches = snapshotMatchesCurrentState(lp);
+  const tokenMismatch = !snapshotMatchesCurrentState({ ...lp, reservation_token: 'different' });
+  const buyerMismatch = !snapshotMatchesCurrentState({ ...lp, reserved_by_email: 'c@test' });
+  const bothNull = snapshotMatchesCurrentState({ reservation_token: null, reserved_by_email: null, reservation_expires_at: null, quarantined_reservation_token: null, quarantined_buyer: null, quarantined_expiration: null });
+  return { name: 'snapshot_matches_current_state_helper', passed: matches && tokenMismatch && buyerMismatch && bothNull };
+}
+
+function testReservationFieldsAlreadyNullHelper() {
+  const bothNull = reservationFieldsAlreadyNull(
+    { reservation_token: null, reserved_by_email: null, reservation_expires_at: null },
+    { reservation_token: null, reserved_by_email: null, reservation_expires_at: null }
+  );
+  const listingNotNull = !reservationFieldsAlreadyNull(
+    { reservation_token: 'tok', reserved_by_email: null, reservation_expires_at: null },
+    { reservation_token: null, reserved_by_email: null, reservation_expires_at: null }
+  );
+  const lpNotNull = !reservationFieldsAlreadyNull(
+    { reservation_token: null, reserved_by_email: null, reservation_expires_at: null },
+    { reservation_token: 'tok', reserved_by_email: null, reservation_expires_at: null }
+  );
+  return { name: 'reservation_fields_already_null_helper', passed: bothNull && listingNotNull && lpNotNull };
+}
+
+function testVerifyGenerationMatchHelper() {
+  const lp = { quarantine_generation: 1, checkout_quarantine_pi_id: 'pi1', quarantined_purchase_id: 'pur1' };
+  const match = verifyGenerationMatch(1, 'pi1', 'pur1', lp);
+  const genMismatch = !verifyGenerationMatch(2, 'pi1', 'pur1', lp);
+  const piMismatch = !verifyGenerationMatch(1, 'pi2', 'pur1', lp);
+  const purchaseMismatch = !verifyGenerationMatch(1, 'pi1', 'pur2', lp);
+  const nullLp = !verifyGenerationMatch(1, 'pi1', 'pur1', null);
+  return { name: 'verify_generation_match_helper', passed: match && genMismatch && piMismatch && purchaseMismatch && nullLp };
+}
+
+function testIsTokenBearingQuarantineHelper() {
+  const hasToken = isTokenBearingQuarantine({ quarantined_reservation_token: 'tok' });
+  const noToken = !isTokenBearingQuarantine({ quarantined_reservation_token: null });
+  const undefinedToken = !isTokenBearingQuarantine({ quarantined_reservation_token: undefined });
+  const nullLp = !isTokenBearingQuarantine(null);
+  return { name: 'is_token_bearing_quarantine_helper', passed: hasToken && noToken && undefinedToken && nullLp };
+}
+
+// ── Test A: Repeated quarantine preserves original snapshot ──────────────
+async function testRepeatedQuarantinePreservesSnapshot() {
+  const { seed, listingId } = createDefaultSeed();
+  let timeOffset = 0;
+  const deps = createMockDeps({ seed, now: () => Date.now() + timeOffset });
+
+  // First quarantine
+  const q1 = await quarantineListing(deps, listingId, 'First quarantine', 'pur_1', 'pi_1');
+  if (!q1.quarantined) return { name: 'repeated_quarantine_preserves_snapshot', passed: false, error: 'first quarantine failed' };
+
+  // Verify snapshot was captured
+  const lp1 = [...deps._state.stores.ListingPrivate.values()].find(l => l.listing_id === listingId);
+  const originalSnapshotToken = lp1.quarantined_reservation_token;
+  const originalGeneration = lp1.quarantine_generation;
+
+  // Inject an unknown token (simulating a concurrent reservation write)
+  lp1.reservation_token = 'unknown_injected_token';
+  lp1.reserved_by_email = 'unknown@test';
+
+  // Second quarantine — should NOT overwrite the original snapshot
+  const q2 = await quarantineListing(deps, listingId, 'Second quarantine after unknown token', 'pur_2', 'pi_2');
+  if (!q2.quarantined) return { name: 'repeated_quarantine_preserves_snapshot', passed: false, error: 'second quarantine failed' };
+
+  const lp2 = [...deps._state.stores.ListingPrivate.values()].find(l => l.listing_id === listingId);
+
+  // Original snapshot must be preserved
+  const snapshotPreserved = lp2.quarantined_reservation_token === originalSnapshotToken;
+  // Unknown token must NOT be cleared (it's still there, not blessed into snapshot)
+  const unknownTokenNotBlessed = lp2.quarantined_reservation_token !== 'unknown_injected_token';
+  // Recovery must be blocked due to state divergence
+  const recoveryBlocked = lp2.recovery_blocked === true;
+  // Generation should increment
+  const generationIncremented = lp2.quarantine_generation > originalGeneration;
+
+  const passed = snapshotPreserved && unknownTokenNotBlessed && recoveryBlocked && generationIncremented;
+  return { name: 'repeated_quarantine_preserves_snapshot', passed, snapshot_preserved: snapshotPreserved, unknown_token_not_blessed: unknownTokenNotBlessed, recovery_blocked: recoveryBlocked, generation_incremented: generationIncremented };
+}
+
+// ── Test B: Token injected after last read and immediately before clear survives
+async function testTokenInjectedBeforeClearSurvives() {
+  const { seed, listingId } = createDefaultSeed();
+  let timeOffset = QUARANTINE_DRAIN_MS + 60000;
+  const deps = createMockDeps({ seed, now: () => Date.now() + timeOffset });
+  setupQuarantinedListing(deps, { listingId });
+
+  // Hook: after LP reservation clear, inject a new token (simulates concurrent write)
+  deps._hooks.after_ListingPrivate_update = (updated) => {
+    // This fires after upsertListingPrivate clears reservation_token to null
+    // We inject a new token to simulate a concurrent reserveListing
+    if (updated.reservation_token === null && updated.checkout_quarantined !== false) {
+      // This is the reservation clear step — inject a new token AFTER the clear
+      updated.reservation_token = 'injected_after_clear';
+    }
+  };
+
+  const result = await runCleanupAbandonedCheckouts(deps);
+  const finalListing = deps._state.stores.Listing.get(listingId);
+  const finalLP = [...deps._state.stores.ListingPrivate.values()].find(l => l.listing_id === listingId);
+
+  // Token must survive (not erased by the clear)
+  const tokenSurvived = finalLP.reservation_token === 'injected_after_clear';
+  // Listing must NOT be active
+  const listingNotActive = finalListing.status !== 'active';
+  // LP must still be quarantined
+  const lpStillQuarantined = finalLP.checkout_quarantined === true;
+
+  const passed = tokenSurvived && listingNotActive && lpStillQuarantined;
+  return { name: 'token_injected_before_clear_survives', passed, token_survived: tokenSurvived, listing_not_active: listingNotActive, lp_quarantined: lpStillQuarantined };
+}
+
+// ── Test C: Generation 2 injected while generation 1 recovery runs stays quarantined
+async function testGenerationConflictStaysQuarantined() {
+  const { seed, listingId } = createDefaultSeed();
+  let timeOffset = QUARANTINE_DRAIN_MS + 60000;
+  const deps = createMockDeps({ seed, now: () => Date.now() + timeOffset });
+  setupQuarantinedListing(deps, { listingId, token: 'gen1_token', piId: 'pi_gen1', purchaseId: 'pur_gen1' });
+
+  // Hook: during Phase 2 recovery, after generation capture but before clearing,
+  // inject generation 2 (simulate a newer quarantine applied concurrently)
+  deps._hooks.after_Listing_update = (updated) => {
+    // When the Listing clear step runs (reservation_token set to null), inject gen 2
+    if (updated.reservation_token === null && updated.status === 'hidden') {
+      const lp = [...deps._state.stores.ListingPrivate.values()].find(l => l.listing_id === listingId);
+      if (lp) {
+        lp.quarantine_generation = 2;
+        lp.checkout_quarantine_pi_id = 'pi_gen2';
+        lp.quarantined_purchase_id = 'pur_gen2';
+      }
+    }
+  };
+
+  const result = await runCleanupAbandonedCheckouts(deps);
+  const finalListing = deps._state.stores.Listing.get(listingId);
+  const finalLP = [...deps._state.stores.ListingPrivate.values()].find(l => l.listing_id === listingId);
+
+  // Listing must NOT be activated (gen 1 recovery cannot erase gen 2)
+  const listingNotActive = finalListing.status !== 'active';
+  // Generation 2 must be preserved
+  const gen2Preserved = finalLP.quarantine_generation === 2;
+
+  const passed = listingNotActive && gen2Preserved;
+  return { name: 'generation_conflict_stays_quarantined', passed, listing_not_active: listingNotActive, gen2_preserved: gen2Preserved, final_gen: finalLP.quarantine_generation };
+}
+
+// ── Test D: PurchasePrivate captured=true/public=false is not canceled or expired
+async function testPrivateCapturedTrueNotCanceled() {
+  const { seed, listingId } = createDefaultSeed();
+  let timeOffset = 0;
+  const deps = createMockDeps({ seed, now: () => Date.now() + timeOffset });
+  setupPendingPurchase(deps, { listingId, piStatus: 'requires_payment_method' });
+
+  // Set PP.payment_captured=true but Purchase.payment_captured=false
+  const purchase = [...deps._state.stores.Purchase.values()][0];
+  purchase.payment_captured = false;
+  const pp = [...deps._state.stores.PurchasePrivate.values()][0];
+  pp.payment_captured = true;
+
+  // Make it old enough to be abandoned
+  purchase.created_date = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+  const pi = [...deps.stripe.pisById.values()][0];
+  pi.status = 'requires_payment_method';
+
+  const result = await runCleanupAbandonedCheckouts(deps);
+
+  const finalPurchase = deps._state.stores.Purchase.get(purchase.id);
+  const finalListing = deps._state.stores.Listing.get(listingId);
+
+  // Purchase must NOT be expired (private captured=true)
+  const purchaseNotExpired = finalPurchase.transfer_status === 'pending_transfer';
+  // Listing must NOT be quarantined
+  const listingNotQuarantined = finalListing.status !== 'hidden' || finalListing.hidden_reason !== 'checkout_quarantine';
+  // Must be skipped as captured
+  const skippedCaptured = result.body.skipped_captured > 0;
+
+  const passed = purchaseNotExpired && listingNotQuarantined && skippedCaptured;
+  return { name: 'private_captured_true_not_canceled', passed, purchase_not_expired: purchaseNotExpired, listing_not_quarantined: listingNotQuarantined, skipped_captured: skippedCaptured };
+}
+
+// ── Test E: PurchasePrivate captured=false/public=true is processed
+async function testPrivateCapturedFalseIsProcessed() {
+  const { seed, listingId } = createDefaultSeed();
+  let timeOffset = 0;
+  const deps = createMockDeps({ seed, now: () => Date.now() + timeOffset });
+  setupPendingPurchase(deps, { listingId, piStatus: 'canceled' });
+
+  // Set PP.payment_captured=false but Purchase.payment_captured=true (stale public field)
+  const purchase = [...deps._state.stores.Purchase.values()][0];
+  purchase.payment_captured = true; // stale public field says captured
+  const pp = [...deps._state.stores.PurchasePrivate.values()][0];
+  pp.payment_captured = false; // authoritative private says NOT captured
+  purchase.created_date = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+
+  const result = await runCleanupAbandonedCheckouts(deps);
+
+  const finalPurchase = deps._state.stores.Purchase.get(purchase.id);
+  const finalListing = deps._state.stores.Listing.get(listingId);
+
+  // Purchase IS expired (private captured=false, so it's processed)
+  const purchaseExpired = finalPurchase.transfer_status === 'expired';
+  // Listing IS quarantined
+  const listingQuarantined = finalListing.status === 'hidden' && finalListing.hidden_reason === 'checkout_quarantine';
+
+  const passed = purchaseExpired && listingQuarantined;
+  return { name: 'private_captured_false_is_processed', passed, purchase_expired: purchaseExpired, listing_quarantined: listingQuarantined };
+}
+
+// ── Test F: Quarantine write failure leaves Purchase pending
+async function testQuarantineFailureLeavesPurchasePending() {
+  const { seed, listingId } = createDefaultSeed();
+  let timeOffset = 0;
+  const deps = createMockDeps({ seed, now: () => Date.now() + timeOffset });
+  setupPendingPurchase(deps, { listingId, piStatus: 'canceled' });
+  const purchase = [...deps._state.stores.Purchase.values()][0];
+  purchase.created_date = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+
+  // Hook: quarantineListing fails (Listing.update throws when setting hidden)
+  deps._hooks.before_Listing_update = async (id, data) => {
+    if (data.status === 'hidden' && data.hidden_reason === 'checkout_quarantine') {
+      return { throw: new Error('Simulated quarantine write failure') };
+    }
+  };
+
+  const result = await runCleanupAbandonedCheckouts(deps);
+  const finalPurchase = deps._state.stores.Purchase.get(purchase.id);
+
+  // Purchase must still be pending (not expired)
+  const purchasePending = finalPurchase.transfer_status === 'pending_transfer';
+  // Errors must be incremented
+  const errorsIncremented = result.body.errors > 0;
+  // Critical alert must exist
+  const alertExists = [...deps._state.stores.AdminAlert.values()].some(a =>
+    a.description && a.description.includes('LEFT PENDING'));
+
+  const passed = purchasePending && errorsIncremented && alertExists;
+  return { name: 'quarantine_failure_leaves_purchase_pending', passed, purchase_pending: purchasePending, errors: result.body.errors, alert_exists: alertExists };
+}
+
+// ── Test G: Checkout quarantine failure returns 500, not 409
+async function testCheckoutQuarantineFailureReturns500() {
+  const { seed } = createDefaultSeed();
+  let timeOffset = 0;
+  const deps = createMockDeps({ seed, now: () => Date.now() + timeOffset });
+
+  // Create initial checkout
+  const r1 = await runCreateCheckout(deps, { listing_id: 'listing_1' });
+  if (r1.status !== 200) return { name: 'checkout_quarantine_failure_returns_500', passed: false, error: 'initial checkout failed' };
+
+  // Expire reservation + cancel PI
+  const listing = deps._state.stores.Listing.get('listing_1');
+  const pastExpiry = new Date(Date.now() - 60000).toISOString();
+  listing.reservation_expires_at = pastExpiry;
+  const lp = [...deps._state.stores.ListingPrivate.values()][0];
+  lp.reservation_expires_at = pastExpiry;
+  const pi = [...deps.stripe.pisById.values()][0];
+  pi.status = 'requires_payment_method';
+
+  // Hook: quarantineListing fails during retry
+  deps._hooks.before_Listing_update = async (id, data) => {
+    if (data.status === 'hidden' && data.hidden_reason === 'checkout_quarantine') {
+      return { throw: new Error('Simulated quarantine failure in checkout') };
+    }
+  };
+
+  timeOffset = 20000;
+  const r2 = await runCreateCheckout(deps, { listing_id: 'listing_1' });
+
+  // Must return 500, NOT 409
+  const returned500 = r2.status === 500;
+  const not409 = r2.status !== 409;
+  // Critical alert must exist with PI ID
+  const piId = [...deps.stripe.pisById.keys()][0];
+  const alertHasPIId = [...deps._state.stores.AdminAlert.values()].some(a =>
+    a.description && a.description.includes(piId));
+
+  const passed = returned500 && not409 && alertHasPIId;
+  return { name: 'checkout_quarantine_failure_returns_500', passed, status: r2.status, returned_500: returned500, not_409: not409, alert_has_pi_id: alertHasPIId };
+}
+
+// ── Test H: Recovery reaches record 201 when first 200 remain quarantined
+async function testRecoveryReaches201() {
+  const { seed } = createDefaultSeed();
+  let timeOffset = QUARANTINE_DRAIN_MS + 60000;
+  const deps = createMockDeps({ seed, now: () => Date.now() + timeOffset });
+
+  // Set up 201 quarantined listings
+  for (let i = 0; i < 201; i++) {
+    const listingId = `listing_recovery_${i}`;
+    const piId = `pi_recovery_${i}`;
+    const purchaseId = `pur_recovery_${i}`;
+    const token = `token_recovery_${i}`;
+    const expiry = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+
+    // First 200: PI is NOT canceled (unrecoverable — canRecoverQuarantine requires canceled PI)
+    // Record 201: PI IS canceled (recoverable)
+    const piStatus = i < 200 ? 'requires_capture' : 'canceled';
+
+    deps._state.stores.Listing.set(listingId, {
+      id: listingId, status: 'hidden', hidden_reason: 'checkout_quarantine',
+      asking_price: 100, quantity: 1, section: 'A', row: '1', event_id: 'event_1',
+      updated_date: '2026-08-01T10:00:00.000Z',
+      reservation_token: token, reserved_by_email: 'buyer@test',
+      reservation_expires_at: expiry,
+      created_date: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+    });
+    deps._state.stores.ListingPrivate.set(`lp_${listingId}`, {
+      id: `lp_${listingId}`, listing_id: listingId, seller_email: 'seller@test',
+      reservation_token: token, reserved_by_email: 'buyer@test',
+      reservation_expires_at: expiry, proof_status: 'approved',
+      is_demo_listing: false, notes: null, seat_inventory_id: null,
+      checkout_quarantined: true,
+      checkout_quarantine_reason: 'Test quarantine',
+      checkout_quarantined_at: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+      checkout_quarantine_pi_id: piId,
+      quarantined_reservation_token: token,
+      quarantined_buyer: 'buyer@test',
+      quarantined_expiration: expiry,
+      quarantined_purchase_id: purchaseId,
+      quarantine_generation: 1,
+      recovery_not_before: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+      created_date: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+      updated_date: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+    });
+    deps._state.stores.Purchase.set(purchaseId, {
+      id: purchaseId, listing_id: listingId, event_id: 'event_1',
+      buyer_email: 'buyer@test', seller_email: 'seller@test',
+      payment_intent_id: piId, reservation_token: token,
+      transfer_status: 'expired', payment_captured: false,
+      is_demo: false, amount: 105,
+      created_date: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+      updated_date: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+    });
+    deps._state.stores.PurchasePrivate.set(`pp_${purchaseId}`, {
+      id: `pp_${purchaseId}`, purchase_id: purchaseId, listing_id: listingId,
+      event_id: 'event_1', buyer_email: 'buyer@test', seller_email: 'seller@test',
+      payment_intent_id: piId, reservation_token: token,
+      payment_captured: false, is_demo: false,
+      created_date: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+      updated_date: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+    });
+    deps.stripe.pisById.set(piId, {
+      id: piId, client_secret: `secret_${piId}`, status: piStatus,
+      metadata: { listing_id: listingId, buyer_email: 'buyer@test', reservation_token: token, purchase_id: purchaseId },
+    });
+  }
+
+  const result = await runCleanupAbandonedCheckouts(deps);
+
+  const listing200 = deps._state.stores.Listing.get('listing_recovery_200');
+  const lp200 = deps._state.stores.ListingPrivate.get('lp_listing_recovery_200');
+  const listing0 = deps._state.stores.Listing.get('listing_recovery_0');
+
+  // Record 201 (index 200) should be recovered
+  const record201Recovered = listing200.status === 'active' && lp200.checkout_quarantined === false;
+  // First 200 should remain quarantined
+  const first200Quarantined = listing0.status === 'hidden' && listing0.hidden_reason === 'checkout_quarantine';
+  // Recovery resolved count should be > 0
+  const recoveryResolved = result.body.quarantine_resolved > 0;
+
+  const passed = record201Recovered && first200Quarantined && recoveryResolved;
+  return { name: 'recovery_reaches_201', passed, record_201_recovered: record201Recovered, first_200_quarantined: first200Quarantined, quarantine_resolved: result.body.quarantine_resolved };
+}
+
+// ── Test I: Pause→resume clears pause marker; later quarantine not permanently blocked
+async function testPauseResumeClearsMarker() {
+  const { seed, listingId } = createDefaultSeed();
+  let timeOffset = QUARANTINE_DRAIN_MS + 60000;
+  const deps = createMockDeps({ seed, now: () => Date.now() + timeOffset });
+
+  // Set up a quarantined listing WITH a stale pause marker
+  setupQuarantinedListing(deps, { listingId });
+  const lp = [...deps._state.stores.ListingPrivate.values()].find(l => l.listing_id === listingId);
+  lp.seller_pause_requested_at = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+
+  // Run 1: recovery should SKIP (pause intent present)
+  const result1 = await runCleanupAbandonedCheckouts(deps);
+  const listingAfterRun1 = deps._state.stores.Listing.get(listingId);
+  const run1Skipped = listingAfterRun1.status === 'hidden' && listingAfterRun1.hidden_reason === 'checkout_quarantine';
+
+  // Simulate resume: clear the pause marker (as submitListing resume would do after successful writes)
+  lp.seller_pause_requested_at = null;
+
+  // Run 2: recovery should now SUCCEED (pause marker cleared)
+  const result2 = await runCleanupAbandonedCheckouts(deps);
+  const listingAfterRun2 = deps._state.stores.Listing.get(listingId);
+  const lpAfterRun2 = [...deps._state.stores.ListingPrivate.values()].find(l => l.listing_id === listingId);
+
+  const run2Recovered = listingAfterRun2.status === 'active' && lpAfterRun2.checkout_quarantined === false;
+  // Later valid quarantine is NOT permanently blocked
+  const notPermanentlyBlocked = lpAfterRun2.recovery_blocked !== true;
+
+  const passed = run1Skipped && run2Recovered && notPermanentlyBlocked;
+  return { name: 'pause_resume_clears_marker', passed, run1_skipped: run1Skipped, run2_recovered: run2Recovered, not_permanently_blocked: notPermanentlyBlocked };
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 // MAIN RUNNER
 // ════════════════════════════════════════════════════════════════════════════
 
@@ -1091,9 +1510,25 @@ async function main() {
     await testCleanupQuarantinesOnPIMismatch(),
     await testQuarantineRecoverySuccess(),
     await testListingUpdateSucceedsLPFails(),
+    // 7C.8 pure function tests
+    testIsRecoveryBlockedHelper(),
+    testSnapshotMatchesCurrentStateHelper(),
+    testReservationFieldsAlreadyNullHelper(),
+    testVerifyGenerationMatchHelper(),
+    testIsTokenBearingQuarantineHelper(),
+    // 7C.8 adversarial tests (A-I)
+    await testRepeatedQuarantinePreservesSnapshot(),
+    await testTokenInjectedBeforeClearSurvives(),
+    await testGenerationConflictStaysQuarantined(),
+    await testPrivateCapturedTrueNotCanceled(),
+    await testPrivateCapturedFalseIsProcessed(),
+    await testQuarantineFailureLeavesPurchasePending(),
+    await testCheckoutQuarantineFailureReturns500(),
+    await testRecoveryReaches201(),
+    await testPauseResumeClearsMarker(),
   ];
 
-  console.log('=== Checkout & Cleanup Concurrency Tests (7C.7) ===\n');
+  console.log('=== Checkout & Cleanup Concurrency Tests (7C.8) ===\n');
 
   let allPassed = true;
   for (const t of tests) {

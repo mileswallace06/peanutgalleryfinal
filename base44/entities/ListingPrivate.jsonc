@@ -171,35 +171,48 @@
     },
     "quarantined_reservation_token": {
       "type": "string",
-      "description": "Durable snapshot of reservation_token at quarantine time. Recovery requires exact match against current LP value."
+      "description": "IMMUTABLE durable snapshot of reservation_token at first quarantine time. Recovery requires exact match against current LP value. Never overwritten by a repeated quarantine."
     },
     "quarantined_buyer": {
       "type": "string",
-      "description": "Durable snapshot of reserved_by_email at quarantine time."
+      "description": "IMMUTABLE durable snapshot of reserved_by_email at first quarantine time."
     },
     "quarantined_expiration": {
       "type": "string",
-      "description": "Durable snapshot of reservation_expires_at at quarantine time."
+      "description": "IMMUTABLE durable snapshot of reservation_expires_at at first quarantine time."
     },
     "quarantined_purchase_id": {
       "type": "string",
-      "description": "Durable snapshot of purchase_id at quarantine time."
+      "description": "IMMUTABLE durable snapshot of purchase_id at first quarantine time."
     },
     "quarantine_generation": {
       "type": "number",
-      "description": "Incremented each time quarantine is applied. Used for optimistic concurrency in recovery."
+      "description": "Incremented each time quarantine is applied. Recovery captures this at start and re-checks before every write. A newer generation must never be cleared by an older recovery."
     },
     "recovery_not_before": {
       "type": "string",
       "description": "ISO timestamp before which recovery must not run. Enforces a drain period so in-flight reserve/checkout requests finish."
     },
+    "recovery_blocked": {
+      "type": "boolean",
+      "default": false,
+      "description": "Durable marker prohibiting automatic recovery. Set when a repeated quarantine detects that current reservation state differs from the original snapshot, or when generation/PI/purchase mismatch is detected during recovery. Requires manual resolution."
+    },
+    "recovery_blocked_reason": {
+      "type": "string",
+      "description": "Reason the listing was blocked from automatic recovery."
+    },
+    "recovery_blocked_at": {
+      "type": "string",
+      "description": "ISO timestamp when recovery was blocked."
+    },
     "seller_cancel_requested_at": {
       "type": "string",
-      "description": "Durable seller cancellation intent. Written BEFORE public Listing status changes. Recovery checks this before and after every write."
+      "description": "Durable seller cancellation intent. Written BEFORE public Listing status changes. Recovery checks this before and after every write. Permanent for cancelled listings \u2014 never cleared by resume."
     },
     "seller_pause_requested_at": {
       "type": "string",
-      "description": "Durable seller pause intent. Written BEFORE public Listing status changes."
+      "description": "Durable seller pause intent. Written BEFORE public Listing status changes. Cleared only after Listing and SeatInventory resume writes succeed and are verified."
     },
     "is_demo_listing": {
       "type": "boolean",

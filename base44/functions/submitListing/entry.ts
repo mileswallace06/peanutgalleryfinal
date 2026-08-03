@@ -116,6 +116,15 @@ Deno.serve(async (req) => {
       logType = 'listing_hidden';
     } else if (operation === 'resume') {
       if (listingFresh.status === 'active') {
+        // 7C.8 fix #8: Handle already-active listing with stale pause marker safely.
+        // Clear the stale marker so it doesn't block future quarantine recovery.
+        if (lpFresh.seller_pause_requested_at) {
+          try {
+            await upsertListingPrivate(base44, listing_id, { seller_pause_requested_at: null });
+          } catch (err) {
+            await alertPrivateWriteFailure(base44, { entity: 'ListingPrivate', reference_id: listing_id, reference_type: 'listing', error: err });
+          }
+        }
         return Response.json({ status: 'already_active', listing_id, idempotent: true });
       }
       if (listingFresh.status !== 'hidden' || listingFresh.hidden_reason !== 'other') {
@@ -262,6 +271,29 @@ Deno.serve(async (req) => {
         }
         await alertPrivateWriteFailure(base44, { entity: 'SeatInventory', reference_id: seatInventoryId, reference_type: 'listing', error: err });
         return Response.json({ error: 'Listing updated but seat inventory reconciliation failed. Please contact support.' }, { status: 500 });
+      }
+    }
+
+    // 7C.8 fix #8: Clear pause intent SAFELY — only after Listing AND SeatInventory
+    // resume writes succeed and are verified. If clearing fails, revert listing to
+    // hidden/paused and return 500. seller_cancel_requested_at is NEVER cleared —
+    // it remains permanent for cancelled listings.
+    if (operation === 'resume') {
+      try {
+        await upsertListingPrivate(base44, listing_id, { seller_pause_requested_at: null });
+        // Verify the clear
+        const lpVerifyRows = await base44.asServiceRole.entities.ListingPrivate.filter({ listing_id });
+        const lpVerify = lpVerifyRows[0];
+        if (lpVerify && lpVerify.seller_pause_requested_at !== null && lpVerify.seller_pause_requested_at !== undefined) {
+          // Clear failed — revert listing to hidden/paused
+          await base44.asServiceRole.entities.Listing.update(listing.id, { status: 'hidden', hidden_reason: 'other' }).catch(() => {});
+          return Response.json({ error: 'Failed to clear pause intent. Listing reverted to paused.' }, { status: 500 });
+        }
+      } catch (err) {
+        // Clear write failed — revert listing to hidden/paused
+        await base44.asServiceRole.entities.Listing.update(listing.id, { status: 'hidden', hidden_reason: 'other' }).catch(() => {});
+        await alertPrivateWriteFailure(base44, { entity: 'ListingPrivate', reference_id: listing_id, reference_type: 'listing', error: err });
+        return Response.json({ error: 'Failed to clear pause intent. Listing reverted to paused.' }, { status: 500 });
       }
     }
 

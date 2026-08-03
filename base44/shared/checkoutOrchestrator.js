@@ -60,6 +60,20 @@ async function criticalAlertWithPI(deps, listing_id, title, description, piId) {
   } catch (_) { /* alert failure must never throw */ }
 }
 
+// 7C.8 fix #6: Check quarantine results in checkout
+// Every quarantineListing call must inspect the returned result.
+// Failed quarantine must return neutral 500, create a critical alert with PI ID,
+// and must NOT return an ordinary compensated/expired 409 telling the buyer to retry.
+async function safeQuarantine(deps, listing_id, reason, purchase_id, pi_id) {
+  const result = await quarantineListing(deps, listing_id, reason, purchase_id, pi_id);
+  if (!result.quarantined) {
+    await criticalAlertWithPI(deps, listing_id, `QUARANTINE WRITE FAILED for ${listing_id}`,
+      `Quarantine write failed. Reason: ${reason}. Manual resolution required.`, pi_id);
+    return { quarantined: false, status: 500, error: 'Checkout quarantine failed. Please contact support.' };
+  }
+  return { quarantined: true, recovery_blocked: result.recovery_blocked === true };
+}
+
 export async function runCreateCheckout(deps, params) {
   const { entities, stripe, user, now, isMaintenanceActive, isLiveMode } = deps;
 
@@ -166,22 +180,20 @@ export async function runCreateCheckout(deps, params) {
         return { status: 409, body: { error: 'This listing is under review. Please try another listing.' } };
       }
 
-      // Retrieve PI — failure → quarantine + critical alert + 409 (7C.7 fix #1)
+      // Retrieve PI — failure → quarantine + critical alert (7C.8 fix #6: check result)
       let existingPI;
       try {
         existingPI = await stripe.paymentIntents.retrieve(pp.payment_intent_id);
       } catch (_) {
-        await quarantineListing(deps, listing.id, `PI retrieval failed during retry. PI ID: ${pp.payment_intent_id}`, pur.id, pp.payment_intent_id);
-        await criticalAlertWithPI(deps, listing.id, `PI RETRIEVAL FAILED during retry for ${listing.id}`, `Manual resolution required.`, pp.payment_intent_id);
+        const q = await safeQuarantine(deps, listing.id, `PI retrieval failed during retry. PI ID: ${pp.payment_intent_id}`, pur.id, pp.payment_intent_id);
+        if (!q.quarantined) return { status: q.status, body: { error: q.error } };
         return { status: 409, body: { error: 'Checkout verification unavailable. Please contact support.' } };
       }
 
       // Require EXACT PI metadata match (7C.7 fix #2)
-      // Missing purchase_id is a mismatch, never optional.
-      // PI ID must agree across Purchase, PurchasePrivate, and Stripe.
       if (!verifyExactPIMetadata(pur, pp, existingPI)) {
-        await quarantineListing(deps, listing.id, `PI metadata mismatch — fail-closed. Metadata: ${JSON.stringify(existingPI.metadata)}`, pur.id, pp.payment_intent_id);
-        await criticalAlertWithPI(deps, listing.id, `PI METADATA MISMATCH for ${listing.id}`, `Metadata: ${JSON.stringify(existingPI.metadata)}. Manual resolution required.`, pp.payment_intent_id);
+        const q = await safeQuarantine(deps, listing.id, `PI metadata mismatch — fail-closed. Metadata: ${JSON.stringify(existingPI.metadata)}`, pur.id, pp.payment_intent_id);
+        if (!q.quarantined) return { status: q.status, body: { error: q.error } };
         return { status: 409, body: { error: 'Checkout verification failed. Please contact support.' } };
       }
 
@@ -217,23 +229,27 @@ export async function runCreateCheckout(deps, params) {
 
         if (!cancelVerified) {
           // Cancel failed or unverifiable — quarantine + critical alert with PI ID + 500
-          await quarantineListing(deps, listing.id, `PI cancel failed during stale retry. PI ID: ${pp.payment_intent_id}. Error: ${cancelError?.message || 'unknown'}`, pur.id, pp.payment_intent_id);
+          const q = await safeQuarantine(deps, listing.id, `PI cancel failed during stale retry. PI ID: ${pp.payment_intent_id}. Error: ${cancelError?.message || 'unknown'}`, pur.id, pp.payment_intent_id);
+          // Always alert about the PI cancel failure, even if quarantine succeeded
           await criticalAlertWithPI(deps, listing.id, `PI CANCEL FAILED for ${listing.id}`, `Cancel error: ${cancelError?.message || 'unknown'}. Manual cancellation required.`, pp.payment_intent_id);
+          if (!q.quarantined) return { status: q.status, body: { error: q.error } };
           return { status: 500, body: { error: 'Checkout compensation failed. Please contact support.' } };
         }
 
         // Cancel succeeded — quarantine with durable snapshot + 409
-        // Let cleanup recover it later (7C.7 fix #1: prefer 409 after successful compensation)
-        await quarantineListing(deps, listing.id, `Stale retry compensated — PI canceled. PI ID: ${pp.payment_intent_id}`, pur.id, pp.payment_intent_id);
+        const q1 = await safeQuarantine(deps, listing.id, `Stale retry compensated — PI canceled. PI ID: ${pp.payment_intent_id}`, pur.id, pp.payment_intent_id);
+        if (!q1.quarantined) return { status: q1.status, body: { error: q1.error } };
         return { status: 409, body: { error: 'Your previous checkout attempt has expired. Please try again.' } };
       } else if (existingPI.status === 'canceled') {
         // PI already canceled — quarantine with durable snapshot + 409
-        await quarantineListing(deps, listing.id, `Stale retry — PI already canceled. PI ID: ${pp.payment_intent_id}`, pur.id, pp.payment_intent_id);
+        const q2 = await safeQuarantine(deps, listing.id, `Stale retry — PI already canceled. PI ID: ${pp.payment_intent_id}`, pur.id, pp.payment_intent_id);
+        if (!q2.quarantined) return { status: q2.status, body: { error: q2.error } };
         return { status: 409, body: { error: 'Your previous checkout attempt has expired. Please try again.' } };
       } else {
         // PI is authorized (requires_capture/succeeded/processing) or unknown —
         // Don't cancel (buyer may still complete). Quarantine + 409.
-        await quarantineListing(deps, listing.id, `Stale retry — PI in state: ${existingPI.status}. PI ID: ${pp.payment_intent_id}`, pur.id, pp.payment_intent_id);
+        const q3 = await safeQuarantine(deps, listing.id, `Stale retry — PI in state: ${existingPI.status}. PI ID: ${pp.payment_intent_id}`, pur.id, pp.payment_intent_id);
+        if (!q3.quarantined) return { status: q3.status, body: { error: q3.error } };
         return { status: 409, body: { error: 'A checkout for this listing is already in progress.' } };
       }
     }

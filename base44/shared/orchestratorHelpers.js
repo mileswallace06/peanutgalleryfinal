@@ -104,6 +104,74 @@ export async function quarantineListing(deps, listing_id, reason, purchase_id, p
   const lpBefore = await getListingPrivate(deps, listing_id);
   const currentGeneration = lpBefore?.quarantine_generation || 0;
 
+  // 7C.8 fix #1: IMMUTABLE QUARANTINE SNAPSHOT
+  // If checkout_quarantined is already true, do NOT overwrite the snapshot fields.
+  // The original snapshot must be preserved across repeated quarantines.
+  const alreadyQuarantined = lpBefore?.checkout_quarantined === true;
+
+  // If already quarantined and current reservation state differs from the original
+  // snapshot, set a durable recovery-blocked marker and create a critical alert.
+  // Never "bless" a newly appeared token by copying it into the snapshot.
+  if (alreadyQuarantined) {
+    const snapToken = lpBefore?.quarantined_reservation_token ?? null;
+    const snapBuyer = lpBefore?.quarantined_buyer ?? null;
+    const snapExpiry = lpBefore?.quarantined_expiration ?? null;
+    const currentToken = lpBefore?.reservation_token ?? listingBefore?.reservation_token ?? null;
+    const currentBuyer = lpBefore?.reserved_by_email ?? listingBefore?.reserved_by_email ?? null;
+    const currentExpiry = lpBefore?.reservation_expires_at ?? listingBefore?.reservation_expires_at ?? null;
+
+    if (currentToken !== snapToken || currentBuyer !== snapBuyer || currentExpiry !== snapExpiry) {
+      // Current state differs from original snapshot — block recovery, alert, preserve snapshot
+      try {
+        await upsertListingPrivate(deps, listing_id, {
+          recovery_blocked: true,
+          recovery_blocked_reason: `Repeated quarantine detected state divergence. Snap token=${snapToken}, current=${currentToken}. Manual resolution required. PI ID: ${pi_id || 'N/A'}.`,
+          recovery_blocked_at: quarantineAt,
+        });
+      } catch (_) { /* best effort */ }
+      try {
+        await deps.entities.AdminAlert.create({
+          alert_type: 'admin_action_required',
+          priority: 'critical',
+          title: `RECOVERY BLOCKED for ${listing_id} — quarantine state divergence`,
+          description: `Original snapshot token=${snapToken}, current=${currentToken}. Buyer: snap=${snapBuyer}, current=${currentBuyer}. PI ID: ${pi_id || 'N/A'}. Purchase: ${purchase_id || 'N/A'}. Manual resolution required.`,
+          reference_type: 'listing',
+          reference_id: listing_id,
+        });
+      } catch (_) { /* alert failure must never throw */ }
+      // Still ensure Listing is hidden + quarantine
+      try {
+        await deps.entities.Listing.update(listing_id, { status: 'hidden', hidden_reason: 'checkout_quarantine' });
+      } catch (_) { /* best effort */ }
+      return { quarantined: true, recovery_blocked: true };
+    }
+
+    // State matches snapshot — repeated quarantine is a no-op for the snapshot fields
+    // Just ensure Listing is hidden + quarantine
+    try {
+      await deps.entities.Listing.update(listing_id, { status: 'hidden', hidden_reason: 'checkout_quarantine' });
+    } catch (err) {
+      console.error(`[CRITICAL] quarantineListing: Listing write failed for ${listing_id}: ${err?.message}.`);
+      return { quarantined: false, error: err };
+    }
+    // Increment generation but PRESERVE original snapshot fields
+    try {
+      await upsertListingPrivate(deps, listing_id, {
+        checkout_quarantined: true,
+        checkout_quarantine_reason: reason,
+        checkout_quarantined_at: quarantineAt,
+        checkout_quarantine_pi_id: pi_id || null,
+        quarantine_generation: currentGeneration + 1,
+        recovery_not_before: drainUntil,
+      });
+    } catch (err) {
+      console.error(`[CRITICAL] quarantineListing: LP write failed for ${listing_id}: ${err?.message}.`);
+      return { quarantined: false, error: err };
+    }
+    return { quarantined: true };
+  }
+
+  // First-time quarantine — capture snapshot from current state
   const snapshot = {
     quarantined_reservation_token: lpBefore?.reservation_token ?? listingBefore?.reservation_token ?? null,
     quarantined_buyer: lpBefore?.reserved_by_email ?? listingBefore?.reserved_by_email ?? null,
