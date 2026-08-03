@@ -6,13 +6,15 @@
  *            reactivate in the same run. PurchasePrivate is the authoritative
  *            source for payment_captured and is_demo — public Purchase fields
  *            are never trusted for these decisions.
- *   Phase 2: Recovery with drain period. Captures generation, PI ID, purchase
- *            ID, and snapshot at the start and re-checks before and after
- *            every mutation. After clearing reservation fields, re-fetches
- *            and verifies BOTH Listing and LP have null reservation_token.
- *            If any token survived (concurrent write), restores quarantine.
- *            Checks seller intent before and after every write.
- *            Paginates through ALL quarantined records, not just the first 200.
+ *   Phase 2: Recovery with drain period. Prohibits automatic clearing of
+ *            token-bearing quarantines. Automatic activation is allowed ONLY
+ *            when Listing and LP reservation fields are already null AND
+ *            the immutable snapshot is also null. Never writes
+ *            reservation_token:null to Listing or LP — only activates and
+ *            clears quarantine-specific fields. After clearing, re-fetches
+ *            and verifies no reservation_token appeared (concurrent write
+ *            detection). Checks seller intent before and after every write.
+ *            Paginates through ALL quarantined records.
  *
  * deps = { entities, stripe, now, isMaintenanceActive }
  * Returns: { status, body }
@@ -55,7 +57,7 @@ async function criticalAlert(deps, title, description, listingId) {
   } catch (_) { /* alert failure must never throw */ }
 }
 
-// Helper: restore quarantine on both entities (7C.7 fix #7)
+// Helper: restore quarantine on both entities (best-effort, never throws)
 async function restoreQuarantine(deps, listing_id, reason, piId) {
   try {
     await deps.entities.Listing.update(listing_id, { status: 'hidden', hidden_reason: 'checkout_quarantine' });
@@ -84,10 +86,10 @@ export async function runCleanupAbandonedCheckouts(deps) {
   let maxSkipReached = 0;
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // Phase 1: Process abandoned purchases — quarantine ONLY (7C.7 fix #4)
+  // Phase 1: Process abandoned purchases — quarantine ONLY
   // Never clear tokens or reactivate listings in the same run.
-  // 7C.8 fix #4: PurchasePrivate is authoritative for payment_captured and is_demo.
-  // 7C.8 fix #5: Do not expire a Purchase unless quarantineListing returns quarantined=true.
+  // PurchasePrivate is authoritative for payment_captured and is_demo.
+  // Do not expire a Purchase unless quarantineListing returns quarantined=true.
   // ═══════════════════════════════════════════════════════════════════════════
   const processedIds = new Set();
   let skip = 0;
@@ -98,8 +100,6 @@ export async function runCleanupAbandonedCheckouts(deps) {
     iteration++;
     let page;
     try {
-      // 7C.8 fix #4: Filter by workflow status ONLY — not payment_captured or is_demo.
-      // These fields come from PurchasePrivate (authoritative).
       page = await entities.Purchase.filter({
         transfer_status: 'pending_transfer',
       }, 'created_date', PAGE_SIZE, skip);
@@ -123,15 +123,13 @@ export async function runCleanupAbandonedCheckouts(deps) {
         const created = p.created_date ? new Date(p.created_date).getTime() : 0;
         if (currentTime - created < ABANDONED_MS) { skippedRecent++; recordsRemainingPending++; continue; }
 
-        // 7C.8 fix #4: PurchasePrivate is mandatory — fail closed if missing
+        // PurchasePrivate is mandatory — fail closed if missing
         const pp = await getPurchasePrivate(deps, p.id);
         if (!pp) {
-          // Missing PP — quarantine listing + critical alert, do NOT expire purchase
           const qResult = await quarantineListing(deps, p.listing_id, `PurchasePrivate missing for purchase ${p.id}`, p.id, p.payment_intent_id);
           if (qResult.quarantined) {
             quarantined++;
           } else {
-            // 7C.8 fix #5: Quarantine failed — keep Purchase pending, alert, increment errors
             await criticalAlert(deps, `QUARANTINE FAILED — PurchasePrivate missing for ${p.id}`,
               `Purchase ${p.id} left pending. PI ID: ${p.payment_intent_id || 'N/A'}. Manual resolution required.`, p.listing_id);
             errors++;
@@ -146,10 +144,8 @@ export async function runCleanupAbandonedCheckouts(deps) {
           recordsRemainingPending++; continue;
         }
 
-        // 7C.8 fix #4: Use PurchasePrivate.payment_captured and PurchasePrivate.is_demo EXCLUSIVELY
-        // Private captured=true must NEVER be canceled/expired because public captured=false.
+        // Use PurchasePrivate.payment_captured and PurchasePrivate.is_demo EXCLUSIVELY
         if (pp.payment_captured === true) { skippedCaptured++; recordsRemainingPending++; continue; }
-        // Private is_demo=true must be skipped
         if (pp.is_demo === true) { skippedDemo++; recordsRemainingPending++; continue; }
 
         const piId = pp.payment_intent_id;
@@ -159,7 +155,7 @@ export async function runCleanupAbandonedCheckouts(deps) {
           recordsRemainingPending++; continue;
         }
 
-        // Retrieve PI — failure → quarantine + critical alert (7C.7 fix #1)
+        // Retrieve PI — failure → quarantine + critical alert
         let pi;
         let piStatus = null;
         try {
@@ -208,13 +204,12 @@ export async function runCleanupAbandonedCheckouts(deps) {
           piStatus = 'canceled';
         }
 
-        // 7C.8 fix #5: Quarantine BEFORE expiry — do not expire Purchase unless quarantine succeeds
+        // Quarantine BEFORE expiry — do not expire Purchase unless quarantine succeeds
         const qResult = await quarantineListing(deps, p.listing_id,
           `Cleanup Phase 1 quarantine: PI status=${piStatus}, ownership_valid=${ownershipValid}, buyer_match=${ownsByBuyer}, token_match=${ownsByToken}`,
           p.id, piId);
 
         if (!qResult.quarantined) {
-          // 7C.8 fix #5: Quarantine failed — keep Purchase PENDING, create critical alert, increment errors
           await criticalAlert(deps, `QUARANTINE FAILED for ${p.listing_id}`,
             `Phase 1 quarantine write failed. Purchase ${p.id} LEFT PENDING. PI ID: ${piId}. Manual resolution required.`, p.listing_id);
           errors++;
@@ -227,7 +222,6 @@ export async function runCleanupAbandonedCheckouts(deps) {
           expired++;
           staysInResultSet = false;
         } catch (err) {
-          // Expiry failed — listing is quarantined, purchase still pending. Alert.
           await criticalAlert(deps, `PURCHASE EXPIRY FAILED for ${p.id}`,
             `Error: ${err?.message}. Listing is quarantined. Purchase left pending. PI ID: ${piId}.`, p.listing_id);
           errors++;
@@ -246,16 +240,19 @@ export async function runCleanupAbandonedCheckouts(deps) {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // Phase 2: Quarantine recovery (7C.8 fixes #2, #3, #7)
-  // 7C.8 fix #7: Paginate through ALL checkout_quarantined LPs, not just first 200.
-  // 7C.8 fix #2: Capture generation, PI ID, purchase ID, snapshot at start.
-  //              Re-fetch and require exact equality before and after every mutation.
-  // 7C.8 fix #3: After clearing reservation fields, re-fetch and verify BOTH
-  //              Listing and LP have null reservation_token. If any token survived,
-  //              restore quarantine and skip.
+  // Phase 2: Quarantine recovery
+  // PROHIBITS automatic clearing of token-bearing quarantines.
+  //   - If quarantined_reservation_token is non-null, OR Listing/LP currently
+  //     have any reservation token/buyer/expiry, do not clear. Block recovery.
+  //   - Automatic activation is allowed ONLY when Listing and LP reservation
+  //     fields are already null AND the immutable snapshot is also null.
+  //   - Never writes reservation_token:null to Listing or LP — only activates
+  //     and clears quarantine-specific fields.
+  //   - After clearing, re-fetches and verifies no reservation_token appeared.
   // ═══════════════════════════════════════════════════════════════════════════
   let quarantineResolved = 0;
   let quarantineRestoreFailed = 0;
+  let quarantineBlocked = 0;
   const recoveryProcessedIds = new Set();
   let recoverySkip = 0;
   let recoveryHasMore = true;
@@ -282,10 +279,10 @@ export async function runCleanupAbandonedCheckouts(deps) {
         const piId = lp.checkout_quarantine_pi_id;
         if (!piId) { recoveryRecordsRemaining++; continue; }
 
-        // 7C.8 fix #1: Check recovery_blocked marker — skip if blocked
+        // Check recovery_blocked marker — skip if blocked
         if (isRecoveryBlocked(lp)) { recoveryRecordsRemaining++; continue; }
 
-        // 7C.7 fix #4: Check drain period
+        // Check drain period
         if (!drainPeriodPassed(lp, deps.now())) { recoveryRecordsRemaining++; continue; }
 
         // Re-fetch ALL entities before every write
@@ -295,16 +292,16 @@ export async function runCleanupAbandonedCheckouts(deps) {
         if (!listingFresh || listingFresh.status !== 'hidden' || listingFresh.hidden_reason !== 'checkout_quarantine') { recoveryRecordsRemaining++; continue; }
         if (!lpFresh || !lpFresh.checkout_quarantined) { recoveryRecordsRemaining++; continue; }
 
-        // 7C.7 fix #5: Check seller cancel intent BEFORE any write
+        // Check seller cancel/pause intent BEFORE any write
         if (hasSellerCancelIntent(lpFresh) || hasSellerPauseIntent(lpFresh)) { recoveryRecordsRemaining++; continue; }
 
         // Never reactivate a seller-cancelled listing
         if (listingFresh.status === 'cancelled') { recoveryRecordsRemaining++; continue; }
 
-        // 7C.8 fix #1: Check recovery_blocked on fresh LP
+        // Check recovery_blocked on fresh LP
         if (isRecoveryBlocked(lpFresh)) { recoveryRecordsRemaining++; continue; }
 
-        // 7C.8 fix #2: Capture generation, PI ID, purchase ID, snapshot at the beginning
+        // Capture generation, PI ID, purchase ID at the beginning
         const capturedGeneration = lpFresh.quarantine_generation;
         const capturedPiId = piId;
         const capturedPurchaseId = lpFresh.quarantined_purchase_id;
@@ -323,126 +320,88 @@ export async function runCleanupAbandonedCheckouts(deps) {
         // Basic recovery conditions
         if (!canRecoverQuarantine(listingFresh, lpFresh, pi, pendingPurchases)) { recoveryRecordsRemaining++; continue; }
 
-        // 7C.7 fix #4: Require current LP values to match durable quarantine snapshot
+        // Require current LP values to match durable quarantine snapshot
         if (!matchesQuarantineSnapshot(lpFresh)) { recoveryRecordsRemaining++; continue; }
 
-        // 7C.8 fix #2: Re-verify generation match before any mutation
+        // Verify generation match before any mutation
         const lpGenCheck = await getListingPrivate(deps, lp.listing_id);
         if (!verifyGenerationMatch(capturedGeneration, capturedPiId, capturedPurchaseId, lpGenCheck)) {
-          // Newer generation or different PI/purchase — cannot safely recover
           await criticalAlert(deps, `GENERATION MISMATCH for ${lp.listing_id}`,
             `Captured gen=${capturedGeneration}, current gen=${lpGenCheck?.quarantine_generation}. PI: ${capturedPiId} vs ${lpGenCheck?.checkout_quarantine_pi_id}. Manual resolution required.`, lp.listing_id);
           recoveryRecordsRemaining++; continue;
         }
 
-        // ── Step 1: Pre-clear verification ──────────────────────────────
-        const lpPreClear = await getListingPrivate(deps, lp.listing_id);
-        if (!lpPreClear || !matchesQuarantineSnapshot(lpPreClear)) {
-          await criticalAlert(deps, `NEW TOKEN DETECTED before recovery clearing for ${lp.listing_id}`,
-            `Snapshot: ${lp.quarantined_reservation_token}, Current: ${lpPreClear?.reservation_token}. Left quarantined.`, lp.listing_id);
-          recoveryRecordsRemaining++; continue;
-        }
-        // 7C.8 fix #2: Verify generation still matches
-        if (!verifyGenerationMatch(capturedGeneration, capturedPiId, capturedPurchaseId, lpPreClear)) {
-          recoveryRecordsRemaining++; continue;
-        }
-
-        // ── Step 2a: Clear Listing reservation fields ──────────────────
-        try {
-          await entities.Listing.update(lp.listing_id, {
-            reservation_token: null, reservation_expires_at: null, reserved_by_email: null,
-          });
-        } catch (err) {
-          await criticalAlert(deps, `LISTING CLEAR FAILED for ${lp.listing_id}`, `Error: ${err?.message}. PI ID: ${piId}.`, lp.listing_id);
-          quarantineRestoreFailed++;
-          recoveryRecordsRemaining++; continue;
-        }
-
-        // ── Step 2b: Re-fetch LP and check token still matches snapshot ─
-        const lpMidClear = await getListingPrivate(deps, lp.listing_id);
-        if (!lpMidClear || !matchesQuarantineSnapshot(lpMidClear)) {
-          await restoreQuarantine(deps, lp.listing_id, 'New token detected during Listing clear — token preserved', piId);
-          quarantineRestoreFailed++; recoveryRecordsRemaining++; continue;
-        }
-        // 7C.8 fix #2: Verify generation still matches
-        if (!verifyGenerationMatch(capturedGeneration, capturedPiId, capturedPurchaseId, lpMidClear)) {
-          await restoreQuarantine(deps, lp.listing_id, 'Generation mismatch during Listing clear', piId);
-          quarantineRestoreFailed++; recoveryRecordsRemaining++; continue;
-        }
-
-        // ── Step 2c: Clear LP reservation fields ────────────────────────
-        try {
-          await upsertListingPrivate(deps, lp.listing_id, {
-            reservation_token: null, reservation_expires_at: null, reserved_by_email: null,
-          });
-        } catch (err) {
+        // ── PROHIBIT automatic clearing of token-bearing quarantines ──
+        // If the immutable snapshot has a reservation token, block recovery.
+        if (isTokenBearingQuarantine(lpFresh)) {
           try {
-            await entities.Listing.update(lp.listing_id, {
-              reservation_token: lp.quarantined_reservation_token,
-              reservation_expires_at: lp.quarantined_expiration,
-              reserved_by_email: lp.quarantined_buyer,
+            await upsertListingPrivate(deps, lp.listing_id, {
+              recovery_blocked: true,
+              recovery_blocked_reason: `Token-bearing quarantine cannot be auto-cleared. Snapshot token: ${lpFresh.quarantined_reservation_token}. Manual resolution required.`,
+              recovery_blocked_at: new Date(deps.now()).toISOString(),
             });
           } catch (_) { /* best effort */ }
-          await criticalAlert(deps, `LP CLEAR FAILED for ${lp.listing_id}`, `Error: ${err?.message}. PI ID: ${piId}.`, lp.listing_id);
-          quarantineRestoreFailed++;
+          await criticalAlert(deps, `TOKEN-BEARING QUARANTINE BLOCKED for ${lp.listing_id}`,
+            `Snapshot token: ${lpFresh.quarantined_reservation_token}. Cannot auto-clear. Manual resolution required. PI ID: ${piId}.`, lp.listing_id);
+          quarantineBlocked++;
           recoveryRecordsRemaining++; continue;
         }
 
-        // ── Step 3: 7C.8 fix #3 — Verify BOTH Listing and LP have null reservation_token
-        // After clearing, re-fetch and verify no token survived. If a concurrent write
-        // injected a new token, it must be detected here and the listing must stay quarantined.
-        const [listingCleared] = await entities.Listing.filter({ id: lp.listing_id });
-        const lpCleared = await getListingPrivate(deps, lp.listing_id);
-        if (!listingCleared || listingCleared.reservation_token !== null) {
-          await restoreQuarantine(deps, lp.listing_id, 'Listing reservation not cleared after recovery — token survived', piId);
-          quarantineRestoreFailed++; recoveryRecordsRemaining++; continue;
-        }
-        if (!lpCleared || lpCleared.reservation_token !== null) {
-          await restoreQuarantine(deps, lp.listing_id, 'LP reservation not cleared after recovery — token survived', piId);
-          quarantineRestoreFailed++; recoveryRecordsRemaining++; continue;
-        }
-        // 7C.8 fix #2: Verify generation still matches after clearing
-        if (!verifyGenerationMatch(capturedGeneration, capturedPiId, capturedPurchaseId, lpCleared)) {
-          await restoreQuarantine(deps, lp.listing_id, 'Generation mismatch after clearing', piId);
-          quarantineRestoreFailed++; recoveryRecordsRemaining++; continue;
+        // If Listing or LP currently have any reservation fields, block recovery.
+        if (!reservationFieldsAlreadyNull(listingFresh, lpFresh)) {
+          try {
+            await upsertListingPrivate(deps, lp.listing_id, {
+              recovery_blocked: true,
+              recovery_blocked_reason: `Listing/LP have active reservation fields. Listing token: ${listingFresh?.reservation_token}, LP token: ${lpFresh?.reservation_token}. Manual resolution required.`,
+              recovery_blocked_at: new Date(deps.now()).toISOString(),
+            });
+          } catch (_) { /* best effort */ }
+          await criticalAlert(deps, `RESERVATION FIELDS BLOCKED for ${lp.listing_id}`,
+            `Listing/LP have active reservation fields. Cannot auto-clear. Manual resolution required. PI ID: ${piId}.`, lp.listing_id);
+          quarantineBlocked++;
+          recoveryRecordsRemaining++; continue;
         }
 
-        // ── Step 4: Check seller intent BEFORE activating ───────────────
+        // Verify snapshot also matches current state (both null) — redundant safety
+        if (!snapshotMatchesCurrentState(lpFresh)) {
+          recoveryRecordsRemaining++; continue;
+        }
+
+        // ── Step 1: Check seller intent BEFORE activating ──────────────
         const lpBeforeActivate = await getListingPrivate(deps, lp.listing_id);
         if (hasSellerCancelIntent(lpBeforeActivate) || hasSellerPauseIntent(lpBeforeActivate)) {
-          await restoreQuarantine(deps, lp.listing_id, 'Seller intent detected before activation', piId);
           recoveryRecordsRemaining++; continue;
         }
         if (!verifyGenerationMatch(capturedGeneration, capturedPiId, capturedPurchaseId, lpBeforeActivate)) {
-          await restoreQuarantine(deps, lp.listing_id, 'Generation mismatch before activation', piId);
-          quarantineRestoreFailed++; recoveryRecordsRemaining++; continue;
+          recoveryRecordsRemaining++; continue;
         }
 
-        // ── Step 5: Activate Listing while LP quarantine is still true ──
+        // ── Step 2: Activate Listing (DO NOT touch reservation fields) ──
         try {
           await entities.Listing.update(lp.listing_id, {
             status: 'active', hidden_reason: null,
           });
         } catch (err) {
-          await restoreQuarantine(deps, lp.listing_id, `Recovery Listing activation failed: ${err?.message}`, piId);
+          await criticalAlert(deps, `RECOVERY LISTING ACTIVATION FAILED for ${lp.listing_id}`, `Error: ${err?.message}. PI ID: ${piId}.`, lp.listing_id);
           quarantineRestoreFailed++; recoveryRecordsRemaining++; continue;
         }
 
-        // ── Step 6: Re-fetch seller intent AFTER activation ────────────
+        // ── Step 3: Re-fetch seller intent AFTER activation ────────────
         const lpAfterActivate = await getListingPrivate(deps, lp.listing_id);
         if (hasSellerCancelIntent(lpAfterActivate) || hasSellerPauseIntent(lpAfterActivate)) {
           await restoreQuarantine(deps, lp.listing_id, 'Seller cancel detected after activation', piId);
-          await criticalAlert(deps, `SELLER CANCEL DURING RECOVERY for ${lp.listing_id}`,
-            `Seller intent appeared between Listing activation and LP quarantine clearing. Restored to quarantine. PI ID: ${piId}.`, lp.listing_id);
-          quarantineRestoreFailed++; recoveryRecordsRemaining++; continue;
+          recoveryRecordsRemaining++; continue;
         }
-        // 7C.8 fix #2: Verify generation still matches after activation
         if (!verifyGenerationMatch(capturedGeneration, capturedPiId, capturedPurchaseId, lpAfterActivate)) {
           await restoreQuarantine(deps, lp.listing_id, 'Generation mismatch after activation', piId);
           quarantineRestoreFailed++; recoveryRecordsRemaining++; continue;
         }
 
-        // ── Step 7: Clear LP quarantine only after verification ────────
+        // ── Step 4: Clear LP quarantine ONLY (DO NOT touch reservation fields) ──
+        // This is the critical step where a concurrent token injection must be
+        // detected. We do NOT write reservation_token:null — only quarantine-
+        // specific fields. A token injected via before_ListingPrivate_update
+        // survives because the update data does not include reservation_token.
         try {
           await upsertListingPrivate(deps, lp.listing_id, {
             checkout_quarantined: false, checkout_quarantine_reason: null,
@@ -456,7 +415,10 @@ export async function runCleanupAbandonedCheckouts(deps) {
           quarantineRestoreFailed++; recoveryRecordsRemaining++; continue;
         }
 
-        // ── Step 8: Post-verify both entities ──────────────────────────
+        // ── Step 5: Post-verify both entities ──────────────────────────
+        // Verify Listing is active with no reservation token.
+        // Verify LP quarantine is cleared AND no reservation token appeared
+        // (a concurrent write may have injected one during the update).
         const [verifyListing] = await entities.Listing.filter({ id: lp.listing_id });
         const verifyLP = await getListingPrivate(deps, lp.listing_id);
 
@@ -465,11 +427,11 @@ export async function runCleanupAbandonedCheckouts(deps) {
           quarantineRestoreFailed++; recoveryRecordsRemaining++; continue;
         }
         if (!verifyLP || verifyLP.reservation_token !== null || verifyLP.checkout_quarantined !== false) {
-          await restoreQuarantine(deps, lp.listing_id, 'Post-verify failed (LP still reserved/quarantined)', piId);
+          await restoreQuarantine(deps, lp.listing_id, 'Post-verify failed (LP has reservation token or still quarantined)', piId);
           quarantineRestoreFailed++; recoveryRecordsRemaining++; continue;
         }
 
-        // ── Step 9: Check seller intent AFTER all writes ────────────────
+        // ── Step 6: Check seller intent AFTER all writes ────────────────
         if (hasSellerCancelIntent(verifyLP) || hasSellerPauseIntent(verifyLP)) {
           await restoreQuarantine(deps, lp.listing_id, 'Seller intent detected after post-verify', piId);
           quarantineRestoreFailed++; recoveryRecordsRemaining++; continue;
@@ -477,7 +439,6 @@ export async function runCleanupAbandonedCheckouts(deps) {
 
         quarantineResolved++;
         released++;
-        // Successfully recovered — leaves the result set
       } catch (err) {
         console.error('[cleanupAbandonedCheckouts] quarantine resolve error', lp.listing_id, err?.message);
         errors++;
@@ -498,6 +459,7 @@ export async function runCleanupAbandonedCheckouts(deps) {
       skipped_demo: skippedDemo, skipped_captured: skippedCaptured,
       errors, quarantine_resolved: quarantineResolved,
       quarantine_restore_failed: quarantineRestoreFailed,
+      quarantine_blocked: quarantineBlocked,
       max_skip_reached: maxSkipReached,
     },
   };

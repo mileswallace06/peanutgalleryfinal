@@ -1,6 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import { isMaintenanceActive, maintenance503 } from '../../shared/maintenance.ts';
 import { upsertListingPrivate, recordLegacyProofUrl, readUserSecurity, alertPrivateWriteFailure } from '../../shared/privateData.ts';
+import { clearStalePauseMarker, clearPauseMarkerAfterResume } from '../../shared/resumeOrchestrator.js';
 
 async function checkSuspicious(base44, sellerEmail, askingPrice) {
   const [purchases, allListings, sellerUsers] = await Promise.all([
@@ -116,13 +117,22 @@ Deno.serve(async (req) => {
       logType = 'listing_hidden';
     } else if (operation === 'resume') {
       if (listingFresh.status === 'active') {
-        // 7C.8 fix #8: Handle already-active listing with stale pause marker safely.
-        // Clear the stale marker so it doesn't block future quarantine recovery.
+        // 7C.8: Handle already-active listing with stale pause marker safely.
+        // Require listing not quarantined and no active reservation before clearing.
+        // Do not swallow clearing failure. Verify the clear. On failure return 500.
         if (lpFresh.seller_pause_requested_at) {
-          try {
-            await upsertListingPrivate(base44, listing_id, { seller_pause_requested_at: null });
-          } catch (err) {
-            await alertPrivateWriteFailure(base44, { entity: 'ListingPrivate', reference_id: listing_id, reference_type: 'listing', error: err });
+          const resumeDeps = {
+            entities: {
+              Listing: base44.asServiceRole.entities.Listing,
+              ListingPrivate: base44.asServiceRole.entities.ListingPrivate,
+              SeatInventory: base44.asServiceRole.entities.SeatInventory,
+            },
+            now: () => Date.now(),
+          };
+          const result = await clearStalePauseMarker(resumeDeps, { listing_id, lpFresh });
+          if (result.status !== 200) {
+            await alertPrivateWriteFailure(base44, { entity: 'ListingPrivate', reference_id: listing_id, reference_type: 'listing', error: new Error(result.error) });
+            return Response.json({ error: result.error }, { status: 500 });
           }
         }
         return Response.json({ status: 'already_active', listing_id, idempotent: true });
@@ -274,26 +284,29 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 7C.8 fix #8: Clear pause intent SAFELY — only after Listing AND SeatInventory
-    // resume writes succeed and are verified. If clearing fails, revert listing to
-    // hidden/paused and return 500. seller_cancel_requested_at is NEVER cleared —
-    // it remains permanent for cancelled listings.
+    // 7C.8: Clear pause intent SAFELY — only after Listing AND SeatInventory
+    // resume writes succeed and are verified. If clearing fails or verification
+    // fails, revert BOTH Listing AND SeatInventory to their paused states and
+    // return 500. seller_cancel_requested_at is NEVER cleared — it remains
+    // permanent for cancelled listings.
     if (operation === 'resume') {
-      try {
-        await upsertListingPrivate(base44, listing_id, { seller_pause_requested_at: null });
-        // Verify the clear
-        const lpVerifyRows = await base44.asServiceRole.entities.ListingPrivate.filter({ listing_id });
-        const lpVerify = lpVerifyRows[0];
-        if (lpVerify && lpVerify.seller_pause_requested_at !== null && lpVerify.seller_pause_requested_at !== undefined) {
-          // Clear failed — revert listing to hidden/paused
-          await base44.asServiceRole.entities.Listing.update(listing.id, { status: 'hidden', hidden_reason: 'other' }).catch(() => {});
-          return Response.json({ error: 'Failed to clear pause intent. Listing reverted to paused.' }, { status: 500 });
-        }
-      } catch (err) {
-        // Clear write failed — revert listing to hidden/paused
-        await base44.asServiceRole.entities.Listing.update(listing.id, { status: 'hidden', hidden_reason: 'other' }).catch(() => {});
-        await alertPrivateWriteFailure(base44, { entity: 'ListingPrivate', reference_id: listing_id, reference_type: 'listing', error: err });
-        return Response.json({ error: 'Failed to clear pause intent. Listing reverted to paused.' }, { status: 500 });
+      const resumeDeps = {
+        entities: {
+          Listing: base44.asServiceRole.entities.Listing,
+          ListingPrivate: base44.asServiceRole.entities.ListingPrivate,
+          SeatInventory: base44.asServiceRole.entities.SeatInventory,
+        },
+        now: () => Date.now(),
+      };
+      const seatInvId = lpFresh.seat_inventory_id || null;
+      const result = await clearPauseMarkerAfterResume(resumeDeps, {
+        listing_id,
+        listing_entity_id: listing.id,
+        seat_inventory_id: seatInvId,
+      });
+      if (result.status !== 200) {
+        await alertPrivateWriteFailure(base44, { entity: 'ListingPrivate', reference_id: listing_id, reference_type: 'listing', error: new Error(result.error) });
+        return Response.json({ error: result.error }, { status: 500 });
       }
     }
 

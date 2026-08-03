@@ -1,9 +1,6 @@
 /**
  * orchestratorHelpers.js — Entity-access helpers with dependency injection.
  *
- * These functions accept a `deps` object instead of a global base44 client,
- * making them testable in both Deno (entry.ts) and Node.js (tests).
- *
  * deps = {
  *   entities: { Listing, ListingPrivate, Purchase, PurchasePrivate,
  *               User, UserSecurityProfile, AdminAlert, SeatInventory },
@@ -89,30 +86,41 @@ export async function alertPrivateWriteFailure(deps, { entity, reference_id, ref
   } catch (_) { /* alert failure must never throw */ }
 }
 
+// Helper: critical alert with PI ID (never throws)
+async function criticalAlertForQuarantine(deps, listing_id, title, description, piId) {
+  try {
+    await deps.entities.AdminAlert.create({
+      alert_type: 'admin_action_required',
+      priority: 'critical',
+      title,
+      description: `${description} PI ID: ${piId || 'N/A'}.`,
+      reference_type: 'listing',
+      reference_id: listing_id,
+    });
+  } catch (_) { /* alert failure must never throw */ }
+}
+
 // ── Quarantine listing (writes to BOTH Listing and ListingPrivate, verifies) ──
-// 7C.7 fix #3: Captures a durable quarantine snapshot BEFORE writing.
-// The snapshot (quarantined_reservation_token, quarantined_buyer,
-// quarantined_expiration, quarantined_purchase_id) is stored on ListingPrivate
-// and checked by recovery to ensure no new token appeared.
-// Also sets recovery_not_before (drain period) and increments quarantine_generation.
+// 7C.8: IMMUTABLE QUARANTINE SNAPSHOT — original snapshot AND generation are
+// never mutated by repeated quarantines. Divergence blocks recovery and
+// preserves the original identity (generation is NOT incremented). Same-state
+// repeated quarantine is an idempotent no-op that does not replace pi_id,
+// purchase_id, generation, recovery_not_before, or any snapshot field.
+// All protection writes are awaited and verified. If either fails, returns
+// quarantined:false — never returns quarantined:true based on best-effort writes.
 export async function quarantineListing(deps, listing_id, reason, purchase_id, pi_id) {
   const quarantineAt = new Date(deps.now()).toISOString();
   const drainUntil = new Date(deps.now() + QUARANTINE_DRAIN_MS).toISOString();
 
-  // Capture durable snapshot BEFORE quarantining
+  // Capture state BEFORE quarantining
   const [listingBefore] = await deps.entities.Listing.filter({ id: listing_id });
   const lpBefore = await getListingPrivate(deps, listing_id);
   const currentGeneration = lpBefore?.quarantine_generation || 0;
 
-  // 7C.8 fix #1: IMMUTABLE QUARANTINE SNAPSHOT
-  // If checkout_quarantined is already true, do NOT overwrite the snapshot fields.
-  // The original snapshot must be preserved across repeated quarantines.
   const alreadyQuarantined = lpBefore?.checkout_quarantined === true;
 
-  // If already quarantined and current reservation state differs from the original
-  // snapshot, set a durable recovery-blocked marker and create a critical alert.
-  // Never "bless" a newly appeared token by copying it into the snapshot.
   if (alreadyQuarantined) {
+    // Check for state divergence between current reservation fields and original snapshot
     const snapToken = lpBefore?.quarantined_reservation_token ?? null;
     const snapBuyer = lpBefore?.quarantined_buyer ?? null;
     const snapExpiry = lpBefore?.quarantined_expiration ?? null;
@@ -120,54 +128,66 @@ export async function quarantineListing(deps, listing_id, reason, purchase_id, p
     const currentBuyer = lpBefore?.reserved_by_email ?? listingBefore?.reserved_by_email ?? null;
     const currentExpiry = lpBefore?.reservation_expires_at ?? listingBefore?.reservation_expires_at ?? null;
 
-    if (currentToken !== snapToken || currentBuyer !== snapBuyer || currentExpiry !== snapExpiry) {
-      // Current state differs from original snapshot — block recovery, alert, preserve snapshot
+    const hasDivergence = currentToken !== snapToken || currentBuyer !== snapBuyer || currentExpiry !== snapExpiry;
+
+    if (hasDivergence) {
+      // DIVERGENCE: Current state differs from original snapshot.
+      // Block recovery, alert, preserve ORIGINAL snapshot AND generation.
+      // Do NOT increment generation. Do NOT overwrite snapshot fields.
+
+      // Step 1: Write recovery_blocked and VERIFY
       try {
         await upsertListingPrivate(deps, listing_id, {
           recovery_blocked: true,
           recovery_blocked_reason: `Repeated quarantine detected state divergence. Snap token=${snapToken}, current=${currentToken}. Manual resolution required. PI ID: ${pi_id || 'N/A'}.`,
           recovery_blocked_at: quarantineAt,
         });
-      } catch (_) { /* best effort */ }
-      try {
-        await deps.entities.AdminAlert.create({
-          alert_type: 'admin_action_required',
-          priority: 'critical',
-          title: `RECOVERY BLOCKED for ${listing_id} — quarantine state divergence`,
-          description: `Original snapshot token=${snapToken}, current=${currentToken}. Buyer: snap=${snapBuyer}, current=${currentBuyer}. PI ID: ${pi_id || 'N/A'}. Purchase: ${purchase_id || 'N/A'}. Manual resolution required.`,
-          reference_type: 'listing',
-          reference_id: listing_id,
-        });
-      } catch (_) { /* alert failure must never throw */ }
-      // Still ensure Listing is hidden + quarantine
+      } catch (err) {
+        await criticalAlertForQuarantine(deps, listing_id, `RECOVERY_BLOCKED WRITE FAILED for ${listing_id}`, `Error: ${err?.message}. ${reason}.`, pi_id);
+        return { quarantined: false, error: err };
+      }
+      const lpVerifyBlock = await getListingPrivate(deps, listing_id);
+      if (!lpVerifyBlock || lpVerifyBlock.recovery_blocked !== true) {
+        await criticalAlertForQuarantine(deps, listing_id, `RECOVERY_BLOCKED VERIFICATION FAILED for ${listing_id}`, `recovery_blocked not set after write. ${reason}.`, pi_id);
+        return { quarantined: false, error: new Error('recovery_blocked verification failed') };
+      }
+
+      // Step 2: Ensure Listing is hidden + quarantine and VERIFY
       try {
         await deps.entities.Listing.update(listing_id, { status: 'hidden', hidden_reason: 'checkout_quarantine' });
-      } catch (_) { /* best effort */ }
+      } catch (err) {
+        await criticalAlertForQuarantine(deps, listing_id, `QUARANTINE LISTING WRITE FAILED for ${listing_id}`, `Error: ${err?.message}. ${reason}.`, pi_id);
+        return { quarantined: false, error: err };
+      }
+      const [verifyListingDiv] = await deps.entities.Listing.filter({ id: listing_id });
+      if (!verifyListingDiv || verifyListingDiv.status !== 'hidden' || verifyListingDiv.hidden_reason !== 'checkout_quarantine') {
+        await criticalAlertForQuarantine(deps, listing_id, `QUARANTINE LISTING VERIFICATION FAILED for ${listing_id}`, `Status: ${verifyListingDiv?.status}, reason: ${verifyListingDiv?.hidden_reason}. ${reason}.`, pi_id);
+        return { quarantined: false, error: new Error('Listing hidden verification failed') };
+      }
+
+      // Original snapshot AND generation preserved (NOT incremented)
       return { quarantined: true, recovery_blocked: true };
     }
 
-    // State matches snapshot — repeated quarantine is a no-op for the snapshot fields
-    // Just ensure Listing is hidden + quarantine
-    try {
-      await deps.entities.Listing.update(listing_id, { status: 'hidden', hidden_reason: 'checkout_quarantine' });
-    } catch (err) {
-      console.error(`[CRITICAL] quarantineListing: Listing write failed for ${listing_id}: ${err?.message}.`);
-      return { quarantined: false, error: err };
+    // SAME-STATE: Repeated quarantine with matching state.
+    // Idempotent no-op — do NOT replace checkout_quarantine_pi_id,
+    // quarantined_purchase_id, quarantine_generation, recovery_not_before,
+    // or any snapshot field. Only ensure Listing is hidden + quarantine.
+    const [listingCheck] = await deps.entities.Listing.filter({ id: listing_id });
+    if (!listingCheck || listingCheck.status !== 'hidden' || listingCheck.hidden_reason !== 'checkout_quarantine') {
+      try {
+        await deps.entities.Listing.update(listing_id, { status: 'hidden', hidden_reason: 'checkout_quarantine' });
+      } catch (err) {
+        await criticalAlertForQuarantine(deps, listing_id, `QUARANTINE LISTING WRITE FAILED for ${listing_id}`, `Error: ${err?.message}. ${reason}.`, pi_id);
+        return { quarantined: false, error: err };
+      }
+      const [verifyListingSame] = await deps.entities.Listing.filter({ id: listing_id });
+      if (!verifyListingSame || verifyListingSame.status !== 'hidden' || verifyListingSame.hidden_reason !== 'checkout_quarantine') {
+        await criticalAlertForQuarantine(deps, listing_id, `QUARANTINE LISTING VERIFICATION FAILED for ${listing_id}`, `${reason}.`, pi_id);
+        return { quarantined: false, error: new Error('Listing hidden verification failed') };
+      }
     }
-    // Increment generation but PRESERVE original snapshot fields
-    try {
-      await upsertListingPrivate(deps, listing_id, {
-        checkout_quarantined: true,
-        checkout_quarantine_reason: reason,
-        checkout_quarantined_at: quarantineAt,
-        checkout_quarantine_pi_id: pi_id || null,
-        quarantine_generation: currentGeneration + 1,
-        recovery_not_before: drainUntil,
-      });
-    } catch (err) {
-      console.error(`[CRITICAL] quarantineListing: LP write failed for ${listing_id}: ${err?.message}.`);
-      return { quarantined: false, error: err };
-    }
+    // Do NOT write any identity fields to LP — idempotent no-op
     return { quarantined: true };
   }
 
@@ -187,19 +207,7 @@ export async function quarantineListing(deps, listing_id, reason, purchase_id, p
       hidden_reason: 'checkout_quarantine',
     });
   } catch (err) {
-    console.error(`[CRITICAL] quarantineListing: Listing write failed for ${listing_id}: ${err?.message}.`);
-    try {
-      await deps.entities.AdminAlert.create({
-        alert_type: 'admin_action_required',
-        priority: 'critical',
-        title: `QUARANTINE LISTING WRITE FAILED for ${listing_id}`,
-        description: `${reason}. Error: ${err?.message}. Purchase: ${purchase_id || 'N/A'}.`,
-        reference_type: 'listing',
-        reference_id: listing_id,
-      });
-    } catch (alertErr) {
-      console.error(`[CRITICAL] Alert creation failed for quarantine: ${alertErr?.message}`);
-    }
+    await criticalAlertForQuarantine(deps, listing_id, `QUARANTINE LISTING WRITE FAILED for ${listing_id}`, `${reason}. Error: ${err?.message}. Purchase: ${purchase_id || 'N/A'}.`, pi_id);
     return { quarantined: false, error: err };
   }
 
@@ -212,19 +220,7 @@ export async function quarantineListing(deps, listing_id, reason, purchase_id, p
       ...snapshot,
     });
   } catch (err) {
-    console.error(`[CRITICAL] quarantineListing: LP write failed for ${listing_id}: ${err?.message}.`);
-    try {
-      await deps.entities.AdminAlert.create({
-        alert_type: 'admin_action_required',
-        priority: 'critical',
-        title: `QUARANTINE LP WRITE FAILED for ${listing_id}`,
-        description: `${reason}. Error: ${err?.message}. Purchase: ${purchase_id || 'N/A'}. PI ID: ${pi_id || 'N/A'}.`,
-        reference_type: 'listing',
-        reference_id: listing_id,
-      });
-    } catch (alertErr) {
-      console.error(`[CRITICAL] Alert creation failed for LP quarantine: ${alertErr?.message}`);
-    }
+    await criticalAlertForQuarantine(deps, listing_id, `QUARANTINE LP WRITE FAILED for ${listing_id}`, `${reason}. Error: ${err?.message}. Purchase: ${purchase_id || 'N/A'}. PI ID: ${pi_id || 'N/A'}.`, pi_id);
     return { quarantined: false, error: err };
   }
 
@@ -233,36 +229,12 @@ export async function quarantineListing(deps, listing_id, reason, purchase_id, p
   const verifyLP = await getListingPrivate(deps, listing_id);
 
   if (!verifyListing || verifyListing.status !== 'hidden' || verifyListing.hidden_reason !== 'checkout_quarantine') {
-    console.error(`[CRITICAL] quarantineListing: Listing verification failed for ${listing_id}.`);
-    try {
-      await deps.entities.AdminAlert.create({
-        alert_type: 'admin_action_required',
-        priority: 'critical',
-        title: `QUARANTINE LISTING VERIFICATION FAILED for ${listing_id}`,
-        description: `Status: ${verifyListing?.status}, reason: ${verifyListing?.hidden_reason}.`,
-        reference_type: 'listing',
-        reference_id: listing_id,
-      });
-    } catch (alertErr) {
-      console.error(`[CRITICAL] Alert creation failed: ${alertErr?.message}`);
-    }
+    await criticalAlertForQuarantine(deps, listing_id, `QUARANTINE LISTING VERIFICATION FAILED for ${listing_id}`, `Status: ${verifyListing?.status}, reason: ${verifyListing?.hidden_reason}.`, pi_id);
     return { quarantined: false, error: new Error('Listing post-write verification failed') };
   }
 
   if (!verifyLP || !verifyLP.checkout_quarantined) {
-    console.error(`[CRITICAL] quarantineListing: LP verification failed for ${listing_id}.`);
-    try {
-      await deps.entities.AdminAlert.create({
-        alert_type: 'admin_action_required',
-        priority: 'critical',
-        title: `QUARANTINE LP VERIFICATION FAILED for ${listing_id}`,
-        description: `Post-write verification failed. checkout_quarantined not set.`,
-        reference_type: 'listing',
-        reference_id: listing_id,
-      });
-    } catch (alertErr) {
-      console.error(`[CRITICAL] Alert creation failed: ${alertErr?.message}`);
-    }
+    await criticalAlertForQuarantine(deps, listing_id, `QUARANTINE LP VERIFICATION FAILED for ${listing_id}`, `Post-write verification failed. checkout_quarantined not set.`, pi_id);
     return { quarantined: false, error: new Error('ListingPrivate post-write verification failed') };
   }
 

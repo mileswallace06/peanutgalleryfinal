@@ -44,6 +44,7 @@ import {
 import { runCreateCheckout } from '../base44/shared/checkoutOrchestrator.js';
 import { runCleanupAbandonedCheckouts } from '../base44/shared/cleanupOrchestrator.js';
 import { quarantineListing } from '../base44/shared/orchestratorHelpers.js';
+import { clearStalePauseMarker, clearPauseMarkerAfterResume } from '../base44/shared/resumeOrchestrator.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -406,6 +407,74 @@ function setupQuarantinedListing(deps, opts = {}) {
   });
 
   return { listingId, token, piId, purchaseId };
+}
+
+// Helper: set up a pre-quarantined listing with ALREADY-NULL reservation fields
+// and null snapshot — the only state from which automatic recovery is allowed.
+function setupAlreadyNullQuarantine(deps, opts = {}) {
+  const listingId = opts.listingId || 'listing_1';
+  const piId = opts.piId || 'pi_existing';
+  const purchaseId = opts.purchaseId || 'pur_1';
+  const quarantineTime = opts.quarantineTime || new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  const recoveryNotBefore = opts.recoveryNotBefore || new Date(Date.now() - 5 * 60 * 1000).toISOString();
+
+  for (const [key, val] of deps._state.stores.ListingPrivate.entries()) {
+    if (val.listing_id === listingId) deps._state.stores.ListingPrivate.delete(key);
+  }
+
+  deps._state.stores.Listing.set(listingId, {
+    id: listingId, status: 'hidden', hidden_reason: 'checkout_quarantine',
+    asking_price: 100, quantity: 1, section: 'A', row: '1', event_id: 'event_1',
+    updated_date: quarantineTime,
+    reservation_token: null, reserved_by_email: null,
+    reservation_expires_at: null,
+    created_date: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+  });
+
+  deps._state.stores.ListingPrivate.set(`lp_${listingId}`, {
+    id: `lp_${listingId}`, listing_id: listingId, seller_email: 'seller@test',
+    reservation_token: null, reserved_by_email: null,
+    reservation_expires_at: null, proof_status: 'approved',
+    is_demo_listing: false, notes: null, seat_inventory_id: null,
+    checkout_quarantined: true,
+    checkout_quarantine_reason: opts.reason || 'Test quarantine',
+    checkout_quarantined_at: quarantineTime,
+    checkout_quarantine_pi_id: piId,
+    quarantined_reservation_token: null,
+    quarantined_buyer: null,
+    quarantined_expiration: null,
+    quarantined_purchase_id: purchaseId,
+    quarantine_generation: 1,
+    recovery_not_before: recoveryNotBefore,
+    created_date: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+    updated_date: quarantineTime,
+  });
+
+  deps._state.stores.Purchase.set(purchaseId, {
+    id: purchaseId, listing_id: listingId, event_id: 'event_1',
+    buyer_email: 'buyer@test', seller_email: 'seller@test',
+    payment_intent_id: piId, reservation_token: null,
+    transfer_status: 'expired', payment_captured: false,
+    is_demo: false, amount: 105,
+    created_date: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+    updated_date: quarantineTime,
+  });
+
+  deps._state.stores.PurchasePrivate.set(`pp_${purchaseId}`, {
+    id: `pp_${purchaseId}`, purchase_id: purchaseId, listing_id: listingId,
+    event_id: 'event_1', buyer_email: 'buyer@test', seller_email: 'seller@test',
+    payment_intent_id: piId, reservation_token: null,
+    payment_captured: false, is_demo: false,
+    created_date: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+    updated_date: quarantineTime,
+  });
+
+  deps.stripe.pisById.set(piId, {
+    id: piId, client_secret: `secret_${piId}`, status: 'canceled',
+    metadata: { listing_id: listingId, buyer_email: 'buyer@test', reservation_token: null, purchase_id: purchaseId },
+  });
+
+  return { listingId, piId, purchaseId };
 }
 
 // Helper: bulk create pending purchases for pagination tests
@@ -827,31 +896,25 @@ async function testCleanupRecoveryAfterDrain() {
   const { seed, listingId } = createDefaultSeed();
   let timeOffset = 0;
   const deps = createMockDeps({ seed, now: () => Date.now() + timeOffset });
-  const r = await runCreateCheckout(deps, { listing_id: listingId });
-  if (r.status !== 200) return { name: 'cleanup_recovery_after_drain', passed: false, error: 'checkout failed' };
-  const purchase = [...deps._state.stores.Purchase.values()].find(p => p.transfer_status === 'pending_transfer');
-  purchase.created_date = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-  const pi = [...deps.stripe.pisById.values()][0];
-  pi.status = 'canceled';
-
-  // Phase 1: quarantine
-  await runCleanupAbandonedCheckouts(deps);
-
+  // Set up an already-null quarantine (all reservation fields null, snapshot null)
+  setupAlreadyNullQuarantine(deps, { listingId });
   // Advance past drain period
   timeOffset = QUARANTINE_DRAIN_MS + 60000;
 
-  // Phase 2: recovery
-  const result2 = await runCleanupAbandonedCheckouts(deps);
+  // Phase 2: recovery — already-null quarantine can be recovered
+  const result = await runCleanupAbandonedCheckouts(deps);
   const listing = deps._state.stores.Listing.get(listingId);
   const lp = [...deps._state.stores.ListingPrivate.values()].find(l => l.listing_id === listingId);
 
   const passed = listing.status === 'active' && listing.reservation_token === null &&
     lp.reservation_token === null && lp.checkout_quarantined === false &&
-    result2.body.quarantine_resolved > 0;
-  return { name: 'cleanup_recovery_after_drain', passed, listing_status: listing.status, lp_reservation: lp.reservation_token, lp_quarantined: lp.checkout_quarantined, quarantine_resolved: result2.body.quarantine_resolved };
+    result.body.quarantine_resolved > 0;
+  return { name: 'cleanup_recovery_after_drain', passed, listing_status: listing.status, lp_reservation: lp.reservation_token, lp_quarantined: lp.checkout_quarantined, quarantine_resolved: result.body.quarantine_resolved };
 }
 
 // ── Test C: New token after final pre-clear read but before Listing.update ─
+// 7C.8: Token-bearing quarantines are NEVER automatically cleared. The listing
+// stays hidden/quarantined with the original token preserved.
 async function testNewTokenBeforeClearing() {
   const { seed, listingId } = createDefaultSeed();
   let timeOffset = 0;
@@ -863,25 +926,19 @@ async function testNewTokenBeforeClearing() {
   const pi = [...deps.stripe.pisById.values()][0];
   pi.status = 'canceled';
 
-  // Phase 1: quarantine
+  // Phase 1: quarantine (token-bearing — snapshot has the checkout token)
   await runCleanupAbandonedCheckouts(deps);
   timeOffset = QUARANTINE_DRAIN_MS + 60000;
 
-  // Hook: inject new token during Phase 2's Listing.update (clearing reservation fields)
-  deps._hooks.before_Listing_update = (id, data) => {
-    if (data.reservation_token === null && data.status === undefined && data.hidden_reason === undefined) {
-      const lpRecord = [...deps._state.stores.ListingPrivate.values()].find(l => l.listing_id === id);
-      if (lpRecord) lpRecord.reservation_token = 'new_token_injected';
-    }
-  };
-
+  // Phase 2: token-bearing quarantine should be BLOCKED (never auto-cleared)
   const result = await runCleanupAbandonedCheckouts(deps);
   const finalListing = deps._state.stores.Listing.get(listingId);
   const finalLP = [...deps._state.stores.ListingPrivate.values()].find(l => l.listing_id === listingId);
 
-  const passed = finalLP.reservation_token === 'new_token_injected' &&
-    finalListing.status !== 'active';
-  return { name: 'new_token_before_clearing', passed, lp_reservation_token: finalLP.reservation_token, listing_status: finalListing.status, listing_never_active: finalListing.status !== 'active' };
+  const passed = finalListing.status === 'hidden' &&
+    finalListing.hidden_reason === 'checkout_quarantine' &&
+    finalLP.checkout_quarantined === true;
+  return { name: 'new_token_before_clearing', passed, listing_status: finalListing.status, lp_quarantined: finalLP.checkout_quarantined };
 }
 
 // ── Test D: Detect new token in run one, then run cleanup again ───────────
@@ -922,8 +979,8 @@ async function testSellerCancelBeforeRecoveryActivation() {
   let timeOffset = QUARANTINE_DRAIN_MS + 60000; // start past drain period
   const deps = createMockDeps({ seed, now: () => Date.now() + timeOffset });
 
-  // Set up a quarantined listing directly
-  setupQuarantinedListing(deps, { listingId });
+  // Set up an already-null quarantined listing (recoverable)
+  setupAlreadyNullQuarantine(deps, { listingId });
 
   // Hook: set seller_cancel_requested_at during Phase 2, before Listing activation
   deps._hooks.before_Listing_update = (id, data) => {
@@ -954,7 +1011,7 @@ async function testSellerCancelBetweenActivationAndLPClearing() {
   let timeOffset = QUARANTINE_DRAIN_MS + 60000;
   const deps = createMockDeps({ seed, now: () => Date.now() + timeOffset });
 
-  setupQuarantinedListing(deps, { listingId });
+  setupAlreadyNullQuarantine(deps, { listingId });
 
   // Hook: set seller_cancel_requested_at during LP quarantine clearing
   deps._hooks.before_ListingPrivate_update = (id, data) => {
@@ -983,6 +1040,25 @@ async function testPagination201() {
 
   // Phase 1: quarantine all 201 (first 200 keep_locked, row 201 quarantined)
   const result1 = await runCleanupAbandonedCheckouts(deps);
+
+  // Manually clear reservation fields and snapshot for record 201 (simulating
+  // a safe state after manual resolution — the only state from which automatic
+  // recovery is allowed for token-bearing quarantines)
+  const lp201Before = deps._state.stores.ListingPrivate.get('lp_listing_bulk_200');
+  if (lp201Before) {
+    lp201Before.reservation_token = null;
+    lp201Before.reserved_by_email = null;
+    lp201Before.reservation_expires_at = null;
+    lp201Before.quarantined_reservation_token = null;
+    lp201Before.quarantined_buyer = null;
+    lp201Before.quarantined_expiration = null;
+  }
+  const listing201Before = deps._state.stores.Listing.get('listing_bulk_200');
+  if (listing201Before) {
+    listing201Before.reservation_token = null;
+    listing201Before.reserved_by_email = null;
+    listing201Before.reservation_expires_at = null;
+  }
 
   // Advance past drain
   timeOffset = QUARANTINE_DRAIN_MS + 60000;
@@ -1026,7 +1102,8 @@ async function testQuarantineRecoverySuccess() {
   const { seed, listingId } = createDefaultSeed();
   let timeOffset = QUARANTINE_DRAIN_MS + 60000;
   const deps = createMockDeps({ seed, now: () => Date.now() + timeOffset });
-  setupQuarantinedListing(deps, { listingId });
+  // Use already-null quarantine — the only state from which automatic recovery is allowed
+  setupAlreadyNullQuarantine(deps, { listingId });
 
   const result = await runCleanupAbandonedCheckouts(deps);
   const finalListing = deps._state.stores.Listing.get(listingId);
@@ -1043,7 +1120,7 @@ async function testListingUpdateSucceedsLPFails() {
   const { seed, listingId } = createDefaultSeed();
   let timeOffset = QUARANTINE_DRAIN_MS + 60000;
   const deps = createMockDeps({ seed, now: () => Date.now() + timeOffset });
-  setupQuarantinedListing(deps, { listingId });
+  setupAlreadyNullQuarantine(deps, { listingId });
 
   // Hook: LP quarantine clear fails
   deps._hooks.before_ListingPrivate_update = async (id, data) => {
@@ -1149,27 +1226,33 @@ async function testRepeatedQuarantinePreservesSnapshot() {
   const unknownTokenNotBlessed = lp2.quarantined_reservation_token !== 'unknown_injected_token';
   // Recovery must be blocked due to state divergence
   const recoveryBlocked = lp2.recovery_blocked === true;
-  // Generation should increment
-  const generationIncremented = lp2.quarantine_generation > originalGeneration;
+  // Original generation must be preserved (NOT incremented) — do not mutate recovery identity
+  const generationPreserved = lp2.quarantine_generation === originalGeneration;
 
-  const passed = snapshotPreserved && unknownTokenNotBlessed && recoveryBlocked && generationIncremented;
-  return { name: 'repeated_quarantine_preserves_snapshot', passed, snapshot_preserved: snapshotPreserved, unknown_token_not_blessed: unknownTokenNotBlessed, recovery_blocked: recoveryBlocked, generation_incremented: generationIncremented };
+  const passed = snapshotPreserved && unknownTokenNotBlessed && recoveryBlocked && generationPreserved;
+  return { name: 'repeated_quarantine_preserves_snapshot', passed, snapshot_preserved: snapshotPreserved, unknown_token_not_blessed: unknownTokenNotBlessed, recovery_blocked: recoveryBlocked, generation_preserved: generationPreserved };
 }
 
-// ── Test B: Token injected after last read and immediately before clear survives
+// ── Test B: Exact before-update token injection remains stored and listing stays hidden/quarantined
+// Uses before_ListingPrivate_update (NOT after) to inject a token immediately
+// before the update applying the quarantine-clearing fields. The injected token
+// survives because the update data does NOT include reservation_token — only
+// quarantine-specific fields are cleared. Post-verify detects the injected token
+// and restores quarantine.
 async function testTokenInjectedBeforeClearSurvives() {
   const { seed, listingId } = createDefaultSeed();
   let timeOffset = QUARANTINE_DRAIN_MS + 60000;
   const deps = createMockDeps({ seed, now: () => Date.now() + timeOffset });
-  setupQuarantinedListing(deps, { listingId });
+  setupAlreadyNullQuarantine(deps, { listingId });
 
-  // Hook: after LP reservation clear, inject a new token (simulates concurrent write)
-  deps._hooks.after_ListingPrivate_update = (updated) => {
-    // This fires after upsertListingPrivate clears reservation_token to null
-    // We inject a new token to simulate a concurrent reserveListing
-    if (updated.reservation_token === null && updated.checkout_quarantined !== false) {
-      // This is the reservation clear step — inject a new token AFTER the clear
-      updated.reservation_token = 'injected_after_clear';
+  // Hook: inject a token via before_ListingPrivate_update, immediately before
+  // the update applying the quarantine-clearing fields (checkout_quarantined:false).
+  // The injected token survives because the update data does NOT include
+  // reservation_token — only quarantine-specific fields are in the data.
+  deps._hooks.before_ListingPrivate_update = (id, data) => {
+    if (data.checkout_quarantined === false) {
+      const lpRecord = deps._state.stores.ListingPrivate.get(id);
+      if (lpRecord) lpRecord.reservation_token = 'injected_before_clear';
     }
   };
 
@@ -1177,11 +1260,11 @@ async function testTokenInjectedBeforeClearSurvives() {
   const finalListing = deps._state.stores.Listing.get(listingId);
   const finalLP = [...deps._state.stores.ListingPrivate.values()].find(l => l.listing_id === listingId);
 
-  // Token must survive (not erased by the clear)
-  const tokenSurvived = finalLP.reservation_token === 'injected_after_clear';
-  // Listing must NOT be active
+  // Token must survive (not erased — the update didn't include reservation_token)
+  const tokenSurvived = finalLP.reservation_token === 'injected_before_clear';
+  // Listing must NOT be active (post-verify detected the token and restored quarantine)
   const listingNotActive = finalListing.status !== 'active';
-  // LP must still be quarantined
+  // LP must still be quarantined (restored by post-verify)
   const lpStillQuarantined = finalLP.checkout_quarantined === true;
 
   const passed = tokenSurvived && listingNotActive && lpStillQuarantined;
@@ -1193,13 +1276,13 @@ async function testGenerationConflictStaysQuarantined() {
   const { seed, listingId } = createDefaultSeed();
   let timeOffset = QUARANTINE_DRAIN_MS + 60000;
   const deps = createMockDeps({ seed, now: () => Date.now() + timeOffset });
-  setupQuarantinedListing(deps, { listingId, token: 'gen1_token', piId: 'pi_gen1', purchaseId: 'pur_gen1' });
+  setupAlreadyNullQuarantine(deps, { listingId, piId: 'pi_gen1', purchaseId: 'pur_gen1' });
 
-  // Hook: during Phase 2 recovery, after generation capture but before clearing,
-  // inject generation 2 (simulate a newer quarantine applied concurrently)
+  // Hook: during Phase 2 recovery, after Listing activation, inject generation 2
+  // (simulate a newer quarantine applied concurrently)
   deps._hooks.after_Listing_update = (updated) => {
-    // When the Listing clear step runs (reservation_token set to null), inject gen 2
-    if (updated.reservation_token === null && updated.status === 'hidden') {
+    // When the Listing activation step runs, inject gen 2
+    if (updated.status === 'active' && updated.hidden_reason === null) {
       const lp = [...deps._state.stores.ListingPrivate.values()].find(l => l.listing_id === listingId);
       if (lp) {
         lp.quarantine_generation = 2;
@@ -1371,29 +1454,36 @@ async function testRecoveryReaches201() {
     const expiry = new Date(Date.now() + 5 * 60 * 1000).toISOString();
 
     // First 200: PI is NOT canceled (unrecoverable — canRecoverQuarantine requires canceled PI)
-    // Record 201: PI IS canceled (recoverable)
+    // Record 201: PI IS canceled (recoverable) with ALREADY-NULL reservation fields
     const piStatus = i < 200 ? 'requires_capture' : 'canceled';
+    // Record 201 uses null reservation fields and null snapshot (already-null recoverable)
+    const recToken = i < 200 ? token : null;
+    const recBuyer = i < 200 ? 'buyer@test' : null;
+    const recExpiry = i < 200 ? expiry : null;
+    const recSnapToken = i < 200 ? token : null;
+    const recSnapBuyer = i < 200 ? 'buyer@test' : null;
+    const recSnapExpiry = i < 200 ? expiry : null;
 
     deps._state.stores.Listing.set(listingId, {
       id: listingId, status: 'hidden', hidden_reason: 'checkout_quarantine',
       asking_price: 100, quantity: 1, section: 'A', row: '1', event_id: 'event_1',
       updated_date: '2026-08-01T10:00:00.000Z',
-      reservation_token: token, reserved_by_email: 'buyer@test',
-      reservation_expires_at: expiry,
+      reservation_token: recToken, reserved_by_email: recBuyer,
+      reservation_expires_at: recExpiry,
       created_date: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
     });
     deps._state.stores.ListingPrivate.set(`lp_${listingId}`, {
       id: `lp_${listingId}`, listing_id: listingId, seller_email: 'seller@test',
-      reservation_token: token, reserved_by_email: 'buyer@test',
-      reservation_expires_at: expiry, proof_status: 'approved',
+      reservation_token: recToken, reserved_by_email: recBuyer,
+      reservation_expires_at: recExpiry, proof_status: 'approved',
       is_demo_listing: false, notes: null, seat_inventory_id: null,
       checkout_quarantined: true,
       checkout_quarantine_reason: 'Test quarantine',
       checkout_quarantined_at: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
       checkout_quarantine_pi_id: piId,
-      quarantined_reservation_token: token,
-      quarantined_buyer: 'buyer@test',
-      quarantined_expiration: expiry,
+      quarantined_reservation_token: recSnapToken,
+      quarantined_buyer: recSnapBuyer,
+      quarantined_expiration: recSnapExpiry,
       quarantined_purchase_id: purchaseId,
       quarantine_generation: 1,
       recovery_not_before: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
@@ -1446,8 +1536,8 @@ async function testPauseResumeClearsMarker() {
   let timeOffset = QUARANTINE_DRAIN_MS + 60000;
   const deps = createMockDeps({ seed, now: () => Date.now() + timeOffset });
 
-  // Set up a quarantined listing WITH a stale pause marker
-  setupQuarantinedListing(deps, { listingId });
+  // Set up an already-null quarantined listing WITH a stale pause marker
+  setupAlreadyNullQuarantine(deps, { listingId });
   const lp = [...deps._state.stores.ListingPrivate.values()].find(l => l.listing_id === listingId);
   lp.seller_pause_requested_at = new Date(Date.now() - 5 * 60 * 1000).toISOString();
 
@@ -1470,6 +1560,159 @@ async function testPauseResumeClearsMarker() {
 
   const passed = run1Skipped && run2Recovered && notPermanentlyBlocked;
   return { name: 'pause_resume_clears_marker', passed, run1_skipped: run1Skipped, run2_recovered: run2Recovered, not_permanently_blocked: notPermanentlyBlocked };
+}
+
+// ── Test C: Token-bearing quarantine is never automatically cleared ────────
+async function testTokenBearingQuarantineNeverCleared() {
+  const { seed, listingId } = createDefaultSeed();
+  let timeOffset = QUARANTINE_DRAIN_MS + 60000;
+  const deps = createMockDeps({ seed, now: () => Date.now() + timeOffset });
+  // Set up a token-bearing quarantine (snapshot has a token)
+  setupQuarantinedListing(deps, { listingId });
+
+  const result = await runCleanupAbandonedCheckouts(deps);
+  const finalListing = deps._state.stores.Listing.get(listingId);
+  const finalLP = [...deps._state.stores.ListingPrivate.values()].find(l => l.listing_id === listingId);
+
+  // Must stay hidden + quarantined — never auto-cleared
+  const listingHidden = finalListing.status === 'hidden' && finalListing.hidden_reason === 'checkout_quarantine';
+  const lpQuarantined = finalLP.checkout_quarantined === true;
+  // Recovery must be blocked
+  const recoveryBlocked = finalLP.recovery_blocked === true;
+  // Original token must be preserved (not cleared)
+  const tokenPreserved = finalLP.reservation_token !== null;
+
+  const passed = listingHidden && lpQuarantined && recoveryBlocked && tokenPreserved;
+  return { name: 'token_bearing_quarantine_never_cleared', passed, listing_hidden: listingHidden, lp_quarantined: lpQuarantined, recovery_blocked: recoveryBlocked, token_preserved: tokenPreserved };
+}
+
+// ── Test E: Conflict-branch Listing write failure returns quarantined:false ──
+async function testConflictBranchListingWriteFailure() {
+  const { seed, listingId } = createDefaultSeed();
+  let timeOffset = 0;
+  const deps = createMockDeps({ seed, now: () => Date.now() + timeOffset });
+
+  // First quarantine
+  const q1 = await quarantineListing(deps, listingId, 'First quarantine', 'pur_1', 'pi_1');
+  if (!q1.quarantined) return { name: 'conflict_branch_listing_write_failure', passed: false, error: 'first quarantine failed' };
+
+  // Inject divergence
+  const lp1 = [...deps._state.stores.ListingPrivate.values()].find(l => l.listing_id === listingId);
+  lp1.reservation_token = 'unknown_injected_token';
+  lp1.reserved_by_email = 'unknown@test';
+
+  // Hook: Listing.update throws when trying to set hidden in divergence branch
+  deps._hooks.before_Listing_update = async (id, data) => {
+    if (data.status === 'hidden' && data.hidden_reason === 'checkout_quarantine') {
+      return { throw: new Error('Simulated Listing hidden write failure in divergence') };
+    }
+  };
+
+  // Second quarantine — divergence detected, Listing write fails
+  const q2 = await quarantineListing(deps, listingId, 'Second quarantine', 'pur_2', 'pi_2');
+
+  // Must return quarantined:false (not best-effort true)
+  const passed = q2.quarantined === false;
+  return { name: 'conflict_branch_listing_write_failure', passed, quarantined: q2.quarantined };
+}
+
+// ── Test F: Conflict-branch recovery_blocked write failure returns quarantined:false ──
+async function testConflictBranchRecoveryBlockedWriteFailure() {
+  const { seed, listingId } = createDefaultSeed();
+  let timeOffset = 0;
+  const deps = createMockDeps({ seed, now: () => Date.now() + timeOffset });
+
+  // First quarantine
+  const q1 = await quarantineListing(deps, listingId, 'First quarantine', 'pur_1', 'pi_1');
+  if (!q1.quarantined) return { name: 'conflict_branch_recovery_blocked_write_failure', passed: false, error: 'first quarantine failed' };
+
+  // Inject divergence
+  const lp1 = [...deps._state.stores.ListingPrivate.values()].find(l => l.listing_id === listingId);
+  lp1.reservation_token = 'unknown_injected_token';
+  lp1.reserved_by_email = 'unknown@test';
+
+  // Hook: ListingPrivate.update throws when trying to set recovery_blocked
+  deps._hooks.before_ListingPrivate_update = async (id, data) => {
+    if (data.recovery_blocked === true) {
+      return { throw: new Error('Simulated recovery_blocked write failure') };
+    }
+  };
+
+  // Second quarantine — divergence detected, recovery_blocked write fails
+  const q2 = await quarantineListing(deps, listingId, 'Second quarantine', 'pur_2', 'pi_2');
+
+  // Must return quarantined:false (not best-effort true)
+  const passed = q2.quarantined === false;
+  return { name: 'conflict_branch_recovery_blocked_write_failure', passed, quarantined: q2.quarantined };
+}
+
+// ── Test K: Already-active stale pause-marker clear failure returns 500 ──
+async function testAlreadyActivePauseMarkerClearFailure() {
+  const { seed, listingId } = createDefaultSeed();
+  const deps = createMockDeps({ seed });
+  // Listing is active with a stale pause marker
+  const listing = deps._state.stores.Listing.get(listingId);
+  listing.status = 'active';
+  const lp = [...deps._state.stores.ListingPrivate.values()].find(l => l.listing_id === listingId);
+  lp.seller_pause_requested_at = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+
+  // Hook: ListingPrivate.update fails when clearing pause marker
+  deps._hooks.before_ListingPrivate_update = async (id, data) => {
+    if (data.seller_pause_requested_at === null) {
+      return { throw: new Error('Simulated pause marker clear failure') };
+    }
+  };
+
+  const result = await clearStalePauseMarker(deps, { listing_id: listingId, lpFresh: lp });
+  const passed = result.status === 500;
+  return { name: 'already_active_pause_marker_clear_failure', passed, status: result.status };
+}
+
+// ── Test L: Normal resume marker-clear failure restores Listing and SeatInventory ──
+async function testNormalResumeMarkerClearFailureRestores() {
+  const { seed, listingId } = createDefaultSeed();
+  const deps = createMockDeps({ seed });
+  // Set up a paused listing that was resumed (Listing active, SeatInventory listed_for_sale)
+  const listing = deps._state.stores.Listing.get(listingId);
+  listing.status = 'active';
+  listing.hidden_reason = null;
+  const lp = [...deps._state.stores.ListingPrivate.values()].find(l => l.listing_id === listingId);
+  lp.seller_pause_requested_at = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+  // Create a SeatInventory for this listing
+  deps._state.stores.SeatInventory.set('inv_1', {
+    id: 'inv_1', event_id: 'event_1', owner_email: 'seller@test',
+    section: 'A', row: '1', seats: null, quantity: 1,
+    inventory_status: 'listed_for_sale', inventory_intent: 'sell',
+    linked_listing_id: listingId,
+    created_date: new Date().toISOString(), updated_date: new Date().toISOString(),
+  });
+  lp.seat_inventory_id = 'inv_1';
+
+  // Hook: ListingPrivate.update fails when clearing pause marker
+  deps._hooks.before_ListingPrivate_update = async (id, data) => {
+    if (data.seller_pause_requested_at === null) {
+      return { throw: new Error('Simulated pause marker clear failure') };
+    }
+  };
+
+  const result = await clearPauseMarkerAfterResume(deps, {
+    listing_id: listingId,
+    listing_entity_id: listingId,
+    seat_inventory_id: 'inv_1',
+  });
+
+  const finalListing = deps._state.stores.Listing.get(listingId);
+  const finalInv = deps._state.stores.SeatInventory.get('inv_1');
+
+  // Must return 500
+  const returned500 = result.status === 500;
+  // Listing must be reverted to hidden/paused
+  const listingReverted = finalListing.status === 'hidden' && finalListing.hidden_reason === 'other';
+  // SeatInventory must be reverted to paused state
+  const invReverted = finalInv.inventory_status === 'available' && finalInv.inventory_intent === 'undecided';
+
+  const passed = returned500 && listingReverted && invReverted;
+  return { name: 'normal_resume_marker_clear_failure_restores', passed, returned_500: returned500, listing_reverted: listingReverted, inv_reverted: invReverted };
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -1526,6 +1769,12 @@ async function main() {
     await testCheckoutQuarantineFailureReturns500(),
     await testRecoveryReaches201(),
     await testPauseResumeClearsMarker(),
+    // 7C.8 correction tests (C, E, F, K, L)
+    await testTokenBearingQuarantineNeverCleared(),
+    await testConflictBranchListingWriteFailure(),
+    await testConflictBranchRecoveryBlockedWriteFailure(),
+    await testAlreadyActivePauseMarkerClearFailure(),
+    await testNormalResumeMarkerClearFailureRestores(),
   ];
 
   console.log('=== Checkout & Cleanup Concurrency Tests (7C.8) ===\n');

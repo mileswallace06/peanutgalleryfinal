@@ -187,7 +187,7 @@
     },
     "quarantine_generation": {
       "type": "number",
-      "description": "Incremented each time quarantine is applied. Recovery captures this at start and re-checks before every write. A newer generation must never be cleared by an older recovery."
+      "description": "Set once at first quarantine. NEVER mutated by repeated quarantines \u2014 the original generation is preserved across divergence and same-state repeats. Recovery captures this at start and re-checks before every write. A newer generation must never be cleared by an older recovery."
     },
     "recovery_not_before": {
       "type": "string",
@@ -196,7 +196,7 @@
     "recovery_blocked": {
       "type": "boolean",
       "default": false,
-      "description": "Durable marker prohibiting automatic recovery. Set when a repeated quarantine detects that current reservation state differs from the original snapshot, or when generation/PI/purchase mismatch is detected during recovery. Requires manual resolution."
+      "description": "Durable marker prohibiting automatic recovery. Set when a repeated quarantine detects that current reservation state differs from the original snapshot, or when generation/PI/purchase mismatch is detected during recovery, or when a token-bearing quarantine cannot be auto-cleared. Requires manual resolution."
     },
     "recovery_blocked_reason": {
       "type": "string",
