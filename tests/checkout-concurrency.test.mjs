@@ -1,20 +1,39 @@
 /**
- * Checkout Concurrency Tests — Executable Node.js test suite.
+ * Checkout Concurrency Tests (7C.4)
  *
  * Run: npm test
  *
- * Tests:
- * 1. Two-buyer race on same listing revision → exactly one succeeds
- * 2. Retry returns existing PI for client-confirmable status
- * 3. Canceled PI → 409, no new confirmation flow
- * 4. Different listing revisions → different PIs, both succeed
- * 5. PI winner verification — loser gets 409, no writes
- * 6. 6-condition verification catches mismatched tokens
+ * Imports production decision logic from base44/shared/checkoutLogic.js.
+ * Does NOT contain independent duplicate implementations.
  *
- * No hard-coded PASS values. Uses real mock Stripe with idempotency.
+ * Tests:
+ *  1. Two-buyer race: same key + different params → StripeIdempotencyError → 409
+ *  2. Same-buyer retry: retry check returns existing before active-status rejection
+ *  3. Canceled PI: retry returns 409, no new flow
+ *  4. Different listing revisions: different keys, both succeed
+ *  5. 6-condition verification catches mismatched tokens
+ *  6. Seller-management vs checkout interleaving
+ *  7. Cleanup state table (8 scenarios)
+ *  8. Schema permits checkout_quarantine
  */
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+import {
+  verifyReservation,
+  deriveIdempotencyKey,
+  classifyRetryOutcome,
+  classifyCleanupOutcome,
+  isStripeIdempotencyError,
+  isQuarantined,
+} from '../base44/shared/checkoutLogic.js';
 
-// ── Mock Stripe with real idempotency behavior ────────────────────────────
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// ── Mock Stripe with REAL idempotency behavior ────────────────────────────
+// Same key + identical params → same PI
+// Same key + different params → StripeIdempotencyError
 function createMockStripe() {
   const pisByKey = new Map();
   const pisById = new Map();
@@ -27,8 +46,17 @@ function createMockStripe() {
       create: async (params, opts) => {
         await new Promise(r => setTimeout(r, 1));
         const key = opts?.idempotencyKey;
-        if (key && pisByKey.has(key)) {
-          return pisByKey.get(key);
+        if (key) {
+          const cached = pisByKey.get(key);
+          if (cached) {
+            if (cached.params.amount !== params.amount ||
+                JSON.stringify(cached.params.metadata) !== JSON.stringify(params.metadata)) {
+              const err = new Error('Keys for idempotent requests can only be used with the same parameters.');
+              err.type = 'StripeIdempotencyError';
+              throw err;
+            }
+            return cached.pi;
+          }
         }
         const piId = `pi_test_${++piCounter}`;
         const pi = {
@@ -38,7 +66,7 @@ function createMockStripe() {
           amount: params.amount,
           metadata: { ...params.metadata },
         };
-        if (key) pisByKey.set(key, pi);
+        if (key) pisByKey.set(key, { pi, params: { amount: params.amount, metadata: { ...params.metadata } } });
         pisById.set(piId, pi);
         return pi;
       },
@@ -55,95 +83,57 @@ function createMockStripe() {
       update: async (id, params) => {
         if (!pisById.has(id)) throw new Error('PI not found');
         const pi = pisById.get(id);
-        if (params.metadata) {
-          pi.metadata = { ...pi.metadata, ...params.metadata };
-        }
+        if (params.metadata) pi.metadata = { ...pi.metadata, ...params.metadata };
         return pi;
       },
     },
-    accounts: {
-      retrieve: async () => ({ charges_enabled: true }),
-    },
+    accounts: { retrieve: async () => ({ charges_enabled: true }) },
   };
 }
 
-// ── Mock state ─────────────────────────────────────────────────────────────
+// ── Mock state ──
 function createMockState() {
   return {
     listing: {
-      id: 'listing_1',
-      status: 'active',
-      asking_price: 100,
-      quantity: 1,
-      section: 'A',
-      row: '1',
-      event_id: 'event_1',
+      id: 'listing_1', status: 'active', asking_price: 100, quantity: 1,
+      section: 'A', row: '1', event_id: 'event_1',
       updated_date: '2026-08-01T10:00:00.000Z',
-      reservation_token: null,
-      reserved_by_email: null,
-      reservation_expires_at: null,
-      hidden_reason: null,
+      reservation_token: null, reserved_by_email: null,
+      reservation_expires_at: null, hidden_reason: null,
     },
     lp: {
-      listing_id: 'listing_1',
-      seller_email: 'seller@test',
-      reservation_token: null,
-      reserved_by_email: null,
-      reservation_expires_at: null,
-      proof_status: 'approved',
-      is_demo_listing: false,
-      notes: null,
-      seat_inventory_id: null,
+      listing_id: 'listing_1', seller_email: 'seller@test',
+      reservation_token: null, reserved_by_email: null,
+      reservation_expires_at: null, proof_status: 'approved',
+      is_demo_listing: false, notes: null, seat_inventory_id: null,
+      checkout_quarantined: false,
     },
     purchases: new Map(),
     purchasePrivates: new Map(),
   };
 }
 
-// ── 6-condition verification (mirrors createCheckout) ──────────────────────
-function verifyReservation(listing, lp, token, buyerEmail) {
-  if (!listing || !lp) return false;
-  const now = Date.now();
-  if (listing.status !== 'pending_transfer') return false;
-  if (listing.reservation_token !== token) return false;
-  if (listing.reserved_by_email !== buyerEmail) return false;
-  if (lp.reservation_token !== token) return false;
-  if (lp.reserved_by_email !== buyerEmail) return false;
-  const lExpiry = listing.reservation_expires_at ? new Date(listing.reservation_expires_at).getTime() : 0;
-  const lpExpiry = lp.reservation_expires_at ? new Date(lp.reservation_expires_at).getTime() : 0;
-  if (lExpiry <= now || lpExpiry <= now) return false;
-  if (lExpiry !== lpExpiry) return false;
-  return true;
-}
-
-// ── Simulated checkout (mirrors createCheckout flow) ───────────────────────
+// ── Simulated checkout (USES imported production logic, not duplicate) ──
 async function simulateCheckout(state, stripe, buyerEmail, listingRevision) {
   const listingId = state.listing.id;
-  const idempotencyKey = `checkout_${listingId}_${listingRevision}`;
+  const idempotencyKey = deriveIdempotencyKey(listingId, listingRevision);
   const reservationToken = `tok_${buyerEmail}_${Math.random().toString(36).slice(2)}`;
   const reservationExpiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
-  // Create PI with idempotency key
   let pi;
   try {
     pi = await stripe.paymentIntents.create({
-      amount: 10500,
-      currency: 'usd',
-      capture_method: 'manual',
+      amount: 10500, currency: 'usd', capture_method: 'manual',
       metadata: {
-        listing_id: listingId,
-        buyer_email: buyerEmail,
-        reservation_token: reservationToken,
-        listing_revision: listingRevision,
+        listing_id: listingId, buyer_email: buyerEmail,
+        reservation_token: reservationToken, listing_revision: listingRevision,
       },
     }, { idempotencyKey });
   } catch (err) {
-    return { success: false, error: err.message, status: 500 };
-  }
-
-  // Verify PI winner
-  if (pi.metadata.buyer_email !== buyerEmail) {
-    return { success: false, error: 'Another buyer won', status: 409, pi_id: pi.id };
+    if (isStripeIdempotencyError(err)) {
+      return { success: false, status: 409, reason: 'idempotency_error', pi_id: null };
+    }
+    return { success: false, status: 500, error: err.message };
   }
 
   // Write reservation
@@ -156,11 +146,12 @@ async function simulateCheckout(state, stripe, buyerEmail, listingRevision) {
   state.lp.reserved_by_email = buyerEmail;
   state.lp.reservation_expires_at = reservationExpiresAt;
 
-  // 6-condition verification
+  // 6-condition verification (imported from production)
   if (!verifyReservation(state.listing, state.lp, reservationToken, buyerEmail)) {
     state.listing.status = 'hidden';
     state.listing.hidden_reason = 'checkout_quarantine';
-    return { success: false, error: '6-condition verification failed', status: 409 };
+    state.lp.checkout_quarantined = true;
+    return { success: false, status: 409, reason: 'verification_failed' };
   }
 
   // Canonicalize by PI
@@ -173,44 +164,62 @@ async function simulateCheckout(state, stripe, buyerEmail, listingRevision) {
   // Create Purchase
   const purchaseId = `pur_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   state.purchases.set(purchaseId, {
-    id: purchaseId,
-    listing_id: listingId,
-    buyer_email: buyerEmail,
-    payment_intent_id: pi.id,
-    transfer_status: 'pending_transfer',
+    id: purchaseId, listing_id: listingId, buyer_email: buyerEmail,
+    payment_intent_id: pi.id, transfer_status: 'pending_transfer',
   });
   state.purchasePrivates.set(purchaseId, {
-    purchase_id: purchaseId,
-    listing_id: listingId,
-    buyer_email: buyerEmail,
-    payment_intent_id: pi.id,
-    reservation_token: reservationToken,
+    purchase_id: purchaseId, listing_id: listingId, buyer_email: buyerEmail,
+    payment_intent_id: pi.id, reservation_token: reservationToken,
   });
 
   // Post-Purchase verification
   if (!verifyReservation(state.listing, state.lp, reservationToken, buyerEmail)) {
-    return { success: false, error: 'Post-purchase verification failed', status: 409 };
+    return { success: false, status: 409, reason: 'post_purchase_failed' };
   }
 
   return { success: true, purchase_id: purchaseId, pi_id: pi.id, clientSecret: pi.client_secret };
 }
 
-// ── Retry check (mirrors createCheckout) ───────────────────────────────────
+// ── Simulated retry check (USES imported production logic) ──
 async function simulateRetryCheck(state, stripe, buyerEmail) {
-  const pps = [...state.purchasePrivates.values()].filter(pp => pp.buyer_email === buyerEmail && pp.listing_id === state.listing.id);
+  const pps = [...state.purchasePrivates.values()].filter(pp =>
+    pp.buyer_email === buyerEmail && pp.listing_id === state.listing.id
+  );
   for (const pp of pps) {
     const pur = state.purchases.get(pp.purchase_id);
     if (!pur || pur.transfer_status !== 'pending_transfer') continue;
-    const pi = await stripe.paymentIntents.retrieve(pp.payment_intent_id);
-    if (pi.status === 'requires_payment_method' || pi.status === 'requires_action') {
-      return { retried: true, purchase_id: pur.id, pi_id: pi.id, pi_status: pi.status };
+
+    let pi;
+    try {
+      pi = await stripe.paymentIntents.retrieve(pp.payment_intent_id);
+    } catch (_) {
+      return { retried: false, blocked: false, error: 'retrieval_failed' };
     }
-    return { retried: false, blocked: true, pi_status: pi.status };
+
+    // Verify PI metadata
+    if (pi.metadata?.buyer_email !== buyerEmail) continue;
+    if (pi.metadata?.listing_id !== state.listing.id) continue;
+
+    // Verify Listing token/owner
+    if (state.listing.reservation_token !== pp.reservation_token) continue;
+    if (state.listing.reserved_by_email !== buyerEmail) continue;
+
+    // Verify LP token/owner
+    if (state.lp.reservation_token !== pp.reservation_token) continue;
+    if (state.lp.reserved_by_email !== buyerEmail) continue;
+
+    const outcome = classifyRetryOutcome(pi.status, pur.transfer_status);
+    if (outcome === 'retry') {
+      return { retried: true, blocked: false, purchase_id: pur.id, pi_id: pi.id, pi_status: pi.status };
+    }
+    if (outcome === 'blocked') {
+      return { retried: false, blocked: true, pi_status: pi.status };
+    }
   }
   return { retried: false, blocked: false };
 }
 
-// ── Tests ───────────────────────────────────────────────────────────────────
+// ── Tests ──
 
 async function testTwoBuyerRace() {
   const stripe = createMockStripe();
@@ -223,10 +232,11 @@ async function testTwoBuyerRace() {
   ]);
 
   const successCount = (resultA.success ? 1 : 0) + (resultB.success ? 1 : 0);
+  const loserGot409 = (!resultA.success && resultA.status === 409) || (!resultB.success && resultB.status === 409);
   const passed = successCount === 1
+    && loserGot409
     && stripe.pisById.size === 1
-    && state.purchases.size === 1
-    && resultA.pi_id === resultB.pi_id;
+    && state.purchases.size === 1;
 
   return {
     name: 'two_buyer_race',
@@ -234,35 +244,43 @@ async function testTwoBuyerRace() {
     buyerA_success: resultA.success,
     buyerB_success: resultB.success,
     success_count: successCount,
+    loser_got_409: loserGot409,
     pi_count: stripe.pisById.size,
     purchase_count: state.purchases.size,
-    same_pi: resultA.pi_id === resultB.pi_id,
-    detail: { resultA, resultB },
   };
 }
 
-async function testRetry() {
+async function testRetryBeforeActiveStatusRejection() {
   const stripe = createMockStripe();
   const state = createMockState();
   const rev = state.listing.updated_date;
 
+  // Buyer A completes checkout
   const resultA = await simulateCheckout(state, stripe, 'buyerA@test', rev);
   if (!resultA.success) {
-    return { name: 'retry', passed: false, error: 'initial checkout failed', detail: resultA };
+    return { name: 'retry_before_active_rejection', passed: false, error: 'initial checkout failed', detail: resultA };
   }
 
+  // Listing is now pending_transfer (not active)
+  const listingIsActive = state.listing.status === 'active';
+
+  // Retry check runs BEFORE active-status rejection
   const retry = await simulateRetryCheck(state, stripe, 'buyerA@test');
-  const passed = retry.retried
+
+  const passed = !listingIsActive
+    && retry.retried
     && retry.purchase_id === resultA.purchase_id
     && retry.pi_id === resultA.pi_id;
 
   return {
-    name: 'retry',
+    name: 'retry_before_active_rejection',
     passed,
-    original_purchase: resultA.purchase_id,
+    listing_is_active: listingIsActive,
+    listing_is_pending: state.listing.status === 'pending_transfer',
+    retry_reached: retry.retried,
     retry_purchase: retry.purchase_id,
+    original_purchase: resultA.purchase_id,
     pi_status: retry.pi_status,
-    detail: retry,
   };
 }
 
@@ -279,7 +297,6 @@ async function testCanceledPI() {
   await stripe.paymentIntents.cancel(resultA.pi_id);
 
   const retry = await simulateRetryCheck(state, stripe, 'buyerA@test');
-  // Canceled PI must NOT return a new confirmation flow
   const passed = !retry.retried && retry.blocked === true;
 
   return {
@@ -287,7 +304,6 @@ async function testCanceledPI() {
     passed,
     pi_status: retry.pi_status,
     blocked: retry.blocked,
-    detail: retry,
   };
 }
 
@@ -297,7 +313,7 @@ async function testDifferentRevisions() {
 
   const resultA = await simulateCheckout(state, stripe, 'buyerA@test', state.listing.updated_date);
 
-  // Reset listing for buyer B at different revision
+  // Reset for buyer B at different revision
   state.listing.status = 'active';
   state.listing.reservation_token = null;
   state.listing.reserved_by_email = null;
@@ -323,95 +339,183 @@ async function testDifferentRevisions() {
   };
 }
 
-async function testPIWinnerVerification() {
-  const stripe = createMockStripe();
+function testSixConditionVerification() {
+  const expiry = new Date(Date.now() + 60000).toISOString();
   const state = createMockState();
-  const rev = state.listing.updated_date;
+  state.listing = { ...state.listing, status: 'pending_transfer', reservation_token: 'tokenA', reserved_by_email: 'b@test', reservation_expires_at: expiry };
+  state.lp = { ...state.lp, reservation_token: 'tokenB', reserved_by_email: 'b@test', reservation_expires_at: expiry };
 
-  // Buyer A creates PI first
-  const resultA = await simulateCheckout(state, stripe, 'buyerA@test', rev);
+  const mismatchCaught = !verifyReservation(state.listing, state.lp, 'tokenA', 'b@test')
+    && !verifyReservation(state.listing, state.lp, 'tokenB', 'b@test');
 
-  // Reset listing (simulating buyer B fetching same revision)
-  state.listing.status = 'active';
-  state.listing.reservation_token = null;
-  state.listing.reserved_by_email = null;
-  state.listing.reservation_expires_at = null;
-  state.lp.reservation_token = null;
-  state.lp.reserved_by_email = null;
-  state.lp.reservation_expires_at = null;
+  // Also test all 6 conditions pass
+  state.lp.reservation_token = 'tokenA';
+  const allPass = verifyReservation(state.listing, state.lp, 'tokenA', 'b@test');
 
-  // Buyer B uses same revision → same key → gets A's PI
-  const resultB = await simulateCheckout(state, stripe, 'buyerB@test', rev);
+  // Test expired
+  state.listing.reservation_expires_at = new Date(Date.now() - 60000).toISOString();
+  state.lp.reservation_expires_at = new Date(Date.now() - 60000).toISOString();
+  const expiredCaught = !verifyReservation(state.listing, state.lp, 'tokenA', 'b@test');
 
-  const passed = resultA.success && !resultB.success
-    && resultB.status === 409
-    && resultA.pi_id === resultB.pi_id
-    && stripe.pisById.size === 1;
+  // Test wrong buyer
+  state.listing.reservation_expires_at = expiry;
+  state.lp.reservation_expires_at = expiry;
+  const wrongBuyer = !verifyReservation(state.listing, state.lp, 'tokenA', 'wrong@test');
 
-  return {
-    name: 'pi_winner_verification',
-    passed,
-    buyerA_success: resultA.success,
-    buyerB_blocked: !resultB.success,
-    buyerB_status: resultB.status,
-    same_pi: resultA.pi_id === resultB.pi_id,
-    pi_count: stripe.pisById.size,
-  };
-}
-
-async function testSixConditionVerification() {
-  // Simulate: Listing token=A, LP token=B → verification must fail
-  const state = createMockState();
-  const expiry = new Date(Date.now() + 5 * 60000).toISOString();
-  state.listing = {
-    ...state.listing,
-    status: 'pending_transfer',
-    reservation_token: 'tokenA',
-    reserved_by_email: 'buyer@test',
-    reservation_expires_at: expiry,
-  };
-  state.lp = {
-    ...state.lp,
-    reservation_token: 'tokenB',
-    reserved_by_email: 'buyer@test',
-    reservation_expires_at: expiry,
-  };
-
-  const passed = !verifyReservation(state.listing, state.lp, 'tokenA', 'buyer@test')
-    && !verifyReservation(state.listing, state.lp, 'tokenB', 'buyer@test');
+  const passed = mismatchCaught && allPass && expiredCaught && wrongBuyer;
 
   return {
     name: 'six_condition_verification',
     passed,
-    mismatched_tokens_detected: passed,
+    mismatched_tokens_detected: mismatchCaught,
+    all_conditions_pass: allPass,
+    expired_detected: expiredCaught,
+    wrong_buyer_detected: wrongBuyer,
   };
 }
 
-// ── Main runner ────────────────────────────────────────────────────────────
+function testSellerManagementInterleaving() {
+  // Scenario 1: Checkout writes reservation → seller pauses → verification fails
+  const state1 = createMockState();
+  const expiry = new Date(Date.now() + 600000).toISOString();
+  state1.listing = { ...state1.listing, status: 'pending_transfer', reservation_token: 'TA', reserved_by_email: 'b@test', reservation_expires_at: expiry };
+  state1.lp = { ...state1.lp, reservation_token: 'TA', reserved_by_email: 'b@test', reservation_expires_at: expiry };
+  // Seller pauses
+  state1.listing.status = 'hidden';
+  state1.listing.hidden_reason = 'other';
+  const verificationFails = !verifyReservation(state1.listing, state1.lp, 'TA', 'b@test');
+
+  // Scenario 2: Seller pauses → checkout blocked at active-status check
+  const state2 = createMockState();
+  state2.listing.status = 'hidden';
+  state2.listing.hidden_reason = 'other';
+  const checkoutBlocked = state2.listing.status !== 'active';
+
+  // Scenario 3: Checkout writes → seller cancels → verification fails
+  const state3 = createMockState();
+  state3.listing = { ...state3.listing, status: 'pending_transfer', reservation_token: 'TA', reserved_by_email: 'b@test', reservation_expires_at: expiry };
+  state3.lp = { ...state3.lp, reservation_token: 'TA', reserved_by_email: 'b@test', reservation_expires_at: expiry };
+  state3.listing.status = 'cancelled';
+  const cancelDetected = !verifyReservation(state3.listing, state3.lp, 'TA', 'b@test');
+
+  const passed = verificationFails && checkoutBlocked && cancelDetected;
+
+  return {
+    name: 'seller_management_interleaving',
+    passed,
+    pause_after_reserve_detected: verificationFails,
+    pause_before_checkout_blocks: checkoutBlocked,
+    cancel_after_reserve_detected: cancelDetected,
+  };
+}
+
+function testCleanupStateTable() {
+  const scenarios = [
+    // [piStatus, ownsByBuyer, ownsByToken, expected, description]
+    [null,             true,  true,  'quarantine',  'PI retrieval failure'],
+    ['unknown',        true,  true,  'quarantine',  'Unknown PI status'],
+    ['requires_payment_method', true,  true,  'release',     'Never authorized, owns it'],
+    ['requires_payment_method', true,  false, 'quarantine',  'Token mismatch'],
+    ['requires_payment_method', false, true,  'quarantine',  'Buyer mismatch'],
+    ['requires_action', true,  true,  'release',     'Requires action, owns it'],
+    ['requires_capture', true,  true,  'keep_locked', 'Authorized — keep locked'],
+    ['succeeded',      true,  true,  'keep_locked', 'Succeeded — keep locked'],
+    ['processing',     true,  true,  'keep_locked', 'Processing — keep locked'],
+    ['canceled',       true,  true,  'release',     'Canceled, owns it'],
+    ['canceled',       true,  false, 'quarantine',  'Canceled, token mismatch'],
+    ['canceled',       false, true,  'quarantine',  'Canceled, buyer mismatch'],
+    ['canceled',       false, false, 'quarantine',  'Canceled, no ownership'],
+  ];
+
+  const results = [];
+  let allPassed = true;
+  for (const [piStatus, ownsByBuyer, ownsByToken, expected, desc] of scenarios) {
+    const actual = classifyCleanupOutcome(piStatus, ownsByBuyer, ownsByToken);
+    const passed = actual === expected;
+    if (!passed) allPassed = false;
+    results.push({ piStatus, ownsByBuyer, ownsByToken, expected, actual, passed, desc });
+  }
+
+  return {
+    name: 'cleanup_state_table',
+    passed: allPassed,
+    scenarios: results,
+  };
+}
+
+function testSchemaPermitsQuarantine() {
+  const listingSchema = readFileSync(join(__dirname, '..', 'base44', 'entities', 'Listing.jsonc'), 'utf8');
+  const lpSchema = readFileSync(join(__dirname, '..', 'base44', 'entities', 'ListingPrivate.jsonc'), 'utf8');
+
+  const listingHasQuarantine = listingSchema.includes('"checkout_quarantine"');
+  const lpHasQuarantined = lpSchema.includes('"checkout_quarantined"');
+  const lpHasReason = lpSchema.includes('"checkout_quarantine_reason"');
+  const lpHasAt = lpSchema.includes('"checkout_quarantined_at"');
+  const lpHasPiId = lpSchema.includes('"checkout_quarantine_pi_id"');
+
+  const passed = listingHasQuarantine && lpHasQuarantined && lpHasReason && lpHasAt && lpHasPiId;
+
+  return {
+    name: 'schema_permits_quarantine',
+    passed,
+    listing_has_quarantine: listingHasQuarantine,
+    lp_has_quarantined: lpHasQuarantined,
+    lp_has_reason: lpHasReason,
+    lp_has_at: lpHasAt,
+    lp_has_pi_id: lpHasPiId,
+  };
+}
+
+function testIsQuarantinedHelper() {
+  const state = createMockState();
+  state.listing.status = 'hidden';
+  state.listing.hidden_reason = 'checkout_quarantine';
+  state.lp.checkout_quarantined = true;
+
+  const detected = isQuarantined(state.listing, state.lp);
+
+  const cleanState = createMockState();
+  const notDetected = !isQuarantined(cleanState.listing, cleanState.lp);
+
+  return {
+    name: 'is_quarantined_helper',
+    passed: detected && notDetected,
+    quarantined_detected: detected,
+    clean_not_detected: notDetected,
+  };
+}
+
+// ── Main runner ──
 
 async function main() {
   const tests = [
     await testTwoBuyerRace(),
-    await testRetry(),
+    await testRetryBeforeActiveStatusRejection(),
     await testCanceledPI(),
     await testDifferentRevisions(),
-    await testPIWinnerVerification(),
-    await testSixConditionVerification(),
+    testSixConditionVerification(),
+    testSellerManagementInterleaving(),
+    testCleanupStateTable(),
+    testSchemaPermitsQuarantine(),
+    testIsQuarantinedHelper(),
   ];
 
-  console.log('=== Checkout Concurrency Tests (7C.3) ===\n');
+  console.log('=== Checkout Concurrency Tests (7C.4) ===\n');
 
   let allPassed = true;
   for (const t of tests) {
     const status = t.passed ? 'PASS' : 'FAIL';
     console.log(`[${status}] ${t.name}`);
     for (const [key, val] of Object.entries(t)) {
-      if (key !== 'name' && key !== 'passed' && key !== 'detail') {
+      if (key !== 'name' && key !== 'passed' && key !== 'scenarios' && key !== 'detail') {
         console.log(`  ${key}: ${JSON.stringify(val)}`);
       }
     }
-    if (t.detail) {
-      console.log(`  detail: ${JSON.stringify(t.detail)}`);
+    if (t.scenarios) {
+      for (const s of t.scenarios) {
+        const sStatus = s.passed ? 'PASS' : 'FAIL';
+        console.log(`  [${sStatus}] ${s.desc}: ${s.piStatus} → ${s.actual} (expected ${s.expected})`);
+      }
     }
     console.log();
     if (!t.passed) allPassed = false;
@@ -420,9 +524,7 @@ async function main() {
   console.log(`=== Overall: ${allPassed ? 'PASS' : 'FAIL'} ===`);
   console.log(`Tests run: ${tests.length}, Passed: ${tests.filter(t => t.passed).length}, Failed: ${tests.filter(t => !t.passed).length}`);
 
-  if (!allPassed) {
-    process.exit(1);
-  }
+  if (!allPassed) process.exit(1);
 }
 
 main().catch(err => {

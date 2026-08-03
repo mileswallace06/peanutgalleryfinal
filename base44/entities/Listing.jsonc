@@ -94,7 +94,8 @@
         "admin_disabled",
         "expired_verification",
         "sold",
-        "other"
+        "other",
+        "checkout_quarantine"
       ],
       "description": "Why this listing is hidden from the marketplace"
     },

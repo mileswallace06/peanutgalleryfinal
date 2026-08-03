@@ -40,6 +40,100 @@ export async function alertPrivateWriteFailure(base44, { entity, reference_id, r
   } catch (_) { /* alert failure must never throw */ }
 }
 
+// ── Quarantine listing (writes to BOTH Listing and ListingPrivate, verifies) ──
+// Sets Listing to hidden with hidden_reason='checkout_quarantine'.
+// Sets ListingPrivate.checkout_quarantined=true + reason + timestamp + pi_id.
+// Post-write verifies BOTH entities. Does NOT clear reservation_token (no TOCTOU).
+// Does NOT silently swallow alert failures — logs to console.error.
+export async function quarantineListing(base44, listing_id, reason, purchase_id, pi_id) {
+  const quarantineAt = new Date().toISOString();
+
+  try {
+    await base44.asServiceRole.entities.Listing.update(listing_id, {
+      status: 'hidden',
+      hidden_reason: 'checkout_quarantine',
+    });
+  } catch (err) {
+    console.error(`[CRITICAL] quarantineListing: Listing write failed for ${listing_id}: ${err?.message}. Reason: ${reason}. Purchase: ${purchase_id || 'N/A'}.`);
+    try {
+      await base44.asServiceRole.entities.AdminAlert.create({
+        alert_type: 'admin_action_required',
+        priority: 'critical',
+        title: `QUARANTINE LISTING WRITE FAILED for ${listing_id}`,
+        description: `${reason}. Error: ${err?.message}. Purchase: ${purchase_id || 'N/A'}.`,
+        reference_type: 'listing',
+        reference_id: listing_id,
+      });
+    } catch (alertErr) {
+      console.error(`[CRITICAL] Alert creation failed for quarantine: ${alertErr?.message}`);
+    }
+    return { quarantined: false, error: err };
+  }
+
+  try {
+    await upsertListingPrivate(base44, listing_id, {
+      checkout_quarantined: true,
+      checkout_quarantine_reason: reason,
+      checkout_quarantined_at: quarantineAt,
+      checkout_quarantine_pi_id: pi_id || null,
+    });
+  } catch (err) {
+    console.error(`[CRITICAL] quarantineListing: LP write failed for ${listing_id}: ${err?.message}.`);
+    try {
+      await base44.asServiceRole.entities.AdminAlert.create({
+        alert_type: 'admin_action_required',
+        priority: 'critical',
+        title: `QUARANTINE LP WRITE FAILED for ${listing_id}`,
+        description: `${reason}. Error: ${err?.message}. Purchase: ${purchase_id || 'N/A'}.`,
+        reference_type: 'listing',
+        reference_id: listing_id,
+      });
+    } catch (alertErr) {
+      console.error(`[CRITICAL] Alert creation failed for LP quarantine: ${alertErr?.message}`);
+    }
+    return { quarantined: false, error: err };
+  }
+
+  const [verifyListing] = await base44.asServiceRole.entities.Listing.filter({ id: listing_id });
+  const verifyLP = await getListingPrivate(base44, listing_id);
+
+  if (!verifyListing || verifyListing.status !== 'hidden' || verifyListing.hidden_reason !== 'checkout_quarantine') {
+    console.error(`[CRITICAL] quarantineListing: Listing verification failed for ${listing_id}. Status: ${verifyListing?.status}, reason: ${verifyListing?.hidden_reason}.`);
+    try {
+      await base44.asServiceRole.entities.AdminAlert.create({
+        alert_type: 'admin_action_required',
+        priority: 'critical',
+        title: `QUARANTINE LISTING VERIFICATION FAILED for ${listing_id}`,
+        description: `Post-write verification failed. Status: ${verifyListing?.status}, reason: ${verifyListing?.hidden_reason}.`,
+        reference_type: 'listing',
+        reference_id: listing_id,
+      });
+    } catch (alertErr) {
+      console.error(`[CRITICAL] Alert creation failed: ${alertErr?.message}`);
+    }
+    return { quarantined: false, error: new Error('Listing post-write verification failed') };
+  }
+
+  if (!verifyLP || !verifyLP.checkout_quarantined) {
+    console.error(`[CRITICAL] quarantineListing: LP verification failed for ${listing_id}.`);
+    try {
+      await base44.asServiceRole.entities.AdminAlert.create({
+        alert_type: 'admin_action_required',
+        priority: 'critical',
+        title: `QUARANTINE LP VERIFICATION FAILED for ${listing_id}`,
+        description: `Post-write verification failed. checkout_quarantined not set.`,
+        reference_type: 'listing',
+        reference_id: listing_id,
+      });
+    } catch (alertErr) {
+      console.error(`[CRITICAL] Alert creation failed: ${alertErr?.message}`);
+    }
+    return { quarantined: false, error: new Error('ListingPrivate post-write verification failed') };
+  }
+
+  return { quarantined: true };
+}
+
 /**
  * Post-create duplicate reconciliation. After a create, re-fetch all sidecars
  * for the key; if >1 exist (a concurrent create won the race), delete the

@@ -152,6 +152,23 @@
       "type": "string",
       "description": "FK to SeatInventory."
     },
+    "checkout_quarantined": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when this listing was quarantined by a failed checkout."
+    },
+    "checkout_quarantine_reason": {
+      "type": "string",
+      "description": "Reason for the checkout quarantine."
+    },
+    "checkout_quarantined_at": {
+      "type": "string",
+      "description": "ISO timestamp when the quarantine was applied."
+    },
+    "checkout_quarantine_pi_id": {
+      "type": "string",
+      "description": "Stripe PaymentIntent ID that triggered the quarantine."
+    },
     "is_demo_listing": {
       "type": "boolean",
       "default": false
