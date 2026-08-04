@@ -1,6 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import { isMaintenanceActive, maintenance503 } from '../../shared/maintenance.ts';
 import { upsertListingPrivate, getListingPrivate, alertPrivateWriteFailure } from '../../shared/privateData.ts';
+import { isFailClosed } from '../../shared/checkoutLogic.js';
 
 const RESERVATION_MINUTES = 10;
 
@@ -41,7 +42,7 @@ Deno.serve(async (req) => {
   }
 
   // 7C.7 fix #6: Check quarantine before reservation writes
-  if (lp.checkout_quarantined === true || lp.recovery_blocked === true || (listing.status === 'hidden' && listing.hidden_reason === 'checkout_quarantine')) {
+  if (isFailClosed(listing, lp)) {
     return Response.json({ error: 'This listing is under review. Please try another listing.', code: 'QUARANTINED' }, { status: 409 });
   }
 
@@ -135,7 +136,7 @@ Deno.serve(async (req) => {
   const curLpToken = curLp?.reservation_token ?? null;
 
   // 7C.7 fix #6: Check quarantine after reservation writes
-  if (curLp?.checkout_quarantined === true || curLp?.recovery_blocked === true || (curListing?.status === 'hidden' && curListing?.hidden_reason === 'checkout_quarantine')) {
+  if (isFailClosed(curListing, curLp)) {
     return Response.json({ error: 'This listing was quarantined during your request. Please try another listing.', code: 'QUARANTINED' }, { status: 409 });
   }
 

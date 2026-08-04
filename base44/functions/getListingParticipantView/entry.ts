@@ -20,6 +20,7 @@
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import { getListingPrivate } from '../../shared/privateData.ts';
+import { isFailClosed } from '../../shared/checkoutLogic.js';
 
 const MAX_ID_LENGTH = 200;
 
@@ -348,8 +349,8 @@ Deno.serve(async (req) => {
 
       if (lp.proof_status !== 'approved') continue;
 
-      // Fail-closed gate: omit quarantined or recovery-blocked listings from public views
-      if (lp.checkout_quarantined === true || lp.recovery_blocked === true) continue;
+      // Fail-closed gate: omit fail-closed listings from public views
+      if (isFailClosed(listing, lp)) continue;
 
       const reservedBy = lp.reserved_by_email;
       const reservationExpiresAt = lp.reservation_expires_at;
@@ -420,8 +421,8 @@ Deno.serve(async (req) => {
     return Response.json({ listing: serializeListing(listing, lp, viewerEmail, role, isConfirmedBuyer) });
   }
 
-  // Fail-closed gate: public cannot view quarantined or recovery-blocked listings
-  if (lp.checkout_quarantined === true || lp.recovery_blocked === true) {
+  // Fail-closed gate: public cannot view fail-closed listings
+  if (isFailClosed(listing, lp)) {
     return Response.json({ error: 'Listing not found' }, { status: 404 });
   }
 

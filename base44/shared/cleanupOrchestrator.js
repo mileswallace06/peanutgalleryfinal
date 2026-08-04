@@ -81,7 +81,6 @@ async function restoreQuarantine(deps, listing_id, reason, piId) {
     await upsertListingPrivate(deps, listing_id, {
       checkout_quarantined: true,
       checkout_quarantine_reason: reason,
-      checkout_quarantine_pi_id: piId || null,
     });
   } catch (err) {
     lpWriteError = err;
@@ -460,8 +459,23 @@ export async function runCleanupAbandonedCheckouts(deps) {
           recoveryRecordsRemaining++; continue;
         }
         if (!verifyGenerationMatch(capturedGeneration, capturedPiId, capturedPurchaseId, lpAfterActivate)) {
+          // Generation/PI/purchase tuple differs — preserve current tuple exactly,
+          // set recovery_blocked=true, alert, require manual resolution.
           const restoreResult = await restoreQuarantine(deps, lp.listing_id, 'Generation mismatch after activation', piId);
+          const currentGen = lpAfterActivate?.quarantine_generation;
+          const currentPi = lpAfterActivate?.checkout_quarantine_pi_id;
+          const currentPurchase = lpAfterActivate?.quarantined_purchase_id;
+          try {
+            await upsertListingPrivate(deps, lp.listing_id, {
+              recovery_blocked: true,
+              recovery_blocked_reason: `Generation mismatch during recovery. Captured gen=${capturedGeneration}, PI=${capturedPiId}, purchase=${capturedPurchaseId}. Current gen=${currentGen}, PI=${currentPi}, purchase=${currentPurchase}. Current tuple preserved. Manual resolution required.`,
+              recovery_blocked_at: new Date(deps.now()).toISOString(),
+            });
+          } catch (_) { /* best effort */ }
+          await criticalAlert(deps, `GENERATION MISMATCH — RECOVERY BLOCKED for ${lp.listing_id}`,
+            `Captured gen=${capturedGeneration}, PI=${capturedPiId}, purchase=${capturedPurchaseId}. Current gen=${currentGen}, PI=${currentPi}, purchase=${currentPurchase}. Current tuple preserved unchanged. PI ID: ${piId}. Manual resolution required.`, lp.listing_id);
           if (!restoreResult.restored) quarantineRestoreFailed++;
+          quarantineBlocked++;
           recoveryRecordsRemaining++; continue;
         }
 
@@ -471,12 +485,11 @@ export async function runCleanupAbandonedCheckouts(deps) {
         // specific fields. A token injected via before_ListingPrivate_update
         // survives because the update data does not include reservation_token.
         try {
+          // ONLY clear quarantine-specific fields. Preserve identity/snapshot/
+          // generation/recovery_not_before as inert audit data while checkout_quarantined=false.
           await upsertListingPrivate(deps, lp.listing_id, {
             checkout_quarantined: false, checkout_quarantine_reason: null,
-            checkout_quarantined_at: null, checkout_quarantine_pi_id: null,
-            quarantined_reservation_token: null, quarantined_buyer: null,
-            quarantined_expiration: null, quarantined_purchase_id: null,
-            quarantine_generation: null, recovery_not_before: null,
+            checkout_quarantined_at: null,
           });
         } catch (err) {
           const restoreResult = await restoreQuarantine(deps, lp.listing_id, `Recovery LP quarantine clear failed: ${err?.message}`, piId);

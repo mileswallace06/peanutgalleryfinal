@@ -1112,8 +1112,7 @@ async function testQuarantineRecoverySuccess() {
 
   const passed = finalListing.status === 'active' &&
     finalListing.reservation_token === null && finalListing.hidden_reason === null &&
-    finalLP.reservation_token === null && finalLP.checkout_quarantined === false &&
-    finalLP.quarantined_reservation_token === null && finalLP.recovery_not_before === null;
+    finalLP.reservation_token === null && finalLP.checkout_quarantined === false;
   return { name: 'quarantine_recovery_success', passed, listing_status: finalListing.status, lp_quarantined: finalLP.checkout_quarantined, quarantine_resolved: result.body.quarantine_resolved };
 }
 
@@ -1197,13 +1196,14 @@ function testIsTokenBearingQuarantineHelper() {
 }
 
 function testIsFailClosedHelper() {
-  const quarantined = isFailClosed({ checkout_quarantined: true });
-  const recoveryBlocked = isFailClosed({ recovery_blocked: true });
-  const both = isFailClosed({ checkout_quarantined: true, recovery_blocked: true });
-  const neither = !isFailClosed({ checkout_quarantined: false, recovery_blocked: false });
-  const undefinedFields = !isFailClosed({});
-  const nullLp = !isFailClosed(null);
-  return { name: 'is_fail_closed_helper', passed: quarantined && recoveryBlocked && both && neither && undefinedFields && nullLp };
+  const listingHidden = isFailClosed({ status: 'hidden', hidden_reason: 'checkout_quarantine' }, {});
+  const lpQuarantined = isFailClosed({}, { checkout_quarantined: true });
+  const lpBlocked = isFailClosed({}, { recovery_blocked: true });
+  const lpPaused = isFailClosed({}, { seller_pause_requested_at: '2026-01-01' });
+  const lpCancelled = isFailClosed({}, { seller_cancel_requested_at: '2026-01-01' });
+  const neither = !isFailClosed({}, {});
+  const nullLp = !isFailClosed({}, null);
+  return { name: 'is_fail_closed_helper', passed: listingHidden && lpQuarantined && lpBlocked && lpPaused && lpCancelled && neither && nullLp };
 }
 
 // ── Test A: Repeated quarantine preserves original snapshot ──────────────
@@ -1759,7 +1759,7 @@ async function testTokenInjectionRestorationWriteFailure() {
   // Durable fail-closed marker was set
   const failClosedMarker = finalLP.recovery_blocked === true;
   // Listing is fail-closed (not publicly available or purchasable)
-  const listingFailClosed = isFailClosed(finalLP);
+  const listingFailClosed = isFailClosed(finalListing, finalLP);
   // Critical alert exists with PI ID
   const piId = finalLP.checkout_quarantine_pi_id;
   const alertExists = [...deps._state.stores.AdminAlert.values()].some(a =>
@@ -1832,12 +1832,170 @@ async function testPauseMarkerClearPlusRollbackFailure() {
   const alertExists = [...deps._state.stores.AdminAlert.values()].some(a =>
     a.title && a.title.includes('PAUSE ROLLBACK FAILED'));
   // Listing must be fail-closed
-  const listingFailClosed = isFailClosed(finalLP);
+  const listingFailClosed = isFailClosed(finalListing, finalLP);
   // Listing is still active (rollback failed) — BAD STATE
   const listingStillActive = finalListing.status === 'active';
 
   const passed = returned500 && noFalseClaim && failClosedMarker && alertExists && listingFailClosed && listingStillActive;
   return { name: 'pause_marker_clear_plus_rollback_failure', passed, returned_500: returned500, no_false_claim: noFalseClaim, fail_closed_marker: failClosedMarker, alert_exists: alertExists, listing_fail_closed: listingFailClosed, listing_still_active: listingStillActive };
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// 7C.8 AUDIT FIX TESTS — Immutable identity, recovery_blocked retry,
+//                          pause marker checkout block, cascading failure
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── Test A: Inject generation 2 / PI 2 / purchase 2 during generation 1 recovery.
+// Assert the complete generation-2 identity tuple survives unchanged. ──
+async function testGeneration2IdentityTuplePreserved() {
+  const { seed, listingId } = createDefaultSeed();
+  let timeOffset = QUARANTINE_DRAIN_MS + 60000;
+  const deps = createMockDeps({ seed, now: () => Date.now() + timeOffset });
+  setupAlreadyNullQuarantine(deps, { listingId, piId: 'pi_gen1', purchaseId: 'pur_gen1' });
+
+  deps._hooks.after_Listing_update = (updated) => {
+    if (updated.status === 'active' && updated.hidden_reason === null) {
+      const lp = [...deps._state.stores.ListingPrivate.values()].find(l => l.listing_id === listingId);
+      if (lp) {
+        lp.quarantine_generation = 2;
+        lp.checkout_quarantine_pi_id = 'pi_gen2';
+        lp.quarantined_purchase_id = 'pur_gen2';
+        lp.quarantined_reservation_token = 'token_gen2';
+        lp.quarantined_buyer = 'buyer_gen2@test';
+        lp.quarantined_expiration = '2026-12-31T23:59:59.000Z';
+        lp.recovery_not_before = '2026-12-31T00:00:00.000Z';
+      }
+    }
+  };
+
+  await runCleanupAbandonedCheckouts(deps);
+
+  const finalListing = deps._state.stores.Listing.get(listingId);
+  const finalLP = [...deps._state.stores.ListingPrivate.values()].find(l => l.listing_id === listingId);
+
+  const listingNotActive = finalListing.status !== 'active';
+  const gen2Preserved = finalLP.quarantine_generation === 2;
+  const pi2Preserved = finalLP.checkout_quarantine_pi_id === 'pi_gen2';
+  const purchase2Preserved = finalLP.quarantined_purchase_id === 'pur_gen2';
+  const snapshotTokenPreserved = finalLP.quarantined_reservation_token === 'token_gen2';
+  const snapshotBuyerPreserved = finalLP.quarantined_buyer === 'buyer_gen2@test';
+  const snapshotExpiryPreserved = finalLP.quarantined_expiration === '2026-12-31T23:59:59.000Z';
+  const recoveryNotBeforePreserved = finalLP.recovery_not_before === '2026-12-31T00:00:00.000Z';
+  const recoveryBlocked = finalLP.recovery_blocked === true;
+
+  const passed = listingNotActive && gen2Preserved && pi2Preserved && purchase2Preserved &&
+    snapshotTokenPreserved && snapshotBuyerPreserved && snapshotExpiryPreserved &&
+    recoveryNotBeforePreserved && recoveryBlocked;
+  return { name: 'generation_2_identity_tuple_preserved', passed, listing_not_active: listingNotActive, gen2_preserved: gen2Preserved, pi2_preserved: pi2Preserved, purchase2_preserved: purchase2Preserved, snapshot_token_preserved: snapshotTokenPreserved, snapshot_buyer_preserved: snapshotBuyerPreserved, snapshot_expiry_preserved: snapshotExpiryPreserved, recovery_not_before_preserved: recoveryNotBeforePreserved, recovery_blocked: recoveryBlocked };
+}
+
+// ── Test B: Recovery-blocked retry returns 409, no clientSecret, no new PI ──
+async function testRecoveryBlockedRetryReturns409() {
+  const { seed, listingId } = createDefaultSeed();
+  let timeOffset = 0;
+  const deps = createMockDeps({ seed, now: () => Date.now() + timeOffset });
+
+  const r1 = await runCreateCheckout(deps, { listing_id: listingId });
+  if (r1.status !== 200) return { name: 'recovery_blocked_retry_returns_409', passed: false, error: 'initial checkout failed' };
+
+  const piCountAfterCheckout = deps.stripe.pisById.size;
+
+  const lp = [...deps._state.stores.ListingPrivate.values()].find(l => l.listing_id === listingId);
+  lp.recovery_blocked = true;
+
+  timeOffset = 20000;
+
+  const r2 = await runCreateCheckout(deps, { listing_id: listingId });
+
+  const piCountAfterRetry = deps.stripe.pisById.size;
+  const hasClientSecret = !!r2.body.clientSecret;
+  const returned409 = r2.status === 409;
+
+  const passed = returned409 && !hasClientSecret && piCountAfterRetry === piCountAfterCheckout;
+  return { name: 'recovery_blocked_retry_returns_409', passed, returned_409: returned409, has_client_secret: hasClientSecret, pi_count_unchanged: piCountAfterRetry === piCountAfterCheckout };
+}
+
+// ── Test C: Pause marker on active listing blocks checkout ──
+async function testPauseMarkerBlocksCheckout() {
+  const { seed, listingId } = createDefaultSeed();
+  const deps = createMockDeps({ seed });
+
+  const lp = [...deps._state.stores.ListingPrivate.values()].find(l => l.listing_id === listingId);
+  lp.seller_pause_requested_at = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+  lp.recovery_blocked = false;
+
+  const piCountBefore = deps.stripe.pisById.size;
+
+  const result = await runCreateCheckout(deps, { listing_id: listingId });
+
+  const piCountAfter = deps.stripe.pisById.size;
+  const hasClientSecret = !!result.body.clientSecret;
+  const returned409 = result.status === 409;
+  const zeroPICreated = piCountAfter === piCountBefore;
+
+  const passed = returned409 && !hasClientSecret && zeroPICreated;
+  return { name: 'pause_marker_blocks_checkout', passed, returned_409: returned409, has_client_secret: hasClientSecret, zero_pi_created: zeroPICreated };
+}
+
+// ── Test D: Cascading failure — pause marker survives and blocks checkout ──
+async function testCascadingFailurePauseMarkerBlocks() {
+  const { seed, listingId } = createDefaultSeed();
+  const deps = createMockDeps({ seed });
+
+  const listing = deps._state.stores.Listing.get(listingId);
+  listing.status = 'active';
+  listing.hidden_reason = null;
+  const lp = [...deps._state.stores.ListingPrivate.values()].find(l => l.listing_id === listingId);
+  lp.seller_pause_requested_at = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+
+  deps._state.stores.SeatInventory.set('inv_1', {
+    id: 'inv_1', event_id: 'event_1', owner_email: 'seller@test',
+    section: 'A', row: '1', seats: null, quantity: 1,
+    inventory_status: 'listed_for_sale', inventory_intent: 'sell',
+    linked_listing_id: listingId,
+    created_date: new Date().toISOString(), updated_date: new Date().toISOString(),
+  });
+  lp.seat_inventory_id = 'inv_1';
+
+  deps._hooks.before_ListingPrivate_update = async (id, data) => {
+    if (data.seller_pause_requested_at === null) {
+      return { throw: new Error('Pause marker clear failed') };
+    }
+    if (data.recovery_blocked === true) {
+      return { throw: new Error('recovery_blocked write failed') };
+    }
+  };
+  deps._hooks.before_Listing_update = async (id, data) => {
+    if (data.status === 'hidden' && data.hidden_reason === 'other') {
+      return { throw: new Error('Listing rollback failed') };
+    }
+  };
+
+  const resumeResult = await clearPauseMarkerAfterResume(deps, {
+    listing_id: listingId,
+    listing_entity_id: listingId,
+    seat_inventory_id: 'inv_1',
+  });
+
+  const finalListing = deps._state.stores.Listing.get(listingId);
+  const finalLP = [...deps._state.stores.ListingPrivate.values()].find(l => l.listing_id === listingId);
+
+  const resumeReturned500 = resumeResult.status === 500;
+  const pauseMarkerPresent = !!finalLP.seller_pause_requested_at;
+  const recoveryBlockedNotSet = finalLP.recovery_blocked !== true;
+  const failClosed = isFailClosed(finalListing, finalLP);
+
+  const piCountBefore = deps.stripe.pisById.size;
+  const checkoutResult = await runCreateCheckout(deps, { listing_id: listingId });
+  const piCountAfter = deps.stripe.pisById.size;
+
+  const checkoutReturned409 = checkoutResult.status === 409;
+  const noClientSecret = !checkoutResult.body.clientSecret;
+  const noNewPI = piCountAfter === piCountBefore;
+
+  const passed = resumeReturned500 && pauseMarkerPresent && recoveryBlockedNotSet &&
+    failClosed && checkoutReturned409 && noClientSecret && noNewPI;
+  return { name: 'cascading_failure_pause_marker_blocks', passed, resume_returned_500: resumeReturned500, pause_marker_present: pauseMarkerPresent, recovery_blocked_not_set: recoveryBlockedNotSet, fail_closed: failClosed, checkout_returned_409: checkoutReturned409, no_client_secret: noClientSecret, no_new_pi: noNewPI };
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -1904,6 +2062,11 @@ async function main() {
     testIsFailClosedHelper(),
     await testTokenInjectionRestorationWriteFailure(),
     await testPauseMarkerClearPlusRollbackFailure(),
+    // 7C.8 audit fix tests
+    await testGeneration2IdentityTuplePreserved(),
+    await testRecoveryBlockedRetryReturns409(),
+    await testPauseMarkerBlocksCheckout(),
+    await testCascadingFailurePauseMarkerBlocks(),
   ];
 
   console.log('=== Checkout & Cleanup Concurrency Tests (7C.8) ===\n');

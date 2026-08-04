@@ -273,7 +273,12 @@ export function isTokenBearingQuarantine(lp) {
 // regardless of Listing.status. Covers both checkout quarantine and
 // recovery-blocked (durable marker from failed quarantine restoration or
 // failed pause rollback).
-export function isFailClosed(lp) {
+export function isFailClosed(listing, lp) {
+  if (listing && listing.status === 'hidden' && listing.hidden_reason === 'checkout_quarantine') return true;
   if (!lp) return false;
-  return lp.checkout_quarantined === true || lp.recovery_blocked === true;
+  if (lp.checkout_quarantined === true) return true;
+  if (lp.recovery_blocked === true) return true;
+  if (lp.seller_pause_requested_at) return true;
+  if (lp.seller_cancel_requested_at) return true;
+  return false;
 }

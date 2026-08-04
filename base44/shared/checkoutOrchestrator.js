@@ -22,6 +22,7 @@ import {
   classifyRetryOutcome,
   isStripeIdempotencyError,
   isQuarantined,
+  isFailClosed,
   isRetryablePIStatus,
   verifyExactPIMetadata,
 } from './checkoutLogic.js';
@@ -175,8 +176,8 @@ export async function runCreateCheckout(deps, params) {
       const pur = existingPurchases.find(p => p.id === pp.purchase_id);
       if (!pur || pur.transfer_status !== 'pending_transfer') continue;
 
-      // Reject retry when quarantined
-      if (isQuarantined(listing, listingPrivate)) {
+      // Reject retry when fail-closed
+      if (isFailClosed(listing, listingPrivate)) {
         return { status: 409, body: { error: 'This listing is under review. Please try another listing.' } };
       }
 
@@ -256,7 +257,7 @@ export async function runCreateCheckout(deps, params) {
   }
 
   // 8. Quarantine check (before listing state validation)
-  if (isQuarantined(listing, listingPrivate) || listingPrivate.recovery_blocked === true) {
+  if (isFailClosed(listing, listingPrivate)) {
     return { status: 409, body: { error: 'This listing is under review. Please try another listing.' } };
   }
 
