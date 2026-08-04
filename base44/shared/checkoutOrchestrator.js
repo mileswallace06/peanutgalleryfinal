@@ -256,7 +256,7 @@ export async function runCreateCheckout(deps, params) {
   }
 
   // 8. Quarantine check (before listing state validation)
-  if (isQuarantined(listing, listingPrivate)) {
+  if (isQuarantined(listing, listingPrivate) || listingPrivate.recovery_blocked === true) {
     return { status: 409, body: { error: 'This listing is under review. Please try another listing.' } };
   }
 

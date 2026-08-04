@@ -126,6 +126,7 @@ Deno.serve(async (req) => {
               Listing: base44.asServiceRole.entities.Listing,
               ListingPrivate: base44.asServiceRole.entities.ListingPrivate,
               SeatInventory: base44.asServiceRole.entities.SeatInventory,
+              AdminAlert: base44.asServiceRole.entities.AdminAlert,
             },
             now: () => Date.now(),
           };
@@ -295,6 +296,7 @@ Deno.serve(async (req) => {
           Listing: base44.asServiceRole.entities.Listing,
           ListingPrivate: base44.asServiceRole.entities.ListingPrivate,
           SeatInventory: base44.asServiceRole.entities.SeatInventory,
+          AdminAlert: base44.asServiceRole.entities.AdminAlert,
         },
         now: () => Date.now(),
       };

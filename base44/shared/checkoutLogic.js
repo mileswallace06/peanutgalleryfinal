@@ -267,3 +267,13 @@ export function isTokenBearingQuarantine(lp) {
   if (!lp) return false;
   return !!lp.quarantined_reservation_token;
 }
+
+// ── Check if listing is in a fail-closed state (7C.8 correction) ──────────
+// Returns true when the listing must NOT be publicly visible or purchasable,
+// regardless of Listing.status. Covers both checkout quarantine and
+// recovery-blocked (durable marker from failed quarantine restoration or
+// failed pause rollback).
+export function isFailClosed(lp) {
+  if (!lp) return false;
+  return lp.checkout_quarantined === true || lp.recovery_blocked === true;
+}

@@ -348,6 +348,9 @@ Deno.serve(async (req) => {
 
       if (lp.proof_status !== 'approved') continue;
 
+      // Fail-closed gate: omit quarantined or recovery-blocked listings from public views
+      if (lp.checkout_quarantined === true || lp.recovery_blocked === true) continue;
+
       const reservedBy = lp.reserved_by_email;
       const reservationExpiresAt = lp.reservation_expires_at;
       const isReservationActive = !!(reservedBy && reservationExpiresAt &&
@@ -415,6 +418,11 @@ Deno.serve(async (req) => {
 
   if (isSeller || isConfirmedBuyer || isAdmin) {
     return Response.json({ listing: serializeListing(listing, lp, viewerEmail, role, isConfirmedBuyer) });
+  }
+
+  // Fail-closed gate: public cannot view quarantined or recovery-blocked listings
+  if (lp.checkout_quarantined === true || lp.recovery_blocked === true) {
+    return Response.json({ error: 'Listing not found' }, { status: 404 });
   }
 
   if (listing.status !== 'active') {

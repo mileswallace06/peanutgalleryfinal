@@ -40,6 +40,7 @@ import {
   reservationFieldsAlreadyNull,
   verifyGenerationMatch,
   isTokenBearingQuarantine,
+  isFailClosed,
 } from '../base44/shared/checkoutLogic.js';
 import { runCreateCheckout } from '../base44/shared/checkoutOrchestrator.js';
 import { runCleanupAbandonedCheckouts } from '../base44/shared/cleanupOrchestrator.js';
@@ -1195,6 +1196,16 @@ function testIsTokenBearingQuarantineHelper() {
   return { name: 'is_token_bearing_quarantine_helper', passed: hasToken && noToken && undefinedToken && nullLp };
 }
 
+function testIsFailClosedHelper() {
+  const quarantined = isFailClosed({ checkout_quarantined: true });
+  const recoveryBlocked = isFailClosed({ recovery_blocked: true });
+  const both = isFailClosed({ checkout_quarantined: true, recovery_blocked: true });
+  const neither = !isFailClosed({ checkout_quarantined: false, recovery_blocked: false });
+  const undefinedFields = !isFailClosed({});
+  const nullLp = !isFailClosed(null);
+  return { name: 'is_fail_closed_helper', passed: quarantined && recoveryBlocked && both && neither && undefinedFields && nullLp };
+}
+
 // ── Test A: Repeated quarantine preserves original snapshot ──────────────
 async function testRepeatedQuarantinePreservesSnapshot() {
   const { seed, listingId } = createDefaultSeed();
@@ -1715,6 +1726,120 @@ async function testNormalResumeMarkerClearFailureRestores() {
   return { name: 'normal_resume_marker_clear_failure_restores', passed, returned_500: returned500, listing_reverted: listingReverted, inv_reverted: invReverted };
 }
 
+// ── Test M: Token injected before activation, Listing restoration write fails ──
+// Inject a token immediately before Listing activation, then force the subsequent
+// Listing quarantine-restoration write to fail. The listing must NOT be publicly
+// returned or purchasable, a critical alert must exist, and the function must not
+// claim restoration succeeded.
+async function testTokenInjectionRestorationWriteFailure() {
+  const { seed, listingId } = createDefaultSeed();
+  let timeOffset = QUARANTINE_DRAIN_MS + 60000;
+  const deps = createMockDeps({ seed, now: () => Date.now() + timeOffset });
+  setupAlreadyNullQuarantine(deps, { listingId });
+
+  // Hook: inject token on activation, force failure on restoration write
+  deps._hooks.before_Listing_update = (id, data) => {
+    if (data.status === 'active' && data.hidden_reason === null) {
+      const lpRecord = [...deps._state.stores.ListingPrivate.values()].find(l => l.listing_id === id);
+      if (lpRecord) lpRecord.reservation_token = 'injected_before_activation';
+    }
+    if (data.status === 'hidden' && data.hidden_reason === 'checkout_quarantine') {
+      return { throw: new Error('Simulated Listing restoration write failure') };
+    }
+  };
+
+  const result = await runCleanupAbandonedCheckouts(deps);
+  const finalListing = deps._state.stores.Listing.get(listingId);
+  const finalLP = [...deps._state.stores.ListingPrivate.values()].find(l => l.listing_id === listingId);
+
+  // Listing is still active (restoration write failed) — BAD STATE
+  const listingStillActive = finalListing.status === 'active';
+  // LP quarantine was restored
+  const lpQuarantined = finalLP.checkout_quarantined === true;
+  // Durable fail-closed marker was set
+  const failClosedMarker = finalLP.recovery_blocked === true;
+  // Listing is fail-closed (not publicly available or purchasable)
+  const listingFailClosed = isFailClosed(finalLP);
+  // Critical alert exists with PI ID
+  const piId = finalLP.checkout_quarantine_pi_id;
+  const alertExists = [...deps._state.stores.AdminAlert.values()].some(a =>
+    a.title && a.title.includes('RESTORATION FAILED') && a.description && a.description.includes(piId));
+  // Function does not claim restoration succeeded
+  const notClaimedResolved = result.body.quarantine_resolved === 0;
+  // Function acknowledges restoration failed
+  const restoreFailed = result.body.quarantine_restore_failed > 0;
+
+  const passed = listingStillActive && lpQuarantined && failClosedMarker && listingFailClosed &&
+    alertExists && notClaimedResolved && restoreFailed;
+  return { name: 'token_injection_restoration_write_failure', passed, listing_still_active: listingStillActive, lp_quarantined: lpQuarantined, fail_closed_marker: failClosedMarker, listing_fail_closed: listingFailClosed, alert_exists: alertExists, not_claimed_resolved: notClaimedResolved, restore_failed: restoreFailed };
+}
+
+// ── Test N: Pause-marker clearing failure + Listing rollback failure ──
+// Force pause-marker clearing to fail AND Listing rollback to fail. The listing
+// must be fail-closed/unavailable, the failure must be durably alerted, and the
+// response must NOT falsely claim rollback succeeded.
+async function testPauseMarkerClearPlusRollbackFailure() {
+  const { seed, listingId } = createDefaultSeed();
+  const deps = createMockDeps({ seed });
+
+  // Set up a resumed listing (active, SeatInventory listed_for_sale, pause marker set)
+  const listing = deps._state.stores.Listing.get(listingId);
+  listing.status = 'active';
+  listing.hidden_reason = null;
+  const lp = [...deps._state.stores.ListingPrivate.values()].find(l => l.listing_id === listingId);
+  lp.seller_pause_requested_at = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+
+  // Create SeatInventory
+  deps._state.stores.SeatInventory.set('inv_1', {
+    id: 'inv_1', event_id: 'event_1', owner_email: 'seller@test',
+    section: 'A', row: '1', seats: null, quantity: 1,
+    inventory_status: 'listed_for_sale', inventory_intent: 'sell',
+    linked_listing_id: listingId,
+    created_date: new Date().toISOString(), updated_date: new Date().toISOString(),
+  });
+  lp.seat_inventory_id = 'inv_1';
+
+  // Hook: ListingPrivate.update fails when clearing pause marker
+  deps._hooks.before_ListingPrivate_update = async (id, data) => {
+    if (data.seller_pause_requested_at === null) {
+      return { throw: new Error('Simulated pause marker clear failure') };
+    }
+  };
+
+  // Hook: Listing.update fails when trying to rollback to hidden
+  deps._hooks.before_Listing_update = async (id, data) => {
+    if (data.status === 'hidden' && data.hidden_reason === 'other') {
+      return { throw: new Error('Simulated Listing rollback failure') };
+    }
+  };
+
+  const result = await clearPauseMarkerAfterResume(deps, {
+    listing_id: listingId,
+    listing_entity_id: listingId,
+    seat_inventory_id: 'inv_1',
+  });
+
+  const finalListing = deps._state.stores.Listing.get(listingId);
+  const finalLP = [...deps._state.stores.ListingPrivate.values()].find(l => l.listing_id === listingId);
+
+  // Must return 500
+  const returned500 = result.status === 500;
+  // Must NOT claim rollback succeeded
+  const noFalseClaim = !result.error?.includes('reverted to paused');
+  // Must have durable fail-closed marker
+  const failClosedMarker = finalLP.recovery_blocked === true;
+  // Critical alert must exist
+  const alertExists = [...deps._state.stores.AdminAlert.values()].some(a =>
+    a.title && a.title.includes('PAUSE ROLLBACK FAILED'));
+  // Listing must be fail-closed
+  const listingFailClosed = isFailClosed(finalLP);
+  // Listing is still active (rollback failed) — BAD STATE
+  const listingStillActive = finalListing.status === 'active';
+
+  const passed = returned500 && noFalseClaim && failClosedMarker && alertExists && listingFailClosed && listingStillActive;
+  return { name: 'pause_marker_clear_plus_rollback_failure', passed, returned_500: returned500, no_false_claim: noFalseClaim, fail_closed_marker: failClosedMarker, alert_exists: alertExists, listing_fail_closed: listingFailClosed, listing_still_active: listingStillActive };
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 // MAIN RUNNER
 // ════════════════════════════════════════════════════════════════════════════
@@ -1775,6 +1900,10 @@ async function main() {
     await testConflictBranchRecoveryBlockedWriteFailure(),
     await testAlreadyActivePauseMarkerClearFailure(),
     await testNormalResumeMarkerClearFailureRestores(),
+    // 7C.8 correction: fail-closed defect tests
+    testIsFailClosedHelper(),
+    await testTokenInjectionRestorationWriteFailure(),
+    await testPauseMarkerClearPlusRollbackFailure(),
   ];
 
   console.log('=== Checkout & Cleanup Concurrency Tests (7C.8) ===\n');

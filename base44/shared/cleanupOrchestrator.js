@@ -57,19 +57,85 @@ async function criticalAlert(deps, title, description, listingId) {
   } catch (_) { /* alert failure must never throw */ }
 }
 
-// Helper: restore quarantine on both entities (best-effort, never throws)
+// Helper: restore quarantine on both entities — verified, fail-closed
+// Returns { restored, listingVerified, lpVerified, actualState }
+// Never describes quarantine as restored unless both Listing and ListingPrivate verify.
+// Preserves immutable snapshot/generation/PI/purchase fields (not written here).
+// On restoration failure, persists recovery_blocked=true and a critical AdminAlert
+// with PI ID and actual post-failure state.
 async function restoreQuarantine(deps, listing_id, reason, piId) {
+  const result = { restored: false, listingVerified: false, lpVerified: false, actualState: {} };
+
+  // Step 1: Write Listing to hidden/checkout_quarantine — awaited, no catch-and-ignore
+  let listingWriteError = null;
   try {
     await deps.entities.Listing.update(listing_id, { status: 'hidden', hidden_reason: 'checkout_quarantine' });
-  } catch (_) { /* best effort */ }
+  } catch (err) {
+    listingWriteError = err;
+  }
+
+  // Step 2: Write ListingPrivate quarantine fields — awaited, no catch-and-ignore
+  // Immutable fields (snapshot, generation, PI, purchase) are NOT written here — preserved by merge.
+  let lpWriteError = null;
   try {
     await upsertListingPrivate(deps, listing_id, {
       checkout_quarantined: true,
       checkout_quarantine_reason: reason,
       checkout_quarantine_pi_id: piId || null,
     });
-  } catch (_) { /* best effort */ }
-  await criticalAlert(deps, `QUARANTINE RESTORED for ${listing_id}`, `${reason}. PI ID: ${piId || 'N/A'}.`, listing_id);
+  } catch (err) {
+    lpWriteError = err;
+  }
+
+  // Step 3: Re-fetch and verify both entities
+  let listingFinal = null;
+  try {
+    const rows = await deps.entities.Listing.filter({ id: listing_id });
+    listingFinal = rows[0];
+  } catch (err) {
+    result.actualState.listingFetchError = err?.message;
+  }
+
+  let lpFinal = null;
+  try {
+    lpFinal = await getListingPrivate(deps, listing_id);
+  } catch (err) {
+    result.actualState.lpFetchError = err?.message;
+  }
+
+  if (listingFinal && listingFinal.status === 'hidden' && listingFinal.hidden_reason === 'checkout_quarantine') {
+    result.listingVerified = true;
+  }
+  if (lpFinal && lpFinal.checkout_quarantined === true) {
+    result.lpVerified = true;
+  }
+
+  result.actualState.listingStatus = listingFinal?.status;
+  result.actualState.listingHiddenReason = listingFinal?.hidden_reason;
+  result.actualState.listingReservationToken = listingFinal?.reservation_token;
+  result.actualState.lpQuarantined = lpFinal?.checkout_quarantined;
+  result.actualState.lpReservationToken = lpFinal?.reservation_token;
+  result.actualState.lpRecoveryBlocked = lpFinal?.recovery_blocked;
+  result.actualState.listingWriteError = listingWriteError?.message;
+  result.actualState.lpWriteError = lpWriteError?.message;
+
+  result.restored = result.listingVerified && result.lpVerified;
+
+  // Step 4: If restoration failed, persist recovery_blocked=true + critical alert with PI ID
+  if (!result.restored) {
+    try {
+      await upsertListingPrivate(deps, listing_id, {
+        recovery_blocked: true,
+        recovery_blocked_reason: `Quarantine restoration failed: ${reason}. Listing verified: ${result.listingVerified}, LP verified: ${result.lpVerified}. Actual state: ${JSON.stringify(result.actualState)}. PI ID: ${piId || 'N/A'}.`,
+        recovery_blocked_at: new Date(deps.now()).toISOString(),
+      });
+    } catch (_) { /* best effort — alert is the durable record */ }
+    await criticalAlert(deps, `QUARANTINE RESTORATION FAILED for ${listing_id}`,
+      `Restoration failed. Reason: ${reason}. Listing verified: ${result.listingVerified}, LP verified: ${result.lpVerified}. PI ID: ${piId || 'N/A'}. Actual state: ${JSON.stringify(result.actualState)}. Manual resolution required.`,
+      listing_id);
+  }
+
+  return result;
 }
 
 export async function runCleanupAbandonedCheckouts(deps) {
@@ -389,12 +455,14 @@ export async function runCleanupAbandonedCheckouts(deps) {
         // ── Step 3: Re-fetch seller intent AFTER activation ────────────
         const lpAfterActivate = await getListingPrivate(deps, lp.listing_id);
         if (hasSellerCancelIntent(lpAfterActivate) || hasSellerPauseIntent(lpAfterActivate)) {
-          await restoreQuarantine(deps, lp.listing_id, 'Seller cancel detected after activation', piId);
+          const restoreResult = await restoreQuarantine(deps, lp.listing_id, 'Seller cancel detected after activation', piId);
+          if (!restoreResult.restored) quarantineRestoreFailed++;
           recoveryRecordsRemaining++; continue;
         }
         if (!verifyGenerationMatch(capturedGeneration, capturedPiId, capturedPurchaseId, lpAfterActivate)) {
-          await restoreQuarantine(deps, lp.listing_id, 'Generation mismatch after activation', piId);
-          quarantineRestoreFailed++; recoveryRecordsRemaining++; continue;
+          const restoreResult = await restoreQuarantine(deps, lp.listing_id, 'Generation mismatch after activation', piId);
+          if (!restoreResult.restored) quarantineRestoreFailed++;
+          recoveryRecordsRemaining++; continue;
         }
 
         // ── Step 4: Clear LP quarantine ONLY (DO NOT touch reservation fields) ──
@@ -411,8 +479,9 @@ export async function runCleanupAbandonedCheckouts(deps) {
             quarantine_generation: null, recovery_not_before: null,
           });
         } catch (err) {
-          await restoreQuarantine(deps, lp.listing_id, `Recovery LP quarantine clear failed: ${err?.message}`, piId);
-          quarantineRestoreFailed++; recoveryRecordsRemaining++; continue;
+          const restoreResult = await restoreQuarantine(deps, lp.listing_id, `Recovery LP quarantine clear failed: ${err?.message}`, piId);
+          if (!restoreResult.restored) quarantineRestoreFailed++;
+          recoveryRecordsRemaining++; continue;
         }
 
         // ── Step 5: Post-verify both entities ──────────────────────────
@@ -423,18 +492,21 @@ export async function runCleanupAbandonedCheckouts(deps) {
         const verifyLP = await getListingPrivate(deps, lp.listing_id);
 
         if (!verifyListing || verifyListing.status !== 'active' || verifyListing.reservation_token !== null || verifyListing.hidden_reason !== null) {
-          await restoreQuarantine(deps, lp.listing_id, 'Post-verify failed (Listing not active/cleared)', piId);
-          quarantineRestoreFailed++; recoveryRecordsRemaining++; continue;
+          const restoreResult = await restoreQuarantine(deps, lp.listing_id, 'Post-verify failed (Listing not active/cleared)', piId);
+          if (!restoreResult.restored) quarantineRestoreFailed++;
+          recoveryRecordsRemaining++; continue;
         }
         if (!verifyLP || verifyLP.reservation_token !== null || verifyLP.checkout_quarantined !== false) {
-          await restoreQuarantine(deps, lp.listing_id, 'Post-verify failed (LP has reservation token or still quarantined)', piId);
-          quarantineRestoreFailed++; recoveryRecordsRemaining++; continue;
+          const restoreResult = await restoreQuarantine(deps, lp.listing_id, 'Post-verify failed (LP has reservation token or still quarantined)', piId);
+          if (!restoreResult.restored) quarantineRestoreFailed++;
+          recoveryRecordsRemaining++; continue;
         }
 
         // ── Step 6: Check seller intent AFTER all writes ────────────────
         if (hasSellerCancelIntent(verifyLP) || hasSellerPauseIntent(verifyLP)) {
-          await restoreQuarantine(deps, lp.listing_id, 'Seller intent detected after post-verify', piId);
-          quarantineRestoreFailed++; recoveryRecordsRemaining++; continue;
+          const restoreResult = await restoreQuarantine(deps, lp.listing_id, 'Seller intent detected after post-verify', piId);
+          if (!restoreResult.restored) quarantineRestoreFailed++;
+          recoveryRecordsRemaining++; continue;
         }
 
         quarantineResolved++;
