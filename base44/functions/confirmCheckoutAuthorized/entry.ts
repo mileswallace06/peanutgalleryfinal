@@ -47,6 +47,7 @@ Deno.serve(async (req) => {
     const authoritativeSellerEmail = pp?.seller_email ?? purchase.seller_email;
     const authoritativePaymentIntentId = pp?.payment_intent_id ?? purchase.payment_intent_id;
     const authoritativeListingId = pp?.listing_id ?? purchase.listing_id;
+    const authoritativeReservationToken = pp?.reservation_token ?? purchase.reservation_token;
 
     if (authoritativeBuyerEmail !== user.email && user.role !== 'admin') {
       return Response.json({ error: 'Not authorized for this purchase' }, { status: 403 });
@@ -100,6 +101,10 @@ Deno.serve(async (req) => {
       }
       if (md.listing_id !== authoritativeListingId || md.buyer_email !== authoritativeBuyerEmail || md.seller_email !== authoritativeSellerEmail) {
         console.error('[confirmCheckoutAuthorized] metadata mismatch', purchase.id);
+        return Response.json({ error: 'Payment verification failed' }, { status: 500 });
+      }
+      if (!md.reservation_token || !authoritativeReservationToken || md.reservation_token !== authoritativeReservationToken) {
+        console.error('[confirmCheckoutAuthorized] reservation token mismatch/missing', purchase.id);
         return Response.json({ error: 'Payment verification failed' }, { status: 500 });
       }
       if (Math.round((purchase.amount || 0) * 100) !== pi.amount) {
