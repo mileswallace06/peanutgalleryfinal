@@ -79,7 +79,13 @@ export async function enqueueWebhookAdminAlert(deps, opts) {
 export async function dispatchWebhookNotifications(deps, opts = {}) {
   const { keys = null, limit = 500 } = opts;
 
-  const all = await deps.entities.Notification.filter({ dispatch_status: 'pending' }, '-created_date', limit).catch(() => []);
+  // 7C.9C.1: NO catch(() => []) — query failures must propagate
+  let all;
+  try {
+    all = await deps.entities.Notification.filter({ dispatch_status: 'pending' }, '-created_date', limit);
+  } catch (err) {
+    return { dispatched: 0, superseded: 0, skipped: 0, errors: 1, fatal_error: err?.message || 'Notification query failed' };
+  }
   const webhookNotifs = all.filter(n => n.idempotency_key && n.idempotency_key.startsWith('webhook:'));
 
   const groups = {};

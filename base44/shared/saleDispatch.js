@@ -1,27 +1,27 @@
 /**
  * saleDispatch.js — Shared sale notification dispatch logic (deps-based).
  *
- * 7C.9C corrections 3 & 4:
- *   3. Eliminate legacy seller identity — require exactly one PurchasePrivate.
- *   4. Be honest about external at-most-once delivery — disable external push/email.
+ * 7C.9C.1: Dispatcher integrity — removes catch(() => []) from authoritative
+ * reads. Query failures propagate as errors. Missing Purchase creates a critical
+ * alert and remains retryable (NOT silently superseded). Delivery-state
+ * persistence failures propagate as errors. The entrypoint returns non-2xx when
+ * errors > 0.
  *
- * EXTERNAL DELIVERY SUPPRESSION (correction 4):
- *   Base44 has no atomic claim primitive, and the current providers do not
- *   demonstrate durable idempotency for both channels. Therefore external
- *   push and email dispatch for `sale_created` is DISABLED.
+ * EXTERNAL DELIVERY SUPPRESSION (unchanged from 7C.9C):
+ *   External push and email dispatch for `sale_created` is DISABLED.
  *   - The in-app Notification record IS preserved and marked 'dispatched'.
- *   - seller_push_status and seller_email_status are marked 'skipped' (valid schema value).
- *   - No sendUserNotification call is made — provider-call counters remain zero.
- *   - We do NOT claim strict at-most-once external delivery.
- *   - We never resend after a provider succeeds merely because a later DB write fails
- *     (there are no provider calls to resend).
+ *   - seller_push_status and seller_email_status are marked 'skipped'.
+ *   - No sendUserNotification call — provider-call counters remain zero.
  *
- * PURCHASEPRIVATE AUTHORITY (correction 3):
+ * PURCHASEPRIVATE AUTHORITY (unchanged from 7C.9C):
  *   - enqueueSaleNotificationDeps requires exactly one PurchasePrivate (4th arg).
  *   - Uses pp.seller_email — NEVER purchase.seller_email.
- *   - The PurchasePrivate argument cannot be treated as an options object.
  *   - dispatchSaleNotificationsDeps requires PP — no public Purchase fallback.
  *   - Missing or duplicate PP → no provider call, critical alert, retryable failure.
+ *
+ * deps = { entities, now, sendUserNotification? }
+ * Returns: { keys_processed, superseded, dispatched, skipped, push_sends,
+ *            email_sends, errors, pp_missing, pp_duplicate, purchase_missing }
  */
 import { getPurchasePrivate, upsertPurchasePrivate } from './orchestratorHelpers.js';
 
@@ -42,7 +42,7 @@ export async function enqueueSaleNotificationDeps(deps, purchase, listing, pp) {
   }
 
   const key = saleIdempotencyKey(purchase.id);
-  const sellerEmail = pp.seller_email; // Authoritative — NEVER purchase.seller_email
+  const sellerEmail = pp.seller_email;
   const title = '🎉 Your ticket sold!';
   const body = `Tap to transfer your tickets and receive payment. Sec ${listing?.section || ''}, Row ${listing?.row || ''}.`;
 
@@ -75,10 +75,18 @@ export async function enqueueSaleNotificationDeps(deps, purchase, listing, pp) {
 }
 
 // ── Dispatch — external push/email DISABLED, in-app only ───────────────────
+// 7C.9C.1: NO catch(() => []) on authoritative reads. Failures propagate as errors.
 export async function dispatchSaleNotificationsDeps(deps, opts = {}) {
   const { keys = null, limit = 500 } = opts;
 
-  const all = await deps.entities.Notification.filter({ type: 'sale_created' }, '-created_date', limit).catch(() => []);
+  // ── Authoritative Notification query — NO catch(() => []) ──────────────────
+  let all;
+  try {
+    all = await deps.entities.Notification.filter({ type: 'sale_created' }, '-created_date', limit);
+  } catch (err) {
+    // Query failure must propagate — do NOT convert to empty success
+    return { keys_processed: 0, superseded: 0, dispatched: 0, skipped: 0, push_sends: 0, email_sends: 0, errors: 1, fatal_error: err?.message || 'Notification query failed' };
+  }
 
   const groups = {};
   for (const n of all) {
@@ -89,7 +97,7 @@ export async function dispatchSaleNotificationsDeps(deps, opts = {}) {
 
   const targetKeys = keys ? keys : Object.keys(groups).filter(k => !k.startsWith('test:'));
 
-  const summary = { keys_processed: 0, superseded: 0, dispatched: 0, skipped: 0, push_sends: 0, email_sends: 0, errors: 0, pp_missing: 0, pp_duplicate: 0 };
+  const summary = { keys_processed: 0, superseded: 0, dispatched: 0, skipped: 0, push_sends: 0, email_sends: 0, errors: 0, pp_missing: 0, pp_duplicate: 0, purchase_missing: 0 };
 
   for (const key of targetKeys) {
     const group = groups[key];
@@ -104,24 +112,71 @@ export async function dispatchSaleNotificationsDeps(deps, opts = {}) {
         try {
           await deps.entities.Notification.update(d.id, { dispatch_status: 'superseded' });
           summary.superseded++;
-        } catch (_) { summary.errors++; }
+        } catch (err) {
+          summary.errors++;
+        }
       }
     }
 
     if (canonical.dispatch_status === 'dispatching') { summary.skipped++; continue; }
 
-    const [purchase] = await deps.entities.Purchase.filter({ id: canonical.reference_id }).catch(() => []);
-    if (!purchase) {
-      // Purchase missing — can't resolve PP, skip this key
+    // ── Authoritative Purchase query — NO catch(() => []) ──────────────────
+    let purchase;
+    try {
+      const rows = await deps.entities.Purchase.filter({ id: canonical.reference_id });
+      purchase = rows[0];
+    } catch (err) {
+      // Purchase query failure — critical alert, remain retryable, do NOT supersede
+      summary.errors++;
       try {
-        await deps.entities.Notification.update(canonical.id, { dispatch_status: 'superseded' });
-        summary.superseded++;
+        await deps.entities.AdminAlert.create({
+          alert_type: 'admin_action_required',
+          priority: 'critical',
+          title: `Sale notification — Purchase query failed — ${canonical.reference_id}`,
+          description: `Notification ${canonical.id} could not be dispatched: Purchase query failed: ${err?.message}. Notification remains pending for retry.`,
+          reference_type: 'purchase',
+          reference_id: canonical.reference_id,
+        });
       } catch (_) { summary.errors++; }
       continue;
     }
 
-    // ── Require exactly ONE PurchasePrivate — no public fallback ────────────
-    const ppRows = await deps.entities.PurchasePrivate.filter({ purchase_id: purchase.id }).catch(() => []);
+    if (!purchase) {
+      // Purchase missing — critical alert, remain retryable, do NOT supersede
+      summary.purchase_missing++;
+      try {
+        await deps.entities.AdminAlert.create({
+          alert_type: 'admin_action_required',
+          priority: 'critical',
+          title: `Sale notification skipped — missing Purchase — ${canonical.reference_id}`,
+          description: `Cannot dispatch sale_created notification: Purchase ${canonical.reference_id} not found. Notification remains pending for retry.`,
+          reference_type: 'purchase',
+          reference_id: canonical.reference_id,
+        });
+      } catch (_) { summary.errors++; }
+      // Leave notification as 'pending' for retry — do NOT supersede
+      continue;
+    }
+
+    // ── Authoritative PurchasePrivate query — NO catch(() => []) ───────────
+    let ppRows;
+    try {
+      ppRows = await deps.entities.PurchasePrivate.filter({ purchase_id: purchase.id });
+    } catch (err) {
+      // PP query failure — critical alert, remain retryable, do NOT supersede
+      summary.errors++;
+      try {
+        await deps.entities.AdminAlert.create({
+          alert_type: 'admin_action_required',
+          priority: 'critical',
+          title: `Sale notification — PurchasePrivate query failed — ${purchase.id}`,
+          description: `Notification ${canonical.id} could not be dispatched: PurchasePrivate query failed: ${err?.message}. Notification remains pending for retry.`,
+          reference_type: 'purchase',
+          reference_id: purchase.id,
+        });
+      } catch (_) { summary.errors++; }
+      continue;
+    }
 
     if (ppRows.length === 0) {
       // Missing PP — no provider call, critical alert, retryable
@@ -136,7 +191,6 @@ export async function dispatchSaleNotificationsDeps(deps, opts = {}) {
           reference_id: purchase.id,
         });
       } catch (_) { summary.errors++; }
-      // Leave notification as 'pending' for retry
       continue;
     }
 
@@ -157,10 +211,9 @@ export async function dispatchSaleNotificationsDeps(deps, opts = {}) {
     }
 
     const pp = ppRows[0];
-    const authoritativeSellerEmail = pp.seller_email; // NEVER purchase.seller_email
+    const authoritativeSellerEmail = pp.seller_email;
 
     if (!authoritativeSellerEmail) {
-      // PP exists but has no seller_email — integrity error
       summary.pp_missing++;
       try {
         await deps.entities.AdminAlert.create({
@@ -175,23 +228,38 @@ export async function dispatchSaleNotificationsDeps(deps, opts = {}) {
       continue;
     }
 
-    // ── EXTERNAL DELIVERY SUPPRESSED (correction 4) ──────────────────────────
-    // No sendUserNotification call. No push. No email.
-    // Mark both channels as 'skipped' (valid schema value).
-    // The in-app Notification record IS the delivery.
+    // ── EXTERNAL DELIVERY SUPPRESSED — in-app only ──────────────────────────
+    // Mark Notification as dispatched — must verify it persisted
+    let dispatchWriteOk = false;
     try {
       await deps.entities.Notification.update(canonical.id, { dispatch_status: 'dispatched' });
-      summary.dispatched++;
-    } catch (_) { summary.errors++; }
+      // Re-fetch to verify dispatch_status persisted
+      const [verifyNotif] = await deps.entities.Notification.filter({ id: canonical.id });
+      dispatchWriteOk = verifyNotif?.dispatch_status === 'dispatched';
+    } catch (err) {
+      summary.errors++;
+      // Do NOT mark as dispatched — retry later
+      continue;
+    }
+
+    if (!dispatchWriteOk) {
+      summary.errors++;
+      continue;
+    }
+    summary.dispatched++;
 
     // Mark channels as skipped on both Purchase and PurchasePrivate
     const channelUpdate = { seller_push_status: 'skipped', seller_email_status: 'skipped' };
     try {
       await deps.entities.Purchase.update(purchase.id, channelUpdate);
-    } catch (_) { summary.errors++; }
+    } catch (err) {
+      summary.errors++;
+    }
     try {
       await upsertPurchasePrivate(deps, purchase.id, channelUpdate);
-    } catch (_) { summary.errors++; }
+    } catch (err) {
+      summary.errors++;
+    }
 
     // Provider-call counters remain zero — no external calls made
     summary.keys_processed++;

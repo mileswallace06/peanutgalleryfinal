@@ -1,7 +1,8 @@
 /**
  * webhookOrchestrator.js — Dependency-injected Stripe webhook handler.
  *
- * 7C.9C corrections 2: Make Stripe webhook integrity failures observable.
+ * 7C.9C.1: Stripe cancellation verification — ALWAYS re-retrieve after cancel.
+ * 7C.9C correction 2: Make Stripe webhook integrity failures observable.
  *
  * FAIL CLOSED with durable critical alert and non-2xx for:
  *   - Missing or duplicate PurchasePrivate
@@ -9,6 +10,7 @@
  *   - PaymentIntent metadata mismatch
  *   - Amount, currency, or destination mismatch
  *   - Unexpected succeeded PaymentIntent state
+ *   - Cancel response/live-retrieval disagreement
  *   - Any failed authoritative write or failed post-write verification
  *
  * EXPLICIT PI STATE TABLE (payment_failed):
@@ -16,7 +18,7 @@
  *   requires_capture:             skip — leave for capture flow
  *   requires_payment_method,
  *   requires_confirmation,
- *   requires_action:              cancel, re-retrieve, require canceled, then expire
+ *   requires_action:              cancel, ALWAYS re-retrieve, require canceled
  *   processing:                   skip — retry later
  *   canceled:                     proceed to token-safe authoritative reconciliation
  *
@@ -30,7 +32,7 @@ import {
   alertPrivateWriteFailure,
   quarantineListing,
 } from './orchestratorHelpers.js';
-import { reconcileCapturedPayment } from './captureReconciliation.js';
+import { freezeCapturedPayment } from './captureReconciliation.js';
 import { enqueueWebhookNotification, enqueueWebhookAdminAlert } from './webhookNotifications.js';
 
 function calcPlatformFee(subtotal) {
@@ -150,6 +152,46 @@ function verifyPIMetadata(pi, purchase, pp) {
   return true;
 }
 
+// ── Verify PI cancellation: ALWAYS re-retrieve after cancel ─────────────────
+// 7C.9C.1: cancel() may return {status:"canceled"} but a subsequent live
+// retrieval can still return requires_confirmation. Always re-retrieve.
+async function verifyCancelSucceeded(deps, piId, eventId, purchase, pp) {
+  // Step 1: Call cancel
+  let cancelError = null;
+  try {
+    await deps.stripe.paymentIntents.cancel(piId, {
+      idempotencyKey: `cancel-${piId}-${eventId}`,
+    });
+  } catch (err) {
+    cancelError = err;
+  }
+
+  // Step 2: ALWAYS re-retrieve — even when cancel returned canceled
+  let retrievedStatus = null;
+  let retrieveError = null;
+  try {
+    const retrieved = await deps.stripe.paymentIntents.retrieve(piId);
+    retrievedStatus = retrieved.status;
+  } catch (err) {
+    retrieveError = err;
+  }
+
+  // Step 3: Require retrieved status === 'canceled'
+  if (retrievedStatus !== 'canceled') {
+    try {
+      await enqueueWebhookAdminAlert(deps, {
+        idempotency_key: `webhook:cancel_not_verified:${eventId}`,
+        title: `PI cancel not verified — ${piId}`,
+        description: `Cancel was called but live retrieval returned status='${retrievedStatus}'. Cancel error: ${cancelError?.message || 'none'}. Retrieve error: ${retrieveError?.message || 'none'}. Purchase: ${purchase.id}. Manual cancellation required.`,
+        reference_id: purchase.id, reference_type: 'purchase', priority: 'critical',
+      });
+    } catch (_) { return { verified: false, alertFailed: true }; }
+    return { verified: false };
+  }
+
+  return { verified: true };
+}
+
 // ── payment_intent.payment_failed ──────────────────────────────────────────
 async function handlePaymentFailed(deps, eventId, data) {
   const piId = data.id;
@@ -185,7 +227,6 @@ async function handlePaymentFailed(deps, eventId, data) {
   }
 
   // ── 3. Explicit PI state table ────────────────────────────────────────────
-  // succeeded, requires_capture, processing → do not expire; leave for capture flow
   if (pp.payment_captured === true) {
     return { status: 200, body: { received: true, skipped: 'already_captured' } };
   }
@@ -199,43 +240,25 @@ async function handlePaymentFailed(deps, eventId, data) {
   }
 
   // ── 5. Cancelable states: requires_payment_method, requires_confirmation,
-  //         requires_action — cancel, re-retrieve, require canceled ──────────
+  //         requires_action — cancel, ALWAYS re-retrieve, require canceled ──
   if (['requires_payment_method', 'requires_confirmation', 'requires_action'].includes(pi.status)) {
-    let cancelVerified = false;
-    try {
-      const canceled = await deps.stripe.paymentIntents.cancel(piId, {
-        idempotencyKey: `cancel-${piId}-${eventId}`,
-      });
-      cancelVerified = canceled.status === 'canceled';
-    } catch (_) {
-      try {
-        const retrieved = await deps.stripe.paymentIntents.retrieve(piId);
-        cancelVerified = retrieved.status === 'canceled';
-      } catch (_) { cancelVerified = false; }
-    }
-
-    // ── 6. Re-retrieve and require status === 'canceled' ──────────────────────
-    if (!cancelVerified) {
-      try {
-        await enqueueWebhookAdminAlert(deps, {
-          idempotency_key: `webhook:cancel_failed:${eventId}`,
-          title: `PI cancel failed — ${piId}`,
-          description: `Cancel could not be verified. PI: ${piId}. Purchase: ${purchase.id}. Manual cancellation required.`,
-          reference_id: purchase.id, reference_type: 'purchase', priority: 'critical',
-        });
-      } catch (_) { return { status: 500, body: { error: 'ALERT_PERSISTENCE_FAILED' } }; }
+    const cancelResult = await verifyCancelSucceeded(deps, piId, eventId, purchase, pp);
+    if (!cancelResult.verified) {
+      if (cancelResult.alertFailed) {
+        return { status: 500, body: { error: 'CANCEL_AND_ALERT_FAILED' } };
+      }
       return { status: 500, body: { error: 'CANCEL_NOT_VERIFIED' } };
     }
   }
 
-  // ── 7. Verify current Listing + ListingPrivate ownership ───────────────────
+  // ── 6. Verify current Listing + ListingPrivate ownership ───────────────────
   const [listing] = await deps.entities.Listing.filter({ id: purchase.listing_id });
   const lp = await getListingPrivate(deps, purchase.listing_id);
   if (!listing || !lp) {
     return { status: 500, body: { error: 'LISTING_OR_LP_NOT_FOUND' } };
   }
 
-  // ── 8. Modify listing only when Listing and LP both match PP ───────────────
+  // ── 7. Modify listing only when Listing and LP both match PP ───────────────
   const tokenMatch = lp.reservation_token === pp.reservation_token && listing.reservation_token === pp.reservation_token;
   const buyerMatch = lp.reserved_by_email === pp.buyer_email && listing.reserved_by_email === pp.buyer_email;
   const lpExpiry = lp.reservation_expires_at ? new Date(lp.reservation_expires_at).getTime() : 0;
@@ -243,7 +266,6 @@ async function handlePaymentFailed(deps, eventId, data) {
   const expiryMatch = lpExpiry === listingExpiry;
 
   if (!tokenMatch || !buyerMatch || !expiryMatch) {
-    // ── 9. Newer or split-brain reservation — preserve it ─────────────────────
     try {
       await enqueueWebhookAdminAlert(deps, {
         idempotency_key: `webhook:split_brain:${eventId}`,
@@ -258,7 +280,7 @@ async function handlePaymentFailed(deps, eventId, data) {
     return { status: 200, body: { received: true, expired: true, split_brain_preserved: true } };
   }
 
-  // ── 10. Quarantine rather than activate the listing ────────────────────────
+  // ── 8. Quarantine rather than activate the listing ────────────────────────
   const qResult = await quarantineListing(deps, purchase.listing_id,
     `Webhook payment_failed. PI: ${piId}. Event: ${eventId}.`, purchase.id, piId);
   if (!qResult.quarantined) {
@@ -273,12 +295,12 @@ async function handlePaymentFailed(deps, eventId, data) {
     return { status: 500, body: { error: 'QUARANTINE_FAILED' } };
   }
 
-  // ── 11. Quarantine succeeded — expire the Purchase ─────────────────────────
+  // ── 9. Quarantine succeeded — expire the Purchase ─────────────────────────
   try {
     await deps.entities.Purchase.update(purchase.id, { transfer_status: 'expired' });
   } catch (_) { return { status: 500, body: { error: 'PURCHASE_EXPIRY_FAILED' } }; }
 
-  // ── 12. Queue buyer in-app notification (no external push/email) ────────────
+  // ── 10. Queue buyer in-app notification (no external push/email) ────────────
   try {
     await enqueueWebhookNotification(deps, {
       idempotency_key: `webhook:payment_failed:${eventId}`,
@@ -383,23 +405,23 @@ async function handlePaymentSucceeded(deps, eventId, data) {
     return { status: 500, body: { error: 'DESTINATION_MISMATCH' } };
   }
 
-  // ── 5. Invoke the captured-payment reconciliation state machine ─────────────
-  const result = await reconcileCapturedPayment(deps, purchase, pp, pi);
+  // ── 5. Invoke Phase 1 freeze (two-phase freeze-and-finalize) ──────────────
+  const result = await freezeCapturedPayment(deps, purchase, pp, pi);
 
   // ── 6. Return non-2xx on any failure ───────────────────────────────────────
   if (!result.ok) {
     try {
       await enqueueWebhookAdminAlert(deps, {
-        idempotency_key: `webhook:succeeded_reconcile:${eventId}`,
-        title: `Reconciliation failed at step ${result.step} — ${purchase.id}`,
-        description: `PI ${piId} succeeded but reconciliation failed at step: ${result.step}. Error: ${result.error}. Retry will converge. Manual review if persists.`,
+        idempotency_key: `webhook:freeze_failed:${eventId}`,
+        title: `Freeze failed at step ${result.step} — ${purchase.id}`,
+        description: `PI ${piId} succeeded but freeze failed at step: ${result.step}. Error: ${result.error}. Retry will converge. Manual review if persists.`,
         reference_id: purchase.id, reference_type: 'purchase', priority: 'critical',
       });
-    } catch (_) { return { status: 500, body: { error: 'RECONCILE_AND_ALERT_FAILED' } }; }
-    return { status: 500, body: { error: 'RECONCILE_FAILED', step: result.step } };
+    } catch (_) { return { status: 500, body: { error: 'FREEZE_AND_ALERT_FAILED' } }; }
+    return { status: 500, body: { error: 'FREEZE_FAILED', step: result.step } };
   }
 
-  return { status: 200, body: { received: true, captured: true, idempotent: result.idempotent || false } };
+  return { status: 200, body: { received: true, captured: true, phase: result.phase, idempotent: result.idempotent || false } };
 }
 
 // ── charge.dispute.created ──────────────────────────────────────────────────

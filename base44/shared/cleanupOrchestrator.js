@@ -40,6 +40,7 @@ import {
   upsertListingPrivate,
   quarantineListing,
 } from './orchestratorHelpers.js';
+import { finalizeCapturedPayment } from './captureReconciliation.js';
 
 const ABANDONED_MS = 10 * 60 * 1000;
 const PAGE_SIZE = 200;
@@ -535,6 +536,74 @@ export async function runCleanupAbandonedCheckouts(deps) {
     if (quarantinedListings.length < RECOVERY_PAGE_SIZE) recoveryHasMore = false;
   }
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Phase 3: Capture freeze finalization (7C.9C.1)
+  // Finds quarantined listings where PP has a frozen tuple and payment_captured=true
+  // but freeze_finalized_at is null. After the drain period, compares current
+  // reservation fields against the frozen tuple and finalizes (clears reservation
+  // fields, marks sold) or blocks (preserves conflicting tuple).
+  // ═══════════════════════════════════════════════════════════════════════════
+  let freezeFinalized = 0;
+  let freezeBlocked = 0;
+  let freezeErrors = 0;
+  const freezeProcessedIds = new Set();
+  let freezeSkip = 0;
+  let freezeHasMore = true;
+  let freezeIteration = 0;
+
+  while (freezeHasMore && freezeIteration < RECOVERY_MAX_ITERATIONS) {
+    freezeIteration++;
+    let quarantinedForFreeze;
+    try {
+      quarantinedForFreeze = await entities.ListingPrivate.filter(
+        { checkout_quarantined: true }, 'id', RECOVERY_PAGE_SIZE, freezeSkip
+      );
+    } catch (err) { break; }
+
+    if (quarantinedForFreeze.length === 0) { freezeHasMore = false; break; }
+
+    let freezeRecordsRemaining = 0;
+
+    for (const lp of quarantinedForFreeze) {
+      if (freezeProcessedIds.has(lp.listing_id)) { freezeRecordsRemaining++; continue; }
+      freezeProcessedIds.add(lp.listing_id);
+
+      try {
+        const purchaseId = lp.quarantined_purchase_id;
+        if (!purchaseId) { freezeRecordsRemaining++; continue; }
+
+        // Check if this is a capture freeze (PP has frozen tuple)
+        const pp = await getPurchasePrivate(deps, purchaseId);
+        if (!pp || !pp.frozen_reservation_token || pp.payment_captured !== true || pp.freeze_finalized_at) {
+          freezeRecordsRemaining++; continue;
+        }
+
+        // Check drain period
+        if (!drainPeriodPassed(lp, deps.now())) { freezeRecordsRemaining++; continue; }
+
+        // Check recovery_blocked
+        if (isRecoveryBlocked(lp)) { freezeRecordsRemaining++; continue; }
+
+        // Call finalizeCapturedPayment
+        const result = await finalizeCapturedPayment(deps, lp.listing_id);
+        if (result.ok) {
+          freezeFinalized++;
+        } else if (result.step === 'conflict') {
+          freezeBlocked++;
+        } else {
+          freezeErrors++;
+        }
+      } catch (err) {
+        console.error('[cleanupAbandonedCheckouts] freeze finalize error', lp.listing_id, err?.message);
+        freezeErrors++;
+        freezeRecordsRemaining++;
+      }
+    }
+
+    freezeSkip += freezeRecordsRemaining;
+    if (quarantinedForFreeze.length < RECOVERY_PAGE_SIZE) freezeHasMore = false;
+  }
+
   return {
     status: 200,
     body: {
@@ -545,6 +614,9 @@ export async function runCleanupAbandonedCheckouts(deps) {
       errors, quarantine_resolved: quarantineResolved,
       quarantine_restore_failed: quarantineRestoreFailed,
       quarantine_blocked: quarantineBlocked,
+      freeze_finalized: freezeFinalized,
+      freeze_blocked: freezeBlocked,
+      freeze_errors: freezeErrors,
       max_skip_reached: maxSkipReached,
     },
   };

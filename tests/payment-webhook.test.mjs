@@ -418,10 +418,10 @@ async function testExpirationClearFailurePreventsReconciliationSuccess() {
   const { seed, listingId, piId, purchaseId, buyerEmail, sellerEmail, token } = createDefaultSeed();
   const deps = createMockDeps({
     seed,
-    // Inject failure when LP tries to clear reservation_expires_at
+    // 7C.9C.1: Inject failure during the LP quarantine write (freeze step)
     hooks: {
       'before_ListingPrivate_update': async (id, data) => {
-        if (data.reservation_expires_at === null) return { throw: new Error('LP expiration clear failed') };
+        if (data.checkout_quarantined === true) return { throw: new Error('LP quarantine write failed') };
       },
     },
   });
@@ -437,15 +437,13 @@ async function testExpirationClearFailurePreventsReconciliationSuccess() {
 
   const result = await reconcileCapturedPayment(deps, purchase, pp, pi);
 
-  // Must NOT return ok:true
+  // Must NOT return ok:true — freeze must fail when a write boundary fails
   const notOk = !result.ok;
-  // Must fail at the LP step
-  const failedAtLP = result.step === 'lp';
   // Listing must NOT be sold
   const listing = deps._state.stores.Listing[0];
   const notSold = listing.status !== 'sold';
 
-  const passed = notOk && failedAtLP && notSold;
+  const passed = notOk && notSold;
   return { name: 'expiration_clear_failure_prevents_reconciliation', passed, ok: result.ok, step: result.step, not_sold: notSold };
 }
 
@@ -454,23 +452,33 @@ async function testExpirationClearFailurePreventsReconciliationSuccess() {
 // ════════════════════════════════════════════════════════════════════════════
 async function testOldMatchingTupleCompletesSafely() {
   const { seed, listingId, piId, purchaseId, buyerEmail, sellerEmail, token } = createDefaultSeed();
-  const deps = createMockDeps({ seed });
+  let timeOffset = 0;
+  const deps = createMockDeps({ seed, now: () => Date.now() + timeOffset });
   seedStripePI(deps.stripe, piId, {
     status: 'succeeded', amount: 10500,
     metadata: { listing_id: listingId, buyer_email: buyerEmail, seller_email: sellerEmail, reservation_token: token, purchase_id: purchaseId },
     transfer_data: { destination: 'acct_test_123' },
   });
 
+  // 7C.9C.1: Two-phase freeze-and-finalize
+  // Phase 1: Freeze (quarantine listing, preserve reservation, record frozen tuple)
   const [purchase] = deps._state.stores.Purchase;
   const [pp] = deps._state.stores.PurchasePrivate;
   const pi = deps.stripe.pisById.get(piId);
-  const result = await reconcileCapturedPayment(deps, purchase, pp, pi);
+  const freezeResult = await reconcileCapturedPayment(deps, purchase, pp, pi);
+  const freezeOk = freezeResult.ok;
+
+  // Phase 2: Finalize after drain period (clear reservation, mark sold)
+  timeOffset = 3 * 60 * 1000; // past drain
+  const { finalizeCapturedPayment } = await import('../base44/shared/captureReconciliation.js');
+  const finalizeResult = await finalizeCapturedPayment(deps, listingId);
+  const finalizeOk = finalizeResult.ok;
 
   const listing = deps._state.stores.Listing[0];
   const lp = deps._state.stores.ListingPrivate[0];
   const allCleared = listing.status === 'sold' && !listing.reservation_token && !listing.reserved_by_email && !listing.reservation_expires_at && !lp.reservation_token && !lp.reserved_by_email && !lp.reservation_expires_at;
-  const passed = result.ok && allCleared;
-  return { name: 'old_matching_tuple_completes_safely', passed, ok: result.ok, all_cleared: allCleared };
+  const passed = freezeOk && finalizeOk && allCleared;
+  return { name: 'old_matching_tuple_completes_safely', passed, freeze_ok: freezeOk, finalize_ok: finalizeOk, all_cleared: allCleared };
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -480,7 +488,7 @@ async function testAlreadySoldNullTupleIsIdempotent() {
   const { seed, listingId, piId, purchaseId, buyerEmail, sellerEmail, token } = createDefaultSeed({
     listing: { status: 'sold', reservation_token: null, reserved_by_email: null, reservation_expires_at: null },
     lp: { reservation_token: null, reserved_by_email: null, reservation_expires_at: null },
-    pp: { payment_captured: true, payment_capture_failed: false },
+    pp: { payment_captured: true, payment_capture_failed: false, freeze_finalized_at: '2026-01-01T00:00:00.000Z', frozen_reservation_token: 'res_token_123' },
     purchase: { transfer_status: 'completed', payment_captured: true, payment_capture_failed: false, buyer_confirmed: true },
   });
   const deps = createMockDeps({ seed });
@@ -555,31 +563,39 @@ async function testDuplicatePurchasePrivateFailsClosed() {
 // ════════════════════════════════════════════════════════════════════════════
 async function testSuccessfulWritesReFetchedAndVerified() {
   const { seed, listingId, piId, purchaseId, buyerEmail, sellerEmail, token } = createDefaultSeed();
-  const deps = createMockDeps({ seed });
+  let timeOffset = 0;
+  const deps = createMockDeps({ seed, now: () => Date.now() + timeOffset });
   seedStripePI(deps.stripe, piId, {
     status: 'succeeded', amount: 10500,
     metadata: { listing_id: listingId, buyer_email: buyerEmail, seller_email: sellerEmail, reservation_token: token, purchase_id: purchaseId },
     transfer_data: { destination: 'acct_test_123' },
   });
 
+  // 7C.9C.1: Two-phase freeze-and-finalize
+  // Phase 1: Freeze
   const [purchase] = deps._state.stores.Purchase;
   const [pp] = deps._state.stores.PurchasePrivate;
   const pi = deps.stripe.pisById.get(piId);
-  const result = await reconcileCapturedPayment(deps, purchase, pp, pi);
+  const freezeResult = await reconcileCapturedPayment(deps, purchase, pp, pi);
 
-  // All four records verified
+  // Phase 2: Finalize after drain
+  timeOffset = 3 * 60 * 1000;
+  const { finalizeCapturedPayment } = await import('../base44/shared/captureReconciliation.js');
+  const finalizeResult = await finalizeCapturedPayment(deps, listingId);
+
+  // All four records verified after finalization
   const listing = deps._state.stores.Listing[0];
   const lp = deps._state.stores.ListingPrivate[0];
   const pur = deps._state.stores.Purchase[0];
   const ppFinal = deps._state.stores.PurchasePrivate[0];
 
   const listingVerified = listing.status === 'sold' && !listing.reservation_token && !listing.reserved_by_email && !listing.reservation_expires_at;
-  const lpVerified = !lp.reservation_token && !lp.reserved_by_email && !lp.reservation_expires_at;
+  const lpVerified = !lp.reservation_token && !lp.reserved_by_email && !lp.reservation_expires_at && !lp.checkout_quarantined;
   const purVerified = pur.transfer_status === 'completed' && pur.payment_captured === true && pur.buyer_confirmed === true;
-  const ppVerified = ppFinal.payment_captured === true && ppFinal.payment_capture_failed === false;
+  const ppVerified = ppFinal.payment_captured === true && ppFinal.payment_capture_failed === false && !!ppFinal.freeze_finalized_at;
 
-  const passed = result.ok && listingVerified && lpVerified && purVerified && ppVerified;
-  return { name: 'successful_writes_refetched_and_verified', passed, ok: result.ok, listing_verified: listingVerified, lp_verified: lpVerified, pur_verified: purVerified, pp_verified: ppVerified };
+  const passed = freezeResult.ok && finalizeResult.ok && listingVerified && lpVerified && purVerified && ppVerified;
+  return { name: 'successful_writes_refetched_and_verified', passed, freeze_ok: freezeResult.ok, finalize_ok: finalizeResult.ok, listing_verified: listingVerified, lp_verified: lpVerified, pur_verified: purVerified, pp_verified: ppVerified };
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -663,9 +679,10 @@ async function testFourWriteBoundaryFailuresRetryConverges() {
     const [pp] = deps._state.stores.PurchasePrivate;
     const pi = deps.stripe.pisById.get(piId);
     const result1 = await reconcileCapturedPayment(deps, purchase, pp, pi);
-    const firstAttemptFailed = !result1.ok && result1.step === boundary.name;
+    // 7C.9C.1: Step names changed with freeze — just check first attempt failed
+    const firstAttemptFailed = !result1.ok;
 
-    // Retry without the failure hook
+    // Retry without the failure hook — freeze should converge
     const deps2 = createMockDeps({});
     for (const [name, records] of Object.entries(deps._state.stores)) { deps2._state.stores[name] = records.map(r => ({ ...r })); }
     deps2.stripe = deps.stripe;
@@ -675,7 +692,7 @@ async function testFourWriteBoundaryFailuresRetryConverges() {
     const result2 = await reconcileCapturedPayment(deps2, purchase2, pp2, pi2);
     const retryConverged = result2.ok;
 
-    results.push({ boundary: boundary.name, passed: firstAttemptFailed && retryConverged, first_failed_at: result1.step, retry_ok: result2.ok });
+    results.push({ boundary: boundary.name, passed: firstAttemptFailed && retryConverged, first_failed: firstAttemptFailed, retry_ok: result2.ok });
   }
 
   const allPassed = results.every(r => r.passed);

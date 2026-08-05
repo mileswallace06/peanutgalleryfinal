@@ -2,9 +2,8 @@
  * dispatchSaleNotifications — the ONLY sender for sale_created AND
  * webhook-originated notifications.
  *
- * Scheduled every 1 minute. Processes:
- *   1. sale_created notifications (with external push/email via sendUserNotification)
- *   2. webhook-originated notifications (in-app only, no external push/email)
+ * 7C.9C.1: Returns non-2xx when dispatch throws or reports integrity errors.
+ * Scheduled every 1 minute.
  *
  * See base44/shared/saleNotification.ts for the delivery-integrity model.
  */
@@ -24,8 +23,24 @@ Deno.serve(async (req) => {
   }
   if (isMaintenanceActive()) return Response.json({ ok: true, skipped: 'maintenance mode' });
   const body = await req.json().catch(() => ({}));
-  const res = await dispatchSaleNotifications(base44, { limit: body?.limit || 500 }).catch(
-    (e) => ({ error: e.message })
-  );
+
+  // 7C.9C.1: Do NOT swallow errors — propagate non-2xx on throw or integrity errors
+  let res;
+  try {
+    res = await dispatchSaleNotifications(base44, { limit: body?.limit || 500 });
+  } catch (err) {
+    return Response.json({ error: err.message, dispatched: null }, { status: 500 });
+  }
+
+  // Check for fatal errors or integrity errors in both sale and webhook results
+  const saleErrors = res?.sale?.errors || 0;
+  const saleFatal = res?.sale?.fatal_error;
+  const webhookErrors = res?.webhook?.errors || 0;
+  const webhookFatal = res?.webhook?.fatal_error;
+
+  if (saleFatal || saleErrors > 0 || webhookFatal || webhookErrors > 0) {
+    return Response.json({ dispatched: res, warning: 'integrity errors detected' }, { status: 500 });
+  }
+
   return Response.json({ dispatched: res });
 });

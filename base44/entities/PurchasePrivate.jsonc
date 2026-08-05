@@ -90,6 +90,22 @@
       "type": "boolean",
       "default": false
     },
+    "frozen_reservation_token": {
+      "type": "string",
+      "description": "IMMUTABLE snapshot of reservation_token at capture-freeze time (Phase 1). Phase 2 finalization compares current Listing/LP reservation fields against this tuple. Never inferred from public fields."
+    },
+    "frozen_buyer_email": {
+      "type": "string",
+      "description": "IMMUTABLE snapshot of buyer_email at capture-freeze time (Phase 1)."
+    },
+    "frozen_reservation_expires_at": {
+      "type": "string",
+      "description": "IMMUTABLE snapshot of reservation_expires_at at capture-freeze time (Phase 1)."
+    },
+    "freeze_finalized_at": {
+      "type": "string",
+      "description": "ISO timestamp set when Phase 2 finalization completes (listing marked sold, reservation fields cleared, quarantine lifted). Null = frozen but not yet finalized."
+    },
     "transfer_proof_url": {
       "type": "string",
       "description": "Legacy public transfer-proof URL \u2014 requires private re-upload."

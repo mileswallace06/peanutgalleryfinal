@@ -30,7 +30,7 @@ import {
   getListingPrivate,
   getUserSecurityProfile,
 } from './orchestratorHelpers.js';
-import { reconcileCapturedPayment } from './captureReconciliation.js';
+import { freezeCapturedPayment } from './captureReconciliation.js';
 
 function calcPlatformFee(subtotal) {
   return Math.max(1.00, Math.round(subtotal * 0.05 * 100) / 100);
@@ -146,11 +146,11 @@ export async function runCapturePayment(deps, params) {
   // ── 11. If PI is already `succeeded`, reconcile (retry-safe) ──────────────
   // Does NOT require an active reservation — uses exact PI metadata and PP ownership.
   if (pi.status === 'succeeded') {
-    const result = await reconcileCapturedPayment(deps, purchase, pp, pi);
+    const result = await freezeCapturedPayment(deps, purchase, pp, pi);
     if (!result.ok) {
-      return { status: 500, body: { error: 'Payment captured but record sync failed. Please contact support.', code: `RECONCILE_FAILED:${result.step}`, step: result.step } };
+      return { status: 500, body: { error: 'Payment captured but freeze failed. Please contact support.', code: `FREEZE_FAILED:${result.step}`, step: result.step } };
     }
-    return { status: 200, body: { status: 'completed', payment_captured: true, optimistic_id } };
+    return { status: 200, body: { status: 'completed', payment_captured: true, optimistic_id, phase: result.phase } };
   }
 
   // ── 12. If PI is `requires_capture`, require the COMPLETE pre-capture tuple ─
@@ -227,11 +227,11 @@ export async function runCapturePayment(deps, params) {
     // ── 14. Reconcile all four records ────────────────────────────────────
     // Re-fetch PI to get the verified succeeded state
     const piSucceeded = await stripe.paymentIntents.retrieve(authoritativePaymentIntentId);
-    const result = await reconcileCapturedPayment(deps, purchase, pp, piSucceeded);
+    const result = await freezeCapturedPayment(deps, purchase, pp, piSucceeded);
     if (!result.ok) {
-      return { status: 500, body: { error: 'Payment captured but record sync failed. Please contact support.', code: `RECONCILE_FAILED:${result.step}`, step: result.step } };
+      return { status: 500, body: { error: 'Payment captured but freeze failed. Please contact support.', code: `FREEZE_FAILED:${result.step}`, step: result.step } };
     }
-    return { status: 200, body: { status: 'completed', payment_captured: true, optimistic_id } };
+    return { status: 200, body: { status: 'completed', payment_captured: true, optimistic_id, phase: result.phase } };
   }
 
   // PI is in an unexpected state (canceled, processing, requires_payment_method, etc.)
