@@ -73,6 +73,19 @@
     "event_id": {
       "type": "string"
     },
+    "incident_key": {
+      "type": "string",
+      "description": "Stable deduplication key derived from listing_id, operation category, conflict/failure class, and generation or frozen Purchase ID. Retries of the same incident update the existing unresolved alert instead of creating a duplicate."
+    },
+    "occurrence_count": {
+      "type": "number",
+      "default": 1,
+      "description": "How many times this incident has been hit. Incremented on deduplicated retry."
+    },
+    "last_occurred_at": {
+      "type": "string",
+      "description": "ISO timestamp of the most recent occurrence of this incident."
+    },
     "resolved": {
       "type": "boolean",
       "default": false

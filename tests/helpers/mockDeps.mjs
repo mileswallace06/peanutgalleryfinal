@@ -9,7 +9,7 @@ import { runReleaseReservation } from '../../base44/shared/releaseOrchestrator.j
 import { runAbortCheckout } from '../../base44/shared/abortOrchestrator.js';
 import { runCancelPurchase } from '../../base44/shared/cancelOrchestrator.js';
 import { runProcessTransferReminders } from '../../base44/shared/remindersOrchestrator.js';
-import { applyReservationTuple, generateClearedRevision } from '../../base44/shared/tupleTransition.js';
+import { applyReservationTuple, generateClearedRevision, validateIntendedTuple } from '../../base44/shared/tupleTransition.js';
 
 if (typeof globalThis.crypto === 'undefined' || !globalThis.crypto.randomUUID) {
   globalThis.crypto = { randomUUID: () => `uuid_${Date.now()}_${Math.random().toString(36).slice(2, 10)}` };
@@ -19,7 +19,7 @@ export {
   initializeLegacyRevision, durableBlockAndAlert, generateRevision,
   freezeCapturedPayment, finalizeCapturedPayment,
   runReserveListing, runReleaseReservation, runAbortCheckout, runCancelPurchase, runProcessTransferReminders,
-  applyReservationTuple, generateClearedRevision,
+  applyReservationTuple, generateClearedRevision, validateIntendedTuple,
 };
 
 // ── Mock Stripe ──────────────────────────────────────────────────────────────
@@ -95,6 +95,10 @@ export function createMockDeps(config = {}) {
         if (hooks[`before_${name}_create`]) { const r = await hooks[`before_${name}_create`](); if (r?.throw) throw r.throw; }
         const id = data.id || genId(name);
         const record = { id, created_date: new Date().toISOString(), updated_date: new Date().toISOString(), ...data };
+        // Apply entity-specific defaults (mock store doesn't read entity schemas)
+        if (name === 'AdminAlert' && record.resolved === undefined) {
+          record.resolved = false;
+        }
         stores[name].push(record);
         if (hooks[`after_${name}_create`]) hooks[`after_${name}_create`](record);
         return record;

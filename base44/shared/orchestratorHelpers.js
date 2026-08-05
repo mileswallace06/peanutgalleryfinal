@@ -353,6 +353,10 @@ export async function durableBlockAndAlert(deps, listing_id, reason, piId, title
     blocked: false,
     alerted: false,
     attempted_block_timestamp: null,
+    alert_created: false,
+    alert_updated: false,
+    alert_deduplicated: false,
+    incident_key: null,
   };
 
   const expectedTitle = title || `Finalization conflict — ${listing_id}`;
@@ -362,6 +366,27 @@ export async function durableBlockAndAlert(deps, listing_id, reason, piId, title
   // 1. Capture the exact attempted block timestamp BEFORE writing
   const attemptedBlockTimestamp = new Date(deps.now()).toISOString();
   result.attempted_block_timestamp = attemptedBlockTimestamp;
+
+  // Set incident key on result for audit
+  // Normalize the title to a stable conflict class so retries that detect the
+  // same conflict at a different step (e.g. Step 0e vs Step 4) get the same key.
+  let conflictClass = 'general';
+  if (expectedTitle.includes('Reconciliation conflict') ||
+      expectedTitle.includes('Post-prefetch conflict') ||
+      expectedTitle.includes('Finalization conflict') ||
+      expectedTitle.includes('Expiration split-brain')) {
+    conflictClass = 'freeze_conflict';
+  } else if (expectedTitle.includes('Split-brain')) {
+    conflictClass = 'split_brain';
+  } else if (expectedTitle.includes('Stale-prefetch')) {
+    conflictClass = 'stale_prefetch';
+  } else if (expectedTitle.includes('Second-record')) {
+    conflictClass = 'second_record_failure';
+  } else if (expectedTitle.includes('Legacy revision')) {
+    conflictClass = 'legacy_revision';
+  }
+  const incidentKey = `block_alert:${listing_id}:${conflictClass}:${purchaseId || piId || 'none'}`;
+  result.incident_key = incidentKey;
 
   // 2. Attempt to set recovery_blocked=true
   result.block_attempted = true;
@@ -403,48 +428,74 @@ export async function durableBlockAndAlert(deps, listing_id, reason, piId, title
     }
   }
 
-  // 4. Attempt to create the critical AdminAlert
+  // 4. Attempt to create or update the critical AdminAlert (idempotent)
+  //    Derive a stable incident key from listing_id, title (operation category +
+  //    conflict/failure class), and generation or frozen Purchase ID.
+  //    Retries with the same incident key update the existing unresolved alert
+  //    rather than creating a duplicate.
   result.alert_attempted = true;
   let alertId = null;
+  const occurredAt = new Date(deps.now()).toISOString();
+
   try {
-    const alert = await deps.entities.AdminAlert.create({
-      alert_type: 'admin_action_required',
-      priority: 'critical',
-      title: expectedTitle,
-      description: expectedDescription,
-      reference_type: 'listing',
-      reference_id: listing_id,
-    });
-    alertId = alert?.id;
+    // Search for existing unresolved alert with this exact incident key
+    const existing = await deps.entities.AdminAlert.filter({ incident_key: incidentKey, resolved: false });
+    if (existing && existing.length > 0) {
+      // DEDUPLICATE: update existing alert — increment occurrence count, update timestamp
+      const existingAlert = existing[0];
+      const newCount = (existingAlert.occurrence_count || 1) + 1;
+      await deps.entities.AdminAlert.update(existingAlert.id, {
+        occurrence_count: newCount,
+        last_occurred_at: occurredAt,
+        description: expectedDescription,
+      });
+      alertId = existingAlert.id;
+      result.alert_deduplicated = true;
+      result.alert_updated = true;
+    } else {
+      // CREATE: new alert with incident key
+      const alert = await deps.entities.AdminAlert.create({
+        alert_type: 'admin_action_required',
+        priority: 'critical',
+        title: expectedTitle,
+        description: expectedDescription,
+        reference_type: 'listing',
+        reference_id: listing_id,
+        incident_key: incidentKey,
+        occurrence_count: 1,
+        last_occurred_at: occurredAt,
+        resolved: false,
+      });
+      alertId = alert?.id;
+      result.alert_created = true;
+    }
   } catch (err) {
     result.alert_error = err?.message || String(err);
   }
 
-  // 5. Verify the alert through re-query — check ALL fields
-  //    Must verify: exact alert ID, type, priority, title, description containing
-  //    the complete expected reason (not just PI ID), expected PI ID, expected
-  //    listing ID, expected purchase ID when available, reference type and ID.
+  // 5. Verify the alert — exactly one unresolved alert for this incident key
   if (alertId) {
     try {
-      const alerts = await deps.entities.AdminAlert.filter({ id: alertId });
-      if (alerts.length > 0) {
+      const alerts = await deps.entities.AdminAlert.filter({ incident_key: incidentKey, resolved: false });
+      if (alerts.length === 1) {
         const a = alerts[0];
-        // Check ALL required fields
         const idMatch = a.id === alertId;
         const typeMatch = a.alert_type === 'admin_action_required';
         const priorityMatch = a.priority === 'critical';
         const titleMatch = a.title === expectedTitle;
         const refTypeMatch = a.reference_type === 'listing';
         const refIdMatch = a.reference_id === listing_id;
-        // Description must contain the COMPLETE reason (not just PI ID)
+        const incidentKeyMatch = a.incident_key === incidentKey;
         const descHasReason = a.description && a.description.includes(reason);
-        // Description must contain the expected PI ID
         const descHasPiId = a.description && a.description.includes(`PI ID: ${piId || 'N/A'}.`);
-        // Description must contain purchase ID when available
         const descHasPurchaseId = !purchaseId || (a.description && a.description.includes(`Purchase ID: ${purchaseId}.`));
+        const occurrenceCountValid = typeof a.occurrence_count === 'number' && a.occurrence_count >= 1;
+        const lastOccurredSet = !!a.last_occurred_at;
 
         if (idMatch && typeMatch && priorityMatch && titleMatch &&
-            refTypeMatch && refIdMatch && descHasReason && descHasPiId && descHasPurchaseId) {
+            refTypeMatch && refIdMatch && incidentKeyMatch &&
+            descHasReason && descHasPiId && descHasPurchaseId &&
+            occurrenceCountValid && lastOccurredSet) {
           result.alert_proven = true;
           result.alerted = true;
         } else {
@@ -455,13 +506,18 @@ export async function durableBlockAndAlert(deps, listing_id, reason, piId, title
           if (!titleMatch) failures.push('title mismatch');
           if (!refTypeMatch) failures.push('reference_type mismatch');
           if (!refIdMatch) failures.push('reference_id mismatch');
+          if (!incidentKeyMatch) failures.push('incident_key mismatch');
           if (!descHasReason) failures.push('description missing complete reason');
           if (!descHasPiId) failures.push('description missing PI ID');
           if (!descHasPurchaseId) failures.push('description missing purchase ID');
+          if (!occurrenceCountValid) failures.push('occurrence_count invalid');
+          if (!lastOccurredSet) failures.push('last_occurred_at not set');
           result.alert_error = `alert verification failed — ${failures.join(', ')}`;
         }
+      } else if (alerts.length > 1) {
+        result.alert_error = `alert verification failed — ${alerts.length} unresolved alerts found for incident ${incidentKey} (expected 1)`;
       } else {
-        result.alert_error = 'alert re-query returned 0 records';
+        result.alert_error = 'alert verification failed — no unresolved alerts found after write';
       }
     } catch (err) {
       result.alert_error = `alert re-query failed: ${err?.message || String(err)}`;

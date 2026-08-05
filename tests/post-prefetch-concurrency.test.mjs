@@ -71,7 +71,10 @@ async function testRealDeferredBarrier() {
 
   // 1. Start freeze
   events.push('freeze_started');
-  const freezePromise = freezeCapturedPayment(deps, purchase, pp, pi);
+  const freezePromise = (async () => {
+    try { return await freezeCapturedPayment(deps, purchase, pp, pi); }
+    finally { events.push('freeze_finished'); }
+  })();
 
   // 2. Await explicit prefetch-reached signal with timeout
   await Promise.race([
@@ -86,15 +89,16 @@ async function testRealDeferredBarrier() {
   const competingRevision = 'competing_revision';
   events.push('competitor_started');
   const competingPromise = (async () => {
-    const result = await applyReservationTuple(deps, ctx.listingId, {
-      status: 'pending_transfer',
-      token: competingToken,
-      buyer: competingBuyer,
-      expiration: competingExpiry,
-      revision: competingRevision,
-    }, 'competing_mutation', 'post-prefetch:competing');
-    events.push('competitor_finished');
-    return result;
+    try {
+      const result = await applyReservationTuple(deps, ctx.listingId, {
+        status: 'pending_transfer',
+        token: competingToken,
+        buyer: competingBuyer,
+        expiration: competingExpiry,
+        revision: competingRevision,
+      }, 'competing_mutation', 'post-prefetch:competing');
+      return result;
+    } finally { events.push('competitor_finished'); }
   })();
 
   // 4. Release the barrier — freeze continues
@@ -103,7 +107,6 @@ async function testRealDeferredBarrier() {
 
   // 5. Await both together with Promise.all
   const [freezeResult, competingResult] = await Promise.all([freezePromise, competingPromise]);
-  events.push('freeze_finished');
 
   // ── Assertions ───────────────────────────────────────────────────────────
   const [finalListing] = deps._state.stores.Listing;
@@ -167,6 +170,7 @@ async function testRealDeferredBarrier() {
   const listingBeforeRetry = { ...finalListing };
   const lpBeforeRetry = { ...finalLP };
   const alertsBeforeRetry = deps._state.stores.AdminAlert.length;
+  const unresolvedBeforeRetry = deps._state.stores.AdminAlert.filter(a => !a.resolved).length;
 
   const retryResult = await freezeCapturedPayment(deps, finalPurchase, finalPP, pi);
 
@@ -175,12 +179,14 @@ async function testRealDeferredBarrier() {
   const listingTuplePreserved = finalListing.reservation_token === listingBeforeRetry.reservation_token;
   const lpTuplePreserved = finalLP.reservation_token === lpBeforeRetry.reservation_token;
   const retryDeterministic = !retryResult.ok;
+  const unresolvedAfterRetry = deps._state.stores.AdminAlert.filter(a => !a.resolved).length;
+  const noDuplicateAlerts = unresolvedAfterRetry === unresolvedBeforeRetry;
 
   const passed = orderingCorrect && competingReported && listingNonReservable && listingNotSold &&
     (tuplesEqual(listingTuple, lpTuple) || stepIsConflict) &&
     !!ppFrozenTuple.frozen_reservation_token &&
     quarantineProven && blockProven && alertProven && newAlertCreated && conflictDetected &&
-    noDuplicateFinancialWrites && listingTuplePreserved && lpTuplePreserved && retryDeterministic;
+    noDuplicateFinancialWrites && listingTuplePreserved && lpTuplePreserved && retryDeterministic && noDuplicateAlerts;
 
   return {
     name: 'real_deferred_barrier',
@@ -249,7 +255,10 @@ async function runRaceCase(caseName, mutateFn) {
   const alertsBefore = deps._state.stores.AdminAlert.length;
 
   events.push('freeze_started');
-  const freezePromise = freezeCapturedPayment(deps, purchase, pp, pi);
+  const freezePromise = (async () => {
+    try { return await freezeCapturedPayment(deps, purchase, pp, pi); }
+    finally { events.push('freeze_finished'); }
+  })();
 
   await Promise.race([
     prefetchReached,
@@ -259,9 +268,10 @@ async function runRaceCase(caseName, mutateFn) {
   // Start competing mutation — do NOT await yet
   events.push('competitor_started');
   const competingPromise = (async () => {
-    const result = await mutateFn(deps, ctx);
-    events.push('competitor_finished');
-    return result;
+    try {
+      const result = await mutateFn(deps, ctx);
+      return result;
+    } finally { events.push('competitor_finished'); }
   })();
 
   // Release barrier — freeze continues
@@ -270,7 +280,6 @@ async function runRaceCase(caseName, mutateFn) {
 
   // Await both together
   const [freezeResult, competingResult] = await Promise.all([freezePromise, competingPromise]);
-  events.push('freeze_finished');
 
   const [finalListing] = deps._state.stores.Listing;
   const finalLP = deps._state.stores.ListingPrivate[0];
@@ -292,11 +301,14 @@ async function runRaceCase(caseName, mutateFn) {
 
   // Retry safety — clear hooks before retry to prevent barrier blocking
   deps.hooks = {};
+  const unresolvedBefore = deps._state.stores.AdminAlert.filter(a => !a.resolved).length;
   const retryResult = await freezeCapturedPayment(deps, deps._state.stores.Purchase[0], deps._state.stores.PurchasePrivate[0], pi);
   const retrySafe = !retryResult.ok;
+  const unresolvedAfter = deps._state.stores.AdminAlert.filter(a => !a.resolved).length;
+  const noDuplicateAlerts = unresolvedAfter === unresolvedBefore;
 
   const passed = notOk && notSold && listingNonReservable && ppFrozenPreserved && conflictOrPartialFreeze &&
-    quarantineProven && blockProven && alertProven && newAlertCreated && orderingCorrect && retrySafe;
+    quarantineProven && blockProven && alertProven && newAlertCreated && orderingCorrect && retrySafe && noDuplicateAlerts;
 
   return {
     name: caseName, passed,
@@ -304,6 +316,7 @@ async function runRaceCase(caseName, mutateFn) {
     pp_frozen_preserved: ppFrozenPreserved, step: freezeResult.step,
     quarantine_proven: quarantineProven, block_proven: blockProven, alert_proven: alertProven,
     new_alert_created: newAlertCreated, ordering_correct: orderingCorrect, retry_safe: retrySafe,
+    no_duplicate_alerts: noDuplicateAlerts, unresolved_before: unresolvedBefore, unresolved_after: unresolvedAfter,
   };
 }
 

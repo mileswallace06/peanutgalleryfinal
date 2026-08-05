@@ -52,45 +52,69 @@ function tuplesMatch(a, b) {
 export function validateIntendedTuple(intended) {
   const isTerminal = isTerminalStatus(intended.status);
 
-  // Terminal statuses require null token, buyer, expiration, and revision
+  // Terminal statuses require token, buyer, expiration, and revision to be EXPLICITLY null
+  // Undefined and empty strings are rejected — no implicit normalization
   if (isTerminal) {
-    if (intended.token !== null && intended.token !== undefined)
-      return { valid: false, error: 'Terminal status requires null token' };
-    if (intended.buyer !== null && intended.buyer !== undefined)
-      return { valid: false, error: 'Terminal status requires null buyer' };
-    if (intended.expiration !== null && intended.expiration !== undefined)
-      return { valid: false, error: 'Terminal status requires null expiration' };
-    if (intended.revision !== null && intended.revision !== undefined)
-      return { valid: false, error: 'Terminal status requires null revision' };
+    if (intended.token !== null)
+      return { valid: false, error: 'Terminal status requires explicitly null token' };
+    if (intended.buyer !== null)
+      return { valid: false, error: 'Terminal status requires explicitly null buyer' };
+    if (intended.expiration !== null)
+      return { valid: false, error: 'Terminal status requires explicitly null expiration' };
+    if (intended.revision !== null)
+      return { valid: false, error: 'Terminal status requires explicitly null revision' };
     return { valid: true };
   }
 
-  // Active lifecycle status requires non-null revision
-  if (intended.status && intended.revision === null) {
-    return { valid: false, error: 'Active lifecycle status requires non-null revision' };
+  // Active lifecycle status requires a defined, non-null, non-empty revision
+  if (intended.status) {
+    if (intended.revision === null || intended.revision === undefined)
+      return { valid: false, error: 'Active lifecycle status requires non-null revision' };
+    if (typeof intended.revision !== 'string' || intended.revision === '')
+      return { valid: false, error: 'Active lifecycle status requires non-empty revision' };
   }
 
-  // Non-null token requires non-null buyer, expiration, and revision
+  // Empty string token is invalid
+  if (intended.token === '') {
+    return { valid: false, error: 'Empty string is not a valid token' };
+  }
+
+  // Non-null token requires non-null, non-empty buyer, expiration, and revision
   if (intended.token) {
-    if (!intended.buyer) return { valid: false, error: 'Non-null token requires non-null buyer' };
-    if (!intended.expiration) return { valid: false, error: 'Non-null token requires non-null expiration' };
-    if (!intended.revision) return { valid: false, error: 'Non-null token requires non-null revision' };
+    if (typeof intended.token !== 'string' || intended.token === '')
+      return { valid: false, error: 'Token must be a non-empty string' };
+    if (!intended.buyer)
+      return { valid: false, error: 'Non-null token requires non-null buyer' };
+    if (typeof intended.buyer !== 'string' || intended.buyer === '')
+      return { valid: false, error: 'Non-null token requires non-empty buyer' };
+    if (!intended.expiration)
+      return { valid: false, error: 'Non-null token requires non-null expiration' };
+    if (typeof intended.expiration !== 'string' || intended.expiration === '')
+      return { valid: false, error: 'Non-null token requires non-empty expiration' };
+    if (!intended.revision)
+      return { valid: false, error: 'Non-null token requires non-null revision' };
   }
 
-  // Null token requires null buyer and expiration
+  // Null token requires explicitly null buyer and expiration
   if (intended.token === null) {
-    if (intended.buyer !== null && intended.buyer !== undefined)
-      return { valid: false, error: 'Null token requires null buyer' };
-    if (intended.expiration !== null && intended.expiration !== undefined)
-      return { valid: false, error: 'Null token requires null expiration' };
+    if (intended.buyer !== null)
+      return { valid: false, error: 'Null token requires explicitly null buyer' };
+    if (intended.expiration !== null)
+      return { valid: false, error: 'Null token requires explicitly null expiration' };
   }
 
   // Quarantine reason and timestamp required when quarantine is newly set
   if (intended.quarantine && intended.quarantine.checkout_quarantined === true) {
     if (!intended.quarantine.quarantine_reason)
       return { valid: false, error: 'Quarantine reason required when quarantine is newly set' };
+    if (typeof intended.quarantine.quarantine_reason !== 'string' || intended.quarantine.quarantine_reason === '')
+      return { valid: false, error: 'Quarantine reason must be non-empty' };
     if (!intended.quarantine.quarantine_at)
       return { valid: false, error: 'Quarantine timestamp required when quarantine is newly set' };
+    // Validate timestamp is a valid ISO date
+    const ts = new Date(intended.quarantine.quarantine_at);
+    if (isNaN(ts.getTime()))
+      return { valid: false, error: 'Quarantine timestamp must be a valid ISO date' };
   }
 
   return { valid: true };
@@ -111,11 +135,39 @@ async function quarantineBothRecords(deps, listingId, reason, operationId) {
     lp_refetch_error: null,
     quarantine_reason: reason,
     quarantine_at: null,
+    // Pre/post tuple snapshots (#5: prove tuples survive quarantine)
+    pre_quarantine_listing_tuple: null,
+    pre_quarantine_lp_tuple: null,
+    post_quarantine_listing_tuple: null,
+    post_quarantine_lp_tuple: null,
+    listing_tuple_preserved: false,
+    lp_tuple_preserved: false,
+    pre_existing_disagreement_preserved: false,
+    // Protection completeness (#6)
+    protection_incomplete: false,
   };
 
   const quarantineAt = new Date(deps.now()).toISOString();
   proof.quarantine_at = quarantineAt;
   proof.quarantine_attempted = true;
+
+  // ── Capture pre-quarantine tuples ──────────────────────────────────────────
+  try {
+    const [preListing] = await deps.entities.Listing.filter({ id: listingId });
+    if (preListing) {
+      proof.pre_quarantine_listing_tuple = extractTuple(preListing);
+    }
+  } catch (err) {
+    proof.listing_refetch_error = `pre-quarantine listing fetch: ${err?.message || String(err)}`;
+  }
+  try {
+    const preLpRows = await deps.entities.ListingPrivate.filter({ listing_id: listingId });
+    if (preLpRows[0]) {
+      proof.pre_quarantine_lp_tuple = extractTuple(preLpRows[0]);
+    }
+  } catch (err) {
+    proof.lp_refetch_error = `pre-quarantine LP fetch: ${err?.message || String(err)}`;
+  }
 
   // Quarantine Listing — status and hidden_reason ONLY (no reservation field changes)
   try {
@@ -149,6 +201,9 @@ async function quarantineBothRecords(deps, listingId, reason, operationId) {
     const [listing] = await deps.entities.Listing.filter({ id: listingId });
     proof.listing_quarantine_proven =
       listing?.status === 'hidden' && listing?.hidden_reason === 'checkout_quarantine';
+    if (listing) {
+      proof.post_quarantine_listing_tuple = extractTuple(listing);
+    }
   } catch (err) {
     proof.listing_refetch_error = err?.message || String(err);
   }
@@ -162,10 +217,45 @@ async function quarantineBothRecords(deps, listingId, reason, operationId) {
       proof.quarantine_flag_proven = lp.checkout_quarantined === true;
       proof.quarantine_reason_proven = lp.checkout_quarantine_reason === reason;
       proof.quarantine_timestamp_proven = lp.checkout_quarantined_at === quarantineAt;
+      proof.post_quarantine_lp_tuple = extractTuple(lp);
     }
   } catch (err) {
     proof.lp_refetch_error = err?.message || String(err);
   }
+
+  // ── Verify tuples survived quarantine (#5) ─────────────────────────────────
+  if (proof.pre_quarantine_listing_tuple && proof.post_quarantine_listing_tuple) {
+    const pre = proof.pre_quarantine_listing_tuple;
+    const post = proof.post_quarantine_listing_tuple;
+    proof.listing_tuple_preserved =
+      pre.token === post.token && pre.buyer === post.buyer &&
+      pre.expiration === post.expiration && pre.revision === post.revision;
+  }
+  if (proof.pre_quarantine_lp_tuple && proof.post_quarantine_lp_tuple) {
+    const pre = proof.pre_quarantine_lp_tuple;
+    const post = proof.post_quarantine_lp_tuple;
+    proof.lp_tuple_preserved =
+      pre.token === post.token && pre.buyer === post.buyer &&
+      pre.expiration === post.expiration && pre.revision === post.revision;
+  }
+  // Pre-existing disagreement must be preserved
+  if (proof.pre_quarantine_listing_tuple && proof.pre_quarantine_lp_tuple) {
+    const preDisagreed = !tuplesMatch(proof.pre_quarantine_listing_tuple, proof.pre_quarantine_lp_tuple);
+    if (preDisagreed && proof.post_quarantine_listing_tuple && proof.post_quarantine_lp_tuple) {
+      const postDisagreed = !tuplesMatch(proof.post_quarantine_listing_tuple, proof.post_quarantine_lp_tuple);
+      proof.pre_existing_disagreement_preserved = preDisagreed && postDisagreed;
+    } else {
+      proof.pre_existing_disagreement_preserved = true;
+    }
+  } else {
+    proof.pre_existing_disagreement_preserved = true;
+  }
+
+  // Protection incomplete if any component cannot be proven (#6)
+  proof.protection_incomplete = !proof.listing_quarantine_proven ||
+    !proof.lp_quarantine_proven ||
+    !proof.listing_tuple_preserved ||
+    !proof.lp_tuple_preserved;
 
   return proof;
 }
@@ -217,11 +307,24 @@ export async function applyReservationTuple(deps, listingId, intended, category,
     // Quarantine proof (from quarantineBothRecords)
     listing_quarantine_proven: false,
     lp_quarantine_proven: false,
+    // Tuple preservation proof (#5)
+    pre_quarantine_listing_tuple: null,
+    pre_quarantine_lp_tuple: null,
+    post_quarantine_listing_tuple: null,
+    post_quarantine_lp_tuple: null,
+    listing_tuple_preserved: false,
+    lp_tuple_preserved: false,
+    pre_existing_disagreement_preserved: false,
+    // Protection completeness (#6)
+    protection_incomplete: false,
     // Durable escalation
     block_attempted: false,
     block_proven: false,
     alert_attempted: false,
     alert_proven: false,
+    alert_created: false,
+    alert_updated: false,
+    alert_deduplicated: false,
     // Errors
     first_write_error: null,
     second_write_error: null,
@@ -294,6 +397,14 @@ export async function applyReservationTuple(deps, listingId, intended, category,
     result.quarantine_flag_proven = qProof.quarantine_flag_proven;
     result.quarantine_reason_proven = qProof.quarantine_reason_proven;
     result.quarantine_timestamp_proven = qProof.quarantine_timestamp_proven;
+    result.pre_quarantine_listing_tuple = qProof.pre_quarantine_listing_tuple;
+    result.pre_quarantine_lp_tuple = qProof.pre_quarantine_lp_tuple;
+    result.post_quarantine_listing_tuple = qProof.post_quarantine_listing_tuple;
+    result.post_quarantine_lp_tuple = qProof.post_quarantine_lp_tuple;
+    result.listing_tuple_preserved = qProof.listing_tuple_preserved;
+    result.lp_tuple_preserved = qProof.lp_tuple_preserved;
+    result.pre_existing_disagreement_preserved = qProof.pre_existing_disagreement_preserved;
+    result.protection_incomplete = qProof.protection_incomplete;
 
     // Durably block and alert — require BOTH
     const blockResult = await durableBlockAndAlert(deps, listingId,
@@ -374,6 +485,14 @@ export async function applyReservationTuple(deps, listingId, intended, category,
     result.quarantine_flag_proven = qProof.quarantine_flag_proven;
     result.quarantine_reason_proven = qProof.quarantine_reason_proven;
     result.quarantine_timestamp_proven = qProof.quarantine_timestamp_proven;
+    result.pre_quarantine_listing_tuple = qProof.pre_quarantine_listing_tuple;
+    result.pre_quarantine_lp_tuple = qProof.pre_quarantine_lp_tuple;
+    result.post_quarantine_listing_tuple = qProof.post_quarantine_listing_tuple;
+    result.post_quarantine_lp_tuple = qProof.post_quarantine_lp_tuple;
+    result.listing_tuple_preserved = qProof.listing_tuple_preserved;
+    result.lp_tuple_preserved = qProof.lp_tuple_preserved;
+    result.pre_existing_disagreement_preserved = qProof.pre_existing_disagreement_preserved;
+    result.protection_incomplete = qProof.protection_incomplete;
 
     const blockResult = await durableBlockAndAlert(deps, listingId,
       quarantineReason,
@@ -462,6 +581,17 @@ export async function applyReservationTuple(deps, listingId, intended, category,
     return { ...result, ok: false };
   }
 
+  // ── Hook: afterListingPrivateWrite ────────────────────────────────────────
+  if (hooks.afterListingPrivateWrite) {
+    result.hooks_invoked.push('afterListingPrivateWrite');
+    try {
+      await hooks.afterListingPrivateWrite(deps, listingId);
+    } catch (e) {
+      result.hook_error = `afterListingPrivateWrite hook: ${e?.message || String(e)}`;
+      return await handleSecondRecordFailure(deps, listingId, result, preListingTuple, preLPTuple, `afterListingPrivateWrite hook: ${e?.message || String(e)}`);
+    }
+  }
+
   // ── Hook: betweenTupleWrites ─────────────────────────────────────────────
   if (hooks.betweenTupleWrites) {
     result.hooks_invoked.push('betweenTupleWrites');
@@ -506,12 +636,45 @@ export async function applyReservationTuple(deps, listingId, intended, category,
     secondFields.hidden_reason = intended.hidden_reason;
   }
 
+  // ── Hook: beforeListingUpdate ─────────────────────────────────────────────
+  if (hooks.beforeListingUpdate) {
+    result.hooks_invoked.push('beforeListingUpdate');
+    try {
+      await hooks.beforeListingUpdate(deps, listingId);
+    } catch (e) {
+      result.hook_error = `beforeListingUpdate hook: ${e?.message || String(e)}`;
+      return await handleSecondRecordFailure(deps, listingId, result, preListingTuple, preLPTuple, `beforeListingUpdate hook: ${e?.message || String(e)}`);
+    }
+  }
+
   result.second_write_attempted = true;
   try {
     await deps.entities.Listing.update(listingId, secondFields);
   } catch (err) {
     result.second_write_error = err?.message || String(err);
     return await handleSecondRecordFailure(deps, listingId, result, preListingTuple, preLPTuple, err?.message || String(err));
+  }
+
+  // ── Hook: afterListingUpdate ──────────────────────────────────────────────
+  if (hooks.afterListingUpdate) {
+    result.hooks_invoked.push('afterListingUpdate');
+    try {
+      await hooks.afterListingUpdate(deps, listingId);
+    } catch (e) {
+      result.hook_error = `afterListingUpdate hook: ${e?.message || String(e)}`;
+      return await handleSecondRecordFailure(deps, listingId, result, preListingTuple, preLPTuple, `afterListingUpdate hook: ${e?.message || String(e)}`);
+    }
+  }
+
+  // ── Hook: beforePostWriteVerification ──────────────────────────────────────
+  if (hooks.beforePostWriteVerification) {
+    result.hooks_invoked.push('beforePostWriteVerification');
+    try {
+      await hooks.beforePostWriteVerification(deps, listingId);
+    } catch (e) {
+      result.hook_error = `beforePostWriteVerification hook: ${e?.message || String(e)}`;
+      return await handleSecondRecordFailure(deps, listingId, result, preListingTuple, preLPTuple, `beforePostWriteVerification hook: ${e?.message || String(e)}`);
+    }
   }
 
   // ── Step 5: Re-fetch both records authoritatively ───────────────────────

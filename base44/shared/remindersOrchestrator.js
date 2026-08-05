@@ -91,9 +91,9 @@ export async function runProcessTransferReminders(deps) {
     reservedListings = await entities.Listing.filter({ status: 'pending_transfer' }, '-created_date', 500);
   } catch (err) {
     errors.push(`DATA_STORE_FAILURE: Failed to fetch pending_transfer listings: ${err?.message}`);
-    reservedListings = [];
+    reservedListings = null;
   }
-  for (const l of reservedListings) {
+  if (reservedListings) for (const l of reservedListings) {
     if (l.reservation_token && l.reservation_expires_at) {
       const expiredMs = new Date(l.reservation_expires_at).getTime();
       if (expiredMs < currentTime) {
@@ -102,7 +102,8 @@ export async function runProcessTransferReminders(deps) {
           activePurchases = await entities.Purchase.filter({ listing_id: l.id, transfer_status: 'pending_transfer' });
         } catch (err) {
           errors.push(`DATA_STORE_FAILURE: Failed to fetch active purchases for listing ${l.id}: ${err?.message}`);
-          activePurchases = [];
+          failedIds.push({ id: l.id, reason: 'active_purchase_lookup_failed', error: err?.message });
+          continue; // FAIL-CLOSED: do NOT clear when availability cannot be safely determined
         }
         if (activePurchases.length === 0) {
           const clearedRev = generateClearedRevision();
@@ -132,9 +133,9 @@ export async function runProcessTransferReminders(deps) {
     activeListings = await entities.Listing.filter({ status: 'active' }, '-created_date', 500);
   } catch (err) {
     errors.push(`DATA_STORE_FAILURE: Failed to fetch active listings: ${err?.message}`);
-    activeListings = [];
+    activeListings = null;
   }
-  for (const l of activeListings) {
+  if (activeListings) for (const l of activeListings) {
     if (l.reserved_by_email && l.reservation_expires_at) {
       const expiredMs = new Date(l.reservation_expires_at).getTime();
       if (expiredMs < currentTime) {
