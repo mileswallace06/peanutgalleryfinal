@@ -4,25 +4,24 @@
  * PUBLIC endpoint — no Base44 auth.me() call. Stripe calls this directly.
  * Verifies Stripe signature using STRIPE_WEBHOOK_SECRET.
  *
- * All push/email/in-app dispatch uses the shared `notifications` module
- * in-process (sendUserNotification / sendTransactionalEmail) — never invokes
- * a public function, so there is no spoofable internal-call header and no
- * dependency on an authenticated user session.
+ * All webhook logic is delegated to the shared, testable webhookOrchestrator.js.
+ * This entry.ts is a thin Deno wrapper that:
+ *   1. Verifies the Stripe webhook signature.
+ *   2. Injects Deno-specific dependencies (Stripe client, base44 service-role entities).
+ *   3. Calls runStripeWebhook and returns the HTTP response.
  *
- * Handles:
- *   payment_intent.payment_failed
- *   payment_intent.succeeded
- *   payout.failed
- *   transfer.failed
- *   charge.dispute.created
- *   charge.refunded
+ * KEY PRINCIPLES (see webhookOrchestrator.js for full details):
+ *   - Purchase resolution through PurchasePrivate FIRST — no legacy fallback.
+ *   - payment_failed: quarantine first, never activate inline, never clear unknown tokens.
+ *   - payment_succeeded: write PP first, non-2xx on private-write failure.
+ *   - No inline push/email. All notifications queued via webhookNotifications.
+ *   - Stripe event.id is the deterministic idempotency key.
  */
 
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import Stripe from 'npm:stripe@14.21.0';
 import { sendUserNotification, sendTransactionalEmail } from '../../shared/notifications.ts';
-import { isFailClosed } from '../../shared/checkoutLogic.js';
-import { getPurchasePrivate, upsertPurchasePrivate, getListingPrivate, upsertListingPrivate } from '../../shared/privateData.ts';
+import { runStripeWebhook } from '../../shared/webhookOrchestrator.js';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
@@ -49,168 +48,16 @@ Deno.serve(async (req) => {
     return new Response('Invalid signature', { status: 400 });
   }
 
-  const type = event.type;
-  const data = event.data?.object;
+  // Inject Deno-specific dependencies
+  const deps = {
+    entities: base44.asServiceRole.entities,
+    stripe,
+    now: () => Date.now(),
+    sendUserNotification,
+    sendTransactionalEmail,
+  };
 
-  console.log('[stripeWebhook] event received:', type, data?.id);
+  const result = await runStripeWebhook(deps, event);
 
-  try {
-    if (type === 'payout.failed' || type === 'transfer.failed') {
-      // Find purchases linked to this payout destination account
-      const accountId = data.destination || data.source_transaction;
-      const [sellerUser] = await base44.asServiceRole.entities.User.filter({ stripe_account_id: accountId }).catch(() => []);
-
-      if (sellerUser) {
-        await sendUserNotification(base44, {
-          user_email: sellerUser.email,
-          title: type === 'payout.failed' ? 'Payout failed ⚠️' : 'Transfer issue ⚠️',
-          body: 'There was a problem with your payout. Please check your Stripe account and update your bank details.',
-          type: 'admin_message',
-          purchase_id: null,
-        }).catch(() => {});
-
-        // Notify admin
-        await sendTransactionalEmail(base44, 'experience@peanutgallery.store',
-          `⚠️ Stripe ${type} — ${sellerUser.email}`,
-          `Stripe event: ${type}\nSeller: ${sellerUser.email}\nAccount: ${accountId}\nAmount: ${data.amount ? '$' + (data.amount / 100).toFixed(2) : 'unknown'}\nReason: ${data.failure_message || data.failure_code || 'unknown'}\n\nReview in Stripe dashboard.`
-        ).catch(() => {});
-      }
-    }
-
-    if (type === 'payment_intent.payment_failed') {
-      const piId = data.id;
-      const purchases = await base44.asServiceRole.entities.Purchase.filter({ payment_intent_id: piId }).catch(() => []);
-      const purchase = purchases[0];
-
-      if (purchase) {
-        // Read authoritative identity + is_demo from PurchasePrivate
-        const pp = await getPurchasePrivate(base44, purchase.id);
-        const authoritativeBuyerEmail = pp?.buyer_email ?? purchase.buyer_email;
-
-        // Skip demo purchases — never affect real state
-        if (pp?.is_demo === true || purchase.is_demo) {
-          console.log('[stripeWebhook] skipping demo purchase for payment_failed:', purchase.id);
-        } else {
-          await sendUserNotification(base44, {
-            user_email: authoritativeBuyerEmail,
-            title: 'Payment failed',
-            body: 'Your payment could not be processed. Please try again or use a different card.',
-            type: 'transfer_rejected',
-            purchase_id: purchase.id,
-          }).catch(() => {});
-
-          // Only restore if still pending_transfer
-          if (purchase.transfer_status === 'pending_transfer') {
-            await base44.asServiceRole.entities.Purchase.update(purchase.id, { transfer_status: 'expired' }).catch(() => {});
-
-            // Check fail-closed state before restoring listing
-            const [listing] = await base44.asServiceRole.entities.Listing.filter({ id: purchase.listing_id }).catch(() => []);
-            const lp = await getListingPrivate(base44, purchase.listing_id);
-
-            if (listing && !isFailClosed(listing, lp)) {
-              // Clear reservation tokens on both entities, then restore
-              try {
-                await upsertListingPrivate(base44, purchase.listing_id, {
-                  reservation_token: null, reserved_by_email: null, reservation_expires_at: null,
-                });
-              } catch (err) {
-                console.error('[stripeWebhook] LP reservation clear failed:', purchase.listing_id, err?.message);
-              }
-              await base44.asServiceRole.entities.Listing.update(purchase.listing_id, {
-                status: 'active',
-                reservation_token: null, reserved_by_email: null, reservation_expires_at: null,
-              }).catch(() => {});
-            } else {
-              // Listing is fail-closed (quarantined/recovery_blocked/paused/cancelled)
-              // — do NOT restore. Let cleanup/recovery handle it.
-              console.log('[stripeWebhook] listing is fail-closed, not restoring:', purchase.listing_id);
-            }
-          }
-        }
-      }
-    }
-
-    if (type === 'payment_intent.succeeded') {
-      const piId = data.id;
-      const purchases = await base44.asServiceRole.entities.Purchase.filter({ payment_intent_id: piId }).catch(() => []);
-      const purchase = purchases[0];
-      if (purchase && !purchase.payment_captured) {
-        // Read PurchasePrivate for is_demo check + authoritative mirror
-        const pp = await getPurchasePrivate(base44, purchase.id);
-
-        // Skip demo purchases — never affect real state
-        if (pp?.is_demo === true || purchase.is_demo) {
-          console.log('[stripeWebhook] skipping demo purchase for succeeded:', purchase.id);
-        } else {
-          // Mark payment as captured — Stripe has confirmed the money.
-          await base44.asServiceRole.entities.Purchase.update(purchase.id, { payment_captured: true }).catch(() => {});
-          // Mirror to PurchasePrivate (authoritative) — prevents cleanup from
-          // processing this as abandoned (PurchasePrivate.payment_captured=false)
-          try {
-            await upsertPurchasePrivate(base44, purchase.id, { payment_captured: true });
-          } catch (err) {
-            console.error('[stripeWebhook] PP payment_captured mirror failed:', purchase.id, err?.message);
-            await sendTransactionalEmail(base44, 'experience@peanutgallery.store',
-              `⚠️ PurchasePrivate mirror failed — ${purchase.id}`,
-              `Stripe confirmed payment capture, but the PurchasePrivate mirror write failed.\n\nPurchase: ${purchase.id}\nPaymentIntent: ${piId}\nError: ${err?.message}\n\nACTION: Manually set PurchasePrivate.payment_captured=true to prevent cleanup from quarantining this purchase.`
-            ).catch(() => {});
-          }
-
-          // If the purchase is still pending_transfer, capturePayment didn't finish its
-          // DB updates (possible crash after Stripe capture but before listing-sold update).
-          // Alert admin so they can manually complete the purchase.
-          if (purchase.transfer_status === 'pending_transfer') {
-            const buyerEmail = pp?.buyer_email ?? purchase.buyer_email;
-            const sellerEmail = pp?.seller_email ?? purchase.seller_email;
-            await sendTransactionalEmail(base44, 'experience@peanutgallery.store',
-              `⚠️ Payment captured but purchase not completed — ${purchase.id}`,
-              `Stripe confirmed payment capture, but the purchase record was not fully updated (capturePayment may have crashed after capture).\n\nPurchase: ${purchase.id}\nBuyer: ${buyerEmail}\nSeller: ${sellerEmail}\nAmount: $${purchase.amount?.toFixed(2)}\nPaymentIntent: ${piId}\n\nACTION: Verify in Stripe dashboard that payment is captured, then manually complete the purchase in the admin panel:\n1. Set transfer_status to 'completed'\n2. Mark listing as 'sold'\n3. Notify buyer and seller`
-            ).catch(() => {});
-          }
-        }
-      }
-      console.log('[stripeWebhook] payment_intent.succeeded:', piId);
-    }
-
-    if (type === 'charge.dispute.created') {
-      const piId = data.payment_intent;
-      const purchases = await base44.asServiceRole.entities.Purchase.filter({ payment_intent_id: piId }).catch(() => []);
-      const purchase = purchases[0];
-
-      // Read authoritative buyer email from PurchasePrivate
-      const pp = purchase ? await getPurchasePrivate(base44, purchase.id) : null;
-      const buyerEmail = (pp?.buyer_email ?? purchase?.buyer_email) || 'unknown';
-      const amount = data.amount ? '$' + (data.amount / 100).toFixed(2) : 'unknown';
-
-      await sendTransactionalEmail(base44, 'experience@peanutgallery.store',
-        `🚨 Stripe Dispute Created — ${buyerEmail}`,
-        `A chargeback dispute was created.\nBuyer: ${buyerEmail}\nAmount: ${amount}\nReason: ${data.reason || 'unknown'}\nDispute ID: ${data.id}\nPayment Intent: ${piId}\n\nReview in Stripe dashboard immediately.`
-      ).catch(() => {});
-
-      if (purchase && !(pp?.is_demo === true || purchase.is_demo)) {
-        await base44.asServiceRole.entities.Purchase.update(purchase.id, { transfer_status: 'disputed', dispute_reason: data.reason || 'chargeback' }).catch(() => {});
-      }
-      console.log('[stripeWebhook] dispute created:', data.id);
-    }
-
-    if (type === 'charge.refunded') {
-      const piId = data.payment_intent;
-      const purchases = await base44.asServiceRole.entities.Purchase.filter({ payment_intent_id: piId }).catch(() => []);
-      const purchase = purchases[0];
-      if (purchase) {
-        await sendTransactionalEmail(base44, 'experience@peanutgallery.store',
-          `💸 Stripe Refund — ${purchase.buyer_email}`,
-          `A refund was issued.\nBuyer: ${purchase.buyer_email}\nAmount: $${(data.amount_refunded / 100).toFixed(2)}\nPayment Intent: ${piId}`
-        ).catch(() => {});
-      }
-      console.log('[stripeWebhook] charge.refunded:', data.id);
-    }
-
-  } catch (err) {
-    console.error('[stripeWebhook] handler error:', err.message);
-    // Return 200 to prevent Stripe retries for non-retriable errors
-    return Response.json({ received: true, warning: err.message });
-  }
-
-  return Response.json({ received: true });
+  return Response.json(result.body || { received: true }, { status: result.status });
 });
