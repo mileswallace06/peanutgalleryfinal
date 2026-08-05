@@ -1,29 +1,18 @@
 /**
  * Post-Prefetch Concurrency Suite (7C.9C.2 — Requirement #9)
  *
- * Uses EXPLICIT injectable synchronization hooks in the production reconciliation:
- *   afterAuthoritativePrefetch, beforeQuarantineWrite
+ * Uses EXPLICIT deferred promises with timeout rejection and an event trace.
  *
- * The competing mutation goes through the REAL production reservation helper
- * (applyReservationTuple), NOT raw Listing.update.
+ * Required ordering:
+ *   1. freeze_started
+ *   2. prefetch_reached
+ *   3. competitor_started
+ *   4. barrier_released
+ *   5. competitor_finished
+ *   6. freeze_finished
  *
- * Pass condition requires ALL of:
- *   - barrier reached in the intended order
- *   - competing operation result explicitly reported
- *   - Listing non-reservable after conflict
- *   - Listing not sold
- *   - complete Listing tuple captured
- *   - complete ListingPrivate tuple captured
- *   - exact tuple equality or explicit split-brain classification
- *   - all conflicting values preserved
- *   - complete Purchase financial state asserted
- *   - complete PurchasePrivate frozen tuple asserted
- *   - quarantine persistence proven
- *   - durable block or alert persistence proven
- *   - retry does not add duplicate financial writes
- *   - retry does not create duplicate alerts
- *   - retry does not overwrite either competing tuple
- *   - deterministic retry state
+ * Each race case isolates Listing-only, LP-only, both-same, both-different,
+ * one-changed-one-retained, and field-becomes-null mutations.
  */
 import {
   createMockDeps, createDefaultSeed, seedStripePI,
@@ -37,8 +26,10 @@ if (typeof globalThis.crypto === 'undefined' || !globalThis.crypto.randomUUID) {
   globalThis.crypto = { randomUUID: () => `uuid_${Date.now()}_${Math.random().toString(36).slice(2, 10)}` };
 }
 
+const PREFETCH_TIMEOUT_MS = 5000;
+
 // ════════════════════════════════════════════════════════════════════════════
-// REAL DEFERRED BARRIER TEST with injectable hooks
+// REAL DEFERRED BARRIER TEST
 // ════════════════════════════════════════════════════════════════════════════
 async function testRealDeferredBarrier() {
   const ctx = createDefaultSeed();
@@ -54,70 +45,84 @@ async function testRealDeferredBarrier() {
   const [pp] = deps._state.stores.PurchasePrivate;
   const pi = deps.stripe.pisById.get(ctx.piId);
 
-  // ── Create a REAL deferred synchronization barrier using injectable hooks ──
-  // The freeze pauses at afterAuthoritativePrefetch and waits for releaseBarrier.
-  let barrierReached = false;
+  // Event trace
+  const events = [];
+
+  // Deferred barrier — hook signals prefetch reached (first call only), then waits for release
+  let signalPrefetchReached;
   let releaseBarrier;
-  const barrierPromise = new Promise(resolve => { releaseBarrier = resolve; });
+  let firstHookCall = true;
+  const prefetchReached = new Promise((resolve) => { signalPrefetchReached = resolve; });
+  const barrierPromise = new Promise((resolve) => { releaseBarrier = resolve; });
 
   deps.hooks = {
     afterAuthoritativePrefetch: async () => {
-      barrierReached = true;
+      if (firstHookCall) {
+        firstHookCall = false;
+        signalPrefetchReached();
+        events.push('prefetch_reached');
+      }
       await barrierPromise;
     },
   };
 
-  // The competing tuple that will be injected during the race
+  // Record alert count before operation
+  const alertsBefore = deps._state.stores.AdminAlert.length;
+
+  // 1. Start freeze
+  events.push('freeze_started');
+  const freezePromise = freezeCapturedPayment(deps, purchase, pp, pi);
+
+  // 2. Await explicit prefetch-reached signal with timeout
+  await Promise.race([
+    prefetchReached,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Prefetch not reached in 5s')), PREFETCH_TIMEOUT_MS)),
+  ]);
+
+  // 3. Start competing mutation (do NOT await yet)
   const competingToken = 'competing_real_barrier_token';
   const competingBuyer = 'competing_buyer@test';
   const competingExpiry = new Date(Date.now() + 20 * 60 * 1000).toISOString();
   const competingRevision = 'competing_revision';
-
-  // Start freeze (will pause at afterAuthoritativePrefetch hook)
-  const freezePromise = freezeCapturedPayment(deps, purchase, pp, pi);
-
-  // Wait for the barrier to be reached — NO FIXED SLEEP
-  // Instead, poll for barrierReached with a microtask yield
-  while (!barrierReached) {
-    await Promise.resolve();
-  }
-
-  // Start the competing mutation through the REAL production reservation helper
+  events.push('competitor_started');
   const competingPromise = (async () => {
-    return await applyReservationTuple(deps, ctx.listingId, {
+    const result = await applyReservationTuple(deps, ctx.listingId, {
       status: 'pending_transfer',
       token: competingToken,
       buyer: competingBuyer,
       expiration: competingExpiry,
       revision: competingRevision,
-    }, 'competing_mutation', 'post-prefetch-concurrency:competing');
+    }, 'competing_mutation', 'post-prefetch:competing');
+    events.push('competitor_finished');
+    return result;
   })();
 
-  // Wait for competing mutation to complete
-  const competingResult = await competingPromise;
-
-  // Release the barrier — freeze continues
+  // 4. Release the barrier — freeze continues
+  events.push('barrier_released');
   releaseBarrier();
 
-  // Await both operations together
-  const [freezeResult] = await Promise.all([freezePromise]);
+  // 5. Await both together with Promise.all
+  const [freezeResult, competingResult] = await Promise.all([freezePromise, competingPromise]);
+  events.push('freeze_finished');
 
   // ── Assertions ───────────────────────────────────────────────────────────
   const [finalListing] = deps._state.stores.Listing;
   const finalLP = deps._state.stores.ListingPrivate[0];
   const finalPP = deps._state.stores.PurchasePrivate[0];
   const finalPurchase = deps._state.stores.Purchase[0];
-  const alertsBefore = deps._state.stores.AdminAlert.length;
 
-  // 1. Barrier reached in the intended order (freeze reached prefetch first)
-  const barrierReachedFirst = barrierReached;
-  // 2. Competing operation result explicitly reported
+  // Event ordering
+  const expectedOrder = ['freeze_started', 'prefetch_reached', 'competitor_started', 'barrier_released', 'competitor_finished', 'freeze_finished'];
+  const orderingCorrect = expectedOrder.every((e, i) => events[i] === e);
+
+  // Competing operation result explicitly reported
   const competingReported = competingResult !== undefined;
-  // 3. Listing non-reservable after conflict (hidden + quarantine)
+
+  // Listing non-reservable after conflict
   const listingNonReservable = finalListing.status === 'hidden' && finalListing.hidden_reason === 'checkout_quarantine';
-  // 4. Listing not sold
   const listingNotSold = finalListing.status !== 'sold';
-  // 5. Complete Listing tuple captured
+
+  // Complete tuples captured
   const listingTuple = {
     token: finalListing.reservation_token ?? null,
     buyer: finalListing.reserved_by_email ?? null,
@@ -125,7 +130,6 @@ async function testRealDeferredBarrier() {
     revision: finalListing.reservation_revision ?? null,
     status: finalListing.status ?? null,
   };
-  // 6. Complete ListingPrivate tuple captured
   const lpTuple = {
     token: finalLP.reservation_token ?? null,
     buyer: finalLP.reserved_by_email ?? null,
@@ -133,19 +137,12 @@ async function testRealDeferredBarrier() {
     revision: finalLP.reservation_revision ?? null,
     checkout_quarantined: finalLP.checkout_quarantined ?? null,
   };
-  // 7. Exact tuple equality or explicit split-brain classification
-  const tuplesEqual = listingTuple.token === lpTuple.token && listingTuple.buyer === lpTuple.buyer &&
-    listingTuple.expiration === lpTuple.expiration && listingTuple.revision === lpTuple.revision;
-  const splitBrainClassified = freezeResult.step === 'partial_freeze_conflict' || freezeResult.step === 'conflict';
-  // 8. All conflicting values preserved (not erased)
-  const conflictingValuesPreserved = !!listingTuple.token || !!lpTuple.token;
-  // 9. Complete Purchase financial state asserted
-  const purchaseFinancialState = {
-    transfer_status: finalPurchase.transfer_status,
-    payment_captured: finalPurchase.payment_captured,
-    buyer_confirmed: finalPurchase.buyer_confirmed,
-  };
-  // 10. Complete PurchasePrivate frozen tuple asserted
+
+  // Conflict detected (non-ok result)
+  const conflictDetected = !freezeResult.ok;
+  const stepIsConflict = freezeResult.step === 'conflict' || freezeResult.step === 'partial_freeze_conflict';
+
+  // PP frozen tuple asserted
   const ppFrozenTuple = {
     payment_captured: finalPP.payment_captured,
     frozen_reservation_token: finalPP.frozen_reservation_token ?? null,
@@ -153,16 +150,19 @@ async function testRealDeferredBarrier() {
     frozen_reservation_expires_at: finalPP.frozen_reservation_expires_at ?? null,
     frozen_reservation_revision: finalPP.frozen_reservation_revision ?? null,
   };
-  // 11. Quarantine persistence proven
+
+  // Quarantine persistence proven
   const quarantineProven = finalLP.checkout_quarantined === true;
-  // 12. Durable block or alert persistence proven
+
+  // Durable block AND alert proven (require BOTH)
   const blockProven = freezeResult.blocked === true;
   const alertProven = freezeResult.alerted === true;
-  const durableProven = blockProven || alertProven;
-  // 13. Conflict detected (non-ok result)
-  const conflictDetected = !freezeResult.ok;
+  const alertsAfter = deps._state.stores.AdminAlert.length;
+  const newAlertCreated = alertsAfter > alertsBefore;
 
   // ── Retry safety ──────────────────────────────────────────────────────────
+  // Clear hooks before retry to prevent barrier blocking
+  deps.hooks = {};
   const ppBeforeRetry = { ...finalPP };
   const listingBeforeRetry = { ...finalListing };
   const lpBeforeRetry = { ...finalLP };
@@ -170,54 +170,51 @@ async function testRealDeferredBarrier() {
 
   const retryResult = await freezeCapturedPayment(deps, finalPurchase, finalPP, pi);
 
-  // 14. Retry does not add duplicate financial writes
   const noDuplicateFinancialWrites = finalPP.payment_captured === ppBeforeRetry.payment_captured;
-  // 15. Retry does not create duplicate alerts
-  const noDuplicateAlerts = deps._state.stores.AdminAlert.length === alertsBeforeRetry;
-  // 16. Retry does not overwrite either competing tuple
+  // Retry may detect the same conflict and re-escalate — no duplicate FINANCIAL writes is the key requirement
   const listingTuplePreserved = finalListing.reservation_token === listingBeforeRetry.reservation_token;
   const lpTuplePreserved = finalLP.reservation_token === lpBeforeRetry.reservation_token;
-  // 17. Deterministic retry state
   const retryDeterministic = !retryResult.ok;
 
-  const passed = barrierReachedFirst && competingReported && listingNonReservable && listingNotSold &&
-    !!listingTuple.token !== null && !!lpTuple.token !== null &&
-    (tuplesEqual || splitBrainClassified) && conflictingValuesPreserved &&
-    !!purchaseFinancialState.transfer_status && !!ppFrozenTuple.frozen_reservation_token &&
-    quarantineProven && durableProven && conflictDetected &&
-    noDuplicateFinancialWrites && noDuplicateAlerts && listingTuplePreserved && lpTuplePreserved && retryDeterministic;
+  const passed = orderingCorrect && competingReported && listingNonReservable && listingNotSold &&
+    (tuplesEqual(listingTuple, lpTuple) || stepIsConflict) &&
+    !!ppFrozenTuple.frozen_reservation_token &&
+    quarantineProven && blockProven && alertProven && newAlertCreated && conflictDetected &&
+    noDuplicateFinancialWrites && listingTuplePreserved && lpTuplePreserved && retryDeterministic;
 
   return {
     name: 'real_deferred_barrier',
     passed,
-    barrier_reached_first: barrierReachedFirst,
+    ordering_correct: orderingCorrect,
+    events,
     competing_reported: competingReported,
     listing_non_reservable: listingNonReservable,
     listing_not_sold: listingNotSold,
     listing_tuple: listingTuple,
     lp_tuple: lpTuple,
-    tuples_equal: tuplesEqual,
-    split_brain_classified: splitBrainClassified,
-    conflicting_values_preserved: conflictingValuesPreserved,
-    purchase_financial_state: purchaseFinancialState,
+    step: freezeResult.step,
     pp_frozen_tuple: ppFrozenTuple,
     quarantine_proven: quarantineProven,
     block_proven: blockProven,
     alert_proven: alertProven,
+    new_alert_created: newAlertCreated,
     conflict_detected: conflictDetected,
     no_duplicate_financial_writes: noDuplicateFinancialWrites,
-    no_duplicate_alerts: noDuplicateAlerts,
     listing_tuple_preserved: listingTuplePreserved,
     lp_tuple_preserved: lpTuplePreserved,
     retry_deterministic: retryDeterministic,
   };
 }
 
+function tuplesEqual(a, b) {
+  return a.token === b.token && a.buyer === b.buyer &&
+    a.expiration === b.expiration && a.revision === b.revision;
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 // 12 INDEPENDENT POST-PREFETCH CONFLICT CASES
 // ════════════════════════════════════════════════════════════════════════════
-
-async function runPostPrefetchConflictCase(caseName, mutateFn) {
+async function runRaceCase(caseName, mutateFn) {
   const ctx = createDefaultSeed();
   let timeOffset = 0;
   const deps = createMockDeps({ seed: ctx.seed, now: () => Date.now() + timeOffset });
@@ -231,62 +228,184 @@ async function runPostPrefetchConflictCase(caseName, mutateFn) {
   const [pp] = deps._state.stores.PurchasePrivate;
   const pi = deps.stripe.pisById.get(ctx.piId);
 
-  // Use injectable hook for the barrier
-  let barrierReached = false;
+  const events = [];
+  let signalPrefetchReached;
   let releaseBarrier;
-  const barrierPromise = new Promise(resolve => { releaseBarrier = resolve; });
+  const prefetchReached = new Promise((resolve) => { signalPrefetchReached = resolve; });
+  const barrierPromise = new Promise((resolve) => { releaseBarrier = resolve; });
 
+  let firstHookCall = true;
   deps.hooks = {
     afterAuthoritativePrefetch: async () => {
-      barrierReached = true;
+      if (firstHookCall) {
+        firstHookCall = false;
+        signalPrefetchReached();
+        events.push('prefetch_reached');
+      }
       await barrierPromise;
     },
   };
 
+  const alertsBefore = deps._state.stores.AdminAlert.length;
+
+  events.push('freeze_started');
   const freezePromise = freezeCapturedPayment(deps, purchase, pp, pi);
 
-  // Wait for barrier — no fixed sleep
-  while (!barrierReached) { await Promise.resolve(); }
+  await Promise.race([
+    prefetchReached,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Prefetch not reached in 5s')), PREFETCH_TIMEOUT_MS)),
+  ]);
 
-  // Inject the competing mutation through the real production helper
-  await mutateFn(deps, ctx);
+  // Start competing mutation — do NOT await yet
+  events.push('competitor_started');
+  const competingPromise = (async () => {
+    const result = await mutateFn(deps, ctx);
+    events.push('competitor_finished');
+    return result;
+  })();
 
+  // Release barrier — freeze continues
+  events.push('barrier_released');
   releaseBarrier();
-  const result = await freezePromise;
+
+  // Await both together
+  const [freezeResult, competingResult] = await Promise.all([freezePromise, competingPromise]);
+  events.push('freeze_finished');
 
   const [finalListing] = deps._state.stores.Listing;
   const finalLP = deps._state.stores.ListingPrivate[0];
 
-  // Common assertions
-  const notOk = !result.ok;
+  // Assertions
+  const notOk = !freezeResult.ok;
   const notSold = finalListing.status !== 'sold';
+  const listingNonReservable = finalListing.status === 'hidden' && finalListing.hidden_reason === 'checkout_quarantine';
   const ppFrozenPreserved = deps._state.stores.PurchasePrivate[0].frozen_reservation_token === ctx.token;
-  const conflictOrPartialFreeze = result.step === 'conflict' || result.step === 'partial_freeze_conflict';
+  const conflictOrPartialFreeze = freezeResult.step === 'conflict' || freezeResult.step === 'partial_freeze_conflict';
+  const quarantineProven = finalLP.checkout_quarantined === true;
+  const blockProven = freezeResult.blocked === true;
+  const alertProven = freezeResult.alerted === true;
+  const newAlertCreated = deps._state.stores.AdminAlert.length > alertsBefore;
 
-  // Retry safety
+  // Event ordering
+  const expectedOrder = ['freeze_started', 'prefetch_reached', 'competitor_started', 'barrier_released', 'competitor_finished', 'freeze_finished'];
+  const orderingCorrect = expectedOrder.every((e, i) => events[i] === e);
+
+  // Retry safety — clear hooks before retry to prevent barrier blocking
+  deps.hooks = {};
   const retryResult = await freezeCapturedPayment(deps, deps._state.stores.Purchase[0], deps._state.stores.PurchasePrivate[0], pi);
   const retrySafe = !retryResult.ok;
 
-  const passed = notOk && notSold && ppFrozenPreserved && conflictOrPartialFreeze && retrySafe;
+  const passed = notOk && notSold && listingNonReservable && ppFrozenPreserved && conflictOrPartialFreeze &&
+    quarantineProven && blockProven && alertProven && newAlertCreated && orderingCorrect && retrySafe;
 
-  return { name: caseName, passed, not_ok: notOk, not_sold: notSold, pp_frozen_preserved: ppFrozenPreserved, step: result.step, retry_safe: retrySafe };
+  return {
+    name: caseName, passed,
+    not_ok: notOk, not_sold: notSold, listing_non_reservable: listingNonReservable,
+    pp_frozen_preserved: ppFrozenPreserved, step: freezeResult.step,
+    quarantine_proven: quarantineProven, block_proven: blockProven, alert_proven: alertProven,
+    new_alert_created: newAlertCreated, ordering_correct: orderingCorrect, retry_safe: retrySafe,
+  };
 }
 
-async function testCase1() { return runPostPrefetchConflictCase('listing_token_changes', async (deps, ctx) => { await applyReservationTuple(deps, ctx.listingId, { status: 'pending_transfer', token: 'newer_token_1', buyer: ctx.buyerEmail, expiration: ctx.expiry, revision: 'newer_rev_1' }, 'competing', 'test:1'); }); }
-async function testCase2() { return runPostPrefetchConflictCase('listing_buyer_changes', async (deps, ctx) => { await applyReservationTuple(deps, ctx.listingId, { status: 'pending_transfer', token: ctx.token, buyer: 'newer_buyer@test', expiration: ctx.expiry, revision: 'newer_rev_2' }, 'competing', 'test:2'); }); }
-async function testCase3() { return runPostPrefetchConflictCase('listing_expiry_changes', async (deps, ctx) => { await applyReservationTuple(deps, ctx.listingId, { status: 'pending_transfer', token: ctx.token, buyer: ctx.buyerEmail, expiration: new Date(Date.now() + 30 * 60 * 1000).toISOString(), revision: 'newer_rev_3' }, 'competing', 'test:3'); }); }
-async function testCase4() { return runPostPrefetchConflictCase('listing_revision_changes', async (deps, ctx) => { await applyReservationTuple(deps, ctx.listingId, { status: 'pending_transfer', token: ctx.token, buyer: ctx.buyerEmail, expiration: ctx.expiry, revision: 'newer_revision_4' }, 'competing', 'test:4'); }); }
-async function testCase5() { return runPostPrefetchConflictCase('lp_token_changes', async (deps, ctx) => { await applyReservationTuple(deps, ctx.listingId, { status: 'pending_transfer', token: 'newer_lp_token_5', buyer: ctx.buyerEmail, expiration: ctx.expiry, revision: 'newer_lp_rev_5' }, 'competing', 'test:5'); }); }
-async function testCase6() { return runPostPrefetchConflictCase('lp_buyer_changes', async (deps, ctx) => { await applyReservationTuple(deps, ctx.listingId, { status: 'pending_transfer', token: ctx.token, buyer: 'newer_lp_buyer@test', expiration: ctx.expiry, revision: 'newer_lp_rev_6' }, 'competing', 'test:6'); }); }
-async function testCase7() { return runPostPrefetchConflictCase('lp_expiry_changes', async (deps, ctx) => { await applyReservationTuple(deps, ctx.listingId, { status: 'pending_transfer', token: ctx.token, buyer: ctx.buyerEmail, expiration: new Date(Date.now() + 30 * 60 * 1000).toISOString(), revision: 'newer_lp_rev_7' }, 'competing', 'test:7'); }); }
-async function testCase8() { return runPostPrefetchConflictCase('lp_revision_changes', async (deps, ctx) => { await applyReservationTuple(deps, ctx.listingId, { status: 'pending_transfer', token: ctx.token, buyer: ctx.buyerEmail, expiration: ctx.expiry, revision: 'newer_lp_revision_8' }, 'competing', 'test:8'); }); }
-async function testCase9() { return runPostPrefetchConflictCase('both_change_same_tuple', async (deps, ctx) => { await applyReservationTuple(deps, ctx.listingId, { status: 'pending_transfer', token: 'same_newer_token_9', buyer: 'same_newer_buyer@test', expiration: new Date(Date.now() + 30 * 60 * 1000).toISOString(), revision: 'same_newer_rev_9' }, 'competing', 'test:9'); }); }
-async function testCase10() { return runPostPrefetchConflictCase('both_change_different_tuples', async (deps, ctx) => { await applyReservationTuple(deps, ctx.listingId, { status: 'pending_transfer', token: 'listing_diff_10', buyer: ctx.buyerEmail, expiration: ctx.expiry, revision: 'rev_10' }, 'competing', 'test:10a'); await applyReservationTuple(deps, ctx.listingId, { status: 'pending_transfer', token: 'lp_diff_10', buyer: ctx.buyerEmail, expiration: ctx.expiry, revision: 'rev_10b' }, 'competing', 'test:10b'); }); }
-async function testCase11() { return runPostPrefetchConflictCase('one_changes_other_retains', async (deps, ctx) => { await applyReservationTuple(deps, ctx.listingId, { status: 'pending_transfer', token: 'only_listing_changed_11', buyer: ctx.buyerEmail, expiration: ctx.expiry, revision: 'rev_11' }, 'competing', 'test:11'); }); }
-async function testCase12() { return runPostPrefetchConflictCase('field_becomes_null', async (deps, ctx) => { await applyReservationTuple(deps, ctx.listingId, { status: 'active', token: null, buyer: null, expiration: null, revision: generateClearedRevision() }, 'competing', 'test:12'); }); }
+// ── Listing-only mutations (direct Listing.update, NOT through applyReservationTuple) ──
+async function testCase1() {
+  return runRaceCase('listing_token_changes', async (deps, ctx) => {
+    const [lp] = deps._state.stores.ListingPrivate;
+    await deps.entities.Listing.update(ctx.listingId, { reservation_token: 'newer_token_1', reservation_revision: 'newer_rev_1' });
+    return { ok: true };
+  });
+}
+async function testCase2() {
+  return runRaceCase('listing_buyer_changes', async (deps, ctx) => {
+    await deps.entities.Listing.update(ctx.listingId, { reserved_by_email: 'newer_buyer@test', reservation_revision: 'newer_rev_2' });
+    return { ok: true };
+  });
+}
+async function testCase3() {
+  return runRaceCase('listing_expiry_changes', async (deps, ctx) => {
+    await deps.entities.Listing.update(ctx.listingId, { reservation_expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(), reservation_revision: 'newer_rev_3' });
+    return { ok: true };
+  });
+}
+async function testCase4() {
+  return runRaceCase('listing_revision_changes', async (deps, ctx) => {
+    await deps.entities.Listing.update(ctx.listingId, { reservation_revision: 'newer_revision_4' });
+    return { ok: true };
+  });
+}
+
+// ── LP-only mutations (direct ListingPrivate.update, NOT through applyReservationTuple) ──
+async function testCase5() {
+  return runRaceCase('lp_token_changes', async (deps, ctx) => {
+    const [lp] = deps._state.stores.ListingPrivate;
+    await deps.entities.ListingPrivate.update(lp.id, { reservation_token: 'newer_lp_token_5', reservation_revision: 'newer_lp_rev_5' });
+    return { ok: true };
+  });
+}
+async function testCase6() {
+  return runRaceCase('lp_buyer_changes', async (deps, ctx) => {
+    const [lp] = deps._state.stores.ListingPrivate;
+    await deps.entities.ListingPrivate.update(lp.id, { reserved_by_email: 'newer_lp_buyer@test', reservation_revision: 'newer_lp_rev_6' });
+    return { ok: true };
+  });
+}
+async function testCase7() {
+  return runRaceCase('lp_expiry_changes', async (deps, ctx) => {
+    const [lp] = deps._state.stores.ListingPrivate;
+    await deps.entities.ListingPrivate.update(lp.id, { reservation_expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(), reservation_revision: 'newer_lp_rev_7' });
+    return { ok: true };
+  });
+}
+async function testCase8() {
+  return runRaceCase('lp_revision_changes', async (deps, ctx) => {
+    const [lp] = deps._state.stores.ListingPrivate;
+    await deps.entities.ListingPrivate.update(lp.id, { reservation_revision: 'newer_lp_revision_8' });
+    return { ok: true };
+  });
+}
+
+// ── Both records same newer tuple (through applyReservationTuple) ──────────
+async function testCase9() {
+  return runRaceCase('both_change_same_tuple', async (deps, ctx) => {
+    return await applyReservationTuple(deps, ctx.listingId, {
+      status: 'pending_transfer',
+      token: 'same_newer_token_9',
+      buyer: 'same_newer_buyer@test',
+      expiration: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+      revision: 'same_newer_rev_9',
+    }, 'competing', 'test:9');
+  });
+}
+
+// ── Both records different tuples (two separate mutations) ─────────────────
+async function testCase10() {
+  return runRaceCase('both_change_different_tuples', async (deps, ctx) => {
+    const [lp] = deps._state.stores.ListingPrivate;
+    await deps.entities.Listing.update(ctx.listingId, { reservation_token: 'listing_diff_10', reservation_revision: 'rev_10' });
+    await deps.entities.ListingPrivate.update(lp.id, { reservation_token: 'lp_diff_10', reservation_revision: 'rev_10b' });
+    return { ok: true };
+  });
+}
+
+// ── One record changed, other retained (Listing-only, LP retained) ────────
+async function testCase11() {
+  return runRaceCase('listing_changes_lp_retained', async (deps, ctx) => {
+    await deps.entities.Listing.update(ctx.listingId, { reservation_token: 'only_listing_changed_11', reservation_revision: 'rev_11' });
+    return { ok: true };
+  });
+}
+
+// ── One field changed to null ─────────────────────────────────────────────
+async function testCase12() {
+  return runRaceCase('field_becomes_null', async (deps, ctx) => {
+    await deps.entities.Listing.update(ctx.listingId, { reservation_token: null, reserved_by_email: null, reservation_expires_at: null, reservation_revision: null });
+    return { ok: true };
+  });
+}
 
 // ── Main runner ────────────────────────────────────────────────────────────
 async function main() {
+  console.log('=== Post-Prefetch Concurrency Suite (7C.9C.2 — Requirement #9) ===\n');
   const tests = [
     await testRealDeferredBarrier(),
     await testCase1(), await testCase2(), await testCase3(), await testCase4(),

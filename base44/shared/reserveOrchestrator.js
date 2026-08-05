@@ -48,7 +48,12 @@ export async function runReserveListing(deps, params) {
   }
 
   // One-per-buyer: auto-release expired reservations on other listings
-  const userReservations = await entities.Listing.filter({ reserved_by_email: user.email, status: 'active' }).catch(() => []);
+  let userReservations;
+  try {
+    userReservations = await entities.Listing.filter({ reserved_by_email: user.email, status: 'active' });
+  } catch (err) {
+    return { status: 500, body: { error: 'Failed to check existing reservations', code: 'RESERVATION_CHECK_FAILED' } };
+  }
   for (const r of userReservations) {
     if (r.id === listing_id) continue;
     if (r.reservation_expires_at && new Date(r.reservation_expires_at).getTime() > currentTime) {

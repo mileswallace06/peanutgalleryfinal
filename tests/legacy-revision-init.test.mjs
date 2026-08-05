@@ -28,7 +28,12 @@ function verifyQuarantineProof(result, deps, listingId) {
   const hasTuplePreservation = result.listing_tuple_preserved !== undefined || result.lp_tuple_preserved !== undefined;
   // Quarantine timestamp proof verified
   const hasTimestampProof = result.quarantine_timestamp_proven !== undefined;
-  return { listingQuarantineProven, lpQuarantineProven, blockOrAlertProven, hasStructuredErrors, hasPreQuarantineSnapshot, hasPostQuarantineSnapshot, hasTuplePreservation, hasTimestampProof };
+  const blockProven = result.block_proven === true;
+  const alertProven = result.alert_proven === true;
+  const listingTuplePreserved = result.listing_tuple_preserved === true;
+  const lpTuplePreserved = result.lp_tuple_preserved === true;
+  const quarantineTimestampProven = result.quarantine_timestamp_proven === true;
+  return { listingQuarantineProven, lpQuarantineProven, blockOrAlertProven, blockProven, alertProven, listingTuplePreserved, lpTuplePreserved, quarantineTimestampProven, hasStructuredErrors, hasPreQuarantineSnapshot, hasPostQuarantineSnapshot, hasTuplePreservation, hasTimestampProof };
 }
 
 // L1 success: both revisions already match
@@ -67,8 +72,9 @@ async function testL3_listingRevAbsentOnly() {
   const listingUnchanged = !listing.reservation_revision;
   const lpUnchanged = lp.reservation_revision === 'existing_rev';
   const q = verifyQuarantineProof(result, deps, listingId);
-  const passed = notOk && listingUnchanged && lpUnchanged && result.state === 'L3' && q.hasStructuredErrors && q.hasPreQuarantineSnapshot;
-  return { name: 'L3_listing_rev_absent_only', passed, not_ok: notOk, state: result.state, has_structured_errors: q.hasStructuredErrors, has_pre_quarantine_snapshot: q.hasPreQuarantineSnapshot };
+  const passed = notOk && listingUnchanged && lpUnchanged && result.state === 'L3' && q.hasStructuredErrors && q.hasPreQuarantineSnapshot &&
+    q.listingQuarantineProven === true && q.lpQuarantineProven === true && q.listingTuplePreserved && q.lpTuplePreserved && q.quarantineTimestampProven && q.blockProven && q.alertProven;
+  return { name: 'L3_listing_rev_absent_only', passed, not_ok: notOk, state: result.state, has_structured_errors: q.hasStructuredErrors, has_pre_quarantine_snapshot: q.hasPreQuarantineSnapshot, listing_quarantine_proven: q.listingQuarantineProven, lp_quarantine_proven: q.lpQuarantineProven, block_proven: q.blockProven, alert_proven: q.alertProven };
 }
 
 // L3: LP revision absent only — unsafe state
@@ -82,8 +88,9 @@ async function testL3_lpRevAbsentOnly() {
   const listingUnchanged = listing.reservation_revision === 'existing_rev';
   const lpUnchanged = !lp.reservation_revision;
   const q = verifyQuarantineProof(result, deps, listingId);
-  const passed = notOk && listingUnchanged && lpUnchanged && result.state === 'L3' && q.hasStructuredErrors;
-  return { name: 'L3_lp_rev_absent_only', passed, not_ok: notOk, state: result.state, has_structured_errors: q.hasStructuredErrors };
+  const passed = notOk && listingUnchanged && lpUnchanged && result.state === 'L3' && q.hasStructuredErrors &&
+    q.listingQuarantineProven === true && q.lpQuarantineProven === true && q.listingTuplePreserved && q.lpTuplePreserved && q.quarantineTimestampProven && q.blockProven && q.alertProven;
+  return { name: 'L3_lp_rev_absent_only', passed, not_ok: notOk, state: result.state, has_structured_errors: q.hasStructuredErrors, listing_quarantine_proven: q.listingQuarantineProven, lp_quarantine_proven: q.lpQuarantineProven, block_proven: q.blockProven, alert_proven: q.alertProven };
 }
 
 // L4: both present but different — unsafe state
@@ -97,8 +104,9 @@ async function testL4_bothPresentDifferent() {
   const listingUnchanged = listing.reservation_revision === 'rev_A';
   const lpUnchanged = lp.reservation_revision === 'rev_B';
   const q = verifyQuarantineProof(result, deps, listingId);
-  const passed = notOk && listingUnchanged && lpUnchanged && result.state === 'L4' && q.hasStructuredErrors;
-  return { name: 'L4_both_present_different', passed, not_ok: notOk, state: result.state, has_structured_errors: q.hasStructuredErrors };
+  const passed = notOk && listingUnchanged && lpUnchanged && result.state === 'L4' && q.hasStructuredErrors &&
+    q.listingQuarantineProven === true && q.lpQuarantineProven === true && q.listingTuplePreserved && q.lpTuplePreserved && q.quarantineTimestampProven && q.blockProven && q.alertProven;
+  return { name: 'L4_both_present_different', passed, not_ok: notOk, state: result.state, has_structured_errors: q.hasStructuredErrors, listing_quarantine_proven: q.listingQuarantineProven, lp_quarantine_proven: q.lpQuarantineProven, block_proven: q.blockProven, alert_proven: q.alertProven };
 }
 
 // L2: both absent with expiration mismatch — unsafe state

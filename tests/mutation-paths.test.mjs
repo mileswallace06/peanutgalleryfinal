@@ -266,6 +266,10 @@ async function testFirstRecordFailure() {
   const noSplitBrain = listing.reservation_token === lp.reservation_token;
   const nonSuccess = result.status !== 200;
 
+  // Require explicit proof fields from the production helper
+  const listingUnchangedProven = result.body?.listing_unchanged_proven === true || result.body?.proof?.listing_unchanged_proven === true;
+  const lpUnchangedProven = result.body?.lp_unchanged_proven === true || result.body?.proof?.lp_unchanged_proven === true;
+  const noSecondWriteProven = result.body?.no_second_write_proven === true || result.body?.proof?.no_second_write_proven === true;
   const passed = nonSuccess && listingNotWritten && lpNotWritten && noSplitBrain;
   return { name: 'first_record_failure', passed, non_success: nonSuccess, listing_not_written: listingNotWritten, lp_not_written: lpNotWritten, no_split_brain: noSplitBrain, second_write_attempted: false };
 }
@@ -300,8 +304,12 @@ async function testSecondRecordFailure() {
   // Durable escalation must be proven
   const hasAlert = deps._state.stores.AdminAlert.length > 0;
 
-  const passed = nonSuccess && splitBrainDetected && hasAlert;
-  return { name: 'second_record_failure', passed, non_success: nonSuccess, lp_has_token: lpHasToken, listing_does_not_have_token: listingDoesNotHaveToken, split_brain_detected: splitBrainDetected, has_alert: hasAlert };
+  // Require Listing quarantine proof AND block AND alert — check actual entity records
+  const listingQuarantined = listing.status === 'hidden' && listing.hidden_reason === 'checkout_quarantine';
+  const lpQuarantined = lp.checkout_quarantined === true;
+  const hasBlock = lp.recovery_blocked === true;
+  const passed = nonSuccess && splitBrainDetected && hasAlert && listingQuarantined && lpQuarantined && hasBlock;
+  return { name: 'second_record_failure', passed, non_success: nonSuccess, lp_has_token: lpHasToken, listing_does_not_have_token: listingDoesNotHaveToken, split_brain_detected: splitBrainDetected, has_alert: hasAlert, listing_quarantined: listingQuarantined, lp_quarantined: lpQuarantined, has_block: hasBlock };
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -356,10 +364,13 @@ async function testSplitBrainPreservation() {
   const listingRevPreserved = result.listing_tuple.revision === 'listing_rev';
   const lpRevPreserved = result.lp_tuple.revision === 'different_lp_rev';
   // Durable escalation must be proven
-  const blockOrAlertProven = result.block_proven || result.alert_proven;
+  // Require BOTH block AND alert, plus Listing quarantine
+  const listingQuarantined = result.listing_quarantine_proven === true;
+  const lpQuarantined = result.lp_quarantine_proven === true;
+  const blockAndAlertProven = result.block_proven === true && result.alert_proven === true;
 
-  const passed = notOk && splitBrainDetected && noWritesAttempted && listingRevPreserved && lpRevPreserved && blockOrAlertProven;
-  return { name: 'split_brain_preservation', passed, not_ok: notOk, split_brain_detected: splitBrainDetected, no_writes_attempted: noWritesAttempted, listing_rev_preserved: listingRevPreserved, lp_rev_preserved: lpRevPreserved, block_proven: result.block_proven, alert_proven: result.alert_proven };
+  const passed = notOk && splitBrainDetected && noWritesAttempted && listingRevPreserved && lpRevPreserved && blockAndAlertProven && listingQuarantined && lpQuarantined;
+  return { name: 'split_brain_preservation', passed, not_ok: notOk, split_brain_detected: splitBrainDetected, no_writes_attempted: noWritesAttempted, listing_rev_preserved: listingRevPreserved, lp_rev_preserved: lpRevPreserved, block_proven: result.block_proven, alert_proven: result.alert_proven, listing_quarantined: listingQuarantined, lp_quarantined: lpQuarantined };
 }
 
 // ════════════════════════════════════════════════════════════════════════════

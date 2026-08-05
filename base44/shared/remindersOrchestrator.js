@@ -86,12 +86,24 @@ export async function runProcessTransferReminders(deps) {
   }
 
   // ── Clear expired listing reservations (pending_transfer, older than 10 min) ──
-  const reservedListings = await entities.Listing.filter({ status: 'pending_transfer' }, '-created_date', 500).catch(() => []);
+  let reservedListings;
+  try {
+    reservedListings = await entities.Listing.filter({ status: 'pending_transfer' }, '-created_date', 500);
+  } catch (err) {
+    errors.push(`DATA_STORE_FAILURE: Failed to fetch pending_transfer listings: ${err?.message}`);
+    reservedListings = [];
+  }
   for (const l of reservedListings) {
     if (l.reservation_token && l.reservation_expires_at) {
       const expiredMs = new Date(l.reservation_expires_at).getTime();
       if (expiredMs < currentTime) {
-        const activePurchases = await entities.Purchase.filter({ listing_id: l.id, transfer_status: 'pending_transfer' }).catch(() => []);
+        let activePurchases;
+        try {
+          activePurchases = await entities.Purchase.filter({ listing_id: l.id, transfer_status: 'pending_transfer' });
+        } catch (err) {
+          errors.push(`DATA_STORE_FAILURE: Failed to fetch active purchases for listing ${l.id}: ${err?.message}`);
+          activePurchases = [];
+        }
         if (activePurchases.length === 0) {
           const clearedRev = generateClearedRevision();
           const tupleResult = await applyReservationTuple(deps, l.id, {
@@ -115,7 +127,13 @@ export async function runProcessTransferReminders(deps) {
   }
 
   // ── Clean up expired reservations on ACTIVE listings ────────────────────
-  const activeListings = await entities.Listing.filter({ status: 'active' }, '-created_date', 500).catch(() => []);
+  let activeListings;
+  try {
+    activeListings = await entities.Listing.filter({ status: 'active' }, '-created_date', 500);
+  } catch (err) {
+    errors.push(`DATA_STORE_FAILURE: Failed to fetch active listings: ${err?.message}`);
+    activeListings = [];
+  }
   for (const l of activeListings) {
     if (l.reserved_by_email && l.reservation_expires_at) {
       const expiredMs = new Date(l.reservation_expires_at).getTime();
@@ -141,7 +159,7 @@ export async function runProcessTransferReminders(deps) {
   }
 
   return {
-    status: 200,
+    status: failedIds.length > 0 || errors.length > 0 ? 500 : 200,
     body: {
       expired,
       reservationsCleared,

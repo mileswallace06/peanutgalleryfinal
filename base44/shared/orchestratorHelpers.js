@@ -755,9 +755,7 @@ export async function initializeLegacyRevision(deps, listing_id) {
       `Legacy revision L3: asymmetric revision. Listing=${listingRev}, LP=${lpRev}. Preserving both tuples. Manual resolution required.`,
       null, null, 'L3');
     return { ok: false, error: 'L3: asymmetric revision',
-      listing_quarantine_proven: r.listing_quarantine_proven,
-      lp_quarantine_proven: r.lp_quarantine_proven,
-      block_proven: r.block_proven, alert_proven: r.alert_proven, state: 'L3' };
+      ...r, state: 'L3' };
   }
 
   // ── State L4: both revisions exist but differ ────────────────────────────
@@ -766,9 +764,7 @@ export async function initializeLegacyRevision(deps, listing_id) {
       `Legacy revision L4: revisions differ. Listing=${listingRev}, LP=${lpRev}. Preserving both tuples and both mismatched revisions. Manual resolution required.`,
       null, null, 'L4');
     return { ok: false, error: 'L4: revisions differ',
-      listing_quarantine_proven: r.listing_quarantine_proven,
-      lp_quarantine_proven: r.lp_quarantine_proven,
-      block_proven: r.block_proven, alert_proven: r.alert_proven, state: 'L4' };
+      ...r, state: 'L4' };
   }
 
   // ── State L2: both revisions are absent ─────────────────────────────────
@@ -779,27 +775,21 @@ export async function initializeLegacyRevision(deps, listing_id) {
       `Legacy revision L2: Listing tuple is null or partially null (token=${listingToken}, buyer=${listingBuyer}, expiry=${listingExpiry}). Cannot initialize revision. Manual resolution required.`,
       null, null, 'L2_null_tuple');
     return { ok: false, error: 'L2: Listing tuple is null or partially null — cannot initialize revision',
-      listing_quarantine_proven: r.listing_quarantine_proven,
-      lp_quarantine_proven: r.lp_quarantine_proven,
-      block_proven: r.block_proven, alert_proven: r.alert_proven, state: 'L2_null_tuple' };
+      ...r, state: 'L2_null_tuple' };
   }
   if (!lpToken || !lpBuyer || !lpExpiry) {
     const r = await failClosedLegacyRevision(deps, listing_id,
       `Legacy revision L2: LP tuple is null or partially null (token=${lpToken}, buyer=${lpBuyer}, expiry=${lpExpiry}). Cannot initialize revision. Manual resolution required.`,
       null, null, 'L2_null_tuple');
     return { ok: false, error: 'L2: LP tuple is null or partially null — cannot initialize revision',
-      listing_quarantine_proven: r.listing_quarantine_proven,
-      lp_quarantine_proven: r.lp_quarantine_proven,
-      block_proven: r.block_proven, alert_proven: r.alert_proven, state: 'L2_null_tuple' };
+      ...r, state: 'L2_null_tuple' };
   }
   if (listingToken !== lpToken || listingBuyer !== lpBuyer || listingExpiry !== lpExpiry) {
     const r = await failClosedLegacyRevision(deps, listing_id,
       `Legacy revision L2: tuple mismatch. Listing token=${listingToken}, LP token=${lpToken}. Manual resolution required.`,
       null, null, 'L2_tuple_mismatch');
     return { ok: false, error: 'L2: tuple mismatch',
-      listing_quarantine_proven: r.listing_quarantine_proven,
-      lp_quarantine_proven: r.lp_quarantine_proven,
-      block_proven: r.block_proven, alert_proven: r.alert_proven, state: 'L2_tuple_mismatch' };
+      ...r, state: 'L2_tuple_mismatch' };
   }
 
   // Generate one unique revision
@@ -813,9 +803,7 @@ export async function initializeLegacyRevision(deps, listing_id) {
       `Legacy revision L2: LP revision write threw. Error: ${err?.message}. No Listing write performed. Manual resolution required.`,
       null, null, 'L2_lp_write_threw');
     return { ok: false, error: `L2: LP revision write failed: ${err?.message}`,
-      listing_quarantine_proven: r.listing_quarantine_proven,
-      lp_quarantine_proven: r.lp_quarantine_proven,
-      block_proven: r.block_proven, alert_proven: r.alert_proven, state: 'L2_lp_write_threw' };
+      ...r, state: 'L2_lp_write_threw' };
   }
 
   // Write to Listing
@@ -827,9 +815,7 @@ export async function initializeLegacyRevision(deps, listing_id) {
       `Legacy revision L2: Listing revision write threw AFTER LP write succeeded. LP now has revision=${newRevision}, Listing has none. This is a partial write — a retry must NOT generate a second contradictory revision. Manual resolution required.`,
       null, null, 'L2_listing_write_threw');
     return { ok: false, error: `L2: Listing revision write failed: ${err?.message}`,
-      listing_quarantine_proven: r.listing_quarantine_proven,
-      lp_quarantine_proven: r.lp_quarantine_proven,
-      block_proven: r.block_proven, alert_proven: r.alert_proven, state: 'L2_listing_write_threw' };
+      ...r, state: 'L2_listing_write_threw' };
   }
 
   // Re-fetch both records
@@ -841,9 +827,7 @@ export async function initializeLegacyRevision(deps, listing_id) {
       `Legacy revision L2: records missing after revision write. Manual resolution required.`,
       null, null, 'L2_missing_after');
     return { ok: false, error: 'L2: missing records after revision write',
-      listing_quarantine_proven: r.listing_quarantine_proven,
-      lp_quarantine_proven: r.lp_quarantine_proven,
-      block_proven: r.block_proven, alert_proven: r.alert_proven, state: 'L2_missing_after' };
+      ...r, state: 'L2_missing_after' };
   }
 
   // PARTIAL WRITE: silently failed — one write did not persist
@@ -854,9 +838,7 @@ export async function initializeLegacyRevision(deps, listing_id) {
       `Legacy revision L2: write silently did not persist. Listing revision=${listingAfter.reservation_revision}, LP revision=${lpAfter.reservation_revision}, expected=${newRevision}. A retry must NOT generate a second contradictory revision. Manual resolution required.`,
       null, null, 'L2_silent_fail');
     return { ok: false, error: `L2: revision not persisted (listingOk=${listingOk}, lpOk=${lpOk})`,
-      listing_quarantine_proven: r.listing_quarantine_proven,
-      lp_quarantine_proven: r.lp_quarantine_proven,
-      block_proven: r.block_proven, alert_proven: r.alert_proven, state: 'L2_silent_fail' };
+      ...r, state: 'L2_silent_fail' };
   }
 
   // Verify Listing tuple unchanged
@@ -867,9 +849,7 @@ export async function initializeLegacyRevision(deps, listing_id) {
       `Legacy revision L2: Listing tuple changed during write. Before token=${listingToken}, after token=${listingAfter.reservation_token}. Manual resolution required.`,
       null, null, 'L2_listing_tuple_changed');
     return { ok: false, error: 'L2: Listing tuple changed during write',
-      listing_quarantine_proven: r.listing_quarantine_proven,
-      lp_quarantine_proven: r.lp_quarantine_proven,
-      block_proven: r.block_proven, alert_proven: r.alert_proven, state: 'L2_listing_tuple_changed' };
+      ...r, state: 'L2_listing_tuple_changed' };
   }
 
   // Verify LP tuple unchanged
@@ -880,9 +860,7 @@ export async function initializeLegacyRevision(deps, listing_id) {
       `Legacy revision L2: LP tuple changed during write. Before token=${lpToken}, after token=${lpAfter.reservation_token}. Manual resolution required.`,
       null, null, 'L2_lp_tuple_changed');
     return { ok: false, error: 'L2: LP tuple changed during write',
-      listing_quarantine_proven: r.listing_quarantine_proven,
-      lp_quarantine_proven: r.lp_quarantine_proven,
-      block_proven: r.block_proven, alert_proven: r.alert_proven, state: 'L2_lp_tuple_changed' };
+      ...r, state: 'L2_lp_tuple_changed' };
   }
 
   // Verify both tuples still match each other
@@ -893,9 +871,7 @@ export async function initializeLegacyRevision(deps, listing_id) {
       `Legacy revision L2: tuples diverged after write. Manual resolution required.`,
       null, null, 'L2_tuples_diverged');
     return { ok: false, error: 'L2: tuples diverged after write',
-      listing_quarantine_proven: r.listing_quarantine_proven,
-      lp_quarantine_proven: r.lp_quarantine_proven,
-      block_proven: r.block_proven, alert_proven: r.alert_proven, state: 'L2_tuples_diverged' };
+      ...r, state: 'L2_tuples_diverged' };
   }
 
   return { ok: true, revision: newRevision, alreadyExisted: false, state: 'L2' };

@@ -4,32 +4,15 @@
  * Replaces duplicated partial verification across reserveListing, releaseReservation,
  * abortCheckout, cancelPurchase, processTransferReminders, and reconciliation paths.
  *
- * Accepts:
- *   deps           — dependency-injected { entities, now, generateRevision, hooks }
- *   listingId      — Listing ID
- *   intended       — { status, token, buyer, expiration, revision, quarantine fields }
- *   category       — mutation category (reserve, release, abort, cancel, reminder_clear, freeze, finalize)
- *   operationId    — request or operation ID for traceability
- *
- * Supports injectable synchronization hooks (production defaults are no-ops):
- *   afterAuthoritativePrefetch
- *   beforeQuarantineWrite
- *   beforeFirstTupleWrite
- *   betweenTupleWrites
- *   afterTupleVerification
- *
- * Returns structured proof:
- *   listing_prefetch_error / lp_prefetch_error
- *   first_write_attempted / lp_write_proven
- *   second_write_attempted / listing_write_proven
- *   tuple_equality_proven / status_proven / quarantine_proven
- *   split_brain_detected / block_proven / alert_proven
- *   listing_tuple / lp_tuple (complete, pre and post)
- *   exact errors
- *
- * Returns non-success when either record cannot be proven.
- * Never accepts token equality as proof of complete tuple equality.
- * Never increments a success counter until complete proof exists.
+ * 7C.9C.2 safety guarantees:
+ *   - Intended tuple invariant validation before any write
+ *   - Stale-prefetch race detection (re-fetch before first write)
+ *   - Conditional second write (Listing must match pre-write generation)
+ *   - Split-brain quarantine of BOTH records (not just block/alert)
+ *   - Second-record failure quarantine of BOTH records
+ *   - First-record failure proof (tuples unchanged, no second write)
+ *   - Separate quarantine proof fields (flag, reason, timestamp)
+ *   - Durable escalation requires BOTH block AND alert
  *
  * No Deno/Node-specific imports — pure ESM JavaScript.
  */
@@ -41,11 +24,6 @@ export function isTerminalStatus(status) {
   return TERMINAL_STATUSES.includes(status);
 }
 
-/**
- * Generate a non-null cleared-state revision for active-lifecycle clears.
- * Active listings must NEVER have reservation_revision: null.
- * Only terminal listings (sold, cancelled, deleted) may have null revision.
- */
 export function generateClearedRevision() {
   if (typeof globalThis.crypto !== 'undefined' && globalThis.crypto.randomUUID) {
     return `cleared_${globalThis.crypto.randomUUID()}`;
@@ -53,10 +31,6 @@ export function generateClearedRevision() {
   return `cleared_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
-/**
- * Extract a complete reservation tuple from a record.
- * Returns { token, buyer, expiration, revision } — all null if record is null.
- */
 function extractTuple(record) {
   if (!record) return { token: null, buyer: null, expiration: null, revision: null };
   return {
@@ -67,9 +41,6 @@ function extractTuple(record) {
   };
 }
 
-/**
- * Compare two complete tuples for exact equality on all four fields.
- */
 function tuplesMatch(a, b) {
   return a.token === b.token &&
     a.buyer === b.buyer &&
@@ -77,45 +48,156 @@ function tuplesMatch(a, b) {
     a.revision === b.revision;
 }
 
-/**
- * Apply a reservation tuple transition to both Listing and ListingPrivate.
- *
- * @param {Object} deps - Dependency-injected { entities, now, generateRevision, hooks }
- * @param {string} listingId - Listing ID
- * @param {Object} intended - Intended state after transition
- * @param {string|null} intended.token - Intended reservation_token
- * @param {string|null} intended.buyer - Intended reserved_by_email
- * @param {string|null} intended.expiration - Intended reservation_expires_at
- * @param {string|null} intended.revision - Intended reservation_revision
- * @param {string|undefined} intended.status - Intended Listing status
- * @param {string|null|undefined} intended.hidden_reason - Intended hidden_reason
- * @param {Object|undefined} intended.quarantine - { checkout_quarantined, quarantine_reason, quarantine_at }
- * @param {string} category - Mutation category
- * @param {string} operationId - Operation ID for traceability
- * @returns {Object} Structured proof result
- */
+// ── Validate intended tuple invariants before writing ──────────────────────
+export function validateIntendedTuple(intended) {
+  const isTerminal = isTerminalStatus(intended.status);
+
+  // Terminal statuses require null token, buyer, expiration, and revision
+  if (isTerminal) {
+    if (intended.token !== null && intended.token !== undefined)
+      return { valid: false, error: 'Terminal status requires null token' };
+    if (intended.buyer !== null && intended.buyer !== undefined)
+      return { valid: false, error: 'Terminal status requires null buyer' };
+    if (intended.expiration !== null && intended.expiration !== undefined)
+      return { valid: false, error: 'Terminal status requires null expiration' };
+    if (intended.revision !== null && intended.revision !== undefined)
+      return { valid: false, error: 'Terminal status requires null revision' };
+    return { valid: true };
+  }
+
+  // Active lifecycle status requires non-null revision
+  if (intended.status && intended.revision === null) {
+    return { valid: false, error: 'Active lifecycle status requires non-null revision' };
+  }
+
+  // Non-null token requires non-null buyer, expiration, and revision
+  if (intended.token) {
+    if (!intended.buyer) return { valid: false, error: 'Non-null token requires non-null buyer' };
+    if (!intended.expiration) return { valid: false, error: 'Non-null token requires non-null expiration' };
+    if (!intended.revision) return { valid: false, error: 'Non-null token requires non-null revision' };
+  }
+
+  // Null token requires null buyer and expiration
+  if (intended.token === null) {
+    if (intended.buyer !== null && intended.buyer !== undefined)
+      return { valid: false, error: 'Null token requires null buyer' };
+    if (intended.expiration !== null && intended.expiration !== undefined)
+      return { valid: false, error: 'Null token requires null expiration' };
+  }
+
+  // Quarantine reason and timestamp required when quarantine is newly set
+  if (intended.quarantine && intended.quarantine.checkout_quarantined === true) {
+    if (!intended.quarantine.quarantine_reason)
+      return { valid: false, error: 'Quarantine reason required when quarantine is newly set' };
+    if (!intended.quarantine.quarantine_at)
+      return { valid: false, error: 'Quarantine timestamp required when quarantine is newly set' };
+  }
+
+  return { valid: true };
+}
+
+// ── Quarantine both records without changing reservation fields ───────────
+async function quarantineBothRecords(deps, listingId, reason, operationId) {
+  const proof = {
+    quarantine_attempted: false,
+    listing_quarantine_proven: false,
+    lp_quarantine_proven: false,
+    quarantine_flag_proven: false,
+    quarantine_reason_proven: false,
+    quarantine_timestamp_proven: false,
+    listing_quarantine_error: null,
+    lp_quarantine_error: null,
+    listing_refetch_error: null,
+    lp_refetch_error: null,
+    quarantine_reason: reason,
+    quarantine_at: null,
+  };
+
+  const quarantineAt = new Date(deps.now()).toISOString();
+  proof.quarantine_at = quarantineAt;
+  proof.quarantine_attempted = true;
+
+  // Quarantine Listing — status and hidden_reason ONLY (no reservation field changes)
+  try {
+    await deps.entities.Listing.update(listingId, {
+      status: 'hidden',
+      hidden_reason: 'checkout_quarantine',
+    });
+  } catch (err) {
+    proof.listing_quarantine_error = err?.message || String(err);
+  }
+
+  // Quarantine ListingPrivate — quarantine fields ONLY (no reservation field changes)
+  try {
+    const lpRows = await deps.entities.ListingPrivate.filter({ listing_id: listingId });
+    const lp = lpRows[0];
+    if (lp) {
+      await deps.entities.ListingPrivate.update(lp.id, {
+        checkout_quarantined: true,
+        checkout_quarantine_reason: reason,
+        checkout_quarantined_at: quarantineAt,
+      });
+    } else {
+      proof.lp_quarantine_error = 'ListingPrivate not found';
+    }
+  } catch (err) {
+    proof.lp_quarantine_error = err?.message || String(err);
+  }
+
+  // Re-fetch and verify Listing quarantine
+  try {
+    const [listing] = await deps.entities.Listing.filter({ id: listingId });
+    proof.listing_quarantine_proven =
+      listing?.status === 'hidden' && listing?.hidden_reason === 'checkout_quarantine';
+  } catch (err) {
+    proof.listing_refetch_error = err?.message || String(err);
+  }
+
+  // Re-fetch and verify ListingPrivate quarantine
+  try {
+    const lpRows = await deps.entities.ListingPrivate.filter({ listing_id: listingId });
+    const lp = lpRows[0];
+    if (lp) {
+      proof.lp_quarantine_proven = lp.checkout_quarantined === true;
+      proof.quarantine_flag_proven = lp.checkout_quarantined === true;
+      proof.quarantine_reason_proven = lp.checkout_quarantine_reason === reason;
+      proof.quarantine_timestamp_proven = lp.checkout_quarantined_at === quarantineAt;
+    }
+  } catch (err) {
+    proof.lp_refetch_error = err?.message || String(err);
+  }
+
+  return proof;
+}
+
 export async function applyReservationTuple(deps, listingId, intended, category, operationId) {
   const result = {
     ok: false,
     category,
     operation_id: operationId || null,
     listing_id: listingId,
+    // Validation
+    validation_error: null,
     // Pre-write snapshot
-    pre_write: {
-      listing: null,
-      lp: null,
-    },
-    // Prefetch errors (separate)
+    pre_write: { listing: null, lp: null },
+    // Prefetch errors
     listing_prefetch_error: null,
     lp_prefetch_error: null,
     // Tuple classification
     split_brain_detected: false,
     split_brain_fields: [],
+    // Stale-prefetch race
+    stale_prefetch_detected: false,
+    stale_prefetch_fields: [],
     // Write attempts and proofs
     first_write_attempted: false,
     lp_write_proven: false,
     second_write_attempted: false,
     listing_write_proven: false,
+    // First-record failure proof
+    listing_unchanged_proven: false,
+    lp_unchanged_proven: false,
+    no_second_write_proven: false,
     // Post-write complete tuples
     listing_tuple: {
       token: null, buyer: null, expiration: null, revision: null,
@@ -128,7 +210,13 @@ export async function applyReservationTuple(deps, listingId, intended, category,
     // Verification results
     tuple_equality_proven: false,
     status_proven: false,
-    quarantine_proven: false,
+    // Separate quarantine proof fields
+    quarantine_flag_proven: false,
+    quarantine_reason_proven: false,
+    quarantine_timestamp_proven: false,
+    // Quarantine proof (from quarantineBothRecords)
+    listing_quarantine_proven: false,
+    lp_quarantine_proven: false,
     // Durable escalation
     block_attempted: false,
     block_proven: false,
@@ -145,10 +233,15 @@ export async function applyReservationTuple(deps, listingId, intended, category,
   };
 
   const hooks = deps.hooks || {};
-  const now = deps.now || (() => Date.now());
+
+  // ── Step 0: Validate intended tuple invariants ───────────────────────────
+  const validation = validateIntendedTuple(intended);
+  if (!validation.valid) {
+    result.validation_error = validation.error;
+    return { ...result, ok: false };
+  }
 
   // ── Step 1: Mandatory authoritative prefetch ────────────────────────────
-  // Fetch Listing and ListingPrivate separately, storing separate errors.
   let preListing = null;
   let preLP = null;
 
@@ -168,9 +261,6 @@ export async function applyReservationTuple(deps, listingId, intended, category,
     result.lp_prefetch_error = err?.message || String(err);
   }
 
-  // Require both records to exist (unless explicitly approved creation path)
-  // For a reserve on a fresh listing, both records should already exist.
-  // For migration/creation paths, use the dedicated migration logic.
   if (result.listing_prefetch_error || result.lp_prefetch_error) {
     return { ...result, ok: false };
   }
@@ -178,13 +268,13 @@ export async function applyReservationTuple(deps, listingId, intended, category,
     return { ...result, ok: false };
   }
 
-  // ── Step 2: Classify pre-write tuple ────────────────────────────────────
+  // ── Step 2: Classify pre-write tuple — split-brain detection ─────────────
   const preListingTuple = extractTuple(preListing);
   const preLPTuple = extractTuple(preLP);
   const preTuplesMatch = tuplesMatch(preListingTuple, preLPTuple);
 
   if (!preTuplesMatch) {
-    // Existing split-brain state — do NOT overwrite evidence.
+    // Pre-existing split-brain — quarantine BOTH records, preserve tuples
     result.split_brain_detected = true;
     const fields = [];
     if (preListingTuple.token !== preLPTuple.token) fields.push('token');
@@ -193,12 +283,21 @@ export async function applyReservationTuple(deps, listingId, intended, category,
     if (preListingTuple.revision !== preLPTuple.revision) fields.push('revision');
     result.split_brain_fields = fields;
 
-    // Durably block and alert — preserve both complete tuples, no writes.
-    const blockResult = await durableBlockAndAlert(deps, listingId,
-      `Split-brain detected in applyReservationTuple (${category}): fields=[${fields.join(',')}]. ` +
+    // Quarantine both records WITHOUT changing reservation fields
+    const quarantineReason = `Split-brain detected in applyReservationTuple (${category}): fields=[${fields.join(',')}]. ` +
       `Listing tuple: token=${preListingTuple.token}, buyer=${preListingTuple.buyer}, expiry=${preListingTuple.expiration}, rev=${preListingTuple.revision}. ` +
       `LP tuple: token=${preLPTuple.token}, buyer=${preLPTuple.buyer}, expiry=${preLPTuple.expiration}, rev=${preLPTuple.revision}. ` +
-      `Operation ${operationId} refused to overwrite. Manual resolution required.`,
+      `Operation ${operationId} refused to overwrite. Manual resolution required.`;
+    const qProof = await quarantineBothRecords(deps, listingId, quarantineReason, operationId);
+    result.listing_quarantine_proven = qProof.listing_quarantine_proven;
+    result.lp_quarantine_proven = qProof.lp_quarantine_proven;
+    result.quarantine_flag_proven = qProof.quarantine_flag_proven;
+    result.quarantine_reason_proven = qProof.quarantine_reason_proven;
+    result.quarantine_timestamp_proven = qProof.quarantine_timestamp_proven;
+
+    // Durably block and alert — require BOTH
+    const blockResult = await durableBlockAndAlert(deps, listingId,
+      quarantineReason,
       null, `Split-brain detected — ${listingId} (${category})`, null);
     result.block_attempted = blockResult.block_attempted;
     result.block_proven = blockResult.block_proven;
@@ -222,6 +321,78 @@ export async function applyReservationTuple(deps, listingId, intended, category,
       return { ...result, ok: false };
     }
   }
+
+  // ── Step 2b: Stale-prefetch race check ──────────────────────────────────
+  // Re-fetch both records and compare to prefetch snapshots.
+  // If either record changed in token, buyer, expiration, or revision,
+  // do NOT write the intended tuple — preserve newer values.
+  let staleListing = null;
+  let staleLP = null;
+  try {
+    const [l] = await deps.entities.Listing.filter({ id: listingId });
+    staleListing = l;
+  } catch (err) {
+    result.listing_refetch_error = `stale-prefetch listing fetch: ${err?.message || String(err)}`;
+    return { ...result, ok: false };
+  }
+  try {
+    const lpRows = await deps.entities.ListingPrivate.filter({ listing_id: listingId });
+    staleLP = lpRows[0];
+  } catch (err) {
+    result.lp_refetch_error = `stale-prefetch LP fetch: ${err?.message || String(err)}`;
+    return { ...result, ok: false };
+  }
+
+  const staleListingTuple = extractTuple(staleListing);
+  const staleLPTuple = extractTuple(staleLP);
+  const listingChanged = !tuplesMatch(preListingTuple, staleListingTuple);
+  const lpChanged = !tuplesMatch(preLPTuple, staleLPTuple);
+
+  if (listingChanged || lpChanged) {
+    result.stale_prefetch_detected = true;
+    const fields = [];
+    if (staleListingTuple.token !== preListingTuple.token) fields.push('listing_token');
+    if (staleListingTuple.buyer !== preListingTuple.buyer) fields.push('listing_buyer');
+    if (staleListingTuple.expiration !== preListingTuple.expiration) fields.push('listing_expiration');
+    if (staleListingTuple.revision !== preListingTuple.revision) fields.push('listing_revision');
+    if (staleLPTuple.token !== preLPTuple.token) fields.push('lp_token');
+    if (staleLPTuple.buyer !== preLPTuple.buyer) fields.push('lp_buyer');
+    if (staleLPTuple.expiration !== preLPTuple.expiration) fields.push('lp_expiration');
+    if (staleLPTuple.revision !== preLPTuple.revision) fields.push('lp_revision');
+    result.stale_prefetch_fields = fields;
+
+    // Quarantine both records — preserve newer values, do not overwrite
+    const quarantineReason = `Stale-prefetch race detected in applyReservationTuple (${category}): fields=[${fields.join(',')}]. ` +
+      `Prefetch Listing tuple: token=${preListingTuple.token}, buyer=${preListingTuple.buyer}. ` +
+      `Current Listing tuple: token=${staleListingTuple.token}, buyer=${staleListingTuple.buyer}. ` +
+      `Prefetch LP tuple: token=${preLPTuple.token}, buyer=${preLPTuple.buyer}. ` +
+      `Current LP tuple: token=${staleLPTuple.token}, buyer=${staleLPTuple.buyer}. ` +
+      `Operation ${operationId} refused to overwrite newer values. Manual resolution required.`;
+    const qProof = await quarantineBothRecords(deps, listingId, quarantineReason, operationId);
+    result.listing_quarantine_proven = qProof.listing_quarantine_proven;
+    result.lp_quarantine_proven = qProof.lp_quarantine_proven;
+    result.quarantine_flag_proven = qProof.quarantine_flag_proven;
+    result.quarantine_reason_proven = qProof.quarantine_reason_proven;
+    result.quarantine_timestamp_proven = qProof.quarantine_timestamp_proven;
+
+    const blockResult = await durableBlockAndAlert(deps, listingId,
+      quarantineReason,
+      null, `Stale-prefetch race — ${listingId} (${category})`, null);
+    result.block_attempted = blockResult.block_attempted;
+    result.block_proven = blockResult.block_proven;
+    result.alert_attempted = blockResult.alert_attempted;
+    result.alert_proven = blockResult.alert_proven;
+
+    // Populate tuples with current (newer) values
+    result.listing_tuple = { ...staleListingTuple, status: staleListing?.status ?? null, hidden_reason: staleListing?.hidden_reason ?? null };
+    result.lp_tuple = { ...staleLPTuple, checkout_quarantined: staleLP?.checkout_quarantined ?? null, quarantine_reason: staleLP?.checkout_quarantine_reason ?? null, quarantine_at: staleLP?.checkout_quarantined_at ?? null };
+
+    return { ...result, ok: false };
+  }
+
+  // Update pre-fetch references to the stale-checked (current) values
+  preListing = staleListing;
+  preLP = staleLP;
 
   // ── Step 3: Write the intended complete tuple to ListingPrivate (first) ─
   const firstFields = {
@@ -258,13 +429,20 @@ export async function applyReservationTuple(deps, listingId, intended, category,
     await deps.entities.ListingPrivate.update(preLP.id, firstFields);
   } catch (err) {
     result.first_write_error = err?.message || String(err);
-    // First-record failure: prove no second-record write was attempted
+    // First-record failure: prove no second write and tuples unchanged
     result.second_write_attempted = false;
-    // Re-fetch both records to prove pre-write tuples remain unchanged
+    result.no_second_write_proven = true;
+
+    // Re-fetch both records and compare each field to pre-write snapshot
     try {
       const [reListing] = await deps.entities.Listing.filter({ id: listingId });
       const reListingTuple = extractTuple(reListing);
       result.listing_tuple = { ...reListingTuple, status: reListing?.status ?? null, hidden_reason: reListing?.hidden_reason ?? null };
+      result.listing_unchanged_proven =
+        reListingTuple.token === preListingTuple.token &&
+        reListingTuple.buyer === preListingTuple.buyer &&
+        reListingTuple.expiration === preListingTuple.expiration &&
+        reListingTuple.revision === preListingTuple.revision;
     } catch (refetchErr) {
       result.listing_refetch_error = `first-failure listing refetch: ${refetchErr?.message || String(refetchErr)}`;
     }
@@ -273,6 +451,11 @@ export async function applyReservationTuple(deps, listingId, intended, category,
       const reLP = reLPRows[0];
       const reLPTuple = extractTuple(reLP);
       result.lp_tuple = { ...reLPTuple, checkout_quarantined: reLP?.checkout_quarantined ?? null, quarantine_reason: reLP?.checkout_quarantine_reason ?? null, quarantine_at: reLP?.checkout_quarantined_at ?? null };
+      result.lp_unchanged_proven =
+        reLPTuple.token === preLPTuple.token &&
+        reLPTuple.buyer === preLPTuple.buyer &&
+        reLPTuple.expiration === preLPTuple.expiration &&
+        reLPTuple.revision === preLPTuple.revision;
     } catch (refetchErr) {
       result.lp_refetch_error = `first-failure LP refetch: ${refetchErr?.message || String(refetchErr)}`;
     }
@@ -286,9 +469,27 @@ export async function applyReservationTuple(deps, listingId, intended, category,
       await hooks.betweenTupleWrites(deps, listingId);
     } catch (e) {
       result.hook_error = `betweenTupleWrites hook: ${e?.message || String(e)}`;
-      // Hook failed after first write succeeded — second-record failure path
-      return await handleSecondRecordFailure(deps, listingId, result, `betweenTupleWrites hook: ${e?.message || String(e)}`);
+      return await handleSecondRecordFailure(deps, listingId, result, preListingTuple, preLPTuple, `betweenTupleWrites hook: ${e?.message || String(e)}`);
     }
+  }
+
+  // ── Step 3b: Conditional check before second write ─────────────────────
+  // Re-fetch Listing and verify it still matches the expected pre-write generation.
+  // A newer Listing mutation must never be overwritten.
+  let preSecondWriteListing = null;
+  try {
+    const [l] = await deps.entities.Listing.filter({ id: listingId });
+    preSecondWriteListing = l;
+  } catch (err) {
+    result.listing_refetch_error = `pre-second-write listing fetch: ${err?.message || String(err)}`;
+    return await handleSecondRecordFailure(deps, listingId, result, preListingTuple, preLPTuple, `pre-second-write listing fetch failed: ${err?.message || String(err)}`);
+  }
+
+  const preSecondWriteListingTuple = extractTuple(preSecondWriteListing);
+  if (!tuplesMatch(preSecondWriteListingTuple, preListingTuple)) {
+    // Listing changed between writes — do not overwrite the newer value
+    return await handleSecondRecordFailure(deps, listingId, result, preListingTuple, preLPTuple,
+      `Listing changed between writes. Pre-write token=${preListingTuple.token}, current token=${preSecondWriteListingTuple.token}. Refused to overwrite newer Listing mutation.`);
   }
 
   // ── Step 4: Write the identical intended complete tuple to Listing (second)
@@ -310,8 +511,7 @@ export async function applyReservationTuple(deps, listingId, intended, category,
     await deps.entities.Listing.update(listingId, secondFields);
   } catch (err) {
     result.second_write_error = err?.message || String(err);
-    // Second-record failure: LP changed but Listing failed
-    return await handleSecondRecordFailure(deps, listingId, result, err?.message || String(err));
+    return await handleSecondRecordFailure(deps, listingId, result, preListingTuple, preLPTuple, err?.message || String(err));
   }
 
   // ── Step 5: Re-fetch both records authoritatively ───────────────────────
@@ -342,7 +542,6 @@ export async function applyReservationTuple(deps, listingId, intended, category,
       status: postListing.status ?? null,
       hidden_reason: postListing.hidden_reason ?? null,
     };
-    // Listing is the SECOND record written
     result.listing_write_proven =
       result.listing_tuple.token === intended.token &&
       result.listing_tuple.buyer === intended.buyer &&
@@ -360,7 +559,6 @@ export async function applyReservationTuple(deps, listingId, intended, category,
       quarantine_reason: postLP.checkout_quarantine_reason ?? null,
       quarantine_at: postLP.checkout_quarantined_at ?? null,
     };
-    // LP is the FIRST record written
     result.lp_write_proven =
       result.lp_tuple.token === intended.token &&
       result.lp_tuple.buyer === intended.buyer &&
@@ -368,25 +566,35 @@ export async function applyReservationTuple(deps, listingId, intended, category,
       result.lp_tuple.revision === intended.revision;
   }
 
-  // Complete tuple equality: ALL four fields must match on both records
   result.tuple_equality_proven =
     result.listing_tuple.token === result.lp_tuple.token &&
     result.listing_tuple.buyer === result.lp_tuple.buyer &&
     result.listing_tuple.expiration === result.lp_tuple.expiration &&
     result.listing_tuple.revision === result.lp_tuple.revision;
 
-  // Status proof: Listing status matches intended (if specified)
   if (intended.status !== undefined) {
     result.status_proven = result.listing_tuple.status === intended.status;
   } else {
     result.status_proven = true;
   }
 
-  // Quarantine proof: quarantine fields match intended (if specified)
+  // Separate quarantine proof fields
   if (intended.quarantine && intended.quarantine.checkout_quarantined !== undefined) {
-    result.quarantine_proven = result.lp_tuple.checkout_quarantined === intended.quarantine.checkout_quarantined;
+    result.quarantine_flag_proven = result.lp_tuple.checkout_quarantined === intended.quarantine.checkout_quarantined;
+    if (intended.quarantine.quarantine_reason !== undefined) {
+      result.quarantine_reason_proven = result.lp_tuple.quarantine_reason === intended.quarantine.quarantine_reason;
+    } else {
+      result.quarantine_reason_proven = true;
+    }
+    if (intended.quarantine.quarantine_at !== undefined) {
+      result.quarantine_timestamp_proven = result.lp_tuple.quarantine_at === intended.quarantine.quarantine_at;
+    } else {
+      result.quarantine_timestamp_proven = true;
+    }
   } else {
-    result.quarantine_proven = true;
+    result.quarantine_flag_proven = true;
+    result.quarantine_reason_proven = true;
+    result.quarantine_timestamp_proven = true;
   }
 
   // ── Hook: afterTupleVerification ─────────────────────────────────────────
@@ -402,25 +610,26 @@ export async function applyReservationTuple(deps, listingId, intended, category,
 
   // ── Step 7: Return structured proof ──────────────────────────────────────
   result.ok = result.lp_write_proven && result.listing_write_proven &&
-    result.tuple_equality_proven && result.status_proven && result.quarantine_proven &&
+    result.tuple_equality_proven && result.status_proven &&
+    result.quarantine_flag_proven && result.quarantine_reason_proven && result.quarantine_timestamp_proven &&
     !result.first_write_error && !result.second_write_error &&
     !result.hook_error && !result.listing_refetch_error && !result.lp_refetch_error;
 
   return result;
 }
 
-/**
- * Handle second-record failure: LP changed but Listing failed.
- *
- * Preserves the exact resulting split state, attempts fail-closed quarantine
- * without changing either reservation tuple, sets a durable recovery block,
- * creates a critical alert, and returns structured non-success.
- */
-async function handleSecondRecordFailure(deps, listingId, result, errorMessage) {
-  // Capture pre-write and post-failure tuples
+// ── Handle second-record failure: LP written but Listing failed ────────────
+// Quarantines BOTH records without changing reservation tuples,
+// durably blocks and alerts (requires BOTH), classifies split state,
+// and returns structured non-success.
+async function handleSecondRecordFailure(deps, listingId, result, preListingTuple, preLPTuple, errorMessage) {
+  // Capture post-failure tuples
+  let postListingTuple = preListingTuple;
+  let postLPTuple = preLPTuple;
+
   try {
     const [postListing] = await deps.entities.Listing.filter({ id: listingId });
-    const postListingTuple = extractTuple(postListing);
+    postListingTuple = extractTuple(postListing);
     result.listing_tuple = { ...postListingTuple, status: postListing?.status ?? null, hidden_reason: postListing?.hidden_reason ?? null };
   } catch (err) {
     result.listing_refetch_error = `second-failure listing refetch: ${err?.message || String(err)}`;
@@ -429,23 +638,42 @@ async function handleSecondRecordFailure(deps, listingId, result, errorMessage) 
   try {
     const lpRows = await deps.entities.ListingPrivate.filter({ listing_id: listingId });
     const postLP = lpRows[0];
-    const postLPTuple = extractTuple(postLP);
+    postLPTuple = extractTuple(postLP);
     result.lp_tuple = { ...postLPTuple, checkout_quarantined: postLP?.checkout_quarantined ?? null, quarantine_reason: postLP?.checkout_quarantine_reason ?? null, quarantine_at: postLP?.checkout_quarantined_at ?? null };
   } catch (err) {
     result.lp_refetch_error = `second-failure LP refetch: ${err?.message || String(err)}`;
   }
 
-  // Durably block and alert — preserve split state, do not retry Listing write
+  // Quarantine both records WITHOUT changing reservation tuples
+  const quarantineReason = `Second-record failure in applyReservationTuple (${result.category}): LP written but Listing failed. ` +
+    `Error: ${errorMessage}. ` +
+    `LP tuple: token=${postLPTuple.token}, buyer=${postLPTuple.buyer}, expiry=${postLPTuple.expiration}, rev=${postLPTuple.revision}. ` +
+    `Listing tuple: token=${postListingTuple.token}, buyer=${postListingTuple.buyer}, expiry=${postListingTuple.expiration}, rev=${postListingTuple.revision}. ` +
+    `Operation ${result.operation_id} refused to retry. Manual resolution required.`;
+  const qProof = await quarantineBothRecords(deps, listingId, quarantineReason, result.operation_id);
+  result.listing_quarantine_proven = qProof.listing_quarantine_proven;
+  result.lp_quarantine_proven = qProof.lp_quarantine_proven;
+  result.quarantine_flag_proven = qProof.quarantine_flag_proven;
+  result.quarantine_reason_proven = qProof.quarantine_reason_proven;
+  result.quarantine_timestamp_proven = qProof.quarantine_timestamp_proven;
+
+  // Durably block and alert — require BOTH
   const blockResult = await durableBlockAndAlert(deps, listingId,
-    `Second-record failure in applyReservationTuple (${result.category}): LP written but Listing failed. ` +
-    `Error: ${errorMessage}. LP tuple: token=${result.lp_tuple.token}, buyer=${result.lp_tuple.buyer}. ` +
-    `Listing tuple: token=${result.listing_tuple.token}, buyer=${result.listing_tuple.buyer}. ` +
-    `Operation ${result.operation_id} refused to retry. Manual resolution required.`,
+    quarantineReason,
     null, `Second-record failure — ${listingId} (${result.category})`, null);
   result.block_attempted = blockResult.block_attempted;
   result.block_proven = blockResult.block_proven;
   result.alert_attempted = blockResult.alert_attempted;
   result.alert_proven = blockResult.alert_proven;
+
+  // Classify the split state
+  result.split_brain_detected = !tuplesMatch(postListingTuple, postLPTuple);
+  if (result.split_brain_detected) {
+    if (postListingTuple.token !== postLPTuple.token) result.split_brain_fields.push('token');
+    if (postListingTuple.buyer !== postLPTuple.buyer) result.split_brain_fields.push('buyer');
+    if (postListingTuple.expiration !== postLPTuple.expiration) result.split_brain_fields.push('expiration');
+    if (postListingTuple.revision !== postLPTuple.revision) result.split_brain_fields.push('revision');
+  }
 
   return { ...result, ok: false };
 }
