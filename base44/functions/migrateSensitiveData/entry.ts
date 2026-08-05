@@ -97,6 +97,7 @@ Deno.serve(async (req) => {
               proof_url: l.proof_url, proof_status: l.proof_status, proof_rejection_reason: l.proof_rejection_reason,
               ticket_file_url: l.ticket_file_url, reservation_token: l.reservation_token,
               reservation_expires_at: l.reservation_expires_at, reserved_by_email: l.reserved_by_email,
+              reservation_revision: l.reservation_revision,
               transfer_verification_proof_url: l.transfer_verification_proof_url, transfer_verified_by: l.transfer_verified_by,
               transfer_verified_notes: l.transfer_verified_notes, pg_transfer_proof_url: l.pg_transfer_proof_url,
               pg_transfer_notes: l.pg_transfer_notes, pg_fulfilled_at: l.pg_fulfilled_at, pg_fulfilled_by: l.pg_fulfilled_by,

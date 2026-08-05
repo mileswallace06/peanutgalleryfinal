@@ -300,3 +300,179 @@ export async function cancelPIAndQuarantine(deps, paymentIntentId, listing_id, p
 
   return { cancelOk: true, allStepsOk: true };
 }
+
+// ── Revision generation ───────────────────────────────────────────────────
+// Shared monotonic revision generator. Every legitimate mutation of token,
+// buyer, or expiration must call this and write the result to BOTH Listing
+// and ListingPrivate. Every clear operation must set reservation_revision to
+// null on both records as part of a verified terminal clear.
+export function generateRevision() {
+  if (typeof globalThis.crypto !== 'undefined' && globalThis.crypto.randomUUID) {
+    return globalThis.crypto.randomUUID();
+  }
+  return `rev_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+// ── Durable block and alert ────────────────────────────────────────────────
+// REQUIRED conflict handling: replaces all `.catch(() => {})` and unverified
+// best-effort persistence. Attempts to set recovery_blocked=true, re-fetches
+// and verifies the block, creates a critical AdminAlert, and verifies the alert
+// through re-query. Reports exactly which durable action was proven. Never
+// says "blocked," "alerted," or "persisted" unless that state was proven.
+//
+// Returns: { blocked: boolean, alerted: boolean }
+export async function durableBlockAndAlert(deps, listing_id, reason, piId, title) {
+  const result = { blocked: false, alerted: false };
+
+  // 1. Attempt to set recovery_blocked=true
+  let blockWriteOk = false;
+  try {
+    await upsertListingPrivate(deps, listing_id, {
+      recovery_blocked: true,
+      recovery_blocked_reason: reason,
+      recovery_blocked_at: new Date(deps.now()).toISOString(),
+    });
+    blockWriteOk = true;
+  } catch (_) {
+    // Write threw — continue to alert
+  }
+
+  // 2. Re-fetch LP and verify the block fields
+  if (blockWriteOk) {
+    try {
+      const lpVerify = await getListingPrivate(deps, listing_id);
+      if (lpVerify && lpVerify.recovery_blocked === true) {
+        result.blocked = true;
+      }
+    } catch (_) {
+      // Re-fetch failed — cannot prove block
+    }
+  }
+
+  // 3. Attempt to create the critical AdminAlert
+  let alertId = null;
+  try {
+    const alert = await deps.entities.AdminAlert.create({
+      alert_type: 'admin_action_required',
+      priority: 'critical',
+      title: title || `Finalization conflict — ${listing_id}`,
+      description: `${reason} PI ID: ${piId || 'N/A'}.`,
+      reference_type: 'listing',
+      reference_id: listing_id,
+    });
+    alertId = alert?.id;
+  } catch (_) {
+    // Alert create threw
+  }
+
+  // 4. Verify the alert through re-query
+  if (alertId) {
+    try {
+      const alerts = await deps.entities.AdminAlert.filter({ id: alertId });
+      if (alerts.length > 0) {
+        result.alerted = true;
+      }
+    } catch (_) {
+      // Re-query failed — cannot prove alert
+    }
+  }
+
+  return result;
+}
+
+// ── Legacy revision initialization ─────────────────────────────────────────
+// Safe compatibility path for reservations created before reservation_revision
+// existed. Both Listing and ListingPrivate must contain the exact same non-null
+// token, buyer, and expiration. Both revisions must be null or absent.
+// Generates one revision, writes the same revision to both records, re-fetches
+// both, and requires exact tuple and revision equality before continuing.
+//
+// If only one record has a revision, revisions differ, either tuple differs,
+// or either write cannot be proven → quarantine, block, alert, non-2xx.
+// Never initializes a revision over a conflicting or partially null tuple.
+//
+// Returns: { ok: boolean, revision?: string, error?: string, blocked?: boolean }
+export async function initializeLegacyRevision(deps, listing_id) {
+  const [listing] = await deps.entities.Listing.filter({ id: listing_id });
+  const lp = await getListingPrivate(deps, listing_id);
+
+  if (!listing || !lp) return { ok: false, error: 'missing records' };
+
+  const listingRev = listing.reservation_revision || null;
+  const lpRev = lp.reservation_revision || null;
+
+  // If both revisions exist and match, nothing to do
+  if (listingRev && lpRev && listingRev === lpRev) {
+    return { ok: true, revision: listingRev, alreadyExisted: true };
+  }
+
+  // If only one record has a revision → blocked
+  if ((listingRev && !lpRev) || (!listingRev && lpRev)) {
+    const r = await durableBlockAndAlert(deps, listing_id,
+      `Legacy revision init blocked: asymmetric revision. Listing=${listingRev}, LP=${lpRev}. Manual resolution required.`, null);
+    return { ok: false, error: 'asymmetric revision', blocked: r.blocked, alerted: r.alerted };
+  }
+
+  // Both revisions are null — verify tuples match and are fully non-null
+  if (!listing.reservation_token || !listing.reserved_by_email || !listing.reservation_expires_at) {
+    return { ok: false, error: 'Listing tuple is null or partially null — cannot initialize revision' };
+  }
+  if (!lp.reservation_token || !lp.reserved_by_email || !lp.reservation_expires_at) {
+    return { ok: false, error: 'LP tuple is null or partially null — cannot initialize revision' };
+  }
+
+  // Verify tuples match exactly
+  if (listing.reservation_token !== lp.reservation_token ||
+      listing.reserved_by_email !== lp.reserved_by_email ||
+      listing.reservation_expires_at !== lp.reservation_expires_at) {
+    const r = await durableBlockAndAlert(deps, listing_id,
+      `Legacy revision init blocked: tuple mismatch. Listing token=${listing.reservation_token}, LP token=${lp.reservation_token}. Manual resolution required.`, null);
+    return { ok: false, error: 'tuple mismatch', blocked: r.blocked, alerted: r.alerted };
+  }
+
+  // Generate one revision
+  const newRevision = generateRevision();
+
+  // Write to LP first
+  try {
+    await upsertListingPrivate(deps, listing_id, { reservation_revision: newRevision });
+  } catch (err) {
+    return { ok: false, error: `LP revision write failed: ${err?.message}` };
+  }
+
+  // Write to Listing
+  try {
+    await deps.entities.Listing.update(listing_id, { reservation_revision: newRevision });
+  } catch (err) {
+    return { ok: false, error: `Listing revision write failed: ${err?.message}` };
+  }
+
+  // Re-fetch both records
+  const [listingAfter] = await deps.entities.Listing.filter({ id: listing_id });
+  const lpAfter = await getListingPrivate(deps, listing_id);
+
+  if (!listingAfter || !lpAfter) {
+    return { ok: false, error: 'missing records after revision write' };
+  }
+
+  // Require exact tuple and revision equality
+  if (listingAfter.reservation_revision !== newRevision || lpAfter.reservation_revision !== newRevision) {
+    // One write silently failed — check which
+    const listingOk = listingAfter.reservation_revision === newRevision;
+    const lpOk = lpAfter.reservation_revision === newRevision;
+    const r = await durableBlockAndAlert(deps, listing_id,
+      `Legacy revision init failed: write silently did not persist. Listing revision=${listingAfter.reservation_revision}, LP revision=${lpAfter.reservation_revision}, expected=${newRevision}. Manual resolution required.`, null);
+    return { ok: false, error: `revision not persisted (listingOk=${listingOk}, lpOk=${lpOk})`, blocked: r.blocked, alerted: r.alerted };
+  }
+
+  // Verify tuple unchanged after write
+  if (listingAfter.reservation_token !== listing.reservation_token ||
+      listingAfter.reserved_by_email !== listing.reserved_by_email ||
+      listingAfter.reservation_expires_at !== listing.reservation_expires_at) {
+    const r = await durableBlockAndAlert(deps, listing_id,
+      `Legacy revision init failed: tuple changed during write. Manual resolution required.`, null);
+    return { ok: false, error: 'tuple changed during revision write', blocked: r.blocked, alerted: r.alerted };
+  }
+
+  return { ok: true, revision: newRevision, alreadyExisted: false };
+}

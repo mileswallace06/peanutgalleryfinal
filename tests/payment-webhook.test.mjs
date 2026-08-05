@@ -487,9 +487,9 @@ async function testOldMatchingTupleCompletesSafely() {
 // ════════════════════════════════════════════════════════════════════════════
 async function testAlreadySoldNullTupleIsIdempotent() {
   const { seed, listingId, piId, purchaseId, buyerEmail, sellerEmail, token } = createDefaultSeed({
-    listing: { status: 'sold', reservation_token: null, reserved_by_email: null, reservation_expires_at: null },
-    lp: { reservation_token: null, reserved_by_email: null, reservation_expires_at: null },
-    pp: { payment_captured: true, payment_capture_failed: false, freeze_finalized_at: '2026-01-01T00:00:00.000Z', frozen_reservation_token: 'res_token_123' },
+    listing: { status: 'sold', reservation_token: null, reserved_by_email: null, reservation_expires_at: null, reservation_revision: null, hidden_reason: null },
+    lp: { reservation_token: null, reserved_by_email: null, reservation_expires_at: null, reservation_revision: null, checkout_quarantined: false },
+    pp: { payment_captured: true, payment_capture_failed: false, freeze_finalized_at: '2026-01-01T00:00:00.000Z', frozen_reservation_token: 'res_token_123', frozen_buyer_email: 'buyer@test', frozen_reservation_expires_at: '2026-08-01T10:10:00.000Z', frozen_reservation_revision: 'rev_001' },
     purchase: { transfer_status: 'completed', payment_captured: true, payment_capture_failed: false, buyer_confirmed: true },
   });
   const deps = createMockDeps({ seed });

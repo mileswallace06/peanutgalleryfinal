@@ -109,7 +109,7 @@ Deno.serve(async (req) => {
     // Phase 1B: write authoritative ListingPrivate first, then legacy Listing mirror
     try {
       await upsertListingPrivate(base44, purchase.listing_id, {
-        reserved_by_email: null, reservation_token: null, reservation_expires_at: null,
+        reserved_by_email: null, reservation_token: null, reservation_expires_at: null, reservation_revision: null,
       });
     } catch (err) {
       await alertPrivateWriteFailure(base44, { entity: 'ListingPrivate', reference_id: purchase.listing_id, reference_type: 'listing', error: err });
@@ -119,6 +119,7 @@ Deno.serve(async (req) => {
       reservation_token: null,
       reservation_expires_at: null,
       reserved_by_email: null,
+      reservation_revision: null,
     });
   }
 

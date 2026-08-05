@@ -53,6 +53,8 @@ import {
   getListingPrivate, upsertListingPrivate,
   alertPrivateWriteFailure,
   quarantineListing,
+  durableBlockAndAlert,
+  initializeLegacyRevision,
 } from './orchestratorHelpers.js';
 import { QUARANTINE_DRAIN_MS } from './checkoutLogic.js';
 
@@ -98,8 +100,8 @@ export async function freezeCapturedPayment(deps, purchase, pp, pi) {
   const originalBuyer = pp.buyer_email;
 
   // ── Step 0: Re-fetch ALL FOUR records ─────────────────────────────────────
-  const [listingFresh] = await deps.entities.Listing.filter({ id: listingId });
-  const lpFresh = await getListingPrivate(deps, listingId);
+  let [listingFresh] = await deps.entities.Listing.filter({ id: listingId });
+  let lpFresh = await getListingPrivate(deps, listingId);
   const [purchaseFresh] = await deps.entities.Purchase.filter({ id: purchaseId });
   const ppFresh = await getPurchasePrivate(deps, purchaseId);
 
@@ -142,24 +144,17 @@ export async function freezeCapturedPayment(deps, purchase, pp, pi) {
     return { ok: false, step: 'no_expiration', error: 'reservation expiration missing on Listing or LP' };
   }
   if (listingExpiry !== lpExpiry) {
-    // Expiration split-brain — quarantine, alert, non-2xx
+    // Expiration split-brain — quarantine, durably block+alert, non-2xx
     const qResult = await quarantineListing(deps, listingId,
       `Expiration split-brain: Listing expiry=${listingExpiry}, LP expiry=${lpExpiry}. Purchase: ${purchaseId}.`,
       purchaseId, pi.id);
-    let alertCreated = false;
-    try {
-      await deps.entities.AdminAlert.create({
-        alert_type: 'admin_action_required', priority: 'critical',
-        title: `Expiration split-brain — ${listingId}`,
-        description: `PI ${pi.id} succeeded but Listing and LP have different expiration. Listing: ${listingExpiry}, LP: ${lpExpiry}. Quarantined: ${qResult.quarantined}.`,
-        reference_type: 'listing', reference_id: listingId,
-      });
-      alertCreated = true;
-    } catch (_) { /* alert failure must not suppress the error */ }
-    if (!qResult.quarantined && !alertCreated) {
-      return { ok: false, step: 'expiration_split_brain', error: 'quarantine AND alert both failed' };
+    const blockResult = await durableBlockAndAlert(deps, listingId,
+      `Expiration split-brain: Listing expiry=${listingExpiry}, LP expiry=${lpExpiry}. PI: ${pi.id}. Quarantined: ${qResult.quarantined}. Manual resolution required.`,
+      pi.id);
+    if (!qResult.quarantined && !blockResult.blocked && !blockResult.alerted) {
+      return { ok: false, step: 'expiration_split_brain', error: 'quarantine, block, AND alert all failed' };
     }
-    return { ok: false, step: 'expiration_split_brain', error: 'expiration mismatch — listing quarantined' };
+    return { ok: false, step: 'expiration_split_brain', error: 'expiration mismatch — listing quarantined', quarantined: qResult.quarantined, blocked: blockResult.blocked, alerted: blockResult.alerted };
   }
   const derivedExpiry = listingExpiry; // From Listing (verified == LP)
 
@@ -167,12 +162,25 @@ export async function freezeCapturedPayment(deps, purchase, pp, pi) {
   const listingRev = listingFresh.reservation_revision;
   const lpRev = lpFresh.reservation_revision;
   if (!listingRev || !lpRev) {
-    return { ok: false, step: 'no_revision', error: 'reservation_revision missing on Listing or LP' };
+    // Legacy revision initialization — safe compatibility path
+    const initResult = await initializeLegacyRevision(deps, listingId);
+    if (!initResult.ok) {
+      return { ok: false, step: 'legacy_revision_init', error: initResult.error };
+    }
+    // Re-fetch after initialization
+    const [listingAfterInit] = await deps.entities.Listing.filter({ id: listingId });
+    const lpAfterInit = await getListingPrivate(deps, listingId);
+    if (!listingAfterInit?.reservation_revision || !lpAfterInit?.reservation_revision) {
+      return { ok: false, step: 'legacy_revision_init_verify', error: 'revision not persisted after initialization' };
+    }
+    if (listingAfterInit.reservation_revision !== lpAfterInit.reservation_revision) {
+      return { ok: false, step: 'legacy_revision_init_mismatch', error: 'revision mismatch after initialization' };
+    }
+    // Update local references with initialized revision
+    listingFresh = listingAfterInit;
+    lpFresh = lpAfterInit;
   }
-  if (listingRev !== lpRev) {
-    return { ok: false, step: 'revision_mismatch', error: `revision mismatch: Listing=${listingRev}, LP=${lpRev}` };
-  }
-  const derivedRevision = listingRev;
+  const derivedRevision = listingFresh.reservation_revision;
 
   // ── Step 0e: Conflict detection — different non-null reservation ──────────
   const listingHasConflictingToken = listingFresh.reservation_token && listingFresh.reservation_token !== originalToken;
@@ -184,20 +192,13 @@ export async function freezeCapturedPayment(deps, purchase, pp, pi) {
     const qResult = await quarantineListing(deps, listingId,
       `Reconciliation conflict: newer reservation exists. PP token=${originalToken}, Listing token=${listingFresh.reservation_token}, LP token=${lpFresh.reservation_token}. Purchase: ${purchaseId}.`,
       purchaseId, pi.id);
-    let alertCreated = false;
-    try {
-      await deps.entities.AdminAlert.create({
-        alert_type: 'admin_action_required', priority: 'critical',
-        title: `Reconciliation conflict — newer reservation preserved — ${listingId}`,
-        description: `PI ${pi.id} succeeded but listing has a different non-null reservation. PP token=${originalToken}, Listing token=${listingFresh.reservation_token}, LP token=${lpFresh.reservation_token}. Quarantined: ${qResult.quarantined}.`,
-        reference_type: 'listing', reference_id: listingId,
-      });
-      alertCreated = true;
-    } catch (_) { /* alert failure must not suppress the error */ }
-    if (!qResult.quarantined && !alertCreated) {
-      return { ok: false, step: 'conflict', error: 'newer reservation detected, quarantine AND alert both failed' };
+    const blockResult = await durableBlockAndAlert(deps, listingId,
+      `Reconciliation conflict: newer reservation exists. PP token=${originalToken}, Listing token=${listingFresh.reservation_token}, LP token=${lpFresh.reservation_token}. PI: ${pi.id}. Quarantined: ${qResult.quarantined}. Manual resolution required.`,
+      pi.id, `Reconciliation conflict — newer reservation preserved — ${listingId}`);
+    if (!qResult.quarantined && !blockResult.blocked && !blockResult.alerted) {
+      return { ok: false, step: 'conflict', error: 'quarantine, block, AND alert all failed' };
     }
-    return { ok: false, step: 'conflict', error: 'newer reservation preserved — listing quarantined' };
+    return { ok: false, step: 'conflict', error: `conflict detected — quarantined=${qResult.quarantined}, blocked=${blockResult.blocked}, alerted=${blockResult.alerted}`, quarantined: qResult.quarantined, blocked: blockResult.blocked, alerted: blockResult.alerted };
   }
 
   // ── Step 1: Freeze PurchasePrivate — record immutable tuple ────────────────
@@ -373,8 +374,8 @@ export async function finalizeCapturedPayment(deps, listingId) {
     needClearLP = true; needClearListing = true; needSetFinalized = true;
   }
   else if (hasFinalizationStarted && listingNull && lpMatches) {
-    // LP already cleared, Listing still has tuple — clear Listing + set finalized
-    needClearLP = false; needClearListing = true; needSetFinalized = true;
+    // State B: Listing already cleared, LP still has tuple — clear LP, ensure Listing sold, finalize
+    needClearLP = true; needClearListing = true; needSetFinalized = true;
   }
   else if (hasFinalizationStarted && lpNull && listingMatches) {
     // LP reservation fields cleared but may still be quarantined, Listing still has tuple
@@ -387,23 +388,11 @@ export async function finalizeCapturedPayment(deps, listingId) {
     needSetFinalized = true;
   }
   else {
-    // Any other state → block, preserve, alert
-    try {
-      await upsertListingPrivate(deps, listingId, {
-        recovery_blocked: true,
-        recovery_blocked_reason: `Finalization blocked: tuple does not match frozen tuple and no verified finalization progress. Frozen token=${frozenToken}, Listing token=${listing?.reservation_token}, LP token=${lpFresh?.reservation_token}. ListingNull=${listingNull}, LPNull=${lpNull}, hasFinalizationStarted=${hasFinalizationStarted}. Manual resolution required.`,
-        recovery_blocked_at: new Date(deps.now()).toISOString(),
-      });
-    } catch (_) { /* best effort */ }
-    try {
-      await deps.entities.AdminAlert.create({
-        alert_type: 'admin_action_required', priority: 'critical',
-        title: `Finalization blocked — tuple mismatch — ${listingId}`,
-        description: `Frozen token=${frozenToken}, buyer=${frozenBuyer}, expiry=${frozenExpiry}, revision=${frozenRevision}. Current Listing token=${listing?.reservation_token}, LP token=${lpFresh?.reservation_token}. ListingNull=${listingNull}, LPNull=${lpNull}, hasFinalizationStarted=${hasFinalizationStarted}. Reservation preserved. Manual resolution required.`,
-        reference_type: 'listing', reference_id: listingId,
-      });
-    } catch (_) { /* alert failure must not suppress the error */ }
-    return { ok: false, step: 'conflict', error: 'current reservation does not match frozen tuple and no verified finalization progress — preserved and blocked' };
+    // State E: Any different non-null field exists → preserve, durably block, alert, non-2xx
+    const blockResult = await durableBlockAndAlert(deps, listingId,
+      `Finalization blocked: tuple does not match frozen tuple and no verified finalization progress. Frozen token=${frozenToken}, Listing token=${listing?.reservation_token}, LP token=${lpFresh?.reservation_token}. ListingNull=${listingNull}, LPNull=${lpNull}, hasFinalizationStarted=${hasFinalizationStarted}. Manual resolution required.`,
+      null);
+    return { ok: false, step: 'conflict', error: 'current reservation does not match frozen tuple and no verified finalization progress — preserved', blocked: blockResult.blocked, alerted: blockResult.alerted };
   }
 
   // ── Step 3a: Set finalization_started_at BEFORE clearing any field ──────────
@@ -439,24 +428,17 @@ export async function finalizeCapturedPayment(deps, listingId) {
       return { ok: false, step: 'lp_clear', error: err?.message || 'LP clear failed' };
     }
     const lpCheck = await getListingPrivate(deps, listingId);
-    if (lpCheck?.reservation_token || lpCheck?.checkout_quarantined) {
+    // Verify ALL reservation fields are null AND quarantine fields cleared
+    if (lpCheck?.reservation_token || lpCheck?.reserved_by_email || lpCheck?.reservation_expires_at ||
+        lpCheck?.reservation_revision || lpCheck?.checkout_quarantined !== false ||
+        lpCheck?.checkout_quarantine_reason || lpCheck?.checkout_quarantined_at) {
       if (lpCheck?.reservation_token && lpCheck.reservation_token !== frozenToken) {
-        try {
-          await upsertListingPrivate(deps, listingId, {
-            recovery_blocked: true,
-            recovery_blocked_reason: `Conflicting token appeared during LP clear: ${lpCheck.reservation_token} vs frozen ${frozenToken}. Manual resolution required.`,
-            recovery_blocked_at: new Date(deps.now()).toISOString(),
-          });
-        } catch (_) { /* best effort */ }
-        await deps.entities.AdminAlert.create({
-          alert_type: 'admin_action_required', priority: 'critical',
-          title: `Conflicting token during finalization — ${listingId}`,
-          description: `Frozen token=${frozenToken}, current LP token=${lpCheck?.reservation_token}. Manual resolution required.`,
-          reference_type: 'listing', reference_id: listingId,
-        }).catch(() => {});
-        return { ok: false, step: 'lp_clear_conflict', error: 'conflicting token appeared during LP clear — preserved and blocked' };
+        const blockResult = await durableBlockAndAlert(deps, listingId,
+          `Conflicting token appeared during LP clear: ${lpCheck.reservation_token} vs frozen ${frozenToken}. Manual resolution required.`,
+          null);
+        return { ok: false, step: 'lp_clear_conflict', error: 'conflicting token appeared during LP clear — preserved', blocked: blockResult.blocked, alerted: blockResult.alerted };
       }
-      return { ok: false, step: 'lp_clear_verify', error: 'LP not fully cleared' };
+      return { ok: false, step: 'lp_clear_verify', error: `LP not fully cleared: token=${lpCheck?.reservation_token}, buyer=${lpCheck?.reserved_by_email}, expiry=${lpCheck?.reservation_expires_at}, revision=${lpCheck?.reservation_revision}, quarantined=${lpCheck?.checkout_quarantined}, reason=${lpCheck?.checkout_quarantine_reason}, ts=${lpCheck?.checkout_quarantined_at}` };
     }
   }
 
@@ -479,18 +461,17 @@ export async function finalizeCapturedPayment(deps, listingId) {
         return { ok: false, step: 'listing_sold', error: err?.message || 'Listing sold write failed' };
       }
       const [listingCheck] = await deps.entities.Listing.filter({ id: listingId });
-      if (listingCheck?.status !== 'sold' || listingCheck?.reservation_token) {
+      // Verify ALL fields: status sold, token null, buyer null, expiry null, revision null, hidden reason null
+      if (listingCheck?.status !== 'sold' || listingCheck?.reservation_token ||
+          listingCheck?.reserved_by_email || listingCheck?.reservation_expires_at ||
+          listingCheck?.reservation_revision || listingCheck?.hidden_reason) {
         if (listingCheck?.reservation_token && listingCheck.reservation_token !== frozenToken) {
-          try {
-            await upsertListingPrivate(deps, listingId, {
-              recovery_blocked: true,
-              recovery_blocked_reason: `Conflicting token on Listing during sold write: ${listingCheck.reservation_token} vs frozen ${frozenToken}. Manual resolution required.`,
-              recovery_blocked_at: new Date(deps.now()).toISOString(),
-            });
-          } catch (_) { /* best effort */ }
-          return { ok: false, step: 'listing_sold_conflict', error: 'conflicting token on Listing — preserved and blocked' };
+          const blockResult = await durableBlockAndAlert(deps, listingId,
+            `Conflicting token on Listing during sold write: ${listingCheck.reservation_token} vs frozen ${frozenToken}. Manual resolution required.`,
+            null);
+          return { ok: false, step: 'listing_sold_conflict', error: 'conflicting token on Listing — preserved', blocked: blockResult.blocked, alerted: blockResult.alerted };
         }
-        return { ok: false, step: 'listing_sold_verify', error: 'Listing not fully sold/cleared' };
+        return { ok: false, step: 'listing_sold_verify', error: `Listing not fully sold/cleared: status=${listingCheck?.status}, token=${listingCheck?.reservation_token}, buyer=${listingCheck?.reserved_by_email}, expiry=${listingCheck?.reservation_expires_at}, revision=${listingCheck?.reservation_revision}, hiddenReason=${listingCheck?.hidden_reason}` };
       }
     }
   }

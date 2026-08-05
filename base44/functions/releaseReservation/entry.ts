@@ -41,6 +41,7 @@ Deno.serve(async (req) => {
     reserved_by_email: null,
     reservation_token: null,
     reservation_expires_at: null,
+    reservation_revision: null,
   };
   if (prevStatus === 'pending_transfer') {
     legacyUpdate.status = 'active';
@@ -52,6 +53,7 @@ Deno.serve(async (req) => {
         reserved_by_email: null,
         reservation_token: null,
         reservation_expires_at: null,
+        reservation_revision: null,
       });
     } catch (err) {
       // Authoritative private write failed — legacy not yet updated; alert + 500
@@ -68,6 +70,7 @@ Deno.serve(async (req) => {
           reserved_by_email: failListing?.reserved_by_email ?? null,
           reservation_token: failListing?.reservation_token ?? null,
           reservation_expires_at: failListing?.reservation_expires_at ?? null,
+          reservation_revision: failListing?.reservation_revision ?? null,
         });
       } catch (_) {}
       await alertPrivateWriteFailure(base44, { entity: 'Listing (legacy mirror)', reference_id: listing.id, reference_type: 'listing', error: err });

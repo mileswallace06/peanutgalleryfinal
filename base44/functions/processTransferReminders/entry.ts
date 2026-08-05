@@ -182,9 +182,10 @@ Deno.serve(async (req) => {
           reservation_token: null,
           reservation_expires_at: null,
           reserved_by_email: null,
+          reservation_revision: null,
         }).catch(() => {});
         // Phase 1B: clear ListingPrivate reservation
-        try { await upsertListingPrivate(base44, purchase.listing_id, { reservation_token: null, reservation_expires_at: null, reserved_by_email: null }); } catch (_) {}
+        try { await upsertListingPrivate(base44, purchase.listing_id, { reservation_token: null, reservation_expires_at: null, reserved_by_email: null, reservation_revision: null }); } catch (_) {}
         await sendUserNotification(base44, {
           user_email: authoritativeBuyerEmail,
           title: 'Purchase expired — refund issued',
@@ -290,8 +291,9 @@ Deno.serve(async (req) => {
               reservation_token: null,
               reservation_expires_at: null,
               reserved_by_email: null,
+              reservation_revision: null,
             }).catch(() => {});
-            try { await upsertListingPrivate(base44, l.id, { reservation_token: null, reservation_expires_at: null, reserved_by_email: null }); } catch (_) {}
+            try { await upsertListingPrivate(base44, l.id, { reservation_token: null, reservation_expires_at: null, reserved_by_email: null, reservation_revision: null }); } catch (_) {}
             reservationsCleared++;
             console.log('[reminders] Cleared expired reservation for listing:', l.id);
           }
@@ -316,8 +318,9 @@ Deno.serve(async (req) => {
             reserved_by_email: null,
             reservation_token: null,
             reservation_expires_at: null,
+            reservation_revision: null,
           }).catch(() => {});
-          try { await upsertListingPrivate(base44, l.id, { reserved_by_email: null, reservation_token: null, reservation_expires_at: null }); } catch (_) {}
+          try { await upsertListingPrivate(base44, l.id, { reserved_by_email: null, reservation_token: null, reservation_expires_at: null, reservation_revision: null }); } catch (_) {}
           reservationsCleared++;
           console.log('[reminders] Cleared expired reservation on active listing:', l.id);
         }

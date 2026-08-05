@@ -79,6 +79,7 @@ Deno.serve(async (req) => {
         reservation_token: null,
         reservation_expires_at: null,
         reserved_by_email: null,
+        reservation_revision: null,
       }).catch(() => {})
     ));
     results.listings_cancelled = activeListings.length;
