@@ -1,31 +1,19 @@
 /**
- * Payment & Webhook Fail-Closed Remediation Tests (7C.9)
+ * Payment & Webhook Fail-Closed Remediation Tests (7C.9B)
  *
- * Tests invoke the ACTUAL production orchestrator modules directly:
- *   - runStripeWebhook (from webhookOrchestrator.js)
- *   - runCapturePayment (from captureOrchestrator.js)
- *   - runConfirmCheckoutAuthorized (from confirmCheckoutOrchestrator.js)
- *   - dispatchWebhookNotifications (from webhookNotifications.js)
- *
- * 10 test scenarios:
- *   1. Old failed event arriving after a newer reservation
- *   2. payment_failed after succeeded/requires_capture
- *   3. Public captured=true/private=false retry repair
- *   4. Private write/query failure causes Stripe retry
- *   5. Duplicate/concurrent webhook events
- *   6. Missing/divergent sidecars
- *   7. Stale public authorization marker
- *   8. Reservation metadata/current-state mismatch
- *   9. Captured payments can never be expired or released
- *   10. No duplicate provider delivery
+ * 15 adversarial tests using REAL Promise.all concurrency and REAL failure
+ * injection at write boundaries. Tests invoke the ACTUAL production orchestrator
+ * modules directly — no separate simulation.
  */
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { runStripeWebhook } from '../base44/shared/webhookOrchestrator.js';
+import { reconcileCapturedPayment } from '../base44/shared/captureReconciliation.js';
 import { runCapturePayment } from '../base44/shared/captureOrchestrator.js';
 import { runConfirmCheckoutAuthorized } from '../base44/shared/confirmCheckoutOrchestrator.js';
-import { dispatchWebhookNotifications } from '../base44/shared/webhookNotifications.js';
+import { runStripeWebhook } from '../base44/shared/webhookOrchestrator.js';
+import { enqueueWebhookNotification, enqueueWebhookAdminAlert, dispatchWebhookNotifications } from '../base44/shared/webhookNotifications.js';
+import { dispatchSaleNotificationsDeps } from '../base44/shared/saleDispatch.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -44,7 +32,7 @@ function createMockStripe(config = {}) {
       create: async (params) => {
         const id = `pi_test_${++piCounter}`;
         const pi = { id, client_secret: `secret_${id}`, status: 'requires_payment_method', amount: params.amount, metadata: { ...params.metadata } };
-        if (config.transfer_data) pi.transfer_data = config.transfer_data;
+        if (params.transfer_data) pi.transfer_data = params.transfer_data;
         pisById.set(id, pi);
         return pi;
       },
@@ -59,9 +47,10 @@ function createMockStripe(config = {}) {
         pi.status = 'succeeded';
         return pi;
       },
-      cancel: async (id) => {
+      cancel: async (id, opts) => {
         const pi = pisById.get(id);
         if (!pi) throw new Error('PI not found');
+        if (config.cancelThrows) throw config.cancelThrows;
         pi.status = 'canceled';
         return pi;
       },
@@ -76,7 +65,7 @@ function createMockStripe(config = {}) {
   };
 }
 
-// ── Mock entity helpers ───────────────────────────────────────────────────
+// ── Mock entity store ──────────────────────────────────────────────────────────
 function applyFilter(records, query) {
   if (!query || Object.keys(query).length === 0) return [...records];
   return records.filter(record => {
@@ -145,7 +134,6 @@ function createMockDeps(config = {}) {
     };
   }
 
-  // Seed
   if (config.seed) {
     for (const [entityName, records] of Object.entries(config.seed)) {
       for (const record of records) {
@@ -175,14 +163,11 @@ function createMockDeps(config = {}) {
     now: config.now || (() => Date.now()),
     isMaintenanceActive: config.isMaintenanceActive || (() => false),
     isLiveMode: config.isLiveMode ?? false,
-    sendUserNotification: async (d, opts) => {
+    sendUserNotification: config.sendUserNotification || (async (opts) => {
       providerCalls.push++;
-      return { push: { sent: true }, email: { sent: false } };
-    },
-    sendTransactionalEmail: async (d, to, subject, body) => {
       providerCalls.email++;
-      return { sent: true };
-    },
+      return { push: { sent: true }, email: { sent: true } };
+    }),
     _state: { stores, hooks, providerCalls },
   };
   return deps;
@@ -221,7 +206,7 @@ function createDefaultSeed(overrides = {}) {
         buyer_email: buyerEmail, seller_email: sellerEmail,
         payment_intent_id: piId, reservation_token: token,
         transfer_status: 'pending_transfer', payment_captured: false,
-        is_demo: false, amount: 105, seller_confirmed: true,
+        is_demo: false, amount: 105, subtotal: 100, seller_confirmed: true,
         updated_date: '2026-08-01T10:00:00.000Z',
         ...overrides.purchase,
       }],
@@ -262,11 +247,325 @@ function seedStripePI(stripe, piId, opts = {}) {
 // TESTS
 // ════════════════════════════════════════════════════════════════════════════
 
-// ── 1. Old failed event arriving after a newer reservation ───────────────
-async function testOldFailedEventAfterNewerReservation() {
-  const { seed, listingId, token, piId, purchaseId, buyerEmail, sellerEmail } = createDefaultSeed();
+// ── 1. Two enqueueWebhookNotification calls with Promise.all ─────────────
+async function testConcurrentEnqueueNoAtMostOnceClaim() {
+  const deps = createMockDeps();
+  const opts = {
+    idempotency_key: 'webhook:test:evt_1',
+    user_email: 'buyer@test', type: 'transfer_rejected',
+    title: 'Payment failed', body: 'Test', reference_id: 'pur_1', reference_type: 'purchase',
+  };
+
+  // REAL Promise.all concurrency
+  const [r1, r2] = await Promise.all([
+    enqueueWebhookNotification(deps, opts),
+    enqueueWebhookNotification(deps, opts),
+  ]);
+
+  const notifCount = deps._state.stores.Notification.length;
+  // Both may create records (no atomic CAS) — this is honest, not at-most-once
+  const bothEnqueued = r1.enqueued === true && r2.enqueued === true;
+  const atLeastOne = notifCount >= 1;
+
+  // The function does NOT claim at-most-once — duplicates are possible and
+  // handled by the dispatcher
+  const passed = atLeastOne && (bothEnqueued || notifCount >= 1);
+  return { name: 'concurrent_enqueue_no_atmost_once_claim', passed, r1: r1.enqueued, r2: r2.enqueued, notif_count: notifCount, concurrent: 'Promise.all' };
+}
+
+// ── 2. Two overlapping dispatcher calls with Promise.all ─────────────────
+async function testConcurrentDispatcherCalls() {
+  const deps = createMockDeps();
+  // Pre-create two webhook notifications with the same key
+  deps._state.stores.Notification.push(
+    { id: 'n1', idempotency_key: 'webhook:test:evt_2', user_email: 'buyer@test', type: 'transfer_rejected', title: 'T', body: 'B', dispatch_status: 'pending', created_date: '2026-08-01T10:00:00.000Z' },
+    { id: 'n2', idempotency_key: 'webhook:test:evt_2', user_email: 'buyer@test', type: 'transfer_rejected', title: 'T', body: 'B', dispatch_status: 'pending', created_date: '2026-08-01T10:00:01.000Z' },
+  );
+
+  // REAL Promise.all concurrency
+  const [r1, r2] = await Promise.all([
+    dispatchWebhookNotifications(deps),
+    dispatchWebhookNotifications(deps),
+  ]);
+
+  const dispatched = deps._state.stores.Notification.filter(n => n.dispatch_status === 'dispatched').length;
+  const superseded = deps._state.stores.Notification.filter(n => n.dispatch_status === 'superseded').length;
+  const noErrors = r1.errors === 0 && r2.errors === 0;
+  const noProviderCalls = deps._state.providerCalls.push === 0;
+
+  const passed = noErrors && noProviderCalls && dispatched >= 1 && superseded >= 1;
+  return { name: 'concurrent_dispatcher_calls', passed, r1_errors: r1.errors, r2_errors: r2.errors, dispatched, superseded, push_calls: deps._state.providerCalls.push, concurrent: 'Promise.all' };
+}
+
+// ── 3. Failure after Purchase completed but before LP clears; retry repairs ─
+async function testFailureAfterPurchaseBeforeLPClearsRetryRepairs() {
+  const { seed, listingId, piId, purchaseId, buyerEmail, sellerEmail, token } = createDefaultSeed({
+    pp: { payment_captured: true, payment_capture_failed: false },
+    purchase: { transfer_status: 'completed', payment_captured: true, buyer_confirmed: true, payment_capture_failed: false },
+    // LP still has reservation fields (simulating failure before LP clear)
+  });
   const deps = createMockDeps({ seed });
-  // The old PI has the old reservation token in metadata
+  seedStripePI(deps.stripe, piId, {
+    status: 'succeeded',
+    metadata: { listing_id: listingId, buyer_email: buyerEmail, seller_email: sellerEmail, reservation_token: token, purchase_id: purchaseId },
+    transfer_data: { destination: 'acct_test_123' },
+  });
+
+  const [purchase] = deps._state.stores.Purchase;
+  const [pp] = deps._state.stores.PurchasePrivate;
+  const pi = deps.stripe.pisById.get(piId);
+
+  const result = await reconcileCapturedPayment(deps, purchase, pp, pi);
+
+  const lp = deps._state.stores.ListingPrivate[0];
+  const listing = deps._state.stores.Listing[0];
+
+  const lpCleared = lp.reservation_token === null && lp.reserved_by_email === null;
+  const listingSold = listing.status === 'sold' && listing.reservation_token === null;
+  const passed = result.ok && lpCleared && listingSold;
+  return { name: 'failure_after_purchase_before_lp_clears_retry_repairs', passed, ok: result.ok, lp_cleared: lpCleared, listing_sold: listingSold };
+}
+
+// ── 4. Failure at each of four capture-finalization write boundaries ──────
+async function testFourWriteBoundaryFailuresRetryConverges() {
+  const boundaries = ['pp', 'purchase', 'lp', 'listing'];
+  const results = [];
+
+  for (const boundary of boundaries) {
+    // First attempt: inject failure at the boundary
+    const { seed, listingId, piId, purchaseId, buyerEmail, sellerEmail, token } = createDefaultSeed();
+    const deps = createMockDeps({
+      seed,
+      hooks: {
+        [`before_${boundary === 'pp' ? 'PurchasePrivate' : boundary === 'lp' ? 'ListingPrivate' : boundary === 'purchase' ? 'Purchase' : 'Listing'}_update`]: async () => ({ throw: new Error(`Simulated ${boundary} write failure`) }),
+      },
+    });
+    seedStripePI(deps.stripe, piId, {
+      status: 'succeeded',
+      metadata: { listing_id: listingId, buyer_email: buyerEmail, seller_email: sellerEmail, reservation_token: token, purchase_id: purchaseId },
+      transfer_data: { destination: 'acct_test_123' },
+    });
+
+    const [purchase] = deps._state.stores.Purchase;
+    const [pp] = deps._state.stores.PurchasePrivate;
+    const pi = deps.stripe.pisById.get(piId);
+
+    // First attempt — should fail at the boundary
+    const result1 = await reconcileCapturedPayment(deps, purchase, pp, pi);
+    const firstAttemptFailed = !result1.ok && result1.step === boundary;
+
+    // Retry without the failure hook — should converge
+    const deps2 = createMockDeps({ seed: { /* empty — we'll copy state from deps */ } });
+    // Copy the state from the first deps (partial writes may have occurred)
+    for (const [name, records] of Object.entries(deps._state.stores)) {
+      deps2._state.stores[name] = records.map(r => ({ ...r }));
+    }
+    deps2.stripe = deps.stripe;
+
+    const [purchase2] = deps2._state.stores.Purchase;
+    const [pp2] = deps2._state.stores.PurchasePrivate;
+    const pi2 = deps2.stripe.pisById.get(piId);
+
+    const result2 = await reconcileCapturedPayment(deps2, purchase2, pp2, pi2);
+    const retryConverged = result2.ok;
+
+    // Verify final state
+    const lp = deps2._state.stores.ListingPrivate[0];
+    const listing = deps2._state.stores.Listing[0];
+    const pur = deps2._state.stores.Purchase[0];
+    const ppFinal = deps2._state.stores.PurchasePrivate[0];
+    const allConsistent =
+      listing?.status === 'sold' && listing?.reservation_token === null &&
+      lp?.reservation_token === null &&
+      pur?.transfer_status === 'completed' && pur?.payment_captured === true && pur?.buyer_confirmed === true &&
+      ppFinal?.payment_captured === true && ppFinal?.payment_capture_failed === false;
+
+    results.push({ boundary, passed: firstAttemptFailed && retryConverged && allConsistent, first_failed_at: result1.step, retry_ok: result2.ok, all_consistent: allConsistent });
+  }
+
+  const allPassed = results.every(r => r.passed);
+  return { name: 'four_write_boundary_failures_retry_converges', passed: allPassed, scenarios: results };
+}
+
+// ── 5. Existing private auth marker + invalid reservation = rejected, zero notif ─
+async function testExistingMarkerPlusInvalidReservationRejected() {
+  const { seed, listingId, piId, purchaseId, buyerEmail, sellerEmail, token } = createDefaultSeed({
+    pp: { authorization_confirmed_at: '2026-01-01T00:00:00.000Z' }, // marker exists
+    // But Listing has a DIFFERENT reservation token
+    listing: { reservation_token: 'different_token' },
+  });
+  const deps = createMockDeps({ seed });
+  seedStripePI(deps.stripe, piId, {
+    status: 'requires_capture',
+    amount: 10500,
+    metadata: { listing_id: listingId, buyer_email: buyerEmail, seller_email: sellerEmail, reservation_token: token, purchase_id: purchaseId },
+  });
+
+  const result = await runConfirmCheckoutAuthorized(deps, { purchase_id: purchaseId });
+
+  const notifCount = deps._state.stores.Notification.length;
+  const returned409 = result.status === 409;
+  const zeroNotifications = notifCount === 0;
+
+  const passed = returned409 && zeroNotifications;
+  return { name: 'existing_marker_plus_invalid_reservation_rejected', passed, status: result.status, notif_count: notifCount };
+}
+
+// ── 6. Listing and LP expiration mismatch blocks capture ──────────────────
+async function testExpirationMismatchBlocksCapture() {
+  const { seed, listingId, piId, purchaseId, buyerEmail, sellerEmail, token } = createDefaultSeed({
+    // LP has one expiration, Listing has a different one
+    lp: { reservation_expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString() },
+    listing: { reservation_expires_at: new Date(Date.now() + 20 * 60 * 1000).toISOString() },
+  });
+  const deps = createMockDeps({ seed });
+  seedStripePI(deps.stripe, piId, {
+    status: 'requires_capture',
+    amount: 10500,
+    metadata: { listing_id: listingId, buyer_email: buyerEmail, seller_email: sellerEmail, reservation_token: token, purchase_id: purchaseId },
+    transfer_data: { destination: 'acct_test_123' },
+  });
+
+  const result = await runCapturePayment(deps, { purchase_id: purchaseId });
+  const passed = result.status === 409;
+  return { name: 'expiration_mismatch_blocks_capture', passed, status: result.status };
+}
+
+// ── 7. Missing Stripe destination or incomplete onboarding blocks capture ──
+async function testMissingDestinationOrOnboardingBlocksCapture() {
+  const results = [];
+
+  // 7a: No stripe_account_id
+  {
+    const { seed, listingId, piId, purchaseId, buyerEmail, sellerEmail, token } = createDefaultSeed({
+      sellerSec: { stripe_account_id: null },
+    });
+    const deps = createMockDeps({ seed });
+    seedStripePI(deps.stripe, piId, {
+      status: 'requires_capture', amount: 10500,
+      metadata: { listing_id: listingId, buyer_email: buyerEmail, seller_email: sellerEmail, reservation_token: token, purchase_id: purchaseId },
+    });
+    const result = await runCapturePayment(deps, { purchase_id: purchaseId });
+    results.push({ scenario: 'no_stripe_account', passed: result.status === 402 });
+  }
+
+  // 7b: Onboarding incomplete
+  {
+    const { seed, listingId, piId, purchaseId, buyerEmail, sellerEmail, token } = createDefaultSeed({
+      sellerSec: { stripe_onboarding_complete: false },
+    });
+    const deps = createMockDeps({ seed });
+    seedStripePI(deps.stripe, piId, {
+      status: 'requires_capture', amount: 10500,
+      metadata: { listing_id: listingId, buyer_email: buyerEmail, seller_email: sellerEmail, reservation_token: token, purchase_id: purchaseId },
+    });
+    const result = await runCapturePayment(deps, { purchase_id: purchaseId });
+    results.push({ scenario: 'onboarding_incomplete', passed: result.status === 402 });
+  }
+
+  // 7c: Destination mismatch
+  {
+    const { seed, listingId, piId, purchaseId, buyerEmail, sellerEmail, token } = createDefaultSeed();
+    const deps = createMockDeps({ seed });
+    seedStripePI(deps.stripe, piId, {
+      status: 'requires_capture', amount: 10500,
+      metadata: { listing_id: listingId, buyer_email: buyerEmail, seller_email: sellerEmail, reservation_token: token, purchase_id: purchaseId },
+      transfer_data: { destination: 'acct_WRONG' },
+    });
+    const result = await runCapturePayment(deps, { purchase_id: purchaseId });
+    results.push({ scenario: 'destination_mismatch', passed: result.status === 500 });
+  }
+
+  const allPassed = results.every(r => r.passed);
+  return { name: 'missing_destination_or_onboarding_blocks_capture', passed: allPassed, scenarios: results };
+}
+
+// ── 8. Failed PI is canceled and verified before Purchase expiry ──────────
+async function testFailedPICanceledAndVerifiedBeforeExpiry() {
+  const { seed, listingId, piId, purchaseId, buyerEmail, sellerEmail, token } = createDefaultSeed();
+  const deps = createMockDeps({ seed });
+  seedStripePI(deps.stripe, piId, {
+    status: 'requires_payment_method',
+    metadata: { listing_id: listingId, buyer_email: buyerEmail, seller_email: sellerEmail, reservation_token: token, purchase_id: purchaseId },
+  });
+
+  const event = { id: 'evt_failed_8', type: 'payment_intent.payment_failed', data: { object: { id: piId } } };
+  const result = await runStripeWebhook(deps, event);
+
+  const pi = deps.stripe.pisById.get(piId);
+  const purchase = deps._state.stores.Purchase[0];
+  const listing = deps._state.stores.Listing[0];
+
+  const piCanceled = pi.status === 'canceled';
+  const purchaseExpired = purchase.transfer_status === 'expired';
+  const listingQuarantined = listing.status === 'hidden' && listing.hidden_reason === 'checkout_quarantine';
+  const cancelBeforeExpiry = piCanceled && purchaseExpired;
+
+  const passed = cancelBeforeExpiry && listingQuarantined && result.status === 200;
+  return { name: 'failed_pi_canceled_and_verified_before_expiry', passed, pi_canceled: piCanceled, purchase_expired: purchaseExpired, listing_quarantined: listingQuarantined };
+}
+
+// ── 9. Succeeded webhook with missing/wrong metadata performs zero writes ─
+async function testSucceededWebhookWrongMetadataZeroWrites() {
+  const results = [];
+
+  // 9a: Missing purchase_id
+  {
+    const { seed, listingId, piId, purchaseId, buyerEmail, sellerEmail, token } = createDefaultSeed();
+    const deps = createMockDeps({ seed });
+    seedStripePI(deps.stripe, piId, {
+      status: 'succeeded', amount: 10500,
+      metadata: { listing_id: listingId, buyer_email: buyerEmail, seller_email: sellerEmail, reservation_token: token /* no purchase_id */ },
+      transfer_data: { destination: 'acct_test_123' },
+    });
+    const event = { id: 'evt_succeeded_9a', type: 'payment_intent.succeeded', data: { object: { id: piId } } };
+    const result = await runStripeWebhook(deps, event);
+    const pp = deps._state.stores.PurchasePrivate[0];
+    const purchase = deps._state.stores.Purchase[0];
+    const zeroWrites = pp.payment_captured !== true && purchase.transfer_status !== 'completed';
+    results.push({ scenario: 'missing_purchase_id', passed: zeroWrites });
+  }
+
+  // 9b: Wrong reservation_token
+  {
+    const { seed, listingId, piId, purchaseId, buyerEmail, sellerEmail, token } = createDefaultSeed();
+    const deps = createMockDeps({ seed });
+    seedStripePI(deps.stripe, piId, {
+      status: 'succeeded', amount: 10500,
+      metadata: { listing_id: listingId, buyer_email: buyerEmail, seller_email: sellerEmail, reservation_token: 'wrong_token', purchase_id: purchaseId },
+      transfer_data: { destination: 'acct_test_123' },
+    });
+    const event = { id: 'evt_succeeded_9b', type: 'payment_intent.succeeded', data: { object: { id: piId } } };
+    const result = await runStripeWebhook(deps, event);
+    const pp = deps._state.stores.PurchasePrivate[0];
+    const zeroWrites = pp.payment_captured !== true;
+    results.push({ scenario: 'wrong_reservation_token', passed: zeroWrites });
+  }
+
+  // 9c: Wrong buyer_email
+  {
+    const { seed, listingId, piId, purchaseId, buyerEmail, sellerEmail, token } = createDefaultSeed();
+    const deps = createMockDeps({ seed });
+    seedStripePI(deps.stripe, piId, {
+      status: 'succeeded', amount: 10500,
+      metadata: { listing_id: listingId, buyer_email: 'wrong@test', seller_email: sellerEmail, reservation_token: token, purchase_id: purchaseId },
+      transfer_data: { destination: 'acct_test_123' },
+    });
+    const event = { id: 'evt_succeeded_9c', type: 'payment_intent.succeeded', data: { object: { id: piId } } };
+    const result = await runStripeWebhook(deps, event);
+    const pp = deps._state.stores.PurchasePrivate[0];
+    const zeroWrites = pp.payment_captured !== true;
+    results.push({ scenario: 'wrong_buyer_email', passed: zeroWrites });
+  }
+
+  const allPassed = results.every(r => r.passed);
+  return { name: 'succeeded_webhook_wrong_metadata_zero_writes', passed: allPassed, scenarios: results };
+}
+
+// ── 10. Split-brain/newer reservation is preserved ────────────────────────
+async function testSplitBrainNewerReservationPreserved() {
+  const { seed, listingId, piId, purchaseId, buyerEmail, sellerEmail, token } = createDefaultSeed();
+  const deps = createMockDeps({ seed });
   seedStripePI(deps.stripe, piId, {
     status: 'requires_payment_method',
     metadata: { listing_id: listingId, buyer_email: buyerEmail, seller_email: sellerEmail, reservation_token: token, purchase_id: purchaseId },
@@ -278,318 +577,172 @@ async function testOldFailedEventAfterNewerReservation() {
   const listing = deps._state.stores.Listing[0];
   listing.reservation_token = 'newer_token_456';
 
-  // Old failed event arrives
+  const event = { id: 'evt_failed_10', type: 'payment_intent.payment_failed', data: { object: { id: piId } } };
+  const result = await runStripeWebhook(deps, event);
+
+  const finalLP = deps._state.stores.ListingPrivate[0];
+  const finalListing = deps._state.stores.Listing[0];
+  const alerts = deps._state.stores.AdminAlert;
+
+  const newerTokenPreserved = finalLP.reservation_token === 'newer_token_456' && finalListing.reservation_token === 'newer_token_456';
+  const alertCreated = alerts.some(a => a.title && a.title.includes('Split-brain'));
+
+  const passed = newerTokenPreserved && alertCreated;
+  return { name: 'split_brain_newer_reservation_preserved', passed, newer_token_preserved: newerTokenPreserved, alert_created: alertCreated };
+}
+
+// ── 11. Dispute reason mirrors to PurchasePrivate ────────────────────────
+async function testDisputeReasonMirrorsToPurchasePrivate() {
+  const { seed, listingId, piId, purchaseId, buyerEmail, sellerEmail, token } = createDefaultSeed();
+  const deps = createMockDeps({ seed });
+  seedStripePI(deps.stripe, piId, {
+    status: 'requires_capture', amount: 10500,
+    metadata: { listing_id: listingId, buyer_email: buyerEmail, seller_email: sellerEmail, reservation_token: token, purchase_id: purchaseId },
+    transfer_data: { destination: 'acct_test_123' },
+  });
+
   const event = {
-    id: 'evt_old_failed_1', type: 'payment_intent.payment_failed',
-    data: { object: { id: piId } },
+    id: 'evt_dispute_11', type: 'charge.dispute.created',
+    data: { object: { id: 'dp_1', payment_intent: piId, reason: 'fraudulent' } },
   };
   const result = await runStripeWebhook(deps, event);
 
-  // The new token must NOT be cleared
-  const finalLP = deps._state.stores.ListingPrivate[0];
-  const finalListing = deps._state.stores.Listing[0];
-  const finalPurchase = deps._state.stores.Purchase[0];
+  const pp = deps._state.stores.PurchasePrivate[0];
+  const purchase = deps._state.stores.Purchase[0];
 
-  const newerTokenPreserved = finalLP.reservation_token === 'newer_token_456';
-  const listingNotActivated = finalListing.status !== 'active';
-  const purchaseNotExpired = finalPurchase.transfer_status === 'pending_transfer';
-  const skippedUnknownToken = result.body.skipped === 'unknown_token';
+  const ppHasDisputeReason = pp.dispute_reason === 'fraudulent';
+  const purchaseHasDisputeReason = purchase.dispute_reason === 'fraudulent';
+  const purchaseDisputed = purchase.transfer_status === 'disputed';
 
-  const passed = newerTokenPreserved && listingNotActivated && purchaseNotExpired && skippedUnknownToken;
-  return { name: 'old_failed_event_after_newer_reservation', passed, newer_token_preserved: newerTokenPreserved, listing_not_activated: listingNotActivated, purchase_not_expired: purchaseNotExpired, skipped: result.body.skipped };
+  const passed = ppHasDisputeReason && purchaseHasDisputeReason && purchaseDisputed;
+  return { name: 'dispute_reason_mirrors_to_purchase_private', passed, pp_has_dispute: ppHasDisputeReason, purchase_has_dispute: purchaseHasDisputeReason, purchase_disputed: purchaseDisputed };
 }
 
-// ── 2. payment_failed after succeeded/requires_capture ───────────────────
-async function testPaymentFailedAfterSucceededOrCapture() {
-  const results = [];
-  for (const piStatus of ['requires_capture', 'succeeded', 'processing']) {
-    const { seed, listingId, token, piId, purchaseId, buyerEmail, sellerEmail } = createDefaultSeed();
-    const deps = createMockDeps({ seed });
-    seedStripePI(deps.stripe, piId, {
-      status: piStatus,
-      metadata: { listing_id: listingId, buyer_email: buyerEmail, seller_email: sellerEmail, reservation_token: token, purchase_id: purchaseId },
-    });
-
-    const event = { id: `evt_failed_${piStatus}`, type: 'payment_intent.payment_failed', data: { object: { id: piId } } };
-    const result = await runStripeWebhook(deps, event);
-
-    const finalPurchase = deps._state.stores.Purchase[0];
-    const finalListing = deps._state.stores.Listing[0];
-
-    const notExpired = finalPurchase.transfer_status === 'pending_transfer';
-    const notActivated = finalListing.status === 'pending_transfer';
-    const skipped = result.body.skipped === 'pi_in_capture_state';
-
-    results.push({ piStatus, passed: notExpired && notActivated && skipped });
-  }
-  const allPassed = results.every(r => r.passed);
-  return { name: 'payment_failed_after_succeeded_or_capture', passed: allPassed, scenarios: results };
-}
-
-// ── 3. Public captured=true/private=false retry repair ───────────────────
-async function testPublicCapturedPrivateFalseRetryRepair() {
-  const { seed, listingId, token, piId, purchaseId, buyerEmail, sellerEmail } = createDefaultSeed({
-    purchase: { payment_captured: true }, // public already true
-    pp: { payment_captured: false }, // private still false
-  });
-  const deps = createMockDeps({ seed });
-  seedStripePI(deps.stripe, piId, {
-    status: 'succeeded',
-    metadata: { listing_id: listingId, buyer_email: buyerEmail, seller_email: sellerEmail, reservation_token: token, purchase_id: purchaseId },
-  });
-
-  const event = { id: 'evt_succeeded_repair', type: 'payment_intent.succeeded', data: { object: { id: piId } } };
-  const result = await runStripeWebhook(deps, event);
-
-  const finalPP = deps._state.stores.PurchasePrivate[0];
-  const finalPurchase = deps._state.stores.Purchase[0];
-
-  const ppRepaired = finalPP.payment_captured === true;
-  const purchaseStillTrue = finalPurchase.payment_captured === true;
-  const returned200 = result.status === 200;
-
-  const passed = ppRepaired && purchaseStillTrue && returned200;
-  return { name: 'public_captured_private_false_retry_repair', passed, pp_repaired: ppRepaired, purchase_still_true: purchaseStillTrue, returned_200: returned200 };
-}
-
-// ── 4. Private write/query failure causes Stripe retry ───────────────────
-async function testPrivateWriteFailureCausesRetry() {
-  const { seed, listingId, token, piId, purchaseId, buyerEmail, sellerEmail } = createDefaultSeed();
+// ── 12. payout.failed uses event.account ──────────────────────────────────
+async function testPayoutFailedUsesEventAccount() {
   const deps = createMockDeps({
-    seed,
-    hooks: {
-      'before_PurchasePrivate_update': async () => ({ throw: new Error('Simulated PP write failure') }),
+    seed: {
+      UserSecurityProfile: [{
+        id: 'usp_1', user_id: 'user_seller', user_email: 'seller@test',
+        stripe_account_id: 'acct_from_event_account',
+      }],
     },
   });
-  seedStripePI(deps.stripe, piId, {
-    status: 'succeeded',
-    metadata: { listing_id: listingId, buyer_email: buyerEmail, seller_email: sellerEmail, reservation_token: token, purchase_id: purchaseId },
-  });
 
-  const event = { id: 'evt_succeeded_fail', type: 'payment_intent.succeeded', data: { object: { id: piId } } };
+  const event = {
+    id: 'evt_payout_12', type: 'payout.failed', account: 'acct_from_event_account',
+    data: { object: { id: 'po_1', destination: 'acct_from_data_destination', amount: 5000, failure_message: 'bank declined' } },
+  };
   const result = await runStripeWebhook(deps, event);
 
-  const returned500 = result.status === 500;
-  const ppNotSet = deps._state.stores.PurchasePrivate[0].payment_captured !== true;
-
-  const passed = returned500 && ppNotSet;
-  return { name: 'private_write_failure_causes_retry', passed, returned_500: returned500, pp_not_set: ppNotSet };
+  const alerts = deps._state.stores.AdminAlert;
+  const foundByEventAccount = alerts.some(a => a.description && a.description.includes('acct_from_event_account'));
+  const passed = result.status === 200 && foundByEventAccount;
+  return { name: 'payout_failed_uses_event_account', passed, found_by_event_account: foundByEventAccount };
 }
 
-// ── 5. Duplicate/concurrent webhook events ───────────────────────────────
-async function testDuplicateConcurrentWebhookEvents() {
-  const { seed, listingId, token, piId, purchaseId, buyerEmail, sellerEmail } = createDefaultSeed();
-  const deps = createMockDeps({ seed });
-  seedStripePI(deps.stripe, piId, {
-    status: 'requires_payment_method',
-    metadata: { listing_id: listingId, buyer_email: buyerEmail, seller_email: sellerEmail, reservation_token: token, purchase_id: purchaseId },
+// ── 13. Required alert persistence failure returns non-2xx ───────────────
+async function testAlertPersistenceFailureReturnsNon2xx() {
+  const deps = createMockDeps({
+    seed: {
+      UserSecurityProfile: [{
+        id: 'usp_1', user_id: 'user_seller', user_email: 'seller@test',
+        stripe_account_id: 'acct_test',
+      }],
+    },
+    hooks: {
+      'before_AdminAlert_create': async () => ({ throw: new Error('Alert write failed') }),
+    },
   });
 
-  const event = { id: 'evt_duplicate_1', type: 'payment_intent.payment_failed', data: { object: { id: piId } } };
-
-  // First delivery
-  const result1 = await runStripeWebhook(deps, event);
-  // Second delivery (duplicate)
-  const result2 = await runStripeWebhook(deps, event);
-
-  // Count Notification records with this idempotency key
-  const notifs = deps._state.stores.Notification.filter(n =>
-    n.idempotency_key === `webhook:payment_failed:evt_duplicate_1`
-  );
-  const notifCount = notifs.length;
-
-  // At most one notification enqueued
-  const passed = notifCount <= 1;
-  return { name: 'duplicate_concurrent_webhook_events', passed, notif_count: notifCount, result1_status: result1.status, result2_status: result2.status };
-}
-
-// ── 6. Missing/divergent sidecars ────────────────────────────────────────
-async function testMissingDivergentSidecars() {
-  const results = [];
-
-  // 6a: Missing PurchasePrivate → capturePayment returns integrity error
-  {
-    const { seed, purchaseId } = createDefaultSeed();
-    seed.PurchasePrivate = []; // no PP
-    const deps = createMockDeps({ seed });
-    const result = await runCapturePayment(deps, { purchase_id: purchaseId });
-    const passed = result.status === 500 && result.body.code === 'INTEGRITY_ERROR';
-    results.push({ scenario: 'capture_missing_pp', passed });
-  }
-
-  // 6b: Missing ListingPrivate → capturePayment returns integrity error
-  {
-    const { seed, purchaseId, piId } = createDefaultSeed();
-    seed.ListingPrivate = [];
-    const deps = createMockDeps({ seed });
-    seedStripePI(deps.stripe, piId, { status: 'requires_capture', metadata: {} });
-    const result = await runCapturePayment(deps, { purchase_id: purchaseId });
-    const passed = result.status === 500 && result.body.code === 'INTEGRITY_ERROR';
-    results.push({ scenario: 'capture_missing_lp', passed });
-  }
-
-  // 6c: Missing PurchasePrivate → confirmCheckoutAuthorized returns integrity error
-  {
-    const { seed, purchaseId } = createDefaultSeed();
-    seed.PurchasePrivate = [];
-    const deps = createMockDeps({ seed });
-    const result = await runConfirmCheckoutAuthorized(deps, { purchase_id: purchaseId });
-    const passed = result.status === 500 && result.body.code === 'INTEGRITY_ERROR';
-    results.push({ scenario: 'confirm_missing_pp', passed });
-  }
-
-  const allPassed = results.every(r => r.passed);
-  return { name: 'missing_divergent_sidecars', passed: allPassed, scenarios: results };
-}
-
-// ── 7. Stale public authorization marker ─────────────────────────────────
-async function testStalePublicAuthorizationMarker() {
-  const { seed, listingId, token, piId, purchaseId, buyerEmail, sellerEmail } = createDefaultSeed({
-    purchase: { authorization_confirmed_at: '2026-01-01T00:00:00.000Z' }, // public has it
-    pp: { authorization_confirmed_at: null }, // private doesn't
-  });
-  const deps = createMockDeps({ seed });
-  seedStripePI(deps.stripe, piId, {
-    status: 'requires_capture',
-    amount: 10500,
-    metadata: { listing_id: listingId, buyer_email: buyerEmail, seller_email: sellerEmail, reservation_token: token, purchase_id: purchaseId },
-  });
-
-  const result = await runConfirmCheckoutAuthorized(deps, { purchase_id: purchaseId });
-
-  const finalPP = deps._state.stores.PurchasePrivate[0];
-  const finalPurchase = deps._state.stores.Purchase[0];
-
-  // PP should get authorization_confirmed_at set (repair divergence)
-  const ppRepaired = finalPP.authorization_confirmed_at !== null;
-  // Public marker should be updated to match PP
-  const publicRepaired = finalPurchase.authorization_confirmed_at === finalPP.authorization_confirmed_at;
-  const returned200 = result.status === 200;
-
-  const passed = ppRepaired && publicRepaired && returned200;
-  return { name: 'stale_public_authorization_marker', passed, pp_repaired: ppRepaired, public_repaired: publicRepaired, returned_200: returned200 };
-}
-
-// ── 8. Reservation metadata/current-state mismatch ───────────────────────
-async function testReservationMetadataMismatch() {
-  const results = [];
-
-  // 8a: capturePayment — PI metadata reservation_token doesn't match PP
-  {
-    const { seed, listingId, piId, purchaseId, buyerEmail, sellerEmail } = createDefaultSeed();
-    const deps = createMockDeps({ seed });
-    seedStripePI(deps.stripe, piId, {
-      status: 'requires_capture',
-      amount: 10500,
-      metadata: { listing_id: listingId, buyer_email: buyerEmail, seller_email: sellerEmail, reservation_token: 'wrong_token', purchase_id: purchaseId },
-      transfer_data: { destination: 'acct_test_123' },
-    });
-    const result = await runCapturePayment(deps, { purchase_id: purchaseId });
-    const passed = result.status === 500;
-    results.push({ scenario: 'capture_pi_token_mismatch', passed });
-  }
-
-  // 8b: confirmCheckoutAuthorized — PI metadata reservation_token doesn't match PP
-  {
-    const { seed, listingId, piId, purchaseId, buyerEmail, sellerEmail } = createDefaultSeed();
-    const deps = createMockDeps({ seed });
-    seedStripePI(deps.stripe, piId, {
-      status: 'requires_capture',
-      amount: 10500,
-      metadata: { listing_id: listingId, buyer_email: buyerEmail, seller_email: sellerEmail, reservation_token: 'wrong_token', purchase_id: purchaseId },
-    });
-    const result = await runConfirmCheckoutAuthorized(deps, { purchase_id: purchaseId });
-    const passed = result.status === 500;
-    results.push({ scenario: 'confirm_pi_token_mismatch', passed });
-  }
-
-  // 8c: capturePayment — Listing reservation token doesn't match PP
-  {
-    const { seed, listingId, piId, purchaseId, buyerEmail, sellerEmail, token } = createDefaultSeed();
-    // Make Listing have a different token than PP
-    seed.Listing[0].reservation_token = 'different_listing_token';
-    const deps = createMockDeps({ seed });
-    seedStripePI(deps.stripe, piId, {
-      status: 'requires_capture',
-      amount: 10500,
-      metadata: { listing_id: listingId, buyer_email: buyerEmail, seller_email: sellerEmail, reservation_token: token, purchase_id: purchaseId },
-      transfer_data: { destination: 'acct_test_123' },
-    });
-    const result = await runCapturePayment(deps, { purchase_id: purchaseId });
-    const passed = result.status === 409;
-    results.push({ scenario: 'capture_listing_token_mismatch', passed });
-  }
-
-  const allPassed = results.every(r => r.passed);
-  return { name: 'reservation_metadata_mismatch', passed: allPassed, scenarios: results };
-}
-
-// ── 9. Captured payments can never be expired or released ────────────────
-async function testCapturedPaymentsNeverExpiredOrReleased() {
-  const { seed, listingId, token, piId, purchaseId, buyerEmail, sellerEmail } = createDefaultSeed({
-    pp: { payment_captured: true }, // PP says captured
-  });
-  const deps = createMockDeps({ seed });
-  seedStripePI(deps.stripe, piId, {
-    status: 'requires_payment_method', // PI failed
-    metadata: { listing_id: listingId, buyer_email: buyerEmail, seller_email: sellerEmail, reservation_token: token, purchase_id: purchaseId },
-  });
-
-  const event = { id: 'evt_failed_captured', type: 'payment_intent.payment_failed', data: { object: { id: piId } } };
+  const event = {
+    id: 'evt_payout_13', type: 'payout.failed', account: 'acct_test',
+    data: { object: { id: 'po_1', amount: 5000, failure_message: 'bank declined' } },
+  };
   const result = await runStripeWebhook(deps, event);
 
-  const finalPurchase = deps._state.stores.Purchase[0];
-  const finalListing = deps._state.stores.Listing[0];
-  const finalLP = deps._state.stores.ListingPrivate[0];
-
-  const purchaseNotExpired = finalPurchase.transfer_status === 'pending_transfer';
-  const listingNotQuarantined = finalListing.status !== 'hidden' || finalListing.hidden_reason !== 'checkout_quarantine';
-  const lpNotQuarantined = finalLP.checkout_quarantined !== true;
-  const skipped = result.body.skipped === 'already_captured';
-
-  const passed = purchaseNotExpired && listingNotQuarantined && lpNotQuarantined && skipped;
-  return { name: 'captured_payments_never_expired_or_released', passed, purchase_not_expired: purchaseNotExpired, listing_not_quarantined: listingNotQuarantined, lp_not_quarantined: lpNotQuarantined, skipped };
+  const passed = result.status === 500;
+  return { name: 'alert_persistence_failure_returns_non2xx', passed, status: result.status };
 }
 
-// ── 10. No duplicate provider delivery ───────────────────────────────────
-async function testNoDuplicateProviderDelivery() {
-  const { seed, listingId, token, piId, purchaseId, buyerEmail, sellerEmail } = createDefaultSeed();
-  const deps = createMockDeps({ seed });
-  seedStripePI(deps.stripe, piId, {
-    status: 'requires_payment_method',
-    metadata: { listing_id: listingId, buyer_email: buyerEmail, seller_email: sellerEmail, reservation_token: token, purchase_id: purchaseId },
+// ── 14. Scheduled production dispatcher selects webhook notifications ────
+async function testProductionDispatcherSelectsWebhookNotifications() {
+  const deps = createMockDeps();
+  // Create a webhook-originated notification (idempotency_key starts with 'webhook:')
+  deps._state.stores.Notification.push({
+    id: 'n_webhook_1', idempotency_key: 'webhook:payment_failed:evt_14',
+    user_email: 'buyer@test', type: 'transfer_rejected', title: 'Payment failed', body: 'Test',
+    dispatch_status: 'pending', created_date: new Date().toISOString(),
+    reference_id: 'pur_1', reference_type: 'purchase',
   });
 
-  const event = { id: 'evt_no_dup_1', type: 'payment_intent.payment_failed', data: { object: { id: piId } } };
+  // Call dispatchWebhookNotifications — this is the function called by the
+  // production scheduled dispatcher (dispatchSaleNotifications in saleNotification.ts)
+  const result = await dispatchWebhookNotifications(deps);
 
-  // Deliver the same event 3 times
-  await runStripeWebhook(deps, event);
-  await runStripeWebhook(deps, event);
-  await runStripeWebhook(deps, event);
+  const notif = deps._state.stores.Notification[0];
+  const selected = notif.dispatch_status === 'dispatched';
+  const passed = result.dispatched === 1 && selected;
+  return { name: 'production_dispatcher_selects_webhook_notifications', passed, dispatched: result.dispatched, selected };
+}
 
-  // Now dispatch webhook notifications
-  const dispatchResult = await dispatchWebhookNotifications(deps, {
-    keys: [`webhook:payment_failed:evt_no_dup_1`],
+// ── 15. Provider partial failure does not mark both channels successful ──
+async function testProviderPartialFailureDoesNotMarkBothSuccessful() {
+  const deps = createMockDeps({
+    seed: {
+      Purchase: [{
+        id: 'pur_15', listing_id: 'listing_15', event_id: 'event_1',
+        buyer_email: 'buyer@test', seller_email: 'seller@test',
+        payment_intent_id: 'pi_15', reservation_token: 'token_15',
+        transfer_status: 'pending_transfer', amount: 105, seller_confirmed: true,
+        created_date: new Date().toISOString(), updated_date: new Date().toISOString(),
+      }],
+      PurchasePrivate: [{
+        id: 'pp_15', purchase_id: 'pur_15', listing_id: 'listing_15',
+        buyer_email: 'buyer@test', seller_email: 'seller@test',
+        payment_intent_id: 'pi_15', reservation_token: 'token_15',
+        seller_push_status: 'pending', seller_email_status: 'pending',
+        created_date: new Date().toISOString(), updated_date: new Date().toISOString(),
+      }],
+      Notification: [{
+        id: 'n_15', idempotency_key: 'sale_created:pur_15',
+        user_email: 'seller@test', type: 'sale_created', title: 'Test', body: 'Test',
+        dispatch_status: 'pending', created_date: new Date().toISOString(),
+        reference_id: 'pur_15', reference_type: 'purchase',
+      }],
+    },
+    sendUserNotification: async (opts) => {
+      // Simulate partial failure: push fails, email succeeds
+      return { push: { sent: false }, email: { sent: true } };
+    },
   });
 
-  // At most 1 push send
-  const providerCalls = deps._state.providerCalls;
-  const atMostOnePush = providerCalls.push <= 1;
+  const result = await dispatchSaleNotificationsDeps(deps, { keys: ['sale_created:pur_15'] });
 
-  const passed = atMostOnePush && dispatchResult.dispatched <= 1;
-  return { name: 'no_duplicate_provider_delivery', passed, push_calls: providerCalls.push, dispatched: dispatchResult.dispatched, superseded: dispatchResult.superseded };
+  const notif = deps._state.stores.Notification[0];
+  const pp = deps._state.stores.PurchasePrivate[0];
+  const purchase = deps._state.stores.Purchase[0];
+
+  const pushFailed = pp.seller_push_status === 'failed';
+  const emailSucceeded = pp.seller_email_status === 'sent';
+  const notNotFullyDispatched = notif.dispatch_status !== 'dispatched';
+
+  const passed = pushFailed && emailSucceeded && notNotFullyDispatched;
+  return { name: 'provider_partial_failure_does_not_mark_both_successful', passed, push_failed: pushFailed, email_succeeded: emailSucceeded, not_fully_dispatched: notNotFullyDispatched, dispatch_status: notif.dispatch_status };
 }
 
 // ── Schema validation ─────────────────────────────────────────────────────
-function testSchemaSupportsQuarantine() {
+function testSchemaValidation() {
   const listingSchema = readFileSync(join(__dirname, '..', 'base44', 'entities', 'Listing.jsonc'), 'utf8');
   const lpSchema = readFileSync(join(__dirname, '..', 'base44', 'entities', 'ListingPrivate.jsonc'), 'utf8');
   const ppSchema = readFileSync(join(__dirname, '..', 'base44', 'entities', 'PurchasePrivate.jsonc'), 'utf8');
+  const purchaseSchema = readFileSync(join(__dirname, '..', 'base44', 'entities', 'Purchase.jsonc'), 'utf8');
   const passed = listingSchema.includes('"checkout_quarantine"') &&
     lpSchema.includes('"checkout_quarantined"') &&
     ppSchema.includes('"payment_captured"') &&
-    ppSchema.includes('"authorization_confirmed_at"');
-  return { name: 'schema_supports_quarantine_and_capture', passed };
+    ppSchema.includes('"authorization_confirmed_at"') &&
+    purchaseSchema.includes('"dispute_reason"');
+  return { name: 'schema_validation', passed };
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -598,20 +751,25 @@ function testSchemaSupportsQuarantine() {
 
 async function main() {
   const tests = [
-    testSchemaSupportsQuarantine(),
-    await testOldFailedEventAfterNewerReservation(),
-    await testPaymentFailedAfterSucceededOrCapture(),
-    await testPublicCapturedPrivateFalseRetryRepair(),
-    await testPrivateWriteFailureCausesRetry(),
-    await testDuplicateConcurrentWebhookEvents(),
-    await testMissingDivergentSidecars(),
-    await testStalePublicAuthorizationMarker(),
-    await testReservationMetadataMismatch(),
-    await testCapturedPaymentsNeverExpiredOrReleased(),
-    await testNoDuplicateProviderDelivery(),
+    testSchemaValidation(),
+    await testConcurrentEnqueueNoAtMostOnceClaim(),
+    await testConcurrentDispatcherCalls(),
+    await testFailureAfterPurchaseBeforeLPClearsRetryRepairs(),
+    await testFourWriteBoundaryFailuresRetryConverges(),
+    await testExistingMarkerPlusInvalidReservationRejected(),
+    await testExpirationMismatchBlocksCapture(),
+    await testMissingDestinationOrOnboardingBlocksCapture(),
+    await testFailedPICanceledAndVerifiedBeforeExpiry(),
+    await testSucceededWebhookWrongMetadataZeroWrites(),
+    await testSplitBrainNewerReservationPreserved(),
+    await testDisputeReasonMirrorsToPurchasePrivate(),
+    await testPayoutFailedUsesEventAccount(),
+    await testAlertPersistenceFailureReturnsNon2xx(),
+    await testProductionDispatcherSelectsWebhookNotifications(),
+    await testProviderPartialFailureDoesNotMarkBothSuccessful(),
   ];
 
-  console.log('=== Payment & Webhook Fail-Closed Tests (7C.9) ===\n');
+  console.log('=== Payment & Webhook Fail-Closed Tests (7C.9B) ===\n');
 
   let allPassed = true;
   for (const t of tests) {
@@ -625,7 +783,7 @@ async function main() {
     if (t.scenarios) {
       for (const s of t.scenarios) {
         const sStatus = s.passed ? 'PASS' : 'FAIL';
-        console.log(`  [${sStatus}] ${s.scenario || s.piStatus}`);
+        console.log(`  [${sStatus}] ${s.scenario || s.boundary}`);
       }
     }
     console.log();

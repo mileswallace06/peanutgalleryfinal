@@ -1,23 +1,39 @@
 /**
  * webhookNotifications.js — Durable enqueue + dispatch for webhook-originated
- * notifications. Push/email are NEVER sent inline during webhook processing.
+ * notifications.
  *
- * CONCURRENCY MODEL (Base44 has NO atomic compare-and-set — proven):
- *   enqueueWebhookNotification creates a PENDING Notification record with a
- *   deterministic idempotency_key derived from the Stripe event.id. A
- *   duplicate event finds the existing record and returns {enqueued:false}.
- *   dispatchWebhookNotifications groups by idempotency_key, selects ONE
- *   canonical (oldest), supersedes the rest, and dispatches only the canonical.
- *   This holds provider calls to <=1 push and <=1 email per logical event even
- *   when Stripe delivers duplicate or concurrent events.
+ * HONEST CONCURRENCY MODEL (Base44 has NO atomic compare-and-set — proven):
  *
- * deps = { entities: { Notification, AdminAlert }, sendUserNotification?, sendTransactionalEmail?, now? }
+ * enqueueWebhookNotification creates a PENDING Notification record with a
+ * deterministic idempotency_key derived from the Stripe event.id. Two concurrent
+ * enqueue calls with the same key may BOTH create records — this is EXPECTED
+ * and HONEST. We do NOT claim at-most-once at the enqueue level.
+ *
+ * dispatchWebhookNotifications groups by idempotency_key, selects ONE canonical
+ * (oldest), supersedes the rest, and marks the canonical as dispatched.
+ *
+ * EXTERNAL PUSH/EMAIL IS DISABLED for webhook-originated notifications.
+ * Base44 has no atomic compare-and-set, so we cannot guarantee at-most-once
+ * provider delivery. The durable in-app Notification record (created during
+ * enqueue) IS the delivery mechanism. No OneSignal or SendEmail calls are made.
+ * This is the honest trade-off: we preserve the durable in-app record and
+ * AdminAlert, and report the limitation.
+ *
+ * This function IS called by the production scheduled dispatcher
+ * (dispatchSaleNotifications in saleNotification.ts), which calls
+ * dispatchWebhookNotifications after processing sale_created records.
  */
 
+// ── Enqueue ──────────────────────────────────────────────────────────────────
+// Creates a PENDING Notification record. Does NOT send push or email.
+// CONCURRENCY NOTE: Two concurrent calls with the same idempotency_key may both
+// create records. This is expected — the dispatcher canonicalizes duplicates.
+// We do NOT claim at-most-once at the enqueue level.
 export async function enqueueWebhookNotification(deps, opts) {
   const { idempotency_key, user_email, type, title, body, reference_id, reference_type, action_url } = opts;
   if (!idempotency_key || !user_email || !type || !title) return { enqueued: false, reason: 'missing_fields' };
 
+  // Best-effort dedup check (NOT atomic — both concurrent calls may pass this)
   const existing = await deps.entities.Notification.filter({ idempotency_key }).catch(() => []);
   if (existing.length > 0) return { enqueued: false, reason: 'duplicate' };
 
@@ -33,11 +49,13 @@ export async function enqueueWebhookNotification(deps, opts) {
   return { enqueued: true };
 }
 
+// ── Enqueue AdminAlert ───────────────────────────────────────────────────────
+// Does NOT swallow errors — callers must handle failures and return non-2xx
+// when required alert persistence fails.
 export async function enqueueWebhookAdminAlert(deps, opts) {
   const { idempotency_key, title, description, reference_id, reference_type, priority } = opts;
   if (!idempotency_key || !title) return { enqueued: false, reason: 'missing_fields' };
 
-  // Dedup admin alerts by idempotency_key stored in description prefix
   const existing = await deps.entities.AdminAlert.filter({ reference_id: reference_id || 'none' }).catch(() => []);
   const alreadyAlerted = existing.some(a => a.description && a.description.includes(`[evt:${idempotency_key}]`));
   if (alreadyAlerted) return { enqueued: false, reason: 'duplicate' };
@@ -53,6 +71,11 @@ export async function enqueueWebhookAdminAlert(deps, opts) {
   return { enqueued: true };
 }
 
+// ── Dispatch ─────────────────────────────────────────────────────────────────
+// Canonicalizes pending webhook-originated notifications. Supersedes duplicates.
+// Marks canonical as 'dispatched' (in-app record IS the delivery).
+// Does NOT send external push/email (disabled — see HONEST CONCURRENCY MODEL above).
+// Does NOT swallow dispatch-state writes.
 export async function dispatchWebhookNotifications(deps, opts = {}) {
   const { keys = null, limit = 500 } = opts;
 
@@ -65,41 +88,38 @@ export async function dispatchWebhookNotifications(deps, opts = {}) {
   }
 
   const targetKeys = keys ? keys : Object.keys(groups);
-  const summary = { dispatched: 0, superseded: 0, skipped: 0, push_sends: 0, email_sends: 0 };
+  const summary = { dispatched: 0, superseded: 0, skipped: 0, errors: 0 };
 
   for (const key of targetKeys) {
     const group = groups[key];
     if (!group || group.length === 0) continue;
 
-    const sorted = group.sort((a, b) => new Date(a.created_date || 0) - new Date(b.created_date || 0));
+    const sorted = group.sort((a, b) => new Date(a.created_date || 0).getTime() - new Date(b.created_date || 0).getTime());
     const canonical = sorted[0];
     const dups = sorted.slice(1);
 
+    // Supersede duplicates — do NOT swallow write failures
     for (const d of dups) {
       if (d.dispatch_status !== 'superseded') {
-        await deps.entities.Notification.update(d.id, { dispatch_status: 'superseded' }).catch(() => {});
-        summary.superseded++;
+        try {
+          await deps.entities.Notification.update(d.id, { dispatch_status: 'superseded' });
+          summary.superseded++;
+        } catch (err) {
+          summary.errors++;
+        }
       }
     }
 
     if (canonical.dispatch_status === 'dispatching') { summary.skipped++; continue; }
 
-    await deps.entities.Notification.update(canonical.id, { dispatch_status: 'dispatching' }).catch(() => {});
-
-    if (deps.sendUserNotification) {
-      const dispatch = await deps.sendUserNotification(deps, {
-        user_email: canonical.user_email,
-        title: canonical.title,
-        body: canonical.body,
-        type: canonical.type,
-        purchase_id: canonical.reference_type === 'purchase' ? canonical.reference_id : null,
-      }).catch(() => ({}));
-      if (dispatch?.push?.sent) summary.push_sends++;
-      if (dispatch?.email?.sent) summary.email_sends++;
+    // EXTERNAL PUSH/EMAIL DISABLED for webhook-originated notifications.
+    // The in-app Notification record IS the delivery. No provider calls made.
+    try {
+      await deps.entities.Notification.update(canonical.id, { dispatch_status: 'dispatched' });
+      summary.dispatched++;
+    } catch (err) {
+      summary.errors++;
     }
-
-    await deps.entities.Notification.update(canonical.id, { dispatch_status: 'dispatched' }).catch(() => {});
-    summary.dispatched++;
   }
 
   return summary;

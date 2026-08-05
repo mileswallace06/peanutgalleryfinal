@@ -1,32 +1,14 @@
 /**
  * capturePayment — STRICT state-machine for finalizing a real (non-demo) purchase.
  *
- * THE SINGLE TRUSTED TERMINAL-TRANSITION FUNCTION.
- *
- * All capture logic is delegated to the shared, testable captureOrchestrator.js.
- * This entry.ts is a thin Deno wrapper that:
- *   1. Authenticates the user.
- *   2. Validates Stripe configuration.
- *   3. Injects Deno-specific dependencies.
- *   4. Calls runCapturePayment and returns the HTTP response.
- *   5. Handles post-capture side effects (recordTerminalOutcome, awardPoints, notify)
- *      as fire-and-forget after the orchestrator verifies success.
- *
- * KEY PRINCIPLES (see captureOrchestrator.js for full details):
- *   - Require PurchasePrivate, ListingPrivate, and UserSecurityProfile — no public fallbacks.
- *   - Use authoritativePaymentIntentId for retrieve, metadata checks, and capture.
- *   - Use UserSecurityProfile.stripe_account_id for destination verification.
- *   - Re-fetch and verify the complete reservation tuple immediately before capture.
- *   - Block expired or fail-closed reservations.
- *   - Move buyer_confirmed until after verified Stripe success.
- *   - Never return success unless Purchase, PurchasePrivate, Listing, and ListingPrivate are verified consistent.
+ * 7C.9B: All capture logic is delegated to the shared, testable
+ * captureOrchestrator.js which uses reconcileCapturedPayment for idempotent
+ * four-record reconciliation. This entry.ts is a thin Deno wrapper.
  */
-
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import Stripe from 'npm:stripe@14.21.0';
 import { isMaintenanceActive, maintenance503 } from '../../shared/maintenance.ts';
-import { awardPoints, notify, calcPlatformFee } from '../../shared/purchaseNotifications.ts';
-import { sendTransactionalEmail } from '../../shared/notifications.ts';
+import { awardPoints, notify } from '../../shared/purchaseNotifications.ts';
 import { recordTerminalOutcome } from '../../shared/recordOutcome.ts';
 import { getPurchasePrivate } from '../../shared/privateData.ts';
 import { runCapturePayment } from '../../shared/captureOrchestrator.js';
@@ -47,7 +29,6 @@ Deno.serve(async (req) => {
   const body = await req.json();
   const { purchase_id, optimistic_id } = body;
 
-  // Inject Deno-specific dependencies
   const deps = {
     entities: base44.asServiceRole.entities,
     stripe,

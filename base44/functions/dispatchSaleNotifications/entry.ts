@@ -1,10 +1,12 @@
 /**
- * dispatchSaleNotifications — the ONLY sender for sale_created notifications.
+ * dispatchSaleNotifications — the ONLY sender for sale_created AND
+ * webhook-originated notifications.
  *
- * Scheduled every 1 minute. Selects one canonical record per idempotency key,
- * supersedes concurrent duplicates, and dispatches only the canonical's unsent
- * channels. See base44/shared/saleNotification.ts for the delivery-integrity
- * model. Failed channels remain independently retryable on the next run.
+ * Scheduled every 1 minute. Processes:
+ *   1. sale_created notifications (with external push/email via sendUserNotification)
+ *   2. webhook-originated notifications (in-app only, no external push/email)
+ *
+ * See base44/shared/saleNotification.ts for the delivery-integrity model.
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import { isMaintenanceActive } from '../../shared/maintenance.ts';
@@ -12,7 +14,6 @@ import { dispatchSaleNotifications } from '../../shared/saleNotification.ts';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
-  // Allow the automation scheduler (no session) and admins; reject others.
   try {
     const user = await base44.auth.me();
     if (user && user.role !== 'admin') {
