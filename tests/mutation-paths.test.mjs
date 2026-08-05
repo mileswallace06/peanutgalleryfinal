@@ -39,6 +39,7 @@ if (typeof globalThis.crypto === 'undefined' || !globalThis.crypto.randomUUID) {
 async function testReserveListingCreation() {
   const ctx = createDefaultSeed({
     listing: { status: 'active', reservation_token: null, reserved_by_email: null, reservation_expires_at: null, reservation_revision: null },
+    lp: { reservation_token: null, reserved_by_email: null, reservation_expires_at: null, reservation_revision: null },
   });
   const deps = createMockDeps({ seed: ctx.seed });
   const result = await runReserveListing(deps, { listing_id: ctx.listingId });
@@ -243,6 +244,7 @@ async function testCaptureFinalizationClear() {
 async function testFirstRecordFailure() {
   const ctx = createDefaultSeed({
     listing: { status: 'active', reservation_token: null, reserved_by_email: null, reservation_expires_at: null, reservation_revision: null },
+    lp: { reservation_token: null, reserved_by_email: null, reservation_expires_at: null, reservation_revision: null },
   });
   const deps = createMockDeps({
     seed: ctx.seed,
@@ -265,7 +267,7 @@ async function testFirstRecordFailure() {
   const nonSuccess = result.status !== 200;
 
   const passed = nonSuccess && listingNotWritten && lpNotWritten && noSplitBrain;
-  return { name: 'first_record_failure', passed, non_success: nonSuccess, listing_not_written: listingNotWritten, lp_not_written: lpNotWritten, no_split_brain: noSplitBrain };
+  return { name: 'first_record_failure', passed, non_success: nonSuccess, listing_not_written: listingNotWritten, lp_not_written: lpNotWritten, no_split_brain: noSplitBrain, second_write_attempted: false };
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -274,6 +276,7 @@ async function testFirstRecordFailure() {
 async function testSecondRecordFailure() {
   const ctx = createDefaultSeed({
     listing: { status: 'active', reservation_token: null, reserved_by_email: null, reservation_expires_at: null, reservation_revision: null },
+    lp: { reservation_token: null, reserved_by_email: null, reservation_expires_at: null, reservation_revision: null },
   });
   const deps = createMockDeps({
     seed: ctx.seed,
@@ -294,9 +297,11 @@ async function testSecondRecordFailure() {
   const listingDoesNotHaveToken = !listing.reservation_token;
   const splitBrainDetected = lpHasToken && listingDoesNotHaveToken;
   const nonSuccess = result.status !== 200;
+  // Durable escalation must be proven
+  const hasAlert = deps._state.stores.AdminAlert.length > 0;
 
-  const passed = nonSuccess && splitBrainDetected;
-  return { name: 'second_record_failure', passed, non_success: nonSuccess, lp_has_token: lpHasToken, listing_does_not_have_token: listingDoesNotHaveToken, split_brain_detected: splitBrainDetected };
+  const passed = nonSuccess && splitBrainDetected && hasAlert;
+  return { name: 'second_record_failure', passed, non_success: nonSuccess, lp_has_token: lpHasToken, listing_does_not_have_token: listingDoesNotHaveToken, split_brain_detected: splitBrainDetected, has_alert: hasAlert };
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -305,6 +310,7 @@ async function testSecondRecordFailure() {
 async function testSilentPersistenceFailure() {
   const ctx = createDefaultSeed({
     listing: { status: 'active', reservation_token: null, reserved_by_email: null, reservation_expires_at: null, reservation_revision: null },
+    lp: { reservation_token: null, reserved_by_email: null, reservation_expires_at: null, reservation_revision: null },
   });
   const deps = createMockDeps({
     seed: ctx.seed,
@@ -342,13 +348,18 @@ async function testSplitBrainPreservation() {
     status: 'active', token: null, buyer: null, expiration: null, revision: clearedRev,
   }, 'split_brain_test', 'test:split_brain');
 
-  // The result should NOT be ok — but it should have attempted both writes
+  // Split-brain must be detected — NO writes should be attempted
   const notOk = !result.ok;
-  const firstWriteAttempted = result.first_write_attempted;
-  const secondWriteAttempted = result.second_write_attempted;
+  const splitBrainDetected = result.split_brain_detected === true;
+  const noWritesAttempted = !result.first_write_attempted && !result.second_write_attempted;
+  // Pre-write tuples must be preserved (not overwritten)
+  const listingRevPreserved = result.listing_tuple.revision === 'listing_rev';
+  const lpRevPreserved = result.lp_tuple.revision === 'different_lp_rev';
+  // Durable escalation must be proven
+  const blockOrAlertProven = result.block_proven || result.alert_proven;
 
-  const passed = notOk && firstWriteAttempted && secondWriteAttempted;
-  return { name: 'split_brain_preservation', passed, not_ok: notOk, first_write_attempted: firstWriteAttempted, second_write_attempted: secondWriteAttempted, first_write_proven: result.first_write_proven, second_write_proven: result.second_write_proven };
+  const passed = notOk && splitBrainDetected && noWritesAttempted && listingRevPreserved && lpRevPreserved && blockOrAlertProven;
+  return { name: 'split_brain_preservation', passed, not_ok: notOk, split_brain_detected: splitBrainDetected, no_writes_attempted: noWritesAttempted, listing_rev_preserved: listingRevPreserved, lp_rev_preserved: lpRevPreserved, block_proven: result.block_proven, alert_proven: result.alert_proven };
 }
 
 // ════════════════════════════════════════════════════════════════════════════
