@@ -195,6 +195,10 @@
     "reserved_by_email": {
       "type": "string"
     },
+    "reservation_revision": {
+      "type": "string",
+      "description": "Monotonic revision that changes on every reservation-tuple mutation (token/buyer/expiration write). Used by capture freeze to detect post-freeze reservation mutation even if individual fields are re-set to the same values."
+    },
     "transfer_status": {
       "type": "string",
       "enum": [

@@ -82,6 +82,10 @@
       "type": "string",
       "description": "Private buyer holding the reservation."
     },
+    "reservation_revision": {
+      "type": "string",
+      "description": "Monotonic revision that changes on every reservation-tuple mutation. Must match Listing.reservation_revision at all times."
+    },
     "transfer_verification_proof_url": {
       "type": "string",
       "description": "Legacy public transfer-verification URL \u2014 requires private re-upload."

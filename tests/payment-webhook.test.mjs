@@ -142,10 +142,11 @@ function createDefaultSeed(o = {}) {
   const piId = o.piId || 'pi_test_1';
   const purchaseId = o.purchaseId || 'pur_1';
   const expiry = o.expiry || new Date(Date.now() + 10 * 60 * 1000).toISOString();
+  const revision = o.revision || 'rev_001';
   return {
     seed: {
-      Listing: [{ id: listingId, status: 'pending_transfer', asking_price: 100, quantity: 1, section: 'A', row: '1', event_id: 'event_1', seller_email: sellerEmail, reservation_token: token, reserved_by_email: buyerEmail, reservation_expires_at: expiry, hidden_reason: null, ...o.listing }],
-      ListingPrivate: [{ id: `lp_${listingId}`, listing_id: listingId, seller_email: sellerEmail, reservation_token: token, reserved_by_email: buyerEmail, reservation_expires_at: expiry, proof_status: 'approved', is_demo_listing: false, checkout_quarantined: false, ...o.lp }],
+      Listing: [{ id: listingId, status: 'pending_transfer', asking_price: 100, quantity: 1, section: 'A', row: '1', event_id: 'event_1', seller_email: sellerEmail, reservation_token: token, reserved_by_email: buyerEmail, reservation_expires_at: expiry, reservation_revision: revision, hidden_reason: null, ...o.listing }],
+      ListingPrivate: [{ id: `lp_${listingId}`, listing_id: listingId, seller_email: sellerEmail, reservation_token: token, reserved_by_email: buyerEmail, reservation_expires_at: expiry, reservation_revision: revision, proof_status: 'approved', is_demo_listing: false, checkout_quarantined: false, ...o.lp }],
       Purchase: [{ id: purchaseId, listing_id: listingId, event_id: 'event_1', buyer_email: buyerEmail, seller_email: sellerEmail, payment_intent_id: piId, reservation_token: token, transfer_status: 'pending_transfer', payment_captured: false, is_demo: false, amount: 105, subtotal: 100, seller_confirmed: true, ...o.purchase }],
       PurchasePrivate: [{ id: `pp_${purchaseId}`, purchase_id: purchaseId, listing_id: listingId, event_id: 'event_1', buyer_email: buyerEmail, seller_email: sellerEmail, payment_intent_id: piId, reservation_token: token, payment_captured: false, is_demo: false, ...o.pp }],
       User: [
@@ -154,7 +155,7 @@ function createDefaultSeed(o = {}) {
       ],
       UserSecurityProfile: [{ id: 'usp_1', user_id: 'user_seller', user_email: sellerEmail, stripe_account_id: 'acct_test_123', stripe_onboarding_complete: true, ...o.sellerSec }],
     },
-    listingId, sellerEmail, buyerEmail, token, piId, purchaseId,
+    listingId, sellerEmail, buyerEmail, token, piId, purchaseId, expiry, revision,
   };
 }
 

@@ -166,10 +166,11 @@ function createDefaultSeed(o = {}) {
   const piId = o.piId || 'pi_test_1';
   const purchaseId = o.purchaseId || 'pur_1';
   const expiry = o.expiry || new Date(Date.now() + 10 * 60 * 1000).toISOString();
+  const revision = o.revision || 'rev_001';
   return {
     seed: {
-      Listing: [{ id: listingId, status: 'pending_transfer', asking_price: 100, quantity: 1, section: 'A', row: '1', event_id: 'event_1', seller_email: sellerEmail, reservation_token: token, reserved_by_email: buyerEmail, reservation_expires_at: expiry, hidden_reason: null, ...o.listing }],
-      ListingPrivate: [{ id: `lp_${listingId}`, listing_id: listingId, seller_email: sellerEmail, reservation_token: token, reserved_by_email: buyerEmail, reservation_expires_at: expiry, proof_status: 'approved', is_demo_listing: false, checkout_quarantined: false, ...o.lp }],
+      Listing: [{ id: listingId, status: 'pending_transfer', asking_price: 100, quantity: 1, section: 'A', row: '1', event_id: 'event_1', seller_email: sellerEmail, reservation_token: token, reserved_by_email: buyerEmail, reservation_expires_at: expiry, reservation_revision: revision, hidden_reason: null, ...o.listing }],
+      ListingPrivate: [{ id: `lp_${listingId}`, listing_id: listingId, seller_email: sellerEmail, reservation_token: token, reserved_by_email: buyerEmail, reservation_expires_at: expiry, reservation_revision: revision, proof_status: 'approved', is_demo_listing: false, checkout_quarantined: false, ...o.lp }],
       Purchase: [{ id: purchaseId, listing_id: listingId, event_id: 'event_1', buyer_email: buyerEmail, seller_email: sellerEmail, payment_intent_id: piId, reservation_token: token, transfer_status: 'pending_transfer', payment_captured: false, is_demo: false, amount: 105, subtotal: 100, seller_confirmed: true, ...o.purchase }],
       PurchasePrivate: [{ id: `pp_${purchaseId}`, purchase_id: purchaseId, listing_id: listingId, event_id: 'event_1', buyer_email: buyerEmail, seller_email: sellerEmail, payment_intent_id: piId, reservation_token: token, payment_captured: false, is_demo: false, ...o.pp }],
       User: [
@@ -178,7 +179,7 @@ function createDefaultSeed(o = {}) {
       ],
       UserSecurityProfile: [{ id: 'usp_1', user_id: 'user_seller', user_email: sellerEmail, stripe_account_id: 'acct_test_123', stripe_onboarding_complete: true, ...o.sellerSec }],
     },
-    listingId, sellerEmail, buyerEmail, token, piId, purchaseId,
+    listingId, sellerEmail, buyerEmail, token, piId, purchaseId, expiry, revision,
   };
 }
 
@@ -236,18 +237,16 @@ async function testNewerReservationInjectedAfterPrefetch() {
   const lp = deps._state.stores.ListingPrivate[0];
   const ppFinal = deps._state.stores.PurchasePrivate[0];
 
+  // Conflict detected — freeze returns non-ok
+  const conflictDetected = !result.ok && result.step === 'conflict';
   // The newer token must be PRESERVED on the listing (NOT erased)
   const newerPreserved = listing.reservation_token === 'newer_injected_token';
   // Listing must be quarantined (hidden), NOT sold
   const notSold = listing.status !== 'sold';
   const quarantined = listing.status === 'hidden' && listing.hidden_reason === 'checkout_quarantine';
-  // PP must have the original token as the frozen tuple
-  const frozenOriginal = ppFinal.frozen_reservation_token === token;
-  // Freeze must return ok (freeze succeeded — the conflict will be caught in Phase 2)
-  const freezeOk = result.ok;
 
-  const passed = newerPreserved && notSold && quarantined && frozenOriginal && freezeOk;
-  return { name: 'newer_reservation_injected_after_prefetch', passed, newer_preserved: newerPreserved, not_sold: notSold, quarantined, frozen_original: frozenOriginal, freeze_ok: freezeOk };
+  const passed = conflictDetected && newerPreserved && notSold && quarantined;
+  return { name: 'newer_reservation_injected_after_prefetch', passed, conflict_detected: conflictDetected, newer_preserved: newerPreserved, not_sold: notSold, quarantined };
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -518,9 +517,9 @@ async function testMatchingTupleSuccessfulFinalization() {
 // ════════════════════════════════════════════════════════════════════════════
 async function testAlreadyFinalizedIdempotency() {
   const { seed, listingId, piId, purchaseId, buyerEmail, sellerEmail, token } = createDefaultSeed({
-    listing: { status: 'sold', reservation_token: null, reserved_by_email: null, reservation_expires_at: null, hidden_reason: null },
-    lp: { reservation_token: null, reserved_by_email: null, reservation_expires_at: null, checkout_quarantined: false },
-    pp: { payment_captured: true, freeze_finalized_at: '2026-01-01T00:00:00.000Z', frozen_reservation_token: 'res_token_123' },
+    listing: { status: 'sold', reservation_token: null, reserved_by_email: null, reservation_expires_at: null, reservation_revision: null, hidden_reason: null },
+    lp: { reservation_token: null, reserved_by_email: null, reservation_expires_at: null, reservation_revision: null, checkout_quarantined: false },
+    pp: { payment_captured: true, freeze_finalized_at: '2026-01-01T00:00:00.000Z', frozen_reservation_token: 'res_token_123', frozen_buyer_email: 'buyer@test', frozen_reservation_expires_at: '2026-08-01T10:10:00.000Z', frozen_reservation_revision: 'rev_001' },
     purchase: { transfer_status: 'completed', payment_captured: true, buyer_confirmed: true },
   });
   const deps = createMockDeps({ seed });

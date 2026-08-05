@@ -360,6 +360,7 @@ export async function runCreateCheckout(deps, params) {
   const idempotencyKey = deriveIdempotencyKey(listing.id, listingRevision);
   const reservationToken = crypto.randomUUID();
   const reservationExpiresAt = new Date(now() + RESERVATION_TTL_MS).toISOString();
+  const reservationRevision = crypto.randomUUID();
 
   // 14. Create PI — handle canceled PI from previous compensated attempt
   let paymentIntent;
@@ -457,6 +458,7 @@ export async function runCreateCheckout(deps, params) {
     await entities.Listing.update(listing.id, {
       status: 'pending_transfer', reservation_token: reservationToken,
       reservation_expires_at: reservationExpiresAt, reserved_by_email: buyerEmail,
+      reservation_revision: reservationRevision,
     });
   } catch (err) {
     await cancelPIAndQuarantine(deps, paymentIntent.id, listing.id, purchase.id, `Listing reservation write failed: ${err?.message}`);
@@ -465,6 +467,7 @@ export async function runCreateCheckout(deps, params) {
   try {
     await upsertListingPrivate(deps, listing.id, {
       reservation_token: reservationToken, reservation_expires_at: reservationExpiresAt, reserved_by_email: buyerEmail,
+      reservation_revision: reservationRevision,
     });
   } catch (err) {
     await cancelPIAndQuarantine(deps, paymentIntent.id, listing.id, purchase.id, `LP reservation write failed: ${err?.message}`);

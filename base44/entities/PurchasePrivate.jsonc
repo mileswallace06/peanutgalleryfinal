@@ -100,11 +100,19 @@
     },
     "frozen_reservation_expires_at": {
       "type": "string",
-      "description": "IMMUTABLE snapshot of reservation_expires_at at capture-freeze time (Phase 1)."
+      "description": "IMMUTABLE snapshot of reservation_expires_at at capture-freeze time (Phase 1). Sourced from matching Listing and ListingPrivate records \u2014 never from PurchasePrivate."
+    },
+    "frozen_reservation_revision": {
+      "type": "string",
+      "description": "IMMUTABLE snapshot of reservation_revision at capture-freeze time (Phase 1). Phase 2 finalization compares current Listing/LP reservation_revision against this value. Detects post-freeze reservation mutation even if token/buyer/expiration are re-set to the same values."
     },
     "freeze_finalized_at": {
       "type": "string",
       "description": "ISO timestamp set when Phase 2 finalization completes (listing marked sold, reservation fields cleared, quarantine lifted). Null = frozen but not yet finalized."
+    },
+    "finalization_started_at": {
+      "type": "string",
+      "description": "ISO timestamp set when Phase 2 finalization begins, BEFORE any reservation field is cleared. Enables retry-safe partial-finalization recovery: a retry with matching frozen tuple may complete idempotently from where it left off; a different non-null tuple must never be cleared."
     },
     "transfer_proof_url": {
       "type": "string",
