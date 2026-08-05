@@ -315,11 +315,21 @@ export function generateRevision() {
 
 // ── Durable block and alert ────────────────────────────────────────────────
 // REQUIRED conflict handling: replaces all `.catch(() => {})` and unverified
-// best-effort persistence. Attempts to set recovery_blocked=true, re-fetches
-// and verifies ALL block fields, creates a critical AdminAlert, and verifies
-// ALL alert fields through re-query. Reports exactly which durable action was
-// proven via structured result fields. Never says "blocked" or "alerted" unless
-// the corresponding proof flag is true.
+// best-effort persistence. Captures the exact attempted block timestamp BEFORE
+// writing, attempts to set recovery_blocked=true, re-fetches and verifies ALL
+// block fields (including exact timestamp), creates a critical AdminAlert, and
+// verifies ALL alert fields through re-query (including complete reason in
+// description, expected PI ID, listing ID, and purchase ID when available).
+// Reports exactly which durable action was proven via structured result fields.
+// Never says "blocked" or "alerted" unless the corresponding proof flag is true.
+//
+// TOLERANCE RULE for recovery_blocked_at:
+//   The timestamp is captured BEFORE the write. If the store's update path
+//   also sets updated_date via Date.now(), the stored value may differ by
+//   a few milliseconds. We accept an exact match OR a match within a
+//   5-second tolerance window (documented: the write is non-atomic, so the
+//   store may apply its own timestamp). The captured timestamp is always
+//   included in the result for audit.
 //
 // Returns: {
 //   block_attempted: boolean,
@@ -330,8 +340,9 @@ export function generateRevision() {
 //   alert_error: string | null,
 //   blocked: boolean,    // backward-compatible alias for block_proven
 //   alerted: boolean,    // backward-compatible alias for alert_proven
+//   attempted_block_timestamp: string,  // captured BEFORE write
 // }
-export async function durableBlockAndAlert(deps, listing_id, reason, piId, title) {
+export async function durableBlockAndAlert(deps, listing_id, reason, piId, title, purchaseId) {
   const result = {
     block_attempted: false,
     block_proven: false,
@@ -341,24 +352,30 @@ export async function durableBlockAndAlert(deps, listing_id, reason, piId, title
     alert_error: null,
     blocked: false,
     alerted: false,
+    attempted_block_timestamp: null,
   };
 
   const expectedTitle = title || `Finalization conflict — ${listing_id}`;
-  const expectedDescription = `${reason} PI ID: ${piId || 'N/A'}.`;
+  // Description must contain the complete reason AND the PI ID AND purchase ID when available
+  const expectedDescription = `${reason} PI ID: ${piId || 'N/A'}.${purchaseId ? ` Purchase ID: ${purchaseId}.` : ''}`;
 
-  // 1. Attempt to set recovery_blocked=true
+  // 1. Capture the exact attempted block timestamp BEFORE writing
+  const attemptedBlockTimestamp = new Date(deps.now()).toISOString();
+  result.attempted_block_timestamp = attemptedBlockTimestamp;
+
+  // 2. Attempt to set recovery_blocked=true
   result.block_attempted = true;
   try {
     await upsertListingPrivate(deps, listing_id, {
       recovery_blocked: true,
       recovery_blocked_reason: reason,
-      recovery_blocked_at: new Date(deps.now()).toISOString(),
+      recovery_blocked_at: attemptedBlockTimestamp,
     });
   } catch (err) {
     result.block_error = err?.message || String(err);
   }
 
-  // 2. Re-fetch LP and verify ALL block fields
+  // 3. Re-fetch LP and verify ALL block fields
   if (!result.block_error) {
     try {
       const lpVerify = await getListingPrivate(deps, listing_id);
@@ -366,10 +383,18 @@ export async function durableBlockAndAlert(deps, listing_id, reason, piId, title
           lpVerify.listing_id === listing_id &&
           lpVerify.recovery_blocked === true &&
           lpVerify.recovery_blocked_reason === reason &&
-          lpVerify.recovery_blocked_at &&
-          !isNaN(new Date(lpVerify.recovery_blocked_at).getTime())) {
-        result.block_proven = true;
-        result.blocked = true;
+          lpVerify.recovery_blocked_at) {
+        // Timestamp verification: exact match OR within 5-second tolerance
+        const storedTs = lpVerify.recovery_blocked_at;
+        const storedMs = new Date(storedTs).getTime();
+        const attemptedMs = new Date(attemptedBlockTimestamp).getTime();
+        const toleranceMs = 5 * 1000; // 5 seconds documented tolerance
+        if (storedTs === attemptedBlockTimestamp || Math.abs(storedMs - attemptedMs) <= toleranceMs) {
+          result.block_proven = true;
+          result.blocked = true;
+        } else {
+          result.block_error = `block verification failed — timestamp mismatch (stored=${storedTs}, attempted=${attemptedBlockTimestamp})`;
+        }
       } else {
         result.block_error = 'block verification failed — fields do not match expected values';
       }
@@ -378,7 +403,7 @@ export async function durableBlockAndAlert(deps, listing_id, reason, piId, title
     }
   }
 
-  // 3. Attempt to create the critical AdminAlert
+  // 4. Attempt to create the critical AdminAlert
   result.alert_attempted = true;
   let alertId = null;
   try {
@@ -395,24 +420,45 @@ export async function durableBlockAndAlert(deps, listing_id, reason, piId, title
     result.alert_error = err?.message || String(err);
   }
 
-  // 4. Verify the alert through re-query — check ALL fields
+  // 5. Verify the alert through re-query — check ALL fields
+  //    Must verify: exact alert ID, type, priority, title, description containing
+  //    the complete expected reason (not just PI ID), expected PI ID, expected
+  //    listing ID, expected purchase ID when available, reference type and ID.
   if (alertId) {
     try {
       const alerts = await deps.entities.AdminAlert.filter({ id: alertId });
       if (alerts.length > 0) {
         const a = alerts[0];
-        if (a.id === alertId &&
-            a.alert_type === 'admin_action_required' &&
-            a.priority === 'critical' &&
-            a.title === expectedTitle &&
-            a.reference_type === 'listing' &&
-            a.reference_id === listing_id &&
-            a.description &&
-            a.description.includes(`PI ID: ${piId || 'N/A'}.`)) {
+        // Check ALL required fields
+        const idMatch = a.id === alertId;
+        const typeMatch = a.alert_type === 'admin_action_required';
+        const priorityMatch = a.priority === 'critical';
+        const titleMatch = a.title === expectedTitle;
+        const refTypeMatch = a.reference_type === 'listing';
+        const refIdMatch = a.reference_id === listing_id;
+        // Description must contain the COMPLETE reason (not just PI ID)
+        const descHasReason = a.description && a.description.includes(reason);
+        // Description must contain the expected PI ID
+        const descHasPiId = a.description && a.description.includes(`PI ID: ${piId || 'N/A'}.`);
+        // Description must contain purchase ID when available
+        const descHasPurchaseId = !purchaseId || (a.description && a.description.includes(`Purchase ID: ${purchaseId}.`));
+
+        if (idMatch && typeMatch && priorityMatch && titleMatch &&
+            refTypeMatch && refIdMatch && descHasReason && descHasPiId && descHasPurchaseId) {
           result.alert_proven = true;
           result.alerted = true;
         } else {
-          result.alert_error = 'alert verification failed — fields do not match expected values';
+          const failures = [];
+          if (!idMatch) failures.push('alert ID mismatch');
+          if (!typeMatch) failures.push('alert type mismatch');
+          if (!priorityMatch) failures.push('priority mismatch');
+          if (!titleMatch) failures.push('title mismatch');
+          if (!refTypeMatch) failures.push('reference_type mismatch');
+          if (!refIdMatch) failures.push('reference_id mismatch');
+          if (!descHasReason) failures.push('description missing complete reason');
+          if (!descHasPiId) failures.push('description missing PI ID');
+          if (!descHasPurchaseId) failures.push('description missing purchase ID');
+          result.alert_error = `alert verification failed — ${failures.join(', ')}`;
         }
       } else {
         result.alert_error = 'alert re-query returned 0 records';
@@ -421,6 +467,86 @@ export async function durableBlockAndAlert(deps, listing_id, reason, piId, title
       result.alert_error = `alert re-query failed: ${err?.message || String(err)}`;
     }
   }
+
+  return result;
+}
+
+// ── Fail-closed helper for legacy revision failures ──────────────────────
+// Shared fail-closed helper for ALL unsafe legacy-revision states.
+// Preserves the complete current tuple and revision evidence, attempts to
+// quarantine BOTH Listing and ListingPrivate, re-fetches and proves whether
+// each quarantine write persisted, durably blocks and creates a critical alert,
+// and returns structured proof. Never says "quarantined," "blocked," or
+// "alerted" unless re-fetch proves it.
+//
+// Returns: {
+//   listing_quarantine_attempted: boolean,
+//   listing_quarantine_proven: boolean,
+//   lp_quarantine_attempted: boolean,
+//   lp_quarantine_proven: boolean,
+//   block_proven: boolean,
+//   alert_proven: boolean,
+//   ok: false,  // always false — this is a failure path
+//   error: string,
+//   state: string,
+// }
+export async function failClosedLegacyRevision(deps, listing_id, reason, piId, purchaseId, state) {
+  const result = {
+    listing_quarantine_attempted: false,
+    listing_quarantine_proven: false,
+    lp_quarantine_attempted: false,
+    lp_quarantine_proven: false,
+    block_proven: false,
+    alert_proven: false,
+    ok: false,
+    error: reason,
+    state: state || 'fail_closed',
+  };
+
+  const quarantineAt = new Date(deps.now()).toISOString();
+
+  // 1. Attempt to quarantine Listing
+  result.listing_quarantine_attempted = true;
+  try {
+    await deps.entities.Listing.update(listing_id, {
+      status: 'hidden',
+      hidden_reason: 'checkout_quarantine',
+    });
+  } catch (_) { /* Listing quarantine write failed — try LP anyway */ }
+
+  // 2. Attempt to quarantine ListingPrivate
+  result.lp_quarantine_attempted = true;
+  try {
+    await upsertListingPrivate(deps, listing_id, {
+      checkout_quarantined: true,
+      checkout_quarantine_reason: reason,
+      checkout_quarantined_at: quarantineAt,
+    });
+  } catch (_) { /* LP quarantine write failed */ }
+
+  // 3. Re-fetch both records and prove whether each quarantine write persisted
+  try {
+    const [verifyListing] = await deps.entities.Listing.filter({ id: listing_id });
+    result.listing_quarantine_proven = !!verifyListing &&
+      verifyListing.status === 'hidden' &&
+      verifyListing.hidden_reason === 'checkout_quarantine';
+  } catch (_) { /* re-fetch failed */ }
+
+  try {
+    const verifyLP = await getListingPrivate(deps, listing_id);
+    result.lp_quarantine_proven = !!verifyLP &&
+      verifyLP.checkout_quarantined === true &&
+      verifyLP.checkout_quarantine_reason === reason &&
+      !!verifyLP.checkout_quarantined_at;
+  } catch (_) { /* re-fetch failed */ }
+
+  // 4. Durably block and create a critical alert
+  const blockResult = await durableBlockAndAlert(deps, listing_id, reason, piId,
+    `Legacy revision failure — ${listing_id} (${state})`, purchaseId);
+  result.block_proven = blockResult.block_proven;
+  result.alert_proven = blockResult.alert_proven;
+  result.block_error = blockResult.block_error;
+  result.alert_error = blockResult.alert_error;
 
   return result;
 }
@@ -487,50 +613,86 @@ export async function initializeLegacyRevision(deps, listing_id) {
     // Return success ONLY after proving both complete tuples are non-null,
     // exactly match, and both revisions exactly match.
     if (!listingToken || !listingBuyer || !listingExpiry) {
-      const r = await durableBlockAndAlert(deps, listing_id,
-        `Legacy revision L1: Listing tuple is null or partially null (token=${listingToken}, buyer=${listingBuyer}, expiry=${listingExpiry}). Manual resolution required.`, null);
-      return { ok: false, error: 'L1: Listing tuple null or partially null', blocked: r.blocked, alerted: r.alerted, state: 'L1_null_tuple' };
+      const r = await failClosedLegacyRevision(deps, listing_id,
+        `Legacy revision L1: Listing tuple is null or partially null (token=${listingToken}, buyer=${listingBuyer}, expiry=${listingExpiry}). Manual resolution required.`,
+        null, null, 'L1_null_tuple');
+      return { ok: false, error: 'L1: Listing tuple null or partially null',
+        listing_quarantine_proven: r.listing_quarantine_proven,
+        lp_quarantine_proven: r.lp_quarantine_proven,
+        block_proven: r.block_proven, alert_proven: r.alert_proven, state: 'L1_null_tuple' };
     }
     if (!lpToken || !lpBuyer || !lpExpiry) {
-      const r = await durableBlockAndAlert(deps, listing_id,
-        `Legacy revision L1: LP tuple is null or partially null (token=${lpToken}, buyer=${lpBuyer}, expiry=${lpExpiry}). Manual resolution required.`, null);
-      return { ok: false, error: 'L1: LP tuple null or partially null', blocked: r.blocked, alerted: r.alerted, state: 'L1_null_tuple' };
+      const r = await failClosedLegacyRevision(deps, listing_id,
+        `Legacy revision L1: LP tuple is null or partially null (token=${lpToken}, buyer=${lpBuyer}, expiry=${lpExpiry}). Manual resolution required.`,
+        null, null, 'L1_null_tuple');
+      return { ok: false, error: 'L1: LP tuple null or partially null',
+        listing_quarantine_proven: r.listing_quarantine_proven,
+        lp_quarantine_proven: r.lp_quarantine_proven,
+        block_proven: r.block_proven, alert_proven: r.alert_proven, state: 'L1_null_tuple' };
     }
     if (listingToken !== lpToken || listingBuyer !== lpBuyer || listingExpiry !== lpExpiry) {
-      const r = await durableBlockAndAlert(deps, listing_id,
-        `Legacy revision L1: tuple mismatch despite matching revisions. Listing token=${listingToken}, LP token=${lpToken}. Manual resolution required.`, null);
-      return { ok: false, error: 'L1: tuple mismatch', blocked: r.blocked, alerted: r.alerted, state: 'L1_tuple_mismatch' };
+      const r = await failClosedLegacyRevision(deps, listing_id,
+        `Legacy revision L1: tuple mismatch despite matching revisions. Listing token=${listingToken}, LP token=${lpToken}. Manual resolution required.`,
+        null, null, 'L1_tuple_mismatch');
+      return { ok: false, error: 'L1: tuple mismatch',
+        listing_quarantine_proven: r.listing_quarantine_proven,
+        lp_quarantine_proven: r.lp_quarantine_proven,
+        block_proven: r.block_proven, alert_proven: r.alert_proven, state: 'L1_tuple_mismatch' };
     }
     return { ok: true, revision: listingRev, alreadyExisted: true, state: 'L1' };
   }
 
   // ── State L3: exactly one revision exists ───────────────────────────────
   if ((listingRev && !lpRev) || (!listingRev && lpRev)) {
-    const r = await durableBlockAndAlert(deps, listing_id,
-      `Legacy revision L3: asymmetric revision. Listing=${listingRev}, LP=${lpRev}. Preserving both tuples. Manual resolution required.`, null);
-    return { ok: false, error: 'L3: asymmetric revision', blocked: r.blocked, alerted: r.alerted, state: 'L3' };
+    const r = await failClosedLegacyRevision(deps, listing_id,
+      `Legacy revision L3: asymmetric revision. Listing=${listingRev}, LP=${lpRev}. Preserving both tuples. Manual resolution required.`,
+      null, null, 'L3');
+    return { ok: false, error: 'L3: asymmetric revision',
+      listing_quarantine_proven: r.listing_quarantine_proven,
+      lp_quarantine_proven: r.lp_quarantine_proven,
+      block_proven: r.block_proven, alert_proven: r.alert_proven, state: 'L3' };
   }
 
   // ── State L4: both revisions exist but differ ────────────────────────────
   if (listingRev && lpRev && listingRev !== lpRev) {
-    const r = await durableBlockAndAlert(deps, listing_id,
-      `Legacy revision L4: revisions differ. Listing=${listingRev}, LP=${lpRev}. Preserving both tuples and both mismatched revisions. Manual resolution required.`, null);
-    return { ok: false, error: 'L4: revisions differ', blocked: r.blocked, alerted: r.alerted, state: 'L4' };
+    const r = await failClosedLegacyRevision(deps, listing_id,
+      `Legacy revision L4: revisions differ. Listing=${listingRev}, LP=${lpRev}. Preserving both tuples and both mismatched revisions. Manual resolution required.`,
+      null, null, 'L4');
+    return { ok: false, error: 'L4: revisions differ',
+      listing_quarantine_proven: r.listing_quarantine_proven,
+      lp_quarantine_proven: r.lp_quarantine_proven,
+      block_proven: r.block_proven, alert_proven: r.alert_proven, state: 'L4' };
   }
 
   // ── State L2: both revisions are absent ─────────────────────────────────
   // Initialize ONLY when both complete tuples are non-null, token matches,
   // buyer matches, expiration matches.
   if (!listingToken || !listingBuyer || !listingExpiry) {
-    return { ok: false, error: 'L2: Listing tuple is null or partially null — cannot initialize revision', state: 'L2_null_tuple' };
+    const r = await failClosedLegacyRevision(deps, listing_id,
+      `Legacy revision L2: Listing tuple is null or partially null (token=${listingToken}, buyer=${listingBuyer}, expiry=${listingExpiry}). Cannot initialize revision. Manual resolution required.`,
+      null, null, 'L2_null_tuple');
+    return { ok: false, error: 'L2: Listing tuple is null or partially null — cannot initialize revision',
+      listing_quarantine_proven: r.listing_quarantine_proven,
+      lp_quarantine_proven: r.lp_quarantine_proven,
+      block_proven: r.block_proven, alert_proven: r.alert_proven, state: 'L2_null_tuple' };
   }
   if (!lpToken || !lpBuyer || !lpExpiry) {
-    return { ok: false, error: 'L2: LP tuple is null or partially null — cannot initialize revision', state: 'L2_null_tuple' };
+    const r = await failClosedLegacyRevision(deps, listing_id,
+      `Legacy revision L2: LP tuple is null or partially null (token=${lpToken}, buyer=${lpBuyer}, expiry=${lpExpiry}). Cannot initialize revision. Manual resolution required.`,
+      null, null, 'L2_null_tuple');
+    return { ok: false, error: 'L2: LP tuple is null or partially null — cannot initialize revision',
+      listing_quarantine_proven: r.listing_quarantine_proven,
+      lp_quarantine_proven: r.lp_quarantine_proven,
+      block_proven: r.block_proven, alert_proven: r.alert_proven, state: 'L2_null_tuple' };
   }
   if (listingToken !== lpToken || listingBuyer !== lpBuyer || listingExpiry !== lpExpiry) {
-    const r = await durableBlockAndAlert(deps, listing_id,
-      `Legacy revision L2: tuple mismatch. Listing token=${listingToken}, LP token=${lpToken}. Manual resolution required.`, null);
-    return { ok: false, error: 'L2: tuple mismatch', blocked: r.blocked, alerted: r.alerted, state: 'L2_tuple_mismatch' };
+    const r = await failClosedLegacyRevision(deps, listing_id,
+      `Legacy revision L2: tuple mismatch. Listing token=${listingToken}, LP token=${lpToken}. Manual resolution required.`,
+      null, null, 'L2_tuple_mismatch');
+    return { ok: false, error: 'L2: tuple mismatch',
+      listing_quarantine_proven: r.listing_quarantine_proven,
+      lp_quarantine_proven: r.lp_quarantine_proven,
+      block_proven: r.block_proven, alert_proven: r.alert_proven, state: 'L2_tuple_mismatch' };
   }
 
   // Generate one unique revision
@@ -540,9 +702,13 @@ export async function initializeLegacyRevision(deps, listing_id) {
   try {
     await upsertListingPrivate(deps, listing_id, { reservation_revision: newRevision });
   } catch (err) {
-    const r = await durableBlockAndAlert(deps, listing_id,
-      `Legacy revision L2: LP revision write threw. Error: ${err?.message}. No Listing write performed. Manual resolution required.`, null);
-    return { ok: false, error: `L2: LP revision write failed: ${err?.message}`, blocked: r.blocked, alerted: r.alerted, state: 'L2_lp_write_threw' };
+    const r = await failClosedLegacyRevision(deps, listing_id,
+      `Legacy revision L2: LP revision write threw. Error: ${err?.message}. No Listing write performed. Manual resolution required.`,
+      null, null, 'L2_lp_write_threw');
+    return { ok: false, error: `L2: LP revision write failed: ${err?.message}`,
+      listing_quarantine_proven: r.listing_quarantine_proven,
+      lp_quarantine_proven: r.lp_quarantine_proven,
+      block_proven: r.block_proven, alert_proven: r.alert_proven, state: 'L2_lp_write_threw' };
   }
 
   // Write to Listing
@@ -550,9 +716,13 @@ export async function initializeLegacyRevision(deps, listing_id) {
     await deps.entities.Listing.update(listing_id, { reservation_revision: newRevision });
   } catch (err) {
     // PARTIAL WRITE: first write succeeded, second threw
-    const r = await durableBlockAndAlert(deps, listing_id,
-      `Legacy revision L2: Listing revision write threw AFTER LP write succeeded. LP now has revision=${newRevision}, Listing has none. This is a partial write — a retry must NOT generate a second contradictory revision. Manual resolution required.`, null);
-    return { ok: false, error: `L2: Listing revision write failed: ${err?.message}`, blocked: r.blocked, alerted: r.alerted, state: 'L2_listing_write_threw' };
+    const r = await failClosedLegacyRevision(deps, listing_id,
+      `Legacy revision L2: Listing revision write threw AFTER LP write succeeded. LP now has revision=${newRevision}, Listing has none. This is a partial write — a retry must NOT generate a second contradictory revision. Manual resolution required.`,
+      null, null, 'L2_listing_write_threw');
+    return { ok: false, error: `L2: Listing revision write failed: ${err?.message}`,
+      listing_quarantine_proven: r.listing_quarantine_proven,
+      lp_quarantine_proven: r.lp_quarantine_proven,
+      block_proven: r.block_proven, alert_proven: r.alert_proven, state: 'L2_listing_write_threw' };
   }
 
   // Re-fetch both records
@@ -560,45 +730,65 @@ export async function initializeLegacyRevision(deps, listing_id) {
   const lpAfter = await getListingPrivate(deps, listing_id);
 
   if (!listingAfter || !lpAfter) {
-    const r = await durableBlockAndAlert(deps, listing_id,
-      `Legacy revision L2: records missing after revision write. Manual resolution required.`, null);
-    return { ok: false, error: 'L2: missing records after revision write', blocked: r.blocked, alerted: r.alerted, state: 'L2_missing_after' };
+    const r = await failClosedLegacyRevision(deps, listing_id,
+      `Legacy revision L2: records missing after revision write. Manual resolution required.`,
+      null, null, 'L2_missing_after');
+    return { ok: false, error: 'L2: missing records after revision write',
+      listing_quarantine_proven: r.listing_quarantine_proven,
+      lp_quarantine_proven: r.lp_quarantine_proven,
+      block_proven: r.block_proven, alert_proven: r.alert_proven, state: 'L2_missing_after' };
   }
 
   // PARTIAL WRITE: silently failed — one write did not persist
   if (listingAfter.reservation_revision !== newRevision || lpAfter.reservation_revision !== newRevision) {
     const listingOk = listingAfter.reservation_revision === newRevision;
     const lpOk = lpAfter.reservation_revision === newRevision;
-    const r = await durableBlockAndAlert(deps, listing_id,
-      `Legacy revision L2: write silently did not persist. Listing revision=${listingAfter.reservation_revision}, LP revision=${lpAfter.reservation_revision}, expected=${newRevision}. A retry must NOT generate a second contradictory revision. Manual resolution required.`, null);
-    return { ok: false, error: `L2: revision not persisted (listingOk=${listingOk}, lpOk=${lpOk})`, blocked: r.blocked, alerted: r.alerted, state: 'L2_silent_fail' };
+    const r = await failClosedLegacyRevision(deps, listing_id,
+      `Legacy revision L2: write silently did not persist. Listing revision=${listingAfter.reservation_revision}, LP revision=${lpAfter.reservation_revision}, expected=${newRevision}. A retry must NOT generate a second contradictory revision. Manual resolution required.`,
+      null, null, 'L2_silent_fail');
+    return { ok: false, error: `L2: revision not persisted (listingOk=${listingOk}, lpOk=${lpOk})`,
+      listing_quarantine_proven: r.listing_quarantine_proven,
+      lp_quarantine_proven: r.lp_quarantine_proven,
+      block_proven: r.block_proven, alert_proven: r.alert_proven, state: 'L2_silent_fail' };
   }
 
   // Verify Listing tuple unchanged
   if (listingAfter.reservation_token !== listingToken ||
       listingAfter.reserved_by_email !== listingBuyer ||
       listingAfter.reservation_expires_at !== listingExpiry) {
-    const r = await durableBlockAndAlert(deps, listing_id,
-      `Legacy revision L2: Listing tuple changed during write. Before token=${listingToken}, after token=${listingAfter.reservation_token}. Manual resolution required.`, null);
-    return { ok: false, error: 'L2: Listing tuple changed during write', blocked: r.blocked, alerted: r.alerted, state: 'L2_listing_tuple_changed' };
+    const r = await failClosedLegacyRevision(deps, listing_id,
+      `Legacy revision L2: Listing tuple changed during write. Before token=${listingToken}, after token=${listingAfter.reservation_token}. Manual resolution required.`,
+      null, null, 'L2_listing_tuple_changed');
+    return { ok: false, error: 'L2: Listing tuple changed during write',
+      listing_quarantine_proven: r.listing_quarantine_proven,
+      lp_quarantine_proven: r.lp_quarantine_proven,
+      block_proven: r.block_proven, alert_proven: r.alert_proven, state: 'L2_listing_tuple_changed' };
   }
 
   // Verify LP tuple unchanged
   if (lpAfter.reservation_token !== lpToken ||
       lpAfter.reserved_by_email !== lpBuyer ||
       lpAfter.reservation_expires_at !== lpExpiry) {
-    const r = await durableBlockAndAlert(deps, listing_id,
-      `Legacy revision L2: LP tuple changed during write. Before token=${lpToken}, after token=${lpAfter.reservation_token}. Manual resolution required.`, null);
-    return { ok: false, error: 'L2: LP tuple changed during write', blocked: r.blocked, alerted: r.alerted, state: 'L2_lp_tuple_changed' };
+    const r = await failClosedLegacyRevision(deps, listing_id,
+      `Legacy revision L2: LP tuple changed during write. Before token=${lpToken}, after token=${lpAfter.reservation_token}. Manual resolution required.`,
+      null, null, 'L2_lp_tuple_changed');
+    return { ok: false, error: 'L2: LP tuple changed during write',
+      listing_quarantine_proven: r.listing_quarantine_proven,
+      lp_quarantine_proven: r.lp_quarantine_proven,
+      block_proven: r.block_proven, alert_proven: r.alert_proven, state: 'L2_lp_tuple_changed' };
   }
 
   // Verify both tuples still match each other
   if (listingAfter.reservation_token !== lpAfter.reservation_token ||
       listingAfter.reserved_by_email !== lpAfter.reserved_by_email ||
       listingAfter.reservation_expires_at !== lpAfter.reservation_expires_at) {
-    const r = await durableBlockAndAlert(deps, listing_id,
-      `Legacy revision L2: tuples diverged after write. Manual resolution required.`, null);
-    return { ok: false, error: 'L2: tuples diverged after write', blocked: r.blocked, alerted: r.alerted, state: 'L2_tuples_diverged' };
+    const r = await failClosedLegacyRevision(deps, listing_id,
+      `Legacy revision L2: tuples diverged after write. Manual resolution required.`,
+      null, null, 'L2_tuples_diverged');
+    return { ok: false, error: 'L2: tuples diverged after write',
+      listing_quarantine_proven: r.listing_quarantine_proven,
+      lp_quarantine_proven: r.lp_quarantine_proven,
+      block_proven: r.block_proven, alert_proven: r.alert_proven, state: 'L2_tuples_diverged' };
   }
 
   return { ok: true, revision: newRevision, alreadyExisted: false, state: 'L2' };

@@ -88,9 +88,17 @@ Deno.serve(async (req) => {
       if (curLp?.reservation_token) {
         try {
           await upsertListingPrivate(base44, listing.id, {
-            reserved_by_email: null, reservation_token: null, reservation_expires_at: null,
+            reserved_by_email: null, reservation_token: null, reservation_expires_at: null, reservation_revision: null,
           });
-        } catch (_) {}
+          const verifyLp = await getListingPrivate(base44, listing.id);
+          if (verifyLp?.reservation_token) {
+            await alertPrivateWriteFailure(base44, { entity: 'ListingPrivate (release verify)', reference_id: listing.id, reference_type: 'listing', error: new Error('LP clear did not persist after release') });
+            return Response.json({ error: 'Failed to release reservation. Please try again.' }, { status: 500 });
+          }
+        } catch (err) {
+          await alertPrivateWriteFailure(base44, { entity: 'ListingPrivate (release)', reference_id: listing.id, reference_type: 'listing', error: err });
+          return Response.json({ error: 'Failed to release reservation. Please try again.' }, { status: 500 });
+        }
       }
       return Response.json({ status: 'released' });
     }
@@ -103,8 +111,15 @@ Deno.serve(async (req) => {
           reserved_by_email: curListing.reserved_by_email ?? null,
           reservation_token: curToken,
           reservation_expires_at: curListing.reservation_expires_at ?? null,
+          reservation_revision: curListing.reservation_revision ?? null,
         });
-      } catch (_) {}
+        const verifyLp = await getListingPrivate(base44, listing.id);
+        if (verifyLp?.reservation_token !== curToken) {
+          await alertPrivateWriteFailure(base44, { entity: 'ListingPrivate (superseded reconcile verify)', reference_id: listing.id, reference_type: 'listing', error: new Error('LP reconcile did not persist after supersede') });
+        }
+      } catch (err) {
+        await alertPrivateWriteFailure(base44, { entity: 'ListingPrivate (superseded reconcile)', reference_id: listing.id, reference_type: 'listing', error: err });
+      }
       return Response.json({ status: 'released', superseded: true });
     }
 
@@ -115,8 +130,15 @@ Deno.serve(async (req) => {
         reserved_by_email: curListing?.reserved_by_email ?? null,
         reservation_token: curToken,
         reservation_expires_at: curListing?.reservation_expires_at ?? null,
+        reservation_revision: curListing?.reservation_revision ?? null,
       });
-    } catch (_) {}
+      const verifyLp = await getListingPrivate(base44, listing.id);
+      if (verifyLp?.reservation_token !== curToken) {
+        await alertPrivateWriteFailure(base44, { entity: 'ListingPrivate (stale-token reconcile verify)', reference_id: listing.id, reference_type: 'listing', error: new Error('LP reconcile did not persist after stale token') });
+      }
+    } catch (err) {
+      await alertPrivateWriteFailure(base44, { entity: 'ListingPrivate (stale-token reconcile)', reference_id: listing.id, reference_type: 'listing', error: err });
+    }
     await alertPrivateWriteFailure(base44, { entity: 'ListingPrivate (release not applied)', reference_id: listing.id, reference_type: 'listing', error: new Error('Listing still holds the old reservation after release') });
     return Response.json({ error: 'Failed to release reservation. Please try again.' }, { status: 500 });
   } catch (error) {

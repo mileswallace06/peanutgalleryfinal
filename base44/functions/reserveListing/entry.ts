@@ -85,16 +85,32 @@ Deno.serve(async (req) => {
       }, { status: 409 });
     }
     // Expired — auto-release it
-    await base44.asServiceRole.entities.Listing.update(r.id, {
-      reserved_by_email: null,
-      reservation_token: null,
-      reservation_expires_at: null,
-    }).catch(() => {});
+    try {
+      await base44.asServiceRole.entities.Listing.update(r.id, {
+        reserved_by_email: null,
+        reservation_token: null,
+        reservation_expires_at: null,
+        reservation_revision: null,
+      });
+      try {
+        await upsertListingPrivate(base44, r.id, {
+          reserved_by_email: null,
+          reservation_token: null,
+          reservation_expires_at: null,
+          reservation_revision: null,
+        });
+      } catch (lpErr) {
+        await alertPrivateWriteFailure(base44, { entity: 'ListingPrivate (auto-release)', reference_id: r.id, reference_type: 'listing', error: lpErr });
+      }
+    } catch (listErr) {
+      await alertPrivateWriteFailure(base44, { entity: 'Listing (auto-release)', reference_id: r.id, reference_type: 'listing', error: listErr });
+    }
   }
 
   // ── Reserve ─────────────────────────────────────────────────────────────
   const token = crypto.randomUUID();
   const expiresAt = new Date(now + RESERVATION_MINUTES * 60 * 1000).toISOString();
+  const revision = crypto.randomUUID();
 
   // Write authoritative ListingPrivate FIRST, then legacy Listing mirror
   try {
@@ -102,6 +118,7 @@ Deno.serve(async (req) => {
       reserved_by_email: user.email,
       reservation_token: token,
       reservation_expires_at: expiresAt,
+      reservation_revision: revision,
     });
   } catch (err) {
     await alertPrivateWriteFailure(base44, { entity: 'ListingPrivate', reference_id: listing.id, reference_type: 'listing', error: err });
@@ -112,6 +129,7 @@ Deno.serve(async (req) => {
       reserved_by_email: user.email,
       reservation_token: token,
       reservation_expires_at: expiresAt,
+      reservation_revision: revision,
     });
   } catch (err) {
     // Legacy mirror failed — reconcile ListingPrivate to current Listing state (never restore old blindly)
@@ -121,8 +139,16 @@ Deno.serve(async (req) => {
         reserved_by_email: failListing?.reserved_by_email ?? null,
         reservation_token: failListing?.reservation_token ?? null,
         reservation_expires_at: failListing?.reservation_expires_at ?? null,
+        reservation_revision: failListing?.reservation_revision ?? null,
       });
-    } catch (_) {}
+      // Verify reconciliation persisted
+      const verifyLp = await getListingPrivate(base44, listing.id);
+      if (verifyLp?.reservation_token !== (failListing?.reservation_token ?? null)) {
+        await alertPrivateWriteFailure(base44, { entity: 'ListingPrivate (reconcile verify)', reference_id: listing.id, reference_type: 'listing', error: new Error('LP reconciliation did not persist after Listing mirror failure') });
+      }
+    } catch (reconcileErr) {
+      await alertPrivateWriteFailure(base44, { entity: 'ListingPrivate (reconcile)', reference_id: listing.id, reference_type: 'listing', error: reconcileErr });
+    }
     await alertPrivateWriteFailure(base44, { entity: 'Listing (legacy mirror)', reference_id: listing.id, reference_type: 'listing', error: err });
     return Response.json({ error: 'Failed to persist reservation. Please try again.' }, { status: 500 });
   }
@@ -149,8 +175,16 @@ Deno.serve(async (req) => {
           reserved_by_email: curListing.reserved_by_email ?? null,
           reservation_token: curToken,
           reservation_expires_at: curListing.reservation_expires_at ?? null,
+          reservation_revision: curListing.reservation_revision ?? null,
         });
-      } catch (_) {}
+        // Verify reconciliation persisted
+        const verifyLp = await getListingPrivate(base44, listing.id);
+        if (verifyLp?.reservation_token !== curToken) {
+          await alertPrivateWriteFailure(base44, { entity: 'ListingPrivate (race-lost reconcile verify)', reference_id: listing.id, reference_type: 'listing', error: new Error('LP reconcile did not persist after race loss') });
+        }
+      } catch (reconcileErr) {
+        await alertPrivateWriteFailure(base44, { entity: 'ListingPrivate (race-lost reconcile)', reference_id: listing.id, reference_type: 'listing', error: reconcileErr });
+      }
     }
     return Response.json({
       error: 'This listing was just reserved by another buyer. Please try another listing.',
@@ -165,7 +199,14 @@ Deno.serve(async (req) => {
         reserved_by_email: user.email,
         reservation_token: token,
         reservation_expires_at: expiresAt,
+        reservation_revision: revision,
       });
+      // Verify reconciliation persisted
+      const verifyLp = await getListingPrivate(base44, listing.id);
+      if (verifyLp?.reservation_token !== token) {
+        await alertPrivateWriteFailure(base44, { entity: 'ListingPrivate (reconcile verify)', reference_id: listing.id, reference_type: 'listing', error: new Error('LP reconcile did not persist') });
+        return Response.json({ error: 'Reservation could not be verified. Please try again.' }, { status: 500 });
+      }
     } catch (err) {
       await alertPrivateWriteFailure(base44, { entity: 'ListingPrivate (reconcile)', reference_id: listing.id, reference_type: 'listing', error: err });
       return Response.json({ error: 'Reservation could not be verified. Please try again.' }, { status: 500 });

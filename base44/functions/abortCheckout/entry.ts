@@ -93,10 +93,20 @@ Deno.serve(async (req) => {
   }
 
   // Mark the abandoned Purchase expired.
-  await base44.asServiceRole.entities.Purchase.update(purchase.id, { transfer_status: 'expired' }).catch(() => {});
+  try {
+    await base44.asServiceRole.entities.Purchase.update(purchase.id, { transfer_status: 'expired' });
+  } catch (err) {
+    await alertPrivateWriteFailure(base44, { entity: 'Purchase', reference_id: purchase.id, reference_type: 'purchase', error: err });
+  }
 
   // Release the Listing only if it still belongs to this Purchase/reservation.
-  const [listing] = await base44.asServiceRole.entities.Listing.filter({ id: purchase.listing_id }).catch(() => []);
+  let listing = null;
+  try {
+    const listings = await base44.asServiceRole.entities.Listing.filter({ id: purchase.listing_id });
+    listing = listings[0];
+  } catch (err) {
+    await alertPrivateWriteFailure(base44, { entity: 'Listing', reference_id: purchase.listing_id, reference_type: 'listing', error: err });
+  }
   const lp = listing ? await getListingPrivate(base44, listing.id) : null;
   const authoritativeReservedBy = lp?.reserved_by_email ?? listing?.reserved_by_email;
   const authoritativeResToken = lp?.reservation_token ?? listing?.reservation_token;
@@ -111,14 +121,24 @@ Deno.serve(async (req) => {
         });
       } catch (err) {
         await alertPrivateWriteFailure(base44, { entity: 'ListingPrivate', reference_id: listing.id, reference_type: 'listing', error: err });
+        return Response.json({ error: 'Failed to release listing reservation. Please try again.' }, { status: 500 });
       }
-      await base44.asServiceRole.entities.Listing.update(listing.id, {
-        status: 'active',
-        reservation_token: null,
-        reservation_expires_at: null,
-        reserved_by_email: null,
-        reservation_revision: null,
-      }).catch(() => {});
+      try {
+        await base44.asServiceRole.entities.Listing.update(listing.id, {
+          status: 'active',
+          reservation_token: null,
+          reservation_expires_at: null,
+          reserved_by_email: null,
+          reservation_revision: null,
+        });
+        // Verify Listing cleared
+        const [verifyListing] = await base44.asServiceRole.entities.Listing.filter({ id: listing.id });
+        if (verifyListing?.reservation_token || verifyListing?.reserved_by_email) {
+          await alertPrivateWriteFailure(base44, { entity: 'Listing (clear verify)', reference_id: listing.id, reference_type: 'listing', error: new Error('Listing reservation fields not cleared after abort') });
+        }
+      } catch (err) {
+        await alertPrivateWriteFailure(base44, { entity: 'Listing (legacy mirror)', reference_id: listing.id, reference_type: 'listing', error: err });
+      }
     }
   }
 

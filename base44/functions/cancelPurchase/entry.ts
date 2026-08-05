@@ -99,9 +99,13 @@ Deno.serve(async (req) => {
     await stripe.refunds.create({ payment_intent: authoritativePaymentIntentId });
   }
 
-  await base44.asServiceRole.entities.Purchase.update(purchase.id, {
-    transfer_status: 'expired',
-  });
+  try {
+    await base44.asServiceRole.entities.Purchase.update(purchase.id, {
+      transfer_status: 'expired',
+    });
+  } catch (err) {
+    await alertPrivateWriteFailure(base44, { entity: 'Purchase', reference_id: purchase.id, reference_type: 'purchase', error: err });
+  }
 
   // Only restore the listing if it is currently pending_transfer.
   const [currentListing] = await base44.asServiceRole.entities.Listing.filter({ id: purchase.listing_id });
@@ -113,14 +117,24 @@ Deno.serve(async (req) => {
       });
     } catch (err) {
       await alertPrivateWriteFailure(base44, { entity: 'ListingPrivate', reference_id: purchase.listing_id, reference_type: 'listing', error: err });
+      return Response.json({ error: 'Failed to restore listing. Please contact support.' }, { status: 500 });
     }
-    await base44.asServiceRole.entities.Listing.update(purchase.listing_id, {
-      status: 'active',
-      reservation_token: null,
-      reservation_expires_at: null,
-      reserved_by_email: null,
-      reservation_revision: null,
-    });
+    try {
+      await base44.asServiceRole.entities.Listing.update(purchase.listing_id, {
+        status: 'active',
+        reservation_token: null,
+        reservation_expires_at: null,
+        reserved_by_email: null,
+        reservation_revision: null,
+      });
+      // Verify Listing cleared
+      const [verifyListing] = await base44.asServiceRole.entities.Listing.filter({ id: purchase.listing_id });
+      if (verifyListing?.reservation_token || verifyListing?.reserved_by_email) {
+        await alertPrivateWriteFailure(base44, { entity: 'Listing (clear verify)', reference_id: purchase.listing_id, reference_type: 'listing', error: new Error('Listing reservation fields not cleared after cancel') });
+      }
+    } catch (err) {
+      await alertPrivateWriteFailure(base44, { entity: 'Listing (legacy mirror)', reference_id: purchase.listing_id, reference_type: 'listing', error: err });
+    }
   }
 
   sendUserNotification(base44, {

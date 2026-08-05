@@ -182,23 +182,53 @@ export async function freezeCapturedPayment(deps, purchase, pp, pi) {
   }
   const derivedRevision = listingFresh.reservation_revision;
 
-  // ── Step 0e: Conflict detection — different non-null reservation ──────────
+  // ── Step 0e: Conflict detection — all four fields independently ───────────
+  // Detect changes independently on both Listing and ListingPrivate for all
+  // four fields: token, buyer, expiration, revision.
+  // A change in ANY one field on EITHER record must enter the conflict state.
+  // Null is NOT a conflict — only a different non-null value is.
   const listingHasConflictingToken = listingFresh.reservation_token && listingFresh.reservation_token !== originalToken;
   const lpHasConflictingToken = lpFresh.reservation_token && lpFresh.reservation_token !== originalToken;
   const listingHasConflictingBuyer = listingFresh.reserved_by_email && listingFresh.reserved_by_email !== originalBuyer;
   const lpHasConflictingBuyer = lpFresh.reserved_by_email && lpFresh.reserved_by_email !== originalBuyer;
+  const listingHasConflictingExpiry = listingFresh.reservation_expires_at && listingFresh.reservation_expires_at !== derivedExpiry;
+  const lpHasConflictingExpiry = lpFresh.reservation_expires_at && lpFresh.reservation_expires_at !== derivedExpiry;
+  const listingHasConflictingRevision = listingFresh.reservation_revision && listingFresh.reservation_revision !== derivedRevision;
+  const lpHasConflictingRevision = lpFresh.reservation_revision && lpFresh.reservation_revision !== derivedRevision;
 
-  if (listingHasConflictingToken || lpHasConflictingToken || listingHasConflictingBuyer || lpHasConflictingBuyer) {
+  const anyConflict = listingHasConflictingToken || lpHasConflictingToken ||
+    listingHasConflictingBuyer || lpHasConflictingBuyer ||
+    listingHasConflictingExpiry || lpHasConflictingExpiry ||
+    listingHasConflictingRevision || lpHasConflictingRevision;
+
+  if (anyConflict) {
+    const conflictFields = [];
+    if (listingHasConflictingToken) conflictFields.push('listing_token');
+    if (lpHasConflictingToken) conflictFields.push('lp_token');
+    if (listingHasConflictingBuyer) conflictFields.push('listing_buyer');
+    if (lpHasConflictingBuyer) conflictFields.push('lp_buyer');
+    if (listingHasConflictingExpiry) conflictFields.push('listing_expiry');
+    if (lpHasConflictingExpiry) conflictFields.push('lp_expiry');
+    if (listingHasConflictingRevision) conflictFields.push('listing_revision');
+    if (lpHasConflictingRevision) conflictFields.push('lp_revision');
+
+    const conflictDetail = `Conflict fields: ${conflictFields.join(', ')}. PP token=${originalToken}, Listing token=${listingFresh.reservation_token}, LP token=${lpFresh.reservation_token}. PP buyer=${originalBuyer}, Listing buyer=${listingFresh.reserved_by_email}, LP buyer=${lpFresh.reserved_by_email}. PP expiry=${derivedExpiry}, Listing expiry=${listingFresh.reservation_expires_at}, LP expiry=${lpFresh.reservation_expires_at}. PP revision=${derivedRevision}, Listing revision=${listingFresh.reservation_revision}, LP revision=${lpFresh.reservation_revision}.`;
+
     const qResult = await quarantineListing(deps, listingId,
-      `Reconciliation conflict: newer reservation exists. PP token=${originalToken}, Listing token=${listingFresh.reservation_token}, LP token=${lpFresh.reservation_token}. Purchase: ${purchaseId}.`,
+      `Reconciliation conflict: ${conflictDetail} Purchase: ${purchaseId}.`,
       purchaseId, pi.id);
     const blockResult = await durableBlockAndAlert(deps, listingId,
-      `Reconciliation conflict: newer reservation exists. PP token=${originalToken}, Listing token=${listingFresh.reservation_token}, LP token=${lpFresh.reservation_token}. PI: ${pi.id}. Quarantined: ${qResult.quarantined}. Manual resolution required.`,
-      pi.id, `Reconciliation conflict — newer reservation preserved — ${listingId}`);
+      `Reconciliation conflict: ${conflictDetail} PI: ${pi.id}. Quarantined: ${qResult.quarantined}. Manual resolution required.`,
+      pi.id, `Reconciliation conflict — fields: ${conflictFields.join(',')} — ${listingId}`, purchaseId);
     if (!qResult.quarantined && !blockResult.blocked && !blockResult.alerted) {
-      return { ok: false, step: 'conflict', error: 'quarantine, block, AND alert all failed', quarantined: qResult.quarantined, blocked: blockResult.blocked, alerted: blockResult.alerted };
+      return { ok: false, step: 'conflict', error: 'quarantine, block, AND alert all failed',
+        conflict_fields: conflictFields,
+        quarantined: qResult.quarantined, blocked: blockResult.blocked, alerted: blockResult.alerted };
     }
-    return { ok: false, step: 'conflict', error: `conflict detected — quarantined=${qResult.quarantined}, blocked=${blockResult.blocked}, alerted=${blockResult.alerted}`, quarantined: qResult.quarantined, blocked: blockResult.blocked, alerted: blockResult.alerted };
+    return { ok: false, step: 'conflict',
+      error: `conflict detected — fields: ${conflictFields.join(',')}, quarantined=${qResult.quarantined}, blocked=${blockResult.blocked}, alerted=${blockResult.alerted}`,
+      conflict_fields: conflictFields,
+      quarantined: qResult.quarantined, blocked: blockResult.blocked, alerted: blockResult.alerted };
   }
 
   // ── Step 1: Freeze PurchasePrivate — record immutable tuple ────────────────
@@ -299,11 +329,12 @@ export async function freezeCapturedPayment(deps, purchase, pp, pi) {
   const allFrozen = listingFrozen && lpFrozen && lpDrainSet && listingTuplePreserved && lpTuplePreserved && purchaseFrozen && ppFrozen;
 
   if (!allFrozen) {
-    // ── Post-prefetch conflict detection ──────────────────────────────────
-    // If the reservation tuple changed on Listing or LP between the initial
-    // prefetch (Step 0) and this verification (Step 4), a newer reservation
-    // was injected DURING the quarantine write. The conflict was not caught
-    // at Step 0e because the newer reservation did not exist at prefetch time.
+    // ── Post-prefetch conflict detection — all four fields independently ────
+    // If ANY of the four reservation fields (token, buyer, expiration, revision)
+    // changed on EITHER Listing or ListingPrivate between the initial prefetch
+    // (Step 0) and this verification (Step 4), a newer reservation was injected
+    // DURING the quarantine write. The conflict was not caught at Step 0e
+    // because the newer reservation did not exist at prefetch time.
     //
     // This is a PARTIAL-FREEZE state: financial writes (PP frozen tuple,
     // Purchase completed) already succeeded, but the Listing/LP now have a
@@ -312,26 +343,54 @@ export async function freezeCapturedPayment(deps, purchase, pp, pi) {
     //   2. Keep the frozen tuple on PP (it is immutable evidence).
     //   3. Durably block and alert with the conflict context.
     //   4. Return non-ok with step 'partial_freeze_conflict'.
-    const listingTupleChanged = !listingTuplePreserved &&
-      (verifyListing?.reservation_token !== originalToken ||
-       verifyListing?.reserved_by_email !== originalBuyer);
-    const lpTupleChanged = !lpTuplePreserved &&
-      (verifyLP?.reservation_token !== originalToken ||
-       verifyLP?.reserved_by_email !== originalBuyer);
+    //   5. Report all conflicting fields explicitly.
+    const listingTokenChanged = verifyListing?.reservation_token !== originalToken;
+    const listingBuyerChanged = verifyListing?.reserved_by_email !== originalBuyer;
+    const listingExpiryChanged = verifyListing?.reservation_expires_at !== derivedExpiry;
+    const listingRevisionChanged = verifyListing?.reservation_revision !== derivedRevision;
+    const lpTokenChanged = verifyLP?.reservation_token !== originalToken;
+    const lpBuyerChanged = verifyLP?.reserved_by_email !== originalBuyer;
+    const lpExpiryChanged = verifyLP?.reservation_expires_at !== derivedExpiry;
+    const lpRevisionChanged = verifyLP?.reservation_revision !== derivedRevision;
 
-    if (listingTupleChanged || lpTupleChanged) {
+    // A "changed" field is one that is non-null AND differs from the frozen value.
+    // A field becoming null during the race is also a conflict (partial-null tuple).
+    const listingConflicts = [];
+    if (listingTokenChanged) listingConflicts.push('listing_token');
+    if (listingBuyerChanged) listingConflicts.push('listing_buyer');
+    if (listingExpiryChanged) listingConflicts.push('listing_expiry');
+    if (listingRevisionChanged) listingConflicts.push('listing_revision');
+    const lpConflicts = [];
+    if (lpTokenChanged) lpConflicts.push('lp_token');
+    if (lpBuyerChanged) lpConflicts.push('lp_buyer');
+    if (lpExpiryChanged) lpConflicts.push('lp_expiry');
+    if (lpRevisionChanged) lpConflicts.push('lp_revision');
+
+    const allConflicts = [...listingConflicts, ...lpConflicts];
+    const hasConflict = allConflicts.length > 0;
+
+    if (hasConflict) {
+      const conflictDetail = `Conflict fields: ${allConflicts.join(', ')}. Prefetched token=${originalToken}, Listing token=${verifyListing?.reservation_token}, LP token=${verifyLP?.reservation_token}. Prefetched buyer=${originalBuyer}, Listing buyer=${verifyListing?.reserved_by_email}, LP buyer=${verifyLP?.reserved_by_email}. Prefetched expiry=${derivedExpiry}, Listing expiry=${verifyListing?.reservation_expires_at}, LP expiry=${verifyLP?.reservation_expires_at}. Prefetched revision=${derivedRevision}, Listing revision=${verifyListing?.reservation_revision}, LP revision=${verifyLP?.reservation_revision}.`;
+
       const qResult = await quarantineListing(deps, listingId,
-        `Post-prefetch conflict: reservation tuple changed during quarantine. Prefetched token=${originalToken}, post-verify Listing token=${verifyListing?.reservation_token}, LP token=${verifyLP?.reservation_token}. Purchase: ${purchaseId}.`,
+        `Post-prefetch conflict: ${conflictDetail} Purchase: ${purchaseId}.`,
         purchaseId, pi.id);
       const blockResult = await durableBlockAndAlert(deps, listingId,
-        `Post-prefetch conflict: reservation changed during freeze. Prefetched token=${originalToken}, Listing token=${verifyListing?.reservation_token}, LP token=${verifyLP?.reservation_token}. PI: ${pi.id}. Purchase: ${purchaseId}. Partial freeze: PP=${ppFrozen ? 'frozen' : 'not frozen'}, Purchase=${purchaseFrozen ? 'completed' : 'not completed'}. Quarantined: ${qResult.quarantined}. Manual resolution required.`,
-        pi.id, `Post-prefetch conflict — partial freeze — ${listingId}`);
+        `Post-prefetch conflict: ${conflictDetail} PI: ${pi.id}. Purchase: ${purchaseId}. Partial freeze: PP=${ppFrozen ? 'frozen' : 'not frozen'}, Purchase=${purchaseFrozen ? 'completed' : 'not completed'}. Quarantined: ${qResult.quarantined}. Manual resolution required.`,
+        pi.id, `Post-prefetch conflict — fields: ${allConflicts.join(',')} — ${listingId}`, purchaseId);
       return {
         ok: false, step: 'partial_freeze_conflict',
-        error: `post-prefetch conflict — newer reservation preserved, partial freeze state (ppFrozen=${ppFrozen}, purchaseFrozen=${purchaseFrozen})`,
+        error: `post-prefetch conflict — fields: ${allConflicts.join(',')}, partial freeze state (ppFrozen=${ppFrozen}, purchaseFrozen=${purchaseFrozen})`,
+        conflict_fields: allConflicts,
         quarantined: qResult.quarantined, blocked: blockResult.blocked, alerted: blockResult.alerted,
         listing_token_preserved: verifyListing?.reservation_token,
+        listing_buyer_preserved: verifyListing?.reserved_by_email,
+        listing_expiry_preserved: verifyListing?.reservation_expires_at,
+        listing_revision_preserved: verifyListing?.reservation_revision,
         lp_token_preserved: verifyLP?.reservation_token,
+        lp_buyer_preserved: verifyLP?.reserved_by_email,
+        lp_expiry_preserved: verifyLP?.reservation_expires_at,
+        lp_revision_preserved: verifyLP?.reservation_revision,
         pp_frozen: ppFrozen, purchase_frozen: purchaseFrozen,
       };
     }

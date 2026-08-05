@@ -20,7 +20,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import Stripe from 'npm:stripe@14.21.0';
 import { isMaintenanceActive } from '../../shared/maintenance.ts';
 import { sendUserNotification, sendTransactionalEmail } from '../../shared/notifications.ts';
-import { getPurchasePrivate, upsertPurchasePrivate, upsertListingPrivate } from '../../shared/privateData.ts';
+import { getPurchasePrivate, upsertPurchasePrivate, upsertListingPrivate, getListingPrivate } from '../../shared/privateData.ts';
 
 const SELLER_REMINDER_1_MS  =  5 * 60 * 1000;  //  5 min
 const SELLER_REMINDER_2_MS  = 15 * 60 * 1000;  // 15 min
@@ -177,15 +177,28 @@ Deno.serve(async (req) => {
           }
         }
         await base44.asServiceRole.entities.Purchase.update(purchase.id, { transfer_status: 'expired' });
-        await base44.asServiceRole.entities.Listing.update(purchase.listing_id, {
-          status: 'active',
-          reservation_token: null,
-          reservation_expires_at: null,
-          reserved_by_email: null,
-          reservation_revision: null,
-        }).catch(() => {});
-        // Phase 1B: clear ListingPrivate reservation
-        try { await upsertListingPrivate(base44, purchase.listing_id, { reservation_token: null, reservation_expires_at: null, reserved_by_email: null, reservation_revision: null }); } catch (_) {}
+        try {
+          await base44.asServiceRole.entities.Listing.update(purchase.listing_id, {
+            status: 'active',
+            reservation_token: null,
+            reservation_expires_at: null,
+            reserved_by_email: null,
+            reservation_revision: null,
+          });
+          // Phase 1B: clear ListingPrivate reservation
+          try {
+            await upsertListingPrivate(base44, purchase.listing_id, { reservation_token: null, reservation_expires_at: null, reserved_by_email: null, reservation_revision: null });
+            // Verify LP cleared
+            const verifyLp = await getListingPrivate(base44, purchase.listing_id);
+            if (verifyLp && verifyLp.reservation_token) {
+              console.error('[reminders] LP clear did not persist for listing:', purchase.listing_id);
+            }
+          } catch (lpErr) {
+            console.error('[reminders] LP clear failed for listing:', purchase.listing_id, lpErr?.message);
+          }
+        } catch (listErr) {
+          console.error('[reminders] Listing clear failed for listing:', purchase.listing_id, listErr?.message);
+        }
         await sendUserNotification(base44, {
           user_email: authoritativeBuyerEmail,
           title: 'Purchase expired — refund issued',
@@ -286,15 +299,23 @@ Deno.serve(async (req) => {
             transfer_status: 'pending_transfer',
           }).catch(() => []);
           if (activePurchases.length === 0) {
-            await base44.asServiceRole.entities.Listing.update(l.id, {
-              status: 'active',
-              reservation_token: null,
-              reservation_expires_at: null,
-              reserved_by_email: null,
-              reservation_revision: null,
-            }).catch(() => {});
-            try { await upsertListingPrivate(base44, l.id, { reservation_token: null, reservation_expires_at: null, reserved_by_email: null, reservation_revision: null }); } catch (_) {}
-            reservationsCleared++;
+            try {
+              await base44.asServiceRole.entities.Listing.update(l.id, {
+                status: 'active',
+                reservation_token: null,
+                reservation_expires_at: null,
+                reserved_by_email: null,
+                reservation_revision: null,
+              });
+              try {
+                await upsertListingPrivate(base44, l.id, { reservation_token: null, reservation_expires_at: null, reserved_by_email: null, reservation_revision: null });
+              } catch (lpErr) {
+                console.error('[reminders] LP clear failed for expired reservation:', l.id, lpErr?.message);
+              }
+              reservationsCleared++;
+            } catch (listErr) {
+              console.error('[reminders] Listing clear failed for expired reservation:', l.id, listErr?.message);
+            }
             console.log('[reminders] Cleared expired reservation for listing:', l.id);
           }
         }
@@ -314,14 +335,22 @@ Deno.serve(async (req) => {
       if (l.reserved_by_email && l.reservation_expires_at) {
         const expiredMs = new Date(l.reservation_expires_at).getTime();
         if (expiredMs < now) {
-          await base44.asServiceRole.entities.Listing.update(l.id, {
-            reserved_by_email: null,
-            reservation_token: null,
-            reservation_expires_at: null,
-            reservation_revision: null,
-          }).catch(() => {});
-          try { await upsertListingPrivate(base44, l.id, { reserved_by_email: null, reservation_token: null, reservation_expires_at: null, reservation_revision: null }); } catch (_) {}
-          reservationsCleared++;
+          try {
+            await base44.asServiceRole.entities.Listing.update(l.id, {
+              reserved_by_email: null,
+              reservation_token: null,
+              reservation_expires_at: null,
+              reservation_revision: null,
+            });
+            try {
+              await upsertListingPrivate(base44, l.id, { reserved_by_email: null, reservation_token: null, reservation_expires_at: null, reservation_revision: null });
+            } catch (lpErr) {
+              console.error('[reminders] LP clear failed for active listing:', l.id, lpErr?.message);
+            }
+            reservationsCleared++;
+          } catch (listErr) {
+            console.error('[reminders] Listing clear failed for active listing:', l.id, listErr?.message);
+          }
           console.log('[reminders] Cleared expired reservation on active listing:', l.id);
         }
       }
