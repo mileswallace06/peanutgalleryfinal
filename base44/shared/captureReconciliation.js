@@ -196,7 +196,7 @@ export async function freezeCapturedPayment(deps, purchase, pp, pi) {
       `Reconciliation conflict: newer reservation exists. PP token=${originalToken}, Listing token=${listingFresh.reservation_token}, LP token=${lpFresh.reservation_token}. PI: ${pi.id}. Quarantined: ${qResult.quarantined}. Manual resolution required.`,
       pi.id, `Reconciliation conflict — newer reservation preserved — ${listingId}`);
     if (!qResult.quarantined && !blockResult.blocked && !blockResult.alerted) {
-      return { ok: false, step: 'conflict', error: 'quarantine, block, AND alert all failed' };
+      return { ok: false, step: 'conflict', error: 'quarantine, block, AND alert all failed', quarantined: qResult.quarantined, blocked: blockResult.blocked, alerted: blockResult.alerted };
     }
     return { ok: false, step: 'conflict', error: `conflict detected — quarantined=${qResult.quarantined}, blocked=${blockResult.blocked}, alerted=${blockResult.alerted}`, quarantined: qResult.quarantined, blocked: blockResult.blocked, alerted: blockResult.alerted };
   }
@@ -299,6 +299,44 @@ export async function freezeCapturedPayment(deps, purchase, pp, pi) {
   const allFrozen = listingFrozen && lpFrozen && lpDrainSet && listingTuplePreserved && lpTuplePreserved && purchaseFrozen && ppFrozen;
 
   if (!allFrozen) {
+    // ── Post-prefetch conflict detection ──────────────────────────────────
+    // If the reservation tuple changed on Listing or LP between the initial
+    // prefetch (Step 0) and this verification (Step 4), a newer reservation
+    // was injected DURING the quarantine write. The conflict was not caught
+    // at Step 0e because the newer reservation did not exist at prefetch time.
+    //
+    // This is a PARTIAL-FREEZE state: financial writes (PP frozen tuple,
+    // Purchase completed) already succeeded, but the Listing/LP now have a
+    // different (newer) reservation. We must:
+    //   1. Preserve the newer tuple on Listing/LP (do NOT clear it).
+    //   2. Keep the frozen tuple on PP (it is immutable evidence).
+    //   3. Durably block and alert with the conflict context.
+    //   4. Return non-ok with step 'partial_freeze_conflict'.
+    const listingTupleChanged = !listingTuplePreserved &&
+      (verifyListing?.reservation_token !== originalToken ||
+       verifyListing?.reserved_by_email !== originalBuyer);
+    const lpTupleChanged = !lpTuplePreserved &&
+      (verifyLP?.reservation_token !== originalToken ||
+       verifyLP?.reserved_by_email !== originalBuyer);
+
+    if (listingTupleChanged || lpTupleChanged) {
+      const qResult = await quarantineListing(deps, listingId,
+        `Post-prefetch conflict: reservation tuple changed during quarantine. Prefetched token=${originalToken}, post-verify Listing token=${verifyListing?.reservation_token}, LP token=${verifyLP?.reservation_token}. Purchase: ${purchaseId}.`,
+        purchaseId, pi.id);
+      const blockResult = await durableBlockAndAlert(deps, listingId,
+        `Post-prefetch conflict: reservation changed during freeze. Prefetched token=${originalToken}, Listing token=${verifyListing?.reservation_token}, LP token=${verifyLP?.reservation_token}. PI: ${pi.id}. Purchase: ${purchaseId}. Partial freeze: PP=${ppFrozen ? 'frozen' : 'not frozen'}, Purchase=${purchaseFrozen ? 'completed' : 'not completed'}. Quarantined: ${qResult.quarantined}. Manual resolution required.`,
+        pi.id, `Post-prefetch conflict — partial freeze — ${listingId}`);
+      return {
+        ok: false, step: 'partial_freeze_conflict',
+        error: `post-prefetch conflict — newer reservation preserved, partial freeze state (ppFrozen=${ppFrozen}, purchaseFrozen=${purchaseFrozen})`,
+        quarantined: qResult.quarantined, blocked: blockResult.blocked, alerted: blockResult.alerted,
+        listing_token_preserved: verifyListing?.reservation_token,
+        lp_token_preserved: verifyLP?.reservation_token,
+        pp_frozen: ppFrozen, purchase_frozen: purchaseFrozen,
+      };
+    }
+
+    // Non-conflict verification failure (e.g., quarantine field not set)
     await alertPrivateWriteFailure(deps, {
       entity: 'FreezeVerification', reference_id: purchaseId, reference_type: 'purchase',
       error: new Error(`Freeze verification failed. listingFrozen=${listingFrozen}, lpFrozen=${lpFrozen}, drainSet=${lpDrainSet}, listingTuple=${listingTuplePreserved}, lpTuple=${lpTuplePreserved}, purchaseFrozen=${purchaseFrozen}, ppFrozen=${ppFrozen}`),

@@ -113,6 +113,7 @@ function createMockDeps(config = {}) {
         const id = data.id || genId(name);
         const record = { id, created_date: new Date().toISOString(), updated_date: new Date().toISOString(), ...data };
         stores[name].push(record);
+        if (hooks[`after_${name}_create`]) hooks[`after_${name}_create`](record);
         return record;
       },
       update: async (id, data) => {
@@ -236,17 +237,50 @@ async function testNewerReservationInjectedAfterPrefetch() {
   const listing = deps._state.stores.Listing[0];
   const lp = deps._state.stores.ListingPrivate[0];
   const ppFinal = deps._state.stores.PurchasePrivate[0];
+  const purchaseFinal = deps._state.stores.Purchase[0];
+  const alerts = deps._state.stores.AdminAlert;
 
-  // Conflict detected — freeze returns non-ok
-  const conflictDetected = !result.ok && result.step === 'conflict';
-  // The newer token must be PRESERVED on the listing (NOT erased)
-  const newerPreserved = listing.reservation_token === 'newer_injected_token';
-  // Listing must be quarantined (hidden), NOT sold
+  // ── Complete safe-state assertions ──────────────────────────────────────
+  // 1. Post-prefetch conflict detected (partial_freeze_conflict step)
+  const conflictDetected = !result.ok && result.step === 'partial_freeze_conflict';
+  // 2. Newer Listing tuple preserved (NOT erased)
+  const newerListingPreserved = listing.reservation_token === 'newer_injected_token';
+  // 3. Newer ListingPrivate tuple preserved (LP was not affected by the hook — original token preserved)
+  const lpTuplePreserved = lp.reservation_token === token || lp.reservation_token === 'newer_injected_token';
+  // 4. Listing is non-reservable (hidden + quarantine)
+  const listingNonReservable = listing.status === 'hidden' && listing.hidden_reason === 'checkout_quarantine';
+  // 5. Listing is NOT sold
   const notSold = listing.status !== 'sold';
-  const quarantined = listing.status === 'hidden' && listing.hidden_reason === 'checkout_quarantine';
+  // 6. Purchase financial state explicitly reported in result
+  const purchaseStateReported = typeof result.purchase_frozen === 'boolean';
+  // 7. PurchasePrivate freeze state explicitly reported in result
+  const ppStateReported = typeof result.pp_frozen === 'boolean';
+  // 8. No conflicting tuple field was cleared (token still non-null on Listing)
+  const noClearedFields = !!listing.reservation_token;
+  // 9. Recovery blocking or alert persistence durably proven
+  const recoveryProven = result.blocked === true || result.alerted === true ||
+    alerts.some(a => a.reference_id === listingId && a.priority === 'critical');
+  // 10. Retry is safe — calling freeze again should not clear the newer token
+  const retryResult = await freezeCapturedPayment(deps, purchaseFinal, ppFinal, pi);
+  const retrySafe = !retryResult.ok && listing.reservation_token === 'newer_injected_token';
 
-  const passed = conflictDetected && newerPreserved && notSold && quarantined;
-  return { name: 'newer_reservation_injected_after_prefetch', passed, conflict_detected: conflictDetected, newer_preserved: newerPreserved, not_sold: notSold, quarantined };
+  const passed = conflictDetected && newerListingPreserved && lpTuplePreserved &&
+    listingNonReservable && notSold && purchaseStateReported && ppStateReported &&
+    noClearedFields && recoveryProven && retrySafe;
+
+  return {
+    name: 'newer_reservation_injected_after_prefetch', passed,
+    conflict_detected: conflictDetected,
+    newer_listing_preserved: newerListingPreserved,
+    lp_tuple_preserved: lpTuplePreserved,
+    listing_non_reservable: listingNonReservable,
+    not_sold: notSold,
+    purchase_state_reported: purchaseStateReported,
+    pp_state_reported: ppStateReported,
+    no_cleared_fields: noClearedFields,
+    recovery_proven: recoveryProven,
+    retry_safe: retrySafe,
+  };
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -285,44 +319,208 @@ async function testExpirationSplitBrain() {
 // TEST 3: Quarantine write failure + alert failure — non-2xx, no false claim
 // ════════════════════════════════════════════════════════════════════════════
 async function testQuarantineAndAlertBothFail() {
-  const { seed, listingId, piId, purchaseId, buyerEmail, sellerEmail, token } = createDefaultSeed();
-  const deps = createMockDeps({
-    seed,
-    hooks: {
-      // Quarantine write fails (Listing.update throws when setting hidden)
-      'before_Listing_update': (id, data) => {
-        if (data.status === 'hidden' && data.hidden_reason === 'checkout_quarantine') {
-          return { throw: new Error('Quarantine write failed') };
-        }
+  const scenarios = [];
+
+  // ── Case 1: Quarantine fails, block succeeds, alert fails ────────────────
+  {
+    const { seed, listingId, piId, purchaseId, buyerEmail, sellerEmail, token } = createDefaultSeed();
+    const deps = createMockDeps({
+      seed,
+      hooks: {
+        'before_Listing_update': (id, data) => {
+          if (data.status === 'hidden' && data.hidden_reason === 'checkout_quarantine') {
+            return { throw: new Error('Quarantine write failed') };
+          }
+        },
+        'before_AdminAlert_create': () => ({ throw: new Error('Alert create failed') }),
       },
-      // AdminAlert create fails
-      'before_AdminAlert_create': () => ({ throw: new Error('Alert create failed') }),
-    },
-  });
-  seedStripePI(deps.stripe, piId, {
-    status: 'succeeded', amount: 10500,
-    metadata: { listing_id: listingId, buyer_email: buyerEmail, seller_email: sellerEmail, reservation_token: token, purchase_id: purchaseId },
-    transfer_data: { destination: 'acct_test_123' },
-  });
+    });
+    seedStripePI(deps.stripe, piId, {
+      status: 'succeeded', amount: 10500,
+      metadata: { listing_id: listingId, buyer_email: buyerEmail, seller_email: sellerEmail, reservation_token: token, purchase_id: purchaseId },
+      transfer_data: { destination: 'acct_test_123' },
+    });
+    deps._state.stores.Listing[0].reservation_token = 'conflicting_token';
+    const [purchase] = deps._state.stores.Purchase;
+    const [pp] = deps._state.stores.PurchasePrivate;
+    const pi = deps.stripe.pisById.get(piId);
+    const result = await freezeCapturedPayment(deps, purchase, pp, pi);
+    const notOk = !result.ok;
+    const blockProven = result.blocked === true;
+    const alertFailed = result.alerted === false;
+    const passed = notOk && blockProven && alertFailed;
+    scenarios.push({ case: '1_quarantine_fail_block_ok_alert_fail', passed, not_ok: notOk, block_proven: blockProven, alert_failed: alertFailed });
+  }
 
-  const [purchase] = deps._state.stores.Purchase;
-  const [pp] = deps._state.stores.PurchasePrivate;
-  const pi = deps.stripe.pisById.get(piId);
+  // ── Case 2: Quarantine succeeds, block fails, alert fails ────────────────
+  {
+    const { seed, listingId, piId, purchaseId, buyerEmail, sellerEmail, token } = createDefaultSeed();
+    const deps = createMockDeps({
+      seed,
+      hooks: {
+        'before_ListingPrivate_update': (id, data) => {
+          if (data.recovery_blocked === true) {
+            return { throw: new Error('Block write failed') };
+          }
+        },
+        'before_AdminAlert_create': () => ({ throw: new Error('Alert create failed') }),
+      },
+    });
+    seedStripePI(deps.stripe, piId, {
+      status: 'succeeded', amount: 10500,
+      metadata: { listing_id: listingId, buyer_email: buyerEmail, seller_email: sellerEmail, reservation_token: token, purchase_id: purchaseId },
+      transfer_data: { destination: 'acct_test_123' },
+    });
+    deps._state.stores.Listing[0].reservation_token = 'conflicting_token';
+    deps._state.stores.ListingPrivate[0].reservation_token = 'conflicting_token';
+    const [purchase] = deps._state.stores.Purchase;
+    const [pp] = deps._state.stores.PurchasePrivate;
+    const pi = deps.stripe.pisById.get(piId);
+    const result = await freezeCapturedPayment(deps, purchase, pp, pi);
+    const notOk = !result.ok;
+    const quarantineOk = result.quarantined === true;
+    const blockFailed = result.blocked === false;
+    const alertFailed = result.alerted === false;
+    const passed = notOk && quarantineOk && blockFailed && alertFailed;
+    scenarios.push({ case: '2_quarantine_ok_block_fail_alert_fail', passed, not_ok: notOk, quarantine_ok: quarantineOk, block_failed: blockFailed, alert_failed: alertFailed });
+  }
 
-  // Inject a conflicting token to trigger the quarantine path
-  deps._state.stores.Listing[0].reservation_token = 'conflicting_token';
+  // ── Case 3: Quarantine fails, block fails, alert succeeds ───────────────
+  {
+    const { seed, listingId, piId, purchaseId, buyerEmail, sellerEmail, token } = createDefaultSeed();
+    const deps = createMockDeps({
+      seed,
+      hooks: {
+        'before_Listing_update': (id, data) => {
+          if (data.status === 'hidden' && data.hidden_reason === 'checkout_quarantine') {
+            return { throw: new Error('Quarantine write failed') };
+          }
+        },
+        'before_ListingPrivate_update': (id, data) => {
+          if (data.recovery_blocked === true) {
+            return { throw: new Error('Block write failed') };
+          }
+        },
+      },
+    });
+    seedStripePI(deps.stripe, piId, {
+      status: 'succeeded', amount: 10500,
+      metadata: { listing_id: listingId, buyer_email: buyerEmail, seller_email: sellerEmail, reservation_token: token, purchase_id: purchaseId },
+      transfer_data: { destination: 'acct_test_123' },
+    });
+    deps._state.stores.Listing[0].reservation_token = 'conflicting_token';
+    const [purchase] = deps._state.stores.Purchase;
+    const [pp] = deps._state.stores.PurchasePrivate;
+    const pi = deps.stripe.pisById.get(piId);
+    const result = await freezeCapturedPayment(deps, purchase, pp, pi);
+    const notOk = !result.ok;
+    const alertProven = result.alerted === true;
+    const passed = notOk && alertProven;
+    scenarios.push({ case: '3_quarantine_fail_block_fail_alert_ok', passed, not_ok: notOk, alert_proven: alertProven });
+  }
 
-  const result = await freezeCapturedPayment(deps, purchase, pp, pi);
+  // ── Case 4: Quarantine, block, AND alert all fail ────────────────────────
+  {
+    const { seed, listingId, piId, purchaseId, buyerEmail, sellerEmail, token } = createDefaultSeed();
+    const deps = createMockDeps({
+      seed,
+      hooks: {
+        'before_Listing_update': (id, data) => {
+          if (data.status === 'hidden' && data.hidden_reason === 'checkout_quarantine') {
+            return { throw: new Error('Quarantine write failed') };
+          }
+        },
+        'before_ListingPrivate_update': (id, data) => {
+          if (data.recovery_blocked === true) {
+            return { throw: new Error('Block write failed') };
+          }
+        },
+        'before_AdminAlert_create': () => ({ throw: new Error('Alert create failed') }),
+      },
+    });
+    seedStripePI(deps.stripe, piId, {
+      status: 'succeeded', amount: 10500,
+      metadata: { listing_id: listingId, buyer_email: buyerEmail, seller_email: sellerEmail, reservation_token: token, purchase_id: purchaseId },
+      transfer_data: { destination: 'acct_test_123' },
+    });
+    deps._state.stores.Listing[0].reservation_token = 'conflicting_token';
+    const [purchase] = deps._state.stores.Purchase;
+    const [pp] = deps._state.stores.PurchasePrivate;
+    const pi = deps.stripe.pisById.get(piId);
+    const result = await freezeCapturedPayment(deps, purchase, pp, pi);
+    const notOk = !result.ok;
+    const allFailed = result.quarantined === false && result.blocked === false && result.alerted === false;
+    const passed = notOk && allFailed;
+    scenarios.push({ case: '4_all_three_fail', passed, not_ok: notOk, all_failed: allFailed });
+  }
 
-  // Must NOT return ok
-  const notOk = !result.ok;
-  // Must report that BOTH quarantine and alert failed
-  const reportsBothFailed = result.error && result.error.includes('quarantine AND alert both failed');
-  // No alerts should have been created (alert create failed)
-  const zeroAlerts = deps._state.stores.AdminAlert.length === 0;
+  // ── Case 5: Block write resolves but reason silently fails ───────────────
+  {
+    const { seed, listingId, piId, purchaseId, buyerEmail, sellerEmail, token } = createDefaultSeed();
+    const deps = createMockDeps({
+      seed,
+      silentDropFields: { ListingPrivate: ['recovery_blocked_reason'] },
+    });
+    seedStripePI(deps.stripe, piId, {
+      status: 'succeeded', amount: 10500,
+      metadata: { listing_id: listingId, buyer_email: buyerEmail, seller_email: sellerEmail, reservation_token: token, purchase_id: purchaseId },
+      transfer_data: { destination: 'acct_test_123' },
+    });
+    deps._state.stores.Listing[0].reservation_token = 'conflicting_token';
+    deps._state.stores.ListingPrivate[0].reservation_token = 'conflicting_token';
+    const [purchase] = deps._state.stores.Purchase;
+    const [pp] = deps._state.stores.PurchasePrivate;
+    const pi = deps.stripe.pisById.get(piId);
+    const result = await freezeCapturedPayment(deps, purchase, pp, pi);
+    const notOk = !result.ok;
+    // Block should NOT be proven because reason was silently dropped
+    const blockNotProven = result.blocked === false;
+    const passed = notOk && blockNotProven;
+    scenarios.push({ case: '5_block_reason_silently_fails', passed, not_ok: notOk, block_not_proven: blockNotProven });
+  }
 
-  const passed = notOk && reportsBothFailed && zeroAlerts;
-  return { name: 'quarantine_and_alert_both_fail', passed, not_ok: notOk, reports_both_failed: reportsBothFailed, zero_alerts: zeroAlerts };
+  // ── Case 6: Alert create resolves but alert cannot be authoritatively verified ──
+  {
+    const { seed, listingId, piId, purchaseId, buyerEmail, sellerEmail, token } = createDefaultSeed();
+    const deps = createMockDeps({
+      seed,
+      hooks: {
+        'before_Listing_update': (id, data) => {
+          if (data.status === 'hidden' && data.hidden_reason === 'checkout_quarantine') {
+            return { throw: new Error('Quarantine write failed') };
+          }
+        },
+        'before_ListingPrivate_update': (id, data) => {
+          if (data.recovery_blocked === true) {
+            return { throw: new Error('Block write failed') };
+          }
+        },
+        'after_AdminAlert_create': (record) => {
+          // Tamper with the alert to make verification fail
+          record.priority = 'low';
+          record.reference_id = 'wrong_listing';
+        },
+      },
+    });
+    seedStripePI(deps.stripe, piId, {
+      status: 'succeeded', amount: 10500,
+      metadata: { listing_id: listingId, buyer_email: buyerEmail, seller_email: sellerEmail, reservation_token: token, purchase_id: purchaseId },
+      transfer_data: { destination: 'acct_test_123' },
+    });
+    deps._state.stores.Listing[0].reservation_token = 'conflicting_token';
+    const [purchase] = deps._state.stores.Purchase;
+    const [pp] = deps._state.stores.PurchasePrivate;
+    const pi = deps.stripe.pisById.get(piId);
+    const result = await freezeCapturedPayment(deps, purchase, pp, pi);
+    const notOk = !result.ok;
+    // Alert should NOT be proven because the record was tampered
+    const alertNotProven = result.alerted === false;
+    const passed = notOk && alertNotProven;
+    scenarios.push({ case: '6_alert_verification_fails', passed, not_ok: notOk, alert_not_proven: alertNotProven });
+  }
+
+  const allPassed = scenarios.every(s => s.passed);
+  return { name: 'quarantine_and_alert_both_fail', passed: allPassed, scenarios };
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -793,8 +991,14 @@ async function main() {
     const status = t.passed ? 'PASS' : 'FAIL';
     console.log(`[${status}] ${t.name}`);
     for (const [key, val] of Object.entries(t)) {
-      if (key !== 'name' && key !== 'passed') {
+      if (key !== 'name' && key !== 'passed' && key !== 'scenarios') {
         console.log(`  ${key}: ${JSON.stringify(val)}`);
+      }
+    }
+    if (t.scenarios) {
+      for (const s of t.scenarios) {
+        const sStatus = s.passed ? 'PASS' : 'FAIL';
+        console.log(`  [${sStatus}] ${s.case}`);
       }
     }
     console.log();
