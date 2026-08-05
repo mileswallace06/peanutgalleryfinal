@@ -409,7 +409,7 @@ export async function applyReservationTuple(deps, listingId, intended, category,
     // Durably block and alert — require BOTH
     const blockResult = await durableBlockAndAlert(deps, listingId,
       quarantineReason,
-      null, `Split-brain detected — ${listingId} (${category})`, null);
+      null, `Split-brain detected — ${listingId} (${category})`, null, 'tuple:split_brain');
     result.block_attempted = blockResult.block_attempted;
     result.block_proven = blockResult.block_proven;
     result.alert_attempted = blockResult.alert_attempted;
@@ -496,7 +496,7 @@ export async function applyReservationTuple(deps, listingId, intended, category,
 
     const blockResult = await durableBlockAndAlert(deps, listingId,
       quarantineReason,
-      null, `Stale-prefetch race — ${listingId} (${category})`, null);
+      null, `Stale-prefetch race — ${listingId} (${category})`, null, 'tuple:stale_prefetch');
     result.block_attempted = blockResult.block_attempted;
     result.block_proven = blockResult.block_proven;
     result.alert_attempted = blockResult.alert_attempted;
@@ -823,7 +823,7 @@ async function handleSecondRecordFailure(deps, listingId, result, preListingTupl
   // Durably block and alert — require BOTH
   const blockResult = await durableBlockAndAlert(deps, listingId,
     quarantineReason,
-    null, `Second-record failure — ${listingId} (${result.category})`, null);
+    null, `Second-record failure — ${listingId} (${result.category})`, null, 'tuple:second_record_failure');
   result.block_attempted = blockResult.block_attempted;
   result.block_proven = blockResult.block_proven;
   result.alert_attempted = blockResult.alert_attempted;

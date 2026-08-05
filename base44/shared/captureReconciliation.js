@@ -157,7 +157,7 @@ export async function freezeCapturedPayment(deps, purchase, pp, pi) {
       purchaseId, pi.id);
     const blockResult = await durableBlockAndAlert(deps, listingId,
       `Expiration split-brain: Listing expiry=${listingExpiry}, LP expiry=${lpExpiry}. PI: ${pi.id}. Quarantined: ${qResult.quarantined}. Manual resolution required.`,
-      pi.id);
+      pi.id, `Expiration split-brain — ${listingId}`, purchaseId, 'freeze:conflict');
     if (!qResult.quarantined && !blockResult.blocked && !blockResult.alerted) {
       return { ok: false, step: 'expiration_split_brain', error: 'quarantine, block, AND alert all failed' };
     }
@@ -226,7 +226,7 @@ export async function freezeCapturedPayment(deps, purchase, pp, pi) {
       purchaseId, pi.id);
     const blockResult = await durableBlockAndAlert(deps, listingId,
       `Reconciliation conflict: ${conflictDetail} PI: ${pi.id}. Quarantined: ${qResult.quarantined}. Manual resolution required.`,
-      pi.id, `Reconciliation conflict — fields: ${conflictFields.join(',')} — ${listingId}`, purchaseId);
+      pi.id, `Reconciliation conflict — fields: ${conflictFields.join(',')} — ${listingId}`, purchaseId, 'freeze:conflict');
     if (!qResult.quarantined && !blockResult.blocked && !blockResult.alerted) {
       return { ok: false, step: 'conflict', error: 'quarantine, block, AND alert all failed',
         conflict_fields: conflictFields,
@@ -391,7 +391,7 @@ export async function freezeCapturedPayment(deps, purchase, pp, pi) {
         purchaseId, pi.id);
       const blockResult = await durableBlockAndAlert(deps, listingId,
         `Post-prefetch conflict: ${conflictDetail} PI: ${pi.id}. Purchase: ${purchaseId}. Partial freeze: PP=${ppFrozen ? 'frozen' : 'not frozen'}, Purchase=${purchaseFrozen ? 'completed' : 'not completed'}. Quarantined: ${qResult.quarantined}. Manual resolution required.`,
-        pi.id, `Post-prefetch conflict — fields: ${allConflicts.join(',')} — ${listingId}`, purchaseId);
+        pi.id, `Post-prefetch conflict — fields: ${allConflicts.join(',')} — ${listingId}`, purchaseId, 'freeze:conflict');
       return {
         ok: false, step: 'partial_freeze_conflict',
         error: `post-prefetch conflict — fields: ${allConflicts.join(',')}, partial freeze state (ppFrozen=${ppFrozen}, purchaseFrozen=${purchaseFrozen})`,
@@ -502,7 +502,7 @@ export async function finalizeCapturedPayment(deps, listingId) {
     // State E: Any different non-null field exists → preserve, durably block, alert, non-2xx
     const blockResult = await durableBlockAndAlert(deps, listingId,
       `Finalization blocked: tuple does not match frozen tuple and no verified finalization progress. Frozen token=${frozenToken}, Listing token=${listing?.reservation_token}, LP token=${lpFresh?.reservation_token}. ListingNull=${listingNull}, LPNull=${lpNull}, hasFinalizationStarted=${hasFinalizationStarted}. Manual resolution required.`,
-      null);
+      null, `Finalization conflict — ${listingId}`, purchaseId, 'finalize:conflict');
     return { ok: false, step: 'conflict', error: 'current reservation does not match frozen tuple and no verified finalization progress — preserved', blocked: blockResult.blocked, alerted: blockResult.alerted };
   }
 
@@ -546,7 +546,7 @@ export async function finalizeCapturedPayment(deps, listingId) {
       if (lpCheck?.reservation_token && lpCheck.reservation_token !== frozenToken) {
         const blockResult = await durableBlockAndAlert(deps, listingId,
           `Conflicting token appeared during LP clear: ${lpCheck.reservation_token} vs frozen ${frozenToken}. Manual resolution required.`,
-          null);
+          null, `LP clear conflict — ${listingId}`, purchaseId, 'finalize:conflict');
         return { ok: false, step: 'lp_clear_conflict', error: 'conflicting token appeared during LP clear — preserved', blocked: blockResult.blocked, alerted: blockResult.alerted };
       }
       return { ok: false, step: 'lp_clear_verify', error: `LP not fully cleared: token=${lpCheck?.reservation_token}, buyer=${lpCheck?.reserved_by_email}, expiry=${lpCheck?.reservation_expires_at}, revision=${lpCheck?.reservation_revision}, quarantined=${lpCheck?.checkout_quarantined}, reason=${lpCheck?.checkout_quarantine_reason}, ts=${lpCheck?.checkout_quarantined_at}` };
@@ -579,7 +579,7 @@ export async function finalizeCapturedPayment(deps, listingId) {
         if (listingCheck?.reservation_token && listingCheck.reservation_token !== frozenToken) {
           const blockResult = await durableBlockAndAlert(deps, listingId,
             `Conflicting token on Listing during sold write: ${listingCheck.reservation_token} vs frozen ${frozenToken}. Manual resolution required.`,
-            null);
+            null, `Listing sold conflict — ${listingId}`, purchaseId, 'finalize:conflict');
           return { ok: false, step: 'listing_sold_conflict', error: 'conflicting token on Listing — preserved', blocked: blockResult.blocked, alerted: blockResult.alerted };
         }
         return { ok: false, step: 'listing_sold_verify', error: `Listing not fully sold/cleared: status=${listingCheck?.status}, token=${listingCheck?.reservation_token}, buyer=${listingCheck?.reserved_by_email}, expiry=${listingCheck?.reservation_expires_at}, revision=${listingCheck?.reservation_revision}, hiddenReason=${listingCheck?.hidden_reason}` };

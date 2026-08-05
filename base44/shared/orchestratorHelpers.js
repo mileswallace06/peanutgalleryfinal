@@ -342,7 +342,7 @@ export function generateRevision() {
 //   alerted: boolean,    // backward-compatible alias for alert_proven
 //   attempted_block_timestamp: string,  // captured BEFORE write
 // }
-export async function durableBlockAndAlert(deps, listing_id, reason, piId, title, purchaseId) {
+export async function durableBlockAndAlert(deps, listing_id, reason, piId, title, purchaseId, incidentCategory) {
   const result = {
     block_attempted: false,
     block_proven: false,
@@ -367,25 +367,40 @@ export async function durableBlockAndAlert(deps, listing_id, reason, piId, title
   const attemptedBlockTimestamp = new Date(deps.now()).toISOString();
   result.attempted_block_timestamp = attemptedBlockTimestamp;
 
-  // Set incident key on result for audit
-  // Normalize the title to a stable conflict class so retries that detect the
-  // same conflict at a different step (e.g. Step 0e vs Step 4) get the same key.
-  let conflictClass = 'general';
-  if (expectedTitle.includes('Reconciliation conflict') ||
-      expectedTitle.includes('Post-prefetch conflict') ||
-      expectedTitle.includes('Finalization conflict') ||
-      expectedTitle.includes('Expiration split-brain')) {
-    conflictClass = 'freeze_conflict';
-  } else if (expectedTitle.includes('Split-brain')) {
-    conflictClass = 'split_brain';
-  } else if (expectedTitle.includes('Stale-prefetch')) {
-    conflictClass = 'stale_prefetch';
-  } else if (expectedTitle.includes('Second-record')) {
-    conflictClass = 'second_record_failure';
-  } else if (expectedTitle.includes('Legacy revision')) {
-    conflictClass = 'legacy_revision';
+  // Set incident key on result for audit.
+  // Incident identity: listing_id : operation_category : failure_class : purchaseId|piId : schema_version
+  // The caller supplies an explicit typed incidentCategory (e.g. 'freeze:conflict')
+  // so retries that detect the same conflict at a different step get the same key.
+  // Falls back to title normalization for callers not yet updated.
+  let operationCategory, failureClass;
+  if (incidentCategory) {
+    const colonIdx = incidentCategory.indexOf(':');
+    if (colonIdx > 0) {
+      operationCategory = incidentCategory.slice(0, colonIdx);
+      failureClass = incidentCategory.slice(colonIdx + 1);
+    } else {
+      operationCategory = 'general';
+      failureClass = incidentCategory;
+    }
+  } else {
+    if (expectedTitle.includes('Reconciliation conflict') ||
+        expectedTitle.includes('Post-prefetch conflict') ||
+        expectedTitle.includes('Finalization conflict') ||
+        expectedTitle.includes('Expiration split-brain')) {
+      operationCategory = 'freeze'; failureClass = 'conflict';
+    } else if (expectedTitle.includes('Split-brain')) {
+      operationCategory = 'tuple'; failureClass = 'split_brain';
+    } else if (expectedTitle.includes('Stale-prefetch')) {
+      operationCategory = 'tuple'; failureClass = 'stale_prefetch';
+    } else if (expectedTitle.includes('Second-record')) {
+      operationCategory = 'tuple'; failureClass = 'second_record_failure';
+    } else if (expectedTitle.includes('Legacy revision')) {
+      operationCategory = 'legacy'; failureClass = 'revision_failure';
+    } else {
+      operationCategory = 'general'; failureClass = 'general';
+    }
   }
-  const incidentKey = `block_alert:${listing_id}:${conflictClass}:${purchaseId || piId || 'none'}`;
+  const incidentKey = `block_alert:${listing_id}:${operationCategory}:${failureClass}:${purchaseId || piId || 'none'}:v1`;
   result.incident_key = incidentKey;
 
   // 2. Attempt to set recovery_blocked=true
@@ -440,6 +455,12 @@ export async function durableBlockAndAlert(deps, listing_id, reason, piId, title
   try {
     // Search for existing unresolved alert with this exact incident key
     const existing = await deps.entities.AdminAlert.filter({ incident_key: incidentKey, resolved: false });
+    // Hook: afterAlertLookup — tests use this to pause concurrent callers after
+    // both have completed the lookup but before either creates/updates. This
+    // exposes the filter-then-create race window.
+    if (deps.hooks && deps.hooks.afterAlertLookup) {
+      try { await deps.hooks.afterAlertLookup(deps, listing_id, incidentKey); } catch (e) { /* hook error — non-fatal */ }
+    }
     if (existing && existing.length > 0) {
       // DEDUPLICATE: update existing alert — increment occurrence count, update timestamp
       const existingAlert = existing[0];
@@ -710,7 +731,7 @@ export async function failClosedLegacyRevision(deps, listing_id, reason, piId, p
 
   // ── 5. Durably block and create a critical alert ─────────────────────────
   const blockResult = await durableBlockAndAlert(deps, listing_id, reason, piId,
-    `Legacy revision failure — ${listing_id} (${state})`, purchaseId);
+    `Legacy revision failure — ${listing_id} (${state})`, purchaseId, `legacy:${state || 'revision_failure'}`);
   result.block_proven = blockResult.block_proven;
   result.alert_proven = blockResult.alert_proven;
   result.block_error = blockResult.block_error;
