@@ -1,4 +1,4 @@
-import { Outlet, Link, useLocation, useOutlet } from 'react-router-dom';
+import { Link, useLocation, useOutlet } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -113,7 +113,7 @@ export default function Layout() {
     if (!user?.email) return;
     const fetchUnread = () => {
       base44.entities.Notification.filter({ user_email: user.email, read: false }, '-created_date', 99)
-        .then(data => setUnreadCount(data.length))
+        .then(data => setUnreadCount(data.filter(n => n.dispatch_status !== 'superseded').length))
         .catch(() => {});
     };
     fetchUnread();

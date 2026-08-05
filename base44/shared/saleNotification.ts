@@ -1,68 +1,73 @@
 /**
  * saleNotification.ts — enqueue + dispatch for the seller "sale_created" notification.
  *
- * 7C.9B: Extended to ALSO process webhook-originated notifications.
- * The scheduled dispatcher (dispatchSaleNotifications) now calls BOTH:
- *   1. dispatchSaleNotificationsDeps (sale_created notifications with push/email)
- *   2. dispatchWebhookNotifications (webhook-originated notifications, in-app only)
+ * 7C.9C: External push/email delivery DISABLED for sale_created.
+ * The scheduled dispatcher now calls BOTH:
+ *   1. dispatchSaleNotificationsDeps (sale_created — in-app only, no push/email)
+ *   2. dispatchWebhookNotifications (webhook-originated — in-app only)
  *
- * PRODUCTION WIRING: sendUserNotification receives the REAL base44 client
- * (wrapped in a deps adapter), NOT the dependency object used by tests.
+ * DELIVERY-INTEGRITY MODEL (7C.9C correction 4):
+ *   Base44 has no atomic claim primitive, and the current providers do not
+ *   demonstrate durable idempotency for both push and email channels.
  *
- * DELIVERY-INTEGRITY MODEL (Base44 has NO atomic compare-and-set — proven):
- *   confirmCheckoutAuthorized ENQUEUES a pending notification but NEVER sends.
- *   A single scheduled dispatcher is the ONLY sender. It selects ONE canonical
- *   record per deterministic idempotency key, marks every concurrent duplicate
- *   SUPERSEDED, and sends only the canonical — and only the channels not already
- *   marked 'sent'. This holds provider calls to <=1 push and <=1 email per
- *   logical sale notification even when N concurrent confirmCheckoutAuthorized
- *   calls each win the existence-check race and create N pending records.
- *
- *   A successful channel (status 'sent' or 'skipped') is never re-sent, so
- *   concurrent dispatches do not KNOWINGLY send the same successful channel twice.
- *   Failed channels remain independently retryable on the next run.
- *
- *   NEVER mark a notification fully dispatched when a provider failed — set
- *   dispatch_status back to 'pending' so the next run retries failed channels.
+ *   Therefore, EXTERNAL push and email dispatch for `sale_created` is DISABLED.
+ *   - confirmCheckoutAuthorized ENQUEUES a pending in-app notification but
+ *     NEVER sends external push or email.
+ *   - The scheduled dispatcher canonicalizes duplicates (supersedes concurrent
+ *     duplicates) and marks the canonical as 'dispatched' (in-app delivery).
+ *   - seller_push_status and seller_email_status are marked 'skipped' (valid
+ *     schema value) — deliberately suppressed, not failed.
+ *   - No sendUserNotification call is made — provider-call counters remain zero.
+ *   - We do NOT claim strict at-most-once external delivery.
+ *   - We never resend after a provider succeeds merely because a later DB write
+ *     fails (there are no provider calls to resend).
+ *   - The durable in-app Notification record IS the delivery mechanism.
  */
-import { sendUserNotification } from './notifications.ts';
 import { dispatchSaleNotificationsDeps, saleIdempotencyKey, enqueueSaleNotificationDeps } from './saleDispatch.js';
 import { dispatchWebhookNotifications } from './webhookNotifications.js';
+import { getPurchasePrivate } from './privateData.ts';
 
 export { saleIdempotencyKey };
 
 /**
- * Enqueue a seller-sale notification. Creates a PENDING record and stamps
- * seller_notified_at. Does NOT send push or email.
+ * Enqueue a seller-sale notification. Creates a PENDING in-app record and
+ * stamps seller_notified_at. Does NOT send push or email.
+ *
+ * 7C.9C correction 3: Requires exactly one PurchasePrivate. Uses pp.seller_email.
  */
-export async function enqueueSaleNotification(base44, purchase, listing, opts = {}) {
+export async function enqueueSaleNotification(base44, purchase, listing) {
   const deps = {
     entities: base44.asServiceRole.entities,
     now: () => Date.now(),
   };
-  return await enqueueSaleNotificationDeps(deps, purchase, listing, opts);
+  // Fetch the authoritative PurchasePrivate — no public fallback
+  const pp = await getPurchasePrivate(base44, purchase.id);
+  if (!pp) {
+    throw new Error('PurchasePrivate not found — cannot enqueue sale notification');
+  }
+  return await enqueueSaleNotificationDeps(deps, purchase, listing, pp);
 }
 
 /**
  * The ONLY sender for sale_created AND webhook-originated notifications.
  * Scheduled every 1 minute.
  *
+ * 7C.9C: External push/email is DISABLED. No sendUserNotification call.
+ * The in-app Notification record IS the delivery mechanism.
+ *
  * opts.keys  — restrict processing to these idempotency keys (used by tests).
  * opts.limit — max notifications scanned (default 500).
  */
 export async function dispatchSaleNotifications(base44, opts = {}) {
-  // ── 1. Process sale_created notifications (with external push/email) ──────
-  // Pass the REAL base44 client to sendUserNotification via a wrapper.
+  // ── 1. Process sale_created notifications (in-app only, no push/email) ────
+  // No sendUserNotification needed — external delivery is suppressed.
   const saleDeps = {
     entities: base44.asServiceRole.entities,
-    sendUserNotification: (notifOpts) => sendUserNotification(base44, notifOpts),
     now: () => Date.now(),
   };
   const saleResult = await dispatchSaleNotificationsDeps(saleDeps, opts);
 
-  // ── 2. Process webhook-originated notifications (in-app only, no push/email) ──
-  // External push/email is DISABLED for webhook-originated notifications.
-  // The durable in-app Notification record IS the delivery mechanism.
+  // ── 2. Process webhook-originated notifications (in-app only) ──────────────
   const webhookDeps = {
     entities: base44.asServiceRole.entities,
   };

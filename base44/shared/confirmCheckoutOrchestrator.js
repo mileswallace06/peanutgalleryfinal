@@ -1,20 +1,15 @@
 /**
  * confirmCheckoutOrchestrator.js — Dependency-injected checkout confirmation.
  *
- * 7C.9B: The existence of PurchasePrivate.authorization_confirmed_at must NEVER
- * bypass verification. On EVERY call, including retries, the full verification
- * chain runs: retrieve PI, check status, validate exact metadata+amount, re-fetch
- * Listing+LP, validate the complete reservation tuple. Only after all checks
- * pass may the seller notification be enqueued.
+ * 7C.9C correction 5: Verify authorization markers actually persist.
+ *   - Write ONE exact timestamp to Purchase AND PurchasePrivate.
+ *   - Re-fetch BOTH records.
+ *   - Require BOTH persisted timestamps to equal that exact value.
+ *   - Do not enqueue the seller notification until verification succeeds.
+ *   - A missing, failed, or silently non-persisted mirror returns non-2xx
+ *     and creates an alert.
  *
- * deps = {
- *   entities: { Listing, ListingPrivate, Purchase, PurchasePrivate,
- *               User, UserSecurityProfile, AdminAlert, Notification },
- *   stripe: StripeClient,
- *   user: { id, email, role, full_name },
- *   now: () => number,
- *   isMaintenanceActive: () => boolean,
- * }
+ * deps = { entities, stripe, user, now, isMaintenanceActive }
  * Returns: { status, body }
  */
 import { isFailClosed } from './checkoutLogic.js';
@@ -64,7 +59,7 @@ export async function runConfirmCheckoutAuthorized(deps, params) {
   let pi;
   try {
     pi = await stripe.paymentIntents.retrieve(authoritativePaymentIntentId);
-  } catch (err) {
+  } catch (_) {
     return { status: 500, body: { error: 'Payment verification failed', code: 'PI_RETRIEVE_FAILED' } };
   }
 
@@ -75,24 +70,12 @@ export async function runConfirmCheckoutAuthorized(deps, params) {
 
   // ── 6. Validate exact PI metadata and amount — always, no bypass ──────────
   const md = pi.metadata || {};
-  if (!md.purchase_id || md.purchase_id !== purchase.id) {
-    return { status: 500, body: { error: 'Payment verification failed', code: 'PI_METADATA_MISMATCH' } };
-  }
-  if (!md.listing_id || md.listing_id !== authoritativeListingId) {
-    return { status: 500, body: { error: 'Payment verification failed', code: 'PI_METADATA_MISMATCH' } };
-  }
-  if (!md.buyer_email || md.buyer_email !== authoritativeBuyerEmail) {
-    return { status: 500, body: { error: 'Payment verification failed', code: 'PI_METADATA_MISMATCH' } };
-  }
-  if (!md.seller_email || md.seller_email !== authoritativeSellerEmail) {
-    return { status: 500, body: { error: 'Payment verification failed', code: 'PI_METADATA_MISMATCH' } };
-  }
-  if (!md.reservation_token || md.reservation_token !== authoritativeReservationToken) {
-    return { status: 500, body: { error: 'Payment verification failed', code: 'PI_METADATA_MISMATCH' } };
-  }
-  if (Math.round((purchase.amount || 0) * 100) !== pi.amount) {
-    return { status: 500, body: { error: 'Payment verification failed', code: 'AMOUNT_MISMATCH' } };
-  }
+  if (!md.purchase_id || md.purchase_id !== purchase.id) return { status: 500, body: { error: 'Payment verification failed', code: 'PI_METADATA_MISMATCH' } };
+  if (!md.listing_id || md.listing_id !== authoritativeListingId) return { status: 500, body: { error: 'Payment verification failed', code: 'PI_METADATA_MISMATCH' } };
+  if (!md.buyer_email || md.buyer_email !== authoritativeBuyerEmail) return { status: 500, body: { error: 'Payment verification failed', code: 'PI_METADATA_MISMATCH' } };
+  if (!md.seller_email || md.seller_email !== authoritativeSellerEmail) return { status: 500, body: { error: 'Payment verification failed', code: 'PI_METADATA_MISMATCH' } };
+  if (!md.reservation_token || md.reservation_token !== authoritativeReservationToken) return { status: 500, body: { error: 'Payment verification failed', code: 'PI_METADATA_MISMATCH' } };
+  if (Math.round((purchase.amount || 0) * 100) !== pi.amount) return { status: 500, body: { error: 'Payment verification failed', code: 'AMOUNT_MISMATCH' } };
 
   // ── 7. Re-fetch Listing and ListingPrivate ─────────────────────────────────
   const lp = await getListingPrivate(deps, authoritativeListingId);
@@ -103,81 +86,80 @@ export async function runConfirmCheckoutAuthorized(deps, params) {
 
   // ── 8. Validate seller, token, buyer, matching expiration, non-expiry,
   //         pending_transfer, and fail-closed state ───────────────────────────
-  if (lp.seller_email !== authoritativeSellerEmail) {
-    return { status: 500, body: { error: 'Seller mismatch', code: 'INTEGRITY_ERROR' } };
-  }
-  if (isFailClosed(listing, lp)) {
-    return { status: 409, body: { error: 'Listing is under review' } };
-  }
+  if (lp.seller_email !== authoritativeSellerEmail) return { status: 500, body: { error: 'Seller mismatch', code: 'INTEGRITY_ERROR' } };
+  if (isFailClosed(listing, lp)) return { status: 409, body: { error: 'Listing is under review' } };
   if (purchase.transfer_status === 'completed') {
-    // Already completed — don't re-enqueue, but still verified
     return { status: 200, body: { status: 'already_completed', authorization_confirmed_at: pp.authorization_confirmed_at, seller_notified_at: pp.seller_notified_at } };
   }
-  if (listing.status !== 'pending_transfer') {
-    return { status: 409, body: { error: 'Listing is no longer reserved' } };
-  }
-  if (lp.reservation_token !== authoritativeReservationToken || listing.reservation_token !== authoritativeReservationToken) {
-    return { status: 409, body: { error: 'Reservation token mismatch' } };
-  }
-  if (lp.reserved_by_email !== authoritativeBuyerEmail || listing.reserved_by_email !== authoritativeBuyerEmail) {
-    return { status: 409, body: { error: 'Reservation buyer mismatch' } };
-  }
+  if (listing.status !== 'pending_transfer') return { status: 409, body: { error: 'Listing is no longer reserved' } };
+  if (lp.reservation_token !== authoritativeReservationToken || listing.reservation_token !== authoritativeReservationToken) return { status: 409, body: { error: 'Reservation token mismatch' } };
+  if (lp.reserved_by_email !== authoritativeBuyerEmail || listing.reserved_by_email !== authoritativeBuyerEmail) return { status: 409, body: { error: 'Reservation buyer mismatch' } };
   const lpExpiry = lp.reservation_expires_at ? new Date(lp.reservation_expires_at).getTime() : 0;
   const listingExpiry = listing.reservation_expires_at ? new Date(listing.reservation_expires_at).getTime() : 0;
-  if (lpExpiry === 0 || listingExpiry === 0) {
-    return { status: 409, body: { error: 'Reservation expiration missing' } };
-  }
-  if (lpExpiry !== listingExpiry) {
-    return { status: 409, body: { error: 'Reservation expiration mismatch' } };
-  }
-  if (lpExpiry <= now()) {
-    return { status: 409, body: { error: 'Reservation has expired' } };
-  }
+  if (lpExpiry === 0 || listingExpiry === 0) return { status: 409, body: { error: 'Reservation expiration missing' } };
+  if (lpExpiry !== listingExpiry) return { status: 409, body: { error: 'Reservation expiration mismatch' } };
+  if (lpExpiry <= now()) return { status: 409, body: { error: 'Reservation has expired' } };
 
-  // ── 9. Repair marker divergence in both directions ─────────────────────────
-  // The authoritative marker is PurchasePrivate.authorization_confirmed_at.
+  // ── 9. Write ONE exact timestamp to BOTH records and VERIFY persistence ───
+  // 7C.9C correction 5: The timestamp must be identical on both records,
+  // and we must re-fetch to confirm it persisted.
   const confirmedAt = new Date(now()).toISOString();
-  const ppMarker = pp.authorization_confirmed_at;
-  const purchaseMarker = purchase.authorization_confirmed_at;
 
-  if (!ppMarker) {
-    // Private marker missing — write the authoritative private marker
-    try {
-      await upsertPurchasePrivate(deps, purchase.id, { authorization_confirmed_at: confirmedAt });
-    } catch (err) {
-      await alertPrivateWriteFailure(deps, { entity: 'PurchasePrivate', reference_id: purchase.id, reference_type: 'purchase', error: err });
-      return { status: 500, body: { error: 'Failed to confirm authorization. Please try again.', code: 'PP_MARKER_WRITE_FAILED' } };
-    }
-    // Verify the write
-    const ppVerify = await getPurchasePrivate(deps, purchase.id);
-    if (!ppVerify || !ppVerify.authorization_confirmed_at) {
-      return { status: 500, body: { error: 'Authorization marker verification failed', code: 'PP_MARKER_VERIFY_FAILED' } };
-    }
-    // Mirror to Purchase
-    if (purchaseMarker !== confirmedAt) {
-      try {
-        await entities.Purchase.update(purchase.id, { authorization_confirmed_at: confirmedAt });
-      } catch (err) {
-        await alertPrivateWriteFailure(deps, { entity: 'Purchase', reference_id: purchase.id, reference_type: 'purchase', error: err });
-        return { status: 500, body: { error: 'Failed to mirror authorization marker', code: 'PURCHASE_MARKER_WRITE_FAILED' } };
-      }
-    }
-  } else if (!purchaseMarker || purchaseMarker !== ppMarker) {
-    // Private marker exists, public missing or divergent — mirror private to public
-    try {
-      await entities.Purchase.update(purchase.id, { authorization_confirmed_at: ppMarker });
-    } catch (err) {
-      await alertPrivateWriteFailure(deps, { entity: 'Purchase', reference_id: purchase.id, reference_type: 'purchase', error: err });
-      return { status: 500, body: { error: 'Failed to mirror authorization marker', code: 'PURCHASE_MARKER_WRITE_FAILED' } };
-    }
+  // Write to PurchasePrivate (authoritative)
+  try {
+    await upsertPurchasePrivate(deps, purchase.id, { authorization_confirmed_at: confirmedAt });
+  } catch (err) {
+    await alertPrivateWriteFailure(deps, { entity: 'PurchasePrivate', reference_id: purchase.id, reference_type: 'purchase', error: err });
+    return { status: 500, body: { error: 'Failed to confirm authorization. Please try again.', code: 'PP_MARKER_WRITE_FAILED' } };
   }
 
-  // ── 10. Enqueue seller notification (idempotent) ───────────────────────────
-  // Zero notification enqueue if verification failed (we'd have returned above).
+  // Write to Purchase (mirror) — same exact timestamp
+  try {
+    await entities.Purchase.update(purchase.id, { authorization_confirmed_at: confirmedAt });
+  } catch (err) {
+    await alertPrivateWriteFailure(deps, { entity: 'Purchase', reference_id: purchase.id, reference_type: 'purchase', error: err });
+    return { status: 500, body: { error: 'Failed to mirror authorization marker', code: 'PURCHASE_MARKER_WRITE_FAILED' } };
+  }
+
+  // ── Re-fetch BOTH records and verify the timestamp persisted ───────────────
+  const ppVerify = await getPurchasePrivate(deps, purchase.id);
+  const [purchaseVerify] = await entities.Purchase.filter({ id: purchase.id });
+
+  if (!ppVerify || ppVerify.authorization_confirmed_at !== confirmedAt) {
+    // Silently non-persisted PP marker — fail closed
+    try {
+      await deps.entities.AdminAlert.create({
+        alert_type: 'admin_action_required',
+        priority: 'critical',
+        title: `Authorization marker not persisted — PurchasePrivate — ${purchase.id}`,
+        description: `Wrote authorization_confirmed_at=${confirmedAt} but re-fetch returned ${ppVerify?.authorization_confirmed_at}. Seller notification NOT enqueued. Manual investigation required.`,
+        reference_type: 'purchase',
+        reference_id: purchase.id,
+      });
+    } catch (_) { /* alert failure must not suppress the error */ }
+    return { status: 500, body: { error: 'Authorization marker verification failed', code: 'PP_MARKER_VERIFY_FAILED' } };
+  }
+
+  if (!purchaseVerify || purchaseVerify.authorization_confirmed_at !== confirmedAt) {
+    // Silently non-persisted Purchase marker — fail closed
+    try {
+      await deps.entities.AdminAlert.create({
+        alert_type: 'admin_action_required',
+        priority: 'critical',
+        title: `Authorization marker not persisted — Purchase — ${purchase.id}`,
+        description: `Wrote authorization_confirmed_at=${confirmedAt} but re-fetch returned ${purchaseVerify?.authorization_confirmed_at}. Seller notification NOT enqueued. Manual investigation required.`,
+        reference_type: 'purchase',
+        reference_id: purchase.id,
+      });
+    } catch (_) { /* alert failure must not suppress the error */ }
+    return { status: 500, body: { error: 'Authorization marker mirror verification failed', code: 'PURCHASE_MARKER_VERIFY_FAILED' } };
+  }
+
+  // ── 10. Enqueue seller notification (only after verification succeeds) ────
   const [listingForNotif] = await entities.Listing.filter({ id: authoritativeListingId }).catch(() => []);
   try {
-    await enqueueSaleNotificationDeps(deps, purchase, listingForNotif, pp);
-  } catch (err) {
+    await enqueueSaleNotificationDeps(deps, purchase, listingForNotif, ppVerify);
+  } catch (_) {
     return { status: 500, body: { error: 'Could not notify seller — please retry', code: 'NOTIFY_FAILED' } };
   }
 

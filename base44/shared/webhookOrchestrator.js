@@ -1,30 +1,28 @@
 /**
  * webhookOrchestrator.js — Dependency-injected Stripe webhook handler.
  *
- * 7C.9B: Fixed payment_succeeded, payment_failed, dispute, and payout handlers.
+ * 7C.9C corrections 2: Make Stripe webhook integrity failures observable.
  *
- * deps = {
- *   entities: { Listing, ListingPrivate, Purchase, PurchasePrivate,
- *               User, UserSecurityProfile, AdminAlert, Notification },
- *   stripe: StripeClient,
- *   now: () => number,
- *   isMaintenanceActive?: () => boolean,
- * }
- * Returns: { status, body }
+ * FAIL CLOSED with durable critical alert and non-2xx for:
+ *   - Missing or duplicate PurchasePrivate
+ *   - Missing Purchase
+ *   - PaymentIntent metadata mismatch
+ *   - Amount, currency, or destination mismatch
+ *   - Unexpected succeeded PaymentIntent state
+ *   - Any failed authoritative write or failed post-write verification
  *
- * KEY PRINCIPLES:
- *   1. Purchase resolution through PurchasePrivate FIRST — no legacy fallback.
- *   2. payment_succeeded: retrieve live PI, require succeeded, verify exact
- *      metadata + amount + currency + destination, invoke reconcileCapturedPayment.
- *   3. payment_failed: retrieve PI, if captured/capture-ready skip, cancel with
- *      idempotency key, re-retrieve and require canceled, only then expire.
- *      Quarantine listing. Preserve newer/split-brain reservations.
- *   4. charge.dispute.created: mirror dispute_reason to PP BEFORE Purchase.
- *   5. payout.failed: use event.account (top-level), not data.destination.
- *   6. Required alert persistence failures return non-2xx.
- *   7. No inline push/email — all notifications queued via webhookNotifications.
+ * EXPLICIT PI STATE TABLE (payment_failed):
+ *   succeeded:                    skip — leave for capture flow
+ *   requires_capture:             skip — leave for capture flow
+ *   requires_payment_method,
+ *   requires_confirmation,
+ *   requires_action:              cancel, re-retrieve, require canceled, then expire
+ *   processing:                   skip — retry later
+ *   canceled:                     proceed to token-safe authoritative reconciliation
+ *
+ * Never uses public Purchase identity, tokens, or payment fields as
+ * an authorization fallback.
  */
-import { isFailClosed } from './checkoutLogic.js';
 import {
   getPurchasePrivate, upsertPurchasePrivate,
   getListingPrivate,
@@ -40,22 +38,103 @@ function calcPlatformFee(subtotal) {
 }
 
 // ── Purchase resolution through PurchasePrivate ────────────────────────────
-async function resolvePurchaseByPI(deps, piId) {
+// Creates critical alerts for ALL integrity failures and returns non-2xx.
+async function resolvePurchaseByPI(deps, piId, eventId) {
   const ppRows = await deps.entities.PurchasePrivate.filter({ payment_intent_id: piId });
-  if (ppRows.length === 0) return { error: 'NO_PURCHASE_PRIVATE', httpStatus: 200 };
-  if (ppRows.length > 1) return { error: 'MULTIPLE_PURCHASE_PRIVATE', httpStatus: 500 };
+
+  if (ppRows.length === 0) {
+    try {
+      await enqueueWebhookAdminAlert(deps, {
+        idempotency_key: `webhook:no_pp:${eventId}`,
+        title: `Webhook integrity — missing PurchasePrivate — ${piId}`,
+        description: `No PurchasePrivate found for PI ${piId}. Cannot resolve purchase. Manual investigation required.`,
+        reference_id: piId, reference_type: 'purchase', priority: 'critical',
+      });
+    } catch (_) { /* alert failure must not suppress the error */ }
+    return { error: 'NO_PURCHASE_PRIVATE', httpStatus: 500 };
+  }
+  if (ppRows.length > 1) {
+    try {
+      await enqueueWebhookAdminAlert(deps, {
+        idempotency_key: `webhook:dup_pp:${eventId}`,
+        title: `Webhook integrity — duplicate PurchasePrivate — ${piId}`,
+        description: `${ppRows.length} PurchasePrivate records found for PI ${piId}. Data integrity issue. Manual investigation required.`,
+        reference_id: piId, reference_type: 'purchase', priority: 'critical',
+      });
+    } catch (_) { /* alert failure must not suppress the error */ }
+    return { error: 'MULTIPLE_PURCHASE_PRIVATE', httpStatus: 500 };
+  }
   const pp = ppRows[0];
-  if (!pp.purchase_id) return { error: 'PP_MISSING_PURCHASE_ID', httpStatus: 500 };
+  if (!pp.purchase_id) {
+    try {
+      await enqueueWebhookAdminAlert(deps, {
+        idempotency_key: `webhook:pp_no_pid:${eventId}`,
+        title: `Webhook integrity — PP missing purchase_id — ${piId}`,
+        description: `PurchasePrivate for PI ${piId} has no purchase_id. Manual investigation required.`,
+        reference_id: piId, reference_type: 'purchase', priority: 'critical',
+      });
+    } catch (_) { /* alert failure must not suppress the error */ }
+    return { error: 'PP_MISSING_PURCHASE_ID', httpStatus: 500 };
+  }
 
   const [purchase] = await deps.entities.Purchase.filter({ id: pp.purchase_id });
-  if (!purchase) return { error: 'PURCHASE_NOT_FOUND', httpStatus: 500 };
+  if (!purchase) {
+    try {
+      await enqueueWebhookAdminAlert(deps, {
+        idempotency_key: `webhook:no_purchase:${eventId}`,
+        title: `Webhook integrity — missing Purchase — ${pp.purchase_id}`,
+        description: `PurchasePrivate references purchase ${pp.purchase_id} but Purchase not found. PI: ${piId}. Manual investigation required.`,
+        reference_id: pp.purchase_id, reference_type: 'purchase', priority: 'critical',
+      });
+    } catch (_) { /* alert failure must not suppress the error */ }
+    return { error: 'PURCHASE_NOT_FOUND', httpStatus: 500 };
+  }
 
+  // Cross-check PP ↔ Purchase for divergence (PP is authority, not a fallback)
   if (pp.payment_intent_id !== piId || purchase.payment_intent_id !== piId) {
+    try {
+      await enqueueWebhookAdminAlert(deps, {
+        idempotency_key: `webhook:pi_mismatch:${eventId}`,
+        title: `Webhook integrity — PI ID mismatch — ${piId}`,
+        description: `PP PI=${pp.payment_intent_id}, Purchase PI=${purchase.payment_intent_id}, event PI=${piId}. Manual investigation required.`,
+        reference_id: pp.purchase_id, reference_type: 'purchase', priority: 'critical',
+      });
+    } catch (_) { /* alert failure must not suppress the error */ }
     return { error: 'PI_ID_MISMATCH', httpStatus: 500 };
   }
-  if (pp.listing_id !== purchase.listing_id) return { error: 'LISTING_ID_MISMATCH', httpStatus: 500 };
-  if (pp.buyer_email !== purchase.buyer_email) return { error: 'BUYER_EMAIL_MISMATCH', httpStatus: 500 };
-  if (pp.reservation_token !== purchase.reservation_token) return { error: 'RESERVATION_TOKEN_MISMATCH', httpStatus: 500 };
+  if (pp.listing_id !== purchase.listing_id) {
+    try {
+      await enqueueWebhookAdminAlert(deps, {
+        idempotency_key: `webhook:listing_mismatch:${eventId}`,
+        title: `Webhook integrity — listing_id mismatch — ${piId}`,
+        description: `PP listing=${pp.listing_id}, Purchase listing=${purchase.listing_id}. PI: ${piId}. Manual investigation required.`,
+        reference_id: pp.purchase_id, reference_type: 'purchase', priority: 'critical',
+      });
+    } catch (_) { /* alert failure must not suppress the error */ }
+    return { error: 'LISTING_ID_MISMATCH', httpStatus: 500 };
+  }
+  if (pp.buyer_email !== purchase.buyer_email) {
+    try {
+      await enqueueWebhookAdminAlert(deps, {
+        idempotency_key: `webhook:buyer_mismatch:${eventId}`,
+        title: `Webhook integrity — buyer_email mismatch — ${piId}`,
+        description: `PP buyer=${pp.buyer_email}, Purchase buyer=${purchase.buyer_email}. PI: ${piId}. Manual investigation required.`,
+        reference_id: pp.purchase_id, reference_type: 'purchase', priority: 'critical',
+      });
+    } catch (_) { /* alert failure must not suppress the error */ }
+    return { error: 'BUYER_EMAIL_MISMATCH', httpStatus: 500 };
+  }
+  if (pp.reservation_token !== purchase.reservation_token) {
+    try {
+      await enqueueWebhookAdminAlert(deps, {
+        idempotency_key: `webhook:token_mismatch:${eventId}`,
+        title: `Webhook integrity — reservation_token mismatch — ${piId}`,
+        description: `PP token=${pp.reservation_token}, Purchase token=${purchase.reservation_token}. PI: ${piId}. Manual investigation required.`,
+        reference_id: pp.purchase_id, reference_type: 'purchase', priority: 'critical',
+      });
+    } catch (_) { /* alert failure must not suppress the error */ }
+    return { error: 'RESERVATION_TOKEN_MISMATCH', httpStatus: 500 };
+  }
 
   return { purchase, pp };
 }
@@ -74,9 +153,9 @@ function verifyPIMetadata(pi, purchase, pp) {
 // ── payment_intent.payment_failed ──────────────────────────────────────────
 async function handlePaymentFailed(deps, eventId, data) {
   const piId = data.id;
-  const resolution = await resolvePurchaseByPI(deps, piId);
+  const resolution = await resolvePurchaseByPI(deps, piId, eventId);
   if (resolution.error) {
-    return { status: resolution.httpStatus, body: { received: true, error: resolution.error } };
+    return { status: resolution.httpStatus, body: { error: resolution.error } };
   }
   const { purchase, pp } = resolution;
 
@@ -88,16 +167,25 @@ async function handlePaymentFailed(deps, eventId, data) {
   let pi;
   try {
     pi = await deps.stripe.paymentIntents.retrieve(piId);
-  } catch (err) {
+  } catch (_) {
     return { status: 500, body: { error: 'PI_RETRIEVE_FAILED' } };
   }
 
-  // ── 2. Verify exact PI metadata ────────────────────────────────────────────
+  // ── 2. Verify exact PI metadata — non-2xx on mismatch ────────────────────
   if (!verifyPIMetadata(pi, purchase, pp)) {
-    return { status: 200, body: { received: true, skipped: 'metadata_mismatch' } };
+    try {
+      await enqueueWebhookAdminAlert(deps, {
+        idempotency_key: `webhook:failed_metadata:${eventId}`,
+        title: `Webhook integrity — payment_failed metadata mismatch — ${piId}`,
+        description: `PI ${piId} metadata does not match PP for purchase ${purchase.id}. No state writes performed. Manual investigation required.`,
+        reference_id: purchase.id, reference_type: 'purchase', priority: 'critical',
+      });
+    } catch (_) { return { status: 500, body: { error: 'ALERT_PERSISTENCE_FAILED' } }; }
+    return { status: 500, body: { error: 'METADATA_MISMATCH' } };
   }
 
-  // ── 3. If PI is capture-ready or already captured, do NOT expire ──────────
+  // ── 3. Explicit PI state table ────────────────────────────────────────────
+  // succeeded, requires_capture, processing → do not expire; leave for capture flow
   if (pp.payment_captured === true) {
     return { status: 200, body: { received: true, skipped: 'already_captured' } };
   }
@@ -110,15 +198,16 @@ async function handlePaymentFailed(deps, eventId, data) {
     return { status: 200, body: { received: true, skipped: 'not_pending' } };
   }
 
-  // ── 5. For cancelable failed statuses, cancel PI with idempotency key ─────
-  if (pi.status === 'requires_payment_method' || pi.status === 'requires_action') {
+  // ── 5. Cancelable states: requires_payment_method, requires_confirmation,
+  //         requires_action — cancel, re-retrieve, require canceled ──────────
+  if (['requires_payment_method', 'requires_confirmation', 'requires_action'].includes(pi.status)) {
     let cancelVerified = false;
     try {
       const canceled = await deps.stripe.paymentIntents.cancel(piId, {
         idempotencyKey: `cancel-${piId}-${eventId}`,
       });
       cancelVerified = canceled.status === 'canceled';
-    } catch (err) {
+    } catch (_) {
       try {
         const retrieved = await deps.stripe.paymentIntents.retrieve(piId);
         cancelVerified = retrieved.status === 'canceled';
@@ -134,9 +223,7 @@ async function handlePaymentFailed(deps, eventId, data) {
           description: `Cancel could not be verified. PI: ${piId}. Purchase: ${purchase.id}. Manual cancellation required.`,
           reference_id: purchase.id, reference_type: 'purchase', priority: 'critical',
         });
-      } catch (alertErr) {
-        return { status: 500, body: { error: 'CANCEL_AND_ALERT_FAILED' } };
-      }
+      } catch (_) { return { status: 500, body: { error: 'ALERT_PERSISTENCE_FAILED' } }; }
       return { status: 500, body: { error: 'CANCEL_NOT_VERIFIED' } };
     }
   }
@@ -164,15 +251,10 @@ async function handlePaymentFailed(deps, eventId, data) {
         description: `payment_failed for PI ${piId} but Listing/LP reservation differs from PP. Token match: ${tokenMatch}, buyer match: ${buyerMatch}, expiry match: ${expiryMatch}. Newer reservation preserved. Manual review required.`,
         reference_id: purchase.listing_id, reference_type: 'listing', priority: 'critical',
       });
-    } catch (alertErr) {
-      return { status: 500, body: { error: 'ALERT_PERSISTENCE_FAILED' } };
-    }
-    // Still expire the Purchase since cancellation was verified
+    } catch (_) { return { status: 500, body: { error: 'ALERT_PERSISTENCE_FAILED' } }; }
     try {
       await deps.entities.Purchase.update(purchase.id, { transfer_status: 'expired' });
-    } catch (err) {
-      return { status: 500, body: { error: 'PURCHASE_EXPIRY_FAILED' } };
-    }
+    } catch (_) { return { status: 500, body: { error: 'PURCHASE_EXPIRY_FAILED' } }; }
     return { status: 200, body: { received: true, expired: true, split_brain_preserved: true } };
   }
 
@@ -187,24 +269,19 @@ async function handlePaymentFailed(deps, eventId, data) {
         description: `Quarantine write failed for payment_failed. PI: ${piId}. Purchase: ${purchase.id}. Manual resolution required.`,
         reference_id: purchase.listing_id, reference_type: 'listing', priority: 'critical',
       });
-    } catch (alertErr) {
-      return { status: 500, body: { error: 'ALERT_PERSISTENCE_FAILED' } };
-    }
+    } catch (_) { return { status: 500, body: { error: 'ALERT_PERSISTENCE_FAILED' } }; }
     return { status: 500, body: { error: 'QUARANTINE_FAILED' } };
   }
 
   // ── 11. Quarantine succeeded — expire the Purchase ─────────────────────────
   try {
     await deps.entities.Purchase.update(purchase.id, { transfer_status: 'expired' });
-  } catch (err) {
-    return { status: 500, body: { error: 'PURCHASE_EXPIRY_FAILED' } };
-  }
+  } catch (_) { return { status: 500, body: { error: 'PURCHASE_EXPIRY_FAILED' } }; }
 
   // ── 12. Queue buyer in-app notification (no external push/email) ────────────
-  const notifKey = `webhook:payment_failed:${eventId}`;
   try {
     await enqueueWebhookNotification(deps, {
-      idempotency_key: notifKey,
+      idempotency_key: `webhook:payment_failed:${eventId}`,
       user_email: pp.buyer_email,
       type: 'transfer_rejected',
       title: 'Payment failed',
@@ -212,7 +289,7 @@ async function handlePaymentFailed(deps, eventId, data) {
       reference_id: purchase.id,
       reference_type: 'purchase',
     });
-  } catch (err) { /* notification failure must not break the webhook */ }
+  } catch (_) { /* notification failure must not break the webhook */ }
 
   return { status: 200, body: { received: true, quarantined: true, expired: true } };
 }
@@ -220,9 +297,9 @@ async function handlePaymentFailed(deps, eventId, data) {
 // ── payment_intent.succeeded ────────────────────────────────────────────────
 async function handlePaymentSucceeded(deps, eventId, data) {
   const piId = data.id;
-  const resolution = await resolvePurchaseByPI(deps, piId);
+  const resolution = await resolvePurchaseByPI(deps, piId, eventId);
   if (resolution.error) {
-    return { status: resolution.httpStatus, body: { received: true, error: resolution.error } };
+    return { status: resolution.httpStatus, body: { error: resolution.error } };
   }
   const { purchase, pp } = resolution;
 
@@ -234,31 +311,37 @@ async function handlePaymentSucceeded(deps, eventId, data) {
   let pi;
   try {
     pi = await deps.stripe.paymentIntents.retrieve(piId);
-  } catch (err) {
+  } catch (_) {
     return { status: 500, body: { error: 'PI_RETRIEVE_FAILED' } };
   }
 
-  // ── 2. Require status === 'succeeded' ──────────────────────────────────────
+  // ── 2. Require status === 'succeeded' — non-2xx on unexpected state ────────
   if (pi.status !== 'succeeded') {
-    return { status: 200, body: { received: true, skipped: 'pi_not_succeeded', pi_status: pi.status } };
+    try {
+      await enqueueWebhookAdminAlert(deps, {
+        idempotency_key: `webhook:succeeded_unexpected:${eventId}`,
+        title: `Webhook integrity — unexpected PI state for succeeded event — ${piId}`,
+        description: `payment_intent.succeeded event received but PI status is ${pi.status}. Purchase: ${purchase.id}. No writes performed. Manual investigation required.`,
+        reference_id: purchase.id, reference_type: 'purchase', priority: 'critical',
+      });
+    } catch (_) { return { status: 500, body: { error: 'ALERT_PERSISTENCE_FAILED' } }; }
+    return { status: 500, body: { error: 'UNEXPECTED_PI_STATE', pi_status: pi.status } };
   }
 
-  // ── 3. Verify exact metadata against PurchasePrivate ───────────────────────
+  // ── 3. Verify exact metadata — non-2xx on mismatch ────────────────────────
   if (!verifyPIMetadata(pi, purchase, pp)) {
     try {
       await enqueueWebhookAdminAlert(deps, {
         idempotency_key: `webhook:succeeded_mismatch:${eventId}`,
-        title: `Succeeded event metadata mismatch — ${piId}`,
+        title: `Webhook integrity — succeeded metadata mismatch — ${piId}`,
         description: `PI ${piId} succeeded but metadata does not match PP for purchase ${purchase.id}. No financial-state writes performed. Manual review required.`,
         reference_id: purchase.id, reference_type: 'purchase', priority: 'critical',
       });
-    } catch (alertErr) {
-      return { status: 500, body: { error: 'ALERT_PERSISTENCE_FAILED' } };
-    }
-    return { status: 200, body: { received: true, skipped: 'metadata_mismatch' } };
+    } catch (_) { return { status: 500, body: { error: 'ALERT_PERSISTENCE_FAILED' } }; }
+    return { status: 500, body: { error: 'METADATA_MISMATCH' } };
   }
 
-  // ── 4. Verify amount, currency, and exact destination ─────────────────────
+  // ── 4. Verify amount, currency, and exact destination — non-2xx ────────────
   const expectedSubtotal = Math.round((purchase.subtotal || 0) * 100) / 100;
   const expectedFee = calcPlatformFee(expectedSubtotal);
   const expectedTotal = Math.round((expectedSubtotal + expectedFee) * 100) / 100;
@@ -267,14 +350,12 @@ async function handlePaymentSucceeded(deps, eventId, data) {
     try {
       await enqueueWebhookAdminAlert(deps, {
         idempotency_key: `webhook:succeeded_amount:${eventId}`,
-        title: `Succeeded event amount mismatch — ${piId}`,
+        title: `Webhook integrity — succeeded amount mismatch — ${piId}`,
         description: `PI amount ${pi.amount} vs expected ${expectedCents}. Purchase: ${purchase.id}. No writes performed.`,
         reference_id: purchase.id, reference_type: 'purchase', priority: 'critical',
       });
-    } catch (alertErr) {
-      return { status: 500, body: { error: 'ALERT_PERSISTENCE_FAILED' } };
-    }
-    return { status: 200, body: { received: true, skipped: 'amount_mismatch' } };
+    } catch (_) { return { status: 500, body: { error: 'ALERT_PERSISTENCE_FAILED' } }; }
+    return { status: 500, body: { error: 'AMOUNT_MISMATCH' } };
   }
 
   // Verify destination
@@ -283,27 +364,23 @@ async function handlePaymentSucceeded(deps, eventId, data) {
     try {
       await enqueueWebhookAdminAlert(deps, {
         idempotency_key: `webhook:succeeded_no_dest:${eventId}`,
-        title: `Succeeded event — no seller Stripe account — ${piId}`,
+        title: `Webhook integrity — no seller Stripe account — ${piId}`,
         description: `Purchase ${purchase.id} succeeded but seller has no stripe_account_id. Manual review required.`,
         reference_id: purchase.id, reference_type: 'purchase', priority: 'critical',
       });
-    } catch (alertErr) {
-      return { status: 500, body: { error: 'ALERT_PERSISTENCE_FAILED' } };
-    }
-    return { status: 200, body: { received: true, skipped: 'no_seller_account' } };
+    } catch (_) { return { status: 500, body: { error: 'ALERT_PERSISTENCE_FAILED' } }; }
+    return { status: 500, body: { error: 'NO_SELLER_ACCOUNT' } };
   }
   if (!pi.transfer_data?.destination || pi.transfer_data.destination !== sellerSec.stripe_account_id) {
     try {
       await enqueueWebhookAdminAlert(deps, {
         idempotency_key: `webhook:succeeded_dest_mismatch:${eventId}`,
-        title: `Succeeded event destination mismatch — ${piId}`,
+        title: `Webhook integrity — destination mismatch — ${piId}`,
         description: `PI destination ${pi.transfer_data?.destination} vs seller account ${sellerSec.stripe_account_id}. Purchase: ${purchase.id}. No writes performed.`,
         reference_id: purchase.id, reference_type: 'purchase', priority: 'critical',
       });
-    } catch (alertErr) {
-      return { status: 500, body: { error: 'ALERT_PERSISTENCE_FAILED' } };
-    }
-    return { status: 200, body: { received: true, skipped: 'destination_mismatch' } };
+    } catch (_) { return { status: 500, body: { error: 'ALERT_PERSISTENCE_FAILED' } }; }
+    return { status: 500, body: { error: 'DESTINATION_MISMATCH' } };
   }
 
   // ── 5. Invoke the captured-payment reconciliation state machine ─────────────
@@ -318,31 +395,19 @@ async function handlePaymentSucceeded(deps, eventId, data) {
         description: `PI ${piId} succeeded but reconciliation failed at step: ${result.step}. Error: ${result.error}. Retry will converge. Manual review if persists.`,
         reference_id: purchase.id, reference_type: 'purchase', priority: 'critical',
       });
-    } catch (alertErr) {
-      return { status: 500, body: { error: 'RECONCILE_AND_ALERT_FAILED' } };
-    }
+    } catch (_) { return { status: 500, body: { error: 'RECONCILE_AND_ALERT_FAILED' } }; }
     return { status: 500, body: { error: 'RECONCILE_FAILED', step: result.step } };
   }
 
-  return { status: 200, body: { received: true, captured: true } };
+  return { status: 200, body: { received: true, captured: true, idempotent: result.idempotent || false } };
 }
 
 // ── charge.dispute.created ──────────────────────────────────────────────────
 async function handleDisputeCreated(deps, eventId, data) {
   const piId = data.payment_intent;
-  const resolution = await resolvePurchaseByPI(deps, piId);
+  const resolution = await resolvePurchaseByPI(deps, piId, eventId);
   if (resolution.error) {
-    try {
-      await enqueueWebhookAdminAlert(deps, {
-        idempotency_key: `webhook:dispute:${eventId}`,
-        title: `Stripe Dispute — unknown PI ${piId}`,
-        description: `Dispute ID: ${data.id}. Reason: ${data.reason || 'unknown'}. PI: ${piId}.`,
-        reference_id: piId, reference_type: 'purchase', priority: 'critical',
-      });
-    } catch (alertErr) {
-      return { status: 500, body: { error: 'ALERT_PERSISTENCE_FAILED' } };
-    }
-    return { status: 200, body: { received: true, error: resolution.error } };
+    return { status: resolution.httpStatus, body: { error: resolution.error } };
   }
   const { purchase, pp } = resolution;
 
@@ -360,17 +425,13 @@ async function handleDisputeCreated(deps, eventId, data) {
     return { status: 500, body: { error: 'PP_DISPUTE_MIRROR_FAILED' } };
   }
 
-  // Update Purchase status
   try {
     await deps.entities.Purchase.update(purchase.id, {
       transfer_status: 'disputed',
       dispute_reason: disputeReason,
     });
-  } catch (err) {
-    return { status: 500, body: { error: 'PURCHASE_UPDATE_FAILED' } };
-  }
+  } catch (_) { return { status: 500, body: { error: 'PURCHASE_UPDATE_FAILED' } }; }
 
-  // Queue admin alert
   try {
     await enqueueWebhookAdminAlert(deps, {
       idempotency_key: `webhook:dispute:${eventId}`,
@@ -378,9 +439,7 @@ async function handleDisputeCreated(deps, eventId, data) {
       description: `Buyer: ${pp.buyer_email}. Reason: ${disputeReason}. Dispute ID: ${data.id}. PI: ${piId}.`,
       reference_id: purchase.id, reference_type: 'purchase', priority: 'critical',
     });
-  } catch (alertErr) {
-    return { status: 500, body: { error: 'ALERT_PERSISTENCE_FAILED' } };
-  }
+  } catch (_) { return { status: 500, body: { error: 'ALERT_PERSISTENCE_FAILED' } }; }
 
   return { status: 200, body: { received: true, disputed: true } };
 }
@@ -388,9 +447,9 @@ async function handleDisputeCreated(deps, eventId, data) {
 // ── charge.refunded ─────────────────────────────────────────────────────────
 async function handleRefunded(deps, eventId, data) {
   const piId = data.payment_intent;
-  const resolution = await resolvePurchaseByPI(deps, piId);
+  const resolution = await resolvePurchaseByPI(deps, piId, eventId);
   if (resolution.error) {
-    return { status: 200, body: { received: true, error: resolution.error } };
+    return { status: resolution.httpStatus, body: { error: resolution.error } };
   }
   const { purchase, pp } = resolution;
 
@@ -405,15 +464,12 @@ async function handleRefunded(deps, eventId, data) {
       description: `Buyer: ${pp.buyer_email}. Amount: $${(data.amount_refunded / 100).toFixed(2)}. PI: ${piId}.`,
       reference_id: purchase.id, reference_type: 'purchase', priority: 'high',
     });
-  } catch (alertErr) {
-    return { status: 500, body: { error: 'ALERT_PERSISTENCE_FAILED' } };
-  }
+  } catch (_) { return { status: 500, body: { error: 'ALERT_PERSISTENCE_FAILED' } }; }
 
   return { status: 200, body: { received: true } };
 }
 
 // ── payout.failed / transfer.failed ────────────────────────────────────────
-// Uses event.account (top-level) — NOT data.destination or source_transaction
 async function handlePayoutFailed(deps, eventId, type, data, eventAccount) {
   const accountId = eventAccount;
 
@@ -425,9 +481,7 @@ async function handlePayoutFailed(deps, eventId, type, data, eventAccount) {
         description: `Event has no top-level account. Amount: ${data.amount ? '$' + (data.amount / 100).toFixed(2) : 'unknown'}. Reason: ${data.failure_message || 'unknown'}.`,
         reference_id: eventId, reference_type: 'user', priority: 'critical',
       });
-    } catch (alertErr) {
-      return { status: 500, body: { error: 'ALERT_PERSISTENCE_FAILED' } };
-    }
+    } catch (_) { return { status: 500, body: { error: 'ALERT_PERSISTENCE_FAILED' } }; }
     return { status: 200, body: { received: true, skipped: 'no_account' } };
   }
 
@@ -441,13 +495,10 @@ async function handlePayoutFailed(deps, eventId, type, data, eventAccount) {
         description: `Account: ${accountId}. Amount: ${data.amount ? '$' + (data.amount / 100).toFixed(2) : 'unknown'}. Reason: ${data.failure_message || 'unknown'}.`,
         reference_id: accountId, reference_type: 'user', priority: 'critical',
       });
-    } catch (alertErr) {
-      return { status: 500, body: { error: 'ALERT_PERSISTENCE_FAILED' } };
-    }
+    } catch (_) { return { status: 500, body: { error: 'ALERT_PERSISTENCE_FAILED' } }; }
     return { status: 200, body: { received: true } };
   }
 
-  // Queue seller in-app notification (no external push/email)
   try {
     await enqueueWebhookNotification(deps, {
       idempotency_key: `webhook:${type}:${eventId}`,
@@ -457,9 +508,8 @@ async function handlePayoutFailed(deps, eventId, type, data, eventAccount) {
       body: 'There was a problem with your payout. Please check your Stripe account and update your bank details.',
       reference_id: null, reference_type: null,
     });
-  } catch (err) { /* notification failure must not break the webhook */ }
+  } catch (_) { /* notification failure must not break the webhook */ }
 
-  // Queue admin alert
   try {
     await enqueueWebhookAdminAlert(deps, {
       idempotency_key: `webhook:${type}:${eventId}`,
@@ -467,9 +517,7 @@ async function handlePayoutFailed(deps, eventId, type, data, eventAccount) {
       description: `Seller: ${sec.user_email}. Account: ${accountId}. Amount: ${data.amount ? '$' + (data.amount / 100).toFixed(2) : 'unknown'}. Reason: ${data.failure_message || data.failure_code || 'unknown'}.`,
       reference_id: sec.user_id, reference_type: 'user', priority: 'high',
     });
-  } catch (alertErr) {
-    return { status: 500, body: { error: 'ALERT_PERSISTENCE_FAILED' } };
-  }
+  } catch (_) { return { status: 500, body: { error: 'ALERT_PERSISTENCE_FAILED' } }; }
 
   return { status: 200, body: { received: true } };
 }
