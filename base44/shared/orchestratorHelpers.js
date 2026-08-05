@@ -384,12 +384,12 @@ export async function durableBlockAndAlert(deps, listing_id, reason, piId, title
           lpVerify.recovery_blocked === true &&
           lpVerify.recovery_blocked_reason === reason &&
           lpVerify.recovery_blocked_at) {
-        // Timestamp verification: exact match OR within 5-second tolerance
+        // Timestamp verification: EXACT equality required.
+        // The code explicitly writes attemptedBlockTimestamp into recovery_blocked_at,
+        // so the stored value must match exactly. updated_date behavior does not
+        // justify accepting a different recovery_blocked_at.
         const storedTs = lpVerify.recovery_blocked_at;
-        const storedMs = new Date(storedTs).getTime();
-        const attemptedMs = new Date(attemptedBlockTimestamp).getTime();
-        const toleranceMs = 5 * 1000; // 5 seconds documented tolerance
-        if (storedTs === attemptedBlockTimestamp || Math.abs(storedMs - attemptedMs) <= toleranceMs) {
+        if (storedTs === attemptedBlockTimestamp) {
           result.block_proven = true;
           result.blocked = true;
         } else {
@@ -501,20 +501,70 @@ export async function failClosedLegacyRevision(deps, listing_id, reason, piId, p
     ok: false,
     error: reason,
     state: state || 'fail_closed',
+    // Structured error fields (replace all empty catches)
+    listing_quarantine_write_error: null,
+    lp_quarantine_write_error: null,
+    listing_quarantine_refetch_error: null,
+    lp_quarantine_refetch_error: null,
+    // Pre-quarantine snapshot
+    pre_quarantine_listing_tuple: null,
+    pre_quarantine_lp_tuple: null,
+    // Post-quarantine snapshot
+    post_quarantine_listing_tuple: null,
+    post_quarantine_lp_tuple: null,
+    // Tuple preservation proof
+    listing_tuple_preserved: false,
+    lp_tuple_preserved: false,
+    pre_existing_disagreement_preserved: false,
+    // Quarantine timestamp proof
+    quarantine_timestamp_proven: false,
   };
 
   const quarantineAt = new Date(deps.now()).toISOString();
 
-  // 1. Attempt to quarantine Listing
+  // ── Snapshot Listing and LP tuples BEFORE quarantine ──────────────────────
+  try {
+    const [listingBefore] = await deps.entities.Listing.filter({ id: listing_id });
+    if (listingBefore) {
+      result.pre_quarantine_listing_tuple = {
+        token: listingBefore.reservation_token ?? null,
+        buyer: listingBefore.reserved_by_email ?? null,
+        expiration: listingBefore.reservation_expires_at ?? null,
+        revision: listingBefore.reservation_revision ?? null,
+        status: listingBefore.status ?? null,
+      };
+    }
+  } catch (err) {
+    result.listing_quarantine_refetch_error = `pre-snapshot listing fetch: ${err?.message || String(err)}`;
+  }
+
+  try {
+    const lpBefore = await getListingPrivate(deps, listing_id);
+    if (lpBefore) {
+      result.pre_quarantine_lp_tuple = {
+        token: lpBefore.reservation_token ?? null,
+        buyer: lpBefore.reserved_by_email ?? null,
+        expiration: lpBefore.reservation_expires_at ?? null,
+        revision: lpBefore.reservation_revision ?? null,
+        checkout_quarantined: lpBefore.checkout_quarantined ?? null,
+      };
+    }
+  } catch (err) {
+    result.lp_quarantine_refetch_error = `pre-snapshot LP fetch: ${err?.message || String(err)}`;
+  }
+
+  // ── 1. Attempt to quarantine Listing ─────────────────────────────────────
   result.listing_quarantine_attempted = true;
   try {
     await deps.entities.Listing.update(listing_id, {
       status: 'hidden',
       hidden_reason: 'checkout_quarantine',
     });
-  } catch (_) { /* Listing quarantine write failed — try LP anyway */ }
+  } catch (err) {
+    result.listing_quarantine_write_error = err?.message || String(err);
+  }
 
-  // 2. Attempt to quarantine ListingPrivate
+  // ── 2. Attempt to quarantine ListingPrivate ──────────────────────────────
   result.lp_quarantine_attempted = true;
   try {
     await upsertListingPrivate(deps, listing_id, {
@@ -522,31 +572,94 @@ export async function failClosedLegacyRevision(deps, listing_id, reason, piId, p
       checkout_quarantine_reason: reason,
       checkout_quarantined_at: quarantineAt,
     });
-  } catch (_) { /* LP quarantine write failed */ }
+  } catch (err) {
+    result.lp_quarantine_write_error = err?.message || String(err);
+  }
 
-  // 3. Re-fetch both records and prove whether each quarantine write persisted
+  // ── 3. Re-fetch both records and prove quarantine persisted ───────────────
   try {
     const [verifyListing] = await deps.entities.Listing.filter({ id: listing_id });
-    result.listing_quarantine_proven = !!verifyListing &&
-      verifyListing.status === 'hidden' &&
-      verifyListing.hidden_reason === 'checkout_quarantine';
-  } catch (_) { /* re-fetch failed */ }
+    if (verifyListing) {
+      result.listing_quarantine_proven = verifyListing.status === 'hidden' &&
+        verifyListing.hidden_reason === 'checkout_quarantine';
+      result.post_quarantine_listing_tuple = {
+        token: verifyListing.reservation_token ?? null,
+        buyer: verifyListing.reserved_by_email ?? null,
+        expiration: verifyListing.reservation_expires_at ?? null,
+        revision: verifyListing.reservation_revision ?? null,
+        status: verifyListing.status ?? null,
+      };
+    }
+  } catch (err) {
+    result.listing_quarantine_refetch_error = `post-quarantine listing fetch: ${err?.message || String(err)}`;
+  }
 
   try {
     const verifyLP = await getListingPrivate(deps, listing_id);
-    result.lp_quarantine_proven = !!verifyLP &&
-      verifyLP.checkout_quarantined === true &&
-      verifyLP.checkout_quarantine_reason === reason &&
-      !!verifyLP.checkout_quarantined_at;
-  } catch (_) { /* re-fetch failed */ }
+    if (verifyLP) {
+      result.lp_quarantine_proven = verifyLP.checkout_quarantined === true &&
+        verifyLP.checkout_quarantine_reason === reason &&
+        !!verifyLP.checkout_quarantined_at;
+      // Verify quarantine timestamp equals exact attempted timestamp
+      result.quarantine_timestamp_proven = verifyLP.checkout_quarantined_at === quarantineAt;
+      result.post_quarantine_lp_tuple = {
+        token: verifyLP.reservation_token ?? null,
+        buyer: verifyLP.reserved_by_email ?? null,
+        expiration: verifyLP.reservation_expires_at ?? null,
+        revision: verifyLP.reservation_revision ?? null,
+        checkout_quarantined: verifyLP.checkout_quarantined ?? null,
+      };
+    }
+  } catch (err) {
+    result.lp_quarantine_refetch_error = `post-quarantine LP fetch: ${err?.message || String(err)}`;
+  }
 
-  // 4. Durably block and create a critical alert
+  // ── 4. Verify tuples unchanged ───────────────────────────────────────────
+  // Only quarantine and recovery fields should have changed.
+  // The Listing tuple (token, buyer, expiration, revision) must be unchanged.
+  if (result.pre_quarantine_listing_tuple && result.post_quarantine_listing_tuple) {
+    const pre = result.pre_quarantine_listing_tuple;
+    const post = result.post_quarantine_listing_tuple;
+    result.listing_tuple_preserved =
+      pre.token === post.token && pre.buyer === post.buyer &&
+      pre.expiration === post.expiration && pre.revision === post.revision;
+  }
+
+  if (result.pre_quarantine_lp_tuple && result.post_quarantine_lp_tuple) {
+    const pre = result.pre_quarantine_lp_tuple;
+    const post = result.post_quarantine_lp_tuple;
+    result.lp_tuple_preserved =
+      pre.token === post.token && pre.buyer === post.buyer &&
+      pre.expiration === post.expiration && pre.revision === post.revision;
+  }
+
+  // Any pre-existing disagreement between Listing and LP tuples must remain preserved
+  if (result.pre_quarantine_listing_tuple && result.pre_quarantine_lp_tuple) {
+    const preDisagreed =
+      result.pre_quarantine_listing_tuple.token !== result.pre_quarantine_lp_tuple.token ||
+      result.pre_quarantine_listing_tuple.buyer !== result.pre_quarantine_lp_tuple.buyer ||
+      result.pre_quarantine_listing_tuple.expiration !== result.pre_quarantine_lp_tuple.expiration;
+    if (preDisagreed && result.post_quarantine_listing_tuple && result.post_quarantine_lp_tuple) {
+      const postDisagreed =
+        result.post_quarantine_listing_tuple.token !== result.post_quarantine_lp_tuple.token ||
+        result.post_quarantine_listing_tuple.buyer !== result.post_quarantine_lp_tuple.buyer ||
+        result.post_quarantine_listing_tuple.expiration !== result.post_quarantine_lp_tuple.expiration;
+      result.pre_existing_disagreement_preserved = preDisagreed && postDisagreed;
+    } else {
+      result.pre_existing_disagreement_preserved = true; // no pre-existing disagreement
+    }
+  } else {
+    result.pre_existing_disagreement_preserved = true; // one record missing — no disagreement to preserve
+  }
+
+  // ── 5. Durably block and create a critical alert ─────────────────────────
   const blockResult = await durableBlockAndAlert(deps, listing_id, reason, piId,
     `Legacy revision failure — ${listing_id} (${state})`, purchaseId);
   result.block_proven = blockResult.block_proven;
   result.alert_proven = blockResult.alert_proven;
   result.block_error = blockResult.block_error;
   result.alert_error = blockResult.alert_error;
+  result.attempted_block_timestamp = blockResult.attempted_block_timestamp;
 
   return result;
 }
@@ -617,27 +730,21 @@ export async function initializeLegacyRevision(deps, listing_id) {
         `Legacy revision L1: Listing tuple is null or partially null (token=${listingToken}, buyer=${listingBuyer}, expiry=${listingExpiry}). Manual resolution required.`,
         null, null, 'L1_null_tuple');
       return { ok: false, error: 'L1: Listing tuple null or partially null',
-        listing_quarantine_proven: r.listing_quarantine_proven,
-        lp_quarantine_proven: r.lp_quarantine_proven,
-        block_proven: r.block_proven, alert_proven: r.alert_proven, state: 'L1_null_tuple' };
+        ...r, state: 'L1_null_tuple' };
     }
     if (!lpToken || !lpBuyer || !lpExpiry) {
       const r = await failClosedLegacyRevision(deps, listing_id,
         `Legacy revision L1: LP tuple is null or partially null (token=${lpToken}, buyer=${lpBuyer}, expiry=${lpExpiry}). Manual resolution required.`,
         null, null, 'L1_null_tuple');
       return { ok: false, error: 'L1: LP tuple null or partially null',
-        listing_quarantine_proven: r.listing_quarantine_proven,
-        lp_quarantine_proven: r.lp_quarantine_proven,
-        block_proven: r.block_proven, alert_proven: r.alert_proven, state: 'L1_null_tuple' };
+        ...r, state: 'L1_null_tuple' };
     }
     if (listingToken !== lpToken || listingBuyer !== lpBuyer || listingExpiry !== lpExpiry) {
       const r = await failClosedLegacyRevision(deps, listing_id,
         `Legacy revision L1: tuple mismatch despite matching revisions. Listing token=${listingToken}, LP token=${lpToken}. Manual resolution required.`,
         null, null, 'L1_tuple_mismatch');
       return { ok: false, error: 'L1: tuple mismatch',
-        listing_quarantine_proven: r.listing_quarantine_proven,
-        lp_quarantine_proven: r.lp_quarantine_proven,
-        block_proven: r.block_proven, alert_proven: r.alert_proven, state: 'L1_tuple_mismatch' };
+        ...r, state: 'L1_tuple_mismatch' };
     }
     return { ok: true, revision: listingRev, alreadyExisted: true, state: 'L1' };
   }

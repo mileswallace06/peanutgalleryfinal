@@ -109,6 +109,13 @@ export async function freezeCapturedPayment(deps, purchase, pp, pi) {
     return { ok: false, step: 'prefetch', error: 'missing record' };
   }
 
+  // ── Hook: afterAuthoritativePrefetch ──────────────────────────────────────
+  // Production default is a no-op. Tests use this to prove the freeze reached
+  // the prefetch point before injecting a competing mutation.
+  if (deps.hooks && deps.hooks.afterAuthoritativePrefetch) {
+    try { await deps.hooks.afterAuthoritativePrefetch(deps, listingId); } catch (e) { /* hook error — non-fatal */ }
+  }
+
   // ── Step 0a: Idempotent — already finalized (complete verification) ────────
   if (isFullyFinalized(listingFresh, lpFresh, purchaseFresh, ppFresh)) {
     return { ok: true, idempotent: true, phase: 'already_finalized' };
@@ -258,6 +265,13 @@ export async function freezeCapturedPayment(deps, purchase, pp, pi) {
   } catch (err) {
     await alertPrivateWriteFailure(deps, { entity: 'Purchase', reference_id: purchaseId, reference_type: 'purchase', error: err });
     return { ok: false, step: 'purchase_freeze', error: err?.message || 'Purchase freeze write failed' };
+  }
+
+  // ── Hook: beforeQuarantineWrite ──────────────────────────────────────────
+  // Production default is a no-op. Tests use this to inject a competing
+  // mutation after the prefetch but before quarantine persistence.
+  if (deps.hooks && deps.hooks.beforeQuarantineWrite) {
+    try { await deps.hooks.beforeQuarantineWrite(deps, listingId); } catch (e) { /* hook error — non-fatal */ }
   }
 
   // ── Step 3: Quarantine listing — PRESERVE reservation fields ───────────────

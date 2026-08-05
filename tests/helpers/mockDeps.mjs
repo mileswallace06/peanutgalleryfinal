@@ -4,12 +4,23 @@
  */
 import { initializeLegacyRevision, durableBlockAndAlert, generateRevision } from '../../base44/shared/orchestratorHelpers.js';
 import { freezeCapturedPayment, finalizeCapturedPayment } from '../../base44/shared/captureReconciliation.js';
+import { runReserveListing } from '../../base44/shared/reserveOrchestrator.js';
+import { runReleaseReservation } from '../../base44/shared/releaseOrchestrator.js';
+import { runAbortCheckout } from '../../base44/shared/abortOrchestrator.js';
+import { runCancelPurchase } from '../../base44/shared/cancelOrchestrator.js';
+import { runProcessTransferReminders } from '../../base44/shared/remindersOrchestrator.js';
+import { applyReservationTuple, generateClearedRevision } from '../../base44/shared/tupleTransition.js';
 
 if (typeof globalThis.crypto === 'undefined' || !globalThis.crypto.randomUUID) {
   globalThis.crypto = { randomUUID: () => `uuid_${Date.now()}_${Math.random().toString(36).slice(2, 10)}` };
 }
 
-export { initializeLegacyRevision, durableBlockAndAlert, generateRevision, freezeCapturedPayment, finalizeCapturedPayment };
+export {
+  initializeLegacyRevision, durableBlockAndAlert, generateRevision,
+  freezeCapturedPayment, finalizeCapturedPayment,
+  runReserveListing, runReleaseReservation, runAbortCheckout, runCancelPurchase, runProcessTransferReminders,
+  applyReservationTuple, generateClearedRevision,
+};
 
 // ── Mock Stripe ──────────────────────────────────────────────────────────────
 export function createMockStripe(config = {}) {
@@ -41,6 +52,10 @@ function applyFilter(records, query) {
     for (const [key, value] of Object.entries(query)) {
       if (value && typeof value === 'object' && !Array.isArray(value) && value.$in) {
         if (!value.$in.includes(record[key])) return false;
+      } else if (value && typeof value === 'object' && !Array.isArray(value) && value.$gte) {
+        if (!record[key] || record[key] < value.$gte) return false;
+      } else if (value && typeof value === 'object' && !Array.isArray(value) && value.$lte) {
+        if (!record[key] || record[key] > value.$lte) return false;
       } else { if (record[key] !== value) return false; }
     }
     return true;
@@ -121,6 +136,7 @@ export function createMockDeps(config = {}) {
     isMaintenanceActive: config.isMaintenanceActive || (() => false),
     isLiveMode: config.isLiveMode ?? false,
     generateRevision: config.generateRevision,
+    hooks: config.hooks || {},
     sendUserNotification: config.sendUserNotification || (async () => { providerCalls.push++; providerCalls.email++; return { push: { sent: true }, email: { sent: true } }; }),
     _state: { stores, hooks, providerCalls, silentDropFields, filterHooks },
   };

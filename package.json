@@ -6,11 +6,11 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "test": "node tests/checkout-concurrency.test.mjs && node tests/payment-webhook.test.mjs",
+    "test": "node tests/freeze-completeness.test.mjs && node tests/payment-reconciliation.test.mjs && node tests/payment-webhook.test.mjs && node tests/checkout-concurrency.test.mjs && node tests/legacy-revision-init.test.mjs && node tests/durable-recovery.test.mjs && node tests/partial-finalization-states.test.mjs && node tests/post-clear-verification.test.mjs && node tests/mutation-paths.test.mjs && node tests/post-prefetch-concurrency.test.mjs",
     "test:checkout": "node tests/checkout-concurrency.test.mjs",
     "test:payments": "node tests/payment-webhook.test.mjs",
     "lint": "eslint . --quiet",
-    "lint:backend": "eslint base44/functions/createCheckout/entry.ts base44/functions/submitListing/entry.ts base44/functions/cleanupAbandonedCheckouts/entry.ts base44/functions/stripeWebhook/entry.ts base44/functions/capturePayment/entry.ts base44/functions/confirmCheckoutAuthorized/entry.ts base44/functions/dispatchSaleNotifications/entry.ts base44/shared/privateData.ts base44/shared/saleNotification.ts base44/shared/checkoutLogic.js base44/shared/orchestratorHelpers.js base44/shared/checkoutOrchestrator.js base44/shared/cleanupOrchestrator.js base44/shared/captureOrchestrator.js base44/shared/confirmCheckoutOrchestrator.js base44/shared/webhookOrchestrator.js base44/shared/webhookNotifications.js base44/shared/captureReconciliation.js base44/shared/saleDispatch.js base44/shared/resumeOrchestrator.js",
+    "lint:backend": "eslint base44/functions/createCheckout/entry.ts base44/functions/submitListing/entry.ts base44/functions/cleanupAbandonedCheckouts/entry.ts base44/functions/stripeWebhook/entry.ts base44/functions/capturePayment/entry.ts base44/functions/confirmCheckoutAuthorized/entry.ts base44/functions/dispatchSaleNotifications/entry.ts base44/shared/privateData.ts base44/shared/saleNotification.ts base44/shared/checkoutLogic.js base44/shared/orchestratorHelpers.js base44/shared/checkoutOrchestrator.js base44/shared/cleanupOrchestrator.js base44/shared/captureOrchestrator.js base44/shared/confirmCheckoutOrchestrator.js base44/shared/webhookOrchestrator.js base44/shared/webhookNotifications.js base44/shared/captureReconciliation.js base44/shared/saleDispatch.js base44/shared/resumeOrchestrator.js base44/shared/tupleTransition.js base44/shared/reserveOrchestrator.js base44/shared/releaseOrchestrator.js base44/shared/abortOrchestrator.js base44/shared/cancelOrchestrator.js base44/shared/remindersOrchestrator.js",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc -p ./jsconfig.json",
     "preview": "vite preview"
