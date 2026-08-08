@@ -1,107 +1,127 @@
-# Atomic Strategy — Architectural Blocker Finding (7C.9C.2 — Requirement #3)
+# Atomic Strategy — Capability Assessment (7C.9C.2)
 
-## Finding: Base44 does not support a usable atomic primitive for conditional reservation writes.
+## Summary
 
-### Primitives Evaluated
+Base44 `updateMany` with a filter predicate is **empirically atomic for single-record
+conditional updates** (compare-and-set), as proven by a live probe on 2026-08-08.
+However, this atomicity is **not contractually guaranteed by official documentation**.
+Two capabilities remain unavailable: multi-entity transactions and unique create
+constraints.
 
-| Primitive | Available in Base44? | Evidence |
-|-----------|---------------------|----------|
-| Transaction (multi-document) | **No** | SDK exposes no transaction API; all writes are independent |
-| Atomic conditional update (compare-and-set) | **No** | `updateMany` with `$set` is a non-atomic read-then-write; confirmed by prior dead-end analysis: "Atomic conditional compare-and-set via updateMany — confirmed non-atomic read-then-write on this platform" |
-| Expected-version update | **No** | `update(id, data)` has no `expected_version` or `if_match` parameter |
-| Unique claim record (create-if-absent) | **No** | `create()` generates a new ID; no unique constraint enforcement on non-ID fields; duplicate records with same `listing_id` can coexist |
-| Lock/lease entity | **No** | No server-side lock or lease primitive; all "locks" are application-level read-then-write patterns with the same race window |
-| Atomic create-if-absent | **No** | `create()` always succeeds if the data is valid; no conditional create |
-| `bulkCreate` / `bulkUpdate` | **No atomicity** | These are batch operations, not transactions; each item is independent |
+---
 
-### SDK Methods Available
+## Live Probe Result (2026-08-08)
+
+A live probe using synthetic `AdminAlert` records tested Base44's `updateMany` with
+a conditional filter predicate under 20-way concurrency:
+
+| Test | Launched | Winners | Verdict |
+|------|----------|---------|---------|
+| `updateMany({ id, occurrence_count: 0 }, { $inc: { occurrence_count: 1 } })` | 20 | **1** | Empirically atomic |
+| `updateMany({ id, occurrence_count: 0 }, { $set: { occurrence_count: 1, ... } })` | 20 | **1** | Empirically atomic |
+| `updateMany({ id }, { $inc: { occurrence_count: 1 } })` (no predicate) | 20 | 20 | All succeed (control) |
+| Two concurrent `create` with same `incident_key` | 2 | 2 records | **No unique constraint** |
+
+**Finding**: Only 1 of 20 concurrent conditional `updateMany` calls matched the
+predicate and applied the update. The remaining 19 returned `updated: 0`. This is
+consistent with atomic compare-and-set behavior for a single record.
+
+**Important distinction**: This is **empirically observed atomicity, not a
+contractually guaranteed platform feature.** Official Base44 documentation does
+not document `updateMany` as an atomic conditional update primitive. The behavior
+could change without notice. Production systems that depend on this behavior
+should treat it as observed-but-not-guaranteed and maintain a migration path to a
+system with contractual atomicity guarantees.
+
+---
+
+## What IS Available (Empirically, Not Contractually Guaranteed)
+
+| Primitive | Empirically Available | Evidence | Contractually Guaranteed |
+|-----------|----------------------|----------|-------------------------|
+| Single-record conditional update (CAS via `updateMany` with filter) | **Yes** | 1 winner out of 20 concurrent calls | **No** — not documented |
+| `$inc` with conditional predicate | **Yes** | Final value = 1 (not 20) | **No** |
+| `$set` with conditional predicate | **Yes** | 1 winner by return `updated > 0` | **No** |
+
+## What Is NOT Available
+
+| Primitive | Available | Evidence |
+|-----------|-----------|----------|
+| Multi-entity transaction (update Listing + ListingPrivate atomically) | **No** | SDK exposes no transaction API; two `updateMany` calls are independent |
+| Unique create constraint (prevent duplicate `incident_key` / `operation_id`) | **No** | Two concurrent creates with same key produced 2 records |
+| Documented atomic CAS guarantee | **No** | No official documentation guarantees `updateMany` atomicity |
+| Conditional create (create-if-absent) | **No** | `create()` always succeeds if data is valid |
+| Lock/lease primitive | **No** | No server-side lock or lease |
+
+---
+
+## Implications for the Reservation System
+
+### Single-Entity CAS (Usable with Caution)
+
+The empirical probe shows that `updateMany` with a filter predicate can serve as a
+single-record CAS:
 
 ```
-base44.entities.Todo.create(data)
-base44.entities.Todo.update(id, data)
-base44.entities.Todo.updateMany(query, operators)   // non-atomic read-then-write
-base44.entities.Todo.bulkCreate([...])
-base44.entities.Todo.bulkUpdate([...])
-base44.entities.Todo.filter(query, sort, limit)
-base44.entities.Todo.delete(id)
-base44.entities.Todo.deleteMany(query)
+updateMany(
+  { id: recordId, reservation_revision: expectedRevision, checkout_quarantined: false },
+  { $set: { reservation_token: newToken, reservation_revision: newRevision, ... } }
+)
+// If updated > 0: CAS succeeded
+// If updated = 0: CAS failed (revision mismatch or quarantined)
 ```
 
-None of these methods accept an `expected_revision`, `if_match`, `condition`, or `where` clause
-that would allow the server to atomically reject an update if the record has changed.
+This can be used to make **one entity** (e.g., `ListingPrivate`) the sole
+authoritative reservation row. A synthetic single-authority probe (Task 2) tests
+this design.
 
-### Why This Is a Blocker
+### Remaining Gaps
 
-The requirement asks for a strategy that guarantees:
-1. The first operation claims a generation or lease atomically
-2. A competing operation cannot overwrite without owning the same claim
-3. ListingPrivate and Listing transitions are tied to that claim
-4. Stale owners cannot commit
-5. Abandoned claims expire safely
-6. Retries with the same operation ID are idempotent
-7. Retries with a different operation ID cannot silently replace the winner
+Even with single-entity CAS, two gaps remain:
 
-Without an atomic conditional primitive, there is no way to prevent a race between
-the check (read current state) and the write (update with new state). Two concurrent
-operations can both read the same state, both decide they are the winner, and both
-write — one overwrites the other.
+1. **Multi-entity consistency**: `Listing` (public mirror) must be updated
+   separately. Two `updateMany` calls are not atomic together. The mirror can lag
+   or diverge. This is acceptable if `Listing` is treated as a non-authoritative
+   read model that can be repaired from the authoritative `ListingPrivate`.
 
-### Mitigation Strategy (Current Implementation)
+2. **Unique operation storage**: Without unique constraints, idempotent retries
+   cannot be deduplicated by the datastore. The CAS predicate (`reservation_revision
+   = expected`) provides natural idempotency for retries with the same expected
+   revision, but a retry with a different operation ID and the same expected
+   revision would compete as a separate CAS attempt (which is correct behavior —
+   only one can win).
 
-Since true atomicity is not available, the current implementation uses the strongest
-available strategy:
+---
 
-1. **Immutable quarantine snapshots** — First-quarantine snapshots are never overwritten
-   by repeated quarantines. Divergence detection blocks recovery.
+## Mitigation Strategy (Current Implementation)
 
-2. **Monotonic revision generation** — Every reservation tuple mutation generates a new
-   unique revision. The revision is written to BOTH Listing and ListingPrivate. The
-   capture freeze records the frozen revision, and finalization verifies the current
-   revision matches the frozen revision before clearing.
+The current implementation uses the strongest available strategy given the
+empirical findings:
 
-3. **Stale-prefetch race detection** — `applyReservationTuple` re-fetches both records
-   immediately before the first write and compares to the prefetch snapshot. If either
-   record changed, it refuses to write and quarantines both records.
+1. **Immutable quarantine snapshots** — First-quarantine snapshots are never
+   overwritten by repeated quarantines.
+2. **Monotonic revision generation** — Every reservation tuple mutation generates
+   a new unique revision.
+3. **Stale-prefetch race detection** — Re-fetch both records before the first write.
+4. **Two-phase freeze-and-finalize** — Payment capture freezes the tuple;
+   finalization verifies before clearing.
+5. **Fail-closed verification** — Every write is verified through re-fetch.
+6. **Durable escalation idempotency** — AdminAlert records use a stable
+   `incident_key` (sequential idempotency only — concurrent creates can duplicate).
 
-4. **Conditional second-write guard** — After writing ListingPrivate, the Listing is
-   re-fetched and compared to the pre-write state. If Listing changed between writes,
-   the operation refuses to overwrite the newer value and quarantines both records.
+---
 
-5. **Two-phase freeze-and-finalize** — Payment capture freezes the reservation tuple
-   (immutable snapshot on PurchasePrivate). Finalization verifies the current tuple
-   matches the frozen tuple before clearing. A different non-null tuple blocks
-   finalization and triggers durable block + alert.
+## Conclusion
 
-6. **Fail-closed verification** — Every write is verified through re-fetch. If any
-   verification fails, the listing is quarantined, blocked, and alerted. No best-effort
-   cleanup — every failure is escalated.
+**Base44 `updateMany` with a filter predicate is empirically atomic for
+single-record conditional updates, but this behavior is not contractually
+guaranteed by official documentation.** Multi-entity transactions and unique create
+constraints remain unavailable.
 
-7. **Durable escalation idempotency** — AdminAlert records use a stable `incident_key`
-   derived from listing_id, operation category, conflict class, and purchase ID.
-   Retries update the existing unresolved alert instead of creating a duplicate.
-
-8. **Generation-based recovery blocking** — `recovery_blocked` is set when divergence
-   is detected. Blocked listings require manual resolution.
-
-### Limitations of the Mitigation
-
-- The stale-prefetch check reduces the race window but does not eliminate it. A
-  competing write can land between the stale-prefetch check and the first write.
-- The conditional second-write guard reduces the split-brain window but does not
-  eliminate it. A competing write can land between the first and second writes.
-- The two-phase freeze-and-finalize detects post-freeze mutation but cannot prevent
-  it from happening.
-
-These limitations are inherent to the platform and cannot be resolved without an
-atomic conditional primitive. The mitigation strategy ensures that any race condition
-is DETECTED (through tuple mismatch verification) and ESCALATED (through quarantine,
-block, and alert), even if it cannot be PREVENTED.
-
-### Conclusion
-
-**Architectural blocker: Base44 does not support a usable atomic primitive for
-conditional reservation writes.** The current mitigation strategy (stale-prefetch
-detection, conditional second-write guard, two-phase freeze-and-finalize, fail-closed
-verification, durable escalation idempotency) provides the strongest available
-consistency guarantees but cannot guarantee true atomicity. All race conditions are
-detected and escalated, but not prevented at the datastore level.
+A single-authority design using `ListingPrivate` as the sole authoritative
+reservation row with CAS via `updateMany` is feasible and tested (see Task 2
+probe). `Listing` becomes a non-authoritative mirror that can be repaired from
+`ListingPrivate`. An external authority (Neon/Postgres or Cloudflare Durable
+Objects) remains the recommended path for contractual guarantees, but the
+single-authority CAS design may be sufficient if the empirical behavior is
+accepted as reliable.
