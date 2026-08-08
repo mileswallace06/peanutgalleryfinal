@@ -802,11 +802,21 @@ async function testProviderCallCountersZero() {
 // ════════════════════════════════════════════════════════════════════════════
 function testFunctionCountRemains50() {
   const funcDir = join(__dirname, '..', 'base44', 'functions');
-  const dirs = readdirSync(funcDir).filter(d => { try { return statSync(join(funcDir, d)).isDirectory(); } catch (_) { return false; } });
-  const count = dirs.length;
-  // Pre-existing count is 59 (50 official + 9 test/diagnostic). No new function added.
-  const passed = count === 59;
-  return { name: 'function_count_unchanged', passed, type: 'source-only', count };
+  const allDirs = readdirSync(funcDir).filter(d => { try { return statSync(join(funcDir, d)).isDirectory(); } catch (_) { return false; } });
+  const deployableDirs = allDirs.filter(d => { try { return statSync(join(funcDir, d, 'entry.ts')).isFile(); } catch (_) { return false; } });
+  const emptyDirs = allDirs.filter(d => !deployableDirs.includes(d));
+  // Assert exactly 50 deployable entry.ts functions.
+  // Raw/empty counts reported separately — GitHub does not track empty dirs.
+  const passed = deployableDirs.length === 50;
+  return {
+    name: 'function_count_unchanged',
+    passed,
+    type: 'source-only',
+    deployable_count: deployableDirs.length,
+    raw_count: allDirs.length,
+    empty_count: emptyDirs.length,
+    empty_dirs: emptyDirs,
+  };
 }
 
 // ════════════════════════════════════════════════════════════════════════════
