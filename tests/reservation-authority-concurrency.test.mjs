@@ -31,11 +31,10 @@ function assert(condition, message) {
 // These prove authority LOGIC, NOT Base44 datastore atomicity.
 // ════════════════════════════════════════════════════════════════════════════
 
-// ── Mock entity store with simulated CAS ────────────────────────────────────
 function createMockDeps() {
   const lpStore = new Map();
   const listingStore = new Map();
-  let casFailMode = null; // 'query' | 'update' | null
+  let casFailMode = null;
   let mirrorFailMode = false;
   let opCounter = 0;
 
@@ -61,14 +60,13 @@ function createMockDeps() {
         if (query.reservation_version !== undefined && record.reservation_version !== query.reservation_version) continue;
         if (query.checkout_quarantined !== undefined && record.checkout_quarantined !== query.checkout_quarantined) continue;
         if (query.recovery_blocked !== undefined && record.recovery_blocked !== query.recovery_blocked) continue;
-        // Apply update
         if (update.$set) {
           for (const [k, v] of Object.entries(update.$set)) {
             record[k] = v;
           }
         }
         updated++;
-        break; // Only one record per CAS
+        break;
       }
       return { updated, has_more: false };
     },
@@ -166,7 +164,6 @@ test('20 identical retries produce same semantic result and only one mutation', 
   const idempotents = results.filter(r => r.ok && r.idempotent);
   assert(winners.length === 1, `expected 1 winner, got ${winners.length}`);
   assert(idempotents.length === 19, `expected 19 idempotent, got ${idempotents.length}`);
-  // All callers receive the same semantic result (ok: true, same operation_id)
   assert(results.every(r => r.ok), 'all should be ok');
   assert(results.every(r => r.operation_id === 'op_same'), 'all should have same op_id');
 });
@@ -187,7 +184,7 @@ test('same operation ID with different payload is rejected', async () => {
   const result = await authority.transitionReservation({
     listing_id: 'list1', expected_version: 0,
     operation_id: 'op_x', operation_type: 'reserve',
-    payload: { token: 't2', buyer: 'b2@test' }, // Different payload
+    payload: { token: 't2', buyer: 'b2@test' },
     requested_state: 'reserved',
   });
 
@@ -210,7 +207,7 @@ test('losing operation cannot overwrite winner', async () => {
   });
 
   const result = await authority.transitionReservation({
-    listing_id: 'list1', expected_version: 0, // Old version
+    listing_id: 'list1', expected_version: 0,
     operation_id: 'op_loser', operation_type: 'reserve',
     payload: { token: 'loser_token', buyer: 'loser@test' },
     requested_state: 'reserved',
@@ -231,7 +228,6 @@ test('old operation retry after newer transition returns deterministic conflict'
     reservation_lifecycle_state: 'available',
   });
 
-  // Op A: v0 → v1
   const resA = await authority.transitionReservation({
     listing_id: 'list1', expected_version: 0,
     operation_id: 'op_A', operation_type: 'reserve',
@@ -239,7 +235,6 @@ test('old operation retry after newer transition returns deterministic conflict'
   });
   assert(resA.ok && !resA.idempotent, 'op_A should win');
 
-  // Op B: v1 → v2
   const resB = await authority.transitionReservation({
     listing_id: 'list1', expected_version: 1,
     operation_id: 'op_B', operation_type: 'freeze',
@@ -247,7 +242,6 @@ test('old operation retry after newer transition returns deterministic conflict'
   });
   assert(resB.ok && !resB.idempotent, 'op_B should win');
 
-  // Old retry: op_A tries again with v0
   const resA2 = await authority.transitionReservation({
     listing_id: 'list1', expected_version: 0,
     operation_id: 'op_A', operation_type: 'reserve',
@@ -287,7 +281,6 @@ test('failed mirror update leaves authority committed and pending effects durabl
   });
   deps._seedListing('list1', { reservation_version: 0, reservation_token: null });
 
-  // Transition succeeds
   const res = await authority.transitionReservation({
     listing_id: 'list1', expected_version: 0,
     operation_id: 'op_1', operation_type: 'reserve',
@@ -296,7 +289,6 @@ test('failed mirror update leaves authority committed and pending effects durabl
   });
   assert(res.ok, 'transition should succeed');
 
-  // Mirror update fails
   deps._setMirrorFail(true);
   const mirrorRes = await authority.projectMirror('list1', 1, {
     reservation_token: 't1', reserved_by_email: 'b1@test',
@@ -304,7 +296,6 @@ test('failed mirror update leaves authority committed and pending effects durabl
   assert(!mirrorRes.ok, 'mirror should fail');
   assert(mirrorRes.code === 'MIRROR_UPDATE_FAILED', `expected MIRROR_UPDATE_FAILED, got ${mirrorRes.code}`);
 
-  // Authority remains committed — verify
   const effects = await authority.getPendingEffects('list1');
   assert(effects.ok, 'should read pending effects');
   assert(effects.effects.length === 1, 'pending effect should remain');
@@ -318,7 +309,6 @@ test('delayed old mirror event cannot overwrite newer mirror version', async () 
   const authority = createReservationAuthority(deps);
   deps._seedListing('list1', { reservation_version: 5, reservation_token: 'new_token' });
 
-  // Old mirror event with version 3
   const res = await authority.projectMirror('list1', 3, {
     reservation_token: 'old_token', reserved_by_email: 'old@test',
   });
@@ -344,7 +334,6 @@ test('sweeper safely repairs stale mirror', async () => {
   assert(res.repaired === true, 'should repair');
   assert(res.mirror_version === 3, 'mirror version should be 3');
 
-  // Verify mirror was updated
   const [listing] = await deps.entities.Listing.filter({ id: 'list1' });
   assert(listing.reservation_token === 'auth_token', 'mirror should have auth token');
   assert(listing.reservation_version === 3, 'mirror version should be 3');
@@ -368,10 +357,8 @@ test('two sweepers racing remain idempotent', async () => {
 
   assert(res1.ok, 'sweeper 1 should succeed');
   assert(res2.ok, 'sweeper 2 should succeed');
-  // Both should report version 2 (one repairs, one finds already synced)
   assert(res1.mirror_version === 2 || res2.mirror_version === 2, 'version should be 2');
 
-  // Verify mirror is correct
   const [listing] = await deps.entities.Listing.filter({ id: 'list1' });
   assert(listing.reservation_token === 'auth_token', 'mirror should have auth token');
   assert(listing.reservation_version === 2, 'mirror version should be 2');
@@ -387,7 +374,6 @@ test('pending effects cannot be overwritten or lost by newer transition', async 
     reservation_lifecycle_state: 'available',
   });
 
-  // Transition 1 with pending effects
   const res1 = await authority.transitionReservation({
     listing_id: 'list1', expected_version: 0,
     operation_id: 'op_1', operation_type: 'reserve',
@@ -396,7 +382,6 @@ test('pending effects cannot be overwritten or lost by newer transition', async 
   });
   assert(res1.ok, 'transition 1 should succeed');
 
-  // Transition 2 with different pending effects
   const res2 = await authority.transitionReservation({
     listing_id: 'list1', expected_version: 1,
     operation_id: 'op_2', operation_type: 'freeze',
@@ -405,7 +390,6 @@ test('pending effects cannot be overwritten or lost by newer transition', async 
   });
   assert(res2.ok, 'transition 2 should succeed');
 
-  // Current pending effects should be effect_2 (replaced, not merged)
   const effects = await authority.getPendingEffects('list1');
   assert(effects.ok, 'should read effects');
   assert(effects.effects.length === 1, 'should have 1 effect');
@@ -434,8 +418,6 @@ test('quarantine/recovery-blocked authority cannot transition', async () => {
 
 // ── Test 13: No test writes an object into a string schema field ──────────────
 test('no test writes an object into a string schema field', async () => {
-  // Verify that last_operation_result_json and pending_effects_json are always
-  // strings (JSON.stringify), never raw objects.
   const deps = createMockDeps();
   const authority = createReservationAuthority(deps);
   deps._seedLP('lp1', {
@@ -454,17 +436,12 @@ test('no test writes an object into a string schema field', async () => {
   const [lp] = await deps.entities.ListingPrivate.filter({ listing_id: 'list1' });
   assert(typeof lp.last_operation_result_json === 'string', 'result_json must be string');
   assert(typeof lp.pending_effects_json === 'string', 'pending_effects_json must be string');
-  // Verify they parse correctly
   assert(JSON.parse(lp.last_operation_result_json).operation_id === 'op_1', 'result should parse');
   assert(JSON.parse(lp.pending_effects_json).length === 1, 'effects should parse');
 });
 
 // ── Test 14: Zero provider calls ──────────────────────────────────────────────
 test('zero provider calls — no Stripe, email, push, points, or notification calls', async () => {
-  // This test verifies that the authority module makes zero external provider calls.
-  // It only calls ListingPrivate and Listing entities. No Stripe, email, push, etc.
-  // The mock deps only provide ListingPrivate and Listing — no other providers.
-  // If the authority tried to call a provider, it would throw (undefined method).
   const deps = createMockDeps();
   const authority = createReservationAuthority(deps);
   deps._seedLP('lp1', {
@@ -486,6 +463,7 @@ test('zero provider calls — no Stripe, email, push, points, or notification ca
 // SECTION 2: LIVE BASE44 CAS PROBE
 // Only runs if `base44` global is available (exec_tool environment).
 // In normal Node.js, this section is skipped with a note.
+// Local mock tests do NOT prove Base44 datastore atomicity.
 // ════════════════════════════════════════════════════════════════════════════
 
 async function runLiveBase44Probe() {
@@ -501,13 +479,8 @@ async function runLiveBase44Probe() {
   console.log('\n--- Section 2: Live Base44 CAS Probe ---');
   console.log('Running live probe with synthetic records...');
 
-  // Import the probe source and run it
-  // The probe is in tests/probe-artifacts/single-authority-cas-probe.mjs
-  // but it uses `base44` global, so we inline it here for exec_tool.
-  // The artifact file is the reference source.
-
   const PROBE_TAG = `PROBE-TEST-${Date.now()}`;
-  const ROUNDS = 3; // Fewer rounds for test speed
+  const ROUNDS = 3;
   const CONCURRENT = 20;
 
   const lpBefore = await base44.asServiceRole.entities.ListingPrivate.list('-created_date', 10000);
@@ -515,22 +488,12 @@ async function runLiveBase44Probe() {
 
   const lp = await base44.entities.ListingPrivate.create({
     listing_id: `${PROBE_TAG}-auth`,
-    reservation_version: 0,
-    reservation_lifecycle_state: 'available',
-    reservation_revision: 'rev_initial',
-    checkout_quarantined: false,
-    recovery_blocked: false,
-    reservation_token: null,
-    reserved_by_email: null,
-    reservation_expires_at: null,
-    last_operation_id: null,
-    last_operation_type: null,
-    last_operation_payload_hash: null,
-    last_operation_result_json: null,
-    last_operation_at: null,
-    pending_effects_json: '[]',
-    is_demo_listing: true,
-    notes: `${PROBE_TAG} authoritative`,
+    reservation_version: 0, reservation_lifecycle_state: 'available',
+    reservation_revision: 'rev_initial', checkout_quarantined: false, recovery_blocked: false,
+    reservation_token: null, reserved_by_email: null, reservation_expires_at: null,
+    last_operation_id: null, last_operation_type: null, last_operation_payload_hash: null,
+    last_operation_result_json: null, last_operation_at: null, pending_effects_json: '[]',
+    is_demo_listing: true, notes: `${PROBE_TAG} authoritative`,
   });
   const lpId = lp.id;
 
@@ -539,12 +502,10 @@ async function runLiveBase44Probe() {
       { id: lpId },
       { $set: {
         reservation_version: 0, reservation_lifecycle_state: 'available',
-        reservation_revision: 'rev_initial', checkout_quarantined: false,
-        recovery_blocked: false, reservation_token: null,
-        reserved_by_email: null, reservation_expires_at: null,
-        last_operation_id: null, last_operation_type: null,
-        last_operation_payload_hash: null, last_operation_result_json: null,
-        last_operation_at: null, pending_effects_json: '[]',
+        reservation_revision: 'rev_initial', checkout_quarantined: false, recovery_blocked: false,
+        reservation_token: null, reserved_by_email: null, reservation_expires_at: null,
+        last_operation_id: null, last_operation_type: null, last_operation_payload_hash: null,
+        last_operation_result_json: null, last_operation_at: null, pending_effects_json: '[]',
       }}
     );
   }
@@ -565,8 +526,7 @@ async function runLiveBase44Probe() {
             last_operation_id: `op_r${round}_i${i}`, last_operation_type: 'reserve',
             last_operation_payload_hash: `h_r${round}_i${i}`,
             last_operation_result_json: JSON.stringify({ op: `op_r${round}_i${i}` }),
-            last_operation_at: new Date(Date.now()).toISOString(),
-            pending_effects_json: '[]',
+            last_operation_at: new Date(Date.now()).toISOString(), pending_effects_json: '[]',
           }}
         ).then(r => ({ i, updated: r.updated || 0 }))
          .catch(e => ({ i, updated: 0, error: e?.message }))
@@ -577,7 +537,6 @@ async function runLiveBase44Probe() {
     if (winners.length !== 1) { allOneWinner = false; break; }
   }
 
-  // Cleanup
   try { await base44.asServiceRole.entities.ListingPrivate.delete(lpId); } catch (_) {}
   const lpAfter = await base44.asServiceRole.entities.ListingPrivate.list('-created_date', 10000);
 
@@ -610,12 +569,6 @@ test('reservation-mutation manifest is complete (11 entry points)', () => {
 test('production entry points are NOT yet integrated (RED — expected)', () => {
   const manifest = getReservationMutationManifest();
   const unintegrated = manifest.filter(e => !e.integrated);
-  // This test PASSES when entry points are unintegrated (the expected state).
-  // It will FAIL (turning the integration gate green) when all are integrated.
-  // Wait — no. The integration gate should FAIL when unintegrated.
-  // This test ASSERTS that unintegrated > 0 (the expected state for this sub-batch).
-  // It will PASS while unintegrated, and FAIL when all are integrated.
-  // The launch gate uses this to keep the gate RED.
   assert(unintegrated.length > 0, 'entry points should NOT be integrated yet (expected RED)');
 });
 
@@ -642,8 +595,7 @@ async function main() {
   const probeResult = await runLiveBase44Probe();
 
   console.log('\n--- Section 3: Production Integration Tests ---');
-  // Re-run manifest tests (already in tests array, but show section header)
-  // They were already run above; just note the section.
+  // Manifest tests already ran above; show section header
 
   console.log(`\n=== Overall: ${failed === 0 ? 'PASS' : 'FAIL'} ===`);
   console.log(`Tests run: ${tests.length}, Passed: ${passed}, Failed: ${failed}`);

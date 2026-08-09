@@ -10,6 +10,8 @@
  * saved alongside this file in single-authority-cas-probe-results.json.
  *
  * SDK version: @base44/sdk ^0.8.41
+ * Probe tag: PROBE-AUTH-1786314340779
+ * Timestamp: 2026-08-09T22:25:53.104Z
  *
  * Scenarios:
  *   1. 10 rounds × 20 concurrent different-operation reserves (different op_ids)
@@ -19,6 +21,9 @@
  *
  * Every call's `updated` value is captured. Before/after entity counts and
  * cleanup results are recorded.
+ *
+ * RESULTS: See single-authority-cas-probe-results.json for the complete raw output.
+ * VERDICT: 10/10 rounds = exactly 1 winner. Empirically atomic, not contractually guaranteed.
  */
 const PROBE_TAG = `PROBE-AUTH-${Date.now()}`;
 const ROUNDS = 10;
@@ -75,20 +80,13 @@ async function resetLP() {
   await base44.asServiceRole.entities.ListingPrivate.updateMany(
     { id: lpId },
     { $set: {
-      reservation_version: 0,
-      reservation_lifecycle_state: 'available',
-      reservation_revision: 'rev_initial',
-      checkout_quarantined: false,
-      recovery_blocked: false,
-      reservation_token: null,
-      reserved_by_email: null,
-      reservation_expires_at: null,
-      last_operation_id: null,
-      last_operation_type: null,
-      last_operation_payload_hash: null,
-      last_operation_result_json: null,
-      last_operation_at: null,
-      pending_effects_json: '[]',
+      reservation_version: 0, reservation_lifecycle_state: 'available',
+      reservation_revision: 'rev_initial', checkout_quarantined: false,
+      recovery_blocked: false, reservation_token: null,
+      reserved_by_email: null, reservation_expires_at: null,
+      last_operation_id: null, last_operation_type: null,
+      last_operation_payload_hash: null, last_operation_result_json: null,
+      last_operation_at: null, pending_effects_json: '[]',
     }}
   );
 }
@@ -105,11 +103,9 @@ for (let round = 0; round < ROUNDS; round++) {
           reservation_token: `token_s1_r${round}_i${i}`,
           reserved_by_email: `buyer_s1_r${round}_i${i}@probe`,
           reservation_expires_at: new Date(Date.now() + 600000).toISOString(),
-          reservation_version: 1,
-          reservation_revision: `rev_s1_r${round}_i${i}`,
+          reservation_version: 1, reservation_revision: `rev_s1_r${round}_i${i}`,
           reservation_lifecycle_state: 'reserved',
-          last_operation_id: `op_s1_r${round}_i${i}`,
-          last_operation_type: 'reserve',
+          last_operation_id: `op_s1_r${round}_i${i}`, last_operation_type: 'reserve',
           last_operation_payload_hash: `hash_s1_r${round}_i${i}`,
           last_operation_result_json: JSON.stringify({ op: `op_s1_r${round}_i${i}`, state: 'reserved' }),
           last_operation_at: new Date(Date.now()).toISOString(),
@@ -121,32 +117,24 @@ for (let round = 0; round < ROUNDS; round++) {
   );
   const winners = calls.filter(c => c.updated > 0);
   scenario1.rounds.push({
-    round,
-    winner_count: winners.length,
-    winner_index: winners[0]?.i ?? null,
+    round, winner_count: winners.length, winner_index: winners[0]?.i ?? null,
     all_updated_values: calls.map(c => c.updated),
   });
-  if (winners.length !== 1) {
-    scenario1.all_one_winner = false;
-    break;
-  }
+  if (winners.length !== 1) { scenario1.all_one_winner = false; break; }
 }
 
 // ── Scenario 2: 20 concurrent identical retries (same op_id, same payload) ─
 await resetLP();
-const scenario2calls = await Promise.all(
+const s2calls = await Promise.all(
   Array.from({ length: CONCURRENT }, (_, i) =>
     base44.asServiceRole.entities.ListingPrivate.updateMany(
       { id: lpId, reservation_version: 0, checkout_quarantined: false, recovery_blocked: false },
       { $set: {
-        reservation_token: 'token_s2_idem',
-        reserved_by_email: 'buyer_s2@probe',
+        reservation_token: 'token_s2_idem', reserved_by_email: 'buyer_s2@probe',
         reservation_expires_at: new Date(Date.now() + 600000).toISOString(),
-        reservation_version: 1,
-        reservation_revision: 'rev_s2_idem',
+        reservation_version: 1, reservation_revision: 'rev_s2_idem',
         reservation_lifecycle_state: 'reserved',
-        last_operation_id: 'op_s2_idem',
-        last_operation_type: 'reserve',
+        last_operation_id: 'op_s2_idem', last_operation_type: 'reserve',
         last_operation_payload_hash: 'hash_s2_idem',
         last_operation_result_json: JSON.stringify({ op: 'op_s2_idem', state: 'reserved' }),
         last_operation_at: new Date(Date.now()).toISOString(),
@@ -158,8 +146,8 @@ const scenario2calls = await Promise.all(
 );
 const [lpAfterS2] = await base44.asServiceRole.entities.ListingPrivate.filter({ id: lpId }, '-created_date', 10);
 const scenario2 = {
-  all_updated_values: scenario2calls.map(c => c.updated),
-  winner_count: scenario2calls.filter(c => c.updated > 0).length,
+  all_updated_values: s2calls.map(c => c.updated),
+  winner_count: s2calls.filter(c => c.updated > 0).length,
   final_version: lpAfterS2?.reservation_version,
   final_operation_id: lpAfterS2?.last_operation_id,
   final_token: lpAfterS2?.reservation_token,
@@ -167,7 +155,7 @@ const scenario2 = {
 
 // ── Scenario 3: 20 concurrent same op_id with conflicting payloads ─────────
 await resetLP();
-const scenario3calls = await Promise.all(
+const s3calls = await Promise.all(
   Array.from({ length: CONCURRENT }, (_, i) =>
     base44.asServiceRole.entities.ListingPrivate.updateMany(
       { id: lpId, reservation_version: 0, checkout_quarantined: false, recovery_blocked: false },
@@ -175,11 +163,9 @@ const scenario3calls = await Promise.all(
         reservation_token: `token_s3_conflict_i${i}`,
         reserved_by_email: `buyer_s3_i${i}@probe`,
         reservation_expires_at: new Date(Date.now() + 600000).toISOString(),
-        reservation_version: 1,
-        reservation_revision: `rev_s3_conflict`,
+        reservation_version: 1, reservation_revision: 'rev_s3_conflict',
         reservation_lifecycle_state: 'reserved',
-        last_operation_id: 'op_s3_same',
-        last_operation_type: 'reserve',
+        last_operation_id: 'op_s3_same', last_operation_type: 'reserve',
         last_operation_payload_hash: `hash_s3_i${i}`,
         last_operation_result_json: JSON.stringify({ op: 'op_s3_same', i }),
         last_operation_at: new Date(Date.now()).toISOString(),
@@ -191,9 +177,9 @@ const scenario3calls = await Promise.all(
 );
 const [lpAfterS3] = await base44.asServiceRole.entities.ListingPrivate.filter({ id: lpId }, '-created_date', 10);
 const scenario3 = {
-  all_updated_values: scenario3calls.map(c => c.updated),
-  winner_count: scenario3calls.filter(c => c.updated > 0).length,
-  winner_index: scenario3calls.find(c => c.updated > 0)?.i ?? null,
+  all_updated_values: s3calls.map(c => c.updated),
+  winner_count: s3calls.filter(c => c.updated > 0).length,
+  winner_index: s3calls.find(c => c.updated > 0)?.i ?? null,
   final_version: lpAfterS3?.reservation_version,
   final_operation_id: lpAfterS3?.last_operation_id,
   final_token: lpAfterS3?.reservation_token,
@@ -213,8 +199,7 @@ await base44.asServiceRole.entities.ListingPrivate.updateMany(
     last_operation_id: 'op_s4_A', last_operation_type: 'reserve',
     last_operation_payload_hash: 'hash_s4_A',
     last_operation_result_json: JSON.stringify({ op: 'op_s4_A', v: 1 }),
-    last_operation_at: new Date(Date.now()).toISOString(),
-    pending_effects_json: '[]',
+    last_operation_at: new Date(Date.now()).toISOString(), pending_effects_json: '[]',
   }}
 );
 // Step B: CAS v1 → v2 (op_B wins)
@@ -228,8 +213,7 @@ await base44.asServiceRole.entities.ListingPrivate.updateMany(
     last_operation_id: 'op_s4_B', last_operation_type: 'freeze',
     last_operation_payload_hash: 'hash_s4_B',
     last_operation_result_json: JSON.stringify({ op: 'op_s4_B', v: 2 }),
-    last_operation_at: new Date(Date.now()).toISOString(),
-    pending_effects_json: '[]',
+    last_operation_at: new Date(Date.now()).toISOString(), pending_effects_json: '[]',
   }}
 );
 // Step C: Old retry — CAS v0 → v1 (op_A retries, but current is v2)
@@ -245,13 +229,10 @@ try {
       last_operation_id: 'op_s4_A', last_operation_type: 'reserve',
       last_operation_payload_hash: 'hash_s4_A',
       last_operation_result_json: JSON.stringify({ op: 'op_s4_A', v: 1, retry: true }),
-      last_operation_at: new Date(Date.now()).toISOString(),
-      pending_effects_json: '[]',
+      last_operation_at: new Date(Date.now()).toISOString(), pending_effects_json: '[]',
     }}
   );
-} catch (e) {
-  oldRetryResult = { updated: 0, error: e?.message };
-}
+} catch (e) { oldRetryResult = { updated: 0, error: e?.message }; }
 const [lpAfterS4] = await base44.asServiceRole.entities.ListingPrivate.filter({ id: lpId }, '-created_date', 10);
 const scenario4 = {
   old_retry_updated: oldRetryResult.updated || 0,
@@ -262,12 +243,12 @@ const scenario4 = {
   old_op_preserved: lpAfterS4?.last_operation_id === 'op_s4_B' && lpAfterS4?.reservation_token === 'token_s4_B',
 };
 
-// ── 10. Cleanup ────────────────────────────────────────────────────────────
+// ── Cleanup ────────────────────────────────────────────────────────────────
 const cleanupErrors = [];
 try { await base44.asServiceRole.entities.ListingPrivate.delete(lpId); } catch(e) { cleanupErrors.push({ id: lpId, error: e?.message }); }
 try { await base44.asServiceRole.entities.Listing.delete(listingId); } catch(e) { cleanupErrors.push({ id: listingId, error: e?.message }); }
 
-// ── 11. Capture after counts ───────────────────────────────────────────────
+// ── Capture after counts ───────────────────────────────────────────────────
 const lpAfter = await base44.asServiceRole.entities.ListingPrivate.list('-created_date', 10000);
 const listingAfter = await base44.asServiceRole.entities.Listing.list('-created_date', 10000);
 

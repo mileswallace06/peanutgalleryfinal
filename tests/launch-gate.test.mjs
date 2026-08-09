@@ -28,7 +28,6 @@ function test(name, fn) {
 
 // ── TEST 1: Authority module exports a working interface (behavior) ────────
 test('authority_module_exports_working_interface', () => {
-  // Create an instance with mock deps and verify it returns callable functions
   const mockLP = { filter: async () => [], updateMany: async () => ({ updated: 0 }) };
   const mockListing = { filter: async () => [], update: async () => ({}) };
 
@@ -52,22 +51,19 @@ test('authority_validates_inputs', async () => {
     entities: { ListingPrivate: mockLP, Listing: mockListing },
   });
 
-  // Missing listing_id
   const r1 = await authority.transitionReservation({ expected_version: 0, operation_id: 'op', operation_type: 'reserve', requested_state: 'reserved' });
   if (r1.ok) throw new Error('should reject missing listing_id');
 
-  // Missing operation_id
   const r2 = await authority.transitionReservation({ listing_id: 'l1', expected_version: 0, operation_type: 'reserve', requested_state: 'reserved' });
   if (r2.ok) throw new Error('should reject missing operation_id');
 
-  // Non-number expected_version
   const r3 = await authority.transitionReservation({ listing_id: 'l1', expected_version: 'abc', operation_id: 'op', operation_type: 'reserve', requested_state: 'reserved' });
   if (r3.ok) throw new Error('should reject non-number expected_version');
 });
 
-// ── TEST 3: Authority handles not-found (behavior — never treats unknown as available)
+// ── TEST 3: Authority never treats unknown as available (behavior) ─────────
 test('authority_never_treats_unknown_as_available', async () => {
-  const mockLP = { filter: async () => [] }; // Returns empty — record not found
+  const mockLP = { filter: async () => [] };
   const mockListing = { filter: async () => [], update: async () => ({}) };
 
   const authority = createReservationAuthority({
@@ -92,7 +88,6 @@ test('concurrency_test_wired_into_launch_gate', () => {
   if (!launchGateScript.includes('reservation-authority-concurrency.test.mjs')) {
     throw new Error('test:launch-gate does not include reservation-authority-concurrency.test.mjs');
   }
-  // Also verify test:authority exists
   if (!pkg.scripts['test:authority']) {
     throw new Error('test:authority script missing from package.json');
   }
@@ -117,8 +112,6 @@ test('reservation_mutation_manifest_complete', () => {
 });
 
 // ── TEST 6: Production entry-point integration (RED — not migrated) ────────
-// This test FAILS (keeping the gate RED) while any entry point is unintegrated.
-// It will PASS (turning the gate green) only when ALL entry points are integrated.
 test('production_entry_points_integrated', () => {
   const unintegrated = getUnintegratedEntryPoints();
   if (unintegrated.length > 0) {

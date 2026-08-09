@@ -1,0 +1,116 @@
+{
+  "sdk_version": "@base44/sdk ^0.8.41",
+  "probe_tag": "PROBE-AUTH-1786314340779",
+  "timestamp": "2026-08-09T22:25:53.104Z",
+  "synthetic_record_ids": {
+    "listing_private": "6a78fe65188f2a543f19c114",
+    "listing": "6a78fe65de6f0b2f93343375"
+  },
+  "before_counts": {
+    "listing_private": 37,
+    "listing": 37
+  },
+  "after_counts": {
+    "listing_private": 37,
+    "listing": 37
+  },
+  "cleanup": {
+    "ok": true,
+    "errors": []
+  },
+  "scenario_1_different_op_ids": {
+    "description": "10 rounds × 20 concurrent different-operation reserves. Each round resets LP to v0, then launches 20 concurrent updateMany calls with unique operation IDs. Exactly 1 winner per round proves single-record CAS atomicity.",
+    "all_one_winner": true,
+    "rounds": [
+      {
+        "round": 0,
+        "winner_count": 1,
+        "winner_index": 14,
+        "all_updated_values": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0]
+      },
+      {
+        "round": 1,
+        "winner_count": 1,
+        "winner_index": 3,
+        "all_updated_values": [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+      },
+      {
+        "round": 2,
+        "winner_count": 1,
+        "winner_index": 10,
+        "all_updated_values": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+      },
+      {
+        "round": 3,
+        "winner_count": 1,
+        "winner_index": 4,
+        "all_updated_values": [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+      },
+      {
+        "round": 4,
+        "winner_count": 1,
+        "winner_index": 2,
+        "all_updated_values": [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+      },
+      {
+        "round": 5,
+        "winner_count": 1,
+        "winner_index": 12,
+        "all_updated_values": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0]
+      },
+      {
+        "round": 6,
+        "winner_count": 1,
+        "winner_index": 15,
+        "all_updated_values": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0]
+      },
+      {
+        "round": 7,
+        "winner_count": 1,
+        "winner_index": 3,
+        "all_updated_values": [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+      },
+      {
+        "round": 8,
+        "winner_count": 1,
+        "winner_index": 2,
+        "all_updated_values": [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+      },
+      {
+        "round": 9,
+        "winner_count": 1,
+        "winner_index": 10,
+        "all_updated_values": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+      }
+    ]
+  },
+  "scenario_2_identical_op_id_identical_payload": {
+    "description": "20 concurrent calls with the same operation_id and identical payload. Exactly 1 winner. The CAS predicate (reservation_version=0) ensures only one call matches. The stored result is the winner's.",
+    "all_updated_values": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
+    "winner_count": 1,
+    "winner_index": 17,
+    "final_version": 1,
+    "final_operation_id": "op_s2_idem",
+    "final_token": "token_s2_idem"
+  },
+  "scenario_3_identical_op_id_conflicting_payload": {
+    "description": "20 concurrent calls with the same operation_id but different payloads (different tokens, buyers, payload hashes). The raw CAS does not check operation_id — it only checks the revision predicate. Exactly 1 winner. The stored payload is the winner's. The authority module (tested separately) would reject same op_id with different payload via the idempotent replay check.",
+    "all_updated_values": [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    "winner_count": 1,
+    "winner_index": 6,
+    "final_version": 1,
+    "final_operation_id": "op_s3_same",
+    "final_token": "token_s3_conflict_i6",
+    "final_payload_hash": "hash_s3_i6"
+  },
+  "scenario_4_old_op_retry_after_later_transition": {
+    "description": "Op A transitions v0→v1. Op B transitions v1→v2. Op A retries with v0→v1 but current is v2. The CAS predicate (reservation_version=0) does not match (current is 2), so updated=0. The newer transition (op_B) is preserved. Old operation cannot overwrite newer state.",
+    "old_retry_updated": 0,
+    "old_retry_error": null,
+    "final_version": 2,
+    "final_operation_id": "op_s4_B",
+    "final_token": "token_s4_B",
+    "old_op_preserved": true
+  },
+  "verdict": "Base44 updateMany with a filter predicate is empirically atomic for single-record conditional updates across 10 independent rounds (10/10 = exactly 1 winner). This behavior is NOT contractually guaranteed by official documentation. The authority module provides idempotent replay, operation_id conflict detection, and mirror projection on top of this empirical CAS."
+}
