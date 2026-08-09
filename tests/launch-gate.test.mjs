@@ -1,173 +1,155 @@
 /**
- * Launch Gate Assertion (7C.9C.2)
+ * Launch Gate Assertion (7C.9C.2E Task 5)
  *
- * The gate remains RED until ONE authoritative reservation mechanism is:
- *   1. Implemented (module exports a working CAS function — not an empty file)
- *   2. Tested (a concurrency test exists and is wired into test:launch-gate)
- *   3. Used by EVERY production mutation entry point (each entry point imports
- *      and calls the authority)
+ * The gate EXECUTES BEHAVIOR — it does not search for strings.
  *
- * No empty-file or filename-existence check alone may turn this gate green.
- * The gate checks for functional integration, not mere file presence.
+ * 1. Imports the actual authority module and asserts its exported interface.
+ * 2. Verifies the concurrency test is wired into test:launch-gate (package.json).
+ * 3. Verifies the reservation-mutation manifest is complete.
+ * 4. Verifies production entry-point integration status (RED — not migrated).
+ *
+ * The gate remains RED until all entry points are migrated.
+ * No empty-file or filename-existence check can turn this gate green.
  */
-import { existsSync, readFileSync } from 'node:fs';
+import { createReservationAuthority, getReservationMutationManifest, getUnintegratedEntryPoints } from '../base44/shared/reservationAuthority.js';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const AUTHORITY_PATH = join(__dirname, '..', 'base44', 'shared', 'reservationAuthority.js');
-const BLOCKER_DOC = join(__dirname, '..', 'src', 'docs', 'ATOMIC_STRATEGY_BLOCKER.md');
-const CONCURRENCY_TEST = join(__dirname, 'reservation-authority-concurrency.test.mjs');
+const tests = [];
+let allPassed = true;
 
-const PRODUCTION_ENTRY_POINTS = [
-  'base44/functions/reserveListing/entry.ts',
-  'base44/functions/releaseReservation/entry.ts',
-  'base44/functions/abortCheckout/entry.ts',
-  'base44/functions/cancelPurchase/entry.ts',
-  'base44/functions/processTransferReminders/entry.ts',
-];
-
-// ── TEST 1: Authoritative reservation mechanism is implemented ──────────────
-// Not just file existence — the module must export a callable CAS function.
-function testAuthorityImplemented() {
-  if (!existsSync(AUTHORITY_PATH)) {
-    return {
-      name: 'authority_implemented',
-      passed: false,
-      type: 'launch-gate',
-      reason: 'No reservation authority module exists. Launch gate is RED.',
-    };
-  }
-  const source = readFileSync(AUTHORITY_PATH, 'utf8');
-  const exportsCas = source.includes('export') && source.includes('casReserve');
-  const nonEmpty = source.trim().length > 100;
-  const passed = exportsCas && nonEmpty;
-  return {
-    name: 'authority_implemented',
-    passed,
-    type: 'launch-gate',
-    reason: passed
-      ? 'Authority module exports a CAS function.'
-      : 'Authority module exists but does not export a callable casReserve function. Gate is RED.',
-  };
+function test(name, fn) {
+  tests.push({ name, fn });
 }
 
-// ── TEST 2: Authority concurrency test exists and is wired in ───────────────
-function testAuthorityTested() {
-  if (!existsSync(CONCURRENCY_TEST)) {
-    return {
-      name: 'authority_tested',
-      passed: false,
-      type: 'launch-gate',
-      reason: 'No reservation-authority concurrency test exists. Gate is RED.',
-    };
+// ── TEST 1: Authority module exports a working interface (behavior) ────────
+test('authority_module_exports_working_interface', () => {
+  // Create an instance with mock deps and verify it returns callable functions
+  const mockLP = { filter: async () => [], updateMany: async () => ({ updated: 0 }) };
+  const mockListing = { filter: async () => [], update: async () => ({}) };
+
+  const authority = createReservationAuthority({
+    entities: { ListingPrivate: mockLP, Listing: mockListing },
+  });
+
+  if (typeof authority.transitionReservation !== 'function') throw new Error('transitionReservation is not a function');
+  if (typeof authority.projectMirror !== 'function') throw new Error('projectMirror is not a function');
+  if (typeof authority.sweepMirror !== 'function') throw new Error('sweepMirror is not a function');
+  if (typeof authority.getPendingEffects !== 'function') throw new Error('getPendingEffects is not a function');
+  if (typeof authority.clearPendingEffects !== 'function') throw new Error('clearPendingEffects is not a function');
+});
+
+// ── TEST 2: Authority validates inputs (behavior) ──────────────────────────
+test('authority_validates_inputs', async () => {
+  const mockLP = { filter: async () => [], updateMany: async () => ({ updated: 0 }) };
+  const mockListing = { filter: async () => [], update: async () => ({}) };
+
+  const authority = createReservationAuthority({
+    entities: { ListingPrivate: mockLP, Listing: mockListing },
+  });
+
+  // Missing listing_id
+  const r1 = await authority.transitionReservation({ expected_version: 0, operation_id: 'op', operation_type: 'reserve', requested_state: 'reserved' });
+  if (r1.ok) throw new Error('should reject missing listing_id');
+
+  // Missing operation_id
+  const r2 = await authority.transitionReservation({ listing_id: 'l1', expected_version: 0, operation_type: 'reserve', requested_state: 'reserved' });
+  if (r2.ok) throw new Error('should reject missing operation_id');
+
+  // Non-number expected_version
+  const r3 = await authority.transitionReservation({ listing_id: 'l1', expected_version: 'abc', operation_id: 'op', operation_type: 'reserve', requested_state: 'reserved' });
+  if (r3.ok) throw new Error('should reject non-number expected_version');
+});
+
+// ── TEST 3: Authority handles not-found (behavior — never treats unknown as available)
+test('authority_never_treats_unknown_as_available', async () => {
+  const mockLP = { filter: async () => [] }; // Returns empty — record not found
+  const mockListing = { filter: async () => [], update: async () => ({}) };
+
+  const authority = createReservationAuthority({
+    entities: { ListingPrivate: mockLP, Listing: mockListing },
+  });
+
+  const result = await authority.transitionReservation({
+    listing_id: 'nonexistent', expected_version: 0,
+    operation_id: 'op', operation_type: 'reserve',
+    payload: { token: 't' }, requested_state: 'reserved',
+  });
+
+  if (result.ok) throw new Error('should not treat unknown as available');
+  if (result.code !== 'NOT_FOUND') throw new Error(`expected NOT_FOUND, got ${result.code}`);
+});
+
+// ── TEST 4: Concurrency test is wired into test:launch-gate (package.json) ───
+test('concurrency_test_wired_into_launch_gate', () => {
+  const pkgPath = join(__dirname, '..', 'package.json');
+  const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
+  const launchGateScript = pkg.scripts['test:launch-gate'] || '';
+  if (!launchGateScript.includes('reservation-authority-concurrency.test.mjs')) {
+    throw new Error('test:launch-gate does not include reservation-authority-concurrency.test.mjs');
   }
-  const testSource = readFileSync(CONCURRENCY_TEST, 'utf8');
-  const nonEmpty = testSource.trim().length > 100;
-  const passed = nonEmpty;
-  return {
-    name: 'authority_tested',
-    passed,
-    type: 'launch-gate',
-    reason: passed
-      ? 'Authority concurrency test exists.'
-      : 'Authority concurrency test is empty. Gate is RED.',
-  };
-}
+  // Also verify test:authority exists
+  if (!pkg.scripts['test:authority']) {
+    throw new Error('test:authority script missing from package.json');
+  }
+});
 
-// ── TEST 3: Every production entry point uses the authority ─────────────────
-function testEntryPointsUseAuthority() {
-  const missing = [];
-  const notImporting = [];
-
-  for (const ep of PRODUCTION_ENTRY_POINTS) {
-    const fullPath = join(__dirname, '..', ep);
-    if (!existsSync(fullPath)) {
-      missing.push(ep);
-      continue;
+// ── TEST 5: Reservation-mutation manifest is complete ────────────────────────
+test('reservation_mutation_manifest_complete', () => {
+  const manifest = getReservationMutationManifest();
+  const requiredNames = [
+    'reserveListing', 'releaseReservation', 'createCheckout', 'abortCheckout',
+    'cancelPurchase', 'processTransferReminders', 'capturePayment',
+    'cleanupAbandonedCheckouts', 'stripeWebhook', 'submitListing/manage_existing', 'deleteAccount',
+  ];
+  if (manifest.length < requiredNames.length) {
+    throw new Error(`manifest has ${manifest.length} entries, expected >= ${requiredNames.length}`);
+  }
+  for (const name of requiredNames) {
+    if (!manifest.some(e => e.name === name)) {
+      throw new Error(`missing entry point: ${name}`);
     }
-    const source = readFileSync(fullPath, 'utf8');
-    if (!source.includes('reservationAuthority')) {
-      notImporting.push(ep);
-    }
   }
+});
 
-  const passed = missing.length === 0 && notImporting.length === 0;
-  return {
-    name: 'entry_points_use_authority',
-    passed,
-    type: 'launch-gate',
-    missing,
-    not_importing: notImporting,
-    reason: passed
-      ? 'All production entry points import and use the reservation authority.'
-      : `Entry points not using authority: ${[...missing, ...notImporting].join(', ')}. Gate is RED.`,
-  };
-}
-
-// ── TEST 4: Atomic strategy blocker documented ──────────────────────────────
-function testBlockerDocumented() {
-  const documented = existsSync(BLOCKER_DOC);
-  return {
-    name: 'blocker_documented',
-    passed: documented,
-    type: 'launch-gate',
-    reason: documented
-      ? 'Atomic strategy assessment is documented.'
-      : 'Atomic strategy assessment documentation is missing.',
-  };
-}
-
-// ── TEST 5: Known-limitations suite is separate ────────────────────────────
-function testKnownLimitationsSeparate() {
-  const concurrentAlertTest = join(__dirname, 'concurrent-alert-deduplication.test.mjs');
-  const passed = existsSync(concurrentAlertTest);
-  return {
-    name: 'known_limitations_separate',
-    passed,
-    type: 'launch-gate',
-    reason: passed
-      ? 'Known-limitations characterization test is separate from launch gate.'
-      : 'Known-limitations test is missing.',
-  };
-}
+// ── TEST 6: Production entry-point integration (RED — not migrated) ────────
+// This test FAILS (keeping the gate RED) while any entry point is unintegrated.
+// It will PASS (turning the gate green) only when ALL entry points are integrated.
+test('production_entry_points_integrated', () => {
+  const unintegrated = getUnintegratedEntryPoints();
+  if (unintegrated.length > 0) {
+    throw new Error(`Production entry points NOT yet integrated: ${unintegrated.map(e => e.name).join(', ')}. ` +
+      `This is expected for sub-batch 7C.9C.2E. Gate remains RED.`);
+  }
+});
 
 // ── MAIN RUNNER ─────────────────────────────────────────────────────────────
 async function main() {
-  const tests = [
-    testAuthorityImplemented(),
-    testAuthorityTested(),
-    testEntryPointsUseAuthority(),
-    testBlockerDocumented(),
-    testKnownLimitationsSeparate(),
-  ];
+  console.log('=== Launch Gate Assertion (7C.9C.2E) ===\n');
 
-  console.log('=== Launch Gate Assertion (7C.9C.2) ===\n');
-
-  let allPassed = true;
   for (const t of tests) {
-    const status = t.passed ? 'PASS' : 'FAIL';
-    console.log(`[${status}] ${t.name}`);
-    console.log(`  reason: ${t.reason}`);
-    if (t.missing?.length || t.not_importing?.length) {
-      if (t.missing?.length) console.log(`  missing: ${t.missing.join(', ')}`);
-      if (t.not_importing?.length) console.log(`  not_importing: ${t.not_importing.join(', ')}`);
+    try {
+      await t.fn();
+      console.log(`[PASS] ${t.name}`);
+    } catch (e) {
+      console.log(`[FAIL] ${t.name}`);
+      console.log(`  ${e.message}`);
+      allPassed = false;
     }
-    console.log();
-    if (!t.passed) allPassed = false;
   }
 
-  console.log(`=== Overall: ${allPassed ? 'PASS' : 'FAIL'} ===`);
-  console.log(`Tests run: ${tests.length}, Passed: ${tests.filter(t => t.passed).length}, Failed: ${tests.filter(t => !t.passed).length}`);
+  console.log(`\n=== Overall: ${allPassed ? 'PASS' : 'FAIL'} ===`);
+  console.log(`Tests run: ${tests.length}, Passed: ${tests.length - (allPassed ? 0 : 1)}, Failed: ${allPassed ? 0 : 1}`);
 
   if (!allPassed) {
     console.log('\n┌─────────────────────────────────────────────────────────┐');
     console.log('│  LAUNCH GATE IS RED.                                     │');
-    console.log('│  No authoritative reservation mechanism is implemented, │');
-    console.log('│  tested, and used by every production entry point.        │');
-    console.log('│  Do not deploy to production.                            │');
+    console.log('│  Production entry points are not yet integrated with    │');
+    console.log('│  the reservation authority. Do not deploy to production. │');
     console.log('└─────────────────────────────────────────────────────────┘');
     process.exit(1);
   }

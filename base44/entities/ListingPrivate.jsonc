@@ -233,6 +233,63 @@
     "migrated_at": {
       "type": "string",
       "description": "ISO timestamp when the sidecar was created."
+    },
+    "reservation_version": {
+      "type": "number",
+      "description": "Numeric monotonic version for single-authority CAS. Incremented on every authoritative transition. Used as the CAS expected-version predicate."
+    },
+    "reservation_lifecycle_state": {
+      "type": "string",
+      "enum": [
+        "available",
+        "reserved",
+        "frozen",
+        "sold",
+        "cancelled",
+        "expired"
+      ],
+      "description": "Authoritative lifecycle state in the single-authority model."
+    },
+    "last_operation_id": {
+      "type": "string",
+      "description": "Unique ID of the last operation that transitioned this reservation. Used for idempotent replay detection."
+    },
+    "last_operation_type": {
+      "type": "string",
+      "description": "Type of the last operation (reserve, release, freeze, finalize, cancel)."
+    },
+    "last_operation_payload_hash": {
+      "type": "string",
+      "description": "Deterministic hash of the last operation's payload. Required to match for idempotent replay."
+    },
+    "last_operation_result_json": {
+      "type": "string",
+      "description": "JSON string of the last operation's result. Returned on idempotent replay. Schema type: string (not object)."
+    },
+    "last_operation_at": {
+      "type": "string",
+      "description": "ISO timestamp of the last operation."
+    },
+    "mirror_version": {
+      "type": "number",
+      "description": "Last successfully projected mirror version. Used to detect stale mirror updates."
+    },
+    "mirror_sync_status": {
+      "type": "string",
+      "enum": [
+        "synced",
+        "stale",
+        "failed"
+      ],
+      "description": "Status of the last mirror projection."
+    },
+    "mirror_sync_error": {
+      "type": "string",
+      "description": "Error message from the last failed mirror projection."
+    },
+    "pending_effects_json": {
+      "type": "string",
+      "description": "JSON string of pending side effects that must be delivered after the authoritative transition commits. Schema type: string (not object)."
     }
   },
   "required": [
