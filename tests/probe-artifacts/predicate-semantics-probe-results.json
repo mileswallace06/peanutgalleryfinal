@@ -1,0 +1,53 @@
+{
+  "probe_tag": "PROBE-PRED-1786396921014",
+  "timestamp": "2026-08-10T21:22:12.835Z",
+  "summary": {
+    "total_tests": 19,
+    "matched": 14,
+    "not_matched": 5,
+    "errors": 0,
+    "before_count": 36,
+    "after_count": 36,
+    "cleanup_ok": true
+  },
+  "key_findings": {
+    "null_matches_null": true,
+    "omitted_matches_all": true,
+    "empty_matches_empty": true,
+    "zero_matches_zero": true,
+    "false_matches_false": true,
+    "null_matches_omitted": true,
+    "omitted_matches_null": true,
+    "zero_does_not_match_null": true,
+    "false_does_not_match_null": true,
+    "empty_does_not_match_null": true,
+    "value_does_not_match_null": true
+  },
+  "implications_for_cas_snapshot": {
+    "omitted_query_key_matches_any_value": "CRITICAL: Omitting a field from the query predicate matches ANY stored value (null, 0, false, '', or a specific value). This means an omitted field provides NO CAS protection — a legacy writer could change that field and the CAS would still succeed.",
+    "null_query_matches_only_null": "Passing null in the query matches ONLY null in the record. A non-null stored value (0, false, '', 'available') does NOT match null. This means null is a safe CAS predicate value for null fields.",
+    "validateSnapshotCompleteness_is_required": "Because omitted keys match any value, the CAS predicate must include ALL snapshot fields with their exact values. validateSnapshotCompleteness enforces this by rejecting records with missing/undefined snapshot fields before CAS, preventing a weakened predicate.",
+    "falsy_values_are_distinct": "0, false, and '' are distinct from null and from each other. A query for 0 does not match null, a query for false does not match null, and a query for '' does not match null. This means falsy values are safe in CAS predicates as long as the exact value is used."
+  },
+  "results": [
+    { "test": "string_null_vs_null", "field": "reservation_lifecycle_state", "create_value": null, "query_value": "null", "updated": 1 },
+    { "test": "string_null_vs_undefined", "field": "reservation_lifecycle_state", "create_value": null, "query_value": "omitted", "updated": 1 },
+    { "test": "string_null_vs_empty", "field": "reservation_lifecycle_state", "create_value": null, "query_value": "empty", "updated": 0 },
+    { "test": "string_value_vs_null", "field": "reservation_lifecycle_state", "create_value": "available", "query_value": "null", "updated": 0 },
+    { "test": "string_value_vs_undefined", "field": "reservation_lifecycle_state", "create_value": "available", "query_value": "omitted", "updated": 1 },
+    { "test": "string_value_vs_value", "field": "reservation_lifecycle_state", "create_value": "available", "query_value": "matching", "updated": 1 },
+    { "test": "string_empty_vs_empty", "field": "reservation_lifecycle_state", "create_value": "", "query_value": "empty", "updated": 1 },
+    { "test": "number_zero_vs_zero", "field": "reservation_version", "create_value": 0, "query_value": "zero", "updated": 1 },
+    { "test": "number_zero_vs_null", "field": "reservation_version", "create_value": 0, "query_value": "null", "updated": 0 },
+    { "test": "number_zero_vs_undefined", "field": "reservation_version", "create_value": 0, "query_value": "omitted", "updated": 1 },
+    { "test": "number_value_vs_value", "field": "reservation_version", "create_value": 5, "query_value": "matching", "updated": 1 },
+    { "test": "number_null_vs_null", "field": "reservation_version", "create_value": null, "query_value": "null", "updated": 1 },
+    { "test": "number_null_vs_undefined", "field": "reservation_version", "create_value": null, "query_value": "omitted", "updated": 1 },
+    { "test": "bool_false_vs_false", "field": "checkout_quarantined", "create_value": false, "query_value": "false", "updated": 1 },
+    { "test": "bool_false_vs_null", "field": "checkout_quarantined", "create_value": false, "query_value": "null", "updated": 0 },
+    { "test": "bool_false_vs_undefined", "field": "checkout_quarantined", "create_value": false, "query_value": "omitted", "updated": 1 },
+    { "test": "bool_true_vs_true", "field": "checkout_quarantined", "create_value": true, "query_value": "true", "updated": 1 },
+    { "test": "bool_true_vs_false", "field": "checkout_quarantined", "create_value": true, "query_value": "false", "updated": 0 },
+    { "test": "bool_true_vs_undefined", "field": "checkout_quarantined", "create_value": true, "query_value": "omitted", "updated": 1 }
+  ]
+}
