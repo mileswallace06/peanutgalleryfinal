@@ -292,7 +292,7 @@ test('corrupt pending-effects JSON blocks mutation with EFFECTS_CORRUPT', async 
 });
 
 // ── 13: Corrupt stored replay result → OPERATION_RECORD_CORRUPT ─────────────
-test('corrupt stored replay result returns OPERATION_RECORD_CORRUPT', async () => {
+test('corrupt stored replay result returns RESULT_CORRUPT', async () => {
   const deps = createMockDeps();
   const authority = createReservationAuthority(deps);
   const envelope = {
@@ -302,6 +302,9 @@ test('corrupt stored replay result returns OPERATION_RECORD_CORRUPT', async () =
   deps._seedLP('lp1', {
     listing_id: 'list1', reservation_version: 1,
     reservation_lifecycle_state: 'reserved',
+    reservation_token: 't1', reserved_by_email: 'b1@test',
+    reservation_expires_at: '2026-12-31T00:00:00Z',
+    reservation_revision: 'rev_1',
     last_operation_id: 'op_1',
     last_operation_payload_hash: mockHashEnvelope(envelope),
     last_operation_result_json: '{corrupt json',
@@ -313,7 +316,8 @@ test('corrupt stored replay result returns OPERATION_RECORD_CORRUPT', async () =
     requested_state: 'reserved',
   });
   assert(!res.ok, 'should fail');
-  assert(res.code === 'OPERATION_RECORD_CORRUPT', `expected OPERATION_RECORD_CORRUPT, got ${res.code}`);
+  // Round 4: validateIdempotentReplay catches corrupt result JSON
+  assert(res.code === 'RESULT_CORRUPT', `expected RESULT_CORRUPT, got ${res.code}`);
 });
 
 // ── 14: Same op ID + changed operation type → OPERATION_ID_CONFLICT ──────────
@@ -496,7 +500,8 @@ test('missing reservation_version returns MIGRATION_REQUIRED in report', async (
   deps._seedLP('lp1', { listing_id: 'list1' });
   delete deps._lpStore.get('lp1').reservation_version;
   deps._seedLP('lp2', { listing_id: 'list2', reservation_version: 1 });
-  deps._seedListing('list1', { reservation_version: 0 });
+  deps._seedListing('list1', { status: 'active' });
+  delete deps._listingStore.get('list1').reservation_version;
   deps._seedListing('list2', { reservation_version: 1 });
   const report = await generateMigrationReport(deps);
   assert(report.ok, 'report should succeed');
@@ -969,6 +974,139 @@ test('getPendingEffects returns effects_json for caller use', async () => {
 });
 
 // ════════════════════════════════════════════════════════════════════════════
+// SECTION 1D: ROUND 4 NEW TESTS
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── R4-1: Strengthened CAS snapshot detects legacy writer tuple change ──────
+test('strengthened CAS snapshot detects legacy writer tuple change', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  deps._seedLP('lp1', { listing_id: 'list1' });
+  deps._seedListing('list1', {});
+  // Hook: legacy writer changes tuple without incrementing version
+  deps._setHook('beforeCAS', (d, listing_id) => {
+    const lp = d._lpStore.get('lp1');
+    if (lp) {
+      lp.reservation_token = 'legacy_token';
+      lp.reserved_by_email = 'legacy@test';
+      lp.reservation_expires_at = '2026-12-31T00:00:00Z';
+      lp.reservation_revision = 'legacy_rev';
+      // Do NOT increment version — legacy writer doesn't use the authority
+    }
+  });
+  const res = await authority.transitionReservation({
+    listing_id: 'list1', expected_version: 0,
+    operation_id: 'op_1', operation_type: 'reserve',
+    payload: { token: 't1', buyer: 'b1@test', expiration: '2026-12-31T00:00:00Z' },
+    requested_state: 'reserved',
+  });
+  assert(!res.ok, 'authority should lose CAS to legacy writer');
+  assert(res.code === 'CONFLICT', `expected CONFLICT, got ${res.code}`);
+  // Verify legacy writer's change is preserved
+  const [lp] = await deps.entities.ListingPrivate.filter({ listing_id: 'list1' });
+  assert(lp.reservation_token === 'legacy_token', 'legacy token should be preserved');
+  assert(lp.reservation_version === 0, 'version should still be 0');
+  assert(lp.last_operation_id === null, 'no authority operation should have been written');
+});
+
+// ── R4-2: Idempotent replay validation catches corrupt stored state ─────────
+test('idempotent replay validation catches corrupt stored state', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  const envelope = {
+    operation_type: 'reserve', requested_state: 'reserved',
+    payload: { token: 't1', buyer: 'b1@test', expiration: '2026-12-31T00:00:00Z' }, pending_effects: [],
+  };
+  deps._seedLP('lp1', {
+    listing_id: 'list1', reservation_version: 1,
+    reservation_lifecycle_state: 'reserved',
+    reservation_token: 't1', reserved_by_email: 'b1@test',
+    reservation_expires_at: '2026-12-31T00:00:00Z',
+    reservation_revision: 'rev_1',
+    last_operation_id: 'op_1',
+    last_operation_payload_hash: mockHashEnvelope(envelope),
+    last_operation_result_json: JSON.stringify({ operation_id: 'op_1', new_version: 1 }),
+  });
+  deps._seedListing('list1', {});
+  // Corrupt the lifecycle state AFTER seeding (simulates datastore corruption)
+  const lpRec = deps._lpStore.get('lp1');
+  lpRec.reservation_lifecycle_state = null;
+  const res = await authority.transitionReservation({
+    listing_id: 'list1', expected_version: 0,
+    operation_id: 'op_1', operation_type: 'reserve',
+    payload: { token: 't1', buyer: 'b1@test', expiration: '2026-12-31T00:00:00Z' },
+    requested_state: 'reserved',
+  });
+  assert(!res.ok, 'should not return idempotent success with corrupt state');
+  assert(res.code === 'STATE_CORRUPT', `expected STATE_CORRUPT, got ${res.code}`);
+  assert(res.protection, 'should have protection result');
+  // Verify listing is hidden by protection
+  const [listing] = await deps.entities.Listing.filter({ id: 'list1' });
+  assert(listing.status === 'hidden', 'Listing should be hidden by protection');
+});
+
+// ── R4-3: Corrupt authority state triggers protection and hides Listing ──────
+test('corrupt authority state triggers protection and hides active Listing', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  deps._seedLP('lp1', {
+    listing_id: 'list1', reservation_version: 0,
+    reservation_lifecycle_state: null,
+  });
+  deps._seedListing('list1', { status: 'active' });
+  const res = await authority.transitionReservation({
+    listing_id: 'list1', expected_version: 0,
+    operation_id: 'op_1', operation_type: 'reserve',
+    payload: { token: 't1', buyer: 'b1@test', expiration: '2026-12-31T00:00:00Z' },
+    requested_state: 'reserved',
+  });
+  assert(!res.ok, 'should fail');
+  assert(res.code === 'STATE_CORRUPT', `expected STATE_CORRUPT, got ${res.code}`);
+  assert(res.protection, 'should have protection result');
+  assert(res.protection.protected === true, 'protection should be verified');
+  // Verify listing is hidden — corrupt authority cannot leave Listing publicly available
+  const [listing] = await deps.entities.Listing.filter({ id: 'list1' });
+  assert(listing.status === 'hidden', 'Listing should be hidden by protection');
+  assert(listing.hidden_reason === 'checkout_quarantine', 'hidden_reason should be checkout_quarantine');
+  // Verify alert exists
+  const alerts = Array.from(deps._adminAlertStore.values());
+  const unresolved = alerts.filter(a => a.resolved === false);
+  assert(unresolved.length >= 1, 'should have at least 1 unresolved alert');
+  assert(unresolved[0].priority === 'critical', 'priority should be critical');
+});
+
+// ── R4-4: Idempotent replay validation catches version/result mismatch ──────
+test('idempotent replay validation catches stored result version mismatch', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  const envelope = {
+    operation_type: 'reserve', requested_state: 'reserved',
+    payload: { token: 't1', buyer: 'b1@test', expiration: '2026-12-31T00:00:00Z' }, pending_effects: [],
+  };
+  deps._seedLP('lp1', {
+    listing_id: 'list1', reservation_version: 1,
+    reservation_lifecycle_state: 'reserved',
+    reservation_token: 't1', reserved_by_email: 'b1@test',
+    reservation_expires_at: '2026-12-31T00:00:00Z',
+    reservation_revision: 'rev_1',
+    last_operation_id: 'op_1',
+    last_operation_payload_hash: mockHashEnvelope(envelope),
+    // Corrupt: stored result says new_version=5 but authoritative version is 1
+    last_operation_result_json: JSON.stringify({ operation_id: 'op_1', new_version: 5 }),
+  });
+  deps._seedListing('list1', {});
+  const res = await authority.transitionReservation({
+    listing_id: 'list1', expected_version: 0,
+    operation_id: 'op_1', operation_type: 'reserve',
+    payload: { token: 't1', buyer: 'b1@test', expiration: '2026-12-31T00:00:00Z' },
+    requested_state: 'reserved',
+  });
+  assert(!res.ok, 'should not return idempotent success with version mismatch');
+  assert(res.code === 'VERSION_MISMATCH', `expected VERSION_MISMATCH, got ${res.code}`);
+  assert(res.protection, 'should have protection result');
+});
+
+// ════════════════════════════════════════════════════════════════════════════
 // SECTION 2: LIVE BASE44 CAS PROBE
 // ════════════════════════════════════════════════════════════════════════════
 
@@ -1044,7 +1182,7 @@ async function runLiveBase44Probe() {
 // ════════════════════════════════════════════════════════════════════════════
 
 async function main() {
-  console.log('=== Reservation Authority Concurrency Tests (7C.9C.2E Correction Round 2) ===\n');
+  console.log('=== Reservation Authority Concurrency Tests (7C.9C.2E Correction Round 4) ===\n');
   console.log('--- Section 1: Deterministic Local Module Tests ---');
   for (const t of tests) {
     try {

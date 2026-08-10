@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "test": "npm run test:launch-gate; gate=$?; npm run test:known-limitations; exit $gate",
+    "test": "npm run test:launch-gate; gate=$?; npm run test:known-limitations; known=$?; if [ $gate -ne 0 ] || [ $known -ne 0 ]; then exit 1; fi",
     "test:launch-gate": "node tests/freeze-completeness.test.mjs && node tests/payment-reconciliation.test.mjs && node tests/payment-webhook.test.mjs && node tests/checkout-concurrency.test.mjs && node tests/legacy-revision-init.test.mjs && node tests/durable-recovery.test.mjs && node tests/partial-finalization-states.test.mjs && node tests/post-clear-verification.test.mjs && node tests/mutation-paths.test.mjs && node tests/post-prefetch-concurrency.test.mjs && node tests/tuple-invariant-validation.test.mjs && node tests/reservation-authority-concurrency.test.mjs && node tests/reservation-authority-adversarial.test.mjs && node tests/launch-gate.test.mjs",
     "test:authority": "node tests/reservation-authority-concurrency.test.mjs && node tests/reservation-authority-adversarial.test.mjs",
     "test:known-limitations": "node tests/concurrent-alert-deduplication.test.mjs",

@@ -1,60 +1,47 @@
 /**
- * Reservation Authority Mirror (7C.9C.2E Correction Round 3)
+ * Reservation Authority Mirror (7C.9C.2E Correction Round 4)
  *
- * Round 3 corrections:
- *   1. projectMirror is AUTHORITY-DRIVEN: it reads ListingPrivate itself and
- *      derives the public projection solely from authoritative state. Callers
- *      cannot supply status or hidden_reason. A caller cannot project 'active'
- *      when authority says 'sold', 'cancelled', 'expired', 'reserved', 'frozen',
- *      or corrupt.
- *   2. Equal-version repair races: after any mirror update, re-fetch BOTH
- *      ListingPrivate and Listing. Verify authority version and state did not
- *      change during repair. If authority advanced, retry from the new
- *      authoritative version with a strict bound. Never return success unless
- *      the final mirror exactly matches the latest authoritative state.
- *   3. mirror_version > authority_version: hide/quarantine the public Listing
- *      and create a durable incident. Never remain active. Every hide
- *      operation checks the update result and re-fetches Listing. Never return
- *      hidden:true unless the authoritative re-fetch proves the Listing is
- *      hidden. Return PROTECTION_INCOMPLETE if any step fails.
- *   4. Fail closed on unknown lifecycle state: no `|| 'available'` fallback.
- *      Missing/empty/invalid state returns STATE_CORRUPT and triggers protection.
+ * Round 4 corrections:
+ *   1. SEPARATE reservation state from business/publication state:
+ *      - Normal projection writes ONLY reservation_version and reservation_mirror_state.
+ *      - status and hidden_reason are owned by business logic — NOT projected.
+ *      - Emergency protection may set status=hidden, hidden_reason=checkout_quarantine.
+ *      - Business-held statuses (hidden, pending_verification, pending_payout_setup)
+ *        are NEVER reopened by normal projection.
+ *   2. FIX projectMirror post-CAS race:
+ *      - After CAS, re-fetch BOTH ListingPrivate and Listing.
+ *      - Verify authority version is still new_version.
+ *      - Verify authority lifecycle state is unchanged.
+ *      - Verify mirror version/state exactly matches latest authority.
+ *      - If authority advanced: never return success; retry or STALE_PROJECTION.
+ *   3. PROTECT on corrupt authority state:
+ *      - Missing/empty/invalid lifecycle state → STATE_CORRUPT + protection.
+ *      - Protection hides Listing, creates alert, verifies each step.
+ *      - Returns PROTECTION_INCOMPLETE if any step fails.
+ *
+ * Round 3 (preserved):
+ *   - Authority-driven: caller cannot supply status/hidden_reason.
+ *   - Equal-version repair: re-fetch BOTH after update.
+ *   - Mirror newer than authority: hide/quarantine + alert + verify.
+ *   - Fail-closed on unknown lifecycle state.
  *
  * No Deno/Node-specific imports — pure ESM JavaScript.
  */
 import {
-  FORBIDDEN_MIRROR_FIELDS,
+  FORBIDDEN_MIRROR_FIELDS, APPROVED_MIRROR_FIELDS,
+  BUSINESS_HELD_STATUSES, BUSINESS_HELD_HIDDEN_REASONS,
   isValidVersion, isNonEmptyString, validateLifecycleState,
 } from './reservationAuthorityConstants.js';
 
 // ── Derive expected public payload from authority lifecycle state ──────────
-// This is the ONLY way to produce a mirror payload. Callers cannot override it.
+// Round 4: Normal projection writes ONLY reservation_version and
+// reservation_mirror_state. It does NOT write status or hidden_reason.
+// Those are owned by business logic.
 function deriveExpectedPayload(lp_version, lifecycle_state) {
-  const payload = { reservation_version: lp_version };
-  if (lifecycle_state === 'frozen') {
-    payload.status = 'hidden';
-    payload.hidden_reason = 'checkout_quarantine';
-  } else if (lifecycle_state === 'sold') {
-    payload.status = 'sold';
-    payload.hidden_reason = null;
-  } else if (lifecycle_state === 'cancelled') {
-    payload.status = 'cancelled';
-    payload.hidden_reason = null;
-  } else if (lifecycle_state === 'expired') {
-    payload.status = 'expired';
-    payload.hidden_reason = null;
-  } else if (lifecycle_state === 'reserved') {
-    payload.status = 'active';
-    payload.hidden_reason = null;
-  } else if (lifecycle_state === 'available') {
-    payload.status = 'active';
-    payload.hidden_reason = null;
-  } else {
-    // Unknown state — should never reach here (validated upstream)
-    payload.status = 'hidden';
-    payload.hidden_reason = 'checkout_quarantine';
-  }
-  return payload;
+  return {
+    reservation_version: lp_version,
+    reservation_mirror_state: lifecycle_state,
+  };
 }
 
 // ── Compare projected fields between expected and actual ────────────────────
@@ -69,16 +56,15 @@ function compareProjectedFields(expected, actual) {
 }
 
 // ── Protection: hide Listing + create AdminAlert + verify ───────────────────
-// Used for mirror-newer-than-authority and convergence failure.
+// Emergency protection — sets status=hidden, hidden_reason=checkout_quarantine.
+// This is the ONLY time the authority touches status/hidden_reason.
 // Returns { protected: true, code: 'PROTECTED' } or { protected: false, code: 'PROTECTION_INCOMPLETE', steps }.
-// Never returns protected:true unless the authoritative re-fetch proves the
-// Listing is hidden and exactly one unresolved alert exists.
 async function protectMirror(deps, listing_id, reason, evidence) {
   const now_iso = new Date(deps.now()).toISOString();
   const steps = {};
   const incident_key = `mirror_corruption:${listing_id}`;
 
-  // 1. Hide Listing via updateMany
+  // 1. Hide Listing via updateMany (no version predicate — emergency only)
   let hideResult;
   try {
     hideResult = await deps.entities.Listing.updateMany(
@@ -175,10 +161,11 @@ async function protectMirror(deps, listing_id, reason, evidence) {
   };
 }
 
-// ── Project a mirror update (AUTHORITY-DRIVEN) ──────────────────────────────
-// Reads ListingPrivate itself and derives the public projection solely from
-// authoritative state. The caller provides only listing_id and version bounds.
-// The caller CANNOT control status or hidden_reason.
+// ── Project a mirror update (AUTHORITY-DRIVEN, Round 4) ─────────────────────
+// Reads ListingPrivate and derives the public projection solely from
+// authoritative state. Normal projection writes ONLY reservation_version
+// and reservation_mirror_state — NOT status or hidden_reason.
+// Post-CAS: re-fetch BOTH LP and Listing to detect authority advance.
 async function projectMirror(deps, listing_id, expected_current_version, new_version) {
   // 1. Validate inputs
   if (!isNonEmptyString(listing_id)) {
@@ -209,10 +196,17 @@ async function projectMirror(deps, listing_id, expected_current_version, new_ver
     return { ok: false, code: 'MIGRATION_REQUIRED', error: 'ListingPrivate missing reservation_version — initialization required' };
   }
 
-  // 4. Validate LP lifecycle state (fail-closed on unknown — no '|| available' fallback)
+  // 4. Validate LP lifecycle state (fail-closed → STATE_CORRUPT + protection)
   const stateCheck = validateLifecycleState(lp.reservation_lifecycle_state);
   if (!stateCheck.valid) {
-    return { ok: false, code: 'STATE_CORRUPT', error: stateCheck.error, state_code: stateCheck.code };
+    const protection = await protectMirror(deps, listing_id,
+      `STATE_CORRUPT in projectMirror: ${stateCheck.error}`,
+      { state: lp.reservation_lifecycle_state, state_code: stateCheck.code });
+    return {
+      ok: false, code: 'STATE_CORRUPT',
+      error: stateCheck.error, state_code: stateCheck.code,
+      protection,
+    };
   }
 
   // 5. Verify LP version matches new_version (authority has committed this version)
@@ -260,27 +254,55 @@ async function projectMirror(deps, listing_id, expected_current_version, new_ver
   const updated = casResult.updated || 0;
 
   if (updated > 0) {
-    // 10. CAS won — re-fetch and verify every projected field
-    let verified;
+    // 10. CAS won — re-fetch BOTH authority and mirror to detect post-CAS race
+    let lpAfter, verified;
     try {
-      const rows = await deps.entities.Listing.filter({ id: listing_id });
-      verified = rows[0] || null;
+      const lpRows = await deps.entities.ListingPrivate.filter({ listing_id });
+      lpAfter = lpRows[0] || null;
+      const lRows = await deps.entities.Listing.filter({ id: listing_id });
+      verified = lRows[0] || null;
     } catch (e) {
       return { ok: false, code: 'MIRROR_VERIFY_ERROR', error: e?.message || String(e) };
     }
+
     if (!verified) return { ok: false, code: 'MIRROR_VERIFY_ERROR', error: 'mirror not found after CAS' };
+
+    // 11. Verify authority hasn't advanced during projection
+    if (!lpAfter) {
+      return { ok: false, code: 'AUTHORITY_DISAPPEARED', error: 'authority disappeared after mirror CAS' };
+    }
+    if (lpAfter.reservation_version !== new_version) {
+      // Authority advanced during projection — stale projection
+      return {
+        ok: false, code: 'STALE_PROJECTION',
+        error: `authority advanced during projection: expected ${new_version}, got ${lpAfter.reservation_version}`,
+        projected_version: new_version,
+        current_authority_version: lpAfter.reservation_version,
+      };
+    }
+
+    // 12. Verify authority lifecycle state is unchanged
+    if (lpAfter.reservation_lifecycle_state !== lp.reservation_lifecycle_state) {
+      return {
+        ok: false, code: 'STALE_PROJECTION',
+        error: `authority state changed during projection: expected ${lp.reservation_lifecycle_state}, got ${lpAfter.reservation_lifecycle_state}`,
+        projected_state: lp.reservation_lifecycle_state,
+        current_authority_state: lpAfter.reservation_lifecycle_state,
+      };
+    }
+
+    // 13. Verify mirror: version and reservation_mirror_state
     if (verified.reservation_version !== new_version) {
       return { ok: false, code: 'MIRROR_VERIFY_MISMATCH', error: `version: expected ${new_version}, got ${verified.reservation_version}` };
     }
-    for (const key of Object.keys(approved)) {
-      if (verified[key] !== approved[key]) {
-        return { ok: false, code: 'MIRROR_VERIFY_MISMATCH', error: `field ${key}: expected ${approved[key]}, got ${verified[key]}` };
-      }
+    if (verified.reservation_mirror_state !== lp.reservation_lifecycle_state) {
+      return { ok: false, code: 'MIRROR_VERIFY_MISMATCH', error: `reservation_mirror_state: expected ${lp.reservation_lifecycle_state}, got ${verified.reservation_mirror_state}` };
     }
+
     return { ok: true, mirror_version: new_version, verified: true };
   }
 
-  // 11. CAS lost — re-fetch to determine stale vs conflict
+  // 14. CAS lost — re-fetch to determine stale vs conflict
   let current;
   try {
     const rows = await deps.entities.Listing.filter({ id: listing_id });
@@ -296,19 +318,16 @@ async function projectMirror(deps, listing_id, expected_current_version, new_ver
     return { ok: false, code: 'STALE_MIRROR', current_mirror_version: current_version, attempted_version: new_version };
   }
   if (current_version === new_version) {
-    // Equal version — compare every projected field; divergence is NOT already_synced
-    for (const key of Object.keys(approved)) {
-      if (key === 'reservation_version') continue;
-      if (current[key] !== approved[key]) {
-        return { ok: false, code: 'MIRROR_CONFLICT', current_mirror_version: current_version, field: key, expected: approved[key], actual: current[key] };
-      }
+    // Equal version — compare reservation_mirror_state; divergence is NOT already_synced
+    if (current.reservation_mirror_state !== lp.reservation_lifecycle_state) {
+      return { ok: false, code: 'MIRROR_CONFLICT', current_mirror_version: current_version, field: 'reservation_mirror_state', expected: lp.reservation_lifecycle_state, actual: current.reservation_mirror_state };
     }
     return { ok: true, mirror_version: new_version, already_synced: true };
   }
   return { ok: false, code: 'MIRROR_CAS_LOST', current_mirror_version: current_version, attempted_version: new_version };
 }
 
-// ── Sweep: repair stale mirror from authority (bounded retry) ───────────────
+// ── Sweep: repair stale mirror from authority (bounded retry, Round 4) ──────
 async function sweepMirror(deps, listing_id) {
   // 1. Validate listing_id
   if (!isNonEmptyString(listing_id)) {
@@ -334,11 +353,12 @@ async function sweepMirror(deps, listing_id) {
       return { ok: false, code: 'MIGRATION_REQUIRED', error: 'ListingPrivate missing reservation_version — initialization required' };
     }
 
-    // Validate LP lifecycle state (fail-closed — no '|| available' fallback)
+    // Validate LP lifecycle state (fail-closed → STATE_CORRUPT + protection)
     const stateCheck = validateLifecycleState(lp.reservation_lifecycle_state);
     if (!stateCheck.valid) {
-      // State is corrupt — protect the Listing and return
-      const protection = await protectMirror(deps, listing_id, `STATE_CORRUPT: ${stateCheck.error}`, { state: lp.reservation_lifecycle_state });
+      const protection = await protectMirror(deps, listing_id,
+        `STATE_CORRUPT in sweepMirror: ${stateCheck.error}`,
+        { state: lp.reservation_lifecycle_state, state_code: stateCheck.code });
       return {
         ok: false, code: 'STATE_CORRUPT',
         error: stateCheck.error, state_code: stateCheck.code,
@@ -378,15 +398,15 @@ async function sweepMirror(deps, listing_id) {
       };
     }
 
-    // 5. Equal versions — derive expected payload and compare every field
+    // 5. Equal versions — compare reservation_mirror_state
     if (current_mirror_version === lp_version) {
       const expected = deriveExpectedPayload(lp_version, lp_state);
       const mismatches = compareProjectedFields(expected, listing);
       if (mismatches.length === 0) {
         return { ok: true, already_synced: true, mirror_version: lp_version };
       }
-      // Divergence at equal version — update fields without changing version
-      const fieldUpdate = { status: expected.status, hidden_reason: expected.hidden_reason };
+      // Divergence at equal version — repair reservation_mirror_state only
+      const fieldUpdate = { reservation_mirror_state: expected.reservation_mirror_state };
       let casResult;
       try {
         casResult = await deps.entities.Listing.updateMany(
@@ -413,7 +433,6 @@ async function sweepMirror(deps, listing_id) {
 
         // Verify authority hasn't advanced during repair
         if (lpAfter.reservation_version !== lp_version) {
-          // Authority advanced during repair — retry from newest authority
           lastResult = {
             ok: false, code: 'STALE_PROJECTION',
             projected_version: lp_version,
@@ -423,8 +442,7 @@ async function sweepMirror(deps, listing_id) {
         }
 
         // Verify authority state hasn't changed
-        const stateAfterCheck = validateLifecycleState(lpAfter.reservation_lifecycle_state);
-        if (!stateAfterCheck.valid || lpAfter.reservation_lifecycle_state !== lp_state) {
+        if (lpAfter.reservation_lifecycle_state !== lp_state) {
           lastResult = {
             ok: false, code: 'STALE_PROJECTION',
             projected_version: lp_version,
@@ -433,16 +451,12 @@ async function sweepMirror(deps, listing_id) {
           continue;
         }
 
-        // Verify mirror: version, status, hidden_reason
+        // Verify mirror: version and reservation_mirror_state
         if (listingAfter.reservation_version !== lp_version) {
           return { ok: false, code: 'SWEEP_VERIFY_MISMATCH', error: `mirror version: expected ${lp_version}, got ${listingAfter.reservation_version}` };
         }
-        const expectedAfter = deriveExpectedPayload(lp_version, lp_state);
-        if (listingAfter.status !== expectedAfter.status) {
-          return { ok: false, code: 'SWEEP_VERIFY_MISMATCH', error: `mirror status: expected ${expectedAfter.status}, got ${listingAfter.status}` };
-        }
-        if (listingAfter.hidden_reason !== expectedAfter.hidden_reason) {
-          return { ok: false, code: 'SWEEP_VERIFY_MISMATCH', error: `mirror hidden_reason: expected ${expectedAfter.hidden_reason}, got ${listingAfter.hidden_reason}` };
+        if (listingAfter.reservation_mirror_state !== lp_state) {
+          return { ok: false, code: 'SWEEP_VERIFY_MISMATCH', error: `mirror reservation_mirror_state: expected ${lp_state}, got ${listingAfter.reservation_mirror_state}` };
         }
 
         return { ok: true, repaired: true, mirror_version: lp_version, fields_repaired: mismatches.map(m => m.field), verified: true };
@@ -452,7 +466,7 @@ async function sweepMirror(deps, listing_id) {
       continue;
     }
 
-    // 6. Mirror behind authority — CAS update
+    // 6. Mirror behind authority — CAS update with derived payload
     const approvedPayload = deriveExpectedPayload(lp_version, lp_state);
 
     let casResult;
@@ -487,7 +501,6 @@ async function sweepMirror(deps, listing_id) {
 
       // 8. Verify authority hasn't advanced
       if (lpAfter.reservation_version !== lp_version) {
-        // Authority advanced during sweep — retry from newest authority
         lastResult = {
           ok: false, code: 'STALE_PROJECTION',
           projected_version: lp_version,
@@ -496,16 +509,22 @@ async function sweepMirror(deps, listing_id) {
         continue;
       }
 
-      // 9. Verify mirror: version, status, hidden_reason
+      // 9. Verify authority state hasn't changed
+      if (lpAfter.reservation_lifecycle_state !== lp_state) {
+        lastResult = {
+          ok: false, code: 'STALE_PROJECTION',
+          projected_version: lp_version,
+          current_authority_state: lpAfter.reservation_lifecycle_state,
+        };
+        continue;
+      }
+
+      // 10. Verify mirror: version and reservation_mirror_state
       if (listingAfter.reservation_version !== lp_version) {
         return { ok: false, code: 'SWEEP_VERIFY_MISMATCH', error: `mirror version: expected ${lp_version}, got ${listingAfter.reservation_version}` };
       }
-      const expectedAfter = deriveExpectedPayload(lp_version, lp_state);
-      if (listingAfter.status !== expectedAfter.status) {
-        return { ok: false, code: 'SWEEP_VERIFY_MISMATCH', error: `mirror status: expected ${expectedAfter.status}, got ${listingAfter.status}` };
-      }
-      if (listingAfter.hidden_reason !== expectedAfter.hidden_reason) {
-        return { ok: false, code: 'SWEEP_VERIFY_MISMATCH', error: `mirror hidden_reason: expected ${expectedAfter.hidden_reason}, got ${listingAfter.hidden_reason}` };
+      if (listingAfter.reservation_mirror_state !== lp_state) {
+        return { ok: false, code: 'SWEEP_VERIFY_MISMATCH', error: `mirror reservation_mirror_state: expected ${lp_state}, got ${listingAfter.reservation_mirror_state}` };
       }
 
       return { ok: true, repaired: true, mirror_version: lp_version, verified: true };
@@ -530,7 +549,6 @@ async function sweepMirror(deps, listing_id) {
 
 // ── Factory ──────────────────────────────────────────────────────────────────
 export function createMirrorAuthority(deps) {
-  // Normalize deps — ensure `now` is always available for protection functions
   const now = deps.now || (() => Date.now());
   const normalizedDeps = { ...deps, now };
   return {

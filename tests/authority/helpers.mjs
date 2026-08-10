@@ -23,6 +23,7 @@ function createMockStore() {
   // Mutable failure config — tests can set/clear these flags
   const failConfig = {
     updateManyReturnZero: false,
+    updateManyReturnZeroForVersioned: false,
     updateManyThrow: false,
     updateManyNoChange: false,
     createThrow: false,
@@ -46,6 +47,11 @@ function createMockStore() {
     updateMany: async (query, update) => {
       if (failConfig.updateManyThrow) throw new Error('mock updateMany throw');
       if (failConfig.updateManyReturnZero) return { updated: 0, has_more: false };
+      // Round 4: scoped failure — blocks only versioned CAS calls (with reservation_version
+      // in the query), allowing unversioned protection hide calls to succeed.
+      if (failConfig.updateManyReturnZeroForVersioned && query.reservation_version !== undefined) {
+        return { updated: 0, has_more: false };
+      }
       let updated = 0;
       for (const [id, rec] of store) {
         let match = true;
@@ -138,6 +144,7 @@ export function createMockDeps(opts = {}) {
     _seedListing: (id, data) => {
       listing._store.set(id, {
         id, reservation_version: 0, status: 'active', hidden_reason: null,
+        reservation_mirror_state: 'available',
         reservation_token: null, reserved_by_email: null,
         ...data,
       });

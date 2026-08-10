@@ -89,15 +89,21 @@ Postgres, or Durable Objects is made at this time.
 
 ### Why the Decision Is Deferred
 
-The prior report overstated readiness. The corrected prototype (Round 3) is being
-tested. The following must be verified before any architecture decision:
+Round 3 was not fully passing. Round 4 corrections address status-ownership
+separation, post-CAS race detection, corrupt state protection, strengthened
+CAS snapshot, idempotent replay validation, migration version classification,
+and launch gate strengthening. The following must be verified before any
+architecture decision:
 
 1. The corrected authority module passes all behavioral tests (state validation,
    mirror projection, equal-version repair races, protection honesty, migration
-   classification, pending-effects CAS).
-2. The launch gate turns GREEN (entry-wrapper behavioral tests exist and pass).
+   classification, pending-effects CAS, status-ownership separation, post-CAS
+   race detection, strengthened CAS snapshot, idempotent replay validation).
+2. The launch gate turns GREEN (executable entry-wrapper behavioral tests that
+   import and exercise actual entry wrappers with injected authority dependencies).
 3. The owner makes an explicit risk-tolerance decision about empirical vs.
    contractual atomicity.
+4. Concurrent AdminAlert uniqueness is resolved or explicitly accepted.
 
 ### Four Concepts to Distinguish
 
@@ -110,14 +116,18 @@ tested. The following must be verified before any architecture decision:
 4. **Production integration**: No entry points are integrated. No entry-wrapper
    behavioral tests exist. The launch gate is RED.
 
-### Current Status
+### Current Status (Round 4)
 
 - **Maintenance mode**: ON
 - **Launch readiness**: 94% / NO-GO
-- **Production entry points**: NOT integrated (no entry-wrapper behavioral tests)
-- **Existing records**: NOT initialized (MIGRATION_REQUIRED)
+- **Production entry points**: NOT integrated (PRODUCTION_INTEGRATION_NOT_IMPLEMENTED)
+- **Existing records**: NOT initialized (MIGRATION_REQUIRED / MIRROR_MIGRATION_REQUIRED)
 - **Vendor guarantee**: NOT received
 - **Launch gate**: RED
+- **Concurrent AdminAlert uniqueness**: UNRESOLVED (EXPECTED_FAILURE / BLOCKER)
+- **Application correctness**: NOT yet verified
+- **Architecture selection**: DEFERRED
+- **No production integration or migration is approved**
 
 ### No Recommendation
 

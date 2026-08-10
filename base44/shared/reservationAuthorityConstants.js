@@ -67,11 +67,20 @@ export const FORBIDDEN_MIRROR_FIELDS = new Set([
   'is_demo_listing',
 ]);
 
-// Only these fields may be projected to the Listing mirror.
-export const APPROVED_MIRROR_FIELDS = new Set(['reservation_version', 'status', 'hidden_reason']);
+// Only these fields may be projected to the Listing mirror by NORMAL projection.
+// Round 4: status and hidden_reason are NO LONGER projected by normal projection.
+// They are owned by business logic. Emergency protection may set them.
+export const APPROVED_MIRROR_FIELDS = new Set(['reservation_version', 'reservation_mirror_state']);
 
-// Fields the CALLER may provide to projectMirror (reservation_version is set by the function).
-export const CALLER_ALLOWED_FIELDS = new Set(['status', 'hidden_reason']);
+// Business-held public statuses that normal projection must NEVER change.
+// These represent independent business restrictions, not reservation workflow states.
+export const BUSINESS_HELD_STATUSES = new Set(['hidden', 'pending_verification', 'pending_payout_setup']);
+
+// Business-held hidden reasons that normal projection must NEVER clear.
+export const BUSINESS_HELD_HIDDEN_REASONS = new Set(['admin_disabled', 'transfer_disabled', 'expired_verification']);
+
+// Reservation mirror states (same enum as lifecycle states).
+export const RESERVATION_MIRROR_STATES = LIFECYCLE_STATES;
 
 // ── Recursively stable canonical JSON ───────────────────────────────────────
 export function canonicalize(value) {
@@ -251,6 +260,108 @@ export function validateTuple(requested_state, payload) {
     if (expiration !== null) return { valid: false, error: `${requested_state} requires null expiration` };
   }
   return { valid: true };
+}
+
+// ── Build authoritative snapshot for CAS predicate ──────────────────────────
+// Returns the complete authoritative snapshot that informed the decision.
+// This snapshot is included in the CAS predicate so that ANY change to the
+// tuple by a legacy writer (who doesn't increment version) is detected.
+export function buildAuthoritativeSnapshot(lp) {
+  return {
+    id: lp.id,
+    reservation_version: lp.reservation_version,
+    reservation_lifecycle_state: lp.reservation_lifecycle_state,
+    reservation_token: lp.reservation_token,
+    reserved_by_email: lp.reserved_by_email,
+    reservation_expires_at: lp.reservation_expires_at,
+    reservation_revision: lp.reservation_revision,
+    last_operation_id: lp.last_operation_id,
+    pending_effects_json: lp.pending_effects_json,
+    pending_effects_hash: lp.pending_effects_hash,
+    checkout_quarantined: lp.checkout_quarantined,
+    recovery_blocked: lp.recovery_blocked,
+  };
+}
+
+// ── Validate idempotent replay before returning success ─────────────────────
+// Checks that the stored state is internally consistent before returning
+// idempotent success. Corruption triggers fail-closed protection.
+export async function validateIdempotentReplay(lp, operation_id, envelope_hash, hashEffectsFn) {
+  // 1. Lifecycle state is valid
+  const stateCheck = validateLifecycleState(lp.reservation_lifecycle_state);
+  if (!stateCheck.valid) {
+    return { ok: false, code: 'STATE_CORRUPT', state_code: stateCheck.code, error: stateCheck.error };
+  }
+
+  // 2. Reservation version is valid
+  if (!isValidVersion(lp.reservation_version)) {
+    return { ok: false, code: 'VERSION_CORRUPT', error: `reservation_version is invalid: ${JSON.stringify(lp.reservation_version)}` };
+  }
+
+  // 3. Tuple matches stored lifecycle state
+  const tupleCheck = validateTuple(lp.reservation_lifecycle_state, {
+    token: lp.reservation_token,
+    buyer: lp.reserved_by_email,
+    expiration: lp.reservation_expires_at,
+  });
+  if (!tupleCheck.valid) {
+    return { ok: false, code: 'TUPLE_CORRUPT', error: tupleCheck.error };
+  }
+
+  // 4. Last operation ID matches
+  if (lp.last_operation_id !== operation_id) {
+    return { ok: false, code: 'OPERATION_MISMATCH', error: `last_operation_id mismatch: expected ${operation_id}, got ${lp.last_operation_id}` };
+  }
+
+  // 5. Last operation payload hash matches
+  if (lp.last_operation_payload_hash !== envelope_hash) {
+    return { ok: false, code: 'HASH_MISMATCH', error: 'last_operation_payload_hash does not match envelope hash' };
+  }
+
+  // 6. Stored result new_version matches authoritative version
+  let stored_result = null;
+  if (lp.last_operation_result_json) {
+    try {
+      stored_result = JSON.parse(lp.last_operation_result_json);
+    } catch (e) {
+      return { ok: false, code: 'RESULT_CORRUPT', error: `stored result JSON is malformed: ${e.message}` };
+    }
+  }
+  if (stored_result && stored_result.new_version !== lp.reservation_version) {
+    return { ok: false, code: 'VERSION_MISMATCH', error: `stored result new_version ${stored_result.new_version} does not match authoritative version ${lp.reservation_version}` };
+  }
+
+  // 7. Pending-effects JSON is valid
+  const effectsCheck = parsePendingEffects(lp.pending_effects_json);
+  if (!effectsCheck.ok) {
+    return { ok: false, code: 'EFFECTS_CORRUPT', error: effectsCheck.error };
+  }
+
+  // 8. Pending-effects hash matches (async — uses SHA-256)
+  if (hashEffectsFn) {
+    let computed_hash;
+    try {
+      computed_hash = await hashEffectsFn(effectsCheck.effects);
+    } catch (e) {
+      return { ok: false, code: 'HASHING_FAILED', error: e?.message || String(e) };
+    }
+    if (lp.pending_effects_hash && computed_hash !== lp.pending_effects_hash) {
+      return { ok: false, code: 'EFFECTS_HASH_MISMATCH', error: 'pending_effects_hash does not match computed hash of pending_effects_json' };
+    }
+  }
+
+  return { ok: true, stored_result };
+}
+
+// ── Check if a Listing has a business-held status ──────────────────────────
+// Business-held statuses are independent business restrictions that normal
+// projection must NOT change. Emergency protection may override them.
+export function isBusinessHeldStatus(status) {
+  return BUSINESS_HELD_STATUSES.has(status);
+}
+
+export function isBusinessHeldHiddenReason(reason) {
+  return BUSINESS_HELD_HIDDEN_REASONS.has(reason);
 }
 
 // ── Pending-effects parsing (from stored JSON) ──────────────────────────────

@@ -69,13 +69,15 @@ async function testConcurrentAlertDeduplication() {
   const bothCreated = rawUnresolved.length === 2;
   const bothAlertProven = resultA.alert_proven && resultB.alert_proven;
 
-  const passed = !exactlyOne && bothCreated;
+  // Round 4: This is an EXPECTED_FAILURE / BLOCKER, not a pass.
+  // The unsafe behavior (duplicate alerts) is real. Label it honestly.
+  const bugProven = !exactlyOne && bothCreated;
 
   return {
     name: 'concurrent_alert_deduplication',
-    passed,
-    verdict: passed
-      ? 'SEQUENTIAL IDEMPOTENCY ONLY — NOT CONCURRENTLY ATOMIC'
+    passed: false, // BLOCKER — always fails the gate
+    verdict: bugProven
+      ? 'EXPECTED_FAILURE / BLOCKER: SEQUENTIAL IDEMPOTENCY ONLY — NOT CONCURRENTLY ATOMIC'
       : 'unexpected: exactly one alert created (datastore may have unique constraint)',
     unresolved_alert_count: rawUnresolved.length,
     both_created: bothCreated,

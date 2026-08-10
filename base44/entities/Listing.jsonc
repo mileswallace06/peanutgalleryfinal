@@ -85,7 +85,7 @@
         "pending_payout_setup"
       ],
       "default": "active",
-      "description": "pending_payout_setup = draft saved before seller completed Stripe Connect onboarding."
+      "description": "Business publication state. Owned by business logic, NOT by the reservation authority mirror. Normal authority projection does NOT write this field. Emergency protection may set status=hidden with hidden_reason=checkout_quarantine. Terminal business status changes (sold/cancelled/expired) must use an explicit finalization contract."
     },
     "hidden_reason": {
       "type": "string",
@@ -97,7 +97,7 @@
         "other",
         "checkout_quarantine"
       ],
-      "description": "Why this listing is hidden from the marketplace"
+      "description": "Business reason for hiding. Owned by business logic. Normal authority projection does NOT clear this. Emergency protection may set hidden_reason=checkout_quarantine."
     },
     "listing_mode": {
       "type": "string",
@@ -202,6 +202,18 @@
     "reservation_version": {
       "type": "number",
       "description": "Numeric monotonic mirror version. Updated by the authority's mirror projection. Old delayed mirror events cannot overwrite a newer projection."
+    },
+    "reservation_mirror_state": {
+      "type": "string",
+      "enum": [
+        "available",
+        "reserved",
+        "frozen",
+        "sold",
+        "cancelled",
+        "expired"
+      ],
+      "description": "Authoritative reservation lifecycle state projected from ListingPrivate by the reservation authority mirror. Owned by the authority \u2014 business logic must NOT set this field directly. Distinct from status (business publication state). Normal projection writes only this field and reservation_version. Emergency protection may set status=hidden and hidden_reason=checkout_quarantine."
     },
     "transfer_status": {
       "type": "string",

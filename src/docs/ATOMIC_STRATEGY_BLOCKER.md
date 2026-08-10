@@ -171,11 +171,22 @@ at this time.
    authority. No entry-wrapper behavioral tests exist. The launch gate is RED.
    This is separate from both the platform guarantee and the module's correctness.
 
-### Current Status
+### Current Status (Round 4)
 
-- The corrected prototype (Round 3) is being tested.
-- Multi-entity transactions and unique create constraints remain unavailable.
+- Round 3 was not fully passing. Round 4 corrections address:
+  - Status-ownership separation (reservation_mirror_state vs status/hidden_reason).
+  - projectMirror post-CAS race detection.
+  - Corrupt authority state protection.
+  - Strengthened CAS snapshot (full authoritative snapshot in predicate).
+  - Idempotent replay validation before returning success.
+  - Migration version classification (MIRROR_MIGRATION_REQUIRED, VERSION_DIVERGENCE).
+  - Convergence test fix (scoped failure vs all-writes-fail).
+  - Launch gate strengthening (no substring checks, explicit BLOCKER labels).
+- The mirror currently has unresolved status-ownership and race defects that
+  Round 4 addresses but has not yet verified in production.
+- Application correctness is NOT yet verified.
+- Architecture selection (Base44 vs. external authority) remains **deferred**.
+- Concurrent AdminAlert uniqueness remains unresolved (no unique constraint on
+  incident_key — two concurrent creates can produce duplicate alerts).
+- No production integration or migration is approved.
 - The launch gate is RED.
-- The architecture decision (Base44 vs. external authority) is **deferred** until
-  the corrected prototype passes all tests and the owner makes a risk-tolerance
-  decision about empirical vs. contractual atomicity.

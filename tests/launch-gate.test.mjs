@@ -1,28 +1,29 @@
 /**
- * Launch Gate Assertion (7C.9C.2E Correction Round 3)
+ * Launch Gate Assertion (7C.9C.2E Correction Round 4)
  *
  * The gate EXECUTES BEHAVIOR — no source substring searches, no manifest
- * booleans as proof. Every assertion calls actual functions and verifies
- * their behavior.
+ * booleans as proof, no package-script substring checks.
  *
- * Round 3 corrections:
- *   - Removed ALL readFileSync + includes() patterns (source substring searches).
- *   - Removed manifest boolean checks as integration proof.
- *   - Production integration is checked by looking for entry-wrapper behavioral
- *     test files — NOT by reading integrated:true from a manifest.
- *   - The gate remains RED because no entry-wrapper behavioral tests exist.
+ * Round 4 corrections:
+ *   - Removed ALL package-script substring checks (TEST 4 from Round 3).
+ *   - Removed weak "entry-wrapper test files exist" check (empty files could
+ *     turn it green). Replaced with explicit PRODUCTION_INTEGRATION_NOT_IMPLEMENTED.
+ *   - Added CONCURRENT_ALERT_DUPLICATION_BLOCKER as an explicit EXPECTED_FAILURE.
+ *   - A skipped live Base44 probe is not a pass.
+ *   - No claims of "no includes/string searches" while using includes().
+ *
+ * The launch gate is RED because:
+ *   1. PRODUCTION_INTEGRATION_NOT_IMPLEMENTED — no entry-wrapper behavioral tests.
+ *   2. CONCURRENT_ALERT_DUPLICATION_BLOCKER — datastore lacks unique constraints.
  *
  * ATOMICITY CLARIFICATION:
  *   Base44 `updateMany` with a conditional filter predicate is EMPIRICALLY ATOMIC
- *   for single-record CAS (10/10 rounds × 20 calls = exactly 1 winner per round,
- *   verified 2026-08-10). This is NOT a contractual platform guarantee. The gate
- *   does NOT claim contractual atomicity — it states empirical observation.
- *
- * The launch gate remains RED because no entry-wrapper behavioral tests exist.
+ *   for single-record CAS (10/10 rounds × 20 calls = exactly 1 winner per round).
+ *   This is NOT a contractual platform guarantee.
  */
 import { createReservationAuthority, getReservationMutationManifest } from '../base44/shared/reservationAuthority.js';
 import { OPERATION_TYPES, validatePendingEffectsArray, validateTuple, hashEnvelope, hashEffects, validateLifecycleState } from '../base44/shared/reservationAuthorityConstants.js';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -107,25 +108,7 @@ await checkAsync('authority_never_treats_unknown_as_available', async () => {
   if (result.code !== 'NOT_FOUND') throw new Error(`expected NOT_FOUND, got ${result.code}`);
 });
 
-// ── TEST 4: Concurrency test wired into test:launch-gate ──────────────────────
-check('concurrency_test_wired_into_launch_gate', () => {
-  // This is a structural check of package.json wiring, not a source substring search.
-  // It verifies that the test scripts exist and are chained.
-  const pkgPath = join(__dirname, '..', 'package.json');
-  const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
-  const launchGateScript = pkg.scripts['test:launch-gate'] || '';
-  if (!launchGateScript.includes('reservation-authority-concurrency.test.mjs')) {
-    throw new Error('test:launch-gate does not include reservation-authority-concurrency.test.mjs');
-  }
-  if (!launchGateScript.includes('reservation-authority-adversarial.test.mjs')) {
-    throw new Error('test:launch-gate does not include reservation-authority-adversarial.test.mjs');
-  }
-  if (!pkg.scripts['test:authority']) {
-    throw new Error('test:authority script missing from package.json');
-  }
-});
-
-// ── TEST 5: Manifest complete ────────────────────────────────────────────────
+// ── TEST 4: Manifest complete ────────────────────────────────────────────────
 check('reservation_mutation_manifest_complete', () => {
   const manifest = getReservationMutationManifest();
   const required = [
@@ -143,52 +126,41 @@ check('reservation_mutation_manifest_complete', () => {
   }
 });
 
-// ── TEST 6: Production entry-point integration (RED — no behavioral tests) ──
+// ── TEST 5: Production entry-point integration (RED — not implemented) ─────
 check('production_entry_points_integrated', () => {
-  // Production integration is NOT proven by manifest booleans (integrated:true).
-  // It is proven by executable entry-wrapper behavioral test files that import
-  // and exercise actual entry wrappers, verifying they delegate to the authority.
-  // This test checks for the EXISTENCE of such behavioral test files.
-  // The gate remains RED until these files exist and pass.
+  // Round 4: No weak "test files exist" check. Empty files could turn it green.
+  // Production integration must be proven by importing and executing actual
+  // entry wrappers with injected authority dependencies. Until those executable
+  // tests exist, this gate returns PRODUCTION_INTEGRATION_NOT_IMPLEMENTED.
   const entryWrapperTestDir = join(__dirname, 'entry-wrappers');
-  let behavioralTestFiles = [];
-  try {
-    behavioralTestFiles = readdirSync(entryWrapperTestDir).filter(f => f.endsWith('.test.mjs'));
-  } catch (e) {
-    // Directory doesn't exist — no behavioral tests
+  if (!existsSync(entryWrapperTestDir)) {
+    throw new Error('PRODUCTION_INTEGRATION_NOT_IMPLEMENTED: No entry-wrapper behavioral tests exist. ' +
+      'Production integration can only pass after executable entry-wrapper tests that import and ' +
+      'exercise actual entry wrappers with injected authority dependencies. Gate remains RED.');
   }
-  if (behavioralTestFiles.length === 0) {
-    throw new Error('No entry-wrapper behavioral test files found in tests/entry-wrappers/. ' +
-      'Gate remains RED. Integration can only pass after executable entry-wrapper behavioral tests exist.');
-  }
-  // If files exist, verify they cover all required entry points
-  const manifest = getReservationMutationManifest();
-  for (const ep of manifest) {
-    const expectedFile = ep.name.replace('/', '_') + '.test.mjs';
-    if (!behavioralTestFiles.includes(expectedFile)) {
-      throw new Error(`Missing behavioral test for ${ep.name}: expected ${expectedFile}`);
-    }
-  }
+  // Even if the directory exists, we need to verify the tests actually import
+  // and execute entry wrappers. For now, the gate remains RED.
+  throw new Error('PRODUCTION_INTEGRATION_NOT_IMPLEMENTED: Entry-wrapper test directory exists but ' +
+    'no executable tests have been verified to import and exercise actual entry wrappers. ' +
+    'Gate remains RED.');
 });
 
-// ── TEST 7: Probe artifact exports runProbe function (behavioral import) ────
+// ── TEST 6: Probe artifact exports runProbe function (behavioral import) ───
 await checkAsync('probe_artifact_exports_runProbe_function', async () => {
-  // Behavioral: import the probe module and verify it exports a function.
-  // No source file reading or substring searching.
   const probeModule = await import('../tests/probe-artifacts/single-authority-cas-probe.mjs');
   if (typeof probeModule.runProbe !== 'function') {
     throw new Error('probe artifact must export a function named runProbe');
   }
 });
 
-// ── TEST 8: initialize is a valid operation type ─────────────────────────────
+// ── TEST 7: initialize is a valid operation type ─────────────────────────────
 check('initialize_is_valid_operation_type', () => {
   if (!OPERATION_TYPES.includes('initialize')) {
     throw new Error('initialize must be in OPERATION_TYPES for migration apply');
   }
 });
 
-// ── TEST 9: validatePendingEffectsArray rejects non-arrays ──────────────────
+// ── TEST 8: validatePendingEffectsArray rejects non-arrays ──────────────────
 check('validate_pending_effects_array_rejects_non_arrays', () => {
   const r1 = validatePendingEffectsArray(null);
   if (r1.ok) throw new Error('should reject null');
@@ -204,7 +176,7 @@ check('validate_pending_effects_array_rejects_non_arrays', () => {
   if (!r6.ok) throw new Error('should accept valid array');
 });
 
-// ── TEST 10: validateTuple requires explicit null for terminal states ───────
+// ── TEST 9: validateTuple requires explicit null for terminal states ───────
 check('validate_tuple_requires_explicit_null_for_terminal_states', () => {
   const r1 = validateTuple('available', { buyer: null, expiration: null });
   if (r1.valid) throw new Error('omitted token should fail for available');
@@ -214,7 +186,7 @@ check('validate_tuple_requires_explicit_null_for_terminal_states', () => {
   if (r3.valid) throw new Error('whitespace-only token should fail for reserved');
 });
 
-// ── TEST 11: SHA-256 hashing works (behavioral — no mock) ─────────────────────
+// ── TEST 10: SHA-256 hashing works (behavioral — no mock) ────────────────────
 await checkAsync('sha256_hashing_works_without_mock', async () => {
   const hash = await hashEnvelope({ operation_type: 'reserve', requested_state: 'reserved', payload: { token: 't1' }, pending_effects: [] });
   if (typeof hash !== 'string') throw new Error('hash should be string');
@@ -226,7 +198,7 @@ await checkAsync('sha256_hashing_works_without_mock', async () => {
   if (effectsHash.length !== 64) throw new Error(`effects SHA-256 hash should be 64 chars, got ${effectsHash.length}`);
 });
 
-// ── TEST 12: Authority returns structured error codes (not a stub) ──────────
+// ── TEST 11: Authority returns structured error codes (not a stub) ──────────
 await checkAsync('authority_returns_structured_error_codes_not_stub', async () => {
   const mockLP = { filter: async () => [], updateMany: async () => ({ updated: 0 }) };
   const mockListing = { filter: async () => [], updateMany: async () => ({ updated: 0 }), update: async () => ({}) };
@@ -244,10 +216,8 @@ await checkAsync('authority_returns_structured_error_codes_not_stub', async () =
   if (!r.error || typeof r.error !== 'string') throw new Error('must return error message string');
 });
 
-// ── TEST 13: Authority fails closed on corrupt lifecycle state (behavioral) ──
+// ── TEST 12: Authority fails closed on corrupt lifecycle state (behavioral) ──
 await checkAsync('authority_fails_closed_on_corrupt_lifecycle_state', async () => {
-  // Behavioral: seed a mock LP with a corrupt state and verify the authority
-  // returns STATE_CORRUPT, never treating it as available.
   const mockLP = {
     filter: async (q) => {
       if (q.listing_id === 'corrupt1') {
@@ -268,7 +238,6 @@ await checkAsync('authority_fails_closed_on_corrupt_lifecycle_state', async () =
   const authority = createReservationAuthority({
     entities: { ListingPrivate: mockLP, Listing: mockListing },
   });
-  // Missing state → STATE_CORRUPT with STATE_MISSING
   const r1 = await authority.transitionReservation({
     listing_id: 'corrupt1', expected_version: 0,
     operation_id: 'op', operation_type: 'reserve', requested_state: 'reserved',
@@ -277,7 +246,6 @@ await checkAsync('authority_fails_closed_on_corrupt_lifecycle_state', async () =
   if (r1.ok) throw new Error('should fail on missing lifecycle state');
   if (r1.code !== 'STATE_CORRUPT') throw new Error(`expected STATE_CORRUPT, got ${r1.code}`);
   if (r1.state_code !== 'STATE_MISSING') throw new Error(`expected STATE_MISSING, got ${r1.state_code}`);
-  // Invalid state → STATE_CORRUPT with STATE_INVALID
   const r2 = await authority.transitionReservation({
     listing_id: 'corrupt2', expected_version: 0,
     operation_id: 'op', operation_type: 'reserve', requested_state: 'reserved',
@@ -288,7 +256,7 @@ await checkAsync('authority_fails_closed_on_corrupt_lifecycle_state', async () =
   if (r2.state_code !== 'STATE_INVALID') throw new Error(`expected STATE_INVALID, got ${r2.state_code}`);
 });
 
-// ── TEST 14: validateLifecycleState rejects all invalid inputs (behavioral) ──
+// ── TEST 13: validateLifecycleState rejects all invalid inputs (behavioral) ──
 check('validate_lifecycle_state_rejects_invalid_inputs', () => {
   const r1 = validateLifecycleState(null);
   if (r1.valid) throw new Error('null should be invalid');
@@ -313,9 +281,21 @@ check('validate_lifecycle_state_rejects_invalid_inputs', () => {
   if (!r8.valid) throw new Error('sold should be valid');
 });
 
+// ── TEST 14: Concurrent alert duplication is a known BLOCKER ────────────────
+check('concurrent_alert_duplication_is_known_blocker', () => {
+  // This is an EXPECTED_FAILURE / BLOCKER — not a pass.
+  // Base44 datastore lacks unique constraints on incident_key.
+  // Two concurrent alert creates can produce duplicate unresolved alerts
+  // for the same incident. The launch gate is RED while this remains
+  // unfixed or explicitly accepted by the owner.
+  throw new Error('CONCURRENT_ALERT_DUPLICATION_BLOCKER: Base44 datastore lacks unique constraints ' +
+    'on incident_key. Two concurrent alert creates can produce duplicate unresolved alerts. ' +
+    'This is an EXPECTED_FAILURE / BLOCKER — launch gate is RED until fixed or explicitly accepted.');
+});
+
 // ── MAIN RUNNER ─────────────────────────────────────────────────────────────
 async function main() {
-  console.log('=== Launch Gate Assertion (7C.9C.2E Correction Round 3) ===\n');
+  console.log('=== Launch Gate Assertion (7C.9C.2E Correction Round 4) ===\n');
 
   console.log(`\n=== Overall: ${failed === 0 ? 'PASS' : 'FAIL'} ===`);
   console.log(`Tests run: ${passed + failed}, Passed: ${passed}, Failed: ${failed}`);
@@ -323,7 +303,8 @@ async function main() {
   if (failed > 0) {
     console.log('\n┌─────────────────────────────────────────────────────────┐');
     console.log('│  LAUNCH GATE IS RED.                                     │');
-    console.log('│  No entry-wrapper behavioral tests exist.              │');
+    console.log('│  Production integration not implemented.                 │');
+    console.log('│  Concurrent alert duplication is a known blocker.        │');
     console.log('│  Do not deploy to production.                             │');
     console.log('└─────────────────────────────────────────────────────────┘');
     console.log(`\nFailed tests: ${failures.join(', ')}`);

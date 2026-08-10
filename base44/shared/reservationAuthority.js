@@ -22,6 +22,7 @@ import {
   canonicalize, hashEnvelope, hashEffects, isValidVersion, isNonEmptyString,
   validateTransition, validateTuple, validatePendingEffectsArray,
   parsePendingEffects, validateLifecycleState,
+  buildAuthoritativeSnapshot, validateIdempotentReplay,
 } from './reservationAuthorityConstants.js';
 import { createMirrorAuthority } from './reservationAuthorityMirror.js';
 import { generateMigrationReport, planApply } from './reservationAuthorityMigration.js';
@@ -289,7 +290,7 @@ export function createReservationAuthority(deps) {
       return { ok: false, code: existingEffectsCheck.code, error: existingEffectsCheck.error };
     }
 
-    // ── Step 6: Idempotent replay check ─────────────────────────────────────
+    // ── Step 6: Idempotent replay check (Round 4: validate before success) ─
     if (lp.last_operation_id === operation_id) {
       if (lp.last_operation_payload_hash !== envelope_hash) {
         return {
@@ -300,21 +301,25 @@ export function createReservationAuthority(deps) {
           received_hash: envelope_hash,
         };
       }
-      let stored_result = null;
-      if (lp.last_operation_result_json) {
-        try {
-          stored_result = JSON.parse(lp.last_operation_result_json);
-        } catch (e) {
-          return {
-            ok: false, code: 'OPERATION_RECORD_CORRUPT',
-            error: `stored result JSON is malformed: ${e.message}`,
-            operation_id,
-          };
-        }
+      // Round 4: Validate stored state before returning idempotent success.
+      // Corruption triggers fail-closed protection, never idempotent success.
+      const replayValidation = await validateIdempotentReplay(
+        lp, operation_id, envelope_hash,
+        async (effects) => hashEffects(effects, deps.hashEnvelope)
+      );
+      if (!replayValidation.ok) {
+        const protection = await protectCorruptedAuthority(normalizedDeps, listing_id, lp.id,
+          `IDEMPOTENT_REPLAY_CORRUPT: ${replayValidation.code}: ${replayValidation.error}`,
+          { operation_id, replay_validation: replayValidation });
+        return {
+          ok: false, code: replayValidation.code || 'REPLAY_CORRUPT',
+          error: replayValidation.error,
+          protection,
+        };
       }
       return {
         ok: true, idempotent: true,
-        operation_id, result: stored_result,
+        operation_id, result: replayValidation.stored_result,
         version: lp.reservation_version,
         state: lp.reservation_lifecycle_state,
       };
@@ -355,11 +360,19 @@ export function createReservationAuthority(deps) {
       };
     }
 
-    // ── Step 9: Validate current lifecycle state (fail-closed on unknown) ──
+    // ── Step 9: Validate current lifecycle state (fail-closed → protect) ────
     // Missing, empty, or invalid state must NEVER be treated as available.
+    // Round 4: STATE_CORRUPT triggers protection (hide Listing + alert + verify).
     const stateCheck = validateLifecycleState(lp.reservation_lifecycle_state);
     if (!stateCheck.valid) {
-      return { ok: false, code: 'STATE_CORRUPT', error: stateCheck.error, state_code: stateCheck.code };
+      const protection = await protectCorruptedAuthority(normalizedDeps, listing_id, lp.id,
+        `STATE_CORRUPT in transitionReservation: ${stateCheck.error}`,
+        { state: lp.reservation_lifecycle_state, state_code: stateCheck.code });
+      return {
+        ok: false, code: 'STATE_CORRUPT',
+        error: stateCheck.error, state_code: stateCheck.code,
+        protection,
+      };
     }
     const current_state = lp.reservation_lifecycle_state;
     const transitionCheck = validateTransition(operation_type, requested_state, current_state);
@@ -389,15 +402,15 @@ export function createReservationAuthority(deps) {
       try { await deps.hooks.beforeCAS(deps, listing_id); } catch (e) { /* non-fatal */ }
     }
 
+    // ── Step 10: Perform conditional updateMany (CAS) ────────────────────────
+    // Round 4: CAS predicate includes the COMPLETE authoritative snapshot
+    // that informed the decision. This detects legacy writers who change
+    // the tuple without incrementing version.
+    const snapshot = buildAuthoritativeSnapshot(lp);
     let casResult;
     try {
       casResult = await ListingPrivate.updateMany(
-        {
-          id: lp.id,
-          reservation_version: expected_version,
-          checkout_quarantined: false,
-          recovery_blocked: false,
-        },
+        snapshot,
         {
           $set: {
             ...new_tuple,
@@ -473,7 +486,7 @@ export function createReservationAuthority(deps) {
       if (mismatches.length > 0) {
         // Committed-field mismatch — trigger protection
         const protection = await protectCorruptedAuthority(
-          deps, listing_id, lp.id,
+          normalizedDeps, listing_id, lp.id,
           `commit verification failed: ${mismatches.join('; ')}`,
           { mismatches, expected, actual: verified }
         );
@@ -506,17 +519,24 @@ export function createReservationAuthority(deps) {
 
     if (reread.last_operation_id === operation_id) {
       if (reread.last_operation_payload_hash === envelope_hash) {
-        let stored_result = null;
-        if (reread.last_operation_result_json) {
-          try {
-            stored_result = JSON.parse(reread.last_operation_result_json);
-          } catch (e) {
-            return { ok: false, code: 'OPERATION_RECORD_CORRUPT', error: `stored result JSON is malformed: ${e.message}` };
-          }
+        // Round 4: Validate stored state before returning idempotent success.
+        const replayValidation = await validateIdempotentReplay(
+          reread, operation_id, envelope_hash,
+          async (effects) => hashEffects(effects, deps.hashEnvelope)
+        );
+        if (!replayValidation.ok) {
+          const protection = await protectCorruptedAuthority(normalizedDeps, listing_id, lp.id,
+            `IDEMPOTENT_REPLAY_CORRUPT (reread): ${replayValidation.code}: ${replayValidation.error}`,
+            { operation_id, replay_validation: replayValidation });
+          return {
+            ok: false, code: replayValidation.code || 'REPLAY_CORRUPT',
+            error: replayValidation.error,
+            protection,
+          };
         }
         return {
           ok: true, idempotent: true,
-          operation_id, result: stored_result,
+          operation_id, result: replayValidation.stored_result,
           version: reread.reservation_version,
           state: reread.reservation_lifecycle_state,
         };

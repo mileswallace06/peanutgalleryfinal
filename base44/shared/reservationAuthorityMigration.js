@@ -202,7 +202,9 @@ export async function generateMigrationReport(deps) {
   const totals = {
     total: 0,
     migration_required: 0,
+    mirror_migration_required: 0,
     already_initialized: 0,
+    version_divergence: 0,
     ambiguous: 0,
     missing_sidecar: 0,
     duplicate_sidecar: 0,
@@ -304,9 +306,13 @@ export async function generateMigrationReport(deps) {
       rec.issues.push('Listing missing reservation_version (mirror)');
     }
 
-    // Determine status:
-    // - Missing version is MIGRATION_REQUIRED (not AMBIGUOUS) if state is derivable
-    // - AMBIGUOUS only when state derivation or tuple/state checks fail
+    // Determine status (Round 4: independent version classification):
+    //   1. LP missing version + Listing missing version → MIGRATION_REQUIRED (two-record init)
+    //   2. LP initialized + Listing version missing → MIRROR_MIGRATION_REQUIRED (mirror-only)
+    //   3. LP missing version + Listing initialized → AMBIGUOUS (don't reset newer public version)
+    //   4. Both initialized, versions differ → VERSION_DIVERGENCE (don't silently downgrade)
+    //   5. Both initialized, versions match → ALREADY_INITIALIZED
+    //   6. State derivation or tuple/state issues → AMBIGUOUS
     const hasDerivableState = rec.derived_lifecycle_state !== 'AMBIGUOUS';
     const hasTupleIssues = tupleIssues.length > 0;
     const hasStatusIssues = statusIssues.length > 0;
@@ -321,14 +327,43 @@ export async function generateMigrationReport(deps) {
       });
       totals.ambiguous++;
     } else if (!rec.has_reservation_version || !isValidVersion(lp.reservation_version)) {
-      // Missing version is normal MIGRATION_REQUIRED (state is derivable, no issues)
-      rec.status = 'MIGRATION_REQUIRED';
-      rec.proposed_reservation_version = 0;
-      rec.proposed_init = buildInitPlan(lp, listing, rec.derived_lifecycle_state);
-      totals.migration_required++;
+      // LP missing version
+      if (!rec.has_public_mirror_version || !isValidVersion(listing.reservation_version)) {
+        // Both missing → MIGRATION_REQUIRED (two-record init)
+        rec.status = 'MIGRATION_REQUIRED';
+        rec.proposed_reservation_version = 0;
+        rec.proposed_init = buildInitPlan(lp, listing, rec.derived_lifecycle_state);
+        totals.migration_required++;
+      } else {
+        // LP missing version + Listing has version → AMBIGUOUS (don't reset newer public version)
+        rec.status = 'AMBIGUOUS';
+        rec.issues.push(`LP missing version but Listing has version ${listing.reservation_version} — will not reset newer public version to 0`);
+        ambiguous.push({
+          listing_id: listing.id,
+          listing_private_id: lp.id,
+          derived_state: rec.derived_lifecycle_state,
+          issues: rec.issues,
+        });
+        totals.ambiguous++;
+      }
     } else {
-      rec.status = 'ALREADY_INITIALIZED';
-      totals.already_initialized++;
+      // LP has valid version
+      if (!rec.has_public_mirror_version || !isValidVersion(listing.reservation_version)) {
+        // LP initialized + Listing version missing → MIRROR_MIGRATION_REQUIRED
+        rec.status = 'MIRROR_MIGRATION_REQUIRED';
+        rec.proposed_reservation_version = lp.reservation_version;
+        rec.proposed_init = buildMirrorOnlyPlan(lp, listing, rec.derived_lifecycle_state);
+        totals.mirror_migration_required++;
+      } else if (lp.reservation_version !== listing.reservation_version) {
+        // Both initialized but versions differ → VERSION_DIVERGENCE
+        rec.status = 'VERSION_DIVERGENCE';
+        rec.issues.push(`LP version ${lp.reservation_version} ≠ Listing version ${listing.reservation_version}`);
+        totals.version_divergence++;
+      } else {
+        // Both initialized, versions match → ALREADY_INITIALIZED
+        rec.status = 'ALREADY_INITIALIZED';
+        totals.already_initialized++;
+      }
     }
 
     records.push(rec);
@@ -394,9 +429,24 @@ function buildInitPlan(lp, listing, derived_state) {
     },
     public_mirror_update: {
       reservation_version: 0,
-      status: derived_state === 'frozen' ? 'hidden' : (derived_state === 'sold' ? 'sold' : (derived_state === 'cancelled' ? 'cancelled' : (derived_state === 'expired' ? 'expired' : 'active'))),
-      hidden_reason: derived_state === 'frozen' ? 'checkout_quarantine' : null,
+      reservation_mirror_state: derived_state,
     },
+  };
+}
+
+// ── Build mirror-only init plan (LP initialized, Listing missing version) ───
+// Only updates the public Listing mirror — does NOT touch ListingPrivate.
+// Derives mirror state from the authoritative LP record.
+function buildMirrorOnlyPlan(lp, listing, derived_state) {
+  return {
+    operation_id: `mirror_init_${listing.id}`,
+    operation_type: 'mirror_initialize',
+    requested_state: derived_state,
+    fields_to_set: {
+      reservation_version: lp.reservation_version,
+      reservation_mirror_state: derived_state,
+    },
+    note: 'Mirror-only initialization. LP is already initialized. Only the public Listing mirror needs version + reservation_mirror_state.',
   };
 }
 
