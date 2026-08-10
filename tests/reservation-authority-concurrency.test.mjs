@@ -1,22 +1,20 @@
 /**
- * Reservation Authority Concurrency Tests (7C.9C.2E Correction)
+ * Reservation Authority Concurrency Tests (7C.9C.2E Correction Round 2)
  *
- * Imports the ACTUAL authority module. Tests all corrected defects:
- *   1. Pending effects (fail-closed, corrupt JSON, stale clearer)
- *   3. Operation idempotency (full envelope hash, nested diff, corrupt result)
- *   4. State/tuple validation (before datastore, transition table, tuple reqs)
- *   5. Commit verification (all fields, post-CAS corruption)
- *   6. Migration (missing version → MIGRATION_REQUIRED)
- *
- * Three clearly separated sections:
- *   1. Deterministic local module tests (mock deps — prove authority LOGIC)
- *   2. Live Base44 CAS probe (real Base44 — prove datastore atomicity)
- *   3. Production integration tests (manifest check — RED until migrated)
- *
- * Local mock tests do NOT prove Base44 datastore atomicity.
+ * Round 2 additions:
+ *   - Replacement effects queue barrier test (pending_effects_hash CAS)
+ *   - Non-array pending effects cause zero writes
+ *   - pending_effects_hash stored atomically during transition
+ *   - Post-CAS corruption results in verified protection
+ *   - Real SHA-256 test (no mock hash)
+ *   - Whitespace-only ID/token/buyer rejection
+ *   - Terminal-state omitted fields rejected (omitted ≠ null)
+ *   - Migration report joins both entities (sold never available, missing
+ *     sidecar, ambiguous, apply plan valid operation type)
  */
-import { createReservationAuthority, getReservationMutationManifest } from '../base44/shared/reservationAuthority.js';
-import { mockHashEnvelope, createMockDeps } from './authority/helpers.mjs';
+import { createReservationAuthority, getReservationMutationManifest, generateMigrationReport, planApply } from '../base44/shared/reservationAuthority.js';
+import { isNonEmptyString } from '../base44/shared/reservationAuthorityConstants.js';
+import { mockHashEnvelope, createMockDeps, createMockDepsWithRealHash } from './authority/helpers.mjs';
 
 const tests = [];
 let passed = 0;
@@ -82,7 +80,7 @@ test('same operation ID with different payload is rejected', async () => {
     last_operation_id: 'op_x',
     last_operation_payload_hash: mockHashEnvelope({
       operation_type: 'reserve', requested_state: 'reserved',
-      payload: { token: 't1', buyer: 'b1@test' }, pending_effects: [],
+      payload: { token: 't1', buyer: 'b1@test', expiration: '2026-12-31T00:00:00Z' }, pending_effects: [],
     }),
     last_operation_result_json: JSON.stringify({ op: 'op_x', v: 1 }),
   });
@@ -193,6 +191,7 @@ test('no test writes an object into a string schema field', async () => {
   const [lp] = await deps.entities.ListingPrivate.filter({ listing_id: 'list1' });
   assert(typeof lp.last_operation_result_json === 'string', 'result_json must be string');
   assert(typeof lp.pending_effects_json === 'string', 'pending_effects_json must be string');
+  assert(typeof lp.pending_effects_hash === 'string', 'pending_effects_hash must be string');
   assert(JSON.parse(lp.last_operation_result_json).operation_id === 'op_1', 'result should parse');
   assert(JSON.parse(lp.pending_effects_json).length === 1, 'effects should parse');
 });
@@ -234,7 +233,6 @@ test('undelivered pending effects block next transition', async () => {
   });
   assert(!res2.ok, 'transition 2 should be blocked');
   assert(res2.code === 'PENDING_EFFECTS_BLOCKED', `expected PENDING_EFFECTS_BLOCKED, got ${res2.code}`);
-  // Verify effect_1 is still present (not overwritten)
   const effects = await authority.getPendingEffects('list1');
   assert(effects.ok, 'should read effects');
   assert(effects.effects.length === 1, 'effect_1 should still be present');
@@ -250,14 +248,12 @@ test('stale effect clearer cannot clear effects from another operation', async (
     last_operation_id: 'op_1',
     pending_effects_json: JSON.stringify([{ effect_type: 'effect_1' }]),
   });
-  // Wrong operation_id
   const r1 = await authority.clearPendingEffects({
     listing_id: 'list1', expected_version: 1,
     expected_operation_id: 'op_WRONG',
     expected_effects_hash: mockHashEnvelope({ effects: [{ effect_type: 'effect_1' }] }),
   });
   assert(!r1.ok, 'should fail with wrong operation_id');
-  // Wrong effects hash
   const r2 = await authority.clearPendingEffects({
     listing_id: 'list1', expected_version: 1,
     expected_operation_id: 'op_1',
@@ -265,7 +261,6 @@ test('stale effect clearer cannot clear effects from another operation', async (
   });
   assert(!r2.ok, 'should fail with wrong effects hash');
   assert(r2.code === 'EFFECTS_HASH_MISMATCH', `expected EFFECTS_HASH_MISMATCH, got ${r2.code}`);
-  // Correct clear
   const r3 = await authority.clearPendingEffects({
     listing_id: 'list1', expected_version: 1,
     expected_operation_id: 'op_1',
@@ -324,7 +319,7 @@ test('same operation ID with changed operation type is rejected', async () => {
   const authority = createReservationAuthority(deps);
   const envelope = {
     operation_type: 'reserve', requested_state: 'reserved',
-    payload: { token: 't1', buyer: 'b1@test' }, pending_effects: [],
+    payload: { token: 't1', buyer: 'b1@test', expiration: '2026-12-31T00:00:00Z' }, pending_effects: [],
   };
   deps._seedLP('lp1', {
     listing_id: 'list1', reservation_version: 1,
@@ -334,7 +329,7 @@ test('same operation ID with changed operation type is rejected', async () => {
   });
   const res = await authority.transitionReservation({
     listing_id: 'list1', expected_version: 0,
-    operation_id: 'op_1', operation_type: 'freeze', // changed!
+    operation_id: 'op_1', operation_type: 'freeze',
     payload: { token: 't1', buyer: 'b1@test', expiration: '2026-12-31T00:00:00Z' },
     requested_state: 'frozen',
   });
@@ -361,7 +356,7 @@ test('same operation ID with changed requested state is rejected', async () => {
     listing_id: 'list1', expected_version: 0,
     operation_id: 'op_1', operation_type: 'release',
     payload: { token: null, buyer: null, expiration: null },
-    requested_state: 'available', // changed from reserved to available
+    requested_state: 'available',
   });
   assert(!res.ok, 'should be rejected');
   assert(res.code === 'OPERATION_ID_CONFLICT', `expected OPERATION_ID_CONFLICT, got ${res.code}`);
@@ -373,7 +368,7 @@ test('same operation ID with changed pending effects is rejected', async () => {
   const authority = createReservationAuthority(deps);
   const envelope = {
     operation_type: 'reserve', requested_state: 'reserved',
-    payload: { token: 't1', buyer: 'b1@test' }, pending_effects: [],
+    payload: { token: 't1', buyer: 'b1@test', expiration: '2026-12-31T00:00:00Z' }, pending_effects: [],
   };
   deps._seedLP('lp1', {
     listing_id: 'list1', reservation_version: 1,
@@ -386,7 +381,7 @@ test('same operation ID with changed pending effects is rejected', async () => {
     operation_id: 'op_1', operation_type: 'reserve',
     payload: { token: 't1', buyer: 'b1@test', expiration: '2026-12-31T00:00:00Z' },
     requested_state: 'reserved',
-    pending_effects: [{ effect_type: 'new_effect' }], // changed!
+    pending_effects: [{ effect_type: 'new_effect' }],
   });
   assert(!res.ok, 'should be rejected');
   assert(res.code === 'OPERATION_ID_CONFLICT', `expected OPERATION_ID_CONFLICT, got ${res.code}`);
@@ -398,7 +393,7 @@ test('nested payload difference is detected', async () => {
   const authority = createReservationAuthority(deps);
   const envelope = {
     operation_type: 'reserve', requested_state: 'reserved',
-    payload: { token: 't1', buyer: 'b1@test', metadata: { seat: 'A1' } }, pending_effects: [],
+    payload: { token: 't1', buyer: 'b1@test', expiration: '2026-12-31T00:00:00Z', metadata: { seat: 'A1' } }, pending_effects: [],
   };
   deps._seedLP('lp1', {
     listing_id: 'list1', reservation_version: 1,
@@ -409,7 +404,7 @@ test('nested payload difference is detected', async () => {
   const res = await authority.transitionReservation({
     listing_id: 'list1', expected_version: 0,
     operation_id: 'op_1', operation_type: 'reserve',
-    payload: { token: 't1', buyer: 'b1@test', expiration: '2026-12-31T00:00:00Z', metadata: { seat: 'B2' } }, // nested diff!
+    payload: { token: 't1', buyer: 'b1@test', expiration: '2026-12-31T00:00:00Z', metadata: { seat: 'B2' } },
     requested_state: 'reserved',
   });
   assert(!res.ok, 'should be rejected');
@@ -420,7 +415,6 @@ test('nested payload difference is detected', async () => {
 test('available state with token or buyer is rejected before datastore access', async () => {
   const deps = createMockDeps();
   const authority = createReservationAuthority(deps);
-  // No LP seeded — if validation passes, we'd get NOT_FOUND. If validation fails, we get VALIDATION_ERROR.
   const res = await authority.transitionReservation({
     listing_id: 'list1', expected_version: 0,
     operation_id: 'op_1', operation_type: 'release',
@@ -453,12 +447,12 @@ test('negative or fractional expected version is rejected before datastore acces
   assert(r2.code === 'VALIDATION_ERROR', `expected VALIDATION_ERROR, got ${r2.code}`);
 });
 
-// ── 20: Post-CAS tuple corruption → VERIFICATION_MISMATCH ───────────────────
-test('post-CAS tuple corruption is detected by commit verification', async () => {
+// ── 20: Post-CAS tuple corruption → VERIFICATION_MISMATCH + protection ─────
+test('post-CAS tuple corruption is detected by commit verification and triggers protection', async () => {
   const deps = createMockDeps();
   const authority = createReservationAuthority(deps);
   deps._seedLP('lp1', { listing_id: 'list1' });
-  // Hook: corrupt the LP record AFTER CAS wins but BEFORE verification
+  deps._seedListing('list1', {});
   deps._setHook('afterCASWin', (d, listing_id) => {
     const lp = d._lpStore.values().next().value;
     if (lp) lp.reservation_token = 'corrupted_token';
@@ -471,17 +465,36 @@ test('post-CAS tuple corruption is detected by commit verification', async () =>
   });
   assert(!res.ok, 'should detect corruption');
   assert(res.code === 'VERIFICATION_MISMATCH', `expected VERIFICATION_MISMATCH, got ${res.code}`);
+  // Assert protection state
+  assert(res.protection, 'should have protection result');
+  assert(res.protection.protected === true, 'protection should be verified');
+  // Verify LP is quarantined
+  const [lp] = await deps.entities.ListingPrivate.filter({ listing_id: 'list1' });
+  assert(lp.checkout_quarantined === true, 'LP should be quarantined');
+  assert(lp.recovery_blocked === true, 'LP should be recovery-blocked');
+  assert(typeof lp.checkout_quarantine_reason === 'string' && lp.checkout_quarantine_reason.includes('VERIFICATION_MISMATCH'), 'quarantine reason should be set');
+  assert(isNonEmptyString(lp.checkout_quarantined_at), 'quarantine timestamp should be set');
+  // Verify Listing is hidden
+  const [listing] = await deps.entities.Listing.filter({ id: 'list1' });
+  assert(listing.status === 'hidden', 'Listing should be hidden');
+  assert(listing.hidden_reason === 'checkout_quarantine', 'hidden_reason should be checkout_quarantine');
+  // Verify AdminAlert was created
+  const alerts = Array.from(deps._adminAlertStore.values());
+  assert(alerts.length === 1, 'one AdminAlert should be created');
+  assert(alerts[0].priority === 'critical', 'priority should be critical');
+  assert(alerts[0].resolved === false, 'should be unresolved');
+  // Verify corrupted tuple is preserved (not overwritten by protection)
+  assert(lp.reservation_token === 'corrupted_token', 'corrupted token should be preserved');
 });
 
 // ── 21: Missing-version MIGRATION_REQUIRED ───────────────────────────────────
 test('missing reservation_version returns MIGRATION_REQUIRED in report', async () => {
-  const { generateMigrationReport } = await import('../base44/shared/reservationAuthority.js');
   const deps = createMockDeps();
-  // Seed LP without reservation_version
   deps._seedLP('lp1', { listing_id: 'list1' });
   delete deps._lpStore.get('lp1').reservation_version;
-  // Seed LP with reservation_version
   deps._seedLP('lp2', { listing_id: 'list2', reservation_version: 1 });
+  deps._seedListing('list1', { reservation_version: 0 });
+  deps._seedListing('list2', { reservation_version: 1 });
   const report = await generateMigrationReport(deps);
   assert(report.ok, 'report should succeed');
   assert(report.totals.total === 2, `expected 2 records, got ${report.totals.total}`);
@@ -514,6 +527,299 @@ test('production entry points are NOT yet integrated (RED — expected)', () => 
 });
 
 // ════════════════════════════════════════════════════════════════════════════
+// SECTION 1B: ROUND 2 NEW TESTS
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── 24: Replacement effects queue cannot be erased by stale clearer ─────────
+test('replacement effects queue cannot be erased by stale clearer (barrier test)', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  const effectsA = [{ effect_type: 'effect_A' }];
+  const effectsB = [{ effect_type: 'effect_B' }];
+  const hashA = mockHashEnvelope({ effects: effectsA });
+  deps._seedLP('lp1', {
+    listing_id: 'list1', reservation_version: 1,
+    last_operation_id: 'op_1',
+    pending_effects_json: JSON.stringify(effectsA),
+  });
+  // Hook replaces effects with B between read and CAS
+  deps._setHook('beforeClearCAS', (d, listing_id) => {
+    const lp = d._lpStore.get('lp1');
+    if (lp) {
+      lp.pending_effects_json = JSON.stringify(effectsB);
+      lp.pending_effects_hash = mockHashEnvelope({ effects: effectsB });
+    }
+  });
+  const r = await authority.clearPendingEffects({
+    listing_id: 'list1', expected_version: 1,
+    expected_operation_id: 'op_1',
+    expected_effects_hash: hashA,
+  });
+  assert(!r.ok, 'stale clearer should fail');
+  assert(r.code === 'CONFLICT' || r.code === 'EFFECTS_HASH_MISMATCH', `expected CONFLICT or EFFECTS_HASH_MISMATCH, got ${r.code}`);
+  // Verify effects B is preserved
+  const [lp] = await deps.entities.ListingPrivate.filter({ listing_id: 'list1' });
+  assert(lp.pending_effects_json === JSON.stringify(effectsB), 'effects B should be preserved');
+  assert(lp.pending_effects_hash === mockHashEnvelope({ effects: effectsB }), 'effects B hash should be preserved');
+});
+
+// ── 25: Non-array pending effects cause zero writes ──────────────────────────
+test('non-array pending effects cause zero writes', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  deps._seedLP('lp1', { listing_id: 'list1' });
+  const r1 = await authority.transitionReservation({
+    listing_id: 'list1', expected_version: 0,
+    operation_id: 'op_1', operation_type: 'reserve',
+    payload: { token: 't1', buyer: 'b1@test', expiration: '2026-12-31T00:00:00Z' },
+    requested_state: 'reserved',
+    pending_effects: null,
+  });
+  assert(!r1.ok, 'null pending_effects should be rejected');
+  assert(r1.code === 'VALIDATION_ERROR', `expected VALIDATION_ERROR, got ${r1.code}`);
+  const r2 = await authority.transitionReservation({
+    listing_id: 'list1', expected_version: 0,
+    operation_id: 'op_2', operation_type: 'reserve',
+    payload: { token: 't2', buyer: 'b2@test', expiration: '2026-12-31T00:00:00Z' },
+    requested_state: 'reserved',
+    pending_effects: 'not an array',
+  });
+  assert(!r2.ok, 'string pending_effects should be rejected');
+  assert(r2.code === 'VALIDATION_ERROR', `expected VALIDATION_ERROR, got ${r2.code}`);
+  const r3 = await authority.transitionReservation({
+    listing_id: 'list1', expected_version: 0,
+    operation_id: 'op_3', operation_type: 'reserve',
+    payload: { token: 't3', buyer: 'b3@test', expiration: '2026-12-31T00:00:00Z' },
+    requested_state: 'reserved',
+    pending_effects: { effect_type: 'not array' },
+  });
+  assert(!r3.ok, 'object pending_effects should be rejected');
+  assert(r3.code === 'VALIDATION_ERROR', `expected VALIDATION_ERROR, got ${r3.code}`);
+  // Verify zero writes
+  const [lp] = await deps.entities.ListingPrivate.filter({ listing_id: 'list1' });
+  assert(lp.reservation_version === 0, 'version should still be 0');
+  assert(lp.last_operation_id === null, 'no operation should have been written');
+});
+
+// ── 26: pending_effects_hash stored atomically during transition ────────────
+test('pending_effects_hash stored atomically during transition', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  deps._seedLP('lp1', { listing_id: 'list1' });
+  const effects = [{ effect_type: 'notify' }, { effect_type: 'email' }];
+  const expectedHash = mockHashEnvelope({ effects });
+  const res = await authority.transitionReservation({
+    listing_id: 'list1', expected_version: 0,
+    operation_id: 'op_1', operation_type: 'reserve',
+    payload: { token: 't1', buyer: 'b1@test', expiration: '2026-12-31T00:00:00Z' },
+    requested_state: 'reserved',
+    pending_effects: effects,
+  });
+  assert(res.ok, 'transition should succeed');
+  const [lp] = await deps.entities.ListingPrivate.filter({ listing_id: 'list1' });
+  assert(lp.pending_effects_json === JSON.stringify(effects), 'effects JSON should be stored');
+  assert(lp.pending_effects_hash === expectedHash, 'effects hash should be stored atomically');
+});
+
+// ── 27: clearPendingEffects verifies hash after clearing ────────────────────
+test('clearPendingEffects clears both JSON and hash and verifies', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  const effects = [{ effect_type: 'notify' }];
+  const effectsHash = mockHashEnvelope({ effects });
+  const emptyHash = mockHashEnvelope({ effects: [] });
+  deps._seedLP('lp1', {
+    listing_id: 'list1', reservation_version: 1,
+    last_operation_id: 'op_1',
+    pending_effects_json: JSON.stringify(effects),
+  });
+  const r = await authority.clearPendingEffects({
+    listing_id: 'list1', expected_version: 1,
+    expected_operation_id: 'op_1',
+    expected_effects_hash: effectsHash,
+  });
+  assert(r.ok, 'should succeed');
+  assert(r.verified === true, 'should be verified');
+  const [lp] = await deps.entities.ListingPrivate.filter({ listing_id: 'list1' });
+  assert(lp.pending_effects_json === '[]', 'JSON should be cleared');
+  assert(lp.pending_effects_hash === emptyHash, 'hash should be cleared to empty hash');
+});
+
+// ── 28: Real SHA-256 test (no mock hash) ──────────────────────────────────────
+test('real SHA-256 hashing works (no mock fallback)', async () => {
+  const deps = createMockDepsWithRealHash();
+  const authority = createReservationAuthority(deps);
+  deps._seedLP('lp1', { listing_id: 'list1' });
+  const res = await authority.transitionReservation({
+    listing_id: 'list1', expected_version: 0,
+    operation_id: 'op_1', operation_type: 'reserve',
+    payload: { token: 't1', buyer: 'b1@test', expiration: '2026-12-31T00:00:00Z' },
+    requested_state: 'reserved',
+  });
+  assert(res.ok, 'should succeed with real SHA-256');
+  const [lp] = await deps.entities.ListingPrivate.filter({ listing_id: 'list1' });
+  // Real SHA-256 produces a 64-char hex string, not a mock_ prefix
+  assert(typeof lp.last_operation_payload_hash === 'string', 'hash should be string');
+  assert(lp.last_operation_payload_hash.length === 64, `SHA-256 hash should be 64 chars, got ${lp.last_operation_payload_hash.length}`);
+  assert(!lp.last_operation_payload_hash.startsWith('mock_'), 'should not be mock hash');
+  assert(!lp.last_operation_payload_hash.startsWith('fnv_'), 'should not be FNV fallback');
+  assert(lp.pending_effects_hash.length === 64, 'effects hash should be 64 chars');
+});
+
+// ── 29: Whitespace-only listing_id rejected ─────────────────────────────────
+test('whitespace-only listing_id is rejected', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  const r = await authority.transitionReservation({
+    listing_id: '   ', expected_version: 0,
+    operation_id: 'op_1', operation_type: 'reserve',
+    payload: { token: 't1', buyer: 'b1@test', expiration: '2026-12-31T00:00:00Z' },
+    requested_state: 'reserved',
+  });
+  assert(!r.ok, 'whitespace-only listing_id should be rejected');
+  assert(r.code === 'VALIDATION_ERROR', `expected VALIDATION_ERROR, got ${r.code}`);
+});
+
+// ── 30: Whitespace-only token/buyer rejected ─────────────────────────────────
+test('whitespace-only token and buyer are rejected', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  const r = await authority.transitionReservation({
+    listing_id: 'list1', expected_version: 0,
+    operation_id: 'op_1', operation_type: 'reserve',
+    payload: { token: '   ', buyer: 'b1@test', expiration: '2026-12-31T00:00:00Z' },
+    requested_state: 'reserved',
+  });
+  assert(!r.ok, 'whitespace-only token should be rejected');
+  assert(r.code === 'VALIDATION_ERROR', `expected VALIDATION_ERROR, got ${r.code}`);
+  const r2 = await authority.transitionReservation({
+    listing_id: 'list1', expected_version: 0,
+    operation_id: 'op_2', operation_type: 'reserve',
+    payload: { token: 't1', buyer: '   ', expiration: '2026-12-31T00:00:00Z' },
+    requested_state: 'reserved',
+  });
+  assert(!r2.ok, 'whitespace-only buyer should be rejected');
+  assert(r2.code === 'VALIDATION_ERROR', `expected VALIDATION_ERROR, got ${r2.code}`);
+});
+
+// ── 31: Terminal-state omitted fields rejected (omitted ≠ null) ─────────────
+test('terminal-state omitted fields are rejected (omitted is not null)', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  // Omit token entirely for available state
+  const r = await authority.transitionReservation({
+    listing_id: 'list1', expected_version: 0,
+    operation_id: 'op_1', operation_type: 'release',
+    payload: { buyer: null, expiration: null },
+    requested_state: 'available',
+  });
+  assert(!r.ok, 'omitted token should be rejected');
+  assert(r.code === 'VALIDATION_ERROR', `expected VALIDATION_ERROR, got ${r.code}`);
+  // Omit buyer entirely
+  const r2 = await authority.transitionReservation({
+    listing_id: 'list1', expected_version: 0,
+    operation_id: 'op_2', operation_type: 'release',
+    payload: { token: null, expiration: null },
+    requested_state: 'available',
+  });
+  assert(!r2.ok, 'omitted buyer should be rejected');
+  assert(r2.code === 'VALIDATION_ERROR', `expected VALIDATION_ERROR, got ${r2.code}`);
+  // Omit expiration entirely
+  const r3 = await authority.transitionReservation({
+    listing_id: 'list1', expected_version: 0,
+    operation_id: 'op_3', operation_type: 'release',
+    payload: { token: null, buyer: null },
+    requested_state: 'available',
+  });
+  assert(!r3.ok, 'omitted expiration should be rejected');
+  assert(r3.code === 'VALIDATION_ERROR', `expected VALIDATION_ERROR, got ${r3.code}`);
+});
+
+// ── 32: Sold Listing with cleared private tuple never proposed as available ──
+test('sold Listing with cleared private tuple is never proposed as available', async () => {
+  const deps = createMockDeps();
+  deps._seedListing('list1', { status: 'sold' });
+  deps._seedLP('lp1', {
+    listing_id: 'list1',
+    reservation_token: null, reserved_by_email: null, reservation_expires_at: null,
+    reservation_revision: null,
+  });
+  delete deps._lpStore.get('lp1').reservation_version;
+  const report = await generateMigrationReport(deps);
+  assert(report.ok, 'report should succeed');
+  const rec = report.records.find(r => r.listing_id === 'list1');
+  assert(rec, 'should have a record for list1');
+  assert(rec.derived_lifecycle_state === 'sold', `sold should derive sold, got ${rec.derived_lifecycle_state}`);
+  if (rec.status === 'MIGRATION_REQUIRED') {
+    assert(rec.proposed_init.requested_state === 'sold', `proposed state should be sold, got ${rec.proposed_init.requested_state}`);
+  }
+});
+
+// ── 33: Missing sidecar is counted ───────────────────────────────────────────
+test('missing sidecar is counted in report', async () => {
+  const deps = createMockDeps();
+  deps._seedListing('list1', { status: 'active' });
+  // No LP seeded — missing sidecar
+  const report = await generateMigrationReport(deps);
+  assert(report.ok, 'report should succeed');
+  assert(report.totals.missing_sidecar === 1, `expected 1 missing_sidecar, got ${report.totals.missing_sidecar}`);
+  const rec = report.records.find(r => r.listing_id === 'list1');
+  assert(rec, 'should have a record');
+  assert(rec.status === 'MISSING_SIDECAR', `expected MISSING_SIDECAR, got ${rec.status}`);
+});
+
+// ── 34: Malformed expiration and missing revision are ambiguous ─────────────
+test('malformed expiration and missing revision are ambiguous', async () => {
+  const deps = createMockDeps();
+  deps._seedListing('list1', { status: 'active' });
+  deps._seedLP('lp1', {
+    listing_id: 'list1',
+    reservation_token: 'tok1', reserved_by_email: 'b1@test',
+    reservation_expires_at: 'not-a-date',
+    reservation_revision: null,
+  });
+  delete deps._lpStore.get('lp1').reservation_version;
+  const report = await generateMigrationReport(deps);
+  assert(report.ok, 'report should succeed');
+  const rec = report.records.find(r => r.listing_id === 'list1');
+  assert(rec, 'should have a record');
+  assert(rec.status === 'AMBIGUOUS', `expected AMBIGUOUS, got ${rec.status}`);
+  assert(rec.issues.length > 0, 'should have issues');
+});
+
+// ── 35: Apply plan never proposes invalid operation type ─────────────────────
+test('apply plan uses valid initialize operation type', async () => {
+  const deps = createMockDeps();
+  const plan = planApply(deps, 'apply_req_1');
+  assert(plan.operation_type === 'initialize', 'plan should use initialize');
+  const { OPERATION_TYPES } = await import('../base44/shared/reservationAuthorityConstants.js');
+  assert(OPERATION_TYPES.includes(plan.operation_type), 'initialize should be in OPERATION_TYPES');
+  assert(plan.initialized_fields.length >= 9, 'should specify all initialized fields');
+  assert(plan.initialized_fields.includes('reservation_version (0)'), 'should include reservation_version');
+  assert(plan.initialized_fields.includes('pending_effects_hash (SHA-256 of {effects:[]})'), 'should include pending_effects_hash');
+});
+
+// ── 36: Hashing failure returns structured error ────────────────────────────
+test('hashing failure returns structured error without datastore access', async () => {
+  const deps = createMockDeps();
+  // Override hashEnvelope to throw
+  deps.hashEnvelope = async () => { throw new Error('hashing unavailable'); };
+  const authority = createReservationAuthority(deps);
+  deps._seedLP('lp1', { listing_id: 'list1' });
+  const res = await authority.transitionReservation({
+    listing_id: 'list1', expected_version: 0,
+    operation_id: 'op_1', operation_type: 'reserve',
+    payload: { token: 't1', buyer: 'b1@test', expiration: '2026-12-31T00:00:00Z' },
+    requested_state: 'reserved',
+  });
+  assert(!res.ok, 'should fail');
+  assert(res.code === 'HASHING_FAILED', `expected HASHING_FAILED, got ${res.code}`);
+  // Verify zero writes
+  const [lp] = await deps.entities.ListingPrivate.filter({ listing_id: 'list1' });
+  assert(lp.reservation_version === 0, 'version should still be 0');
+});
+
+// ════════════════════════════════════════════════════════════════════════════
 // SECTION 2: LIVE BASE44 CAS PROBE
 // ════════════════════════════════════════════════════════════════════════════
 
@@ -536,7 +842,8 @@ async function runLiveBase44Probe() {
     checkout_quarantined: false, recovery_blocked: false,
     reservation_token: null, reserved_by_email: null, reservation_expires_at: null,
     last_operation_id: null, last_operation_type: null, last_operation_payload_hash: null,
-    last_operation_result_json: null, last_operation_at: null, pending_effects_json: '[]',
+    last_operation_result_json: null, last_operation_at: null,
+    pending_effects_json: '[]', pending_effects_hash: null,
     is_demo_listing: true, notes: `${PROBE_TAG} authoritative`,
   });
   const lpId = lp.id;
@@ -547,7 +854,8 @@ async function runLiveBase44Probe() {
         checkout_quarantined: false, recovery_blocked: false,
         reservation_token: null, reserved_by_email: null, reservation_expires_at: null,
         last_operation_id: null, last_operation_type: null, last_operation_payload_hash: null,
-        last_operation_result_json: null, last_operation_at: null, pending_effects_json: '[]',
+        last_operation_result_json: null, last_operation_at: null,
+        pending_effects_json: '[]', pending_effects_hash: null,
       }}
     );
   }
@@ -587,7 +895,7 @@ async function runLiveBase44Probe() {
 // ════════════════════════════════════════════════════════════════════════════
 
 async function main() {
-  console.log('=== Reservation Authority Concurrency Tests (7C.9C.2E Correction) ===\n');
+  console.log('=== Reservation Authority Concurrency Tests (7C.9C.2E Correction Round 2) ===\n');
   console.log('--- Section 1: Deterministic Local Module Tests ---');
   for (const t of tests) {
     try {

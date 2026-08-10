@@ -273,6 +273,10 @@
     "pending_effects_json": {
       "type": "string",
       "description": "JSON string of pending side effects that must be delivered after the authoritative transition commits. Undelivered effects block the next transition (PENDING_EFFECTS_BLOCKED). Schema type: string (not object)."
+    },
+    "pending_effects_hash": {
+      "type": "string",
+      "description": "SHA-256 hash of the canonical pending_effects_json. Stored atomically with pending_effects_json during transitions. Used as a CAS predicate in clearPendingEffects to prevent a stale clearer from erasing a different effects queue."
     }
   },
   "required": [

@@ -1,30 +1,27 @@
 /**
- * Reservation Authority — Single-authority CAS prototype (7C.9C.2E Correction)
+ * Reservation Authority — Single-authority CAS prototype (7C.9C.2E Correction Round 2)
  *
- * CORRECTED implementation addressing defects 1, 3, 4, 5:
- *   1. Pending effects: fail-closed — block transition if undelivered effects exist,
- *      malformed JSON → EFFECTS_CORRUPT, clearPendingEffects requires CAS-match.
- *   3. Operation idempotency: hash complete semantic envelope (operation_type,
- *      requested_state, payload, pending_effects) via canonical JSON + SHA-256.
- *      Corrupt result → OPERATION_RECORD_CORRUPT. Old retry → STALE_RETRY.
- *   4. State/tuple validation: validate before datastore access, explicit
- *      state-transition table, tuple requirements by state.
- *   5. Commit verification: verify ALL committed fields after CAS win.
+ * Round 2 corrections:
+ *   1. Pending-effect clearing: pending_effects_hash field stored atomically with
+ *      pending_effects_json. CAS predicate includes hash. Non-array effects
+ *      rejected before datastore. Stale clearer cannot erase a different queue.
+ *   2. Post-CAS verification failure triggers protection: quarantine LP, hide
+ *      Listing, create AdminAlert, verify each step. PROTECTION_INCOMPLETE
+ *      if any step fails. Corrupted tuple preserved.
+ *   5. SHA-256 required (no FNV fallback). Whitespace-only rejection. Terminal-
+ *      state explicit null requirement. Hashing/serialization failures caught.
  *
  * ListingPrivate is the sole authoritative row. Listing is a non-authoritative
  * projection (mirror) — see reservationAuthorityMirror.js.
- *
- * Empirically atomic CAS: Base44 updateMany with a filter predicate is observed
- * to be atomic for single-record conditional updates (10/10 probe rounds, 1 winner).
- * NOT contractually guaranteed by official documentation.
  *
  * No Deno/Node-specific imports — pure ESM JavaScript.
  */
 import {
   OPERATION_TYPES, LIFECYCLE_STATES, STATE_TRANSITIONS,
   TUPLE_REQUIRED_STATES, TUPLE_NULL_STATES,
-  canonicalize, hashEnvelope, isValidVersion,
-  validateTransition, validateTuple, parsePendingEffects,
+  canonicalize, hashEnvelope, hashEffects, isValidVersion, isNonEmptyString,
+  validateTransition, validateTuple, validatePendingEffectsArray,
+  parsePendingEffects,
 } from './reservationAuthorityConstants.js';
 import { createMirrorAuthority } from './reservationAuthorityMirror.js';
 import { generateMigrationReport, planApply } from './reservationAuthorityMigration.js';
@@ -35,6 +32,142 @@ function defaultGenerateId() {
     return globalThis.crypto.randomUUID();
   }
   return `rev_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+// ── Protection routine for corrupted authority ──────────────────────────────
+// Called on verification query failure, record disappearance, or committed-
+// field mismatch. Attempts to quarantine LP, hide Listing, create AdminAlert.
+// Returns PROTECTION_INCOMPLETE with per-step evidence if any step fails.
+// Preserves the corrupted tuple — does NOT overwrite it.
+async function protectCorruptedAuthority(deps, listing_id, lp_id, reason, evidence) {
+  const now_iso = new Date(deps.now()).toISOString();
+  const steps = {};
+  const incident_key = `verification_mismatch:${lp_id}`;
+
+  // 1. Set LP quarantine + recovery_blocked (CAS: checkout_quarantined=false)
+  try {
+    await deps.entities.ListingPrivate.updateMany(
+      { id: lp_id, checkout_quarantined: false },
+      { $set: {
+        checkout_quarantined: true,
+        checkout_quarantine_reason: `VERIFICATION_MISMATCH: ${reason}`,
+        checkout_quarantined_at: now_iso,
+        recovery_blocked: true,
+        recovery_blocked_reason: `VERIFICATION_MISMATCH: ${reason}`,
+        recovery_blocked_at: now_iso,
+      }}
+    );
+    steps.lp_quarantine_attempted = true;
+  } catch (e) {
+    steps.lp_quarantine_error = e?.message || String(e);
+    steps.lp_quarantine_attempted = false;
+  }
+
+  // 2. Re-fetch LP and verify protection fields
+  try {
+    const rows = await deps.entities.ListingPrivate.filter({ id: lp_id });
+    const lp = rows[0];
+    if (lp) {
+      steps.lp_quarantine_verified = lp.checkout_quarantined === true;
+      steps.lp_recovery_blocked_verified = lp.recovery_blocked === true;
+      steps.lp_reason_verified = typeof lp.checkout_quarantine_reason === 'string' &&
+        lp.checkout_quarantine_reason.includes('VERIFICATION_MISMATCH');
+      steps.lp_timestamp_verified = isNonEmptyString(lp.checkout_quarantined_at);
+    } else {
+      steps.lp_quarantine_verified = false;
+      steps.lp_recovery_blocked_verified = false;
+      steps.lp_reason_verified = false;
+      steps.lp_disappeared = true;
+    }
+  } catch (e) {
+    steps.lp_verify_error = e?.message || String(e);
+    steps.lp_quarantine_verified = false;
+    steps.lp_recovery_blocked_verified = false;
+    steps.lp_reason_verified = false;
+  }
+
+  // 3. Hide public Listing (safe monotonic update)
+  try {
+    await deps.entities.Listing.updateMany(
+      { id: listing_id },
+      { $set: { status: 'hidden', hidden_reason: 'checkout_quarantine' } }
+    );
+    steps.listing_hide_attempted = true;
+  } catch (e) {
+    steps.listing_hide_error = e?.message || String(e);
+    steps.listing_hide_attempted = false;
+  }
+
+  // 4. Re-fetch Listing and verify
+  try {
+    const rows = await deps.entities.Listing.filter({ id: listing_id });
+    const listing = rows[0];
+    if (listing) {
+      steps.listing_hidden_verified = listing.status === 'hidden';
+      steps.listing_hidden_reason_verified = listing.hidden_reason === 'checkout_quarantine';
+    } else {
+      steps.listing_hidden_verified = false;
+      steps.listing_hidden_reason_verified = false;
+      steps.listing_disappeared = true;
+    }
+  } catch (e) {
+    steps.listing_verify_error = e?.message || String(e);
+    steps.listing_hidden_verified = false;
+    steps.listing_hidden_reason_verified = false;
+  }
+
+  // 5. Create/update incident AdminAlert
+  if (deps.entities.AdminAlert) {
+    try {
+      const existing = await deps.entities.AdminAlert.filter({ incident_key });
+      if (existing.length > 0) {
+        await deps.entities.AdminAlert.update(existing[0].id, {
+          occurrence_count: (existing[0].occurrence_count || 1) + 1,
+          last_occurred_at: now_iso,
+          description: `VERIFICATION_MISMATCH: ${reason}. Evidence: ${JSON.stringify(evidence).slice(0, 500)}`,
+        });
+        steps.admin_alert_created = false;
+        steps.admin_alert_updated = true;
+      } else {
+        await deps.entities.AdminAlert.create({
+          alert_type: 'admin_action_required',
+          priority: 'critical',
+          title: 'Reservation Authority Verification Mismatch',
+          description: `VERIFICATION_MISMATCH: ${reason}. Evidence: ${JSON.stringify(evidence).slice(0, 500)}`,
+          reference_id: listing_id,
+          reference_type: 'listing',
+          incident_key,
+          occurrence_count: 1,
+          last_occurred_at: now_iso,
+          resolved: false,
+        });
+        steps.admin_alert_created = true;
+        steps.admin_alert_updated = false;
+      }
+      steps.admin_alert_attempted = true;
+    } catch (e) {
+      steps.admin_alert_error = e?.message || String(e);
+      steps.admin_alert_attempted = false;
+    }
+  } else {
+    steps.admin_alert_skipped = true;
+  }
+
+  // Check if all critical protection steps verified
+  const allVerified =
+    steps.lp_quarantine_verified === true &&
+    steps.lp_recovery_blocked_verified === true &&
+    steps.lp_reason_verified === true &&
+    steps.lp_timestamp_verified === true &&
+    steps.listing_hidden_verified === true &&
+    steps.listing_hidden_reason_verified === true;
+
+  return {
+    protected: allVerified,
+    steps,
+    code: allVerified ? 'PROTECTED' : 'PROTECTION_INCOMPLETE',
+    incident_key,
+  };
 }
 
 // ── Factory ──────────────────────────────────────────────────────────────────
@@ -56,18 +189,32 @@ export function createReservationAuthority(deps) {
     } = params;
 
     // ── Step 1: Validate inputs BEFORE any datastore access ────────────────
-    if (!listing_id) return { ok: false, code: 'VALIDATION_ERROR', error: 'missing listing_id' };
+    if (!isNonEmptyString(listing_id)) {
+      return { ok: false, code: 'VALIDATION_ERROR', error: 'listing_id must be a nonempty string' };
+    }
     if (!isValidVersion(expected_version)) {
       return { ok: false, code: 'VALIDATION_ERROR', error: 'expected_version must be a nonnegative integer' };
     }
-    if (!operation_id) return { ok: false, code: 'VALIDATION_ERROR', error: 'missing operation_id' };
-    if (!operation_type) return { ok: false, code: 'VALIDATION_ERROR', error: 'missing operation_type' };
+    if (!isNonEmptyString(operation_id)) {
+      return { ok: false, code: 'VALIDATION_ERROR', error: 'operation_id must be a nonempty string' };
+    }
+    if (!operation_type) {
+      return { ok: false, code: 'VALIDATION_ERROR', error: 'missing operation_type' };
+    }
     if (!OPERATION_TYPES.includes(operation_type)) {
       return { ok: false, code: 'VALIDATION_ERROR', error: `unknown operation_type: ${operation_type}` };
     }
-    if (!requested_state) return { ok: false, code: 'VALIDATION_ERROR', error: 'missing requested_state' };
+    if (!requested_state) {
+      return { ok: false, code: 'VALIDATION_ERROR', error: 'missing requested_state' };
+    }
     if (!LIFECYCLE_STATES.includes(requested_state)) {
       return { ok: false, code: 'VALIDATION_ERROR', error: `unknown requested_state: ${requested_state}` };
+    }
+
+    // Validate pending_effects array before datastore access
+    const effectsCheck = validatePendingEffectsArray(pending_effects);
+    if (!effectsCheck.ok) {
+      return { ok: false, code: 'VALIDATION_ERROR', error: effectsCheck.error };
     }
 
     // Validate tuple (before datastore access — zero reads on invalid input)
@@ -76,14 +223,20 @@ export function createReservationAuthority(deps) {
       return { ok: false, code: 'VALIDATION_ERROR', error: tupleCheck.error };
     }
 
-    // ── Step 2: Compute envelope hash ──────────────────────────────────────
+    // ── Step 2: Compute envelope hash and effects hash ─────────────────────
     const envelope = {
       operation_type,
       requested_state,
       payload: payload || null,
       pending_effects: pending_effects || [],
     };
-    const envelope_hash = await hashEnvelope(envelope, deps.hashEnvelope);
+    let envelope_hash, effects_hash;
+    try {
+      envelope_hash = await hashEnvelope(envelope, deps.hashEnvelope);
+      effects_hash = await hashEffects(pending_effects || [], deps.hashEnvelope);
+    } catch (e) {
+      return { ok: false, code: 'HASHING_FAILED', error: e?.message || String(e) };
+    }
 
     // ── Step 3: Read authoritative ListingPrivate row ──────────────────────
     let lp;
@@ -108,9 +261,9 @@ export function createReservationAuthority(deps) {
     }
 
     // ── Step 5: Parse and validate existing pending effects ────────────────
-    const effectsCheck = parsePendingEffects(lp.pending_effects_json);
-    if (!effectsCheck.ok) {
-      return { ok: false, code: effectsCheck.code, error: effectsCheck.error };
+    const existingEffectsCheck = parsePendingEffects(lp.pending_effects_json);
+    if (!existingEffectsCheck.ok) {
+      return { ok: false, code: existingEffectsCheck.code, error: existingEffectsCheck.error };
     }
 
     // ── Step 6: Idempotent replay check ─────────────────────────────────────
@@ -124,7 +277,6 @@ export function createReservationAuthority(deps) {
           received_hash: envelope_hash,
         };
       }
-      // Return stored result — but verify it's not corrupt
       let stored_result = null;
       if (lp.last_operation_result_json) {
         try {
@@ -146,17 +298,17 @@ export function createReservationAuthority(deps) {
     }
 
     // ── Step 7: Block if undelivered pending effects exist ──────────────────
-    if (effectsCheck.effects.length > 0) {
+    if (existingEffectsCheck.effects.length > 0) {
       return {
         ok: false, code: 'PENDING_EFFECTS_BLOCKED',
-        error: `${effectsCheck.effects.length} undelivered pending effect(s) — clear before transitioning`,
-        pending_effects: effectsCheck.effects,
+        error: `${existingEffectsCheck.effects.length} undelivered pending effect(s) — clear before transitioning`,
+        pending_effects: existingEffectsCheck.effects,
         version: lp.reservation_version,
         last_operation_id: lp.last_operation_id,
       };
     }
 
-    // ── Step 8: Version check — detect stale/concurrent before transition ───
+    // ── Step 8: Version check ───────────────────────────────────────────────
     if (lp.reservation_version === null || lp.reservation_version === undefined) {
       return { ok: false, code: 'MIGRATION_REQUIRED', error: 'reservation_version missing — initialization required' };
     }
@@ -187,7 +339,7 @@ export function createReservationAuthority(deps) {
       return { ok: false, code: 'VALIDATION_ERROR', error: transitionCheck.error };
     }
 
-    // ── Step 9: Perform conditional updateMany (CAS) ────────────────────────
+    // ── Step 10: Perform conditional updateMany (CAS) ────────────────────────
     const new_version = expected_version + 1;
     const now_iso = new Date(now()).toISOString();
     const revision = generateId();
@@ -200,12 +352,11 @@ export function createReservationAuthority(deps) {
     const effects_json = JSON.stringify(pending_effects || []);
 
     const new_tuple = {
-      reservation_token: payload?.token ?? null,
-      reserved_by_email: payload?.buyer ?? null,
-      reservation_expires_at: payload?.expiration ?? null,
+      reservation_token: payload.token,
+      reserved_by_email: payload.buyer,
+      reservation_expires_at: payload.expiration,
     };
 
-    // Hook: beforeCAS (for deferred-barrier tests)
     if (deps.hooks?.beforeCAS) {
       try { await deps.hooks.beforeCAS(deps, listing_id); } catch (e) { /* non-fatal */ }
     }
@@ -231,6 +382,7 @@ export function createReservationAuthority(deps) {
             last_operation_result_json: result_json,
             last_operation_at: now_iso,
             pending_effects_json: effects_json,
+            pending_effects_hash: effects_hash,
           },
         }
       );
@@ -241,8 +393,7 @@ export function createReservationAuthority(deps) {
     const updated = casResult.updated || 0;
 
     if (updated > 0) {
-      // ── Step 10: Verify ALL committed fields ──────────────────────────────
-      // Hook: afterCASWin (for post-CAS corruption tests)
+      // ── Step 11: Verify ALL committed fields ──────────────────────────────
       if (deps.hooks?.afterCASWin) {
         try { await deps.hooks.afterCASWin(deps, listing_id); } catch (e) { /* non-fatal */ }
       }
@@ -252,23 +403,36 @@ export function createReservationAuthority(deps) {
         const rows = await ListingPrivate.filter({ listing_id });
         verified = rows[0] || null;
       } catch (e) {
-        return { ok: false, code: 'VERIFICATION_FAILED', error: e?.message || String(e) };
+        // Verification query failure — trigger protection
+        const protection = await protectCorruptedAuthority(deps, listing_id, lp.id, 'verification query failed', { error: e?.message });
+        return {
+          ok: false, code: 'VERIFICATION_FAILED',
+          error: e?.message || String(e),
+          protection,
+        };
       }
       if (!verified) {
-        return { ok: false, code: 'VERIFICATION_MISMATCH', error: 'record not found after CAS' };
+        // Record disappeared — trigger protection
+        const protection = await protectCorruptedAuthority(deps, listing_id, lp.id, 'record disappeared after CAS', {});
+        return {
+          ok: false, code: 'VERIFICATION_MISMATCH',
+          error: 'record not found after CAS',
+          protection,
+        };
       }
 
       const expected = {
         reservation_version: new_version,
         reservation_lifecycle_state: requested_state,
-        reservation_token: payload?.token ?? null,
-        reserved_by_email: payload?.buyer ?? null,
-        reservation_expires_at: payload?.expiration ?? null,
+        reservation_token: payload.token,
+        reserved_by_email: payload.buyer,
+        reservation_expires_at: payload.expiration,
         reservation_revision: revision,
         last_operation_id: operation_id,
         last_operation_type: operation_type,
         last_operation_payload_hash: envelope_hash,
         pending_effects_json: effects_json,
+        pending_effects_hash: effects_hash,
       };
 
       const mismatches = [];
@@ -279,10 +443,17 @@ export function createReservationAuthority(deps) {
       }
 
       if (mismatches.length > 0) {
+        // Committed-field mismatch — trigger protection
+        const protection = await protectCorruptedAuthority(
+          deps, listing_id, lp.id,
+          `commit verification failed: ${mismatches.join('; ')}`,
+          { mismatches, expected, actual: verified }
+        );
         return {
           ok: false, code: 'VERIFICATION_MISMATCH',
           error: `commit verification failed: ${mismatches.join('; ')}`,
           mismatches,
+          protection,
         };
       }
 
@@ -293,7 +464,7 @@ export function createReservationAuthority(deps) {
       };
     }
 
-    // ── Step 11: CAS lost — reread authoritatively ─────────────────────────
+    // ── Step 12: CAS lost — reread authoritatively ─────────────────────────
     let reread;
     try {
       const rows = await ListingPrivate.filter({ listing_id });
@@ -305,7 +476,6 @@ export function createReservationAuthority(deps) {
       return { ok: false, code: 'NOT_FOUND', error: 'record disappeared after CAS loss' };
     }
 
-    // Check idempotent replay (another caller won with the same operation)
     if (reread.last_operation_id === operation_id) {
       if (reread.last_operation_payload_hash === envelope_hash) {
         let stored_result = null;
@@ -333,7 +503,6 @@ export function createReservationAuthority(deps) {
       }
     }
 
-    // Distinguish STALE_RETRY from CONFLICT
     if (reread.reservation_version > expected_version + 1) {
       return {
         ok: false, code: 'STALE_RETRY',
@@ -354,16 +523,22 @@ export function createReservationAuthority(deps) {
     };
   }
 
-  // ── clearPendingEffects — fail-closed CAS with full match ───────────────────
+  // ── clearPendingEffects — fail-closed CAS with pending_effects_hash ────────
   async function clearPendingEffects(params) {
     const { listing_id, expected_version, expected_operation_id, expected_effects_hash } = params;
 
-    if (!listing_id) return { ok: false, code: 'VALIDATION_ERROR', error: 'missing listing_id' };
+    if (!isNonEmptyString(listing_id)) {
+      return { ok: false, code: 'VALIDATION_ERROR', error: 'listing_id must be a nonempty string' };
+    }
     if (!isValidVersion(expected_version)) {
       return { ok: false, code: 'VALIDATION_ERROR', error: 'expected_version must be a nonnegative integer' };
     }
-    if (!expected_operation_id) return { ok: false, code: 'VALIDATION_ERROR', error: 'missing expected_operation_id' };
-    if (!expected_effects_hash) return { ok: false, code: 'VALIDATION_ERROR', error: 'missing expected_effects_hash' };
+    if (!isNonEmptyString(expected_operation_id)) {
+      return { ok: false, code: 'VALIDATION_ERROR', error: 'expected_operation_id must be a nonempty string' };
+    }
+    if (!expected_effects_hash) {
+      return { ok: false, code: 'VALIDATION_ERROR', error: 'missing expected_effects_hash' };
+    }
 
     let lp;
     try {
@@ -380,10 +555,7 @@ export function createReservationAuthority(deps) {
       return { ok: false, code: effectsCheck.code, error: effectsCheck.error };
     }
 
-    const current_effects_hash = await hashEnvelope(
-      { effects: effectsCheck.effects },
-      deps.hashEnvelope
-    );
+    const current_effects_hash = await hashEffects(effectsCheck.effects, deps.hashEnvelope);
     if (current_effects_hash !== expected_effects_hash) {
       return {
         ok: false, code: 'EFFECTS_HASH_MISMATCH',
@@ -393,7 +565,30 @@ export function createReservationAuthority(deps) {
       };
     }
 
-    // CAS: match listing_id, reservation_version, last_operation_id, effects_hash
+    // Also verify the stored pending_effects_hash field matches
+    if (lp.pending_effects_hash && lp.pending_effects_hash !== expected_effects_hash) {
+      return {
+        ok: false, code: 'EFFECTS_HASH_MISMATCH',
+        error: 'stored pending_effects_hash does not match expected — effects replaced',
+        expected: expected_effects_hash,
+        actual: lp.pending_effects_hash,
+      };
+    }
+
+    // Compute empty effects hash for clearing
+    let empty_effects_hash;
+    try {
+      empty_effects_hash = await hashEffects([], deps.hashEnvelope);
+    } catch (e) {
+      return { ok: false, code: 'HASHING_FAILED', error: e?.message || String(e) };
+    }
+
+    // Hook: beforeClearCAS (for barrier tests — fires between read and CAS)
+    if (deps.hooks?.beforeClearCAS) {
+      try { await deps.hooks.beforeClearCAS(deps, listing_id); } catch (e) { /* non-fatal */ }
+    }
+
+    // CAS: match id, reservation_version, last_operation_id, pending_effects_hash
     let casResult;
     try {
       casResult = await ListingPrivate.updateMany(
@@ -401,8 +596,12 @@ export function createReservationAuthority(deps) {
           id: lp.id,
           reservation_version: expected_version,
           last_operation_id: expected_operation_id,
+          pending_effects_hash: expected_effects_hash,
         },
-        { $set: { pending_effects_json: '[]' } }
+        { $set: {
+          pending_effects_json: '[]',
+          pending_effects_hash: empty_effects_hash,
+        }}
       );
     } catch (e) {
       return { ok: false, code: 'CAS_ERROR', error: e?.message || String(e) };
@@ -410,7 +609,7 @@ export function createReservationAuthority(deps) {
 
     const updated = casResult.updated || 0;
     if (updated === 0) {
-      return { ok: false, code: 'CONFLICT', error: 'CAS lost — version or operation_id changed' };
+      return { ok: false, code: 'CONFLICT', error: 'CAS lost — version, operation_id, or effects hash changed' };
     }
 
     // Re-fetch and prove the exact expected queue was cleared
@@ -422,8 +621,19 @@ export function createReservationAuthority(deps) {
       return { ok: false, code: 'VERIFY_FAILED', error: e?.message || String(e) };
     }
     if (!verified) return { ok: false, code: 'NOT_FOUND', error: 'not found after clear' };
+
+    // Verify version, operation ID, JSON, and hash
+    if (verified.reservation_version !== expected_version) {
+      return { ok: false, code: 'VERIFY_MISMATCH', error: `version: expected ${expected_version}, got ${verified.reservation_version}` };
+    }
+    if (verified.last_operation_id !== expected_operation_id) {
+      return { ok: false, code: 'VERIFY_MISMATCH', error: `operation_id: expected ${expected_operation_id}, got ${verified.last_operation_id}` };
+    }
     if (verified.pending_effects_json !== '[]') {
       return { ok: false, code: 'VERIFY_MISMATCH', error: `pending_effects_json not cleared: ${verified.pending_effects_json}` };
+    }
+    if (verified.pending_effects_hash !== empty_effects_hash) {
+      return { ok: false, code: 'VERIFY_MISMATCH', error: `pending_effects_hash not cleared: ${verified.pending_effects_hash}` };
     }
 
     return { ok: true, cleared: true, verified: true };
@@ -431,6 +641,10 @@ export function createReservationAuthority(deps) {
 
   // ── getPendingEffects ───────────────────────────────────────────────────────
   async function getPendingEffects(listing_id) {
+    if (!isNonEmptyString(listing_id)) {
+      return { ok: false, code: 'VALIDATION_ERROR', error: 'listing_id must be a nonempty string' };
+    }
+
     let lp;
     try {
       const rows = await ListingPrivate.filter({ listing_id });
@@ -445,10 +659,7 @@ export function createReservationAuthority(deps) {
       return { ok: false, code: effectsCheck.code, error: effectsCheck.error };
     }
 
-    const effects_hash = await hashEnvelope(
-      { effects: effectsCheck.effects },
-      deps.hashEnvelope
-    );
+    const effects_hash = await hashEffects(effectsCheck.effects, deps.hashEnvelope);
 
     return {
       ok: true,
@@ -456,6 +667,7 @@ export function createReservationAuthority(deps) {
       version: lp.reservation_version,
       operation_id: lp.last_operation_id,
       effects_hash,
+      stored_effects_hash: lp.pending_effects_hash ?? null,
     };
   }
 
