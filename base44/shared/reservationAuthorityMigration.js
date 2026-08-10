@@ -127,7 +127,8 @@ function deriveLifecycleState(lp, listing) {
       const tokenCheck = validateTupleFieldStrict(lp.reservation_token, 'reservation_token', true);
       const buyerCheck = validateTupleFieldStrict(lp.reserved_by_email, 'reserved_by_email', true);
       const expiryCheck = validateTupleFieldStrict(lp.reservation_expires_at, 'reservation_expires_at', true);
-      if (!tokenCheck.valid || !buyerCheck.valid || !expiryCheck.valid) {
+      const revisionCheck = validateTupleFieldStrict(lp.reservation_revision, 'reservation_revision', true);
+      if (!tokenCheck.valid || !buyerCheck.valid || !expiryCheck.valid || !revisionCheck.valid) {
         return 'AMBIGUOUS';
       }
     }
@@ -192,18 +193,25 @@ function deriveLifecycleState(lp, listing) {
     return 'reserved';
   }
 
-  // No tuple — check if all explicitly null (Round 6: empty strings are NOT null)
+  // No tuple — check if all explicitly null (Round 6B: empty strings are NOT null,
+  // and reservation_revision must also be null for terminal/available states)
   const tokenNull = lp.reservation_token === null;
   const buyerNull = lp.reserved_by_email === null;
   const expiryNull = lp.reservation_expires_at === null;
+  const revisionNull = lp.reservation_revision === null;
   // Reject empty strings — they are invalid, not equivalent to null
   const tokenEmpty = lp.reservation_token === '';
   const buyerEmpty = lp.reserved_by_email === '';
   const expiryEmpty = lp.reservation_expires_at === '';
-  if (tokenEmpty || buyerEmpty || expiryEmpty) {
+  const revisionEmpty = lp.reservation_revision === '';
+  if (tokenEmpty || buyerEmpty || expiryEmpty || revisionEmpty) {
     return 'AMBIGUOUS';
   }
-  if (tokenNull && buyerNull && expiryNull) {
+  // Reject stale non-null revision — available state requires null revision
+  if (!revisionNull) {
+    return 'AMBIGUOUS';
+  }
+  if (tokenNull && buyerNull && expiryNull && revisionNull) {
     // active + valid empty tuple → available
     if (listing?.status === 'active' || !listing) return 'available';
     return 'AMBIGUOUS';
@@ -214,7 +222,7 @@ function deriveLifecycleState(lp, listing) {
 }
 
 // ── Check for tuple/state disagreement ──────────────────────────────────────
-function checkTupleStateAgreement(derived_state, lp) {
+function checkTupleStateAgreement(derived_state, lp, listing_status) {
   const hasToken = isNonEmptyString(lp.reservation_token);
   const hasBuyer = isNonEmptyString(lp.reserved_by_email);
   const hasExpiry = lp.reservation_expires_at && isValidISODate(lp.reservation_expires_at);
@@ -231,15 +239,28 @@ function checkTupleStateAgreement(derived_state, lp) {
     if (!hasRevision) issues.push('reserved/frozen state missing reservation revision');
   }
 
-  // Terminal states require null tuple (sold/cancelled/expired)
-  // Round 6: Empty strings are invalid, not equivalent to null
-  if (TUPLE_NULL_STATES.has(derived_state)) {
+  // Round 6B: Terminal tuple checks run when EITHER the derived state is terminal
+  // OR the listing status is terminal (sold/cancelled/expired). When the derived
+  // state is AMBIGUOUS due to non-null tuple fields, the listing status check
+  // ensures the exact issue text (e.g. "terminal state has non-null token") is
+  // pushed regardless.
+  const isTerminalContext = TUPLE_NULL_STATES.has(derived_state) ||
+    listing_status === 'sold' || listing_status === 'cancelled' || listing_status === 'expired';
+  if (isTerminalContext) {
     if (hasToken) issues.push('terminal state has non-null token');
     if (hasBuyer) issues.push('terminal state has non-null buyer');
     if (hasExpiry) issues.push('terminal state has non-null expiration');
+    if (hasRevision) issues.push('terminal state has non-null revision');
     if (lp.reservation_token === '') issues.push('terminal state has empty-string token');
     if (lp.reserved_by_email === '') issues.push('terminal state has empty-string buyer');
     if (lp.reservation_expires_at === '') issues.push('terminal state has empty-string expiration');
+    if (lp.reservation_revision === '') issues.push('terminal state has empty-string revision');
+  }
+
+  // Round 6B: Available state requires null revision (in addition to null tuple)
+  if (derived_state === 'available' && !isTerminalContext) {
+    if (hasRevision) issues.push('available state has non-null revision');
+    if (lp.reservation_revision === '') issues.push('available state has empty-string revision');
   }
 
   // Partial tuple is always ambiguous
@@ -384,8 +405,8 @@ export async function generateMigrationReport(deps) {
     // Derive lifecycle state (joined with Listing)
     rec.derived_lifecycle_state = deriveLifecycleState(lp, listing);
 
-    // Check for tuple/state issues
-    const tupleIssues = checkTupleStateAgreement(rec.derived_lifecycle_state, lp);
+    // Check for tuple/state issues (Round 6B: pass listing.status for terminal checks)
+    const tupleIssues = checkTupleStateAgreement(rec.derived_lifecycle_state, lp, listing.status);
     rec.issues.push(...tupleIssues);
 
     // Check for public status safety

@@ -89,116 +89,134 @@ async function protectCorruptedAuthority(deps, listing_id, lp_id, reason, eviden
     steps.lp_reason_verified = false;
   }
 
-  // 3. Round 6: Read current Listing ONCE — use the SAME read for both the
-  //    needsHide decision AND the hidePredicate. A second read would see a
-  //    competitor's concurrent terminal transition and use it in the predicate,
-  //    causing the hide to overwrite the terminal state.
+  // 3. Round 6B: Read current Listing ONCE. If the read fails or returns null,
+  //    Listing protection is UNPROVEN — do NOT mutate Listing. Never fall back
+  //    to an ID-only predicate. LP recovery blocking and AdminAlert escalation
+  //    may still proceed and be verified below.
   let observedListing = null;
   let currentStatus = null;
+  let listingReadFailed = false;
+  let listingNotFound = false;
   try {
     const rows = await deps.entities.Listing.filter({ id: listing_id });
     observedListing = rows[0] || null;
     if (observedListing) currentStatus = observedListing.status;
-  } catch (e) { /* non-fatal */ }
-  const needsHide = shouldHideForProtection(currentStatus);
+    else listingNotFound = true;
+  } catch (e) {
+    listingReadFailed = true;
+  }
+  steps.listing_read_failed = listingReadFailed;
+  steps.listing_not_found = listingNotFound;
   steps.listing_status_before_protection = currentStatus;
-  steps.needs_hide = needsHide;
+  const listingProtectionUnproven = listingReadFailed || listingNotFound;
+  steps.listing_protection_unproven = listingProtectionUnproven;
 
-  // 3a. Hide public Listing (only if NOT already terminal/business-held)
-  //     Round 6: Use a STATUS-PRESERVING predicate with the exact observed
-  //     status and hidden_reason from the SINGLE read above. A concurrent
-  //     terminal transition (e.g. sold) causes updated=0, not an overwrite.
-  if (needsHide) {
-    const hidePredicate = { id: listing_id };
-    if (observedListing) {
-      hidePredicate.status = observedListing.status;
-      // Include hidden_reason only if it has a value; omitting it from the predicate
-      // would match any value. If the Listing has hidden_reason=null, we include it
-      // to ensure we only hide if it's still null.
-      if (observedListing.hidden_reason !== undefined) {
-        hidePredicate.hidden_reason = observedListing.hidden_reason;
-      }
-    }
-
-    let hideUpdated = 0;
-    try {
-      const hideResult = await deps.entities.Listing.updateMany(
-        hidePredicate,
-        { $set: { status: 'hidden', hidden_reason: 'checkout_quarantine' } }
-      );
-      hideUpdated = hideResult.updated || 0;
-      steps.listing_hide_attempted = true;
-      steps.hide_updated = hideUpdated;
-    } catch (e) {
-      steps.listing_hide_error = e?.message || String(e);
-      steps.listing_hide_attempted = false;
-      steps.hide_updated = 0;
-    }
-
-    // If hide returned 0, a concurrent transition may have changed the status.
-    // Re-read and check if it's now terminal/business-held (preserve) or still reservable (retry).
-    if (hideUpdated === 0) {
-      let rereadListing = null;
-      try {
-        const rows = await deps.entities.Listing.filter({ id: listing_id });
-        rereadListing = rows[0] || null;
-      } catch (e) { /* non-fatal */ }
-
-      if (rereadListing && isNonReservableStatus(rereadListing.status)) {
-        // Concurrent transition made it non-reservable — preserve it
-        steps.concurrent_terminal_preserved = true;
-        steps.preserved_status = rereadListing.status;
-        currentStatus = rereadListing.status;
-      } else if (rereadListing && rereadListing.status === 'active') {
-        // Still reservable — retry once with the new observed status
-        const retryPredicate = { id: listing_id, status: 'active' };
-        if (rereadListing.hidden_reason !== undefined) {
-          retryPredicate.hidden_reason = rereadListing.hidden_reason;
-        }
-        try {
-          const retryResult = await deps.entities.Listing.updateMany(
-            retryPredicate,
-            { $set: { status: 'hidden', hidden_reason: 'checkout_quarantine' } }
-          );
-          steps.hide_retry_updated = retryResult.updated || 0;
-        } catch (e) {
-          steps.hide_retry_error = e?.message || String(e);
-        }
-      }
-    }
-  } else {
-    steps.listing_hide_attempted = false;
-    steps.non_reservable_status_preserved = true;
+  // Hook: beforeProtectionHide — fires after the read but before the hide,
+  // allowing tests to simulate a concurrent status change.
+  if (deps.hooks?.beforeProtectionHide && !listingProtectionUnproven) {
+    try { await deps.hooks.beforeProtectionHide(deps, listing_id); } catch (e) { /* non-fatal */ }
   }
 
-  // 4. Re-fetch Listing and verify it ended non-reservable
-  try {
-    const rows = await deps.entities.Listing.filter({ id: listing_id });
-    const listing = rows[0];
-    if (listing) {
-      const isNonReservable = isNonReservableStatus(listing.status);
-      steps.listing_non_reservable_verified = isNonReservable;
-      if (needsHide && !steps.concurrent_terminal_preserved) {
-        steps.listing_hidden_verified = listing.status === 'hidden';
-        steps.listing_hidden_reason_verified = listing.hidden_reason === 'checkout_quarantine';
-      } else if (steps.concurrent_terminal_preserved) {
-        steps.listing_hidden_verified = isNonReservable;
-        steps.listing_hidden_reason_verified = true;
-      } else {
-        steps.listing_hidden_verified = listing.status === currentStatus;
-        steps.listing_hidden_reason_verified = true;
-      }
-    } else {
-      steps.listing_hidden_verified = false;
-      steps.listing_hidden_reason_verified = false;
-      steps.listing_non_reservable_verified = false;
-      steps.listing_disappeared = true;
-    }
-  } catch (e) {
-    steps.listing_verify_error = e?.message || String(e);
+  if (listingProtectionUnproven) {
+    // Listing protection unproven — skip Listing mutation entirely
+    steps.listing_hide_skipped = true;
     steps.listing_hidden_verified = false;
     steps.listing_hidden_reason_verified = false;
     steps.listing_non_reservable_verified = false;
+  } else {
+    const needsHide = shouldHideForProtection(currentStatus);
+    steps.needs_hide = needsHide;
+
+    if (needsHide) {
+      // Status-preserving predicate — always includes the exact observed
+      // status and hidden_reason. Never ID-only.
+      const hidePredicate = {
+        id: listing_id,
+        status: observedListing.status,
+      };
+      if (observedListing.hidden_reason !== undefined) {
+        hidePredicate.hidden_reason = observedListing.hidden_reason;
+      }
+
+      let hideUpdated = 0;
+      try {
+        const hideResult = await deps.entities.Listing.updateMany(
+          hidePredicate,
+          { $set: { status: 'hidden', hidden_reason: 'checkout_quarantine' } }
+        );
+        hideUpdated = hideResult.updated || 0;
+        steps.listing_hide_attempted = true;
+        steps.hide_updated = hideUpdated;
+      } catch (e) {
+        steps.listing_hide_error = e?.message || String(e);
+        steps.listing_hide_attempted = false;
+        steps.hide_updated = 0;
+      }
+
+      // If hide returned 0, a concurrent transition changed the status.
+      // Re-read and check if it's now terminal/business-held (preserve) or still reservable (retry once).
+      if (hideUpdated === 0) {
+        let rereadListing = null;
+        try {
+          const rows = await deps.entities.Listing.filter({ id: listing_id });
+          rereadListing = rows[0] || null;
+        } catch (e) { /* non-fatal */ }
+
+        if (rereadListing && isNonReservableStatus(rereadListing.status)) {
+          steps.concurrent_terminal_preserved = true;
+          steps.preserved_status = rereadListing.status;
+          currentStatus = rereadListing.status;
+        } else if (rereadListing && !isNonReservableStatus(rereadListing.status)) {
+          // Still reservable — retry once with the new observed status
+          const retryPredicate = { id: listing_id, status: rereadListing.status };
+          if (rereadListing.hidden_reason !== undefined) {
+            retryPredicate.hidden_reason = rereadListing.hidden_reason;
+          }
+          try {
+            const retryResult = await deps.entities.Listing.updateMany(
+              retryPredicate,
+              { $set: { status: 'hidden', hidden_reason: 'checkout_quarantine' } }
+            );
+            steps.hide_retry_updated = retryResult.updated || 0;
+          } catch (e) {
+            steps.hide_retry_error = e?.message || String(e);
+          }
+        }
+      }
+    } else {
+      steps.listing_hide_attempted = false;
+      steps.non_reservable_status_preserved = true;
+    }
+
+    // 4. Re-fetch Listing and verify it ended non-reservable
+    try {
+      const rows = await deps.entities.Listing.filter({ id: listing_id });
+      const listing = rows[0];
+      if (listing) {
+        const isNonReservable = isNonReservableStatus(listing.status);
+        steps.listing_non_reservable_verified = isNonReservable;
+        if (needsHide && !steps.concurrent_terminal_preserved) {
+          steps.listing_hidden_verified = listing.status === 'hidden';
+          steps.listing_hidden_reason_verified = listing.hidden_reason === 'checkout_quarantine';
+        } else if (steps.concurrent_terminal_preserved) {
+          steps.listing_hidden_verified = isNonReservable;
+          steps.listing_hidden_reason_verified = true;
+        } else {
+          steps.listing_hidden_verified = listing.status === currentStatus;
+          steps.listing_hidden_reason_verified = true;
+        }
+      } else {
+        steps.listing_hidden_verified = false;
+        steps.listing_hidden_reason_verified = false;
+        steps.listing_non_reservable_verified = false;
+        steps.listing_disappeared = true;
+      }
+    } catch (e) {
+      steps.listing_verify_error = e?.message || String(e);
+      steps.listing_hidden_verified = false;
+      steps.listing_hidden_reason_verified = false;
+      steps.listing_non_reservable_verified = false;
+    }
   }
 
   // 5. Create/update incident AdminAlert
@@ -259,9 +277,14 @@ async function protectCorruptedAuthority(deps, listing_id, lp_id, reason, eviden
   }
 
   // Check if ALL critical protection steps verified (including alert)
-  const hideVerified = needsHide
-    ? (steps.listing_hidden_verified === true && steps.listing_hidden_reason_verified === true)
-    : (steps.listing_hidden_verified === true && steps.listing_non_reservable_verified === true);
+  // Round 6B: When listing protection is unproven (read failed or not found),
+  // hideVerified is false → allVerified is false → PROTECTION_INCOMPLETE.
+  // LP recovery blocking and AdminAlert may still verify independently.
+  const hideVerified = steps.listing_protection_unproven
+    ? false
+    : (steps.needs_hide
+        ? (steps.listing_hidden_verified === true && steps.listing_hidden_reason_verified === true)
+        : (steps.listing_hidden_verified === true && steps.listing_non_reservable_verified === true));
   const allVerified =
     steps.lp_quarantine_verified === true &&
     steps.lp_recovery_blocked_verified === true &&
@@ -563,38 +586,26 @@ export function createReservationAuthority(deps) {
         };
       }
 
-      const expected = {
-        reservation_version: new_version,
-        reservation_lifecycle_state: requested_state,
-        reservation_token: payload.token,
-        reserved_by_email: payload.buyer,
-        reservation_expires_at: payload.expiration,
-        reservation_revision: revision,
-        last_operation_id: operation_id,
-        last_operation_type: operation_type,
-        last_operation_payload_hash: envelope_hash,
-        pending_effects_json: effects_json,
-        pending_effects_hash: effects_hash,
-      };
-
-      const mismatches = [];
-      for (const [field, exp] of Object.entries(expected)) {
-        if (verified[field] !== exp) {
-          mismatches.push(`${field}: expected ${JSON.stringify(exp)}, got ${JSON.stringify(verified[field])}`);
-        }
-      }
-
-      if (mismatches.length > 0) {
-        // Committed-field mismatch — trigger protection
+      // Round 6B: Run the COMPLETE replay/commit consistency validator against
+      // the freshly re-fetched row. This verifies EVERY field written in the
+      // authoritative CAS — including last_operation_result_json and
+      // last_operation_at — rather than maintaining a second incomplete list.
+      // A silent datastore drop or mutation of ANY committed field triggers
+      // structured non-success and verified protection.
+      const commitValidation = await validateIdempotentReplay(
+        verified, operation_id, envelope_hash,
+        async (effects) => hashEffects(effects, deps.hashEnvelope)
+      );
+      if (!commitValidation.ok) {
         const protection = await protectCorruptedAuthority(
           normalizedDeps, listing_id, lp.id,
-          `commit verification failed: ${mismatches.join('; ')}`,
-          { mismatches, expected, actual: verified }
+          `commit verification failed: ${commitValidation.code}: ${commitValidation.error}`,
+          { commit_validation: commitValidation, actual: verified }
         );
         return {
           ok: false, code: 'VERIFICATION_MISMATCH',
-          error: `commit verification failed: ${mismatches.join('; ')}`,
-          mismatches,
+          error: `commit verification failed: ${commitValidation.code}: ${commitValidation.error}`,
+          commit_validation: commitValidation,
           protection,
         };
       }

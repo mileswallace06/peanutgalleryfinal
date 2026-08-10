@@ -29,10 +29,19 @@ function createMockStore() {
     createThrow: false,
     updateThrow: false,
     filterThrow: false,
+    filterThrowOnce: false,        // Round 6B: throw on first filter, succeed after
+    dropFieldsOnUpdate: null,      // Round 6B: Set of field names to silently drop from $set
+    mutateAfterUpdate: null,       // Round 6B: { field: value } to set after $set (simulates mutation)
   };
+  let filterCallCount = 0;
   return {
     filter: async (query) => {
       if (failConfig.filterThrow) throw new Error('mock filter throw');
+      if (failConfig.filterThrowOnce && filterCallCount === 0) {
+        filterCallCount++;
+        throw new Error('mock filter throw (once)');
+      }
+      filterCallCount++;
       const results = [];
       for (const [id, rec] of store) {
         let match = true;
@@ -61,8 +70,18 @@ function createMockStore() {
         }
         if (match) {
           if (!failConfig.updateManyNoChange) {
-            if (update.$set) for (const [k, v] of Object.entries(update.$set)) rec[k] = v;
+            if (update.$set) {
+              for (const [k, v] of Object.entries(update.$set)) {
+                // Round 6B: silently drop specified fields (simulates datastore bug)
+                if (failConfig.dropFieldsOnUpdate && failConfig.dropFieldsOnUpdate.has(k)) continue;
+                rec[k] = v;
+              }
+            }
             if (update.$inc) for (const [k, v] of Object.entries(update.$inc)) rec[k] = (rec[k] || 0) + v;
+            // Round 6B: mutate fields after update (simulates datastore corruption)
+            if (failConfig.mutateAfterUpdate) {
+              for (const [k, v] of Object.entries(failConfig.mutateAfterUpdate)) rec[k] = v;
+            }
           }
           updated++;
           break;

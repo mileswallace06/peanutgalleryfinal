@@ -21,6 +21,7 @@ import { readFileSync, readdirSync, statSync, existsSync, writeFileSync, unlinkS
 import { join, extname, relative, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as espree from 'espree';
+import * as tsParser from '@typescript-eslint/parser';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -183,36 +184,50 @@ function findWritersInFileAST(filePath, trackedFields) {
   let ast;
   try {
     if (isTS) {
-      // Use espree with TS support via tsParser fallback
-      // espree doesn't parse TS natively; use a regex-based fallback for TS files
-      // that targets $set/.update/.create/.bulkCreate blocks
-      return findWritersInFileTSFallback(content, trackedFields);
+      // Round 6B: Use @typescript-eslint/parser for TS/TSX files.
+      // No regex fallback — a parse failure must fail the test.
+      ast = tsParser.parse(content, {
+        ecmaVersion: 'latest',
+        sourceType: 'module',
+        ecmaFeatures: { jsx: isJSX },
+        range: false,
+      });
+    } else {
+      ast = espree.parse(content, parserOptions);
     }
-    ast = espree.parse(content, parserOptions);
   } catch (e) {
-    // If AST parsing fails, fall back to conservative regex for this file
-    return findWritersInFileRegexFallback(content, trackedFields);
+    // Round 6B: Parse failure must fail the test, not silently fall back.
+    throw new Error(`Parse failure in ${filePath}: ${e.message}`);
   }
 
   // Track variable declarations that contain tracked fields
   // Map: variableName -> Set of tracked fields found in its initializer
   const patchVars = new Map();
 
-  // Track function names that return objects with tracked fields
-  // Set of function names
-  const patchFunctions = new Set();
+  // Round 6B: Track string-valued variables for computed key resolution
+  // Map: variableName -> string value
+  const stringVars = new Map();
 
+  // Round 6B: Track function names that return objects with tracked fields
+  // Map: functionName -> Set of tracked fields (was unused Set — now a Map)
+  const patchFunctions = new Map();
+
+  // Round 6B: Resolve computed keys using stringVars.
+  // Handles: { [field]: value } where const field = 'status'
   function getPropertyName(prop) {
-    if (prop.type === 'Property') {
-      if (prop.key.type === 'Identifier') return prop.key.name;
+    if (prop.type === 'Property' || prop.type === 'ObjectProperty') {
+      if (prop.key.type === 'Identifier' && !prop.computed) return prop.key.name;
       if (prop.key.type === 'Literal') return String(prop.key.value);
-      // Computed property — can't determine at static time
-      return null;
-    }
-    if (prop.type === 'ObjectProperty') {
-      if (prop.key.type === 'Identifier') return prop.key.name;
       if (prop.key.type === 'StringLiteral') return prop.key.value;
       if (prop.key.type === 'NumericLiteral') return String(prop.key.value);
+      if (prop.key.type === 'TemplateLiteral' && prop.key.quasis.length === 1) {
+        const q = prop.key.quasis[0];
+        return q.cooked ?? q.value?.raw ?? null;
+      }
+      // Computed property — resolve from string vars
+      if (prop.computed && prop.key.type === 'Identifier') {
+        return stringVars.get(prop.key.name) ?? null;
+      }
       return null;
     }
     return null;
@@ -279,14 +294,23 @@ function findWritersInFileAST(filePath, trackedFields) {
           patchVars.set(node.id.name, fields);
         }
       }
+      // Round 6B: Track string-valued variables for computed key resolution
+      // e.g., const field = 'status'; → { [field]: 'sold' } resolves to 'status'
+      if (node.id.type === 'Identifier' && node.init) {
+        let init = node.init;
+        // Unwrap TS wrapper expressions: (value as Type), <Type>value, value!, value satisfies Type
+        while (init && ['TSAsExpression', 'TSTypeAssertion', 'TSNonNullExpression', 'TSSatisfiesExpression'].includes(init.type)) {
+          init = init.expression;
+        }
+        if (init && (init.type === 'Literal' || init.type === 'StringLiteral') && typeof init.value === 'string') {
+          stringVars.set(node.id.name, init.value);
+        }
+      }
       // Track destructuring: const { status } = listing
       if (node.id.type === 'ObjectPattern' && node.init.type === 'Identifier') {
         for (const prop of node.id.properties) {
           const name = getPropertyName(prop);
           if (name && trackedFields.has(name)) {
-            // This variable holds a tracked field — but we can't know if it
-            // flows into a write without full data-flow analysis.
-            // Flag it conservatively.
             if (prop.value && prop.value.type === 'Identifier') {
               patchVars.set(prop.value.name, new Set([name]));
             }
@@ -295,25 +319,33 @@ function findWritersInFileAST(filePath, trackedFields) {
       }
     }
 
-    // Track functions that return objects with tracked fields
+    // Round 6B: Track functions that return objects with tracked fields.
+    // Changed from unused Set to Map: functionName -> Set of tracked fields.
     if (node.type === 'FunctionDeclaration' || node.type === 'FunctionExpression' || node.type === 'ArrowFunctionExpression') {
       const funcName = node.id?.name || (node.parent?.type === 'VariableDeclarator' ? node.parent.id.name : null);
       if (funcName && node.body) {
-        // Check if body is a single return of an object with tracked fields
+        const allFields = new Set();
         if (node.body.type === 'BlockStatement') {
           for (const stmt of node.body.body) {
-            if (stmt.type === 'ReturnStatement' && stmt.argument?.type === 'ObjectExpression') {
-              const fields = collectFieldsFromObject(stmt.argument);
-              if (fields.size > 0) {
-                patchFunctions.add(funcName);
+            if (stmt.type === 'ReturnStatement' && stmt.argument) {
+              let retArg = stmt.argument;
+              while (retArg && ['TSAsExpression', 'TSTypeAssertion', 'TSNonNullExpression', 'TSSatisfiesExpression'].includes(retArg.type)) {
+                retArg = retArg.expression;
+              }
+              if (retArg?.type === 'ObjectExpression') {
+                const fields = collectFieldsFromObject(retArg);
+                for (const f of fields) allFields.add(f);
               }
             }
           }
         } else if (node.body.type === 'ObjectExpression') {
           const fields = collectFieldsFromObject(node.body);
-          if (fields.size > 0) {
-            patchFunctions.add(funcName);
-          }
+          for (const f of fields) allFields.add(f);
+        }
+        if (allFields.size > 0) {
+          const existing = patchFunctions.get(funcName) || new Set();
+          for (const f of allFields) existing.add(f);
+          patchFunctions.set(funcName, existing);
         }
       }
     }
@@ -349,6 +381,14 @@ function findWritersInFileAST(filePath, trackedFields) {
           const varFields = patchVars.get(arg.name);
           if (varFields) {
             for (const f of varFields) writers.add(f);
+          }
+        }
+        // Round 6B: Check for function call arguments (helper-returned patches)
+        // e.g., await base44.entities.Listing.update(id, buildListingPatch())
+        if (arg.type === 'CallExpression' && arg.callee.type === 'Identifier') {
+          const funcFields = patchFunctions.get(arg.callee.name);
+          if (funcFields) {
+            for (const f of funcFields) writers.add(f);
           }
         }
         // Check for array of objects (bulkCreate)
