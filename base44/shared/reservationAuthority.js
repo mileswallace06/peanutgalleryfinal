@@ -21,7 +21,7 @@ import {
   TUPLE_REQUIRED_STATES, TUPLE_NULL_STATES,
   canonicalize, hashEnvelope, hashEffects, isValidVersion, isNonEmptyString,
   validateTransition, validateTuple, validatePendingEffectsArray,
-  parsePendingEffects,
+  parsePendingEffects, validateLifecycleState,
 } from './reservationAuthorityConstants.js';
 import { createMirrorAuthority } from './reservationAuthorityMirror.js';
 import { generateMigrationReport, planApply } from './reservationAuthorityMigration.js';
@@ -153,14 +153,35 @@ async function protectCorruptedAuthority(deps, listing_id, lp_id, reason, eviden
     steps.admin_alert_skipped = true;
   }
 
-  // Check if all critical protection steps verified
+  // 6. Verify exactly one unresolved alert with the incident key
+  //    Honest limitation: alert deduplication is sequentially idempotent but
+  //    not concurrently atomic — concurrent creates can produce duplicates.
+  //    Report the count honestly; do not claim PROTECTED if verification fails.
+  if (deps.entities.AdminAlert) {
+    try {
+      const alerts = await deps.entities.AdminAlert.filter({ incident_key, resolved: false });
+      steps.admin_alert_count = alerts.length;
+      steps.admin_alert_verified = alerts.length === 1 && alerts[0].priority === 'critical';
+      if (alerts.length > 1) {
+        steps.admin_alert_duplicate_detected = true;
+      }
+    } catch (e) {
+      steps.admin_alert_verify_error = e?.message || String(e);
+      steps.admin_alert_verified = false;
+    }
+  } else {
+    steps.admin_alert_verified = false;
+  }
+
+  // Check if ALL critical protection steps verified (including alert)
   const allVerified =
     steps.lp_quarantine_verified === true &&
     steps.lp_recovery_blocked_verified === true &&
     steps.lp_reason_verified === true &&
     steps.lp_timestamp_verified === true &&
     steps.listing_hidden_verified === true &&
-    steps.listing_hidden_reason_verified === true;
+    steps.listing_hidden_reason_verified === true &&
+    steps.admin_alert_verified === true;
 
   return {
     protected: allVerified,
@@ -172,14 +193,16 @@ async function protectCorruptedAuthority(deps, listing_id, lp_id, reason, eviden
 
 // ── Factory ──────────────────────────────────────────────────────────────────
 export function createReservationAuthority(deps) {
-  const {
-    entities: { ListingPrivate, Listing },
-    now = () => Date.now(),
-    generateId = defaultGenerateId,
-  } = deps;
+  if (!deps?.entities?.ListingPrivate) throw new Error('createReservationAuthority: ListingPrivate entity required');
+  if (!deps?.entities?.Listing) throw new Error('createReservationAuthority: Listing entity required');
 
-  if (!ListingPrivate) throw new Error('createReservationAuthority: ListingPrivate entity required');
-  if (!Listing) throw new Error('createReservationAuthority: Listing entity required');
+  // Normalize deps — ensure `now` and `generateId` are always available
+  // for all downstream functions (protection, transitions, etc.)
+  const now = deps.now || (() => Date.now());
+  const generateId = deps.generateId || defaultGenerateId;
+  const normalizedDeps = { ...deps, now, generateId };
+
+  const { entities: { ListingPrivate, Listing } } = normalizedDeps;
 
   // ── transitionReservation ──────────────────────────────────────────────────
   async function transitionReservation(params) {
@@ -332,8 +355,13 @@ export function createReservationAuthority(deps) {
       };
     }
 
-    // ── Step 9: Validate state transition ───────────────────────────────────
-    const current_state = lp.reservation_lifecycle_state || 'available';
+    // ── Step 9: Validate current lifecycle state (fail-closed on unknown) ──
+    // Missing, empty, or invalid state must NEVER be treated as available.
+    const stateCheck = validateLifecycleState(lp.reservation_lifecycle_state);
+    if (!stateCheck.valid) {
+      return { ok: false, code: 'STATE_CORRUPT', error: stateCheck.error, state_code: stateCheck.code };
+    }
+    const current_state = lp.reservation_lifecycle_state;
     const transitionCheck = validateTransition(operation_type, requested_state, current_state);
     if (!transitionCheck.valid) {
       return { ok: false, code: 'VALIDATION_ERROR', error: transitionCheck.error };
@@ -404,7 +432,7 @@ export function createReservationAuthority(deps) {
         verified = rows[0] || null;
       } catch (e) {
         // Verification query failure — trigger protection
-        const protection = await protectCorruptedAuthority(deps, listing_id, lp.id, 'verification query failed', { error: e?.message });
+        const protection = await protectCorruptedAuthority(normalizedDeps, listing_id, lp.id, 'verification query failed', { error: e?.message });
         return {
           ok: false, code: 'VERIFICATION_FAILED',
           error: e?.message || String(e),
@@ -413,7 +441,7 @@ export function createReservationAuthority(deps) {
       }
       if (!verified) {
         // Record disappeared — trigger protection
-        const protection = await protectCorruptedAuthority(deps, listing_id, lp.id, 'record disappeared after CAS', {});
+        const protection = await protectCorruptedAuthority(normalizedDeps, listing_id, lp.id, 'record disappeared after CAS', {});
         return {
           ok: false, code: 'VERIFICATION_MISMATCH',
           error: 'record not found after CAS',
@@ -525,7 +553,7 @@ export function createReservationAuthority(deps) {
 
   // ── clearPendingEffects — fail-closed CAS with pending_effects_hash ────────
   async function clearPendingEffects(params) {
-    const { listing_id, expected_version, expected_operation_id, expected_effects_hash } = params;
+    const { listing_id, expected_version, expected_operation_id, expected_effects_hash, expected_effects_json } = params;
 
     if (!isNonEmptyString(listing_id)) {
       return { ok: false, code: 'VALIDATION_ERROR', error: 'listing_id must be a nonempty string' };
@@ -538,6 +566,9 @@ export function createReservationAuthority(deps) {
     }
     if (!expected_effects_hash) {
       return { ok: false, code: 'VALIDATION_ERROR', error: 'missing expected_effects_hash' };
+    }
+    if (typeof expected_effects_json !== 'string') {
+      return { ok: false, code: 'VALIDATION_ERROR', error: 'expected_effects_json must be a string (canonical JSON)' };
     }
 
     let lp;
@@ -588,7 +619,9 @@ export function createReservationAuthority(deps) {
       try { await deps.hooks.beforeClearCAS(deps, listing_id); } catch (e) { /* non-fatal */ }
     }
 
-    // CAS: match id, reservation_version, last_operation_id, pending_effects_hash
+    // CAS: match id, reservation_version, last_operation_id, pending_effects_json AND hash
+    // Both the exact canonical JSON and its hash are in the predicate so a
+    // stale clearer cannot erase a replacement effects queue.
     let casResult;
     try {
       casResult = await ListingPrivate.updateMany(
@@ -596,6 +629,7 @@ export function createReservationAuthority(deps) {
           id: lp.id,
           reservation_version: expected_version,
           last_operation_id: expected_operation_id,
+          pending_effects_json: expected_effects_json,
           pending_effects_hash: expected_effects_hash,
         },
         { $set: {
@@ -664,6 +698,7 @@ export function createReservationAuthority(deps) {
     return {
       ok: true,
       effects: effectsCheck.effects,
+      effects_json: lp.pending_effects_json ?? '[]',
       version: lp.reservation_version,
       operation_id: lp.last_operation_id,
       effects_hash,
@@ -672,7 +707,7 @@ export function createReservationAuthority(deps) {
   }
 
   // ── Mirror functions ────────────────────────────────────────────────────────
-  const mirror = createMirrorAuthority(deps);
+  const mirror = createMirrorAuthority(normalizedDeps);
 
   return {
     transitionReservation,

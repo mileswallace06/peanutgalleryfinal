@@ -1,16 +1,17 @@
 /**
- * Reservation Authority Adversarial Tests (7C.9C.2E Correction Round 2)
+ * Reservation Authority Adversarial Tests (7C.9C.2E Correction Round 3)
  *
- * Round 2 corrections:
+ * Round 3 corrections:
+ *   - projectMirror is authority-driven: caller cannot supply status/hidden_reason.
+ *   - Equal-version repair: re-fetch BOTH authority and mirror after update.
+ *   - Mirror newer than authority: hide/quarantine + AdminAlert + verify.
+ *   - Convergence failure: verify hide, alert, return PROTECTION_INCOMPLETE.
+ *   - Protection with AdminAlert failure: must not report PROTECTED.
+ *   - Hidden Listing cannot be reopened by migration.
  *   - All tests assert FINAL ENTITY STATE, not only returned error codes.
- *   - Mirror: MIGRATION_REQUIRED for missing LP version.
- *   - Mirror: MIRROR_MIGRATION_REQUIRED for missing Listing version.
- *   - Equal version: authority sold, mirror active → must NOT report synced.
- *   - Authority advances during sweep → final mirror matches newest or hidden.
- *   - Post-write public field mismatch → detected and protected.
- *   - Unknown fields rejected (not silently dropped).
  */
 import { createReservationAuthority } from '../base44/shared/reservationAuthority.js';
+import { generateMigrationReport } from '../base44/shared/reservationAuthorityMigration.js';
 import { createMockDeps } from './authority/helpers.mjs';
 
 const tests = [];
@@ -24,12 +25,12 @@ function assert(cond, msg) { if (!cond) throw new Error(msg); }
 test('delayed v1 mirror after committed v2 is rejected', async () => {
   const deps = createMockDeps();
   const authority = createReservationAuthority(deps);
+  deps._seedLP('lp1', { listing_id: 'list1', reservation_version: 1, reservation_lifecycle_state: 'available' });
   deps._seedListing('list1', { reservation_version: 2, status: 'hidden', hidden_reason: 'checkout_quarantine' });
-  const res = await authority.projectMirror('list1', 0, 1, { status: 'active' });
+  const res = await authority.projectMirror('list1', 0, 1);
   assert(!res.ok, 'should be rejected');
   assert(res.code === 'STALE_MIRROR', `expected STALE_MIRROR, got ${res.code}`);
   assert(res.current_mirror_version === 2, 'current should be 2');
-  // Assert final entity state
   const [listing] = await deps.entities.Listing.filter({ id: 'list1' });
   assert(listing.reservation_version === 2, 'mirror version should be unchanged at 2');
   assert(listing.status === 'hidden', 'mirror status should be unchanged');
@@ -39,11 +40,11 @@ test('delayed v1 mirror after committed v2 is rejected', async () => {
 test('equal version with different payload returns MIRROR_CONFLICT', async () => {
   const deps = createMockDeps();
   const authority = createReservationAuthority(deps);
+  deps._seedLP('lp1', { listing_id: 'list1', reservation_version: 1, reservation_lifecycle_state: 'available' });
   deps._seedListing('list1', { reservation_version: 1, status: 'hidden', hidden_reason: 'checkout_quarantine' });
-  const res = await authority.projectMirror('list1', 0, 1, { status: 'active' });
+  const res = await authority.projectMirror('list1', 0, 1);
   assert(!res.ok, 'should be rejected');
   assert(res.code === 'MIRROR_CONFLICT', `expected MIRROR_CONFLICT, got ${res.code}`);
-  // Assert final entity state — unchanged
   const [listing] = await deps.entities.Listing.filter({ id: 'list1' });
   assert(listing.reservation_version === 1, 'version should be unchanged');
   assert(listing.status === 'hidden', 'status should be unchanged');
@@ -68,7 +69,6 @@ test('two sweepers racing converge to newest authority version', async () => {
   assert(res1.ok || res2.ok, 'at least one sweeper should succeed');
   if (res1.ok) assert(res1.mirror_version === 2, 'sweeper 1 should report v2');
   if (res2.ok) assert(res2.mirror_version === 2, 'sweeper 2 should report v2');
-  // Assert final entity state
   const [listing] = await deps.entities.Listing.filter({ id: 'list1' });
   assert(listing.reservation_version === 2, 'mirror should be at v2');
   assert(listing.status === 'active', 'mirror status should be active');
@@ -94,12 +94,10 @@ test('authority advancing during sweep returns STALE_PROJECTION or converges', a
     }
   });
   const res = await authority.sweepMirror('list1');
-  // Should either detect stale projection or converge to v3
   if (!res.ok) {
     assert(res.code === 'STALE_PROJECTION' || res.code === 'SWEEP_CONVERGENCE_FAILED',
       `expected STALE_PROJECTION or SWEEP_CONVERGENCE_FAILED, got ${res.code}`);
   }
-  // Assert final entity state — mirror should match newest authority or be hidden
   const [listing] = await deps.entities.Listing.filter({ id: 'list1' });
   const [lp] = await deps.entities.ListingPrivate.filter({ listing_id: 'list1' });
   const authorityVersion = lp.reservation_version;
@@ -110,45 +108,50 @@ test('authority advancing during sweep returns STALE_PROJECTION or converges', a
     `mirror should match authority (${authorityVersion}) or be hidden, got version=${mirrorVersion} status=${listing.status}`);
 });
 
-// ── 5: Public Listing forbidden-field scan (recursive) ───────────────────────
-test('mirror never projects forbidden fields to Listing', async () => {
+// ── 5: projectMirror is authority-driven — no forbidden fields projected ─────
+test('projectMirror is authority-driven and never projects forbidden fields', async () => {
   const deps = createMockDeps();
   const authority = createReservationAuthority(deps);
-  deps._seedListing('list1', { reservation_version: 0, status: 'active' });
-  const res = await authority.projectMirror('list1', 0, 1, {
-    status: 'hidden',
-    hidden_reason: 'checkout_quarantine',
-    reservation_token: 'should_not_be_projected',
-    reserved_by_email: 'should_not_be_projected',
-    pending_effects_json: '[]',
-    last_operation_id: 'should_not_be_projected',
+  deps._seedLP('lp1', {
+    listing_id: 'list1', reservation_version: 1,
+    reservation_lifecycle_state: 'reserved',
+    reservation_token: 'private_token', reserved_by_email: 'private@test',
+    reservation_expires_at: '2026-12-31T00:00:00Z',
+    reservation_revision: 'rev_1',
   });
-  assert(!res.ok, 'should reject forbidden fields');
-  assert(res.code === 'MIRROR_FORBIDDEN_FIELD', `expected MIRROR_FORBIDDEN_FIELD, got ${res.code}`);
-  assert(res.fields.length >= 4, `should find >= 4 forbidden fields, got ${res.fields.length}`);
-  // Assert final entity state — unchanged
-  const [listing] = await deps.entities.Listing.filter({ id: 'list1' });
-  assert(listing.reservation_version === 0, 'mirror version should be unchanged');
-  assert(listing.reservation_token === null, 'reservation_token should not be set');
-});
-
-// ── 6: Mirror projects only approved fields ──────────────────────────────────
-test('mirror projects only approved public fields and reservation_version', async () => {
-  const deps = createMockDeps();
-  const authority = createReservationAuthority(deps);
   deps._seedListing('list1', { reservation_version: 0, status: 'active' });
-  const res = await authority.projectMirror('list1', 0, 1, {
-    status: 'hidden',
-    hidden_reason: 'checkout_quarantine',
-  });
-  assert(res.ok, 'should succeed with approved fields');
+  const res = await authority.projectMirror('list1', 0, 1);
+  assert(res.ok, 'should succeed');
   assert(res.verified === true, 'should be verified');
-  // Assert final entity state
   const [listing] = await deps.entities.Listing.filter({ id: 'list1' });
   assert(listing.reservation_version === 1, 'mirror version should be 1');
-  assert(listing.status === 'hidden', 'status should be hidden');
-  assert(listing.hidden_reason === 'checkout_quarantine', 'hidden_reason should be set');
-  assert(listing.reservation_token === null, 'reservation_token should not be set');
+  assert(listing.status === 'active', 'status should be active (reserved → active)');
+  // Forbidden fields must NOT be projected
+  assert(listing.reservation_token === null || listing.reservation_token === undefined,
+    'reservation_token must not be projected from authority');
+  assert(listing.reserved_by_email === null || listing.reserved_by_email === undefined,
+    'reserved_by_email must not be projected from authority');
+});
+
+// ── 6: projectMirror derives from authority — frozen → hidden ───────────────
+test('projectMirror derives hidden from frozen authority state', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  deps._seedLP('lp1', {
+    listing_id: 'list1', reservation_version: 1,
+    reservation_lifecycle_state: 'frozen',
+    reservation_token: 'tok1', reserved_by_email: 'b1@test',
+    reservation_expires_at: '2026-12-31T00:00:00Z',
+    reservation_revision: 'rev_1',
+  });
+  deps._seedListing('list1', { reservation_version: 0, status: 'active' });
+  const res = await authority.projectMirror('list1', 0, 1);
+  assert(res.ok, 'should succeed');
+  assert(res.verified === true, 'should be verified');
+  const [listing] = await deps.entities.Listing.filter({ id: 'list1' });
+  assert(listing.reservation_version === 1, 'mirror version should be 1');
+  assert(listing.status === 'hidden', 'status should be hidden (frozen)');
+  assert(listing.hidden_reason === 'checkout_quarantine', 'hidden_reason should be checkout_quarantine');
 });
 
 // ── 7: Sweeper repairs stale mirror ──────────────────────────────────────────
@@ -167,25 +170,33 @@ test('sweeper safely repairs stale mirror', async () => {
   assert(res.ok, 'sweeper should succeed');
   assert(res.repaired === true, 'should repair');
   assert(res.mirror_version === 3, 'mirror version should be 3');
-  // Assert final entity state
   const [listing] = await deps.entities.Listing.filter({ id: 'list1' });
   assert(listing.reservation_version === 3, 'mirror version should be 3');
   assert(listing.status === 'active', 'status should be active');
   assert(listing.reservation_token === 'stale', 'sweeper should not overwrite reservation_token');
 });
 
-// ── 8: Mirror newer than authority → corruption ──────────────────────────────
-test('mirror newer than authority is detected as corruption', async () => {
+// ── 8: Mirror newer than authority → hide/quarantine + alert ─────────────────
+test('mirror newer than authority triggers protection (hide + alert)', async () => {
   const deps = createMockDeps();
   const authority = createReservationAuthority(deps);
-  deps._seedLP('lp1', { listing_id: 'list1', reservation_version: 2 });
+  deps._seedLP('lp1', { listing_id: 'list1', reservation_version: 2, reservation_lifecycle_state: 'available' });
   deps._seedListing('list1', { reservation_version: 5, status: 'active' });
   const res = await authority.sweepMirror('list1');
   assert(!res.ok, 'should detect corruption');
   assert(res.code === 'MIRROR_NEWER_THAN_AUTHORITY', `expected MIRROR_NEWER_THAN_AUTHORITY, got ${res.code}`);
-  // Assert final entity state — unchanged
+  assert(res.protection, 'should have protection result');
+  assert(res.protection.protected === true, 'protection should be verified');
+  // Assert final entity state — Listing must be hidden
   const [listing] = await deps.entities.Listing.filter({ id: 'list1' });
-  assert(listing.reservation_version === 5, 'mirror version should be unchanged');
+  assert(listing.status === 'hidden', `Listing should be hidden, got ${listing.status}`);
+  assert(listing.hidden_reason === 'checkout_quarantine', 'hidden_reason should be checkout_quarantine');
+  // Assert AdminAlert was created
+  const alerts = Array.from(deps._adminAlertStore.values());
+  const unresolved = alerts.filter(a => a.resolved === false);
+  assert(unresolved.length === 1, `expected 1 unresolved alert, got ${unresolved.length}`);
+  assert(unresolved[0].priority === 'critical', 'priority should be critical');
+  assert(unresolved[0].incident_key === `mirror_corruption:list1`, 'incident key should match');
 });
 
 // ── 9: Idempotent sweep (already synced) ─────────────────────────────────────
@@ -198,15 +209,10 @@ test('sweeper reports already_synced when mirror matches authority', async () =>
   assert(res.ok, 'should succeed');
   assert(res.already_synced === true, 'should be already_synced');
   assert(res.mirror_version === 3, 'version should be 3');
-  // Assert final entity state — unchanged
   const [listing] = await deps.entities.Listing.filter({ id: 'list1' });
   assert(listing.reservation_version === 3, 'version should be unchanged');
   assert(listing.status === 'active', 'status should be unchanged');
 });
-
-// ════════════════════════════════════════════════════════════════════════════
-// ROUND 2 NEW MIRROR TESTS
-// ════════════════════════════════════════════════════════════════════════════
 
 // ── 10: Equal version, authority sold, mirror active → must NOT report synced
 test('equal version with authority sold and mirror active must not report synced', async () => {
@@ -220,12 +226,10 @@ test('equal version with authority sold and mirror active must not report synced
   });
   deps._seedListing('list1', { reservation_version: 2, status: 'active', hidden_reason: null });
   const res = await authority.sweepMirror('list1');
-  // Should detect divergence and repair, not report already_synced
   if (res.ok) {
     assert(!res.already_synced, 'should NOT report already_synced when fields diverge');
     assert(res.repaired === true, 'should repair fields');
   }
-  // Assert final entity state — mirror should be updated to sold
   const [listing] = await deps.entities.Listing.filter({ id: 'list1' });
   assert(listing.status === 'sold', `status should be sold, got ${listing.status}`);
   assert(listing.hidden_reason === null, 'hidden_reason should be null');
@@ -241,7 +245,6 @@ test('sweep with missing LP version returns MIGRATION_REQUIRED', async () => {
   const res = await authority.sweepMirror('list1');
   assert(!res.ok, 'should fail');
   assert(res.code === 'MIGRATION_REQUIRED', `expected MIGRATION_REQUIRED, got ${res.code}`);
-  // Assert final entity state — unchanged
   const [listing] = await deps.entities.Listing.filter({ id: 'list1' });
   assert(listing.reservation_version === 0, 'mirror version should be unchanged');
 });
@@ -256,7 +259,6 @@ test('sweep with missing Listing version returns MIRROR_MIGRATION_REQUIRED', asy
   const res = await authority.sweepMirror('list1');
   assert(!res.ok, 'should fail');
   assert(res.code === 'MIRROR_MIGRATION_REQUIRED', `expected MIRROR_MIGRATION_REQUIRED, got ${res.code}`);
-  // Assert final entity state — unchanged
   const [listing] = await deps.entities.Listing.filter({ id: 'list1' });
   assert(listing.reservation_version === undefined, 'mirror version should be unchanged (undefined)');
 });
@@ -265,35 +267,38 @@ test('sweep with missing Listing version returns MIRROR_MIGRATION_REQUIRED', asy
 test('projectMirror with missing Listing version returns MIRROR_MIGRATION_REQUIRED', async () => {
   const deps = createMockDeps();
   const authority = createReservationAuthority(deps);
+  deps._seedLP('lp1', { listing_id: 'list1', reservation_version: 1, reservation_lifecycle_state: 'available' });
   deps._seedListing('list1', { status: 'active' });
   delete deps._listingStore.get('list1').reservation_version;
-  const res = await authority.projectMirror('list1', 0, 1, { status: 'hidden' });
+  const res = await authority.projectMirror('list1', 0, 1);
   assert(!res.ok, 'should fail');
   assert(res.code === 'MIRROR_MIGRATION_REQUIRED', `expected MIRROR_MIGRATION_REQUIRED, got ${res.code}`);
-  // Assert final entity state — unchanged
   const [listing] = await deps.entities.Listing.filter({ id: 'list1' });
   assert(listing.reservation_version === undefined, 'mirror version should be unchanged');
   assert(listing.status === 'active', 'status should be unchanged');
 });
 
-// ── 14: Unknown fields rejected (not silently dropped) ───────────────────────
-test('projectMirror rejects unknown fields instead of silently dropping them', async () => {
+// ── 14: projectMirror authority-driven — caller cannot override status ──────
+test('projectMirror caller cannot project active when authority says sold', async () => {
   const deps = createMockDeps();
   const authority = createReservationAuthority(deps);
-  deps._seedListing('list1', { reservation_version: 0, status: 'active' });
-  const res = await authority.projectMirror('list1', 0, 1, {
-    status: 'hidden',
-    unknown_field: 'should_be_rejected',
+  deps._seedLP('lp1', {
+    listing_id: 'list1', reservation_version: 1,
+    reservation_lifecycle_state: 'sold',
+    reservation_token: null, reserved_by_email: null, reservation_expires_at: null,
+    reservation_revision: 'rev_1',
   });
-  assert(!res.ok, 'should reject unknown fields');
-  assert(res.code === 'MIRROR_UNKNOWN_FIELD', `expected MIRROR_UNKNOWN_FIELD, got ${res.code}`);
-  assert(res.fields.includes('unknown_field'), 'should report unknown_field');
-  // Assert final entity state — unchanged
+  deps._seedListing('list1', { reservation_version: 0, status: 'active' });
+  // Caller passes NO payload — authority derives from LP state
+  const res = await authority.projectMirror('list1', 0, 1);
+  assert(res.ok, 'should succeed');
   const [listing] = await deps.entities.Listing.filter({ id: 'list1' });
-  assert(listing.reservation_version === 0, 'version should be unchanged');
+  // Authority says sold → mirror must be sold, NOT active
+  assert(listing.status === 'sold', `status should be sold (authority-driven), got ${listing.status}`);
+  assert(listing.hidden_reason === null, 'hidden_reason should be null');
 });
 
-// ── 15: Post-write public field mismatch detected ────────────────────────────
+// ── 15: Post-sweep verifies version status and hidden_reason ──────────────────
 test('post-sweep verifies version status and hidden_reason', async () => {
   const deps = createMockDeps();
   const authority = createReservationAuthority(deps);
@@ -308,7 +313,6 @@ test('post-sweep verifies version status and hidden_reason', async () => {
   const res = await authority.sweepMirror('list1');
   assert(res.ok, 'sweep should succeed');
   assert(res.verified === true, 'should be verified');
-  // Assert final entity state — all three fields verified
   const [listing] = await deps.entities.Listing.filter({ id: 'list1' });
   assert(listing.reservation_version === 2, 'version should be 2');
   assert(listing.status === 'hidden', 'status should be hidden (frozen)');
@@ -328,16 +332,271 @@ test('sweep with invalid listing_id is rejected', async () => {
 test('projectMirror rejects invalid version types', async () => {
   const deps = createMockDeps();
   const authority = createReservationAuthority(deps);
+  deps._seedLP('lp1', { listing_id: 'list1', reservation_version: 1, reservation_lifecycle_state: 'available' });
   deps._seedListing('list1', { reservation_version: 0, status: 'active' });
-  const r1 = await authority.projectMirror('list1', -1, 1, { status: 'hidden' });
+  const r1 = await authority.projectMirror('list1', -1, 1);
   assert(!r1.ok, 'negative expected version should be rejected');
   assert(r1.code === 'VALIDATION_ERROR', `expected VALIDATION_ERROR, got ${r1.code}`);
-  const r2 = await authority.projectMirror('list1', 0, 1.5, { status: 'hidden' });
+  const r2 = await authority.projectMirror('list1', 0, 1.5);
   assert(!r2.ok, 'fractional new version should be rejected');
   assert(r2.code === 'VALIDATION_ERROR', `expected VALIDATION_ERROR, got ${r2.code}`);
-  const r3 = await authority.projectMirror('list1', 0, 0, { status: 'hidden' });
+  const r3 = await authority.projectMirror('list1', 0, 0);
   assert(!r3.ok, 'new_version <= expected should be rejected');
   assert(r3.code === 'VALIDATION_ERROR', `expected VALIDATION_ERROR, got ${r3.code}`);
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// ROUND 3 NEW ADVERSARIAL TESTS
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── R3-A: Equal-version repair detects authority advance during repair ──────
+test('equal-version repair detects authority advance during repair', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  deps._seedLP('lp1', {
+    listing_id: 'list1', reservation_version: 2,
+    reservation_lifecycle_state: 'sold',
+    reservation_token: null, reserved_by_email: null, reservation_expires_at: null,
+    reservation_revision: 'rev_1',
+  });
+  deps._seedListing('list1', { reservation_version: 2, status: 'active', hidden_reason: null });
+  // Hook: after equal-version CAS, advance the authority
+  deps._setHook('afterSweepCAS', (d, listing_id) => {
+    const lp = d._lpStore.get('lp1');
+    if (lp) {
+      lp.reservation_version = 3;
+      lp.reservation_lifecycle_state = 'available';
+      lp.reservation_token = null;
+      lp.reserved_by_email = null;
+      lp.reservation_expires_at = null;
+    }
+  });
+  const res = await authority.sweepMirror('list1');
+  // Should detect the advance and retry or fail — NOT report success with stale state
+  if (res.ok) {
+    // If it succeeded, it must have converged to the NEWEST authority state
+    const [lp] = await deps.entities.ListingPrivate.filter({ listing_id: 'list1' });
+    const [listing] = await deps.entities.Listing.filter({ id: 'list1' });
+    assert(listing.reservation_version === lp.reservation_version,
+      `mirror must match authority after repair: mirror=${listing.reservation_version} auth=${lp.reservation_version}`);
+  } else {
+    // If it failed, it must be STALE_PROJECTION or CONVERGENCE_FAILED
+    assert(res.code === 'STALE_PROJECTION' || res.code === 'SWEEP_CONVERGENCE_FAILED',
+      `expected STALE_PROJECTION or SWEEP_CONVERGENCE_FAILED, got ${res.code}`);
+  }
+});
+
+// ── R3-B: Convergence failure triggers protection with verification ──────────
+test('convergence failure triggers protection with hide + alert + verify', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  deps._seedLP('lp1', {
+    listing_id: 'list1', reservation_version: 2,
+    reservation_lifecycle_state: 'reserved',
+    reservation_token: 'tok1', reserved_by_email: 'b1@test',
+    reservation_expires_at: '2026-12-31T00:00:00Z',
+    reservation_revision: 'rev_1',
+  });
+  deps._seedListing('list1', { reservation_version: 0, status: 'active' });
+  // Make every CAS fail (updated: 0) to force convergence failure
+  deps._listingFailConfig.updateManyReturnZero = true;
+  const res = await authority.sweepMirror('list1');
+  assert(!res.ok, 'should fail');
+  assert(res.code === 'SWEEP_CONVERGENCE_FAILED', `expected SWEEP_CONVERGENCE_FAILED, got ${res.code}`);
+  assert(res.protection, 'should have protection result');
+  assert(res.protection.protected === true, 'protection should be verified');
+  // Verify Listing is hidden
+  deps._listingFailConfig.updateManyReturnZero = false;
+  const [listing] = await deps.entities.Listing.filter({ id: 'list1' });
+  assert(listing.status === 'hidden', `Listing should be hidden, got ${listing.status}`);
+  // Verify AdminAlert was created
+  const alerts = Array.from(deps._adminAlertStore.values());
+  const unresolved = alerts.filter(a => a.resolved === false);
+  assert(unresolved.length === 1, `expected 1 unresolved alert, got ${unresolved.length}`);
+  assert(unresolved[0].priority === 'critical', 'priority should be critical');
+});
+
+// ── R3-C: Protection with AdminAlert creation failure → PROTECTION_INCOMPLETE
+test('protection with AdminAlert creation failure returns PROTECTION_INCOMPLETE', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  deps._seedLP('lp1', { listing_id: 'list1', reservation_version: 2, reservation_lifecycle_state: 'available' });
+  deps._seedListing('list1', { reservation_version: 5, status: 'active' });
+  // Make AdminAlert.create throw
+  deps._adminAlertFailConfig.createThrow = true;
+  const res = await authority.sweepMirror('list1');
+  assert(!res.ok, 'should fail');
+  assert(res.code === 'MIRROR_NEWER_THAN_AUTHORITY', `expected MIRROR_NEWER_THAN_AUTHORITY, got ${res.code}`);
+  assert(res.protection, 'should have protection result');
+  assert(res.protection.protected === false, 'protection should NOT be verified (alert failed)');
+  assert(res.protection.code === 'PROTECTION_INCOMPLETE', `expected PROTECTION_INCOMPLETE, got ${res.protection.code}`);
+  // Listing should still be hidden (hide step succeeded)
+  deps._adminAlertFailConfig.createThrow = false;
+  const [listing] = await deps.entities.Listing.filter({ id: 'list1' });
+  assert(listing.status === 'hidden', 'Listing should still be hidden despite alert failure');
+});
+
+// ── R3-D: Protection with updateMany returning updated:0 → PROTECTION_INCOMPLETE
+test('protection with updateMany returning updated:0 returns PROTECTION_INCOMPLETE', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  deps._seedLP('lp1', { listing_id: 'list1', reservation_version: 2, reservation_lifecycle_state: 'available' });
+  deps._seedListing('list1', { reservation_version: 5, status: 'active' });
+  // Make Listing.updateMany return updated:0 (hide fails)
+  deps._listingFailConfig.updateManyReturnZero = true;
+  const res = await authority.sweepMirror('list1');
+  assert(!res.ok, 'should fail');
+  assert(res.code === 'MIRROR_NEWER_THAN_AUTHORITY', `expected MIRROR_NEWER_THAN_AUTHORITY, got ${res.code}`);
+  assert(res.protection, 'should have protection result');
+  assert(res.protection.protected === false, 'protection should NOT be verified (hide failed)');
+  assert(res.protection.code === 'PROTECTION_INCOMPLETE', `expected PROTECTION_INCOMPLETE, got ${res.protection.code}`);
+  deps._listingFailConfig.updateManyReturnZero = false;
+});
+
+// ── R3-E: Hidden Listing cannot be reopened by migration ────────────────────
+test('hidden Listing is never proposed as available by migration', async () => {
+  const deps = createMockDeps();
+  deps._seedListing('list1', { status: 'hidden', hidden_reason: 'admin_disabled' });
+  deps._seedLP('lp1', {
+    listing_id: 'list1',
+    reservation_token: null, reserved_by_email: null, reservation_expires_at: null,
+    reservation_revision: null,
+  });
+  delete deps._lpStore.get('lp1').reservation_version;
+  const report = await generateMigrationReport(deps);
+  assert(report.ok, 'report should succeed');
+  const rec = report.records.find(r => r.listing_id === 'list1');
+  assert(rec, 'should have a record for list1');
+  assert(rec.derived_lifecycle_state !== 'available',
+    `hidden Listing should never derive available, got ${rec.derived_lifecycle_state}`);
+  assert(rec.derived_lifecycle_state === 'AMBIGUOUS',
+    `hidden Listing should be AMBIGUOUS (manual review), got ${rec.derived_lifecycle_state}`);
+});
+
+// ── R3-F: pending_verification Listing cannot be reopened by migration ───────
+test('pending_verification Listing is never proposed as available by migration', async () => {
+  const deps = createMockDeps();
+  deps._seedListing('list1', { status: 'pending_verification' });
+  deps._seedLP('lp1', {
+    listing_id: 'list1',
+    reservation_token: null, reserved_by_email: null, reservation_expires_at: null,
+    reservation_revision: null,
+  });
+  delete deps._lpStore.get('lp1').reservation_version;
+  const report = await generateMigrationReport(deps);
+  assert(report.ok, 'report should succeed');
+  const rec = report.records.find(r => r.listing_id === 'list1');
+  assert(rec, 'should have a record');
+  assert(rec.derived_lifecycle_state !== 'available',
+    `pending_verification should never derive available, got ${rec.derived_lifecycle_state}`);
+});
+
+// ── R3-G: pending_payout_setup Listing cannot be reopened by migration ───────
+test('pending_payout_setup Listing is never proposed as available by migration', async () => {
+  const deps = createMockDeps();
+  deps._seedListing('list1', { status: 'pending_payout_setup' });
+  deps._seedLP('lp1', {
+    listing_id: 'list1',
+    reservation_token: null, reserved_by_email: null, reservation_expires_at: null,
+    reservation_revision: null,
+  });
+  delete deps._lpStore.get('lp1').reservation_version;
+  const report = await generateMigrationReport(deps);
+  assert(report.ok, 'report should succeed');
+  const rec = report.records.find(r => r.listing_id === 'list1');
+  assert(rec, 'should have a record');
+  assert(rec.derived_lifecycle_state !== 'available',
+    `pending_payout_setup should never derive available, got ${rec.derived_lifecycle_state}`);
+});
+
+// ── R3-H: Missing version with derivable state is MIGRATION_REQUIRED ─────────
+test('missing version with derivable state is MIGRATION_REQUIRED not AMBIGUOUS', async () => {
+  const deps = createMockDeps();
+  deps._seedListing('list1', { status: 'active' });
+  deps._seedLP('lp1', {
+    listing_id: 'list1',
+    reservation_token: null, reserved_by_email: null, reservation_expires_at: null,
+    reservation_revision: null,
+  });
+  delete deps._lpStore.get('lp1').reservation_version;
+  const report = await generateMigrationReport(deps);
+  assert(report.ok, 'report should succeed');
+  const rec = report.records.find(r => r.listing_id === 'list1');
+  assert(rec, 'should have a record');
+  assert(rec.status === 'MIGRATION_REQUIRED', `expected MIGRATION_REQUIRED, got ${rec.status}`);
+  assert(rec.derived_lifecycle_state === 'available', 'active + null tuple should derive available');
+  assert(rec.proposed_reservation_version === 0, 'proposed version should be 0');
+});
+
+// ── R3-I: sold Listing requires valid terminal tuple ─────────────────────────
+test('sold Listing with non-null token is AMBIGUOUS', async () => {
+  const deps = createMockDeps();
+  deps._seedListing('list1', { status: 'sold' });
+  deps._seedLP('lp1', {
+    listing_id: 'list1',
+    reservation_token: 'should_be_null', reserved_by_email: 'should_be_null',
+    reservation_expires_at: null, reservation_revision: null,
+  });
+  delete deps._lpStore.get('lp1').reservation_version;
+  const report = await generateMigrationReport(deps);
+  assert(report.ok, 'report should succeed');
+  const rec = report.records.find(r => r.listing_id === 'list1');
+  assert(rec, 'should have a record');
+  // sold with non-null token → AMBIGUOUS (terminal state has non-null token)
+  assert(rec.status === 'AMBIGUOUS', `expected AMBIGUOUS, got ${rec.status}`);
+  assert(rec.issues.some(i => i.includes('non-null token')), 'should have non-null token issue');
+});
+
+// ── R3-J: projectMirror with corrupt LP state returns STATE_CORRUPT ──────────
+test('projectMirror with corrupt LP lifecycle state returns STATE_CORRUPT', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  deps._seedLP('lp1', {
+    listing_id: 'list1', reservation_version: 1,
+    reservation_lifecycle_state: 'invalid_state',
+  });
+  deps._seedListing('list1', { reservation_version: 0, status: 'active' });
+  const res = await authority.projectMirror('list1', 0, 1);
+  assert(!res.ok, 'should fail');
+  assert(res.code === 'STATE_CORRUPT', `expected STATE_CORRUPT, got ${res.code}`);
+  // Verify zero writes — Listing unchanged
+  const [listing] = await deps.entities.Listing.filter({ id: 'list1' });
+  assert(listing.reservation_version === 0, 'mirror version should be unchanged');
+  assert(listing.status === 'active', 'mirror status should be unchanged');
+});
+
+// ── R3-K: sweep with corrupt LP state triggers protection ────────────────────
+test('sweep with corrupt LP lifecycle state triggers protection', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  deps._seedLP('lp1', {
+    listing_id: 'list1', reservation_version: 2,
+    reservation_lifecycle_state: null,
+  });
+  deps._seedListing('list1', { reservation_version: 2, status: 'active' });
+  const res = await authority.sweepMirror('list1');
+  assert(!res.ok, 'should fail');
+  assert(res.code === 'STATE_CORRUPT', `expected STATE_CORRUPT, got ${res.code}`);
+  assert(res.protection, 'should have protection result');
+  // Listing should be hidden
+  const [listing] = await deps.entities.Listing.filter({ id: 'list1' });
+  assert(listing.status === 'hidden', 'Listing should be hidden');
+});
+
+// ── R3-L: projectMirror authority version mismatch ───────────────────────────
+test('projectMirror rejects when authority version does not match new_version', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  deps._seedLP('lp1', { listing_id: 'list1', reservation_version: 5, reservation_lifecycle_state: 'available' });
+  deps._seedListing('list1', { reservation_version: 0, status: 'active' });
+  // Caller says new_version=1, but authority is at 5
+  const res = await authority.projectMirror('list1', 0, 1);
+  assert(!res.ok, 'should fail');
+  assert(res.code === 'AUTHORITY_VERSION_MISMATCH', `expected AUTHORITY_VERSION_MISMATCH, got ${res.code}`);
+  assert(res.authority_version === 5, 'authority version should be 5');
+  // Verify zero writes
+  const [listing] = await deps.entities.Listing.filter({ id: 'list1' });
+  assert(listing.reservation_version === 0, 'mirror version should be unchanged');
 });
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -345,7 +604,7 @@ test('projectMirror rejects invalid version types', async () => {
 // ════════════════════════════════════════════════════════════════════════════
 
 async function main() {
-  console.log('=== Reservation Authority Adversarial Tests (7C.9C.2E Correction Round 2) ===\n');
+  console.log('=== Reservation Authority Adversarial Tests (7C.9C.2E Correction Round 3) ===\n');
   for (const t of tests) {
     try {
       await t.fn();

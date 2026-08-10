@@ -135,6 +135,25 @@ export function isNonEmptyString(v) {
   return typeof v === 'string' && v.trim().length > 0;
 }
 
+// ── Lifecycle state validation (fail-closed on unknown state) ──────────────
+// Missing, empty, or invalid lifecycle state must NEVER be treated as available.
+export function isValidLifecycleState(state) {
+  return typeof state === 'string' && LIFECYCLE_STATES.includes(state);
+}
+
+export function validateLifecycleState(state) {
+  if (state === null || state === undefined) {
+    return { valid: false, code: 'STATE_MISSING', error: 'reservation_lifecycle_state is missing' };
+  }
+  if (typeof state !== 'string' || state.trim() === '') {
+    return { valid: false, code: 'STATE_EMPTY', error: 'reservation_lifecycle_state is empty or whitespace' };
+  }
+  if (!LIFECYCLE_STATES.includes(state)) {
+    return { valid: false, code: 'STATE_INVALID', error: `reservation_lifecycle_state is not a valid enum: ${JSON.stringify(state)}` };
+  }
+  return { valid: true };
+}
+
 export function isValidISODate(str) {
   if (typeof str !== 'string' || str.trim().length === 0) return false;
   const d = new Date(str);

@@ -146,16 +146,36 @@ empirical findings:
 
 ## Conclusion
 
-**Base44 `updateMany` with a filter predicate is empirically atomic for
-single-record conditional updates across 10 independent rounds of 20-way
-concurrency (exactly 1 winner per round), but this behavior is not contractually
-guaranteed by official documentation.** Multi-entity transactions and unique create
-constraints remain unavailable.
+**The architecture decision is deferred until the corrected prototype passes all
+tests.** No recommendation to select Base44, Postgres, or Durable Objects is made
+at this time.
 
-A single-authority design using `ListingPrivate` as the sole authoritative
-reservation row with CAS via `updateMany` is feasible and tested. `Listing`
-becomes a non-authoritative mirror that can be repaired from `ListingPrivate`.
-An external authority (Neon/Postgres or Cloudflare Durable Objects) remains the
-recommended path for contractual guarantees, but the single-authority CAS design
-may be sufficient if the empirical behavior is accepted as reliable. The Task 3
-decision matrix compares all three options.
+### Four Distinct Concepts (Do Not Conflate)
+
+1. **Empirically observed CAS behavior**: Base44 `updateMany` with a filter
+   predicate is empirically atomic for single-record conditional updates across
+   10 independent rounds of 20-way concurrency (exactly 1 winner per round). This
+   is an observation, not a guarantee.
+
+2. **Undocumented vendor guarantee**: Base44 does not document `updateMany` as an
+   atomic conditional update primitive. No written vendor guarantee has been
+   received. The behavior could change without notice.
+
+3. **Application correctness**: The reservation authority module's correctness
+   (state transitions, idempotency, pending-effects CAS, mirror projection,
+   migration classification, protection) is verified by the test suite. This is
+   separate from the platform's atomicity guarantee — the module is correct
+   *given* the empirical CAS behavior holds.
+
+4. **Production integration**: No production entry points are integrated with the
+   authority. No entry-wrapper behavioral tests exist. The launch gate is RED.
+   This is separate from both the platform guarantee and the module's correctness.
+
+### Current Status
+
+- The corrected prototype (Round 3) is being tested.
+- Multi-entity transactions and unique create constraints remain unavailable.
+- The launch gate is RED.
+- The architecture decision (Base44 vs. external authority) is **deferred** until
+  the corrected prototype passes all tests and the owner makes a risk-tolerance
+  decision about empirical vs. contractual atomicity.

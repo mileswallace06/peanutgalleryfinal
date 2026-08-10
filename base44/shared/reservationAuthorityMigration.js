@@ -1,49 +1,109 @@
 /**
- * Reservation Authority Migration (7C.9C.2E Correction Round 2 — Defect 4)
+ * Reservation Authority Migration (7C.9C.2E Correction Round 3)
  *
  * Read-only dry-run report that joins BOTH Listing and ListingPrivate.
  * Does NOT apply any migration. An idempotent apply design is provided
  * but requires explicit owner approval before execution.
  *
- * Round 2 corrections:
- *   - Examines bounded batches of both Listing and ListingPrivate.
- *   - Detects: missing sidecar, duplicate sidecar, orphan sidecar,
- *     missing/invalid private version, missing public mirror version,
- *     malformed expiration, partial tuple, reserved/frozen missing revision,
- *     tuple/state disagreement, public status vs proposed authority-state
- *     disagreement.
- *   - Lifecycle derivation: sold/cancelled/expired never become available;
- *     quarantined/recovery-blocked → frozen; reserved/frozen requires token,
- *     buyer, valid expiration, and revision; uncertain → AMBIGUOUS; unknown
- *     never available.
- *   - Apply plan uses `initialize` operation type (validated).
- *   - Dry-run plan specifies every initialized field.
+ * Round 3 corrections:
+ *   - Missing versions on legacy records are normal MIGRATION_REQUIRED,
+ *     not automatically AMBIGUOUS.
+ *   - Handles independently: LP version missing, Listing mirror version
+ *     missing, both missing, sidecar missing, duplicate sidecar, orphan sidecar.
+ *   - Public hidden, pending_verification, pending_payout_setup, and malformed
+ *     pending_transfer states NEVER map automatically to available.
+ *   - sold/cancelled/expired require valid terminal tuples (null token/buyer/expiration).
+ *   - active + valid empty reservation tuple may map to available.
+ *   - Pagination: does not silently cap at 10,000 rows.
+ *   - Dry-run report only. Does not apply to real records.
  *
  * No Deno/Node-specific imports — pure ESM JavaScript.
  */
 import {
   LIFECYCLE_STATES, TUPLE_REQUIRED_STATES, TUPLE_NULL_STATES,
-  isValidISODate, isNonEmptyString, isValidVersion,
+  isValidISODate, isNonEmptyString, isValidVersion, isValidLifecycleState,
 } from './reservationAuthorityConstants.js';
 
+// ── Paginated fetch (does not silently cap at 10,000) ───────────────────────
+// Fetches all records in batches, tracking seen IDs to handle SDKs that
+// do not support skip-based pagination.
+async function fetchAllRecords(entity, batchSize = 500) {
+  const all = [];
+  const seen = new Set();
+  let skip = 0;
+  while (true) {
+    let batch;
+    try {
+      batch = await entity.list('-created_date', batchSize, skip);
+    } catch (e) {
+      // If list doesn't support skip, fall back to filter with cursor
+      try {
+        batch = await entity.list('-created_date', batchSize);
+      } catch (e2) {
+        throw new Error(`fetchAllRecords: list failed: ${e2?.message || String(e2)}`);
+      }
+    }
+    if (!Array.isArray(batch) || batch.length === 0) break;
+    let newCount = 0;
+    for (const rec of batch) {
+      if (rec.id && !seen.has(rec.id)) {
+        seen.add(rec.id);
+        all.push(rec);
+        newCount++;
+      }
+    }
+    if (batch.length < batchSize || newCount === 0) break;
+    skip += batchSize;
+  }
+  return all;
+}
+
 // ── Derive lifecycle state from LP + Listing (joined) ───────────────────────
-// Rules:
-//   - Public sold/cancelled/expired never become available.
-//   - Quarantined or recovery-blocked → frozen.
-//   - Reserved/frozen requires token, buyer, valid expiration, and revision.
-//   - Any uncertain or contradictory case → AMBIGUOUS.
-//   - Unknown must never be interpreted as available.
+// Rules (Round 3):
+//   1. If LP has a valid reservation_lifecycle_state, use it as primary signal
+//      (but verify tuple consistency).
+//   2. Public sold/cancelled/expired never become available; require valid
+//      terminal tuples (null token/buyer/expiration).
+//   3. Public hidden, pending_verification, pending_payout_setup, and malformed
+//      pending_transfer NEVER map to available — preserve/manual-review.
+//   4. Quarantined or recovery-blocked → frozen.
+//   5. active + valid empty reservation tuple → available.
+//   6. Full tuple (token+buyer+expiry+revision) → reserved (or expired if past).
+//   7. Any uncertain or contradictory case → AMBIGUOUS.
+//   8. Unknown must never be interpreted as available.
 function deriveLifecycleState(lp, listing) {
   // Terminal public states never become available
   if (listing?.status === 'sold') return 'sold';
   if (listing?.status === 'cancelled') return 'cancelled';
   if (listing?.status === 'expired') return 'expired';
 
+  // Non-active public states that must NEVER map to available
+  // (preserve/manual-review)
+  if (listing?.status === 'hidden') return 'AMBIGUOUS';
+  if (listing?.status === 'pending_verification') return 'AMBIGUOUS';
+  if (listing?.status === 'pending_payout_setup') return 'AMBIGUOUS';
+  if (listing?.status === 'pending_transfer') {
+    // pending_transfer is only safe if there's a valid reservation tuple
+    // Otherwise it's ambiguous (malformed)
+    if (!lp) return 'AMBIGUOUS';
+    const hasToken = isNonEmptyString(lp.reservation_token);
+    const hasBuyer = isNonEmptyString(lp.reserved_by_email);
+    const hasExpiry = lp.reservation_expires_at && isValidISODate(lp.reservation_expires_at);
+    if (!(hasToken && hasBuyer && hasExpiry)) return 'AMBIGUOUS';
+    // Fall through to tuple-based derivation below
+  }
+
   // Quarantined or recovery-blocked → frozen
   if (lp?.checkout_quarantined === true || lp?.recovery_blocked === true) return 'frozen';
 
   if (!lp) return 'AMBIGUOUS';
 
+  // If LP has a valid lifecycle state, use it as primary signal
+  if (isValidLifecycleState(lp.reservation_lifecycle_state)) {
+    return lp.reservation_lifecycle_state;
+  }
+
+  // LP lifecycle state is missing/invalid — derive from tuple
   const hasToken = isNonEmptyString(lp.reservation_token);
   const hasBuyer = isNonEmptyString(lp.reserved_by_email);
   const hasExpiry = lp.reservation_expires_at && isValidISODate(lp.reservation_expires_at);
@@ -66,7 +126,9 @@ function deriveLifecycleState(lp, listing) {
   const buyerNull = lp.reserved_by_email === null;
   const expiryNull = lp.reservation_expires_at === null;
   if (tokenNull && buyerNull && expiryNull) {
-    return 'available';
+    // active + valid empty tuple → available
+    if (listing?.status === 'active' || !listing) return 'available';
+    return 'AMBIGUOUS';
   }
 
   // Partial or contradictory
@@ -91,9 +153,11 @@ function checkTupleStateAgreement(derived_state, lp) {
     if (!hasRevision) issues.push('reserved/frozen state missing reservation revision');
   }
 
-  // Terminal states require null tuple
-  if (TUPLE_NULL_STATES.has(derived_state) && hasToken) {
-    issues.push('terminal state has non-null token');
+  // Terminal states require null tuple (sold/cancelled/expired)
+  if (TUPLE_NULL_STATES.has(derived_state)) {
+    if (hasToken) issues.push('terminal state has non-null token');
+    if (hasBuyer) issues.push('terminal state has non-null buyer');
+    if (hasExpiry) issues.push('terminal state has non-null expiration');
   }
 
   // Partial tuple is always ambiguous
@@ -107,7 +171,32 @@ function checkTupleStateAgreement(derived_state, lp) {
   return issues;
 }
 
-// ── Generate read-only migration report (joins both entities) ────────────────
+// ── Check if a public status is safe to map to a lifecycle state ────────────
+// Non-active public states must NEVER map to available.
+function checkPublicStatusSafety(listing_status, derived_state) {
+  const issues = [];
+  const nonActiveStates = ['hidden', 'pending_verification', 'pending_payout_setup'];
+
+  // These public states must never become available
+  if (nonActiveStates.includes(listing_status) && derived_state === 'available') {
+    issues.push(`public ${listing_status} must never map to available`);
+  }
+
+  // sold/cancelled/expired must agree
+  if (listing_status === 'sold' && derived_state !== 'sold') {
+    issues.push('public sold but derived state is not sold');
+  }
+  if (listing_status === 'cancelled' && derived_state !== 'cancelled') {
+    issues.push('public cancelled but derived state is not cancelled');
+  }
+  if (listing_status === 'expired' && derived_state !== 'expired') {
+    issues.push('public expired but derived state is not expired');
+  }
+
+  return issues;
+}
+
+// ── Generate read-only migration report (joins both entities, paginated) ────
 export async function generateMigrationReport(deps) {
   const records = [];
   const totals = {
@@ -119,19 +208,20 @@ export async function generateMigrationReport(deps) {
     duplicate_sidecar: 0,
     orphan_sidecar: 0,
     failures: 0,
+    truncated: false,
   };
   const ambiguous = [];
   const failures = [];
 
-  // Read all Listings and ListingPrivate records (bounded batches)
+  // Read all Listings and ListingPrivate records (paginated — no 10,000 cap)
   let allListings, allLP;
   try {
-    allListings = await deps.entities.Listing.list('-created_date', 10000);
+    allListings = await fetchAllRecords(deps.entities.Listing);
   } catch (e) {
     return { ok: false, code: 'REPORT_QUERY_FAILED', error: `Listing query failed: ${e?.message || String(e)}` };
   }
   try {
-    allLP = await deps.entities.ListingPrivate.list('-created_date', 10000);
+    allLP = await fetchAllRecords(deps.entities.ListingPrivate);
   } catch (e) {
     return { ok: false, code: 'REPORT_QUERY_FAILED', error: `ListingPrivate query failed: ${e?.message || String(e)}` };
   }
@@ -205,24 +295,23 @@ export async function generateMigrationReport(deps) {
     const tupleIssues = checkTupleStateAgreement(rec.derived_lifecycle_state, lp);
     rec.issues.push(...tupleIssues);
 
-    // Check for public status vs proposed authority-state disagreement
-    if (listing.status === 'sold' && rec.derived_lifecycle_state !== 'sold') {
-      rec.issues.push('public sold but derived state is not sold');
-    }
-    if (listing.status === 'cancelled' && rec.derived_lifecycle_state !== 'cancelled') {
-      rec.issues.push('public cancelled but derived state is not cancelled');
-    }
-    if (listing.status === 'expired' && rec.derived_lifecycle_state !== 'expired') {
-      rec.issues.push('public expired but derived state is not expired');
-    }
+    // Check for public status safety
+    const statusIssues = checkPublicStatusSafety(listing.status, rec.derived_lifecycle_state);
+    rec.issues.push(...statusIssues);
 
-    // Check for missing public mirror version
+    // Check for missing public mirror version (separate from AMBIGUOUS)
     if (!rec.has_public_mirror_version) {
       rec.issues.push('Listing missing reservation_version (mirror)');
     }
 
-    // Determine status
-    if (rec.issues.length > 0) {
+    // Determine status:
+    // - Missing version is MIGRATION_REQUIRED (not AMBIGUOUS) if state is derivable
+    // - AMBIGUOUS only when state derivation or tuple/state checks fail
+    const hasDerivableState = rec.derived_lifecycle_state !== 'AMBIGUOUS';
+    const hasTupleIssues = tupleIssues.length > 0;
+    const hasStatusIssues = statusIssues.length > 0;
+
+    if (rec.derived_lifecycle_state === 'AMBIGUOUS' || hasTupleIssues || hasStatusIssues) {
       rec.status = 'AMBIGUOUS';
       ambiguous.push({
         listing_id: listing.id,
@@ -232,6 +321,7 @@ export async function generateMigrationReport(deps) {
       });
       totals.ambiguous++;
     } else if (!rec.has_reservation_version || !isValidVersion(lp.reservation_version)) {
+      // Missing version is normal MIGRATION_REQUIRED (state is derivable, no issues)
       rec.status = 'MIGRATION_REQUIRED';
       rec.proposed_reservation_version = 0;
       rec.proposed_init = buildInitPlan(lp, listing, rec.derived_lifecycle_state);

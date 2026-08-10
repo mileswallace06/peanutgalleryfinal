@@ -251,12 +251,14 @@ test('stale effect clearer cannot clear effects from another operation', async (
   const r1 = await authority.clearPendingEffects({
     listing_id: 'list1', expected_version: 1,
     expected_operation_id: 'op_WRONG',
+    expected_effects_json: JSON.stringify([{ effect_type: 'effect_1' }]),
     expected_effects_hash: mockHashEnvelope({ effects: [{ effect_type: 'effect_1' }] }),
   });
   assert(!r1.ok, 'should fail with wrong operation_id');
   const r2 = await authority.clearPendingEffects({
     listing_id: 'list1', expected_version: 1,
     expected_operation_id: 'op_1',
+    expected_effects_json: JSON.stringify([{ effect_type: 'effect_1' }]),
     expected_effects_hash: 'wrong_hash',
   });
   assert(!r2.ok, 'should fail with wrong effects hash');
@@ -264,6 +266,7 @@ test('stale effect clearer cannot clear effects from another operation', async (
   const r3 = await authority.clearPendingEffects({
     listing_id: 'list1', expected_version: 1,
     expected_operation_id: 'op_1',
+    expected_effects_json: JSON.stringify([{ effect_type: 'effect_1' }]),
     expected_effects_hash: mockHashEnvelope({ effects: [{ effect_type: 'effect_1' }] }),
   });
   assert(r3.ok, 'should succeed with correct match');
@@ -553,6 +556,7 @@ test('replacement effects queue cannot be erased by stale clearer (barrier test)
   const r = await authority.clearPendingEffects({
     listing_id: 'list1', expected_version: 1,
     expected_operation_id: 'op_1',
+    expected_effects_json: JSON.stringify(effectsA),
     expected_effects_hash: hashA,
   });
   assert(!r.ok, 'stale clearer should fail');
@@ -636,6 +640,7 @@ test('clearPendingEffects clears both JSON and hash and verifies', async () => {
   const r = await authority.clearPendingEffects({
     listing_id: 'list1', expected_version: 1,
     expected_operation_id: 'op_1',
+    expected_effects_json: JSON.stringify([{ effect_type: 'notify' }]),
     expected_effects_hash: effectsHash,
   });
   assert(r.ok, 'should succeed');
@@ -817,6 +822,150 @@ test('hashing failure returns structured error without datastore access', async 
   // Verify zero writes
   const [lp] = await deps.entities.ListingPrivate.filter({ listing_id: 'list1' });
   assert(lp.reservation_version === 0, 'version should still be 0');
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// SECTION 1C: ROUND 3 NEW TESTS
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── R3-1: Missing lifecycle state returns STATE_CORRUPT ─────────────────────
+test('missing lifecycle state returns STATE_CORRUPT (never available)', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  deps._seedLP('lp1', {
+    listing_id: 'list1', reservation_version: 0,
+    reservation_lifecycle_state: null,
+  });
+  const res = await authority.transitionReservation({
+    listing_id: 'list1', expected_version: 0,
+    operation_id: 'op_1', operation_type: 'reserve',
+    payload: { token: 't1', buyer: 'b1@test', expiration: '2026-12-31T00:00:00Z' },
+    requested_state: 'reserved',
+  });
+  assert(!res.ok, 'should fail');
+  assert(res.code === 'STATE_CORRUPT', `expected STATE_CORRUPT, got ${res.code}`);
+  assert(res.state_code === 'STATE_MISSING', `expected STATE_MISSING, got ${res.state_code}`);
+  // Verify zero writes
+  const [lp] = await deps.entities.ListingPrivate.filter({ listing_id: 'list1' });
+  assert(lp.reservation_version === 0, 'version should be unchanged');
+  assert(lp.last_operation_id === null, 'no operation should have been written');
+});
+
+// ── R3-2: Empty lifecycle state returns STATE_CORRUPT ───────────────────────
+test('empty lifecycle state returns STATE_CORRUPT (never available)', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  deps._seedLP('lp1', {
+    listing_id: 'list1', reservation_version: 0,
+    reservation_lifecycle_state: '',
+  });
+  const res = await authority.transitionReservation({
+    listing_id: 'list1', expected_version: 0,
+    operation_id: 'op_1', operation_type: 'reserve',
+    payload: { token: 't1', buyer: 'b1@test', expiration: '2026-12-31T00:00:00Z' },
+    requested_state: 'reserved',
+  });
+  assert(!res.ok, 'should fail');
+  assert(res.code === 'STATE_CORRUPT', `expected STATE_CORRUPT, got ${res.code}`);
+  assert(res.state_code === 'STATE_EMPTY', `expected STATE_EMPTY, got ${res.state_code}`);
+});
+
+// ── R3-3: Invalid lifecycle state returns STATE_CORRUPT ─────────────────────
+test('invalid lifecycle state returns STATE_CORRUPT (never available)', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  deps._seedLP('lp1', {
+    listing_id: 'list1', reservation_version: 0,
+    reservation_lifecycle_state: 'some_invalid_state',
+  });
+  const res = await authority.transitionReservation({
+    listing_id: 'list1', expected_version: 0,
+    operation_id: 'op_1', operation_type: 'reserve',
+    payload: { token: 't1', buyer: 'b1@test', expiration: '2026-12-31T00:00:00Z' },
+    requested_state: 'reserved',
+  });
+  assert(!res.ok, 'should fail');
+  assert(res.code === 'STATE_CORRUPT', `expected STATE_CORRUPT, got ${res.code}`);
+  assert(res.state_code === 'STATE_INVALID', `expected STATE_INVALID, got ${res.state_code}`);
+});
+
+// ── R3-4: Pending effects JSON changed without hash cannot be erased ────────
+test('pending effects JSON changed without matching hash cannot be erased', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  const effectsA = [{ effect_type: 'effect_A' }];
+  const effectsB = [{ effect_type: 'effect_B' }];
+  const hashA = mockHashEnvelope({ effects: effectsA });
+  deps._seedLP('lp1', {
+    listing_id: 'list1', reservation_version: 1,
+    last_operation_id: 'op_1',
+    pending_effects_json: JSON.stringify(effectsA),
+  });
+  // Hook replaces ONLY the JSON (not the hash) between read and CAS
+  deps._setHook('beforeClearCAS', (d, listing_id) => {
+    const lp = d._lpStore.get('lp1');
+    if (lp) {
+      lp.pending_effects_json = JSON.stringify(effectsB);
+      // Hash stays as hashA (stale)
+    }
+  });
+  const r = await authority.clearPendingEffects({
+    listing_id: 'list1', expected_version: 1,
+    expected_operation_id: 'op_1',
+    expected_effects_json: JSON.stringify(effectsA),
+    expected_effects_hash: hashA,
+  });
+  assert(!r.ok, 'stale clearer should fail when JSON does not match');
+  assert(r.code === 'CONFLICT' || r.code === 'EFFECTS_HASH_MISMATCH',
+    `expected CONFLICT or EFFECTS_HASH_MISMATCH, got ${r.code}`);
+  // Verify effects B is preserved
+  const [lp] = await deps.entities.ListingPrivate.filter({ listing_id: 'list1' });
+  assert(lp.pending_effects_json === JSON.stringify(effectsB), 'effects B JSON should be preserved');
+});
+
+// ── R3-5: clearPendingEffects requires expected_effects_json ─────────────────
+test('clearPendingEffects rejects missing expected_effects_json', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  const effects = [{ effect_type: 'notify' }];
+  deps._seedLP('lp1', {
+    listing_id: 'list1', reservation_version: 1,
+    last_operation_id: 'op_1',
+    pending_effects_json: JSON.stringify([{ effect_type: 'notify' }]),
+  });
+  const r = await authority.clearPendingEffects({
+    listing_id: 'list1', expected_version: 1,
+    expected_operation_id: 'op_1',
+    expected_effects_hash: mockHashEnvelope({ effects }),
+    // expected_effects_json intentionally omitted
+  });
+  assert(!r.ok, 'should reject missing expected_effects_json');
+  assert(r.code === 'VALIDATION_ERROR', `expected VALIDATION_ERROR, got ${r.code}`);
+});
+
+// ── R3-6: getPendingEffects returns effects_json ────────────────────────────
+test('getPendingEffects returns effects_json for caller use', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  const effects = [{ effect_type: 'notify' }, { effect_type: 'email' }];
+  deps._seedLP('lp1', {
+    listing_id: 'list1', reservation_version: 1,
+    last_operation_id: 'op_1',
+    pending_effects_json: JSON.stringify(effects),
+  });
+  const result = await authority.getPendingEffects('list1');
+  assert(result.ok, 'should succeed');
+  assert(typeof result.effects_json === 'string', 'effects_json should be a string');
+  assert(result.effects_json === JSON.stringify(effects), 'effects_json should match');
+  // Verify round-trip: clearPendingEffects with returned effects_json
+  const clearResult = await authority.clearPendingEffects({
+    listing_id: 'list1', expected_version: 1,
+    expected_operation_id: 'op_1',
+    expected_effects_json: result.effects_json,
+    expected_effects_hash: result.effects_hash,
+  });
+  assert(clearResult.ok, 'should clear using returned effects_json and hash');
+  assert(clearResult.verified === true, 'should be verified');
 });
 
 // ════════════════════════════════════════════════════════════════════════════

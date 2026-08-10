@@ -271,11 +271,34 @@ After cutover, Base44 entities are non-authoritative mirrors:
 
 ## 7. Recommendation
 
-**Do not provision yet.** This is a design for owner approval.
+**The architecture decision is deferred.** No recommendation to select Base44,
+Postgres, or Durable Objects is made at this time.
 
-The Task 2 single-authority CAS probe tests whether Base44 `ListingPrivate` CAS
-is sufficient without an external authority. If the probe passes all 10 rounds with
-exactly 1 winner per round, and all auxiliary tests pass, the Base44
-single-authority design may be recommended over the external authority.
+### Why the Decision Is Deferred
 
-The decision matrix in the Task 3 report compares all three options.
+The prior report overstated readiness. The corrected prototype (Round 3) is being
+tested. The following must be verified before any architecture decision:
+
+1. The corrected authority module passes all behavioral tests.
+2. The launch gate turns GREEN (entry-wrapper behavioral tests exist and pass).
+3. The owner makes an explicit risk-tolerance decision about empirical vs.
+   contractual atomicity.
+
+### Four Concepts to Distinguish
+
+1. **Empirically observed CAS behavior**: 10/10 rounds × 20 calls = exactly 1
+   winner. This is an observation, not a guarantee.
+2. **Undocumented vendor guarantee**: No written guarantee from Base44. The
+   behavior could change without notice.
+3. **Application correctness**: The module's logic is verified by tests — but
+   only *given* the empirical CAS behavior holds.
+4. **Production integration**: No entry points are integrated. No entry-wrapper
+   behavioral tests exist. The launch gate is RED.
+
+### No Provisioning
+
+Do not provision Neon/Postgres, Cloudflare Durable Objects, or any external
+authority until:
+1. The corrected prototype passes all tests.
+2. The owner makes an explicit risk-tolerance decision.
+3. The launch gate turns GREEN.

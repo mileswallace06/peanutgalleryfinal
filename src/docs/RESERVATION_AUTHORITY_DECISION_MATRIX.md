@@ -84,70 +84,44 @@ rounds of 20-way concurrency. This is **empirical evidence, NOT a contractual gu
 
 ## 4. Recommendation
 
-**Do not choose based on prior assumptions.** The recommendation follows directly
-from the probe results and the comparison above.
+**The architecture decision is deferred.** No recommendation to select Base44,
+Postgres, or Durable Objects is made at this time.
 
-### Test Outcome
+### Why the Decision Is Deferred
 
-The Task 2 probe passed all tests:
-- 10/10 rounds of 20-call concurrency produced exactly 1 winner per round.
-- 20 concurrent same-operation-id retries produced 1 mutation.
-- Losing operations could not overwrite the winning tuple.
-- Mirror failure did not alter the authoritative tuple.
-- All decisions consulted the authoritative row, never the mirror.
-- Recovery repaired the mirror from the authoritative row.
-- No flow treated unknown datastore state as available.
-- Before/after entity counts matched (cleanup verified).
+The prior report overstated readiness. The corrected prototype (Round 3) is being
+tested. The following must be verified before any architecture decision:
 
-### Is Base44 Atomic Behavior "Sufficiently Supported"?
+1. The corrected authority module passes all behavioral tests (state validation,
+   mirror projection, equal-version repair races, protection honesty, migration
+   classification, pending-effects CAS).
+2. The launch gate turns GREEN (entry-wrapper behavioral tests exist and pass).
+3. The owner makes an explicit risk-tolerance decision about empirical vs.
+   contractual atomicity.
 
-**Yes, empirically — but not contractually.** The probe provides strong empirical
-evidence (10/10 rounds, exactly 1 winner, zero anomalies). However, official
-Base44 documentation does not document `updateMany` as an atomic conditional
-update primitive. The behavior could change without notice.
+### Four Concepts to Distinguish
 
-For a real-money reservation system, the question is whether empirical evidence
-is sufficient or whether a contractual guarantee is required. This is a risk
-tolerance decision for the owner, not a technical fact.
-
-### Recommendation
-
-**Base44 single-authority CAS is the recommended path IF AND ONLY IF the owner
-accepts empirical-only atomicity (no contractual guarantee).** The probe results
-are strong, the implementation is complete, and the migration path is the
-simplest. The owner must understand the risk: if Base44 changes `updateMany`
-internals, CAS could break silently.
-
-**If the owner requires a contractual guarantee, Neon/Postgres is the simplest
-external system that supplies the missing guarantee.** It provides MVCC, PRIMARY
-KEY uniqueness, and transactional outbox in a single well-understood package.
-Cloudflare Durable Objects are a viable alternative if per-listing serialization
-and built-in alarms are preferred over cross-listing SQL queries.
+1. **Empirically observed CAS behavior**: 10/10 rounds × 20 calls = exactly 1
+   winner. This is an observation, not a guarantee.
+2. **Undocumented vendor guarantee**: No written guarantee from Base44. The
+   behavior could change without notice.
+3. **Application correctness**: The module's logic is verified by tests — but
+   only *given* the empirical CAS behavior holds.
+4. **Production integration**: No entry points are integrated. No entry-wrapper
+   behavioral tests exist. The launch gate is RED.
 
 ### Current Status
 
 - **Maintenance mode**: ON
 - **Launch readiness**: 94% / NO-GO
-- **Production entry points**: NOT integrated (all 11 remain `integrated: false`)
+- **Production entry points**: NOT integrated (no entry-wrapper behavioral tests)
 - **Existing records**: NOT initialized (MIGRATION_REQUIRED)
 - **Vendor guarantee**: NOT received
-- **Launch gate**: RED (honestly — 13/14 pass, 1 expected fail:
-  `production_entry_points_integrated`)
+- **Launch gate**: RED
 
-### Conditions for Proceeding with Base44 (owner accepts empirical atomicity)
+### No Recommendation
 
-1. Owner explicitly accepts empirical-only atomicity (no contractual guarantee).
-2. Migration initialization of all existing `ListingPrivate` records.
-3. All 11 production entry points migrated to use the authority.
-4. Entry-wrapper behavioral tests prove each deployed path delegates to the
-   authority and cannot write the tuple independently.
-5. Launch gate turns GREEN.
-
-### Conditions for Proceeding with External Authority (contractual guarantee)
-
-1. Provision Neon/Postgres (simplest) or Cloudflare Durable Objects.
-2. Shadow comparison phase: authority receives shadow writes, verify zero
-   divergence for a sustained period.
-3. Explicit cutover: switch all reservation operations to authority-first.
-4. No Base44-direct fallback after cutover (fail-closed 503 on authority outage).
-5. Launch gate turns GREEN.
+Do not select Base44, Postgres, or Durable Objects until:
+1. The corrected prototype passes all tests.
+2. The owner makes an explicit risk-tolerance decision.
+3. The launch gate turns GREEN.

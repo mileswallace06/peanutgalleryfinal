@@ -1,8 +1,10 @@
 /**
- * Shared mock deps and test utilities for authority tests (7C.9C.2E Correction Round 2)
+ * Shared mock deps and test utilities for authority tests (7C.9C.2E Correction Round 3)
  *
- * Round 2 changes:
- *   - pending_effects_hash field in seed (computed from effects)
+ * Round 3 changes:
+ *   - list() supports skip parameter for pagination tests
+ *   - Configurable failure modes: updateManyReturnZero, updateManyThrow,
+ *     updateManyNoChange, createThrow, updateThrow
  *   - AdminAlert mock store for protection routine tests
  *   - createMockDepsWithRealHash for SHA-256 tests
  */
@@ -18,8 +20,18 @@ export function mockHashEnvelope(envelope) {
 function createMockStore() {
   const store = new Map();
   let counter = 0;
+  // Mutable failure config — tests can set/clear these flags
+  const failConfig = {
+    updateManyReturnZero: false,
+    updateManyThrow: false,
+    updateManyNoChange: false,
+    createThrow: false,
+    updateThrow: false,
+    filterThrow: false,
+  };
   return {
     filter: async (query) => {
+      if (failConfig.filterThrow) throw new Error('mock filter throw');
       const results = [];
       for (const [id, rec] of store) {
         let match = true;
@@ -32,6 +44,8 @@ function createMockStore() {
       return results;
     },
     updateMany: async (query, update) => {
+      if (failConfig.updateManyThrow) throw new Error('mock updateMany throw');
+      if (failConfig.updateManyReturnZero) return { updated: 0, has_more: false };
       let updated = 0;
       for (const [id, rec] of store) {
         let match = true;
@@ -40,7 +54,10 @@ function createMockStore() {
           else if (rec[k] !== v) { match = false; break; }
         }
         if (match) {
-          if (update.$set) for (const [k, v] of Object.entries(update.$set)) rec[k] = v;
+          if (!failConfig.updateManyNoChange) {
+            if (update.$set) for (const [k, v] of Object.entries(update.$set)) rec[k] = v;
+            if (update.$inc) for (const [k, v] of Object.entries(update.$inc)) rec[k] = (rec[k] || 0) + v;
+          }
           updated++;
           break;
         }
@@ -48,23 +65,28 @@ function createMockStore() {
       return { updated, has_more: false };
     },
     update: async (id, data) => {
+      if (failConfig.updateThrow) throw new Error('mock update throw');
       const rec = store.get(id);
       if (!rec) throw new Error('not found');
       for (const [k, v] of Object.entries(data)) rec[k] = v;
       return { ...rec };
     },
     delete: async (id) => { store.delete(id); },
-    list: async (sort, limit) => {
+    list: async (sort, limit, skip = 0) => {
       const results = Array.from(store.values()).map(r => ({ ...r }));
-      return results.slice(0, limit || results.length);
+      const start = skip || 0;
+      const end = limit ? start + limit : results.length;
+      return results.slice(start, end);
     },
     create: async (data) => {
+      if (failConfig.createThrow) throw new Error('mock create throw');
       const id = `mock_${++counter}`;
       const rec = { id, ...data };
       store.set(id, rec);
       return { ...rec };
     },
     _store: store,
+    _failConfig: failConfig,
   };
 }
 
@@ -94,6 +116,9 @@ export function createMockDeps(opts = {}) {
     _lpStore: lp._store,
     _listingStore: listing._store,
     _adminAlertStore: adminAlert._store,
+    _lpFailConfig: lp._failConfig,
+    _listingFailConfig: listing._failConfig,
+    _adminAlertFailConfig: adminAlert._failConfig,
     _seedLP: (id, data) => {
       const effectsJson = data?.pending_effects_json || '[]';
       const effectsHash = computeEffectsHash(effectsJson, mockHashEnvelope);
