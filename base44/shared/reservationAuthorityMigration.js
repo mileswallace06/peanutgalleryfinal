@@ -457,7 +457,7 @@ function buildMirrorOnlyPlan(lp, listing, derived_state) {
       reservation_version: lp.reservation_version,
       reservation_mirror_state: derived_state,
     },
-    note: 'Mirror-only initialization. LP is already initialized. Only the public Listing mirror needs reservation_version + reservation_mirror_state. Does NOT write status or hidden_reason.',
+    note: 'Mirror-only initialization. LP is already initialized. Only the public Listing mirror needs reservation_version + reservation_mirror_state.',
   };
 }
 
@@ -467,12 +467,12 @@ export function planApply(deps, apply_request_id) {
     apply_request_id,
     mode: 'dry_run',
     requires_owner_approval: true,
-    description: 'Initialize reservation_version, reservation_lifecycle_state, and all last_operation_* fields on ListingPrivate records that lack them. Also initializes the public Listing mirror reservation_version and reservation_mirror_state. Each record is CAS-written with reservation_version=0 as the initial state. Ambiguous records are skipped and require manual resolution. Normal mirror initialization does NOT write status or hidden_reason.',
+    description: 'Initialize reservation_version, reservation_lifecycle_state, and all last_operation_* fields on ListingPrivate records that lack them. Also initializes the public Listing mirror reservation_version and reservation_mirror_state. Each record is CAS-written with reservation_version=0 as the initial state. Ambiguous records are skipped and require manual resolution.',
     operation_type: 'initialize',
     steps: [
       '1. Run generateMigrationReport to identify records needing initialization.',
       '2. For each MIGRATION_REQUIRED record, CAS-write: reservation_version=0, reservation_lifecycle_state=derived, last_operation_id=`init_<id>`, last_operation_type=initialize, last_operation_payload_hash=SHA-256(envelope), last_operation_result_json=JSON(result), last_operation_at=ISO timestamp, pending_effects_json="[]", pending_effects_hash=SHA-256({effects:[]}).',
-      '3. For each MIGRATION_REQUIRED record, also update the public Listing mirror: reservation_version=0, reservation_mirror_state=derived. Does NOT write status or hidden_reason.',
+      '3. For each MIGRATION_REQUIRED record, also update the public Listing mirror: reservation_version=0, reservation_mirror_state=derived.',
       '4. Skip AMBIGUOUS records — flag for manual resolution.',
       '5. Skip MISSING_SIDECAR, DUPLICATE_SIDECAR, and ORPHAN_SIDECAR records — flag for manual resolution.',
       '6. Record the apply_request_id in a MigrationRun entity for idempotency.',

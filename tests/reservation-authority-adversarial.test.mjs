@@ -974,8 +974,8 @@ test('R5-ADV-8: protection hides active status (not terminal)', async () => {
   assert(listing.hidden_reason === 'checkout_quarantine', 'hidden_reason should be checkout_quarantine');
 });
 
-// ── R5-ADV-9: Protection hides pending_verification status ─────────────────
-test('R5-ADV-9: protection hides pending_verification status', async () => {
+// ── R5-ADV-9: Protection preserves pending_verification status (business-held) ──
+test('R5-ADV-9: protection preserves pending_verification status (business-held)', async () => {
   const deps = createMockDeps();
   const authority = createReservationAuthority(deps);
   deps._seedLP('lp1', { listing_id: 'list1', reservation_version: 2, reservation_lifecycle_state: 'available' });
@@ -983,11 +983,11 @@ test('R5-ADV-9: protection hides pending_verification status', async () => {
   const res = await authority.sweepMirror('list1');
   assert(res.protection.protected === true, 'protection should be verified');
   const [listing] = await deps.entities.Listing.filter({ id: 'list1' });
-  assert(listing.status === 'hidden', `Listing should be hidden, got ${listing.status}`);
+  assert(listing.status === 'pending_verification', `Listing should be preserved as pending_verification, got ${listing.status}`);
 });
 
-// ── R5-ADV-10: Protection hides pending_payout_setup status ────────────────
-test('R5-ADV-10: protection hides pending_payout_setup status', async () => {
+// ── R5-ADV-10: Protection preserves pending_payout_setup status (business-held) ──
+test('R5-ADV-10: protection preserves pending_payout_setup status (business-held)', async () => {
   const deps = createMockDeps();
   const authority = createReservationAuthority(deps);
   deps._seedLP('lp1', { listing_id: 'list1', reservation_version: 2, reservation_lifecycle_state: 'available' });
@@ -995,11 +995,11 @@ test('R5-ADV-10: protection hides pending_payout_setup status', async () => {
   const res = await authority.sweepMirror('list1');
   assert(res.protection.protected === true, 'protection should be verified');
   const [listing] = await deps.entities.Listing.filter({ id: 'list1' });
-  assert(listing.status === 'hidden', `Listing should be hidden, got ${listing.status}`);
+  assert(listing.status === 'pending_payout_setup', `Listing should be preserved as pending_payout_setup, got ${listing.status}`);
 });
 
-// ── R5-ADV-11: Protection hides hidden/admin_disabled (non-terminal hidden)
-test('R5-ADV-11: protection hides hidden/admin_disabled status (non-terminal)', async () => {
+// ── R5-ADV-11: Protection preserves hidden/admin_disabled (business-held) ──
+test('R5-ADV-11: protection preserves hidden/admin_disabled status (business-held)', async () => {
   const deps = createMockDeps();
   const authority = createReservationAuthority(deps);
   deps._seedLP('lp1', { listing_id: 'list1', reservation_version: 2, reservation_lifecycle_state: 'available' });
@@ -1007,8 +1007,8 @@ test('R5-ADV-11: protection hides hidden/admin_disabled status (non-terminal)', 
   const res = await authority.sweepMirror('list1');
   assert(res.protection.protected === true, 'protection should be verified');
   const [listing] = await deps.entities.Listing.filter({ id: 'list1' });
-  assert(listing.status === 'hidden', `Listing should be hidden, got ${listing.status}`);
-  assert(listing.hidden_reason === 'checkout_quarantine', 'hidden_reason should be overwritten to checkout_quarantine');
+  assert(listing.status === 'hidden', `Listing should remain hidden, got ${listing.status}`);
+  assert(listing.hidden_reason === 'admin_disabled', `hidden_reason should be preserved as admin_disabled, got ${listing.hidden_reason}`);
 });
 
 // ════════════════════════════════════════════════════════════════════════════

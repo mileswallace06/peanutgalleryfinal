@@ -85,9 +85,20 @@ export const TERMINAL_BUSINESS_STATUSES = new Set(['sold', 'cancelled', 'expired
 
 // Determine whether protection should hide the Listing.
 // Terminal statuses (sold/cancelled/expired) are already non-reservable and must be preserved.
+// Business-held statuses (hidden, pending_verification, pending_payout_setup) are already
+// non-reservable and must be preserved — protection must not overwrite their status/hidden_reason.
 // Active/reservable statuses should be hidden for safety.
 export function shouldHideForProtection(currentStatus) {
-  return !TERMINAL_BUSINESS_STATUSES.has(currentStatus);
+  if (TERMINAL_BUSINESS_STATUSES.has(currentStatus)) return false;
+  if (BUSINESS_HELD_STATUSES.has(currentStatus)) return false;
+  return true;
+}
+
+// Check if a Listing status is already non-reservable (terminal or business-held).
+// Used by protection verification to confirm the Listing ended non-reservable
+// without destroying valid terminal or business-held state.
+export function isNonReservableStatus(status) {
+  return TERMINAL_BUSINESS_STATUSES.has(status) || BUSINESS_HELD_STATUSES.has(status);
 }
 
 // Reservation mirror states (same enum as lifecycle states).

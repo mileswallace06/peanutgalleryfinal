@@ -30,7 +30,7 @@
 import {
   FORBIDDEN_MIRROR_FIELDS, APPROVED_MIRROR_FIELDS,
   BUSINESS_HELD_STATUSES, BUSINESS_HELD_HIDDEN_REASONS,
-  TERMINAL_BUSINESS_STATUSES, shouldHideForProtection,
+  TERMINAL_BUSINESS_STATUSES, shouldHideForProtection, isNonReservableStatus,
   isValidVersion, isNonEmptyString, validateLifecycleState,
 } from './reservationAuthorityConstants.js';
 
@@ -96,10 +96,10 @@ async function protectMirror(deps, listing_id, reason, evidence) {
       steps.hide_updated = 0;
     }
   } else {
-    // Terminal status — preserve it, don't hide
+    // Non-reservable status (terminal or business-held) — preserve it, don't hide
     steps.hide_attempted = false;
     steps.hide_updated = 0;
-    steps.terminal_status_preserved = true;
+    steps.non_reservable_status_preserved = true;
   }
 
   // 2. Re-fetch Listing and verify it ended non-reservable
@@ -107,8 +107,8 @@ async function protectMirror(deps, listing_id, reason, evidence) {
     const rows = await deps.entities.Listing.filter({ id: listing_id });
     const listing = rows[0];
     if (listing) {
-      // Listing must be non-reservable: either hidden OR terminal (sold/cancelled/expired)
-      const isNonReservable = listing.status === 'hidden' || TERMINAL_BUSINESS_STATUSES.has(listing.status);
+      // Listing must be non-reservable: terminal, business-held, or hidden
+      const isNonReservable = isNonReservableStatus(listing.status);
       steps.listing_non_reservable_verified = isNonReservable;
       if (needsHide) {
         steps.listing_hidden_verified = listing.status === 'hidden';

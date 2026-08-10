@@ -24,6 +24,7 @@ import {
   parsePendingEffects, validateLifecycleState,
   buildAuthoritativeSnapshot, validateIdempotentReplay,
   validateSnapshotCompleteness, TERMINAL_BUSINESS_STATUSES, shouldHideForProtection,
+  isNonReservableStatus,
 } from './reservationAuthorityConstants.js';
 import { createMirrorAuthority } from './reservationAuthorityMirror.js';
 import { generateMigrationReport, planApply } from './reservationAuthorityMigration.js';
@@ -114,7 +115,7 @@ async function protectCorruptedAuthority(deps, listing_id, lp_id, reason, eviden
     }
   } else {
     steps.listing_hide_attempted = false;
-    steps.terminal_status_preserved = true;
+    steps.non_reservable_status_preserved = true;
   }
 
   // 4. Re-fetch Listing and verify it ended non-reservable
@@ -122,7 +123,7 @@ async function protectCorruptedAuthority(deps, listing_id, lp_id, reason, eviden
     const rows = await deps.entities.Listing.filter({ id: listing_id });
     const listing = rows[0];
     if (listing) {
-      const isNonReservable = listing.status === 'hidden' || TERMINAL_BUSINESS_STATUSES.has(listing.status);
+      const isNonReservable = isNonReservableStatus(listing.status);
       steps.listing_non_reservable_verified = isNonReservable;
       if (needsHide) {
         steps.listing_hidden_verified = listing.status === 'hidden';
