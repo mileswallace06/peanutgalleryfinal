@@ -17,9 +17,9 @@
  *
  * No 2,000-character proximity window is used.
  */
-import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
-import { join, extname, relative } from 'node:path';
-import { fileURLToPath, dirname } from 'node:url';
+import { readFileSync, readdirSync, statSync, existsSync, writeFileSync, unlinkSync } from 'node:fs';
+import { join, extname, relative, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import * as espree from 'espree';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -237,14 +237,32 @@ function findWritersInFileAST(filePath, trackedFields) {
     return fields;
   }
 
-  // Check if a call expression is an entity write
+  // Extract the entity name from a callee's object chain.
+  // For base44.entities.Listing.update(...) → 'Listing'
+  // For Listing.update(...) → 'Listing'
+  // For entities.Listing.updateMany(...) → 'Listing'
+  function getEntityNameFromCallee(callee) {
+    if (callee.type !== 'MemberExpression') return null;
+    const obj = callee.object;
+    if (obj.type === 'Identifier') return obj.name;
+    if (obj.type === 'MemberExpression') {
+      const prop = obj.property;
+      if (prop.type === 'Identifier') return prop.name;
+    }
+    return null;
+  }
+
+  // Check if a call expression is a Listing entity write.
+  // Only flag writes to the Listing entity — not BugReport, Purchase, etc.
   function isEntityWriteCall(node) {
     if (node.type !== 'CallExpression') return false;
     const callee = node.callee;
     if (callee.type === 'MemberExpression') {
       const prop = callee.property;
       if (prop.type === 'Identifier') {
-        return ['update', 'create', 'bulkCreate', 'updateMany', 'createMany'].includes(prop.name);
+        if (!['update', 'create', 'bulkCreate', 'updateMany', 'createMany'].includes(prop.name)) return false;
+        const entityName = getEntityNameFromCallee(callee);
+        return entityName === 'Listing';
       }
     }
     return false;
@@ -540,13 +558,13 @@ const base44 = {};
 base44.entities.Listing.update('id', { status: 'sold', hidden_reason: null });
 `;
   const tmpFile = join(ROOT, '.tmp-ownership-fixture-inline.mjs');
-  require('fs').writeFileSync(tmpFile, fixture);
+  writeFileSync(tmpFile, fixture);
   try {
     const writers = findWritersInFileAST(tmpFile, TRACKED_FIELDS);
     if (!writers.includes('status')) throw new Error('should detect status in inline object');
     if (!writers.includes('hidden_reason')) throw new Error('should detect hidden_reason in inline object');
   } finally {
-    require('fs').unlinkSync(tmpFile);
+    unlinkSync(tmpFile);
   }
 });
 
@@ -561,13 +579,13 @@ const unregisteredPatch = {
 await base44.entities.Listing.update('id', unregisteredPatch);
 `;
   const tmpFile = join(ROOT, '.tmp-ownership-fixture-patch.mjs');
-  require('fs').writeFileSync(tmpFile, fixture);
+  writeFileSync(tmpFile, fixture);
   try {
     const writers = findWritersInFileAST(tmpFile, TRACKED_FIELDS);
     if (!writers.includes('status')) throw new Error('should detect status via patch variable');
     if (!writers.includes('hidden_reason')) throw new Error('should detect hidden_reason via patch variable');
   } finally {
-    require('fs').unlinkSync(tmpFile);
+    unlinkSync(tmpFile);
   }
 });
 
@@ -580,13 +598,13 @@ const hidden_reason = null;
 await base44.entities.Listing.update('id', { status, hidden_reason });
 `;
   const tmpFile = join(ROOT, '.tmp-ownership-fixture-shorthand.mjs');
-  require('fs').writeFileSync(tmpFile, fixture);
+  writeFileSync(tmpFile, fixture);
   try {
     const writers = findWritersInFileAST(tmpFile, TRACKED_FIELDS);
     if (!writers.includes('status')) throw new Error('should detect status shorthand');
     if (!writers.includes('hidden_reason')) throw new Error('should detect hidden_reason shorthand');
   } finally {
-    require('fs').unlinkSync(tmpFile);
+    unlinkSync(tmpFile);
   }
 });
 
@@ -598,13 +616,13 @@ const patch = { status: 'sold' };
 await base44.entities.Listing.update('id', { ...patch, hidden_reason: null });
 `;
   const tmpFile = join(ROOT, '.tmp-ownership-fixture-spread.mjs');
-  require('fs').writeFileSync(tmpFile, fixture);
+  writeFileSync(tmpFile, fixture);
   try {
     const writers = findWritersInFileAST(tmpFile, TRACKED_FIELDS);
     if (!writers.includes('status')) throw new Error('should detect status via spread');
     if (!writers.includes('hidden_reason')) throw new Error('should detect hidden_reason in spread');
   } finally {
-    require('fs').unlinkSync(tmpFile);
+    unlinkSync(tmpFile);
   }
 });
 
@@ -615,13 +633,13 @@ const base44 = {};
 await base44.entities.Listing.updateMany({ id: 'x' }, { $set: { status: 'hidden', hidden_reason: 'checkout_quarantine' } });
 `;
   const tmpFile = join(ROOT, '.tmp-ownership-fixture-set.mjs');
-  require('fs').writeFileSync(tmpFile, fixture);
+  writeFileSync(tmpFile, fixture);
   try {
     const writers = findWritersInFileAST(tmpFile, TRACKED_FIELDS);
     if (!writers.includes('status')) throw new Error('should detect status in $set');
     if (!writers.includes('hidden_reason')) throw new Error('should detect hidden_reason in $set');
   } finally {
-    require('fs').unlinkSync(tmpFile);
+    unlinkSync(tmpFile);
   }
 });
 
@@ -633,13 +651,13 @@ if (listing.status === 'sold') { console.log('sold'); }
 const reason = listing.hidden_reason;
 `;
   const tmpFile = join(ROOT, '.tmp-ownership-fixture-readonly.mjs');
-  require('fs').writeFileSync(tmpFile, fixture);
+  writeFileSync(tmpFile, fixture);
   try {
     const writers = findWritersInFileAST(tmpFile, TRACKED_FIELDS);
     if (writers.includes('status')) throw new Error('should NOT detect status in read-only access');
     if (writers.includes('hidden_reason')) throw new Error('should NOT detect hidden_reason in read-only access');
   } finally {
-    require('fs').unlinkSync(tmpFile);
+    unlinkSync(tmpFile);
   }
 });
 
@@ -650,13 +668,13 @@ const base44 = {};
 await base44.entities.Listing.bulkCreate([{ status: 'active', hidden_reason: null }]);
 `;
   const tmpFile = join(ROOT, '.tmp-ownership-fixture-bulk.mjs');
-  require('fs').writeFileSync(tmpFile, fixture);
+  writeFileSync(tmpFile, fixture);
   try {
     const writers = findWritersInFileAST(tmpFile, TRACKED_FIELDS);
     if (!writers.includes('status')) throw new Error('should detect status in bulkCreate');
     if (!writers.includes('hidden_reason')) throw new Error('should detect hidden_reason in bulkCreate');
   } finally {
-    require('fs').unlinkSync(tmpFile);
+    unlinkSync(tmpFile);
   }
 });
 
@@ -672,13 +690,13 @@ const unregisteredPatch = {
 await base44.entities.Listing.update(id, unregisteredPatch);
 `;
   const tmpFile = join(ROOT, '.tmp-ownership-fixture-explicit.mjs');
-  require('fs').writeFileSync(tmpFile, fixture);
+  writeFileSync(tmpFile, fixture);
   try {
     const writers = findWritersInFileAST(tmpFile, TRACKED_FIELDS);
     if (!writers.includes('status')) throw new Error('must detect status in the explicit unregisteredPatch fixture');
     if (!writers.includes('hidden_reason')) throw new Error('must detect hidden_reason in the explicit unregisteredPatch fixture');
   } finally {
-    require('fs').unlinkSync(tmpFile);
+    unlinkSync(tmpFile);
   }
 });
 

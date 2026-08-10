@@ -89,30 +89,26 @@ async function protectCorruptedAuthority(deps, listing_id, lp_id, reason, eviden
     steps.lp_reason_verified = false;
   }
 
-  // 3. Round 5: Read current Listing status BEFORE hiding.
-  //    Terminal statuses (sold/cancelled/expired) are already non-reservable and must be preserved.
+  // 3. Round 6: Read current Listing ONCE — use the SAME read for both the
+  //    needsHide decision AND the hidePredicate. A second read would see a
+  //    competitor's concurrent terminal transition and use it in the predicate,
+  //    causing the hide to overwrite the terminal state.
+  let observedListing = null;
   let currentStatus = null;
   try {
     const rows = await deps.entities.Listing.filter({ id: listing_id });
-    const listing = rows[0];
-    if (listing) currentStatus = listing.status;
+    observedListing = rows[0] || null;
+    if (observedListing) currentStatus = observedListing.status;
   } catch (e) { /* non-fatal */ }
   const needsHide = shouldHideForProtection(currentStatus);
   steps.listing_status_before_protection = currentStatus;
   steps.needs_hide = needsHide;
 
   // 3a. Hide public Listing (only if NOT already terminal/business-held)
-  //     Round 6: Use a STATUS-PRESERVING predicate to eliminate the terminal-status race.
-  //     The predicate includes the exact observed status and hidden_reason so a
-  //     concurrent terminal transition (e.g. sold) causes updated=0, not an overwrite.
+  //     Round 6: Use a STATUS-PRESERVING predicate with the exact observed
+  //     status and hidden_reason from the SINGLE read above. A concurrent
+  //     terminal transition (e.g. sold) causes updated=0, not an overwrite.
   if (needsHide) {
-    // Read the full Listing to capture exact hidden_reason (including null/omission semantics)
-    let observedListing = null;
-    try {
-      const rows = await deps.entities.Listing.filter({ id: listing_id });
-      observedListing = rows[0] || null;
-    } catch (e) { /* non-fatal — will attempt with id-only fallback */ }
-
     const hidePredicate = { id: listing_id };
     if (observedListing) {
       hidePredicate.status = observedListing.status;

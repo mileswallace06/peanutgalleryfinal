@@ -65,15 +65,17 @@ async function protectMirror(deps, listing_id, reason, evidence) {
   const steps = {};
   const incident_key = `mirror_corruption:${listing_id}`;
 
-  // Round 5: Read current Listing status BEFORE hiding.
-  // Terminal statuses (sold/cancelled/expired) are already non-reservable and must be preserved.
-  // Only active/reservable statuses should be hidden.
+  // Round 6: Read current Listing ONCE — use the SAME read for both the
+  // needsHide decision AND the hidePredicate. A second read would see a
+  // competitor's concurrent terminal transition and use it in the predicate,
+  // causing the hide to overwrite the terminal state.
+  let observedListing = null;
   let currentStatus = null;
   try {
     const rows = await deps.entities.Listing.filter({ id: listing_id });
-    const listing = rows[0];
-    if (listing) currentStatus = listing.status;
-  } catch (e) { /* non-fatal — will attempt hide anyway */ }
+    observedListing = rows[0] || null;
+    if (observedListing) currentStatus = observedListing.status;
+  } catch (e) { /* non-fatal */ }
 
   const needsHide = shouldHideForProtection(currentStatus);
   steps.listing_status_before_protection = currentStatus;
@@ -81,17 +83,10 @@ async function protectMirror(deps, listing_id, reason, evidence) {
 
   // 1. Hide Listing via updateMany with STATUS-PRESERVING predicate (Round 6)
   //    Only if the Listing is NOT already in a terminal business status.
-  //    The predicate includes the exact observed status and hidden_reason so a
-  //    concurrent terminal transition causes updated=0, not an overwrite.
+  //    The predicate includes the exact observed status and hidden_reason from
+  //    the SINGLE read above. A concurrent terminal transition causes updated=0.
   let hideResult;
   if (needsHide) {
-    // Read the full Listing to capture exact hidden_reason
-    let observedListing = null;
-    try {
-      const rows = await deps.entities.Listing.filter({ id: listing_id });
-      observedListing = rows[0] || null;
-    } catch (e) { /* non-fatal */ }
-
     const hidePredicate = { id: listing_id };
     if (observedListing) {
       hidePredicate.status = observedListing.status;

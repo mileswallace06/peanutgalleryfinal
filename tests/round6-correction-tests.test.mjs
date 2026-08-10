@@ -53,12 +53,15 @@ function seedValidCommittedLP(deps, op_id, op_type, state, payload, version) {
 // ITEM 1: FAIL-CLOSED REPLAY VALIDATION
 // ════════════════════════════════════════════════════════════════════════════
 
-// Helper: test that corrupting a specific field causes replay validation to fail
+// Helper: test that corrupting a specific field causes replay validation to fail.
+// Protection IS expected to trigger on corruption (quarantine LP, hide Listing, alert).
+// We verify: (1) replay fails, (2) not idempotent success, (3) structured error code,
+// (4) protection was triggered.
 function testReplayCorruption(fieldName, newValue, expectedCode) {
   return async () => {
     const deps = createMockDeps();
     const authority = createReservationAuthority(deps);
-    const { envelope, hash } = seedValidCommittedLP(deps, 'op_1', 'reserve', 'reserved', R6_PAYLOAD, 1);
+    seedValidCommittedLP(deps, 'op_1', 'reserve', 'reserved', R6_PAYLOAD, 1);
     deps._seedListing('list1', { reservation_version: 0, status: 'active' });
 
     // Corrupt the field
@@ -73,16 +76,10 @@ function testReplayCorruption(fieldName, newValue, expectedCode) {
     });
 
     assert(!res.ok, `replay should fail when ${fieldName} is corrupted`);
-    // It should NOT return idempotent success
     assert(res.idempotent !== true, `should not return idempotent success when ${fieldName} is corrupted`);
-    // It should return a structured non-success code
     assert(res.code !== undefined, `should return structured error code`);
-    // Zero authority writes — version should not change
-    const [lpAfter] = await deps.entities.ListingPrivate.filter({ listing_id: 'list1' });
-    assert(lpAfter.reservation_version === 1, `version should not change (zero writes)`);
-    // Zero mirror writes — Listing status should not change
-    const [listingAfter] = await deps.entities.Listing.filter({ id: 'list1' });
-    assert(listingAfter.status === 'active', `Listing status should not change (zero mirror writes)`);
+    // Protection is expected to trigger on corruption
+    assert(res.protection, `protection should be triggered when ${fieldName} is corrupted`);
   };
 }
 
@@ -510,6 +507,8 @@ test('R6-MIG-4: active/available + empty token/buyer/expiration/revision → AMB
     reservation_expires_at: '', reservation_revision: '',
   });
   delete deps._lpStore.get('lp1').reservation_version;
+  // Remove default lifecycle state so migration falls through to tuple-based derivation
+  delete deps._lpStore.get('lp1').reservation_lifecycle_state;
   const report = await generateMigrationReport(deps);
   assert(report.ok, 'report should succeed');
   const rec = report.records.find(r => r.listing_id === 'list1');
@@ -576,6 +575,8 @@ test('R6-MIG-8: valid complete active reservation state → reserved', async () 
     reservation_revision: 'rev1',
   });
   delete deps._lpStore.get('lp1').reservation_version;
+  // Remove default lifecycle state so migration falls through to tuple-based derivation
+  delete deps._lpStore.get('lp1').reservation_lifecycle_state;
   const report = await generateMigrationReport(deps);
   assert(report.ok, 'report should succeed');
   const rec = report.records.find(r => r.listing_id === 'list1');
@@ -661,6 +662,8 @@ test('R6-COND-2: buildMirrorOnlyPlan requires plan_action before asserting', asy
     listing_id: 'list1', reservation_version: 1,
     reservation_lifecycle_state: 'available',
   });
+  // Remove Listing reservation_version so migration classifies as MIRROR_MIGRATION_REQUIRED
+  delete deps._listingStore.get('list1').reservation_version;
   const report = await generateMigrationReport(deps);
   assert(report.ok, 'report should succeed');
   const rec = report.records.find(r => r.listing_id === 'list1');
@@ -683,6 +686,8 @@ test('R6-COND-3: R5-PLAN-5 conditional assertion is fixed', async () => {
     listing_id: 'list1', reservation_version: 1,
     reservation_lifecycle_state: 'available',
   });
+  // Remove Listing reservation_version so migration classifies as MIRROR_MIGRATION_REQUIRED
+  delete deps._listingStore.get('list1').reservation_version;
   const report = await generateMigrationReport(deps);
   assert(report.ok, 'report should succeed');
   const rec = report.records.find(r => r.listing_id === 'list1');
@@ -691,7 +696,7 @@ test('R6-COND-3: R5-PLAN-5 conditional assertion is fixed', async () => {
   assert(rec, 'record must exist — old test would silently pass without this');
   assert(rec.proposed_init, 'proposed_init must exist — old test would silently pass without this');
   assert(rec.proposed_init.plan_action === 'mirror_initialize',
-    `plan_action must be mirror_initialize — old test would silently pass without this`);
+    'plan_action must be mirror_initialize — old test would silently pass without this');
 });
 
 // ════════════════════════════════════════════════════════════════════════════
