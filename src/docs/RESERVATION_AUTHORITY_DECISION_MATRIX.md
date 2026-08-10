@@ -71,27 +71,58 @@ rounds of 20-way concurrency. This is **empirical evidence, NOT a contractual gu
 |-----------|---------------------------|-----------------------------------|---------------------|
 | **Atomicity guarantee** | Empirically observed (10/10 rounds, 1 winner). **NOT contractually guaranteed.** | Contractually guaranteed (single-threaded actor + SQLite ACID) | Contractually guaranteed (row-level locking, MVCC, ACID) |
 | **Contractual safety** | **None.** If Base44 changes `updateMany`, CAS could break silently. | Full (Cloudflare SLA, SQLite ACID). | Full (Neon SLA, Postgres ACID). |
-| **Unique operation storage** | No unique constraint. Operation ID stored in `last_operation_id`. | SQLite UNIQUE constraint. | PRIMARY KEY. |
-| **Mirror/outbox recovery** | Listing as non-authoritative mirror, reparable from ListingPrivate. No transactional outbox. | SQLite transactional outbox within DO. | Transactional outbox in same transaction. |
-| **Operational complexity** | Lowest. No new infrastructure. | Medium. New Cloudflare account, DO code. | Highest. Neon project, API layer, outbox worker. |
-| **Launch timeline** | Fastest. Days. | Medium. 1-2 weeks. | Slowest. 2-3 weeks. |
-| **Migration risk** | Lowest. Code restructure only. Risk: relying on undocumented behavior. | Medium. New vendor, DO code. | Highest. Data migration, dual-system sync. |
+| **Idempotency** | Module-level via `last_operation_id` + envelope hash. No datastore-level dedup. Concurrent same-op-id retries produce 1 mutation (empirically verified). | Datastore-level via SQLite UNIQUE on `operation_id`. Retry returns existing result. | Datastore-level via PRIMARY KEY on `operation_id`. Retry returns existing result. |
+| **Unique operation storage** | No unique constraint. Operation ID stored in `last_operation_id` field. Duplicate creates possible under concurrency. | SQLite UNIQUE constraint on `operation_id`. Durable across eviction. | PRIMARY KEY on `operation_id`. Enforced by Postgres. |
+| **Mirror/outbox recovery** | Listing as non-authoritative mirror, reparable from ListingPrivate. No transactional outbox — mirror update is best-effort with sweep. | SQLite transactional outbox within DO. Same transaction as CAS. | Transactional outbox in same transaction. External worker delivers. |
+| **Stripe saga compatibility** | Compatible. Two-phase freeze-and-finalize uses CAS on ListingPrivate. Stripe webhook idempotency via operation_id + envelope hash. No distributed transaction across Stripe + Base44. | Compatible. DO serializes per-listing. Stripe webhook can call DO. Outbox ensures mirror delivery. | Compatible. Postgres transaction wraps CAS + outbox. Stripe webhook calls API. Strongest consistency. |
+| **Operational complexity** | Lowest. No new infrastructure. Existing entities, existing SDK. | Medium. New Cloudflare account, DO code, routing. | Highest. Neon project, API layer, outbox worker, secrets management. |
+| **Availability failure behavior** | Base44 unavailable → all reservation endpoints fail-closed (503). No partial state — CAS is all-or-nothing per record. | DO unavailable → 503 for that listing. Other listings unaffected. SQLite survives eviction. | Postgres unavailable → 503 for all. Neon auto-suspend after idle; cold start delay. |
+| **Launch timeline** | Fastest. Days (code restructure + migration init). | Medium. 1-2 weeks (DO code + routing + testing). | Slowest. 2-3 weeks (schema + API + worker + migration). |
+| **Migration risk** | Lowest. Code restructure only. Risk: relying on undocumented behavior. Existing records need init. | Medium. New vendor, DO code. Shadow comparison + cutover. | Highest. Data migration, dual-system sync. Shadow comparison + cutover. |
 
 ---
 
 ## 4. Recommendation
 
-**DO NOT recommend Base44 as production authority until a written affirmative
-vendor guarantee is received from Base44.**
+**Do not choose based on prior assumptions.** The recommendation follows directly
+from the probe results and the comparison above.
 
-The empirical probe results are strong (10/10 rounds, 1 winner), but empirical
-evidence is NOT a substitute for a contractual guarantee in a real-money
-reservation system. The launch gate remains RED until:
+### Test Outcome
 
-1. Base44 provides a written affirmative answer to the vendor guarantee question
-   (see `VENDOR_GUARANTEE_QUESTION.md`), OR
-2. An external transactional authority (Cloudflare Durable Objects or
-   Neon/Postgres) is provisioned and integrated.
+The Task 2 probe passed all tests:
+- 10/10 rounds of 20-call concurrency produced exactly 1 winner per round.
+- 20 concurrent same-operation-id retries produced 1 mutation.
+- Losing operations could not overwrite the winning tuple.
+- Mirror failure did not alter the authoritative tuple.
+- All decisions consulted the authoritative row, never the mirror.
+- Recovery repaired the mirror from the authoritative row.
+- No flow treated unknown datastore state as available.
+- Before/after entity counts matched (cleanup verified).
+
+### Is Base44 Atomic Behavior "Sufficiently Supported"?
+
+**Yes, empirically — but not contractually.** The probe provides strong empirical
+evidence (10/10 rounds, exactly 1 winner, zero anomalies). However, official
+Base44 documentation does not document `updateMany` as an atomic conditional
+update primitive. The behavior could change without notice.
+
+For a real-money reservation system, the question is whether empirical evidence
+is sufficient or whether a contractual guarantee is required. This is a risk
+tolerance decision for the owner, not a technical fact.
+
+### Recommendation
+
+**Base44 single-authority CAS is the recommended path IF AND ONLY IF the owner
+accepts empirical-only atomicity (no contractual guarantee).** The probe results
+are strong, the implementation is complete, and the migration path is the
+simplest. The owner must understand the risk: if Base44 changes `updateMany`
+internals, CAS could break silently.
+
+**If the owner requires a contractual guarantee, Neon/Postgres is the simplest
+external system that supplies the missing guarantee.** It provides MVCC, PRIMARY
+KEY uniqueness, and transactional outbox in a single well-understood package.
+Cloudflare Durable Objects are a viable alternative if per-listing serialization
+and built-in alarms are preferred over cross-listing SQL queries.
 
 ### Current Status
 
@@ -100,18 +131,23 @@ reservation system. The launch gate remains RED until:
 - **Production entry points**: NOT integrated (all 11 remain `integrated: false`)
 - **Existing records**: NOT initialized (MIGRATION_REQUIRED)
 - **Vendor guarantee**: NOT received
+- **Launch gate**: RED (honestly — 13/14 pass, 1 expected fail:
+  `production_entry_points_integrated`)
 
-### Conditions for Proceeding with Base44 (if vendor confirms)
+### Conditions for Proceeding with Base44 (owner accepts empirical atomicity)
 
-1. Written affirmative vendor guarantee from Base44.
+1. Owner explicitly accepts empirical-only atomicity (no contractual guarantee).
 2. Migration initialization of all existing `ListingPrivate` records.
 3. All 11 production entry points migrated to use the authority.
 4. Entry-wrapper behavioral tests prove each deployed path delegates to the
    authority and cannot write the tuple independently.
 5. Launch gate turns GREEN.
 
-### Fallback
+### Conditions for Proceeding with External Authority (contractual guarantee)
 
-If Base44 `updateMany` atomicity is not contractually guaranteed, migrate to
-**Cloudflare Durable Objects** (SQLite ACID + unique constraints + alarms) or
-**Neon/Postgres** (MVCC + PRIMARY KEY + transactional outbox).
+1. Provision Neon/Postgres (simplest) or Cloudflare Durable Objects.
+2. Shadow comparison phase: authority receives shadow writes, verify zero
+   divergence for a sustained period.
+3. Explicit cutover: switch all reservation operations to authority-first.
+4. No Base44-direct fallback after cutover (fail-closed 503 on authority outage).
+5. Launch gate turns GREEN.

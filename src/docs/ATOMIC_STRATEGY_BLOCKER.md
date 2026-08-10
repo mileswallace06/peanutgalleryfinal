@@ -10,7 +10,9 @@ constraints.
 
 ---
 
-## Live Probe Result (2026-08-08)
+## Live Probe Results
+
+### Probe 1 — AdminAlert CAS (2026-08-08)
 
 A live probe using synthetic `AdminAlert` records tested Base44's `updateMany` with
 a conditional filter predicate under 20-way concurrency:
@@ -22,9 +24,40 @@ a conditional filter predicate under 20-way concurrency:
 | `updateMany({ id }, { $inc: { occurrence_count: 1 } })` (no predicate) | 20 | 20 | All succeed (control) |
 | Two concurrent `create` with same `incident_key` | 2 | 2 records | **No unique constraint** |
 
-**Finding**: Only 1 of 20 concurrent conditional `updateMany` calls matched the
-predicate and applied the update. The remaining 19 returned `updated: 0`. This is
-consistent with atomic compare-and-set behavior for a single record.
+### Probe 2 — Single-Authority ListingPrivate CAS (2026-08-10)
+
+A live probe using one synthetic `ListingPrivate` record as the sole authoritative
+reservation row and one synthetic `Listing` as a non-authoritative mirror. The CAS
+query included record ID, expected reservation revision (version), and required
+non-quarantine state. 10 independent rounds of 20-call concurrency:
+
+| Round | Concurrent Calls | Winners | Winner Index | All Others `updated: 0` |
+|------|-----------------|---------|--------------|------------------------|
+| 0 | 20 | **1** | 0 | Yes |
+| 1 | 20 | **1** | 15 | Yes |
+| 2 | 20 | **1** | 13 | Yes |
+| 3 | 20 | **1** | 4 | Yes |
+| 4 | 20 | **1** | 0 | Yes |
+| 5 | 20 | **1** | 18 | Yes |
+| 6 | 20 | **1** | 11 | Yes |
+| 7 | 20 | **1** | 13 | Yes |
+| 8 | 20 | **1** | 6 | Yes |
+| 9 | 20 | **1** | 8 | Yes |
+
+**Finding**: All 10 rounds produced exactly 1 winner. The remaining 19 calls per
+round returned `updated: 0`. No round produced anything other than 1 winner.
+
+**Auxiliary tests (all passed)**:
+
+| Test | Result |
+|------|--------|
+| 20 concurrent same-operation-id retries → 1 mutation, deterministic idempotent responses | PASS |
+| Losing operation cannot overwrite winning tuple | PASS |
+| Mirror failure does not alter or roll back authoritative tuple | PASS |
+| All decisions consult authoritative row, never mirror | PASS |
+| Recovery can repair mirror from authoritative row | PASS |
+| No flow treats unknown datastore state as available | PASS |
+| Before/after entity counts match (cleanup verified) | PASS (36/36 → 36/36) |
 
 **Important distinction**: This is **empirically observed atomicity, not a
 contractually guaranteed platform feature.** Official Base44 documentation does
@@ -39,9 +72,9 @@ system with contractual atomicity guarantees.
 
 | Primitive | Empirically Available | Evidence | Contractually Guaranteed |
 |-----------|----------------------|----------|-------------------------|
-| Single-record conditional update (CAS via `updateMany` with filter) | **Yes** | 1 winner out of 20 concurrent calls | **No** — not documented |
+| Single-record conditional update (CAS via `updateMany` with filter) | **Yes** | 10/10 rounds × 20 calls = exactly 1 winner per round | **No** — not documented |
 | `$inc` with conditional predicate | **Yes** | Final value = 1 (not 20) | **No** |
-| `$set` with conditional predicate | **Yes** | 1 winner by return `updated > 0` | **No** |
+| `$set` with conditional predicate | **Yes** | 1 winner by return `updated > 0` across 10 rounds | **No** |
 
 ## What Is NOT Available
 
@@ -114,14 +147,15 @@ empirical findings:
 ## Conclusion
 
 **Base44 `updateMany` with a filter predicate is empirically atomic for
-single-record conditional updates, but this behavior is not contractually
+single-record conditional updates across 10 independent rounds of 20-way
+concurrency (exactly 1 winner per round), but this behavior is not contractually
 guaranteed by official documentation.** Multi-entity transactions and unique create
 constraints remain unavailable.
 
 A single-authority design using `ListingPrivate` as the sole authoritative
-reservation row with CAS via `updateMany` is feasible and tested (see Task 2
-probe). `Listing` becomes a non-authoritative mirror that can be repaired from
-`ListingPrivate`. An external authority (Neon/Postgres or Cloudflare Durable
-Objects) remains the recommended path for contractual guarantees, but the
-single-authority CAS design may be sufficient if the empirical behavior is
-accepted as reliable.
+reservation row with CAS via `updateMany` is feasible and tested. `Listing`
+becomes a non-authoritative mirror that can be repaired from `ListingPrivate`.
+An external authority (Neon/Postgres or Cloudflare Durable Objects) remains the
+recommended path for contractual guarantees, but the single-authority CAS design
+may be sufficient if the empirical behavior is accepted as reliable. The Task 3
+decision matrix compares all three options.
