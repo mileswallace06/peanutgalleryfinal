@@ -79,6 +79,17 @@ export const BUSINESS_HELD_STATUSES = new Set(['hidden', 'pending_verification',
 // Business-held hidden reasons that normal projection must NEVER clear.
 export const BUSINESS_HELD_HIDDEN_REASONS = new Set(['admin_disabled', 'transfer_disabled', 'expired_verification']);
 
+// Terminal business statuses that are already non-reservable.
+// Protection must NOT overwrite these with hidden — they are valid terminal states.
+export const TERMINAL_BUSINESS_STATUSES = new Set(['sold', 'cancelled', 'expired']);
+
+// Determine whether protection should hide the Listing.
+// Terminal statuses (sold/cancelled/expired) are already non-reservable and must be preserved.
+// Active/reservable statuses should be hidden for safety.
+export function shouldHideForProtection(currentStatus) {
+  return !TERMINAL_BUSINESS_STATUSES.has(currentStatus);
+}
+
 // Reservation mirror states (same enum as lifecycle states).
 export const RESERVATION_MIRROR_STATES = LIFECYCLE_STATES;
 
@@ -276,6 +287,10 @@ export function buildAuthoritativeSnapshot(lp) {
     reservation_expires_at: lp.reservation_expires_at,
     reservation_revision: lp.reservation_revision,
     last_operation_id: lp.last_operation_id,
+    last_operation_type: lp.last_operation_type,
+    last_operation_payload_hash: lp.last_operation_payload_hash,
+    last_operation_result_json: lp.last_operation_result_json,
+    last_operation_at: lp.last_operation_at,
     pending_effects_json: lp.pending_effects_json,
     pending_effects_hash: lp.pending_effects_hash,
     checkout_quarantined: lp.checkout_quarantined,
@@ -283,9 +298,43 @@ export function buildAuthoritativeSnapshot(lp) {
   };
 }
 
-// ── Validate idempotent replay before returning success ─────────────────────
-// Checks that the stored state is internally consistent before returning
-// idempotent success. Corruption triggers fail-closed protection.
+// Validate that all snapshot fields are present (not undefined).
+// If the SDK omits undefined query keys, the CAS predicate would be weaker than intended.
+// Records with missing snapshot fields must be rejected before CAS.
+export function validateSnapshotCompleteness(lp) {
+  const requiredFields = [
+    'reservation_version',
+    'reservation_lifecycle_state',
+    'reservation_token',
+    'reserved_by_email',
+    'reservation_expires_at',
+    'reservation_revision',
+    'last_operation_id',
+    'last_operation_type',
+    'last_operation_payload_hash',
+    'last_operation_result_json',
+    'last_operation_at',
+    'pending_effects_json',
+    'pending_effects_hash',
+    'checkout_quarantined',
+    'recovery_blocked',
+  ];
+  const missing = [];
+  for (const field of requiredFields) {
+    if (lp[field] === undefined) {
+      missing.push(field);
+    }
+  }
+  if (missing.length > 0) {
+    return { ok: false, code: 'SNAPSHOT_INCOMPLETE', missing };
+  }
+  return { ok: true };
+}
+
+// ── Validate idempotent replay before returning success (Round 5) ───────────
+// Requires and validates the COMPLETE stored commit. Missing fields, malformed
+// values, or disagreements must NEVER return idempotent success. They must fail
+// closed and trigger verified protection.
 export async function validateIdempotentReplay(lp, operation_id, envelope_hash, hashEffectsFn) {
   // 1. Lifecycle state is valid
   const stateCheck = validateLifecycleState(lp.reservation_lifecycle_state);
@@ -298,7 +347,7 @@ export async function validateIdempotentReplay(lp, operation_id, envelope_hash, 
     return { ok: false, code: 'VERSION_CORRUPT', error: `reservation_version is invalid: ${JSON.stringify(lp.reservation_version)}` };
   }
 
-  // 3. Tuple matches stored lifecycle state
+  // 3. Tuple matches stored lifecycle state (including revision for reserved/frozen)
   const tupleCheck = validateTuple(lp.reservation_lifecycle_state, {
     token: lp.reservation_token,
     buyer: lp.reserved_by_email,
@@ -307,37 +356,97 @@ export async function validateIdempotentReplay(lp, operation_id, envelope_hash, 
   if (!tupleCheck.valid) {
     return { ok: false, code: 'TUPLE_CORRUPT', error: tupleCheck.error };
   }
+  // Reserved/frozen requires nonempty reservation_revision
+  if (TUPLE_REQUIRED_STATES.has(lp.reservation_lifecycle_state)) {
+    if (!isNonEmptyString(lp.reservation_revision)) {
+      return { ok: false, code: 'TUPLE_CORRUPT', error: `${lp.reservation_lifecycle_state} state requires nonempty reservation_revision` };
+    }
+  }
 
-  // 4. Last operation ID matches
+  // 4. last_operation_id is required (not truthiness — strict string check) and matches
+  if (!isNonEmptyString(lp.last_operation_id)) {
+    return { ok: false, code: 'OPERATION_CORRUPT', error: 'last_operation_id is missing or empty' };
+  }
   if (lp.last_operation_id !== operation_id) {
     return { ok: false, code: 'OPERATION_MISMATCH', error: `last_operation_id mismatch: expected ${operation_id}, got ${lp.last_operation_id}` };
   }
 
-  // 5. Last operation payload hash matches
+  // 5. last_operation_type is required and valid
+  if (!isNonEmptyString(lp.last_operation_type)) {
+    return { ok: false, code: 'OPERATION_CORRUPT', error: 'last_operation_type is missing or empty' };
+  }
+  if (!OPERATION_TYPES.includes(lp.last_operation_type)) {
+    return { ok: false, code: 'OPERATION_CORRUPT', error: `last_operation_type is not a valid operation type: ${JSON.stringify(lp.last_operation_type)}` };
+  }
+
+  // 6. last_operation_payload_hash is required and matches
+  if (!isNonEmptyString(lp.last_operation_payload_hash)) {
+    return { ok: false, code: 'HASH_CORRUPT', error: 'last_operation_payload_hash is missing or empty' };
+  }
   if (lp.last_operation_payload_hash !== envelope_hash) {
     return { ok: false, code: 'HASH_MISMATCH', error: 'last_operation_payload_hash does not match envelope hash' };
   }
 
-  // 6. Stored result new_version matches authoritative version
-  let stored_result = null;
-  if (lp.last_operation_result_json) {
-    try {
-      stored_result = JSON.parse(lp.last_operation_result_json);
-    } catch (e) {
-      return { ok: false, code: 'RESULT_CORRUPT', error: `stored result JSON is malformed: ${e.message}` };
-    }
+  // 7. last_operation_at is required and valid ISO date
+  if (!isNonEmptyString(lp.last_operation_at)) {
+    return { ok: false, code: 'OPERATION_CORRUPT', error: 'last_operation_at is missing or empty' };
   }
-  if (stored_result && stored_result.new_version !== lp.reservation_version) {
-    return { ok: false, code: 'VERSION_MISMATCH', error: `stored result new_version ${stored_result.new_version} does not match authoritative version ${lp.reservation_version}` };
+  if (!isValidISODate(lp.last_operation_at)) {
+    return { ok: false, code: 'OPERATION_CORRUPT', error: `last_operation_at is not a valid ISO date: ${JSON.stringify(lp.last_operation_at)}` };
   }
 
-  // 7. Pending-effects JSON is valid
+  // 8. last_operation_result_json is REQUIRED, valid JSON, and must match
+  if (!isNonEmptyString(lp.last_operation_result_json)) {
+    return { ok: false, code: 'RESULT_CORRUPT', error: 'last_operation_result_json is missing or empty' };
+  }
+  let stored_result;
+  try {
+    stored_result = JSON.parse(lp.last_operation_result_json);
+  } catch (e) {
+    return { ok: false, code: 'RESULT_CORRUPT', error: `stored result JSON is malformed: ${e.message}` };
+  }
+  if (!stored_result || typeof stored_result !== 'object') {
+    return { ok: false, code: 'RESULT_CORRUPT', error: 'stored result is not an object' };
+  }
+  // Validate required fields in stored result
+  const requiredResultFields = ['operation_id', 'operation_type', 'requested_state', 'previous_version', 'new_version', 'committed_at'];
+  for (const field of requiredResultFields) {
+    if (!(field in stored_result)) {
+      return { ok: false, code: 'RESULT_CORRUPT', error: `stored result missing required field: ${field}` };
+    }
+  }
+  // Validate result matches authoritative row and incoming replay
+  if (stored_result.operation_id !== operation_id) {
+    return { ok: false, code: 'RESULT_MISMATCH', error: `result operation_id: expected ${operation_id}, got ${stored_result.operation_id}` };
+  }
+  if (stored_result.operation_type !== lp.last_operation_type) {
+    return { ok: false, code: 'RESULT_MISMATCH', error: `result operation_type: expected ${lp.last_operation_type}, got ${stored_result.operation_type}` };
+  }
+  if (stored_result.requested_state !== lp.reservation_lifecycle_state) {
+    return { ok: false, code: 'RESULT_MISMATCH', error: `result requested_state: expected ${lp.reservation_lifecycle_state}, got ${stored_result.requested_state}` };
+  }
+  if (stored_result.new_version !== lp.reservation_version) {
+    return { ok: false, code: 'VERSION_MISMATCH', error: `stored result new_version ${stored_result.new_version} does not match authoritative version ${lp.reservation_version}` };
+  }
+  if (typeof stored_result.previous_version !== 'number' || stored_result.previous_version !== lp.reservation_version - 1) {
+    return { ok: false, code: 'VERSION_MISMATCH', error: `result previous_version: expected ${lp.reservation_version - 1}, got ${stored_result.previous_version}` };
+  }
+  if (!isValidISODate(stored_result.committed_at)) {
+    return { ok: false, code: 'RESULT_CORRUPT', error: `result committed_at is not a valid ISO date: ${JSON.stringify(stored_result.committed_at)}` };
+  }
+
+  // 9. pending_effects_json is valid
   const effectsCheck = parsePendingEffects(lp.pending_effects_json);
   if (!effectsCheck.ok) {
     return { ok: false, code: 'EFFECTS_CORRUPT', error: effectsCheck.error };
   }
 
-  // 8. Pending-effects hash matches (async — uses SHA-256)
+  // 10. pending_effects_hash is REQUIRED (not truthiness — strict string check)
+  if (!isNonEmptyString(lp.pending_effects_hash)) {
+    return { ok: false, code: 'EFFECTS_HASH_CORRUPT', error: 'pending_effects_hash is missing or empty' };
+  }
+
+  // 11. Pending-effects hash matches (async — uses SHA-256)
   if (hashEffectsFn) {
     let computed_hash;
     try {
@@ -345,7 +454,7 @@ export async function validateIdempotentReplay(lp, operation_id, envelope_hash, 
     } catch (e) {
       return { ok: false, code: 'HASHING_FAILED', error: e?.message || String(e) };
     }
-    if (lp.pending_effects_hash && computed_hash !== lp.pending_effects_hash) {
+    if (computed_hash !== lp.pending_effects_hash) {
       return { ok: false, code: 'EFFECTS_HASH_MISMATCH', error: 'pending_effects_hash does not match computed hash of pending_effects_json' };
     }
   }

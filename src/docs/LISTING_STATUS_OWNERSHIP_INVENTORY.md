@@ -79,6 +79,52 @@ They are owned by **business logic**, NOT by the reservation authority mirror.
 | MoveCloserListing | YES | YES | Shows active listings for upgrades |
 | SellSeatsModule | YES | YES | Shows seller's seats by status |
 
+### Backend Functions (Writers of reservation tuple fields)
+
+| Function | Writes reservation_token? | Writes reserved_by_email? | Writes reservation_expires_at? | Writes reservation_revision? | Notes |
+|----------|--------------------------|---------------------------|--------------------------------|------------------------------|-------|
+| reserveListing | YES | YES | YES | YES | Sets reservation tuple on reserve |
+| releaseReservation | YES (clear) | YES (clear) | YES (clear) | YES (clear) | Clears reservation tuple on release |
+| createCheckout | YES | YES | YES | YES | Sets reservation tuple during checkout |
+| abortCheckout | YES (clear) | YES (clear) | YES (clear) | YES (clear) | Clears reservation tuple on abort |
+| capturePayment | YES (freeze) | YES (freeze) | YES (freeze) | YES (freeze) | Freezes tuple on capture, clears on finalize |
+| cancelPurchase | YES (clear) | YES (clear) | YES (clear) | YES (clear) | Clears tuple on cancel |
+| cleanupAbandonedCheckouts | YES (clear) | YES (clear) | YES (clear) | YES (clear) | Clears tuple on cleanup |
+| stripeWebhook | YES | YES | YES | YES | May clear tuple on payment success |
+| seedDemoListings | YES | YES | YES | YES | Sets tuple for demo listings |
+| createDemoUpgrade | YES | YES | YES | YES | Sets tuple for demo upgrades |
+
+### Shared Orchestrators (Writers of reservation tuple fields)
+
+| Orchestrator | Writes tuple? | Notes |
+|--------------|---------------|-------|
+| reserveOrchestrator | YES | Sets reservation tuple |
+| releaseOrchestrator | YES (clear) | Clears reservation tuple |
+| checkoutOrchestrator | YES | Sets tuple during checkout |
+| captureOrchestrator | YES (freeze/clear) | Freezes/clears tuple |
+| cancelOrchestrator | YES (clear) | Clears tuple on cancel |
+| abortOrchestrator | YES (clear) | Clears tuple on abort |
+| cleanupOrchestrator | YES (clear) | Clears tuple on cleanup |
+| webhookOrchestrator | YES | May clear tuple on webhook |
+| resumeOrchestrator | YES (clear) | Clears tuple on resume |
+| tupleTransition | YES | Helper for tuple transitions |
+| orchestratorHelpers | YES | Shared helper for tuple writes |
+
+### Writers of reservation_version and reservation_mirror_state
+
+| Module | Writes reservation_version? | Writes reservation_mirror_state? | Notes |
+|--------|----------------------------|--------------------------------|-------|
+| reservationAuthority (transitionReservation) | YES | NO | Authority writes version to LP; does NOT write mirror_state to Listing |
+| reservationAuthorityMirror (projectMirror) | YES (Listing) | YES (Listing) | Mirror projection writes both to Listing |
+| reservationAuthorityMirror (sweepMirror) | YES (Listing) | YES (Listing) | Mirror sweep writes both to Listing |
+| reservationAuthorityMirror (protectMirror) | NO | NO | Emergency protection does NOT touch version/mirror_state |
+| reservationAuthorityMigration | YES (LP init) | YES (Listing init) | Migration initializes version and mirror_state |
+| reservationAuthorityConstants | NO (schema only) | NO (schema only) | Defines fields, does not write at runtime |
+
+### Static Regression Test
+
+A static regression test (`tests/listing-status-ownership.test.mjs`) scans all source files for writes to tracked Listing fields using structured regex patterns (word-boundary + colon). Any unregistered writer fails the test. The registry is embedded in the test file and must be updated when a new writer is added.
+
 ## Reservation Mirror State vs Business Status
 
 | Reservation Mirror State | Business Status (examples) | Notes |

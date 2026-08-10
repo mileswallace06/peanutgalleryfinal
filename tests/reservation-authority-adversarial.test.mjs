@@ -17,7 +17,7 @@
  *   - All tests assert FINAL ENTITY STATE, not only returned error codes.
  */
 import { createReservationAuthority } from '../base44/shared/reservationAuthority.js';
-import { generateMigrationReport } from '../base44/shared/reservationAuthorityMigration.js';
+import { generateMigrationReport, planApply } from '../base44/shared/reservationAuthorityMigration.js';
 import { createMockDeps } from './authority/helpers.mjs';
 
 const tests = [];
@@ -838,6 +838,177 @@ test('R4-MIG-5: Both initialized, versions match → ALREADY_INITIALIZED', async
   const rec = report.records.find(r => r.listing_id === 'list1');
   assert(rec, 'should have a record');
   assert(rec.status === 'ALREADY_INITIALIZED', `expected ALREADY_INITIALIZED, got ${rec.status}`);
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// ROUND 5 NEW ADVERSARIAL TESTS
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── R5-ADV-1: Quarantined + valid tuple → frozen (not AMBIGUOUS) ───────────
+test('R5-ADV-1: quarantined with valid complete tuple derives frozen', async () => {
+  const deps = createMockDeps();
+  deps._seedListing('list1', { status: 'hidden', hidden_reason: 'checkout_quarantine' });
+  deps._seedLP('lp1', {
+    listing_id: 'list1',
+    checkout_quarantined: true,
+    reservation_token: 'tok1', reserved_by_email: 'b1@test',
+    reservation_expires_at: '2026-12-31T00:00:00Z',
+    reservation_revision: 'rev_1',
+  });
+  delete deps._lpStore.get('lp1').reservation_version;
+  const report = await generateMigrationReport(deps);
+  assert(report.ok, 'report should succeed');
+  const rec = report.records.find(r => r.listing_id === 'list1');
+  assert(rec, 'should have a record');
+  assert(rec.derived_lifecycle_state === 'frozen', `quarantined + valid tuple should derive frozen, got ${rec.derived_lifecycle_state}`);
+});
+
+// ── R5-ADV-2: Quarantined + incomplete tuple → AMBIGUOUS ───────────────────
+test('R5-ADV-2: quarantined with incomplete tuple remains AMBIGUOUS', async () => {
+  const deps = createMockDeps();
+  deps._seedListing('list1', { status: 'hidden', hidden_reason: 'checkout_quarantine' });
+  deps._seedLP('lp1', {
+    listing_id: 'list1',
+    checkout_quarantined: true,
+    reservation_token: 'tok1', reserved_by_email: null,
+    reservation_expires_at: null, reservation_revision: null,
+  });
+  delete deps._lpStore.get('lp1').reservation_version;
+  const report = await generateMigrationReport(deps);
+  assert(report.ok, 'report should succeed');
+  const rec = report.records.find(r => r.listing_id === 'list1');
+  assert(rec, 'should have a record');
+  assert(rec.derived_lifecycle_state === 'AMBIGUOUS', `quarantined + incomplete tuple should be AMBIGUOUS, got ${rec.derived_lifecycle_state}`);
+});
+
+// ── R5-ADV-3: planApply does not write status or hidden_reason ──────────────
+test('R5-ADV-3: planApply does not write status or hidden_reason to mirror', () => {
+  const deps = createMockDeps();
+  const plan = planApply(deps, 'apply_req_1');
+  const stepsText = plan.steps.join(' ');
+  assert(!stepsText.includes('status=derived'), 'steps should not mention status=derived');
+  assert(!stepsText.includes('hidden_reason=derived'), 'steps should not mention hidden_reason=derived');
+  const fieldsText = plan.initialized_fields.join(' ');
+  assert(!fieldsText.includes('public Listing status'), 'initialized_fields should not include public Listing status');
+  assert(!fieldsText.includes('public Listing hidden_reason'), 'initialized_fields should not include public Listing hidden_reason');
+  assert(fieldsText.includes('reservation_mirror_state'), 'initialized_fields should include reservation_mirror_state');
+});
+
+// ── R5-ADV-4: mirror-only plan uses plan_action not invalid operation_type ─
+test('R5-ADV-4: mirror-only plan uses plan_action not invalid operation_type', async () => {
+  const deps = createMockDeps();
+  deps._seedListing('list1', { status: 'active' });
+  delete deps._listingStore.get('list1').reservation_version;
+  deps._seedLP('lp1', {
+    listing_id: 'list1', reservation_version: 3,
+    reservation_lifecycle_state: 'available',
+    reservation_token: null, reserved_by_email: null, reservation_expires_at: null,
+    reservation_revision: null,
+  });
+  const report = await generateMigrationReport(deps);
+  assert(report.ok, 'report should succeed');
+  const rec = report.records.find(r => r.listing_id === 'list1');
+  assert(rec, 'should have a record');
+  assert(rec.status === 'MIRROR_MIGRATION_REQUIRED', `expected MIRROR_MIGRATION_REQUIRED, got ${rec.status}`);
+  assert(rec.proposed_init, 'should have proposed_init');
+  assert(rec.proposed_init.plan_action === 'mirror_initialize', 'should use plan_action=mirror_initialize');
+  assert(!rec.proposed_init.operation_type, 'should NOT have operation_type');
+  assert(rec.proposed_init.fields_to_set.reservation_version === 3, 'should set reservation_version');
+  assert(rec.proposed_init.fields_to_set.reservation_mirror_state === 'available', 'should set reservation_mirror_state');
+  assert(!rec.proposed_init.fields_to_set.status, 'should NOT set status');
+  assert(!rec.proposed_init.fields_to_set.hidden_reason, 'should NOT set hidden_reason');
+});
+
+// ── R5-ADV-5: Protection preserves sold status ────────────────────────────
+test('R5-ADV-5: protection preserves sold status (does not overwrite with hidden)', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  deps._seedLP('lp1', { listing_id: 'list1', reservation_version: 2, reservation_lifecycle_state: 'available' });
+  deps._seedListing('list1', { reservation_version: 5, status: 'sold' });
+  const res = await authority.sweepMirror('list1');
+  assert(!res.ok, 'should detect corruption');
+  assert(res.code === 'MIRROR_NEWER_THAN_AUTHORITY', `expected MIRROR_NEWER_THAN_AUTHORITY, got ${res.code}`);
+  assert(res.protection, 'should have protection result');
+  assert(res.protection.protected === true, 'protection should be verified');
+  const [listing] = await deps.entities.Listing.filter({ id: 'list1' });
+  assert(listing.status === 'sold', `Listing status should be preserved as sold, got ${listing.status}`);
+  const alerts = Array.from(deps._adminAlertStore.values());
+  const unresolved = alerts.filter(a => a.resolved === false);
+  assert(unresolved.length === 1, `expected 1 unresolved alert, got ${unresolved.length}`);
+});
+
+// ── R5-ADV-6: Protection preserves cancelled status ───────────────────────
+test('R5-ADV-6: protection preserves cancelled status', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  deps._seedLP('lp1', { listing_id: 'list1', reservation_version: 2, reservation_lifecycle_state: 'available' });
+  deps._seedListing('list1', { reservation_version: 5, status: 'cancelled' });
+  const res = await authority.sweepMirror('list1');
+  assert(res.protection.protected === true, 'protection should be verified');
+  const [listing] = await deps.entities.Listing.filter({ id: 'list1' });
+  assert(listing.status === 'cancelled', `Listing status should be preserved as cancelled, got ${listing.status}`);
+});
+
+// ── R5-ADV-7: Protection preserves expired status ──────────────────────────
+test('R5-ADV-7: protection preserves expired status', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  deps._seedLP('lp1', { listing_id: 'list1', reservation_version: 2, reservation_lifecycle_state: 'available' });
+  deps._seedListing('list1', { reservation_version: 5, status: 'expired' });
+  const res = await authority.sweepMirror('list1');
+  assert(res.protection.protected === true, 'protection should be verified');
+  const [listing] = await deps.entities.Listing.filter({ id: 'list1' });
+  assert(listing.status === 'expired', `Listing status should be preserved as expired, got ${listing.status}`);
+});
+
+// ── R5-ADV-8: Protection hides active status ───────────────────────────────
+test('R5-ADV-8: protection hides active status (not terminal)', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  deps._seedLP('lp1', { listing_id: 'list1', reservation_version: 2, reservation_lifecycle_state: 'available' });
+  deps._seedListing('list1', { reservation_version: 5, status: 'active' });
+  const res = await authority.sweepMirror('list1');
+  assert(res.protection.protected === true, 'protection should be verified');
+  const [listing] = await deps.entities.Listing.filter({ id: 'list1' });
+  assert(listing.status === 'hidden', `Listing should be hidden, got ${listing.status}`);
+  assert(listing.hidden_reason === 'checkout_quarantine', 'hidden_reason should be checkout_quarantine');
+});
+
+// ── R5-ADV-9: Protection hides pending_verification status ─────────────────
+test('R5-ADV-9: protection hides pending_verification status', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  deps._seedLP('lp1', { listing_id: 'list1', reservation_version: 2, reservation_lifecycle_state: 'available' });
+  deps._seedListing('list1', { reservation_version: 5, status: 'pending_verification' });
+  const res = await authority.sweepMirror('list1');
+  assert(res.protection.protected === true, 'protection should be verified');
+  const [listing] = await deps.entities.Listing.filter({ id: 'list1' });
+  assert(listing.status === 'hidden', `Listing should be hidden, got ${listing.status}`);
+});
+
+// ── R5-ADV-10: Protection hides pending_payout_setup status ────────────────
+test('R5-ADV-10: protection hides pending_payout_setup status', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  deps._seedLP('lp1', { listing_id: 'list1', reservation_version: 2, reservation_lifecycle_state: 'available' });
+  deps._seedListing('list1', { reservation_version: 5, status: 'pending_payout_setup' });
+  const res = await authority.sweepMirror('list1');
+  assert(res.protection.protected === true, 'protection should be verified');
+  const [listing] = await deps.entities.Listing.filter({ id: 'list1' });
+  assert(listing.status === 'hidden', `Listing should be hidden, got ${listing.status}`);
+});
+
+// ── R5-ADV-11: Protection hides hidden/admin_disabled (non-terminal hidden)
+test('R5-ADV-11: protection hides hidden/admin_disabled status (non-terminal)', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  deps._seedLP('lp1', { listing_id: 'list1', reservation_version: 2, reservation_lifecycle_state: 'available' });
+  deps._seedListing('list1', { reservation_version: 5, status: 'hidden', hidden_reason: 'admin_disabled' });
+  const res = await authority.sweepMirror('list1');
+  assert(res.protection.protected === true, 'protection should be verified');
+  const [listing] = await deps.entities.Listing.filter({ id: 'list1' });
+  assert(listing.status === 'hidden', `Listing should be hidden, got ${listing.status}`);
+  assert(listing.hidden_reason === 'checkout_quarantine', 'hidden_reason should be overwritten to checkout_quarantine');
 });
 
 // ════════════════════════════════════════════════════════════════════════════

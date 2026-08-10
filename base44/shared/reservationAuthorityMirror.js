@@ -30,6 +30,7 @@
 import {
   FORBIDDEN_MIRROR_FIELDS, APPROVED_MIRROR_FIELDS,
   BUSINESS_HELD_STATUSES, BUSINESS_HELD_HIDDEN_REASONS,
+  TERMINAL_BUSINESS_STATUSES, shouldHideForProtection,
   isValidVersion, isNonEmptyString, validateLifecycleState,
 } from './reservationAuthorityConstants.js';
 
@@ -64,37 +65,70 @@ async function protectMirror(deps, listing_id, reason, evidence) {
   const steps = {};
   const incident_key = `mirror_corruption:${listing_id}`;
 
-  // 1. Hide Listing via updateMany (no version predicate — emergency only)
-  let hideResult;
+  // Round 5: Read current Listing status BEFORE hiding.
+  // Terminal statuses (sold/cancelled/expired) are already non-reservable and must be preserved.
+  // Only active/reservable statuses should be hidden.
+  let currentStatus = null;
   try {
-    hideResult = await deps.entities.Listing.updateMany(
-      { id: listing_id },
-      { $set: { status: 'hidden', hidden_reason: 'checkout_quarantine' } }
-    );
-    steps.hide_attempted = true;
-    steps.hide_updated = hideResult.updated || 0;
-  } catch (e) {
-    steps.hide_error = e?.message || String(e);
+    const rows = await deps.entities.Listing.filter({ id: listing_id });
+    const listing = rows[0];
+    if (listing) currentStatus = listing.status;
+  } catch (e) { /* non-fatal — will attempt hide anyway */ }
+
+  const needsHide = shouldHideForProtection(currentStatus);
+  steps.listing_status_before_protection = currentStatus;
+  steps.needs_hide = needsHide;
+
+  // 1. Hide Listing via updateMany (no version predicate — emergency only)
+  //    Only if the Listing is NOT already in a terminal business status.
+  let hideResult;
+  if (needsHide) {
+    try {
+      hideResult = await deps.entities.Listing.updateMany(
+        { id: listing_id },
+        { $set: { status: 'hidden', hidden_reason: 'checkout_quarantine' } }
+      );
+      steps.hide_attempted = true;
+      steps.hide_updated = hideResult.updated || 0;
+    } catch (e) {
+      steps.hide_error = e?.message || String(e);
+      steps.hide_attempted = false;
+      steps.hide_updated = 0;
+    }
+  } else {
+    // Terminal status — preserve it, don't hide
     steps.hide_attempted = false;
     steps.hide_updated = 0;
+    steps.terminal_status_preserved = true;
   }
 
-  // 2. Re-fetch Listing and verify it is hidden
+  // 2. Re-fetch Listing and verify it ended non-reservable
   try {
     const rows = await deps.entities.Listing.filter({ id: listing_id });
     const listing = rows[0];
     if (listing) {
-      steps.listing_hidden_verified = listing.status === 'hidden';
-      steps.listing_hidden_reason_verified = listing.hidden_reason === 'checkout_quarantine';
+      // Listing must be non-reservable: either hidden OR terminal (sold/cancelled/expired)
+      const isNonReservable = listing.status === 'hidden' || TERMINAL_BUSINESS_STATUSES.has(listing.status);
+      steps.listing_non_reservable_verified = isNonReservable;
+      if (needsHide) {
+        steps.listing_hidden_verified = listing.status === 'hidden';
+        steps.listing_hidden_reason_verified = listing.hidden_reason === 'checkout_quarantine';
+      } else {
+        // Terminal status preserved
+        steps.listing_hidden_verified = listing.status === currentStatus;
+        steps.listing_hidden_reason_verified = true; // reason not changed
+      }
     } else {
       steps.listing_hidden_verified = false;
       steps.listing_hidden_reason_verified = false;
+      steps.listing_non_reservable_verified = false;
       steps.listing_disappeared = true;
     }
   } catch (e) {
     steps.listing_verify_error = e?.message || String(e);
     steps.listing_hidden_verified = false;
     steps.listing_hidden_reason_verified = false;
+    steps.listing_non_reservable_verified = false;
   }
 
   // 3. Create/update AdminAlert
@@ -147,10 +181,12 @@ async function protectMirror(deps, listing_id, reason, evidence) {
   }
 
   // 5. Determine if all protection steps verified
+  // Round 5: Terminal statuses don't need hide_updated > 0 — they're already non-reservable.
+  const hideVerified = needsHide
+    ? (steps.hide_updated > 0 && steps.listing_hidden_verified === true && steps.listing_hidden_reason_verified === true)
+    : (steps.listing_hidden_verified === true && steps.listing_non_reservable_verified === true);
   const allVerified =
-    steps.hide_updated > 0 &&
-    steps.listing_hidden_verified === true &&
-    steps.listing_hidden_reason_verified === true &&
+    hideVerified &&
     steps.admin_alert_verified === true;
 
   return {

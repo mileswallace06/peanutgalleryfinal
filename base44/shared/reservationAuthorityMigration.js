@@ -77,8 +77,23 @@ function deriveLifecycleState(lp, listing) {
   if (listing?.status === 'cancelled') return 'cancelled';
   if (listing?.status === 'expired') return 'expired';
 
+  // Round 5: Quarantined or recovery-blocked — check BEFORE generic hidden.
+  // A quarantined row with a valid complete reservation tuple may derive frozen.
+  // A quarantined row with an incomplete/malformed/contradictory tuple remains AMBIGUOUS.
+  if (lp?.checkout_quarantined === true || lp?.recovery_blocked === true) {
+    const hasToken = isNonEmptyString(lp.reservation_token);
+    const hasBuyer = isNonEmptyString(lp.reserved_by_email);
+    const hasExpiry = lp.reservation_expires_at && isValidISODate(lp.reservation_expires_at);
+    const hasRevision = isNonEmptyString(lp.reservation_revision);
+    if (hasToken && hasBuyer && hasExpiry && hasRevision) {
+      return 'frozen';
+    }
+    // Incomplete/malformed tuple → AMBIGUOUS
+    return 'AMBIGUOUS';
+  }
+
   // Non-active public states that must NEVER map to available
-  // (preserve/manual-review)
+  // (preserve/manual-review) — generic hidden without quarantine evidence
   if (listing?.status === 'hidden') return 'AMBIGUOUS';
   if (listing?.status === 'pending_verification') return 'AMBIGUOUS';
   if (listing?.status === 'pending_payout_setup') return 'AMBIGUOUS';
@@ -92,9 +107,6 @@ function deriveLifecycleState(lp, listing) {
     if (!(hasToken && hasBuyer && hasExpiry)) return 'AMBIGUOUS';
     // Fall through to tuple-based derivation below
   }
-
-  // Quarantined or recovery-blocked → frozen
-  if (lp?.checkout_quarantined === true || lp?.recovery_blocked === true) return 'frozen';
 
   if (!lp) return 'AMBIGUOUS';
 
@@ -439,14 +451,13 @@ function buildInitPlan(lp, listing, derived_state) {
 // Derives mirror state from the authoritative LP record.
 function buildMirrorOnlyPlan(lp, listing, derived_state) {
   return {
-    operation_id: `mirror_init_${listing.id}`,
-    operation_type: 'mirror_initialize',
+    plan_action: 'mirror_initialize',
     requested_state: derived_state,
     fields_to_set: {
       reservation_version: lp.reservation_version,
       reservation_mirror_state: derived_state,
     },
-    note: 'Mirror-only initialization. LP is already initialized. Only the public Listing mirror needs version + reservation_mirror_state.',
+    note: 'Mirror-only initialization. LP is already initialized. Only the public Listing mirror needs reservation_version + reservation_mirror_state. Does NOT write status or hidden_reason.',
   };
 }
 
@@ -456,12 +467,12 @@ export function planApply(deps, apply_request_id) {
     apply_request_id,
     mode: 'dry_run',
     requires_owner_approval: true,
-    description: 'Initialize reservation_version, reservation_lifecycle_state, and all last_operation_* fields on ListingPrivate records that lack them. Also initializes the public Listing mirror version. Each record is CAS-written with reservation_version=0 as the initial state. Ambiguous records are skipped and require manual resolution.',
+    description: 'Initialize reservation_version, reservation_lifecycle_state, and all last_operation_* fields on ListingPrivate records that lack them. Also initializes the public Listing mirror reservation_version and reservation_mirror_state. Each record is CAS-written with reservation_version=0 as the initial state. Ambiguous records are skipped and require manual resolution. Normal mirror initialization does NOT write status or hidden_reason.',
     operation_type: 'initialize',
     steps: [
       '1. Run generateMigrationReport to identify records needing initialization.',
       '2. For each MIGRATION_REQUIRED record, CAS-write: reservation_version=0, reservation_lifecycle_state=derived, last_operation_id=`init_<id>`, last_operation_type=initialize, last_operation_payload_hash=SHA-256(envelope), last_operation_result_json=JSON(result), last_operation_at=ISO timestamp, pending_effects_json="[]", pending_effects_hash=SHA-256({effects:[]}).',
-      '3. For each MIGRATION_REQUIRED record, also update the public Listing mirror: reservation_version=0, status=derived public status, hidden_reason=derived hidden reason.',
+      '3. For each MIGRATION_REQUIRED record, also update the public Listing mirror: reservation_version=0, reservation_mirror_state=derived. Does NOT write status or hidden_reason.',
       '4. Skip AMBIGUOUS records — flag for manual resolution.',
       '5. Skip MISSING_SIDECAR, DUPLICATE_SIDECAR, and ORPHAN_SIDECAR records — flag for manual resolution.',
       '6. Record the apply_request_id in a MigrationRun entity for idempotency.',
@@ -478,8 +489,7 @@ export function planApply(deps, apply_request_id) {
       'pending_effects_json ("[]")',
       'pending_effects_hash (SHA-256 of {effects:[]})',
       'public Listing reservation_version (0)',
-      'public Listing status (derived)',
-      'public Listing hidden_reason (derived)',
+      'public Listing reservation_mirror_state (derived)',
     ],
     idempotency: 'apply_request_id is unique per apply run. Replays with the same id are rejected.',
     safety: 'No real-production Stripe, email, push, points, or notification calls. Synthetic records only for testing.',

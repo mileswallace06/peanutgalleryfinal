@@ -306,7 +306,9 @@ test('corrupt stored replay result returns RESULT_CORRUPT', async () => {
     reservation_expires_at: '2026-12-31T00:00:00Z',
     reservation_revision: 'rev_1',
     last_operation_id: 'op_1',
+    last_operation_type: 'reserve',
     last_operation_payload_hash: mockHashEnvelope(envelope),
+    last_operation_at: '2026-01-01T00:00:00Z',
     last_operation_result_json: '{corrupt json',
   });
   const res = await authority.transitionReservation({
@@ -1090,9 +1092,15 @@ test('idempotent replay validation catches stored result version mismatch', asyn
     reservation_expires_at: '2026-12-31T00:00:00Z',
     reservation_revision: 'rev_1',
     last_operation_id: 'op_1',
+    last_operation_type: 'reserve',
     last_operation_payload_hash: mockHashEnvelope(envelope),
+    last_operation_at: '2026-01-01T00:00:00Z',
     // Corrupt: stored result says new_version=5 but authoritative version is 1
-    last_operation_result_json: JSON.stringify({ operation_id: 'op_1', new_version: 5 }),
+    last_operation_result_json: JSON.stringify({
+      operation_id: 'op_1', operation_type: 'reserve',
+      requested_state: 'reserved', previous_version: 0,
+      new_version: 5, committed_at: '2026-01-01T00:00:00Z',
+    }),
   });
   deps._seedListing('list1', {});
   const res = await authority.transitionReservation({
@@ -1104,6 +1112,257 @@ test('idempotent replay validation catches stored result version mismatch', asyn
   assert(!res.ok, 'should not return idempotent success with version mismatch');
   assert(res.code === 'VERSION_MISMATCH', `expected VERSION_MISMATCH, got ${res.code}`);
   assert(res.protection, 'should have protection result');
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// SECTION 1E: ROUND 5 NEW TESTS
+// ════════════════════════════════════════════════════════════════════════════
+
+// Helper: seed a fully valid committed LP record for idempotent replay tests
+function seedValidCommittedLP(deps, op_id, op_type, state, payload, version) {
+  const envelope = { operation_type: op_type, requested_state: state, payload, pending_effects: [] };
+  const hash = mockHashEnvelope(envelope);
+  const result = {
+    operation_id: op_id, operation_type: op_type, requested_state: state,
+    previous_version: version - 1, new_version: version, committed_at: '2026-01-01T00:00:00Z',
+  };
+  deps._seedLP('lp1', {
+    listing_id: 'list1', reservation_version: version,
+    reservation_lifecycle_state: state,
+    reservation_token: payload.token, reserved_by_email: payload.buyer,
+    reservation_expires_at: payload.expiration,
+    reservation_revision: 'rev_1',
+    last_operation_id: op_id, last_operation_type: op_type,
+    last_operation_payload_hash: hash, last_operation_at: '2026-01-01T00:00:00Z',
+    last_operation_result_json: JSON.stringify(result),
+  });
+  return { envelope, hash };
+}
+
+const R5_PAYLOAD = { token: 't1', buyer: 'b1@test', expiration: '2026-12-31T00:00:00Z' };
+
+// ── R5-1: Missing last_operation_result_json → not idempotent success ──────
+test('R5-1: missing last_operation_result_json does not return idempotent success', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  seedValidCommittedLP(deps, 'op_1', 'reserve', 'reserved', R5_PAYLOAD, 1);
+  delete deps._lpStore.get('lp1').last_operation_result_json;
+  const res = await authority.transitionReservation({
+    listing_id: 'list1', expected_version: 0,
+    operation_id: 'op_1', operation_type: 'reserve',
+    payload: R5_PAYLOAD, requested_state: 'reserved',
+  });
+  assert(!res.ok, 'should not return idempotent success');
+  assert(res.code === 'RESULT_CORRUPT', `expected RESULT_CORRUPT, got ${res.code}`);
+});
+
+// ── R5-2: Missing last_operation_type → not idempotent success ─────────────
+test('R5-2: missing last_operation_type does not return idempotent success', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  seedValidCommittedLP(deps, 'op_1', 'reserve', 'reserved', R5_PAYLOAD, 1);
+  delete deps._lpStore.get('lp1').last_operation_type;
+  const res = await authority.transitionReservation({
+    listing_id: 'list1', expected_version: 0,
+    operation_id: 'op_1', operation_type: 'reserve',
+    payload: R5_PAYLOAD, requested_state: 'reserved',
+  });
+  assert(!res.ok, 'should not return idempotent success');
+  assert(res.code === 'OPERATION_CORRUPT', `expected OPERATION_CORRUPT, got ${res.code}`);
+});
+
+// ── R5-3: Missing pending_effects_hash → not idempotent success ────────────
+test('R5-3: missing pending_effects_hash does not return idempotent success', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  seedValidCommittedLP(deps, 'op_1', 'reserve', 'reserved', R5_PAYLOAD, 1);
+  delete deps._lpStore.get('lp1').pending_effects_hash;
+  const res = await authority.transitionReservation({
+    listing_id: 'list1', expected_version: 0,
+    operation_id: 'op_1', operation_type: 'reserve',
+    payload: R5_PAYLOAD, requested_state: 'reserved',
+  });
+  assert(!res.ok, 'should not return idempotent success');
+  assert(res.code === 'EFFECTS_HASH_CORRUPT', `expected EFFECTS_HASH_CORRUPT, got ${res.code}`);
+});
+
+// ── R5-4: Reserved state with missing reservation_revision → not ok ───────
+test('R5-4: reserved state with missing reservation_revision does not return idempotent success', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  seedValidCommittedLP(deps, 'op_1', 'reserve', 'reserved', R5_PAYLOAD, 1);
+  delete deps._lpStore.get('lp1').reservation_revision;
+  const res = await authority.transitionReservation({
+    listing_id: 'list1', expected_version: 0,
+    operation_id: 'op_1', operation_type: 'reserve',
+    payload: R5_PAYLOAD, requested_state: 'reserved',
+  });
+  assert(!res.ok, 'should not return idempotent success');
+  assert(res.code === 'TUPLE_CORRUPT', `expected TUPLE_CORRUPT, got ${res.code}`);
+});
+
+// ── R5-5: Missing last_operation_at → not idempotent success ───────────────
+test('R5-5: missing last_operation_at does not return idempotent success', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  seedValidCommittedLP(deps, 'op_1', 'reserve', 'reserved', R5_PAYLOAD, 1);
+  delete deps._lpStore.get('lp1').last_operation_at;
+  const res = await authority.transitionReservation({
+    listing_id: 'list1', expected_version: 0,
+    operation_id: 'op_1', operation_type: 'reserve',
+    payload: R5_PAYLOAD, requested_state: 'reserved',
+  });
+  assert(!res.ok, 'should not return idempotent success');
+  assert(res.code === 'OPERATION_CORRUPT', `expected OPERATION_CORRUPT, got ${res.code}`);
+});
+
+// ── R5-6: Result JSON missing required fields → not idempotent success ────
+test('R5-6: result JSON missing required fields does not return idempotent success', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  seedValidCommittedLP(deps, 'op_1', 'reserve', 'reserved', R5_PAYLOAD, 1);
+  deps._lpStore.get('lp1').last_operation_result_json = JSON.stringify({
+    operation_id: 'op_1', operation_type: 'reserve',
+    requested_state: 'reserved', previous_version: 0, new_version: 1,
+  });
+  const res = await authority.transitionReservation({
+    listing_id: 'list1', expected_version: 0,
+    operation_id: 'op_1', operation_type: 'reserve',
+    payload: R5_PAYLOAD, requested_state: 'reserved',
+  });
+  assert(!res.ok, 'should not return idempotent success');
+  assert(res.code === 'RESULT_CORRUPT', `expected RESULT_CORRUPT, got ${res.code}`);
+});
+
+// ── R5-7: Result JSON mismatched operation_type → not idempotent success ──
+test('R5-7: result JSON mismatched operation_type does not return idempotent success', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  seedValidCommittedLP(deps, 'op_1', 'reserve', 'reserved', R5_PAYLOAD, 1);
+  deps._lpStore.get('lp1').last_operation_result_json = JSON.stringify({
+    operation_id: 'op_1', operation_type: 'freeze',
+    requested_state: 'reserved', previous_version: 0,
+    new_version: 1, committed_at: '2026-01-01T00:00:00Z',
+  });
+  const res = await authority.transitionReservation({
+    listing_id: 'list1', expected_version: 0,
+    operation_id: 'op_1', operation_type: 'reserve',
+    payload: R5_PAYLOAD, requested_state: 'reserved',
+  });
+  assert(!res.ok, 'should not return idempotent success');
+  assert(res.code === 'RESULT_MISMATCH', `expected RESULT_MISMATCH, got ${res.code}`);
+});
+
+// ── R5-8: Legacy writer changes last_operation_type → CAS loses ───────────
+test('R5-8: legacy writer changes last_operation_type without version increment → CAS loses', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  deps._seedLP('lp1', { listing_id: 'list1' });
+  deps._seedListing('list1', {});
+  deps._setHook('beforeCAS', (d) => {
+    const lp = d._lpStore.get('lp1');
+    if (lp) lp.last_operation_type = 'legacy_type';
+  });
+  const res = await authority.transitionReservation({
+    listing_id: 'list1', expected_version: 0,
+    operation_id: 'op_1', operation_type: 'reserve',
+    payload: R5_PAYLOAD, requested_state: 'reserved',
+  });
+  assert(!res.ok, 'CAS should lose');
+  assert(res.code === 'CONFLICT', `expected CONFLICT, got ${res.code}`);
+  const [lp] = await deps.entities.ListingPrivate.filter({ listing_id: 'list1' });
+  assert(lp.last_operation_id === null, 'no authority operation should have been written');
+});
+
+// ── R5-9: Legacy writer changes last_operation_payload_hash → CAS loses ──
+test('R5-9: legacy writer changes last_operation_payload_hash without version increment → CAS loses', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  deps._seedLP('lp1', { listing_id: 'list1' });
+  deps._seedListing('list1', {});
+  deps._setHook('beforeCAS', (d) => {
+    const lp = d._lpStore.get('lp1');
+    if (lp) lp.last_operation_payload_hash = 'legacy_hash';
+  });
+  const res = await authority.transitionReservation({
+    listing_id: 'list1', expected_version: 0,
+    operation_id: 'op_1', operation_type: 'reserve',
+    payload: R5_PAYLOAD, requested_state: 'reserved',
+  });
+  assert(!res.ok, 'CAS should lose');
+  assert(res.code === 'CONFLICT', `expected CONFLICT, got ${res.code}`);
+});
+
+// ── R5-10: Legacy writer changes last_operation_result_json → CAS loses ──
+test('R5-10: legacy writer changes last_operation_result_json without version increment → CAS loses', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  deps._seedLP('lp1', { listing_id: 'list1' });
+  deps._seedListing('list1', {});
+  deps._setHook('beforeCAS', (d) => {
+    const lp = d._lpStore.get('lp1');
+    if (lp) lp.last_operation_result_json = 'legacy_result';
+  });
+  const res = await authority.transitionReservation({
+    listing_id: 'list1', expected_version: 0,
+    operation_id: 'op_1', operation_type: 'reserve',
+    payload: R5_PAYLOAD, requested_state: 'reserved',
+  });
+  assert(!res.ok, 'CAS should lose');
+  assert(res.code === 'CONFLICT', `expected CONFLICT, got ${res.code}`);
+});
+
+// ── R5-11: Legacy writer changes last_operation_at → CAS loses ───────────
+test('R5-11: legacy writer changes last_operation_at without version increment → CAS loses', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  deps._seedLP('lp1', { listing_id: 'list1' });
+  deps._seedListing('list1', {});
+  deps._setHook('beforeCAS', (d) => {
+    const lp = d._lpStore.get('lp1');
+    if (lp) lp.last_operation_at = '2025-01-01T00:00:00Z';
+  });
+  const res = await authority.transitionReservation({
+    listing_id: 'list1', expected_version: 0,
+    operation_id: 'op_1', operation_type: 'reserve',
+    payload: R5_PAYLOAD, requested_state: 'reserved',
+  });
+  assert(!res.ok, 'CAS should lose');
+  assert(res.code === 'CONFLICT', `expected CONFLICT, got ${res.code}`);
+});
+
+// ── R5-12: Missing snapshot field → SNAPSHOT_INCOMPLETE before CAS ────────
+test('R5-12: missing snapshot field returns SNAPSHOT_INCOMPLETE before CAS', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  deps._seedLP('lp1', { listing_id: 'list1' });
+  deps._seedListing('list1', {});
+  delete deps._lpStore.get('lp1').last_operation_type;
+  const res = await authority.transitionReservation({
+    listing_id: 'list1', expected_version: 0,
+    operation_id: 'op_1', operation_type: 'reserve',
+    payload: R5_PAYLOAD, requested_state: 'reserved',
+  });
+  assert(!res.ok, 'should fail');
+  assert(res.code === 'SNAPSHOT_INCOMPLETE', `expected SNAPSHOT_INCOMPLETE, got ${res.code}`);
+  assert(res.missing.includes('last_operation_type'), 'should report missing last_operation_type');
+});
+
+// ── R5-13: Valid idempotent replay with all fields present → success ──────
+test('R5-13: valid idempotent replay with all fields present returns success', async () => {
+  const deps = createMockDeps();
+  const authority = createReservationAuthority(deps);
+  seedValidCommittedLP(deps, 'op_1', 'reserve', 'reserved', R5_PAYLOAD, 1);
+  deps._seedListing('list1', {});
+  const res = await authority.transitionReservation({
+    listing_id: 'list1', expected_version: 0,
+    operation_id: 'op_1', operation_type: 'reserve',
+    payload: R5_PAYLOAD, requested_state: 'reserved',
+  });
+  assert(res.ok, 'should return idempotent success');
+  assert(res.idempotent === true, 'should be idempotent');
+  assert(res.version === 1, 'version should be 1');
+  assert(res.state === 'reserved', 'state should be reserved');
 });
 
 // ════════════════════════════════════════════════════════════════════════════

@@ -23,6 +23,7 @@ import {
   validateTransition, validateTuple, validatePendingEffectsArray,
   parsePendingEffects, validateLifecycleState,
   buildAuthoritativeSnapshot, validateIdempotentReplay,
+  validateSnapshotCompleteness, TERMINAL_BUSINESS_STATUSES, shouldHideForProtection,
 } from './reservationAuthorityConstants.js';
 import { createMirrorAuthority } from './reservationAuthorityMirror.js';
 import { generateMigrationReport, planApply } from './reservationAuthorityMigration.js';
@@ -87,34 +88,60 @@ async function protectCorruptedAuthority(deps, listing_id, lp_id, reason, eviden
     steps.lp_reason_verified = false;
   }
 
-  // 3. Hide public Listing (safe monotonic update)
+  // 3. Round 5: Read current Listing status BEFORE hiding.
+  //    Terminal statuses (sold/cancelled/expired) are already non-reservable and must be preserved.
+  let currentStatus = null;
   try {
-    await deps.entities.Listing.updateMany(
-      { id: listing_id },
-      { $set: { status: 'hidden', hidden_reason: 'checkout_quarantine' } }
-    );
-    steps.listing_hide_attempted = true;
-  } catch (e) {
-    steps.listing_hide_error = e?.message || String(e);
+    const rows = await deps.entities.Listing.filter({ id: listing_id });
+    const listing = rows[0];
+    if (listing) currentStatus = listing.status;
+  } catch (e) { /* non-fatal */ }
+  const needsHide = shouldHideForProtection(currentStatus);
+  steps.listing_status_before_protection = currentStatus;
+  steps.needs_hide = needsHide;
+
+  // 3a. Hide public Listing (only if NOT already terminal)
+  if (needsHide) {
+    try {
+      await deps.entities.Listing.updateMany(
+        { id: listing_id },
+        { $set: { status: 'hidden', hidden_reason: 'checkout_quarantine' } }
+      );
+      steps.listing_hide_attempted = true;
+    } catch (e) {
+      steps.listing_hide_error = e?.message || String(e);
+      steps.listing_hide_attempted = false;
+    }
+  } else {
     steps.listing_hide_attempted = false;
+    steps.terminal_status_preserved = true;
   }
 
-  // 4. Re-fetch Listing and verify
+  // 4. Re-fetch Listing and verify it ended non-reservable
   try {
     const rows = await deps.entities.Listing.filter({ id: listing_id });
     const listing = rows[0];
     if (listing) {
-      steps.listing_hidden_verified = listing.status === 'hidden';
-      steps.listing_hidden_reason_verified = listing.hidden_reason === 'checkout_quarantine';
+      const isNonReservable = listing.status === 'hidden' || TERMINAL_BUSINESS_STATUSES.has(listing.status);
+      steps.listing_non_reservable_verified = isNonReservable;
+      if (needsHide) {
+        steps.listing_hidden_verified = listing.status === 'hidden';
+        steps.listing_hidden_reason_verified = listing.hidden_reason === 'checkout_quarantine';
+      } else {
+        steps.listing_hidden_verified = listing.status === currentStatus;
+        steps.listing_hidden_reason_verified = true;
+      }
     } else {
       steps.listing_hidden_verified = false;
       steps.listing_hidden_reason_verified = false;
+      steps.listing_non_reservable_verified = false;
       steps.listing_disappeared = true;
     }
   } catch (e) {
     steps.listing_verify_error = e?.message || String(e);
     steps.listing_hidden_verified = false;
     steps.listing_hidden_reason_verified = false;
+    steps.listing_non_reservable_verified = false;
   }
 
   // 5. Create/update incident AdminAlert
@@ -175,13 +202,15 @@ async function protectCorruptedAuthority(deps, listing_id, lp_id, reason, eviden
   }
 
   // Check if ALL critical protection steps verified (including alert)
+  const hideVerified = needsHide
+    ? (steps.listing_hidden_verified === true && steps.listing_hidden_reason_verified === true)
+    : (steps.listing_hidden_verified === true && steps.listing_non_reservable_verified === true);
   const allVerified =
     steps.lp_quarantine_verified === true &&
     steps.lp_recovery_blocked_verified === true &&
     steps.lp_reason_verified === true &&
     steps.lp_timestamp_verified === true &&
-    steps.listing_hidden_verified === true &&
-    steps.listing_hidden_reason_verified === true &&
+    hideVerified &&
     steps.admin_alert_verified === true;
 
   return {
@@ -403,6 +432,21 @@ export function createReservationAuthority(deps) {
     }
 
     // ── Step 10: Perform conditional updateMany (CAS) ────────────────────────
+    // Round 5: Validate snapshot completeness before CAS.
+    // If the SDK omits undefined query keys, the CAS predicate would be weaker
+    // than intended. Records with missing snapshot fields must be rejected.
+    const snapshotCheck = validateSnapshotCompleteness(lp);
+    if (!snapshotCheck.ok) {
+      const protection = await protectCorruptedAuthority(normalizedDeps, listing_id, lp.id,
+        `SNAPSHOT_INCOMPLETE: missing fields: ${snapshotCheck.missing.join(', ')}`,
+        { missing_fields: snapshotCheck.missing });
+      return {
+        ok: false, code: 'SNAPSHOT_INCOMPLETE',
+        error: `snapshot has missing fields: ${snapshotCheck.missing.join(', ')}`,
+        missing: snapshotCheck.missing,
+        protection,
+      };
+    }
     // Round 4: CAS predicate includes the COMPLETE authoritative snapshot
     // that informed the decision. This detects legacy writers who change
     // the tuple without incrementing version.
