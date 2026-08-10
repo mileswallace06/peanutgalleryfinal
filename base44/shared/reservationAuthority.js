@@ -101,17 +101,74 @@ async function protectCorruptedAuthority(deps, listing_id, lp_id, reason, eviden
   steps.listing_status_before_protection = currentStatus;
   steps.needs_hide = needsHide;
 
-  // 3a. Hide public Listing (only if NOT already terminal)
+  // 3a. Hide public Listing (only if NOT already terminal/business-held)
+  //     Round 6: Use a STATUS-PRESERVING predicate to eliminate the terminal-status race.
+  //     The predicate includes the exact observed status and hidden_reason so a
+  //     concurrent terminal transition (e.g. sold) causes updated=0, not an overwrite.
   if (needsHide) {
+    // Read the full Listing to capture exact hidden_reason (including null/omission semantics)
+    let observedListing = null;
     try {
-      await deps.entities.Listing.updateMany(
-        { id: listing_id },
+      const rows = await deps.entities.Listing.filter({ id: listing_id });
+      observedListing = rows[0] || null;
+    } catch (e) { /* non-fatal — will attempt with id-only fallback */ }
+
+    const hidePredicate = { id: listing_id };
+    if (observedListing) {
+      hidePredicate.status = observedListing.status;
+      // Include hidden_reason only if it has a value; omitting it from the predicate
+      // would match any value. If the Listing has hidden_reason=null, we include it
+      // to ensure we only hide if it's still null.
+      if (observedListing.hidden_reason !== undefined) {
+        hidePredicate.hidden_reason = observedListing.hidden_reason;
+      }
+    }
+
+    let hideUpdated = 0;
+    try {
+      const hideResult = await deps.entities.Listing.updateMany(
+        hidePredicate,
         { $set: { status: 'hidden', hidden_reason: 'checkout_quarantine' } }
       );
+      hideUpdated = hideResult.updated || 0;
       steps.listing_hide_attempted = true;
+      steps.hide_updated = hideUpdated;
     } catch (e) {
       steps.listing_hide_error = e?.message || String(e);
       steps.listing_hide_attempted = false;
+      steps.hide_updated = 0;
+    }
+
+    // If hide returned 0, a concurrent transition may have changed the status.
+    // Re-read and check if it's now terminal/business-held (preserve) or still reservable (retry).
+    if (hideUpdated === 0) {
+      let rereadListing = null;
+      try {
+        const rows = await deps.entities.Listing.filter({ id: listing_id });
+        rereadListing = rows[0] || null;
+      } catch (e) { /* non-fatal */ }
+
+      if (rereadListing && isNonReservableStatus(rereadListing.status)) {
+        // Concurrent transition made it non-reservable — preserve it
+        steps.concurrent_terminal_preserved = true;
+        steps.preserved_status = rereadListing.status;
+        currentStatus = rereadListing.status;
+      } else if (rereadListing && rereadListing.status === 'active') {
+        // Still reservable — retry once with the new observed status
+        const retryPredicate = { id: listing_id, status: 'active' };
+        if (rereadListing.hidden_reason !== undefined) {
+          retryPredicate.hidden_reason = rereadListing.hidden_reason;
+        }
+        try {
+          const retryResult = await deps.entities.Listing.updateMany(
+            retryPredicate,
+            { $set: { status: 'hidden', hidden_reason: 'checkout_quarantine' } }
+          );
+          steps.hide_retry_updated = retryResult.updated || 0;
+        } catch (e) {
+          steps.hide_retry_error = e?.message || String(e);
+        }
+      }
     }
   } else {
     steps.listing_hide_attempted = false;
@@ -125,9 +182,12 @@ async function protectCorruptedAuthority(deps, listing_id, lp_id, reason, eviden
     if (listing) {
       const isNonReservable = isNonReservableStatus(listing.status);
       steps.listing_non_reservable_verified = isNonReservable;
-      if (needsHide) {
+      if (needsHide && !steps.concurrent_terminal_preserved) {
         steps.listing_hidden_verified = listing.status === 'hidden';
         steps.listing_hidden_reason_verified = listing.hidden_reason === 'checkout_quarantine';
+      } else if (steps.concurrent_terminal_preserved) {
+        steps.listing_hidden_verified = isNonReservable;
+        steps.listing_hidden_reason_verified = true;
       } else {
         steps.listing_hidden_verified = listing.status === currentStatus;
         steps.listing_hidden_reason_verified = true;

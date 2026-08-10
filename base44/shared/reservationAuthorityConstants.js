@@ -446,7 +446,17 @@ export async function validateIdempotentReplay(lp, operation_id, envelope_hash, 
     return { ok: false, code: 'RESULT_CORRUPT', error: `result committed_at is not a valid ISO date: ${JSON.stringify(stored_result.committed_at)}` };
   }
 
-  // 9. pending_effects_json is valid
+  // 9. pending_effects_json is REQUIRED (not truthiness — strict presence check)
+  //    Missing or undefined must NOT silently become [].
+  if (lp.pending_effects_json === undefined) {
+    return { ok: false, code: 'EFFECTS_CORRUPT', error: 'pending_effects_json is undefined — must be present and parse as array' };
+  }
+  if (lp.pending_effects_json === null) {
+    return { ok: false, code: 'EFFECTS_CORRUPT', error: 'pending_effects_json is null — must be present and parse as array' };
+  }
+  if (typeof lp.pending_effects_json !== 'string') {
+    return { ok: false, code: 'EFFECTS_CORRUPT', error: `pending_effects_json must be a string, got ${typeof lp.pending_effects_json}` };
+  }
   const effectsCheck = parsePendingEffects(lp.pending_effects_json);
   if (!effectsCheck.ok) {
     return { ok: false, code: 'EFFECTS_CORRUPT', error: effectsCheck.error };
@@ -455,6 +465,21 @@ export async function validateIdempotentReplay(lp, operation_id, envelope_hash, 
   // 10. pending_effects_hash is REQUIRED (not truthiness — strict string check)
   if (!isNonEmptyString(lp.pending_effects_hash)) {
     return { ok: false, code: 'EFFECTS_HASH_CORRUPT', error: 'pending_effects_hash is missing or empty' };
+  }
+
+  // 10b. checkout_quarantined must be an explicit Boolean (not truthy/falsy)
+  if (typeof lp.checkout_quarantined !== 'boolean') {
+    return { ok: false, code: 'QUARANTINE_FLAG_CORRUPT', error: `checkout_quarantined must be a Boolean, got ${typeof lp.checkout_quarantined}` };
+  }
+
+  // 10c. recovery_blocked must be an explicit Boolean (not truthy/falsy)
+  if (typeof lp.recovery_blocked !== 'boolean') {
+    return { ok: false, code: 'RECOVERY_FLAG_CORRUPT', error: `recovery_blocked must be a Boolean, got ${typeof lp.recovery_blocked}` };
+  }
+
+  // 10d. last_operation_at must equal stored result committed_at
+  if (lp.last_operation_at !== stored_result.committed_at) {
+    return { ok: false, code: 'TIMESTAMP_MISMATCH', error: `last_operation_at (${JSON.stringify(lp.last_operation_at)}) !== committed_at (${JSON.stringify(stored_result.committed_at)})` };
   }
 
   // 11. Pending-effects hash matches (async — uses SHA-256)

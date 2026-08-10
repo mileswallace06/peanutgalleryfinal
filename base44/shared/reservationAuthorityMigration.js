@@ -24,6 +24,45 @@ import {
   isValidISODate, isNonEmptyString, isValidVersion, isValidLifecycleState,
 } from './reservationAuthorityConstants.js';
 
+// ── Allowed Listing status enum (Round 6: strictly fail-closed) ────────────
+// Must match the Listing entity schema enum exactly.
+const LISTING_STATUS_ENUM = new Set([
+  'active', 'pending_transfer', 'sold', 'cancelled', 'expired',
+  'pending_verification', 'hidden', 'pending_payout_setup',
+]);
+
+// Validate Listing status is a known enum value (not missing, not unknown)
+function validateListingStatus(status) {
+  if (status === null || status === undefined) {
+    return { valid: false, code: 'STATUS_MISSING', error: 'Listing status is missing' };
+  }
+  if (typeof status !== 'string' || status.trim() === '') {
+    return { valid: false, code: 'STATUS_EMPTY', error: 'Listing status is empty or whitespace' };
+  }
+  if (!LISTING_STATUS_ENUM.has(status)) {
+    return { valid: false, code: 'STATUS_UNKNOWN', error: `Listing status is not a known enum value: ${JSON.stringify(status)}` };
+  }
+  return { valid: true };
+}
+
+// ── Strict tuple field validation (Round 6) ────────────────────────────────
+// Terminal states require EXPLICIT null — empty strings and undefined/omitted
+// are invalid, not equivalent to null.
+function validateTupleFieldStrict(value, fieldName, requireNull) {
+  if (requireNull) {
+    if (value === undefined) {
+      return { valid: false, error: `${fieldName} is undefined — terminal state requires explicit null` };
+    }
+    if (value === '') {
+      return { valid: false, error: `${fieldName} is empty string — terminal state requires explicit null` };
+    }
+    if (value !== null) {
+      return { valid: false, error: `${fieldName} must be null for terminal state, got ${JSON.stringify(value)}` };
+    }
+  }
+  return { valid: true };
+}
+
 // ── Paginated fetch (does not silently cap at 10,000) ───────────────────────
 // Fetches all records in batches, tracking seen IDs to handle SDKs that
 // do not support skip-based pagination.
@@ -72,10 +111,30 @@ async function fetchAllRecords(entity, batchSize = 500) {
 //   7. Any uncertain or contradictory case → AMBIGUOUS.
 //   8. Unknown must never be interpreted as available.
 function deriveLifecycleState(lp, listing) {
+  // Round 6: Validate Listing status is a known enum value
+  // If listing is provided, its status must be valid — never silently treat unknown as available
+  if (listing) {
+    const statusCheck = validateListingStatus(listing.status);
+    if (!statusCheck.valid) {
+      return 'AMBIGUOUS';
+    }
+  }
+
   // Terminal public states never become available
-  if (listing?.status === 'sold') return 'sold';
-  if (listing?.status === 'cancelled') return 'cancelled';
-  if (listing?.status === 'expired') return 'expired';
+  // Round 6: Validate terminal tuple fields are EXPLICITLY null (not empty string, not undefined)
+  if (listing?.status === 'sold' || listing?.status === 'cancelled' || listing?.status === 'expired') {
+    if (lp) {
+      const tokenCheck = validateTupleFieldStrict(lp.reservation_token, 'reservation_token', true);
+      const buyerCheck = validateTupleFieldStrict(lp.reserved_by_email, 'reserved_by_email', true);
+      const expiryCheck = validateTupleFieldStrict(lp.reservation_expires_at, 'reservation_expires_at', true);
+      if (!tokenCheck.valid || !buyerCheck.valid || !expiryCheck.valid) {
+        return 'AMBIGUOUS';
+      }
+    }
+    if (listing?.status === 'sold') return 'sold';
+    if (listing?.status === 'cancelled') return 'cancelled';
+    if (listing?.status === 'expired') return 'expired';
+  }
 
   // Round 5: Quarantined or recovery-blocked — check BEFORE generic hidden.
   // A quarantined row with a valid complete reservation tuple may derive frozen.
@@ -133,10 +192,17 @@ function deriveLifecycleState(lp, listing) {
     return 'reserved';
   }
 
-  // No tuple — check if all explicitly null
+  // No tuple — check if all explicitly null (Round 6: empty strings are NOT null)
   const tokenNull = lp.reservation_token === null;
   const buyerNull = lp.reserved_by_email === null;
   const expiryNull = lp.reservation_expires_at === null;
+  // Reject empty strings — they are invalid, not equivalent to null
+  const tokenEmpty = lp.reservation_token === '';
+  const buyerEmpty = lp.reserved_by_email === '';
+  const expiryEmpty = lp.reservation_expires_at === '';
+  if (tokenEmpty || buyerEmpty || expiryEmpty) {
+    return 'AMBIGUOUS';
+  }
   if (tokenNull && buyerNull && expiryNull) {
     // active + valid empty tuple → available
     if (listing?.status === 'active' || !listing) return 'available';
@@ -166,10 +232,14 @@ function checkTupleStateAgreement(derived_state, lp) {
   }
 
   // Terminal states require null tuple (sold/cancelled/expired)
+  // Round 6: Empty strings are invalid, not equivalent to null
   if (TUPLE_NULL_STATES.has(derived_state)) {
     if (hasToken) issues.push('terminal state has non-null token');
     if (hasBuyer) issues.push('terminal state has non-null buyer');
     if (hasExpiry) issues.push('terminal state has non-null expiration');
+    if (lp.reservation_token === '') issues.push('terminal state has empty-string token');
+    if (lp.reserved_by_email === '') issues.push('terminal state has empty-string buyer');
+    if (lp.reservation_expires_at === '') issues.push('terminal state has empty-string expiration');
   }
 
   // Partial tuple is always ambiguous
@@ -187,6 +257,14 @@ function checkTupleStateAgreement(derived_state, lp) {
 // Non-active public states must NEVER map to available.
 function checkPublicStatusSafety(listing_status, derived_state) {
   const issues = [];
+
+  // Round 6: Validate status is a known enum value
+  const statusCheck = validateListingStatus(listing_status);
+  if (!statusCheck.valid) {
+    issues.push(statusCheck.error);
+    return issues; // Unknown/missing status — no further checks needed
+  }
+
   const nonActiveStates = ['hidden', 'pending_verification', 'pending_payout_setup'];
 
   // These public states must never become available
@@ -209,6 +287,7 @@ function checkPublicStatusSafety(listing_status, derived_state) {
 }
 
 // ── Generate read-only migration report (joins both entities, paginated) ────
+export { validateListingStatus, LISTING_STATUS_ENUM };
 export async function generateMigrationReport(deps) {
   const records = [];
   const totals = {
