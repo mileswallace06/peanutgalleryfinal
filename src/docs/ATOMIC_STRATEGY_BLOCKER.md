@@ -146,9 +146,18 @@ empirical findings:
 
 ## Conclusion
 
-**The architecture decision is deferred until the corrected prototype passes all
-tests.** No recommendation to select Base44, Postgres, or Durable Objects is made
-at this time.
+**The architecture decision has been made.** See
+[`ATOMICITY_ARCHITECTURE_DECISION.md`](./ATOMICITY_ARCHITECTURE_DECISION.md)
+for the full decision, data model, transaction boundaries, entry-point
+transition map, migration plan, and required certification tests.
+
+**Decision (7C.9C.2F)**: Transactional Postgres becomes the sole
+authoritative reservation system. Base44 `Listing` and `ListingPrivate`
+become non-authoritative read models/mirrors. The Base44 single-row CAS
+prototype was rejected because no written vendor guarantee is available.
+Implementation is NOT started. No infrastructure is provisioned.
+
+The historical evidence and probe results below are preserved unchanged.
 
 ### Four Distinct Concepts (Do Not Conflate)
 
@@ -171,22 +180,22 @@ at this time.
    authority. No entry-wrapper behavioral tests exist. The launch gate is RED.
    This is separate from both the platform guarantee and the module's correctness.
 
-### Current Status (Round 4)
+### Current Status (Round 6B.2 + 7C.9C.2F Decision)
 
-- Round 3 was not fully passing. Round 4 corrections address:
-  - Status-ownership separation (reservation_mirror_state vs status/hidden_reason).
-  - projectMirror post-CAS race detection.
-  - Corrupt authority state protection.
-  - Strengthened CAS snapshot (full authoritative snapshot in predicate).
-  - Idempotent replay validation before returning success.
-  - Migration version classification (MIRROR_MIGRATION_REQUIRED, VERSION_DIVERGENCE).
-  - Convergence test fix (scoped failure vs all-writes-fail).
-  - Launch gate strengthening (no substring checks, explicit BLOCKER labels).
-- The mirror currently has unresolved status-ownership and race defects that
-  Round 4 addresses but has not yet verified in production.
-- Application correctness is NOT yet verified.
-- Architecture selection (Base44 vs. external authority) remains **deferred**.
-- Concurrent AdminAlert uniqueness remains unresolved (no unique constraint on
-  incident_key — two concurrent creates can produce duplicate alerts).
-- No production integration or migration is approved.
+- The corrected prototype (Rounds 5, 6, 6B, 6B.2) passes all behavioral tests:
+  authority-concurrency 59/59, authority-adversarial 52/52, round5 39/39,
+  round6 37/37, round6b 28/28, tuple-invariants 26/26, post-prefetch 13/13,
+  listing-status-ownership 17/17, submitListing-test-mode 19/19.
+- The launch gate remains RED (2 expected failures: concurrent-alert
+  duplication is a known platform limitation; production integration is not
+  implemented).
+- **Architecture selection is DECIDED** (7C.9C.2F): Transactional Postgres is
+  the sole authoritative reservation system. See
+  [`ATOMICITY_ARCHITECTURE_DECISION.md`](./ATOMICITY_ARCHITECTURE_DECISION.md).
+- Concurrent AdminAlert uniqueness remains unresolved on the Base44 platform
+  (no unique constraint on incident_key). This is resolved by the Postgres
+  authority's unique constraints on operation_id, purchase_id, and
+  payment_intent_id.
+- No production integration or migration is approved or started.
 - The launch gate is RED.
+- Maintenance is ON. Readiness is 94%. Launch is NO-GO. 7C.9D is not started.
