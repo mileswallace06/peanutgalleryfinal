@@ -30,6 +30,7 @@ function createMockStore() {
     updateThrow: false,
     filterThrow: false,
     filterThrowOnce: false,        // Round 6B: throw on first filter, succeed after
+    filterThrowOnCall: null,        // Round 6B: throw on specific filter call number (0-indexed)
     dropFieldsOnUpdate: null,      // Round 6B: Set of field names to silently drop from $set
     mutateAfterUpdate: null,       // Round 6B: { field: value } to set after $set (simulates mutation)
   };
@@ -40,6 +41,10 @@ function createMockStore() {
       if (failConfig.filterThrowOnce && filterCallCount === 0) {
         filterCallCount++;
         throw new Error('mock filter throw (once)');
+      }
+      if (failConfig.filterThrowOnCall !== null && filterCallCount === failConfig.filterThrowOnCall) {
+        filterCallCount++;
+        throw new Error(`mock filter throw (call ${failConfig.filterThrowOnCall})`);
       }
       filterCallCount++;
       const results = [];

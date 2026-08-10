@@ -126,8 +126,9 @@ const REGISTRY = {
   'tests/listing-status-ownership.test.mjs': ['status', 'hidden_reason', 'reservation_token', 'reserved_by_email', 'reservation_expires_at', 'reservation_revision', 'reservation_version', 'reservation_mirror_state'],
   'tests/round5-correction-tests.test.mjs': ['status', 'hidden_reason', 'reservation_version', 'reservation_lifecycle_state', 'reservation_token', 'reserved_by_email', 'reservation_expires_at', 'reservation_revision', 'reservation_mirror_state'],
   'tests/round6-correction-tests.test.mjs': ['status', 'hidden_reason', 'reservation_version', 'reservation_lifecycle_state', 'reservation_token', 'reserved_by_email', 'reservation_expires_at', 'reservation_revision', 'reservation_mirror_state', 'checkout_quarantined', 'recovery_blocked'],
+  'tests/round6b-correction-tests.test.mjs': ['status', 'hidden_reason', 'reservation_version', 'reservation_lifecycle_state', 'reservation_token', 'reserved_by_email', 'reservation_expires_at', 'reservation_revision', 'reservation_mirror_state', 'checkout_quarantined', 'recovery_blocked'],
 
-  // Schema files (define fields, not write them at runtime)
+  // Schema files (define fields, not write them at runtime — NOT parsed by AST)
   'base44/entities/Listing.jsonc': [],
   'base44/entities/ListingPrivate.jsonc': [],
 };
@@ -421,76 +422,9 @@ function findWritersInFileAST(filePath, trackedFields) {
   return Array.from(writers);
 }
 
-// ── TS fallback: regex-based detection for TypeScript files ────────────────
-// espree can't parse TS types. For TS files, use a targeted regex that finds
-// $set: { ... } blocks and .update()/.create()/.bulkCreate() argument blocks
-// and checks for tracked field property assignments within them.
-// This is still more precise than a 2000-char proximity window because it
-// targets the actual write operation blocks.
-function findWritersInFileTSFallback(content, trackedFields) {
-  const writers = new Set();
-
-  function checkBlock(block) {
-    for (const field of trackedFields) {
-      // Match: field: (property assignment, not dot access)
-      const fieldRegex = new RegExp(`(?<![.\\w])\\b${field}\\s*:`, 'g');
-      if (fieldRegex.test(block)) {
-        writers.add(field);
-      }
-    }
-  }
-
-  // $set blocks — find $set: { and scan until matching }
-  for (const match of content.matchAll(/\$set\s*:\s*\{/g)) {
-    const block = extractBalancedBlock(content, match.index + match[0].length - 1, '{', '}');
-    if (block) checkBlock(block);
-  }
-
-  // .update( calls — extract the second argument (the data object)
-  for (const match of content.matchAll(/\.update\s*\(/g)) {
-    const block = extractCallArgs(content, match.index + match[0].length - 1);
-    if (block) checkBlock(block);
-  }
-
-  // .create( calls
-  for (const match of content.matchAll(/\.create\s*\(/g)) {
-    const block = extractCallArgs(content, match.index + match[0].length - 1);
-    if (block) checkBlock(block);
-  }
-
-  // .bulkCreate( calls
-  for (const match of content.matchAll(/\.bulkCreate\s*\(/g)) {
-    const block = extractCallArgs(content, match.index + match[0].length - 1);
-    if (block) checkBlock(block);
-  }
-
-  return Array.from(writers);
-}
-
-// Extract a balanced block between matching braces
-function extractBalancedBlock(content, startIndex, openChar, closeChar) {
-  let depth = 0;
-  let i = startIndex;
-  while (i < content.length) {
-    if (content[i] === openChar) depth++;
-    else if (content[i] === closeChar) {
-      depth--;
-      if (depth === 0) return content.slice(startIndex, i + 1);
-    }
-    i++;
-  }
-  return null;
-}
-
-// Extract call arguments (content between outer parens)
-function extractCallArgs(content, startIndex) {
-  return extractBalancedBlock(content, startIndex, '(', ')');
-}
-
-// ── Regex fallback for unparseable files ────────────────────────────────────
-function findWritersInFileRegexFallback(content, trackedFields) {
-  return findWritersInFileTSFallback(content, trackedFields);
-}
+// Round 6B: TS regex fallback and regex fallback removed entirely.
+// @typescript-eslint/parser handles TS/TSX files directly via findWritersInFileAST.
+// Parse failures throw (no silent fallback to weaker detection).
 
 // ── Test runner ──────────────────────────────────────────────────────────────
 let passed = 0;
@@ -518,7 +452,8 @@ const sourceDirs = [
   { dir: join(ROOT, 'src/pages'), exts: ['.jsx', '.js'] },
   { dir: join(ROOT, 'src/lib'), exts: ['.js', '.jsx'] },
   { dir: join(ROOT, 'tests'), exts: ['.mjs', '.js'] },
-  { dir: join(ROOT, 'base44/entities'), exts: ['.jsonc'] },
+  // Entity schema files (.jsonc) are definitions, not runtime writers.
+  // They are NOT parsed by the JS/TS AST parser.
 ];
 
 const allFiles = [];
@@ -564,6 +499,8 @@ check('registry_covers_all_found_writers', () => {
   const incomplete = [];
   for (const [filePath, registeredFields] of Object.entries(REGISTRY)) {
     if (!existsSync(join(ROOT, filePath))) continue;
+    // Skip entity schema files — they are definitions, not runtime writers
+    if (filePath.endsWith('.jsonc')) continue;
     const actualWriters = findWritersInFileAST(join(ROOT, filePath), TRACKED_FIELDS);
     const registeredSet = new Set(registeredFields);
     const unregistered = actualWriters.filter(f => !registeredSet.has(f));
@@ -735,6 +672,96 @@ await base44.entities.Listing.update(id, unregisteredPatch);
     const writers = findWritersInFileAST(tmpFile, TRACKED_FIELDS);
     if (!writers.includes('status')) throw new Error('must detect status in the explicit unregisteredPatch fixture');
     if (!writers.includes('hidden_reason')) throw new Error('must detect hidden_reason in the explicit unregisteredPatch fixture');
+  } finally {
+    unlinkSync(tmpFile);
+  }
+});
+
+// ── TEST 13: AST detects helper-returned patch ────────────────────────────────
+check('ast_detects_helper_returned_patch', () => {
+  const fixture = `
+const base44 = {};
+function buildListingPatch() {
+  return { status: 'sold', hidden_reason: null };
+}
+await base44.entities.Listing.update(id, buildListingPatch());
+`;
+  const tmpFile = join(ROOT, '.tmp-ownership-fixture-helper.mjs');
+  writeFileSync(tmpFile, fixture);
+  try {
+    const writers = findWritersInFileAST(tmpFile, TRACKED_FIELDS);
+    if (!writers.includes('status')) throw new Error('should detect status via helper-returned patch');
+    if (!writers.includes('hidden_reason')) throw new Error('should detect hidden_reason via helper-returned patch');
+  } finally {
+    unlinkSync(tmpFile);
+  }
+});
+
+// ── TEST 14: AST detects statically resolvable computed key ───────────────────
+check('ast_detects_computed_key', () => {
+  const fixture = `
+const base44 = {};
+const field = 'status';
+await base44.entities.Listing.update(id, {
+  [field]: 'sold'
+});
+`;
+  const tmpFile = join(ROOT, '.tmp-ownership-fixture-computed.mjs');
+  writeFileSync(tmpFile, fixture);
+  try {
+    const writers = findWritersInFileAST(tmpFile, TRACKED_FIELDS);
+    if (!writers.includes('status')) throw new Error('should detect status via computed key [field]');
+  } finally {
+    unlinkSync(tmpFile);
+  }
+});
+
+// ── TEST 15: AST detects TS typed patch variable ──────────────────────────────
+check('ast_detects_ts_typed_patch_variable', () => {
+  const fixture = `
+const base44 = {};
+const patch: Partial<Listing> = {
+  status: 'sold'
+};
+await base44.entities.Listing.update(id, patch);
+`;
+  const tmpFile = join(ROOT, '.tmp-ownership-fixture-ts.ts');
+  writeFileSync(tmpFile, fixture);
+  try {
+    const writers = findWritersInFileAST(tmpFile, TRACKED_FIELDS);
+    if (!writers.includes('status')) throw new Error('should detect status in TS typed patch variable');
+  } finally {
+    unlinkSync(tmpFile);
+  }
+});
+
+// ── TEST 16: AST ignores BugReport writes (negative fixture) ──────────────────
+check('ast_ignores_bugreport_writes', () => {
+  const fixture = `
+const base44 = {};
+await base44.entities.BugReport.update(id, { status: 'closed' });
+`;
+  const tmpFile = join(ROOT, '.tmp-ownership-fixture-bugreport.mjs');
+  writeFileSync(tmpFile, fixture);
+  try {
+    const writers = findWritersInFileAST(tmpFile, TRACKED_FIELDS);
+    if (writers.includes('status')) throw new Error('should NOT detect BugReport status write');
+  } finally {
+    unlinkSync(tmpFile);
+  }
+});
+
+// ── TEST 17: AST ignores Purchase writes (negative fixture) ───────────────────
+check('ast_ignores_purchase_writes', () => {
+  const fixture = `
+const base44 = {};
+await base44.entities.Purchase.update(id, { status: 'completed' });
+`;
+  const tmpFile = join(ROOT, '.tmp-ownership-fixture-purchase.mjs');
+  writeFileSync(tmpFile, fixture);
+  try {
+    const writers = findWritersInFileAST(tmpFile, TRACKED_FIELDS);
+    if (writers.includes('status')) throw new Error('should NOT detect Purchase status write');
   } finally {
     unlinkSync(tmpFile);
   }

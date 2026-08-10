@@ -586,12 +586,44 @@ export function createReservationAuthority(deps) {
         };
       }
 
-      // Round 6B: Run the COMPLETE replay/commit consistency validator against
-      // the freshly re-fetched row. This verifies EVERY field written in the
-      // authoritative CAS — including last_operation_result_json and
-      // last_operation_at — rather than maintaining a second incomplete list.
-      // A silent datastore drop or mutation of ANY committed field triggers
-      // structured non-success and verified protection.
+      // Round 6B: EXACT post-CAS comparison against every intended commit value.
+      // The generic validator confirms structural validity but does NOT prove
+      // the committed tuple equals the exact requested tuple. A post-CAS hook
+      // could swap one valid token for another and the generic validator would
+      // accept it. This exact comparison catches that.
+      const exactMismatches = [];
+      if (verified.reservation_version !== new_version) exactMismatches.push('reservation_version');
+      if (verified.reservation_lifecycle_state !== requested_state) exactMismatches.push('reservation_lifecycle_state');
+      if (verified.reservation_token !== payload.token) exactMismatches.push('reservation_token');
+      if (verified.reserved_by_email !== payload.buyer) exactMismatches.push('reserved_by_email');
+      if (verified.reservation_expires_at !== payload.expiration) exactMismatches.push('reservation_expires_at');
+      if (verified.reservation_revision !== revision) exactMismatches.push('reservation_revision');
+      if (verified.last_operation_id !== operation_id) exactMismatches.push('last_operation_id');
+      if (verified.last_operation_type !== operation_type) exactMismatches.push('last_operation_type');
+      if (verified.last_operation_payload_hash !== envelope_hash) exactMismatches.push('last_operation_payload_hash');
+      if (verified.last_operation_result_json !== result_json) exactMismatches.push('last_operation_result_json');
+      if (verified.last_operation_at !== now_iso) exactMismatches.push('last_operation_at');
+      if (verified.pending_effects_json !== effects_json) exactMismatches.push('pending_effects_json');
+      if (verified.pending_effects_hash !== effects_hash) exactMismatches.push('pending_effects_hash');
+
+      if (exactMismatches.length > 0) {
+        const protection = await protectCorruptedAuthority(
+          normalizedDeps, listing_id, lp.id,
+          `EXACT_COMMIT_MISMATCH: fields: ${exactMismatches.join(', ')}`,
+          { mismatched_fields: exactMismatches, actual: verified }
+        );
+        return {
+          ok: false, code: 'VERIFICATION_MISMATCH',
+          error: `exact commit mismatch: ${exactMismatches.join(', ')}`,
+          mismatched_fields: exactMismatches,
+          protection,
+        };
+      }
+
+      // Round 6B: Full replay/commit consistency validation (structural + hash).
+      // Catches corruption that exact comparison alone might miss (e.g. a valid
+      // but inconsistent state where the stored hash doesn't match the stored
+      // result JSON).
       const commitValidation = await validateIdempotentReplay(
         verified, operation_id, envelope_hash,
         async (effects) => hashEffects(effects, deps.hashEnvelope)

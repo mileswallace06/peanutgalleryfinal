@@ -48,7 +48,7 @@ function seedValidCommittedLP(deps, op_id, op_type, state, payload, version) {
 
 // Helper: trigger a transition that succeeds CAS but fails post-CAS verification
 // by dropping a field from the CAS $set. Returns the transition result.
-async function triggerFailedCommit(deps, dropField) {
+async function triggerFailedCommit(deps, dropField, pendingEffects = []) {
   const authority = createReservationAuthority(deps);
   seedValidCommittedLP(deps, 'op_0', 'initialize', 'available', { token: null, buyer: null, expiration: null }, 0);
   deps._seedListing('list1', { reservation_version: 0, status: 'active' });
@@ -60,6 +60,7 @@ async function triggerFailedCommit(deps, dropField) {
     listing_id: 'list1', expected_version: 0,
     operation_id: 'op_1', operation_type: 'reserve',
     payload: R6B_PAYLOAD, requested_state: 'reserved',
+    pending_effects: pendingEffects,
   });
 }
 
@@ -154,7 +155,8 @@ test('R6B-COMMIT-5: mismatched committed_at in result → VERIFICATION_MISMATCH'
 
 test('R6B-COMMIT-6: silent drop of pending_effects_json → VERIFICATION_MISMATCH', async () => {
   const deps = createMockDeps();
-  const res = await triggerFailedCommit(deps, 'pending_effects_json');
+  // Nonempty effects so the intended JSON differs from the old stored '[]'
+  const res = await triggerFailedCommit(deps, 'pending_effects_json', [{ type: 'notify_seller' }]);
   assert(!res.ok, 'should fail when pending_effects_json is silently dropped');
   assert(res.code === 'VERIFICATION_MISMATCH', `expected VERIFICATION_MISMATCH, got ${res.code}`);
   assert(res.protection, 'protection should be triggered');
@@ -162,7 +164,8 @@ test('R6B-COMMIT-6: silent drop of pending_effects_json → VERIFICATION_MISMATC
 
 test('R6B-COMMIT-7: silent drop of pending_effects_hash → VERIFICATION_MISMATCH', async () => {
   const deps = createMockDeps();
-  const res = await triggerFailedCommit(deps, 'pending_effects_hash');
+  // Nonempty effects so the intended hash differs from the old stored hash
+  const res = await triggerFailedCommit(deps, 'pending_effects_hash', [{ type: 'notify_seller' }]);
   assert(!res.ok, 'should fail when pending_effects_hash is silently dropped');
   assert(res.code === 'VERIFICATION_MISMATCH', `expected VERIFICATION_MISMATCH, got ${res.code}`);
 });
@@ -190,9 +193,19 @@ test('R6B-COMMIT-8: valid transition succeeds with full commit verification', as
   assert(lpAfter.pending_effects_hash !== null, 'pending_effects_hash must be present');
 });
 
-test('R6B-COMMIT-9: protection-only writes allowed after corruption; transition writes not', async () => {
+test('R6B-COMMIT-9: partial-commit containment — quarantine blocks further transitions, no rollback', async () => {
   const deps = createMockDeps();
-  const res = await triggerFailedCommit(deps, 'last_operation_result_json');
+  const authority = createReservationAuthority(deps);
+  seedValidCommittedLP(deps, 'op_0', 'initialize', 'available', { token: null, buyer: null, expiration: null }, 0);
+  deps._seedListing('list1', { reservation_version: 0, status: 'active' });
+  deps._lpFailConfig.dropFieldsOnUpdate = new Set(['last_operation_result_json']);
+
+  const res = await authority.transitionReservation({
+    listing_id: 'list1', expected_version: 0,
+    operation_id: 'op_1', operation_type: 'reserve',
+    payload: R6B_PAYLOAD, requested_state: 'reserved',
+  });
+
   assert(!res.ok, 'transition should fail');
   assert(res.protection, 'protection should be triggered');
 
@@ -201,9 +214,17 @@ test('R6B-COMMIT-9: protection-only writes allowed after corruption; transition 
   assert(lpAfter.checkout_quarantined === true, 'LP should be quarantined by protection');
   assert(lpAfter.recovery_blocked === true, 'LP should be recovery_blocked by protection');
 
-  // But the transition's reservation_version should NOT have incremented
-  // (transition commit write was rejected)
-  assert(lpAfter.reservation_version === 0, 'reservation_version must not increment on failed commit');
+  // CAS already committed before verification detected the datastore problem.
+  // Blind rollback would be unsafe — a concurrent winner may have advanced.
+  // Containment: the quarantined LP must reject all further transitions.
+  const res2 = await authority.transitionReservation({
+    listing_id: 'list1', expected_version: lpAfter.reservation_version,
+    operation_id: 'op_2', operation_type: 'release',
+    payload: { token: null, buyer: null, expiration: null },
+    requested_state: 'available',
+  });
+  assert(!res2.ok, 'quarantined LP must reject further transitions');
+  assert(res2.code === 'AUTHORITY_BLOCKED', `expected AUTHORITY_BLOCKED, got ${res2.code}`);
 });
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -347,8 +368,9 @@ test('R6B-PROT-6: mirror protection initial read throws while Listing is sold �
   });
   deps._seedListing('list1', { reservation_version: 5, status: 'sold' });
 
-  // Make the first Listing filter call throw (protection's initial read)
-  deps._listingFailConfig.filterThrowOnce = true;
+  // Make the SECOND Listing filter call throw (protectMirror's initial read).
+  // Call 0 = sweepMirror's Listing read; call 1 = protectMirror's Listing read.
+  deps._listingFailConfig.filterThrowOnCall = 1;
 
   const res = await authority.sweepMirror('list1');
 
@@ -509,6 +531,7 @@ test('R6B-MIG-9: valid explicit-null terminal with null revision → sold (migra
     reservation_revision: null,
   });
   delete deps._lpStore.get('lp1').reservation_version;
+  delete deps._listingStore.get('list1').reservation_version;
   const report = await generateMigrationReport(deps);
   const rec = report.records.find(r => r.listing_id === 'list1');
   assert(rec.derived_lifecycle_state === 'sold',
@@ -526,6 +549,7 @@ test('R6B-MIG-10: valid active with null revision → available (migratable)', a
   });
   delete deps._lpStore.get('lp1').reservation_version;
   delete deps._lpStore.get('lp1').reservation_lifecycle_state;
+  delete deps._listingStore.get('list1').reservation_version;
   const report = await generateMigrationReport(deps);
   const rec = report.records.find(r => r.listing_id === 'list1');
   assert(rec.derived_lifecycle_state === 'available',
