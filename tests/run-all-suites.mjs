@@ -52,6 +52,9 @@ const SUITES = [
   // Ownership
   { name: 'listing-status-ownership', file: 'tests/listing-status-ownership.test.mjs', required: true },
 
+  // Round 6B.2 — submitListing test-mode authorization
+  { name: 'submitListing-test-mode', file: 'tests/submitListing-test-mode.test.mjs', required: true },
+
   // Launch gate (RED = production integration not implemented — known blocker)
   { name: 'launch-gate', file: 'tests/launch-gate.test.mjs', required: true },
 

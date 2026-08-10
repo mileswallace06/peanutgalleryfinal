@@ -2,6 +2,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import { isMaintenanceActive, maintenance503 } from '../../shared/maintenance.ts';
 import { upsertListingPrivate, recordLegacyProofUrl, readUserSecurity, alertPrivateWriteFailure } from '../../shared/privateData.ts';
 import { clearStalePauseMarker, clearPauseMarkerAfterResume } from '../../shared/resumeOrchestrator.js';
+import { authorizeListingCreation, deriveTestModeLabeling } from '../../shared/testModeAuth.js';
 
 async function checkSuspicious(base44, sellerEmail, askingPrice) {
   const [purchases, allListings, sellerUsers] = await Promise.all([
@@ -339,24 +340,18 @@ Deno.serve(async (req) => {
 
   const askingPrice = parseFloat(body.asking_price) || 0;
   const optimisticId = body.optimistic_id;
-  const isAdmin = user.role === 'admin';
-  const isTest = body.is_test === true;
 
-  // Phase 0 maintenance gate — fail-closed. During maintenance a listing may
-  // be created ONLY by an admin exercising an explicit is_test=true request,
-  // and that path is a TRUE DRY RUN: it creates NOTHING (no Listing, no
-  // SeatInventory, no TransferVerificationLog). Blocked callers get a 503;
-  // the admin dry-run returns a no-op. Zero writes occur for any caller.
-  if (isMaintenanceActive() && !(isAdmin && isTest)) {
-    return maintenance503('Listing creation is temporarily unavailable for scheduled maintenance.');
+  // ── Test-mode authorization + maintenance gate (Round 6B.2) ────────────
+  // Non-admin users requesting test mode get 403 before any entity mutation
+  // or provider call. Admin status is derived exclusively from authenticated
+  // user.role — never from body.is_admin, headers, email input, or any
+  // client-supplied role.
+  const authResult = authorizeListingCreation(user.role, body, isMaintenanceActive());
+  if (!authResult.authorized) {
+    return Response.json(authResult.body, { status: authResult.status });
   }
-  if (isMaintenanceActive() && isAdmin && isTest) {
-    return Response.json({
-      dry_run: true,
-      created: false,
-      message: 'Maintenance dry run: no listing, SeatInventory, or verification log was created.',
-    });
-  }
+  const { isTest, isAdmin } = authResult;
+  const labeling = deriveTestModeLabeling(isTest);
 
   if (!isAdmin) {
     const freshUsers = await base44.asServiceRole.entities.User.filter({ email: user.email });
@@ -439,8 +434,8 @@ Deno.serve(async (req) => {
     proof_status: (flagged || proofDuplicate) ? 'pending_review' : 'approved',
     proof_rejection_reason: flagged ? reason : proofDuplicate ? 'Duplicate proof image detected — requires manual review' : undefined,
     status: 'active',
-    notes: (isAdmin || isTest) ? '[TEST] Admin/demo listing' : undefined,
-    is_demo_listing: (isAdmin && isTest),
+    notes: labeling.notes,
+    is_demo_listing: labeling.is_demo_listing,
     last_transfer_verification: now,
     transfer_status: 'transfer_confirmed',
     transfer_verification_method: verificationMethod,
@@ -459,7 +454,7 @@ Deno.serve(async (req) => {
       proof_rejection_reason: listing.proof_rejection_reason || null,
       transfer_verification_proof_url: body.transfer_attestation_proof_url || null,
       transfer_verified_by: user.email,
-      is_demo_listing: (isAdmin && isTest), notes: listing.notes,
+      is_demo_listing: labeling.is_demo_listing, notes: labeling.notes,
       migration_version: 3, migrated_at: now,
     });
   } catch (err) {

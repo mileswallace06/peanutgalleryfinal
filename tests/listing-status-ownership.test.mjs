@@ -94,6 +94,9 @@ const REGISTRY = {
   'base44/shared/reservationAuthorityMigration.js': ['reservation_version', 'reservation_lifecycle_state', 'reservation_mirror_state'],
   'base44/shared/reservationAuthorityConstants.js': ['reservation_version', 'reservation_lifecycle_state', 'reservation_token', 'reserved_by_email', 'reservation_expires_at', 'reservation_revision', 'reservation_mirror_state'],
 
+  // Round 6B.2 — test-mode authorization (pure helper, no entity writes)
+  'base44/shared/testModeAuth.js': [],
+
   // Frontend components
   'src/components/admin/InstantListingsQueue.jsx': ['status'],
   'src/components/admin/InstantTransferReadyPanel.jsx': ['status'],
@@ -127,6 +130,7 @@ const REGISTRY = {
   'tests/round5-correction-tests.test.mjs': ['status', 'hidden_reason', 'reservation_version', 'reservation_lifecycle_state', 'reservation_token', 'reserved_by_email', 'reservation_expires_at', 'reservation_revision', 'reservation_mirror_state'],
   'tests/round6-correction-tests.test.mjs': ['status', 'hidden_reason', 'reservation_version', 'reservation_lifecycle_state', 'reservation_token', 'reserved_by_email', 'reservation_expires_at', 'reservation_revision', 'reservation_mirror_state', 'checkout_quarantined', 'recovery_blocked'],
   'tests/round6b-correction-tests.test.mjs': ['status', 'hidden_reason', 'reservation_version', 'reservation_lifecycle_state', 'reservation_token', 'reserved_by_email', 'reservation_expires_at', 'reservation_revision', 'reservation_mirror_state', 'checkout_quarantined', 'recovery_blocked'],
+  'tests/submitListing-test-mode.test.mjs': ['status'],
 
   // Schema files (define fields, not write them at runtime — NOT parsed by AST)
   'base44/entities/Listing.jsonc': [],
