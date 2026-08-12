@@ -30,23 +30,6 @@ Deno.serve(async (req) => {
   if (user.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: 403 });
 
   const body = await req.json().catch(() => ({}));
-
-  // ── Authority probe v2 action (TEMPORARY — Phase 1B hardening gate) ──────
-  // Restored to original after the proof completes.
-  if (body?.action === 'authority_probe_v2') {
-    if (!isMaintenanceActive()) {
-      return Response.json({ error: 'Probe requires maintenance mode', code: 'MAINTENANCE_REQUIRED' }, { status: 409 });
-    }
-    try {
-      const { runProbeV2 } = await import('../../shared/authorityProbeV2.ts');
-      const result = await runProbeV2();
-      return Response.json(result);
-    } catch (error) {
-      const safeMsg = (error.message || '').replace(/postgres(?:ql)?:\/\/[^\s"']+/g, '<redacted>');
-      return Response.json({ error: safeMsg, verdict: 'FAIL' }, { status: 500 });
-    }
-  }
-
   const confirm = body?.confirm === true;
   const batchLimit = Math.min(500, Math.max(1, Number(body?.batch_limit) || 200));
   const resumeAfter = body?.resume_after || {};
