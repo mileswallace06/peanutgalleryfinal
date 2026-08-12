@@ -1,0 +1,225 @@
+{
+  "phase": "1B",
+  "gate": "F.3",
+  "type": "RETAIN-AND-CERTIFY",
+  "timestamp": "2026-08-12T23:15:00Z",
+  "head": "f5ffdcc7ae3fe15c30348c4feff3b66e1c8e3fc9",
+  "verdict": "PASS",
+  "database": "neondb (Neon dev)",
+  "schema": "authority_probe_v2",
+  "executor_role": "authority_probe_executor",
+  "maintenance_active": true,
+  "provider_calls": 0,
+  "synthetic_rows_remaining": 0,
+  "secret_leakage": false,
+  "proofs": {
+    "safety": {
+      "pass": true,
+      "checks": {
+        "secrets_defined": true,
+        "executor_role": "authority_probe_executor",
+        "executor_role_valid": true,
+        "database": "neondb",
+        "database_fingerprint_match": true,
+        "admin_connects": true,
+        "executor_connects": true,
+        "executor_identity": "authority_probe_executor",
+        "executor_is_probe_role": true,
+        "no_secret_leakage": true
+      }
+    },
+    "schema_setup": {
+      "pass": true,
+      "steps": {
+        "schema": true,
+        "functions": true,
+        "roles": true
+      },
+      "schema_counts": {
+        "tables": "3",
+        "functions": "10"
+      }
+    },
+    "p1_init": {
+      "pass": true,
+      "result": {
+        "ok": true,
+        "version": 0
+      }
+    },
+    "p2_replay": {
+      "pass": true,
+      "result": {
+        "ok": true,
+        "version": 0
+      }
+    },
+    "p3_conflict_persistence": {
+      "pass": true,
+      "step2_reserve": {
+        "ok": true,
+        "version": 1,
+        "revision": "d35cf921-0f88-4ead-987d-a4a502655598"
+      },
+      "step3_conflict": {
+        "ok": false,
+        "code": "CONFLICT"
+      },
+      "step5_replay": {
+        "ok": false,
+        "code": "CONFLICT"
+      }
+    },
+    "p4_operation_id_conflict": {
+      "pass": true,
+      "step1": {
+        "ok": true,
+        "version": 0
+      },
+      "step2": {
+        "ok": false,
+        "code": "OPERATION_ID_CONFLICT",
+        "operation_id": "probe_v2_p4_op"
+      }
+    },
+    "p5_stale_version": {
+      "pass": true,
+      "result": {
+        "ok": false,
+        "code": "CONFLICT"
+      }
+    },
+    "p6_rollback": {
+      "pass": true,
+      "injected_error": "INJECTED_FAILURE",
+      "state_after_rollback": {
+        "ok": true,
+        "version": 0,
+        "listing_id": "probe_v2_p6_listing",
+        "buyer_user_id": null,
+        "seller_user_id": "seller_p6",
+        "lifecycle_state": "available",
+        "reservation_revision": null
+      }
+    },
+    "p7_concurrent_distinct": {
+      "pass": true,
+      "winners": 1,
+      "conflicts": 99,
+      "errors": 0,
+      "winner_index": 1,
+      "winner_result": {
+        "ok": true,
+        "version": 1,
+        "revision": "950f9a2d-4325-41f6-9a31-60003053618a"
+      }
+    },
+    "p8_concurrent_identical": {
+      "pass": true,
+      "operation_count": 1,
+      "operation_status": "committed",
+      "successful_count": 100,
+      "all_identical": true,
+      "sample_result": {
+        "ok": true,
+        "version": 1,
+        "revision": "6e1fc49a-1bf7-4a29-b500-ebc69a767fbc"
+      }
+    },
+    "p9_release": {
+      "pass": true,
+      "state_before": {
+        "ok": true,
+        "version": 1,
+        "listing_id": "probe_v2_p7_listing",
+        "buyer_user_id": "buyer_p7_1",
+        "seller_user_id": "seller_p7",
+        "lifecycle_state": "reserved",
+        "reservation_revision": "950f9a2d-4325-41f6-9a31-60003053618a"
+      },
+      "result": {
+        "ok": true,
+        "version": 2
+      },
+      "state_after": {
+        "ok": true,
+        "version": 2,
+        "listing_id": "probe_v2_p7_listing",
+        "buyer_user_id": null,
+        "seller_user_id": "seller_p7",
+        "lifecycle_state": "available",
+        "reservation_revision": "72df4fd3-5003-4609-b001-a77c588d1a3f"
+      }
+    },
+    "p10_unknown_recovery": {
+      "pass": true,
+      "recovered": {
+        "ok": true,
+        "status": "committed",
+        "error_code": null,
+        "result_json": {
+          "ok": true,
+          "version": 1,
+          "revision": "beb20178-7da0-4d75-826d-f43df881c0cb"
+        },
+        "operation_id": "probe_v2_p10_op",
+        "committed_version": 1
+      }
+    },
+    "p11_concurrent_incidents": {
+      "pass": true,
+      "successful_count": 100,
+      "error_count": 0,
+      "final_occurrence_count": 101,
+      "final_incident_id": "809",
+      "unique_incident_ids": 1,
+      "all_same_id": true
+    },
+    "p12_privileges": {
+      "pass": true,
+      "checks": {
+        "executor_select_denied": true,
+        "executor_insert_denied": true,
+        "executor_update_denied": true,
+        "executor_delete_denied": true,
+        "public_execute_count": 0,
+        "public_execute_revoked": true,
+        "executor_test_only_denied": true
+      }
+    },
+    "p13_executor_secret": {
+      "pass": true,
+      "executor_user": "authority_probe_executor",
+      "database": "neondb",
+      "admin_user": "neondb_owner",
+      "executor_is_probe_role": true,
+      "admin_is_different": true
+    },
+    "p14_latency": {
+      "pass": true,
+      "samples": 25,
+      "latencies_ms": [8, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 10, 10, 10, 10, 10, 10, 10, 10, 10, 12, 12],
+      "min_ms": 8,
+      "median_ms": 9,
+      "p95_ms": 12,
+      "max_ms": 12
+    },
+    "p15_cleanup": {
+      "pass": true,
+      "cleanup": {
+        "ok": true,
+        "total_remaining": 0,
+        "authority_remaining": 0,
+        "incidents_remaining": 0,
+        "operations_remaining": 0
+      },
+      "count_after": {
+        "ok": true,
+        "total": 0,
+        "authority_count": 0,
+        "incidents_count": 0,
+        "operations_count": 0
+      }
+    }
+  }
+}

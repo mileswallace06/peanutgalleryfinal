@@ -31,6 +31,29 @@ Deno.serve(async (req) => {
 
   const body = await req.json().catch(() => ({}));
 
+  // ── Temporary probe action for Phase 1B F.3 (RETAIN-AND-CERTIFY) ───────
+  // This branch is TEMPORARY. After certification, it is removed and the
+  // file is restored to its pre-test SHA-256 hash.
+  if (body?.action === 'authority_probe_v2') {
+    if (!isMaintenanceActive()) {
+      return Response.json({ error: 'Maintenance mode required', code: 'MAINTENANCE_REQUIRED' }, { status: 409 });
+    }
+    const { secrets } = await import('base44:runtime');
+    const adminUrl = await secrets.get('AUTHORITY_DB_URL_DEV_ADMIN');
+    const executorUrl = await secrets.get('AUTHORITY_DB_URL_DEV_EXECUTOR');
+    if (!adminUrl || !executorUrl) {
+      return Response.json({ error: 'Authority secrets missing', code: 'SECRETS_MISSING' }, { status: 500 });
+    }
+    const { runAuthorityProbeV2 } = await import('../../shared/authorityProbeV2.js');
+    try {
+      const result = await runAuthorityProbeV2(adminUrl, executorUrl);
+      return Response.json(result);
+    } catch (error) {
+      const safeMsg = (error?.message || String(error)).replace(/postgres:\/\/[^\s]+/gi, '[REDACTED]').substring(0, 500);
+      return Response.json({ verdict: 'FAIL', error: safeMsg }, { status: 500 });
+    }
+  }
+
   const confirm = body?.confirm === true;
   const batchLimit = Math.min(500, Math.max(1, Number(body?.batch_limit) || 200));
   const resumeAfter = body?.resume_after || {};
