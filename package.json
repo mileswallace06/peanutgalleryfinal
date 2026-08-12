@@ -10,6 +10,7 @@
     "test:launch-gate": "node tests/freeze-completeness.test.mjs && node tests/payment-reconciliation.test.mjs && node tests/payment-webhook.test.mjs && node tests/checkout-concurrency.test.mjs && node tests/legacy-revision-init.test.mjs && node tests/durable-recovery.test.mjs && node tests/partial-finalization-states.test.mjs && node tests/post-clear-verification.test.mjs && node tests/mutation-paths.test.mjs && node tests/post-prefetch-concurrency.test.mjs && node tests/tuple-invariant-validation.test.mjs && node tests/reservation-authority-concurrency.test.mjs && node tests/reservation-authority-adversarial.test.mjs && node tests/round5-correction-tests.test.mjs && node tests/round6-correction-tests.test.mjs && node tests/round6b-correction-tests.test.mjs && node tests/listing-status-ownership.test.mjs && node tests/launch-gate.test.mjs",
     "test:authority": "node tests/reservation-authority-concurrency.test.mjs && node tests/reservation-authority-adversarial.test.mjs",
     "test:known-limitations": "node tests/concurrent-alert-deduplication.test.mjs",
+    "test:vertical-slice-live": "node tests/vertical-slice-live-v2.test.mjs",
     "test:checkout": "node tests/checkout-concurrency.test.mjs",
     "test:payments": "node tests/payment-webhook.test.mjs",
     "lint": "eslint . --quiet",
