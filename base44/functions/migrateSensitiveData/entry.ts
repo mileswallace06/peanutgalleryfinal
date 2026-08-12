@@ -30,6 +30,7 @@ Deno.serve(async (req) => {
   if (user.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: 403 });
 
   const body = await req.json().catch(() => ({}));
+
   const confirm = body?.confirm === true;
   const batchLimit = Math.min(500, Math.max(1, Number(body?.batch_limit) || 200));
   const resumeAfter = body?.resume_after || {};
