@@ -2,6 +2,14 @@
 -- authority_v1 — Schema (001)
 -- Source of truth for the Postgres authority data model.
 -- Referenced by: src/docs/ATOMICITY_ARCHITECTURE_DECISION.md
+--
+-- INSTALLATION ORDER:
+--   001_schema.sql        — tables, constraints, indexes
+--   002_functions.sql     — all stored functions (authority + worker helpers)
+--   003_workers.sql       — worker claiming, lease recovery, exhausted escalation
+--   004_roles_and_grants.sql — roles, ownership transfer, grants, revokes
+--
+-- All functions (including workers) must exist before 004 grants EXECUTE.
 -- ═══════════════════════════════════════════════════════════════════════════
 
 -- ── Schema ──────────────────────────────────────────────────────────────────
@@ -35,28 +43,51 @@ CREATE TABLE authority_v1.reservation_authority (
   updated_at                   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Quarantine requires a reason and timestamp when enabled
 ALTER TABLE authority_v1.reservation_authority
   ADD CONSTRAINT quarantine_reason_required
   CHECK (NOT checkout_quarantined OR checkout_quarantine_reason IS NOT NULL);
 
 ALTER TABLE authority_v1.reservation_authority
+  ADD CONSTRAINT quarantine_timestamp_required
+  CHECK (NOT checkout_quarantined OR checkout_quarantined_at IS NOT NULL);
+
+-- Recovery block requires a reason and timestamp when enabled
+ALTER TABLE authority_v1.reservation_authority
   ADD CONSTRAINT recovery_block_reason_required
   CHECK (NOT recovery_blocked OR recovery_blocked_reason IS NOT NULL);
 
 ALTER TABLE authority_v1.reservation_authority
-  ADD CONSTRAINT frozen_requires_buyer
-  CHECK (lifecycle_state <> 'frozen'
-    OR (buyer_user_id IS NOT NULL AND reservation_token_hash IS NOT NULL));
+  ADD CONSTRAINT recovery_block_timestamp_required
+  CHECK (NOT recovery_blocked OR recovery_blocked_at IS NOT NULL);
 
+-- frozen requires buyer, token hash, expiry, and revision
 ALTER TABLE authority_v1.reservation_authority
-  ADD CONSTRAINT reserved_requires_tuple
-  CHECK (lifecycle_state <> 'reserved'
-    OR (buyer_user_id IS NOT NULL AND reservation_token_hash IS NOT NULL AND reservation_expires_at IS NOT NULL));
+  ADD CONSTRAINT frozen_requires_full_tuple
+  CHECK (lifecycle_state <> 'frozen'
+    OR (buyer_user_id IS NOT NULL AND reservation_token_hash IS NOT NULL
+        AND reservation_expires_at IS NOT NULL AND reservation_revision IS NOT NULL));
 
+-- reserved requires buyer, token hash, expiry, and revision
+ALTER TABLE authority_v1.reservation_authority
+  ADD CONSTRAINT reserved_requires_full_tuple
+  CHECK (lifecycle_state <> 'reserved'
+    OR (buyer_user_id IS NOT NULL AND reservation_token_hash IS NOT NULL
+        AND reservation_expires_at IS NOT NULL AND reservation_revision IS NOT NULL));
+
+-- available has a cleared tuple
+ALTER TABLE authority_v1.reservation_authority
+  ADD CONSTRAINT available_clears_tuple
+  CHECK (lifecycle_state <> 'available'
+    OR (buyer_user_id IS NULL AND reservation_token_hash IS NULL
+        AND reservation_expires_at IS NULL));
+
+-- Terminal states (sold/cancelled/expired) must have cleared tuple
 ALTER TABLE authority_v1.reservation_authority
   ADD CONSTRAINT terminal_states_clear_tuple
   CHECK (lifecycle_state NOT IN ('sold','cancelled','expired')
-    OR (buyer_user_id IS NULL AND reservation_token_hash IS NULL AND reservation_expires_at IS NULL));
+    OR (buyer_user_id IS NULL AND reservation_token_hash IS NULL
+        AND reservation_expires_at IS NULL));
 
 CREATE INDEX idx_authority_stale_reserved
   ON authority_v1.reservation_authority (reservation_expires_at)
@@ -69,10 +100,24 @@ CREATE INDEX idx_authority_buyer
   ON authority_v1.reservation_authority (buyer_user_id)
   WHERE buyer_user_id IS NOT NULL;
 
--- ── 2. reservation_operations — Operation Ledger ───────────────────────────
+-- ── 2. reservation_operations — Operation Ledger (Generic Subject Model) ────
+-- The operation ledger uses a generic subject model so that operations on
+-- non-listing entities (e.g. anonymize_user) do not require a fake listing_id
+-- FK. The listing_id column is nullable with a DEFERRABLE INITIALLY DEFERRED
+-- FK so that initialize_listing can acquire the operation BEFORE the
+-- authority row exists — the FK is checked at COMMIT time, not at INSERT time.
+-- A deferred FK does NOT permit an invalid committed reference: if the
+-- authority row is never inserted, the COMMIT fails with a FK violation.
 CREATE TABLE authority_v1.reservation_operations (
   operation_id      TEXT        PRIMARY KEY,
-  listing_id        TEXT        NOT NULL REFERENCES authority_v1.reservation_authority(listing_id),
+  -- Generic subject identity — supports listing and user operations
+  subject_type      TEXT        NOT NULL
+    CHECK (subject_type IN ('listing','user')),
+  subject_id        TEXT        NOT NULL,
+  -- Nullable listing FK — DEFERRABLE so initialize_listing can acquire
+  -- the operation before the authority row exists. NULL for user operations.
+  listing_id        TEXT        REFERENCES authority_v1.reservation_authority(listing_id)
+    DEFERRABLE INITIALLY DEFERRED,
   operation_type    TEXT        NOT NULL
     CHECK (operation_type IN (
       'reserve','release','freeze','bind_pi',
@@ -93,17 +138,54 @@ CREATE TABLE authority_v1.reservation_operations (
   committed_at       TIMESTAMPTZ
 );
 
+-- Valid operation type / subject type combinations
+ALTER TABLE authority_v1.reservation_operations
+  ADD CONSTRAINT valid_operation_subject_combination
+  CHECK (
+    (subject_type = 'listing' AND operation_type IN (
+      'reserve','release','freeze','bind_pi',
+      'begin_capture','record_capture','finalize',
+      'begin_cancel','record_cancel',
+      'begin_refund','record_refund',
+      'abort','cancel','expire','initialize','quarantine'))
+    OR
+    (subject_type = 'user' AND operation_type = 'anonymize')
+  );
+
+-- Listing operations must have listing_id set (except initialize which
+-- acquires the operation before the authority row exists — the deferred
+-- FK is satisfied at COMMIT time when the authority row is inserted).
+ALTER TABLE authority_v1.reservation_operations
+  ADD CONSTRAINT listing_ops_require_listing_id
+  CHECK (subject_type <> 'listing'
+    OR operation_type = 'initialize'
+    OR listing_id IS NOT NULL);
+
+-- User operations must NOT have a listing_id
+ALTER TABLE authority_v1.reservation_operations
+  ADD CONSTRAINT user_ops_no_listing_id
+  CHECK (subject_type <> 'user' OR listing_id IS NULL);
+
 CREATE INDEX idx_ops_listing
-  ON authority_v1.reservation_operations (listing_id, created_at DESC);
+  ON authority_v1.reservation_operations (listing_id, created_at DESC)
+  WHERE listing_id IS NOT NULL;
+
+CREATE INDEX idx_ops_subject
+  ON authority_v1.reservation_operations (subject_type, subject_id, created_at DESC);
 
 CREATE INDEX idx_ops_pending
   ON authority_v1.reservation_operations (status)
   WHERE status = 'pending';
 
--- ── 3. reservation_payment_bindings — 13-State Payment Binding ────────────
+-- ── 3. reservation_payment_bindings — 15-State Payment Binding ────────────
+-- States exceed the prior 13-state model: cancel_failed and refund_failed
+-- are explicitly unsettled states that preserve the underlying financial
+-- obligation while a cancel/refund could not be confirmed. They remain in
+-- the one-active-binding index so a second binding is blocked while money
+-- may still be owed.
 CREATE TABLE authority_v1.reservation_payment_bindings (
   purchase_id                     TEXT        PRIMARY KEY,
-  payment_intent_id               TEXT        UNIQUE,
+  payment_intent_id               TEXT        UNIQUE NOT NULL,
   listing_id                      TEXT        NOT NULL REFERENCES authority_v1.reservation_authority(listing_id),
   buyer_user_id                   TEXT        NOT NULL,
   authority_version               INTEGER     NOT NULL,
@@ -113,8 +195,8 @@ CREATE TABLE authority_v1.reservation_payment_bindings (
     CHECK (capture_state IN (
       'authorized',
       'capture_requested','capture_unknown','captured','finalized',
-      'cancel_requested','cancel_unknown','canceled',
-      'refund_requested','refund_unknown','refunded',
+      'cancel_requested','cancel_unknown','cancel_failed','canceled',
+      'refund_requested','refund_unknown','refund_failed','refunded',
       'aborted','failed'
     )),
   frozen_reservation_token_hash   TEXT,
@@ -128,24 +210,24 @@ CREATE TABLE authority_v1.reservation_payment_bindings (
   updated_at                      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- One active binding per listing — covers ALL states with unsettled obligations.
--- A second binding is blocked while any in-flight or captured-but-unsettled
--- obligation exists, including cancellation/refund states where the financial
--- obligation has not yet been resolved.
+-- One active binding per listing — covers ALL states with unsettled
+-- obligations, including cancel_failed and refund_failed. A second binding
+-- is blocked while any in-flight, captured-but-unsettled, or cancel/refund-
+-- failed obligation exists.
 CREATE UNIQUE INDEX idx_one_active_binding_per_listing
   ON authority_v1.reservation_payment_bindings (listing_id)
   WHERE capture_state IN (
     'authorized',
     'capture_requested','capture_unknown','captured',
-    'cancel_requested','cancel_unknown',
-    'refund_requested','refund_unknown'
+    'cancel_requested','cancel_unknown','cancel_failed',
+    'refund_requested','refund_unknown','refund_failed'
   );
 
 -- ── 4. payment_actions — Durable Stripe Commands with Leasing ─────────────
 CREATE TABLE authority_v1.payment_actions (
   action_id              TEXT        PRIMARY KEY,
   listing_id             TEXT        NOT NULL REFERENCES authority_v1.reservation_authority(listing_id),
-  purchase_id            TEXT        NOT NULL,
+  purchase_id           TEXT        NOT NULL,
   payment_intent_id      TEXT        NOT NULL,
   action_type            TEXT        NOT NULL
     CHECK (action_type IN ('capture','cancel','refund')),
@@ -161,12 +243,33 @@ CREATE TABLE authority_v1.payment_actions (
   lease_expires_at       TIMESTAMPTZ,
   claimed_at             TIMESTAMPTZ,
   attempt_count          INTEGER     NOT NULL DEFAULT 0,
-  max_attempts           INTEGER     NOT NULL DEFAULT 5,
+  max_attempts           INTEGER     NOT NULL DEFAULT 5
+    CHECK (max_attempts > 0 AND max_attempts <= 20),
   next_attempt_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
   last_error             TEXT,
   created_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at             TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Attempt count must be non-negative and not exceed max_attempts + 1
+-- (the +1 allows the final attempt that exhausts the lease)
+ALTER TABLE authority_v1.payment_actions
+  ADD CONSTRAINT attempt_count_valid
+  CHECK (attempt_count >= 0 AND attempt_count <= max_attempts + 1);
+
+-- If lease_owner is set, lease_expires_at and claimed_at must be set
+ALTER TABLE authority_v1.payment_actions
+  ADD CONSTRAINT lease_fields_consistent
+  CHECK (
+    (lease_owner IS NULL AND lease_expires_at IS NULL AND claimed_at IS NULL)
+    OR
+    (lease_owner IS NOT NULL AND lease_expires_at IS NOT NULL AND claimed_at IS NOT NULL)
+  );
+
+-- Completed actions must have completed_at set
+ALTER TABLE authority_v1.payment_actions
+  ADD CONSTRAINT completed_actions_have_timestamp
+  CHECK (status NOT IN ('succeeded','failed','unknown') OR completed_at IS NOT NULL);
 
 CREATE UNIQUE INDEX idx_payment_actions_idem
   ON authority_v1.payment_actions (stripe_idempotency_key);
@@ -195,11 +298,31 @@ CREATE TABLE authority_v1.stripe_webhook_events (
   lease_expires_at       TIMESTAMPTZ,
   claimed_at             TIMESTAMPTZ,
   attempt_count          INTEGER     NOT NULL DEFAULT 0,
-  max_attempts           INTEGER     NOT NULL DEFAULT 5,
+  max_attempts           INTEGER     NOT NULL DEFAULT 5
+    CHECK (max_attempts > 0 AND max_attempts <= 20),
   next_attempt_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
   last_error             TEXT,
   created_at             TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Attempt count must be non-negative and not exceed max_attempts + 1
+ALTER TABLE authority_v1.stripe_webhook_events
+  ADD CONSTRAINT webhook_attempt_count_valid
+  CHECK (attempt_count >= 0 AND attempt_count <= max_attempts + 1);
+
+-- Lease fields consistency
+ALTER TABLE authority_v1.stripe_webhook_events
+  ADD CONSTRAINT webhook_lease_fields_consistent
+  CHECK (
+    (lease_owner IS NULL AND lease_expires_at IS NULL AND claimed_at IS NULL)
+    OR
+    (lease_owner IS NOT NULL AND lease_expires_at IS NOT NULL AND claimed_at IS NOT NULL)
+  );
+
+-- Processed events must have processed_at set
+ALTER TABLE authority_v1.stripe_webhook_events
+  ADD CONSTRAINT processed_events_have_timestamp
+  CHECK (processing_status NOT IN ('processed','failed') OR processed_at IS NOT NULL);
 
 CREATE INDEX idx_webhook_claimable
   ON authority_v1.stripe_webhook_events (next_attempt_at)
@@ -213,6 +336,9 @@ CREATE TABLE authority_v1.operational_incidents (
     CHECK (incident_type IN (
       'verification_mismatch','mirror_corruption',
       'capture_unknown','cancel_unknown','refund_unknown',
+      'cancel_failed','refund_failed',
+      'exhausted_capture','exhausted_cancel','exhausted_refund',
+      'exhausted_webhook',
       'failed_transfer_after_payment','new_dispute','expired_verification',
       'low_confidence_listing','conflicting_community_reports',
       'transfer_disabled_active_listing','buyer_waiting_for_transfer',
@@ -241,7 +367,7 @@ CREATE INDEX idx_incidents_unresolved
 -- ── 7. reservation_outbox — Transactional Outbox with Leasing ──────────────
 CREATE TABLE authority_v1.reservation_outbox (
   outbox_id          BIGSERIAL   PRIMARY KEY,
-  event_id           TEXT        UNIQUE,
+  event_id           TEXT        UNIQUE NOT NULL,
   operation_id       TEXT        NOT NULL REFERENCES authority_v1.reservation_operations(operation_id),
   listing_id         TEXT        NOT NULL,
   committed_version  INTEGER     NOT NULL,
@@ -254,7 +380,8 @@ CREATE TABLE authority_v1.reservation_outbox (
   delivery_status    TEXT        NOT NULL DEFAULT 'pending'
     CHECK (delivery_status IN ('pending','in_flight','delivered','dead_letter')),
   attempt_count      INTEGER     NOT NULL DEFAULT 0,
-  max_attempts       INTEGER     NOT NULL DEFAULT 10,
+  max_attempts       INTEGER     NOT NULL DEFAULT 10
+    CHECK (max_attempts > 0 AND max_attempts <= 100),
   next_attempt_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   last_error         TEXT,
   delivered_at       TIMESTAMPTZ,
@@ -263,6 +390,20 @@ CREATE TABLE authority_v1.reservation_outbox (
   claimed_at         TIMESTAMPTZ,
   created_at         TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Delivered events must have delivered_at set
+ALTER TABLE authority_v1.reservation_outbox
+  ADD CONSTRAINT delivered_events_have_timestamp
+  CHECK (delivery_status <> 'delivered' OR delivered_at IS NOT NULL);
+
+-- Lease fields consistency
+ALTER TABLE authority_v1.reservation_outbox
+  ADD CONSTRAINT outbox_lease_fields_consistent
+  CHECK (
+    (lease_owner IS NULL AND lease_expires_at IS NULL AND claimed_at IS NULL)
+    OR
+    (lease_owner IS NOT NULL AND lease_expires_at IS NOT NULL AND claimed_at IS NOT NULL)
+  );
 
 CREATE INDEX idx_outbox_claimable
   ON authority_v1.reservation_outbox (next_attempt_at)

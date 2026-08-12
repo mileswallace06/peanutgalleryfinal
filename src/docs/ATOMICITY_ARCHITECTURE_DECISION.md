@@ -5,8 +5,8 @@
 **Status**: DECISION MADE — implementation NOT started — executable SQL artifacts created
 
 > **Source of truth**: The executable SQL artifacts in `database/authority_v1/`
-> (`001_schema.sql`, `002_functions.sql`, `003_roles_and_grants.sql`,
-> `004_workers.sql`) are the authoritative implementation. The SQL examples
+> (`001_schema.sql`, `002_functions.sql`, `003_workers.sql`,
+> `004_roles_and_grants.sql`) are the authoritative implementation. The SQL examples
 > in this document are illustrative — if they diverge from the artifacts,
 > the artifacts prevail. Real PostgreSQL execution has NOT been performed
 > (no local or remote PostgreSQL instance is available). SQL parse/compile
@@ -319,15 +319,17 @@ CREATE TABLE authority_v1.reservation_payment_bindings (
   updated_at             TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- One active binding per listing — covers ALL states with unsettled obligations.
--- A second binding is blocked while any in-flight or captured-but-unsettled
--- obligation exists, including cancellation/refund states where the financial
--- obligation has not yet been resolved.
+-- One active binding per listing — covers ALL 10 states with unsettled obligations.
+-- A second binding is blocked while any in-flight, captured-but-unsettled, or
+-- cancel/refund-failed obligation exists. cancel_failed and refund_failed are
+-- explicitly unsettled — they preserve the underlying financial obligation
+-- while a cancel/refund could not be confirmed.
 CREATE UNIQUE INDEX idx_one_active_binding_per_listing
   ON authority_v1.reservation_payment_bindings (listing_id)
   WHERE capture_state IN (
     'authorized','capture_requested','capture_unknown','captured',
-    'cancel_requested','cancel_unknown','refund_requested','refund_unknown'
+    'cancel_requested','cancel_unknown','cancel_failed',
+    'refund_requested','refund_unknown','refund_failed'
   );
 
 -- Finalized requires prior captured (enforced by stored function, not just CHECK)
@@ -479,29 +481,33 @@ worker leasing. Workers claim rows via `FOR UPDATE SKIP LOCKED` (see Section
 
 ## 6. Payment State Machine
 
-### 6.1 States (13)
+### 6.1 States (15)
 
-The 13-state model adds `cancel_unknown` as a real state, symmetric with
-`capture_unknown` and `refund_unknown`. This is the single consistent model
-used across schema CHECK constraints, partial unique indexes, the transition
-diagram, account-deletion obligations, the entry-point map, monitoring, and
-certification tests.
+The 15-state model adds `cancel_failed` and `refund_failed` as explicitly
+unsettled states that preserve the underlying financial obligation while a
+cancel/refund could not be confirmed. They remain in the one-active-binding
+index so a second binding is blocked while money may still be owed. The
+generic `failed` state is reserved for capture failure before money is
+captured — cancel/refund failures do NOT use `failed` because that would
+remove the one-active-binding protection while the obligation is unsettled.
 
-| State | Description |
-|------|-------------|
-| `authorized` | PaymentIntent authorized, no capture attempted |
-| `capture_requested` | `begin_capture` committed, Stripe capture call in flight |
-| `capture_unknown` | Stripe capture returned timeout/unknown |
-| `captured` | Stripe capture succeeded, recorded (NOT finalized — finalization is separate) |
-| `finalized` | Authority sold, financial outbox effects created |
-| `cancel_requested` | Stripe PaymentIntent cancellation in flight |
-| `cancel_unknown` | Stripe cancel returned timeout/unknown |
-| `canceled` | Stripe cancellation confirmed |
-| `refund_requested` | Stripe refund in flight |
-| `refund_unknown` | Stripe refund returned timeout/unknown |
-| `refunded` | Stripe refund confirmed |
-| `aborted` | Binding aborted, reservation released, no financial obligation |
-| `failed` | Terminal failure (known Stripe failure) |
+| State | Description | Settled? |
+|------|-------------|----------|
+| `authorized` | PaymentIntent authorized, no capture attempted | Unsettled |
+| `capture_requested` | `begin_capture` committed, Stripe capture call in flight | Unsettled |
+| `capture_unknown` | Stripe capture returned timeout/unknown | Unsettled |
+| `captured` | Stripe capture succeeded, recorded (NOT finalized — finalization is separate) | Unsettled |
+| `finalized` | Authority sold, financial outbox effects created | Settled (terminal) |
+| `cancel_requested` | Stripe PaymentIntent cancellation in flight | Unsettled |
+| `cancel_unknown` | Stripe cancel returned timeout/unknown | Unsettled |
+| `cancel_failed` | Stripe cancel returned failure — obligation preserved | Unsettled |
+| `canceled` | Stripe cancellation confirmed | Settled (terminal) |
+| `refund_requested` | Stripe refund in flight | Unsettled |
+| `refund_unknown` | Stripe refund returned timeout/unknown | Unsettled |
+| `refund_failed` | Stripe refund returned failure — obligation preserved | Unsettled |
+| `refunded` | Stripe refund confirmed | Settled (terminal) |
+| `aborted` | Binding aborted, reservation released, no financial obligation | Settled (terminal) |
+| `failed` | Capture failure before money captured — terminal | Settled (terminal) |
 
 ### 6.2 Allowed State Transitions
 
@@ -520,13 +526,16 @@ captured ──finalize_sale──→ finalized
 captured ──begin_refund──→ refund_requested
 
 cancel_requested ──record_cancel(succeeded)──→ canceled
-cancel_requested ──record_cancel(failed)──→ failed
+cancel_requested ──record_cancel(failed)──→ cancel_failed (unsettled — obligation preserved)
 cancel_requested ──record_cancel(unknown)──→ cancel_unknown
 
 cancel_unknown ──webhook/recon(succeeded)──→ canceled
-cancel_unknown ──webhook/recon(failed)──→ failed
+cancel_unknown ──webhook/recon(failed)──→ cancel_failed (unsettled)
+
+cancel_failed ──admin resolve──→ canceled or escalated
 
 refund_requested ──record_refund(succeeded)──→ refunded
+refund_requested ──record_refund(failed)──→ refund_failed (unsettled — obligation preserved)
 refund_requested ──record_refund(unknown)──→ refund_unknown
 
 refund_unknown ──webhook/recon(succeeded)──→ refunded
@@ -1856,9 +1865,9 @@ All tests must pass against a **real isolated Postgres instance** (not mocks).
 ### 17.1 Executable SQL Artifacts (Source of Truth)
 
 - `database/authority_v1/001_schema.sql` — schema, tables, constraints, indexes
-- `database/authority_v1/002_functions.sql` — all stored functions (19 functions)
-- `database/authority_v1/003_roles_and_grants.sql` — roles, grants, revokes, security boundaries
-- `database/authority_v1/004_workers.sql` — worker claiming, lease recovery (outbox, payment_actions, webhook events)
+- `database/authority_v1/002_functions.sql` — all stored functions (19 authority functions)
+- `database/authority_v1/003_workers.sql` — worker claiming, lease recovery, exhausted-lease escalation (outbox, payment_actions, webhook events)
+- `database/authority_v1/004_roles_and_grants.sql` — roles, grants, revokes, security boundaries
 
 ### 17.2 Other References
 
@@ -1873,7 +1882,33 @@ All tests must pass against a **real isolated Postgres instance** (not mocks).
 
 ---
 
-## 18. Correction Change Log (7C.9C.2F → 7C.9C.2F.1)
+## 18. Correction Change Log (7C.9C.2F.1 → 7C.9C.2F.2.1)
+
+| # | Defect in 7C.9C.2F.2 | Correction in 7C.9C.2F.2.1 |
+|---|----------------------|----------------------------|
+| 1 | Operation-ledger `listing_id` had a mandatory FK to `reservation_authority`, making `initialize_listing` and `anonymize_user` impossible | Generic subject model: `subject_type` ('listing'/'user'), `subject_id`, nullable `listing_id` with `DEFERRABLE INITIALLY DEFERRED` FK. `initialize_listing` acquires the operation before the authority row exists; the deferred FK is satisfied at COMMIT. `anonymize_user` uses `subject_type='user'`, `listing_id=NULL`. |
+| 2 | `003_roles_and_grants.sql` granted worker functions before `004_workers.sql` created them | Renamed: `003_workers.sql` (was 004), `004_roles_and_grants.sql` (was 003). All functions exist before grants. |
+| 3 | `SECURITY DEFINER` used `search_path = authority_v1, pg_catalog` without `pg_temp` protection | Changed to `SET search_path = authority_v1, pg_temp` — forces `pg_temp` last, preventing temp-schema hijacking. |
+| 4 | `complete_payment_action` conflicted with `record_*_result` functions | `complete_payment_action` REMOVED. `record_capture_result`, `record_cancel_result`, `record_refund_result` are the SOLE completion path. Worker claims action → calls Stripe → calls `record_*_result` which verifies lease ownership and updates everything atomically. Webhook resolution calls the SAME functions. |
+| 5 | `record_*_result` branches could leave operation status `pending` | Every branch of every `record_*_result` function finishes with `status = 'committed'` and a deterministic `result_json`. No branch leaves `pending`. |
+| 6 | `record_*_result` acquired operation before checking action-not-found | Action-not-found is now checked BEFORE acquiring the operation, preventing a null `listing_id` from being passed to `acquire_operation`. |
+| 7 | `finalize_sale` accepted any succeeded capture for the purchase | `finalize_sale` now requires a succeeded capture action matching the EXACT `listing_id`, `purchase_id`, and `payment_intent_id` — not merely any succeeded capture for the purchase. |
+| 8 | Cancel/refund failures used generic `failed` state, removing one-active-binding protection | Added `cancel_failed` and `refund_failed` as explicitly unsettled states (15 total). They remain in the one-active-binding index. `failed` is reserved for capture failure before money is captured. |
+| 9 | `begin_refund` accepted `capture_unknown` | `begin_refund` now accepts only `captured` and `finalized` — NOT `capture_unknown`. Must resolve whether capture succeeded first. |
+| 10 | `begin_cancel` and `begin_refund` did not verify exact authority/binding snapshot | Both now verify exact `listing_id`, `buyer_user_id`, `version`, `revision`, and binding fields before transitioning. |
+| 11 | `abort_binding` required authority to be `frozen` even after a pre-capture cancel released it | `abort_binding` now supports authority in `reserved`, `frozen`, or `available`. If already available (cancel released it), only the binding is updated. |
+| 12 | Exhausted lease recovery only changed action status to `unknown` | `escalate_exhausted_payment_action()` atomically transitions binding to unknown state, keeps authority frozen, sets `recovery_blocked`, creates incident, preserves Stripe idempotency key. `escalate_exhausted_webhook_event()` provides comparable durable handling. |
+| 13 | `initialize_listing` used `ON CONFLICT DO NOTHING` and returned success for a conflicting seller | `initialize_listing` now checks if the authority row exists, verifies it matches the seller exactly, returns `INITIALIZE_CONFLICT` on mismatch. No `ON CONFLICT DO NOTHING`. |
+| 14 | `GRANT CONNECT ON DATABASE postgres` hardcoded the database name | Uses `current_database()` — no hardcoded database name. |
+| 15 | Function ownership transfer used ambiguous routine names | Uses `pg_get_function_identity_arguments()` to transfer ownership by exact function signature. |
+| 16 | EXECUTE not revoked from PUBLIC on authority functions | `REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA authority_v1 FROM PUBLIC` + `ALTER DEFAULT PRIVILEGES` to prevent future functions from gaining PUBLIC EXECUTE. |
+| 17 | No dedicated worker role — ordinary callers had worker privileges | Added `authority_worker` role. Worker functions (claim/recover/escalate) granted only to `authority_worker`, not `authority_executor`. |
+| 18 | Missing database constraints (tuple clearing, timestamps, lease consistency) | Added CHECK constraints: `available_clears_tuple`, `frozen_requires_full_tuple`, `quarantine_timestamp_required`, `recovery_block_timestamp_required`, `attempt_count_valid`, `lease_fields_consistent`, `completed_actions_have_timestamp`, `max_attempts` bounded 1..20, `payment_intent_id` NOT NULL UNIQUE. |
+| 19 | Static tests used substring checks that missed semantic defects | Added 69 contract tests checking: artifact ordering, grants to non-existent functions, PUBLIC EXECUTE revocation, `pg_temp` protection, hardcoded database names, FK incompatibility, uncommitted result branches, duplicate completion mechanisms, row-count checks, unsafe refund from `capture_unknown`, terminal failure removing obligations, exhausted lease escalation. |
+
+---
+
+## 19. Correction Change Log (7C.9C.2F → 7C.9C.2F.1)
 
 | # | Defect in original (7C.9C.2F) | Correction in 7C.9C.2F.1 |
 |---|-------------------------------|--------------------------|
