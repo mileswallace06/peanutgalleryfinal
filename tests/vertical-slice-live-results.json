@@ -1,0 +1,83 @@
+{
+  "test_run": "Phase 1B — Live Neon Vertical-Slice Gate",
+  "timestamp": "2026-08-12T21:12:00Z",
+  "database": "Neon development (isolated, synthetic data only)",
+  "function": "migrateSensitiveData (temporary authority_vertical_slice action)",
+  "verdict": "PASS",
+  "tests": {
+    "test1_init": {
+      "description": "Initialize listing — creates authority row + operation record",
+      "result": { "ok": true, "version": 0 },
+      "pass": true
+    },
+    "test2_idempotent": {
+      "description": "Idempotent replay — same operation_id + same request_hash returns identical result",
+      "pass": true
+    },
+    "test3_conflict": {
+      "description": "Conflict rejection — same operation_id + different request_hash raises OPERATION_ID_CONFLICT",
+      "error": "OPERATION_ID_CONFLICT",
+      "pass": true
+    },
+    "test4_stale": {
+      "description": "Stale version rejection — expected_version=5 on version=0 listing returns CONFLICT",
+      "result": { "ok": false, "code": "CONFLICT" },
+      "pass": true
+    },
+    "test5_rollback": {
+      "description": "Rollback — injected post-update failure (INJECTED_FAILURE) rolls back all database changes",
+      "injectedError": "INJECTED_FAILURE",
+      "stateAfter": { "version": 0, "lifecycle_state": "available", "buyer_user_id": null },
+      "pass": true
+    },
+    "test6_concurrent": {
+      "description": "100 concurrent distinct reservation attempts against one version → exactly 1 winner, 99 CONFLICT",
+      "winners": 1,
+      "conflicts": 99,
+      "pass": true
+    },
+    "test7_release": {
+      "description": "Release — CAS release by winning buyer, version increments, state returns to available",
+      "releaseResult": { "ok": true, "version": 2 },
+      "stateAfter": { "version": 2, "lifecycle_state": "available" },
+      "pass": true
+    },
+    "test8_recovery": {
+      "description": "Unknown response recovery — query by operation_id returns committed status + stored result_json",
+      "recoveredStatus": "committed",
+      "hasResultJson": true,
+      "pass": true
+    },
+    "test9_incident": {
+      "description": "100 concurrent incident writes with same incident_key → exactly 1 row (UNIQUE constraint)",
+      "winners": 1,
+      "failures": 99,
+      "dbCount": 1,
+      "pass": true
+    },
+    "test10_privileges": {
+      "description": "Executor privilege denial — INSERT, UPDATE, DELETE, CREATE, ALTER all denied",
+      "insert": "DENIED",
+      "update": "DENIED",
+      "delete": "DENIED",
+      "create": "DENIED",
+      "alter": "DENIED",
+      "pass": true
+    },
+    "test11_latency": {
+      "description": "Connection and operation latency (20 samples of get_state via Neon HTTP driver)",
+      "min_ms": 9,
+      "median_ms": 11,
+      "p95_ms": 21,
+      "max_ms": 21,
+      "samples": 20
+    },
+    "cleanup": {
+      "description": "All synthetic rows deleted — zero remaining in all probe tables",
+      "authority_remaining": 0,
+      "operations_remaining": 0,
+      "incidents_remaining": 0,
+      "pass": true
+    }
+  }
+}
