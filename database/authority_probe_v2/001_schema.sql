@@ -13,7 +13,12 @@
 -- INSTALLATION ORDER: 001_schema → 002_functions → 003_roles
 -- ═══════════════════════════════════════════════════════════════════════════
 
--- pgcrypto for digest() — canonical request identity computed inside Postgres
+-- pgcrypto for digest() — canonical request identity computed inside Postgres.
+-- pgcrypto installs into the `public` schema by default. The SECURITY DEFINER
+-- functions schema-qualify digest() as public.digest() and use
+-- search_path = authority_probe_v2, pg_catalog (no untrusted schema).
+-- The actual installation schema is discovered at runtime from pg_extension
+-- joined to pg_namespace; public is the verified default on Neon.
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- ── Schema ──────────────────────────────────────────────────────────────────

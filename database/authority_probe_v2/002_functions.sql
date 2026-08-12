@@ -6,7 +6,10 @@
 -- reserve_listing, release_listing, upsert_incident, reserve_and_fail
 -- (test-only), get_operation_result, cleanup_synthetic, count_synthetic.
 --
--- All SECURITY DEFINER with search_path = authority_probe_v2, pg_temp.
+-- All SECURITY DEFINER with search_path = authority_probe_v2, pg_catalog.
+-- pgcrypto's digest() is schema-qualified as public.digest() — discovered
+-- from pg_extension/pg_namespace at setup time. No untrusted schema in
+-- search_path; pg_catalog is trusted and required for gen_random_uuid().
 -- Canonical request identity computed inside Postgres via pgcrypto digest()
 -- — the caller passes a JSONB payload, the function derives the SHA-256 hash.
 -- Terminal outcomes (conflict, rejected) are persisted in the operation ledger
@@ -30,14 +33,14 @@ CREATE OR REPLACE FUNCTION authority_probe_v2.acquire_operation(
 ) RETURNS TABLE(acquired BOOLEAN, op_status TEXT, replay_result JSONB, stored_hash TEXT)
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = authority_probe_v2, public, pg_temp
+SET search_path = authority_probe_v2, pg_catalog
 AS $$
 DECLARE
   v_request_hash  TEXT;
   v_inserted      TEXT;
   v_existing      reservation_operations%ROWTYPE;
 BEGIN
-  v_request_hash := encode(digest(p_payload::text, 'sha256'), 'hex');
+  v_request_hash := encode(public.digest(p_payload::text, 'sha256'), 'hex');
 
   INSERT INTO reservation_operations
     (operation_id, subject_type, subject_id, listing_id,
@@ -80,7 +83,7 @@ CREATE OR REPLACE FUNCTION authority_probe_v2.get_state(
 ) RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = authority_probe_v2, public, pg_temp
+SET search_path = authority_probe_v2, pg_catalog
 AS $$
 DECLARE v_row reservation_authority%ROWTYPE;
 BEGIN
@@ -109,7 +112,7 @@ CREATE OR REPLACE FUNCTION authority_probe_v2.initialize_listing(
 ) RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = authority_probe_v2, public, pg_temp
+SET search_path = authority_probe_v2, pg_catalog
 AS $$
 DECLARE
   v_acquired BOOLEAN; v_op_status TEXT; v_replay JSONB; v_stored_hash TEXT;
@@ -170,7 +173,7 @@ CREATE OR REPLACE FUNCTION authority_probe_v2.reserve_listing(
 ) RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = authority_probe_v2, public, pg_temp
+SET search_path = authority_probe_v2, pg_catalog
 AS $$
 DECLARE
   v_acquired BOOLEAN; v_op_status TEXT; v_replay JSONB; v_stored_hash TEXT;
@@ -221,7 +224,7 @@ CREATE OR REPLACE FUNCTION authority_probe_v2.release_listing(
 ) RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = authority_probe_v2, public, pg_temp
+SET search_path = authority_probe_v2, pg_catalog
 AS $$
 DECLARE
   v_acquired BOOLEAN; v_op_status TEXT; v_replay JSONB; v_stored_hash TEXT;
@@ -273,7 +276,7 @@ CREATE OR REPLACE FUNCTION authority_probe_v2.upsert_incident(
 ) RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = authority_probe_v2, public, pg_temp
+SET search_path = authority_probe_v2, pg_catalog
 AS $$
 DECLARE v_id BIGINT; v_count INTEGER;
 BEGIN
@@ -306,7 +309,7 @@ CREATE OR REPLACE FUNCTION authority_probe_v2.reserve_and_fail(
 ) RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = authority_probe_v2, public, pg_temp
+SET search_path = authority_probe_v2, pg_catalog
 AS $$
 DECLARE v_result JSONB;
 BEGIN
@@ -330,7 +333,7 @@ CREATE OR REPLACE FUNCTION authority_probe_v2.get_operation_result(
 ) RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = authority_probe_v2, public, pg_temp
+SET search_path = authority_probe_v2, pg_catalog
 AS $$
 DECLARE v_op reservation_operations%ROWTYPE;
 BEGIN
@@ -357,7 +360,7 @@ CREATE OR REPLACE FUNCTION authority_probe_v2.cleanup_synthetic()
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = authority_probe_v2, public, pg_temp
+SET search_path = authority_probe_v2, pg_catalog
 AS $$
 DECLARE
   v_authority_count INTEGER;
@@ -387,7 +390,7 @@ CREATE OR REPLACE FUNCTION authority_probe_v2.count_synthetic()
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = authority_probe_v2, public, pg_temp
+SET search_path = authority_probe_v2, pg_catalog
 AS $$
 DECLARE
   v_authority_count INTEGER;
