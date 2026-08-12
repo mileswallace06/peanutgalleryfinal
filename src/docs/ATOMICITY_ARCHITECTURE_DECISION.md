@@ -1,8 +1,16 @@
-# Atomicity Architecture Decision — 7C.9C.2F.1 (Corrected)
+# Atomicity Architecture Decision — 7C.9C.2F.2 (Executable Authority Contract Gate)
 
-**Date**: 2026-08-10 (original), 2026-08-12 (corrected)
-**Phase**: 1B — Architecture Decision Gate (Correction Round)
-**Status**: DECISION MADE — implementation NOT started — corrections applied
+**Date**: 2026-08-10 (original), 2026-08-12 (7C.9C.2F.1 corrected), 2026-08-12 (7C.9C.2F.2 executable contract)
+**Phase**: 1B — Executable Authority Contract Gate
+**Status**: DECISION MADE — implementation NOT started — executable SQL artifacts created
+
+> **Source of truth**: The executable SQL artifacts in `database/authority_v1/`
+> (`001_schema.sql`, `002_functions.sql`, `003_roles_and_grants.sql`,
+> `004_workers.sql`) are the authoritative implementation. The SQL examples
+> in this document are illustrative — if they diverge from the artifacts,
+> the artifacts prevail. Real PostgreSQL execution has NOT been performed
+> (no local or remote PostgreSQL instance is available). SQL parse/compile
+> and runtime tests remain the next gate.
 
 ---
 
@@ -49,10 +57,14 @@ undefined.
    the user via Base44 auth, validates input, derives `operation_id` and
    `request_hash`, and calls the shared authority client.
 3. **Shared authority client** (`base44/shared/authorityClient.js`) — a thin
-   JS module imported by the backend function — reads the restricted database
-   credential from `process.env.AUTHORITY_DB_URL` (a Base44 Secret), constructs
-   a parameterized SQL query, and executes it via the Neon serverless HTTP
-   driver.
+   JS module imported by the backend function — receives the restricted
+   database credential as an injected parameter. The backend function handler
+   reads it via `secrets.get("AUTHORITY_DB_URL")` from
+   `import { secrets } from "base44:runtime"` **inside the request handler**,
+   not at module scope and not through `process.env`. The shared module
+   constructs a parameterized SQL query and executes it via the Neon
+   serverless HTTP driver. The shared module **never resolves secrets at
+   import time**.
 4. **Neon serverless HTTP driver** (`@neondatabase/serverless`) sends the SQL
    query over HTTP to the Neon proxy, which routes it to the Postgres compute
    instance. No persistent connection pool is required in the serverless
@@ -69,7 +81,7 @@ undefined.
 
 | Layer | Privilege | Notes |
 |-------|-----------|-------|
-| Base44 Secret `AUTHORITY_DB_URL` | Connection string with SSL, restricted role | Read only inside backend function handlers via `process.env` |
+| Base44 Secret `AUTHORITY_DB_URL` | Connection string with SSL, restricted role | Read only inside backend function handlers via `secrets.get("AUTHORITY_DB_URL")` from `base44:runtime` — never at module scope, never via `process.env` |
 | DB role `authority_executor` | `CONNECT` on database, `USAGE` on schema `authority_v1`, `EXECUTE` on all functions in `authority_v1` | **No** direct table privileges — no `INSERT`, `UPDATE`, `DELETE`, or `SELECT` on `reservation_authority`, `reservation_operations`, `reservation_payment_bindings`, `payment_actions`, `stripe_webhook_events`, `operational_incidents`, or `reservation_outbox` |
 | Stored functions | `SECURITY DEFINER`, owned by `authority_owner` role | The function executes with the owner's privileges, not the caller's. The caller can only invoke the function, not bypass it to access tables directly. |
 | `search_path` | `authority_v1, pg_catalog` — set explicitly in every function definition | Prevents search_path hijacking attacks |
@@ -293,7 +305,8 @@ CREATE TABLE authority_v1.reservation_payment_bindings (
   capture_state         TEXT        NOT NULL DEFAULT 'authorized'
     CHECK (capture_state IN (
       'authorized','capture_requested','capture_unknown','captured','finalized',
-      'cancel_requested','canceled','refund_requested','refund_unknown','refunded',
+      'cancel_requested','cancel_unknown','canceled',
+      'refund_requested','refund_unknown','refunded',
       'aborted','failed'
     )),
   frozen_reservation_token_hash  TEXT,   -- immutable freeze snapshot
@@ -306,10 +319,16 @@ CREATE TABLE authority_v1.reservation_payment_bindings (
   updated_at             TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- One active binding per listing at a time (authorized, capture_requested, capture_unknown, captured)
+-- One active binding per listing — covers ALL states with unsettled obligations.
+-- A second binding is blocked while any in-flight or captured-but-unsettled
+-- obligation exists, including cancellation/refund states where the financial
+-- obligation has not yet been resolved.
 CREATE UNIQUE INDEX idx_one_active_binding_per_listing
   ON authority_v1.reservation_payment_bindings (listing_id)
-  WHERE capture_state IN ('authorized','capture_requested','capture_unknown','captured');
+  WHERE capture_state IN (
+    'authorized','capture_requested','capture_unknown','captured',
+    'cancel_requested','cancel_unknown','refund_requested','refund_unknown'
+  );
 
 -- Finalized requires prior captured (enforced by stored function, not just CHECK)
 -- Aborted cannot overwrite captured without confirmed refund (enforced by stored function)
@@ -460,16 +479,23 @@ worker leasing. Workers claim rows via `FOR UPDATE SKIP LOCKED` (see Section
 
 ## 6. Payment State Machine
 
-### 6.1 States (12)
+### 6.1 States (13)
+
+The 13-state model adds `cancel_unknown` as a real state, symmetric with
+`capture_unknown` and `refund_unknown`. This is the single consistent model
+used across schema CHECK constraints, partial unique indexes, the transition
+diagram, account-deletion obligations, the entry-point map, monitoring, and
+certification tests.
 
 | State | Description |
 |------|-------------|
 | `authorized` | PaymentIntent authorized, no capture attempted |
 | `capture_requested` | `begin_capture` committed, Stripe capture call in flight |
 | `capture_unknown` | Stripe capture returned timeout/unknown |
-| `captured` | Stripe capture succeeded, recorded |
+| `captured` | Stripe capture succeeded, recorded (NOT finalized — finalization is separate) |
 | `finalized` | Authority sold, financial outbox effects created |
 | `cancel_requested` | Stripe PaymentIntent cancellation in flight |
+| `cancel_unknown` | Stripe cancel returned timeout/unknown |
 | `canceled` | Stripe cancellation confirmed |
 | `refund_requested` | Stripe refund in flight |
 | `refund_unknown` | Stripe refund returned timeout/unknown |
@@ -495,6 +521,10 @@ captured ──begin_refund──→ refund_requested
 
 cancel_requested ──record_cancel(succeeded)──→ canceled
 cancel_requested ──record_cancel(failed)──→ failed
+cancel_requested ──record_cancel(unknown)──→ cancel_unknown
+
+cancel_unknown ──webhook/recon(succeeded)──→ canceled
+cancel_unknown ──webhook/recon(failed)──→ failed
 
 refund_requested ──record_refund(succeeded)──→ refunded
 refund_requested ──record_refund(unknown)──→ refund_unknown
@@ -539,10 +569,14 @@ canceled ──abort_binding──→ aborted
 
 ## 7. Stored Function Transaction Boundaries
 
-Every authority operation is a single Postgres stored function executing as
-one `BEGIN ... COMMIT` transaction. Either all writes commit or all roll back.
-No partial state. Base44 functions never contain independent transaction
-logic — they call stored functions via the authority client.
+Every authority operation is a single Postgres stored function. A PL/pgSQL
+function invocation executes inside the caller's PostgreSQL transaction —
+transaction-control statements (`BEGIN`/`COMMIT`) are NOT placed inside
+ordinary functions. Either all the function's statements commit or all roll
+back with the caller's transaction. No partial state. Base44 functions never
+contain independent transaction logic — they call stored functions via the
+authority client. See `database/authority_v1/002_functions.sql` for the
+authoritative function definitions.
 
 ### 7.1 Operation-ID Acquisition Pattern (applies to ALL stored functions)
 
@@ -1299,15 +1333,19 @@ modeled as a persisted saga with idempotent commands and reconciliation.
 
 | Field | Authority owner | Notes |
 |-------|-----------------|-------|
-| `reservation_token` | Postgres `reservation_authority.reservation_token_hash` | Mirror stores hash, not plaintext |
-| `reserved_by_email` | Postgres `reservation_authority.buyer_user_id` | Mirror projects buyer identity |
-| `reservation_expires_at` | Postgres `reservation_authority.reservation_expires_at` | Mirror projection |
-| `reservation_revision` | Postgres `reservation_authority.reservation_revision` | Mirror projection |
+| `reservation_expires_at` | Postgres `reservation_authority.reservation_expires_at` | Optional public-safe expiry info |
 | `reservation_version` | Postgres `reservation_authority.version` | Mirror projection |
-| `reservation_mirror_state` | Postgres `reservation_authority.lifecycle_state` | Mirror projection |
+| `reservation_mirror_state` | Postgres `reservation_authority.lifecycle_state` | Mirror projection (lifecycle/availability state only) |
 
 Only the designated projection worker writes these fields. No Base44
 function may write to them directly.
+
+**Never mirrored to the public Listing**: The reservation token, token hash,
+buyer user ID, buyer email, and reservation revision are never projected to
+the public Listing mirror. These sensitive fields remain in admin-protected
+storage (ListingPrivate) or are never projected at all. Checkout
+authorization consults Postgres directly — never mirrored identity/token
+fields. A token hash is never returned to the frontend.
 
 #### Fields that become MIRROR PROJECTIONS on Base44 `ListingPrivate`
 
@@ -1633,7 +1671,7 @@ connectivity and transaction behavior with zero production impact.
 - [ ] Synthetic credentials only (no real Stripe keys, no production data).
 - [ ] Connectivity from a deployed Base44 backend function to the development
       Postgres instance via the Neon serverless HTTP driver.
-- [ ] Secret read inside the handler (`process.env.AUTHORITY_DB_URL`).
+- [ ] Secret read inside the handler (`secrets.get("AUTHORITY_DB_URL")` from `base44:runtime`).
 - [ ] Successful single stored-function call over the selected transport
       (e.g., `authority_v1.initialize_listing` returns `{ ok: true }`).
 - [ ] Real rollback test: begin a transaction, insert a row, roll back,
@@ -1815,12 +1853,22 @@ All tests must pass against a **real isolated Postgres instance** (not mocks).
 
 ## 17. References
 
+### 17.1 Executable SQL Artifacts (Source of Truth)
+
+- `database/authority_v1/001_schema.sql` — schema, tables, constraints, indexes
+- `database/authority_v1/002_functions.sql` — all stored functions (19 functions)
+- `database/authority_v1/003_roles_and_grants.sql` — roles, grants, revokes, security boundaries
+- `database/authority_v1/004_workers.sql` — worker claiming, lease recovery (outbox, payment_actions, webhook events)
+
+### 17.2 Other References
+
 - `src/docs/ATOMIC_STRATEGY_BLOCKER.md` — empirical probe results
 - `src/docs/VENDOR_GUARANTEE_QUESTION.md` — unanswered vendor question
 - `base44/shared/reservationMutationManifest.js` — 11 unintegrated entry points
 - `base44/shared/reservationAuthority.js` — current Base44 CAS prototype
 - `tests/reservation-authority-concurrency.test.mjs` — 59/59 PASS
 - `tests/reservation-authority-adversarial.test.mjs` — 52/52 PASS
+- `tests/authority-contract.test.mjs` — static contract tests for SQL artifacts
 - `tests/launch-gate.test.mjs` — 12/14 PASS (2 expected failures)
 
 ---

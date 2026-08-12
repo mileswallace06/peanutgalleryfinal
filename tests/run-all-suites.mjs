@@ -55,6 +55,9 @@ const SUITES = [
   // Round 6B.2 — submitListing test-mode authorization
   { name: 'submitListing-test-mode', file: 'tests/submitListing-test-mode.test.mjs', required: true },
 
+  // 7C.9C.2F.2 — executable authority contract tests
+  { name: 'authority-contract', file: 'tests/authority-contract.test.mjs', required: true },
+
   // Launch gate (RED = production integration not implemented — known blocker)
   { name: 'launch-gate', file: 'tests/launch-gate.test.mjs', required: true },
 
