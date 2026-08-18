@@ -2,7 +2,7 @@
   "name": "BetaFeedbackEvent",
   "type": "object",
   "rls": {
-    "create": true,
+    "create": false,
     "read": {
       "user_condition": {
         "role": "admin"
@@ -20,11 +20,9 @@
     }
   },
   "properties": {
-    "user_email": {
-      "type": "string"
-    },
-    "user_name": {
-      "type": "string"
+    "submitter_user_id": {
+      "type": "string",
+      "description": "Server-written authenticated submitter ID. Derived exclusively from user.id inside submitFeedback. Never trusted from client input."
     },
     "feedback_type": {
       "type": "string",
@@ -38,16 +36,20 @@
     },
     "page": {
       "type": "string",
+      "maxLength": 500,
       "description": "Page path where feedback was submitted"
     },
     "message": {
-      "type": "string"
+      "type": "string",
+      "maxLength": 2000
     },
     "screenshot_url": {
-      "type": "string"
+      "type": "string",
+      "maxLength": 2048
     }
   },
   "required": [
+    "submitter_user_id",
     "feedback_type"
   ]
 }
