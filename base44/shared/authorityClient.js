@@ -1,116 +1,136 @@
 /**
- * authorityClient.js — Durable shared authority client for authority_probe_v2.
+ * authorityClient.js — Runtime-only authority client (executor-only).
  *
- * Phase 1B F.3 RETAIN-AND-CERTIFY gate.
+ * Phase 1B F.3.1 ARTIFACT-AND-RUNTIME-BOUNDARY CORRECTION.
  *
- * This module provides a factory that creates admin and executor SQL
- * functions backed by @neondatabase/serverless in HTTP mode (neon()).
+ * This module is the ONLY authority client importable by production handlers.
+ * It provides executor-only access to 6 allowlisted SECURITY DEFINER functions.
  *
  * SECURITY RULES:
- *   - Secrets are read inside the handler via secrets.get(), never at module
- *     scope. The factory receives the resolved URL values as parameters.
- *   - The executor URL must parse to role 'authority_probe_executor'.
- *   - Never falls back from executor to admin.
- *   - Never prints, returns, logs, or places either connection value in an
- *     error message. Error messages contain only safe codes.
- *   - The admin connection is used ONLY for schema/privilege administration.
- *   - The executor connection is used for ALL runtime calls and privilege
- *     tests.
+ *   - No admin URL parameter. No admin connection.
+ *   - No arbitrary raw-SQL method. Allowlisted function calls only.
+ *   - Executor role must be 'authority_probe_executor'.
+ *   - Validates a real Neon dev fingerprint (hostname + database + role), not
+ *     merely the database name 'neondb'.
+ *   - Never logs, returns, or places credential-bearing values in errors.
+ *   - Error messages contain only safe codes.
+ *
+ * Allowlisted methods:
+ *   getState, initializeListing, reserveListing, releaseListing,
+ *   getOperationResult, upsertIncident
  */
 import { neon } from 'npm:@neondatabase/serverless@0.10.4';
 
+const EXECUTOR_ROLE = 'authority_probe_executor';
+
 /**
- * Validate that a connection string parses to the expected role.
- * Returns the role name without exposing the password or full URL.
- * @param {string} urlStr
- * @param {string} expectedRole
- * @returns {{ valid: boolean, role: string, database: string }}
+ * Parse and validate a connection URL's fingerprint.
+ * Checks role, hostname (Neon), and database name — not merely 'neondb'.
+ * Never returns the password or full URL.
  */
-function validateUrl(urlStr, expectedRole) {
+function validateFingerprint(urlStr) {
   if (!urlStr || typeof urlStr !== 'string') {
-    return { valid: false, role: '', database: '' };
+    throw new Error('EXECUTOR_URL_REQUIRED');
   }
+  let parsed;
   try {
-    const parsed = new URL(urlStr);
-    const role = decodeURIComponent(parsed.username);
-    const database = parsed.pathname ? parsed.pathname.replace(/^\//, '') : '';
-    return {
-      valid: role === expectedRole,
-      role,
-      database
-    };
+    parsed = new URL(urlStr);
   } catch {
-    return { valid: false, role: '', database: '' };
+    throw new Error('EXECUTOR_URL_INVALID');
   }
-}
 
-/**
- * Create an authority client with admin and executor SQL functions.
- *
- * @param {string} adminUrl - AUTHORITY_DB_URL_DEV_ADMIN (admin/owner connection)
- * @param {string} executorUrl - AUTHORITY_DB_URL_DEV_EXECUTOR (restricted executor)
- * @returns {{ admin: Function, executor: Function, validation: object }}
- */
-export function createAuthorityClient(adminUrl, executorUrl) {
-  if (!adminUrl) throw new Error('ADMIN_URL_REQUIRED');
-  if (!executorUrl) throw new Error('EXECUTOR_URL_REQUIRED');
+  const role = decodeURIComponent(parsed.username);
+  const hostname = parsed.hostname;
+  const database = parsed.pathname ? parsed.pathname.replace(/^\//, '') : '';
 
-  // Validate executor role without exposing the URL
-  const executorValidation = validateUrl(executorUrl, 'authority_probe_executor');
-  if (!executorValidation.valid) {
+  // Role must be the restricted executor
+  if (role !== EXECUTOR_ROLE) {
     throw new Error('EXECUTOR_ROLE_MISMATCH');
   }
 
-  // Validate admin URL parses (don't check role — admin can be any owner role)
-  const adminValidation = validateUrl(adminUrl, '');
-  if (!adminValidation.database) {
-    throw new Error('ADMIN_URL_INVALID');
+  // Hostname must be a Neon endpoint (real dev-environment fingerprint)
+  if (!hostname.endsWith('.neon.tech') && !hostname.endsWith('.neon.build')) {
+    throw new Error('HOSTNAME_NOT_NEON_DEV');
   }
 
-  // Verify both point to the same database fingerprint
-  if (executorValidation.database && adminValidation.database &&
-      executorValidation.database !== adminValidation.database) {
-    throw new Error('DATABASE_FINGERPRINT_MISMATCH');
+  // Database must not be empty or the default 'postgres'
+  if (!database || database === 'postgres') {
+    throw new Error('DATABASE_NAME_INVALID');
   }
 
-  // Create neon() HTTP-mode SQL functions
-  const adminSql = neon(adminUrl);
-  const executorSql = neon(executorUrl);
+  return { role, hostname, database };
+}
+
+/**
+ * Create a runtime-only authority client.
+ *
+ * @param {string} executorUrl - AUTHORITY_DB_URL_DEV_EXECUTOR
+ * @returns {object} Client with 6 allowlisted methods + fingerprint metadata.
+ */
+export function createRuntimeClient(executorUrl) {
+  const fingerprint = validateFingerprint(executorUrl);
+  const sql = neon(executorUrl);
+
+  // Internal helper: call an allowlisted SECURITY DEFINER function.
+  // Only called with hardcoded function names — never exposed externally.
+  const callFn = async (fnName, ...args) => {
+    const placeholders = args.map((_, i) => `$${i + 1}`).join(', ');
+    const queryStr = `SELECT authority_probe_v2.${fnName}(${placeholders}) as result`;
+    const rows = await sql(queryStr, args);
+    return rows[0]?.result;
+  };
 
   return {
-    /**
-     * Admin SQL execution — schema/privilege administration only.
-     * @param {string} sql
-     * @param {Array} [params]
-     * @returns {Promise<Array>}
-     */
-    admin: async (sql, params) => {
-      if (params && params.length > 0) {
-        return adminSql(sql, params);
-      }
-      return adminSql(sql);
+    /** Fingerprint metadata (no credential values). */
+    fingerprint: {
+      role: fingerprint.role,
+      hostname: fingerprint.hostname,
+      database: fingerprint.database,
     },
 
     /**
-     * Executor SQL execution — all runtime calls and privilege tests.
-     * @param {string} sql
-     * @param {Array} [params]
-     * @returns {Promise<Array>}
+     * Verify the authority_probe_v2 schema exists in this database.
+     * Provides a real environment fingerprint check beyond the URL.
      */
-    executor: async (sql, params) => {
-      if (params && params.length > 0) {
-        return executorSql(sql, params);
+    async verifyEnvironment() {
+      const rows = await sql`
+        SELECT 1 FROM information_schema.schemata
+        WHERE schema_name = 'authority_probe_v2'
+      `;
+      if (!rows || rows.length === 0) {
+        throw new Error('SCHEMA_NOT_FOUND');
       }
-      return executorSql(sql);
+      return true;
     },
 
-    /**
-     * Validation metadata (no secret values).
-     */
-    validation: {
-      executorRole: executorValidation.role,
-      database: executorValidation.database,
-      executorRoleValid: executorValidation.valid
-    }
+    /** get_state(listing_id) → JSONB */
+    async getState(listingId) {
+      return callFn('get_state', listingId);
+    },
+
+    /** initialize_listing(listing_id, seller_user_id, operation_id, payload) → JSONB */
+    async initializeListing(listingId, sellerUserId, operationId, payload) {
+      return callFn('initialize_listing', listingId, sellerUserId, operationId, JSON.stringify(payload));
+    },
+
+    /** reserve_listing(listing_id, expected_version, buyer_user_id, token_hash, expires_at, operation_id, payload) → JSONB */
+    async reserveListing(listingId, expectedVersion, buyerUserId, tokenHash, expiresAt, operationId, payload) {
+      return callFn('reserve_listing', listingId, expectedVersion, buyerUserId, tokenHash, expiresAt, operationId, JSON.stringify(payload));
+    },
+
+    /** release_listing(listing_id, expected_version, buyer_user_id, operation_id, payload) → JSONB */
+    async releaseListing(listingId, expectedVersion, buyerUserId, operationId, payload) {
+      return callFn('release_listing', listingId, expectedVersion, buyerUserId, operationId, JSON.stringify(payload));
+    },
+
+    /** get_operation_result(operation_id) → JSONB */
+    async getOperationResult(operationId) {
+      return callFn('get_operation_result', operationId);
+    },
+
+    /** upsert_incident(incident_key, incident_type, priority, title) → JSONB */
+    async upsertIncident(incidentKey, incidentType, priority, title) {
+      return callFn('upsert_incident', incidentKey, incidentType, priority, title);
+    },
   };
 }
