@@ -17,20 +17,27 @@ export default function FeedbackWidget({ user }) {
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
+  const [error, setError] = useState(null);
 
   const handleSend = async () => {
-    if (!selected) return;
+    if (!selected || sending) return; // prevent double submission
     setSending(true);
-    await base44.entities.BetaFeedbackEvent.create({
-      feedback_type: selected,
-      page: location.pathname,
-      message: message.trim() || null,
-      user_email: user?.email || null,
-      user_name: user?.full_name || null,
-    });
-    setSending(false);
-    setSent(true);
-    setTimeout(() => { setSent(false); setOpen(false); setSelected(null); setMessage(''); }, 1800);
+    setError(null);
+    try {
+      await base44.entities.BetaFeedbackEvent.create({
+        feedback_type: selected,
+        page: location.pathname,
+        message: message.trim() || null,
+        user_email: user?.email || null,
+        user_name: user?.full_name || null,
+      });
+      setSent(true);
+      setTimeout(() => { setSent(false); setOpen(false); setSelected(null); setMessage(''); }, 1800);
+    } catch (_err) {
+      setError('Could not send. Please try again.');
+    } finally {
+      setSending(false);
+    }
   };
 
   // Don't show on admin pages
@@ -41,9 +48,9 @@ export default function FeedbackWidget({ user }) {
       {/* FAB */}
       {!open && (
         <button
-          onClick={() => setOpen(true)}
-          className="fixed bottom-24 left-4 z-40 w-11 h-11 rounded-full flex items-center justify-center shadow-xl transition-all active:scale-95"
-          style={{ background: 'rgba(191,95,255,0.15)', border: '1px solid rgba(191,95,255,0.4)', backdropFilter: 'blur(12px)' }}
+          onClick={() => { setOpen(true); setError(null); }}
+          className="fixed left-4 z-[60] w-11 h-11 rounded-full flex items-center justify-center shadow-xl transition-all active:scale-95"
+          style={{ bottom: 'calc(5.5rem + env(safe-area-inset-bottom))', background: 'rgba(191,95,255,0.15)', border: '1px solid rgba(191,95,255,0.4)', backdropFilter: 'blur(12px)' }}
           aria-label="Send feedback"
         >
           <MessageSquare className="w-4 h-4" style={{ color: '#BF5FFF' }} />
@@ -99,6 +106,9 @@ export default function FeedbackWidget({ user }) {
                   style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}
                 />
 
+                {error && (
+                  <p className="text-xs font-bold text-center" style={{ color: '#FF2D78' }}>{error}</p>
+                )}
                 <button onClick={handleSend} disabled={!selected || sending}
                   className="w-full py-3 rounded-2xl font-black text-sm disabled:opacity-50 transition-all"
                   style={{ background: selected ? `${TYPES.find(t => t.key === selected)?.color}` : 'rgba(255,255,255,0.1)', color: '#000' }}>

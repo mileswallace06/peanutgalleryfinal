@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { MapPin, Calendar, ChevronRight, LocateFixed, RefreshCw, ShieldCheck, Search, ArrowUpDown } from 'lucide-react';
+import { MapPin, Calendar, ChevronRight, RefreshCw, ShieldCheck, Search, ArrowUpDown } from 'lucide-react';
 import { getEventLiveStatus } from '@/lib/eventTiming';
 import { getEventUrl } from '@/lib/eventUrl';
 import { logNavEvent } from '@/lib/navLogger';
@@ -21,6 +21,8 @@ function readSS() {
 function writeSS(data) {
   try { sessionStorage.setItem(SS_KEY, JSON.stringify(data)); } catch {}
 }
+
+import { normalizeSearch, eventMatchesKeyword } from '@/lib/searchNormalize';
 
 export default function Events() {
   const _ss = readSS();
@@ -86,10 +88,22 @@ export default function Events() {
     if (bust) bustTMCache(tmParams);
 
     try {
-      const [localData, { events: tmEventsRaw }] = await Promise.all([
+      // Decouple PG and TM fetches — TM failure must not block PG results.
+      const [localResult, tmResult] = await Promise.allSettled([
         base44.entities.Event.list('date', 50),
         fetchTMEvents(base44, tmParams),
       ]);
+
+      const localData = localResult.status === 'fulfilled' ? localResult.value : [];
+      const tmEventsRaw = tmResult.status === 'fulfilled' ? tmResult.value.events : [];
+
+      // Surface TM rate-limit/network errors without blocking PG results
+      if (tmResult.status === 'rejected') {
+        const tmErr = tmResult.reason;
+        const status = tmErr?.response?.status || tmErr?.status;
+        if (status === 429) setTmError(true);
+        else if (!signal.aborted) console.warn('[Events] TM fetch failed, showing PG only:', tmErr?.message);
+      }
 
       const eligible = localData.filter(e => e.status !== 'ended');
       const pgEvents = isAdmin
@@ -98,33 +112,32 @@ export default function Events() {
       let pgFiltered = pgEvents.filter(e => !e.is_beta_live);
 
       if (cityOverride) {
-        const cityLower = cityOverride.toLowerCase();
+        const cityNorm = normalizeSearch(cityOverride);
         pgFiltered = pgFiltered.filter(e =>
-          e.city?.toLowerCase().includes(cityLower) ||
-          e.venue?.toLowerCase().includes(cityLower)
+          normalizeSearch(e.city).includes(cityNorm) ||
+          normalizeSearch(e.venue).includes(cityNorm)
         );
       }
       if (ll) {
+        // Only filter PG events by TM cities if TM returned results.
+        // If TM failed or returned nothing, show all PG events (don't hide them).
         const tmCities = new Set(tmEventsRaw.map(e => e.city?.toLowerCase()).filter(Boolean));
         if (tmCities.size > 0) {
           pgFiltered = pgFiltered.filter(e => !e.city || tmCities.has(e.city.toLowerCase()));
-        } else {
-          pgFiltered = [];
         }
       }
       if (keyword) {
-        const kw = keyword.toLowerCase();
-        pgFiltered = pgFiltered.filter(e =>
-          e.title?.toLowerCase().includes(kw) ||
-          e.venue?.toLowerCase().includes(kw) ||
-          e.city?.toLowerCase().includes(kw) ||
-          (e.artist && e.artist.toLowerCase().includes(kw))
-        );
+        pgFiltered = pgFiltered.filter(e => eventMatchesKeyword(e, keyword));
       }
 
       if (signal.aborted) return;
       const pgMapped = pgFiltered.map(e => ({ ...e, source: 'pg' }));
-      const tmEvents = tmEventsRaw.map(e => ({ ...e, id: `tm_${e.tm_id}`, source: 'ticketmaster' }));
+      // Apply keyword filter to TM events client-side too (TM may return unfiltered
+      // results when only keyword is sent without a location).
+      let tmEvents = tmEventsRaw.map(e => ({ ...e, id: `tm_${e.tm_id}`, source: 'ticketmaster' }));
+      if (keyword) {
+        tmEvents = tmEvents.filter(e => eventMatchesKeyword(e, keyword));
+      }
       setEvents([...pgMapped, ...tmEvents]);
 
       // Persist TM events locally so they survive past start time.
