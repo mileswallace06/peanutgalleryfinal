@@ -26,9 +26,8 @@ function writeSS(data) {
 import { normalizeSearch, escapeRegex } from '@/lib/searchNormalize';
 
 // ── Server-side filtered search (M0.2) ─────────────────────────────────────
-// Replaces the download-all strategy: instead of fetching up to 5000 events
-// and filtering client-side, we query search_text_normalized server-side with
-// $regex and a bounded result limit.
+// Server-side filtered search: we query search_text_normalized with $regex
+// and a bounded result limit instead of downloading and filtering client-side.
 const PG_SEARCH_LIMIT = 100;   // keyword search: max 100 results
 const PG_BROWSE_LIMIT = 200;  // city/near-me browse: max 200 results
 
@@ -72,7 +71,6 @@ export default function Events() {
   const [networkError, setNetworkError] = useState(false);
   const [pgError, setPgError] = useState(false);       // PG-source failure (distinct from TM)
   const [partialData, setPartialData] = useState(false); // TM failed, PG partial results shown
-  const [truncated, setTruncated] = useState(false);     // hit the 5000-event bounded max
   const [keyword, setKeyword] = useState('');
   // Sort: 'soonest' = upcoming soonest (default), 'latest' = latest upcoming
   // showPast: when false (default) hides past events; when true shows everything
@@ -117,7 +115,6 @@ export default function Events() {
     setNetworkError(false);
     setPgError(false);
     setPartialData(false);
-    setTruncated(false);
     const now = Date.now();
     const tmParams = { size: 40 };
     if (ll) { tmParams.latlong = ll; tmParams.radius = '50'; }
@@ -167,6 +164,7 @@ export default function Events() {
             tm_id: e.tm_id, title: e.title, venue: e.venue, city: e.city,
             state: e.state, date: e.date, image_url: e.image_url,
             tm_url: e.tm_url, category: e.category || null,
+            tm_venue_id: e.tm_venue_id || '',
             venue_lat: e.venue_lat ?? null, venue_lng: e.venue_lng ?? null,
           }).catch(syncErr => console.warn('[Events] syncTMEvent failed for', e.tm_id, syncErr?.message));
         }, i * 200);
@@ -184,7 +182,7 @@ export default function Events() {
     } finally {
       if (!signal.aborted) setLoading(false);
     }
-  }, []);
+  }, [isAdmin]);
 
 
 

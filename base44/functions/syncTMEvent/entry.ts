@@ -11,6 +11,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import { resolveEventHero } from '../../shared/eventHero.js';
 import { generateSearchTextNormalized } from '../../shared/searchNormalize.js';
+import { coerceCoordinate } from '../../shared/tmResponseHandler.js';
 
 const CATEGORY_TO_IDENTITY = {
   concert: 'concert',
@@ -27,11 +28,17 @@ Deno.serve(async (req) => {
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await req.json().catch(() => ({}));
-    const { tm_id, title, venue, city, state, date, image_url, tm_url, category, tm_venue_id, venue_lat, venue_lng } = body;
+    const { tm_id, title, venue, city, state, date, image_url, tm_url, category, tm_venue_id } = body;
 
     if (!tm_id || !title) {
       return Response.json({ error: 'tm_id and title are required' }, { status: 400 });
     }
+
+    // ── M0.3: Re-validate coordinates before writing ──────────────────────
+    // Convert to finite numbers within valid ranges. Invalid/missing/non-finite → null.
+    // This is the second validation layer (first is in normalizeTMEvent); defense in depth.
+    const venue_lat = coerceCoordinate(body.venue_lat, -90, 90);
+    const venue_lng = coerceCoordinate(body.venue_lng, -180, 180);
 
     // ── Generate normalized search text ──────────────────────────────────
     const searchTextNormalized = generateSearchTextNormalized({
