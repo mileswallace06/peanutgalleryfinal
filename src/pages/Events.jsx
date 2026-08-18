@@ -72,6 +72,7 @@ export default function Events() {
   const [pgError, setPgError] = useState(false);       // PG-source failure (distinct from TM)
   const [partialData, setPartialData] = useState(false); // TM failed, PG partial results shown
   const [keyword, setKeyword] = useState('');
+  const [hasSearched, setHasSearched] = useState(false);
   // Sort: 'soonest' = upcoming soonest (default), 'latest' = latest upcoming
   // showPast: when false (default) hides past events; when true shows everything
   const [sortMode, setSortMode] = useState('soonest');
@@ -104,6 +105,7 @@ export default function Events() {
   const fetchEvents = useCallback(async (ll, cityOverride, keyword, bust = false) => {
     // Don't fetch until we have a location, city, or keyword
     if (!ll && !cityOverride && !keyword) return;
+    setHasSearched(true);
 
     // Cancel any previous in-flight fetch
     abortRef.current?.abort();
@@ -478,7 +480,7 @@ export default function Events() {
             </div>
           ))}
         </div>
-      ) : !loading && !latlong && !locationLabel ? (
+      ) : !loading && !latlong && !locationLabel && !hasSearched ? (
         <EventsEmptyState
           locationStatus={locationStatus}
           onNearMe={requestLocation}
