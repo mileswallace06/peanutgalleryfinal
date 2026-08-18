@@ -43,9 +43,30 @@ export function classifyTMResponse({ ok, status, data }) {
 }
 
 /**
+ * Coerce a value to a finite number within [min, max], or null.
+ *
+ * M0.3: Ticketmaster coordinates must be converted to finite numbers.
+ * Invalid, missing, or non-finite values become null. Latitude must be
+ * -90..90, longitude must be -180..180.
+ *
+ * @param {*} v - Raw value from TM API
+ * @param {number} min - Minimum valid value (inclusive)
+ * @param {number} max - Maximum valid value (inclusive)
+ * @returns {number|null}
+ */
+export function coerceCoordinate(v, min, max) {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  if (!Number.isFinite(n)) return null;
+  if (n < min || n > max) return null;
+  return n;
+}
+
+/**
  * Normalize a raw TM event into the app's event shape.
  *
- * M0.2: Now preserves venue latitude and longitude when supplied by TM.
+ * M0.3: venue_lat/venue_lng are now coerced to finite numbers within valid
+ * ranges (lat -90..90, lng -180..180). Invalid/missing/non-finite → null.
  *
  * @param {object} e - Raw Ticketmaster event object
  * @returns {object} Normalized event
@@ -63,8 +84,8 @@ export function normalizeTMEvent(e) {
     venue: venue?.name || '',
     city: venue?.city?.name || '',
     state: venue?.state?.stateCode || '',
-    venue_lat: venue?.location?.latitude ?? null,
-    venue_lng: venue?.location?.longitude ?? null,
+    venue_lat: coerceCoordinate(venue?.location?.latitude, -90, 90),
+    venue_lng: coerceCoordinate(venue?.location?.longitude, -180, 180),
     image_url: image?.url || '',
     tm_url: e.url || '',
     source: 'ticketmaster',
