@@ -1,115 +1,161 @@
 #!/usr/bin/env node
 /**
- * search-normalize.test.mjs — Regression tests for the search normalization fix.
+ * search-normalize.test.mjs — Tests for src/lib/searchNormalize.js
  *
- * Tests normalizeSearch and eventMatchesKeyword for:
- *   - case-insensitive matching
- *   - punctuation-insensitive matching
- *   - whitespace-normalized matching
- *   - partial matching
- *   - exact matching
- *   - no-result queries
- *   - empty/null field handling
+ * Tests the ACTUAL production module (not a simulation):
+ *   - normalizeSearch: case, punctuation, whitespace, diacritic normalization
+ *   - eventMatchesKeyword: multi-field matching
+ *   - haversineDistance: great-circle distance
+ *   - eventWithinRadius: geospatial filter with safe default for missing coords
  */
-import { normalizeSearch, eventMatchesKeyword } from '../src/lib/searchNormalize.js';
+import assert from 'assert';
+import { normalizeSearch, eventMatchesKeyword, haversineDistance, eventWithinRadius } from '../src/lib/searchNormalize.js';
 
 let passed = 0, failed = 0;
-function assert(cond, msg) {
-  if (cond) { console.log(`  PASS: ${msg}`); passed++; }
-  else { console.error(`  FAIL: ${msg}`); failed++; }
+function test(name, fn) {
+  try { fn(); console.log(`  PASS: ${name}`); passed++; }
+  catch (e) { console.error(`  FAIL: ${name} — ${e.message}`); failed++; }
 }
 
-console.log('╔════════════════════════════════════════════════════════════╗');
-console.log('║  Search Normalization Regression Tests                      ║');
-console.log('╚════════════════════════════════════════════════════════════╝\n');
+console.log('╔══════════════════════════════════════════════════════════════════╗');
+console.log('║  search-normalize.test.mjs — Production module tests             ║');
+console.log('╚══════════════════════════════════════════════════════════════════╝\n');
 
 // ── normalizeSearch ──────────────────────────────────────────────────────
-console.log('── normalizeSearch ──');
-assert(normalizeSearch('Hello World') === 'hello world', 'basic lowercase');
-assert(normalizeSearch('RAYE - THIS TOUR') === 'raye this tour', 'punctuation stripped');
-assert(normalizeSearch('  multiple   spaces  ') === 'multiple spaces', 'whitespace normalized');
-assert(normalizeSearch('Arizona Diamondbacks vs. Pittsburgh Pirates') === 'arizona diamondbacks vs pittsburgh pirates', 'punctuation + case');
-assert(normalizeSearch('') === '', 'empty string');
-assert(normalizeSearch(null) === '', 'null');
-assert(normalizeSearch(undefined) === '', 'undefined');
-assert(normalizeSearch('Hail-the-Sun') === 'hail the sun', 'hyphens to spaces');
-assert(normalizeSearch('DIVA BLEACH x LAKE DRIVE') === 'diva bleach x lake drive', 'x separator preserved');
+test('normalizeSearch: lowercase', () => {
+  assert.strictEqual(normalizeSearch('HELLO'), 'hello');
+});
+
+test('normalizeSearch: strip punctuation', () => {
+  assert.strictEqual(normalizeSearch('hello, world!'), 'hello world');
+});
+
+test('normalizeSearch: collapse whitespace', () => {
+  assert.strictEqual(normalizeSearch('  hello   world  '), 'hello world');
+});
+
+test('normalizeSearch: null → empty string', () => {
+  assert.strictEqual(normalizeSearch(null), '');
+  assert.strictEqual(normalizeSearch(undefined), '');
+});
+
+test('normalizeSearch: diacritic — Beyoncé → beyonce', () => {
+  assert.strictEqual(normalizeSearch('Beyoncé'), 'beyonce');
+});
+
+test('normalizeSearch: diacritic — Lotería → loteria', () => {
+  assert.strictEqual(normalizeSearch('Lotería'), 'loteria');
+});
+
+test('normalizeSearch: diacritic — Español → espanol', () => {
+  assert.strictEqual(normalizeSearch('Español'), 'espanol');
+});
+
+test('normalizeSearch: diacritic — café → cafe', () => {
+  assert.strictEqual(normalizeSearch('café'), 'cafe');
+});
+
+test('normalizeSearch: diacritic — multiple marks (Beyoncé!) → beyonce', () => {
+  assert.strictEqual(normalizeSearch('Beyoncé!'), 'beyonce');
+});
+
+test('normalizeSearch: empty string', () => {
+  assert.strictEqual(normalizeSearch(''), '');
+});
 
 // ── eventMatchesKeyword ─────────────────────────────────────────────────
-console.log('\n── eventMatchesKeyword ──');
+test('eventMatchesKeyword: exact title match', () => {
+  const e = { title: 'Arizona Diamondbacks vs. Pittsburgh Pirates', venue: 'Chase Field', city: 'Phoenix' };
+  assert.ok(eventMatchesKeyword(e, 'Diamondbacks'));
+});
 
-const events = [
-  { title: 'Hail the Sun', venue: 'Ace of Spades', city: 'Sacramento', artist: null },
-  { title: 'Arizona Diamondbacks vs. Pittsburgh Pirates', venue: 'Chase Field', city: 'Phoenix', artist: null },
-  { title: 'RAYE - THIS TOUR MAY CONTAIN NEW MUSIC', venue: 'The Cosmopolitan of Las Vegas', city: 'Las Vegas', artist: null },
-  { title: 'Phoenix Mercury vs. Minnesota Lynx', venue: 'Mortgage Matchup Center', city: 'Phoenix', artist: null },
-  { title: 'Season Closing Singalong', venue: 'ASU Kerr', city: 'Scottsdale', artist: null },
-];
+test('eventMatchesKeyword: case-insensitive', () => {
+  const e = { title: 'Arizona Diamondbacks', venue: '', city: '' };
+  assert.ok(eventMatchesKeyword(e, 'arizona diamondbacks'));
+});
 
-// Exact match (case-insensitive)
-assert(eventMatchesKeyword(events[0], 'Hail the Sun') === true, 'exact title match');
-assert(eventMatchesKeyword(events[0], 'hail the sun') === true, 'case-insensitive exact');
+test('eventMatchesKeyword: punctuation-insensitive', () => {
+  const e = { title: 'Arizona Diamondbacks vs. Pittsburgh Pirates', venue: '', city: '' };
+  assert.ok(eventMatchesKeyword(e, 'Arizona Diamondbacks vs Pittsburgh Pirates'));
+});
 
-// Partial match
-assert(eventMatchesKeyword(events[0], 'hail') === true, 'partial title match');
-assert(eventMatchesKeyword(events[1], 'diamondbacks') === true, 'partial team name match');
-assert(eventMatchesKeyword(events[2], 'RAYE') === true, 'partial artist-in-title match');
-assert(eventMatchesKeyword(events[3], 'Phoenix Mercury') === true, 'partial team match');
+test('eventMatchesKeyword: whitespace-normalized', () => {
+  const e = { title: 'RAYE THIS TOUR', venue: '', city: '' };
+  assert.ok(eventMatchesKeyword(e, '  RAYE   THIS   TOUR  '));
+});
 
-// Punctuation-insensitive
-assert(eventMatchesKeyword(events[1], 'Arizona Diamondbacks vs Pittsburgh Pirates') === true, 'punctuation-insensitive (no dots)');
-assert(eventMatchesKeyword(events[2], 'RAYE THIS TOUR') === true, 'punctuation-insensitive (no dashes)');
+test('eventMatchesKeyword: diacritic-insensitive — Beyonce matches Beyoncé', () => {
+  const e = { title: 'Beyoncé World Tour', venue: '', city: '' };
+  assert.ok(eventMatchesKeyword(e, 'Beyonce'));
+});
 
-// Whitespace-normalized
-assert(eventMatchesKeyword(events[0], '  hail   the  sun  ') === true, 'whitespace-normalized');
-assert(eventMatchesKeyword(events[4], 'Season  Closing  Singalong') === true, 'extra spaces normalized');
+test('eventMatchesKeyword: diacritic-insensitive — Loteria matches Lotería', () => {
+  const e = { title: 'Lotería Thursdays', venue: '', city: '' };
+  assert.ok(eventMatchesKeyword(e, 'Loteria'));
+});
 
-// Venue match
-assert(eventMatchesKeyword(events[1], 'Chase Field') === true, 'venue match');
-assert(eventMatchesKeyword(events[0], 'Ace of Spades') === true, 'venue match 2');
+test('eventMatchesKeyword: venue match', () => {
+  const e = { title: 'Some Event', venue: 'Chase Field', city: 'Phoenix' };
+  assert.ok(eventMatchesKeyword(e, 'Chase'));
+});
 
-// City match
-assert(eventMatchesKeyword(events[0], 'Sacramento') === true, 'city match');
-assert(eventMatchesKeyword(events[1], 'Phoenix') === true, 'city match 2');
+test('eventMatchesKeyword: city match', () => {
+  const e = { title: 'Some Event', venue: '', city: 'Phoenix' };
+  assert.ok(eventMatchesKeyword(e, 'phoenix'));
+});
 
-// No-result query
-assert(eventMatchesKeyword(events[0], 'Taylor Swift') === false, 'no-result: Taylor Swift not in events');
-assert(eventMatchesKeyword(events[1], 'Lakers') === false, 'no-result: Lakers not in events');
-assert(eventMatchesKeyword(events[2], 'Beatles') === false, 'no-result: Beatles not in events');
+test('eventMatchesKeyword: no match', () => {
+  const e = { title: 'Some Event', venue: 'Some Venue', city: 'Some City' };
+  assert.ok(!eventMatchesKeyword(e, 'Nonexistent'));
+});
 
-// Empty keyword matches all
-assert(eventMatchesKeyword(events[0], '') === true, 'empty keyword matches all');
-assert(eventMatchesKeyword(events[0], '   ') === true, 'whitespace-only keyword matches all');
+test('eventMatchesKeyword: empty keyword matches all', () => {
+  const e = { title: 'Some Event', venue: '', city: '' };
+  assert.ok(eventMatchesKeyword(e, ''));
+});
 
-// Null fields
-assert(eventMatchesKeyword({ title: 'Test', venue: null, city: null, artist: null }, 'Test') === true, 'null fields handled');
-assert(eventMatchesKeyword({ title: null, venue: null, city: null, artist: null }, 'Test') === false, 'all null fields → no match');
+test('eventMatchesKeyword: null event fields', () => {
+  const e = { title: null, venue: null, city: null, artist: null };
+  assert.ok(!eventMatchesKeyword(e, 'something'));
+});
 
-// ── Filter simulation (mimics Events.jsx fetchEvents logic) ─────────────
-console.log('\n── Filter simulation ──');
-const keyword = 'diamondbacks';
-const filtered = events.filter(e => eventMatchesKeyword(e, keyword));
-assert(filtered.length === 1, `keyword "diamondbacks" → 1 result`);
-assert(filtered[0].title.includes('Diamondbacks'), 'filtered result is the D-backs game');
+// ── haversineDistance ───────────────────────────────────────────────────
+test('haversineDistance: same point = 0', () => {
+  assert.ok(haversineDistance(33.4484, -112.0740, 33.4484, -112.0740) < 0.01);
+});
 
-const keyword2 = 'phoenix';
-const filtered2 = events.filter(e => eventMatchesKeyword(e, keyword2));
-assert(filtered2.length === 2, `keyword "phoenix" → 2 results (city + team)`);
+test('haversineDistance: Phoenix to Tucson ≈ 114 miles', () => {
+  const d = haversineDistance(33.4484, -112.0740, 32.2226, -110.9747);
+  assert.ok(d > 100 && d < 130, `expected ~114, got ${d}`);
+});
 
-const keyword3 = 'nonexistent artist 12345';
-const filtered3 = events.filter(e => eventMatchesKeyword(e, keyword3));
-assert(filtered3.length === 0, `no-result keyword → 0 results`);
+test('haversineDistance: null coords = Infinity', () => {
+  assert.strictEqual(haversineDistance(null, null, 33, -112), Infinity);
+});
 
-// ── Summary ─────────────────────────────────────────────────────────────
-console.log(`\n  Total: ${passed} passed, ${failed} failed`);
-if (failed === 0) {
-  console.log('╔════════════════════════════════════════════════════════════╗');
-  console.log('║  VERDICT: PASS — Search normalization verified.            ║');
-  console.log('╚════════════════════════════════════════════════════════════╝');
-  process.exit(0);
-} else {
-  console.log('╔════════════════════════════════════════════════════════════╗');
-  console.log('║  VERDICT: FAIL — Search normalization regression.          ║');
-  console.log('╚════════════════════════════════════════════════════════════╝');
-  process.exit(1);
-}
+// ── eventWithinRadius ────────────────────────────────────────────────────
+test('eventWithinRadius: event within radius', () => {
+  const e = { venue_lat: 33.45, venue_lng: -112.07 };
+  assert.ok(eventWithinRadius(e, 33.4484, -112.0740, 50));
+});
+
+test('eventWithinRadius: event outside radius', () => {
+  const e = { venue_lat: 32.22, venue_lng: -110.97 }; // Tucson
+  assert.ok(!eventWithinRadius(e, 33.4484, -112.0740, 50));
+});
+
+test('eventWithinRadius: missing coords → included (safe default)', () => {
+  const e = { venue_lat: null, venue_lng: null };
+  assert.ok(eventWithinRadius(e, 33.4484, -112.0740, 50));
+});
+
+test('eventWithinRadius: missing lat only → included', () => {
+  const e = { venue_lat: null, venue_lng: -112.07 };
+  assert.ok(eventWithinRadius(e, 33.4484, -112.0740, 50));
+});
+
+// ── Summary ──────────────────────────────────────────────────────────────
+console.log('');
+console.log(`  Total: ${passed} passed, ${failed} failed`);
+if (failed === 0) { console.log('  ✅ ALL PASSED'); process.exit(0); }
+else { console.log('  ❌ FAILURES'); process.exit(1); }

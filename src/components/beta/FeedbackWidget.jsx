@@ -18,20 +18,34 @@ export default function FeedbackWidget({ user }) {
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState(null);
+  const [cooldownUntil, setCooldownUntil] = useState(0);
+
+  // M0.1 SECURITY: Do NOT send user_email or user_name from the client.
+  // Base44 auto-sets created_by_id (immutable authenticated creator identity).
+  // Admins join to User via created_by_id for email/name — never trust client input.
+  // M0.1 RATE LIMIT: Client-side 5s cooldown between submissions.
+  //   Server-side rate-limiting requires a backend function (BLOCKED at 50-fn limit).
+  const MAX_MESSAGE_LEN = 2000;
 
   const handleSend = async () => {
     if (!selected || sending) return; // prevent double submission
+    if (Date.now() < cooldownUntil) {
+      setError('Please wait a few seconds before sending again.');
+      return;
+    }
+    // Field-length validation
+    const trimmed = message.slice(0, MAX_MESSAGE_LEN).trim();
     setSending(true);
     setError(null);
     try {
       await base44.entities.BetaFeedbackEvent.create({
         feedback_type: selected,
         page: location.pathname,
-        message: message.trim() || null,
-        user_email: user?.email || null,
-        user_name: user?.full_name || null,
+        message: trimmed || null,
+        // user_email and user_name intentionally omitted — derived from created_by_id
       });
       setSent(true);
+      setCooldownUntil(Date.now() + 5000); // 5s cooldown
       setTimeout(() => { setSent(false); setOpen(false); setSelected(null); setMessage(''); }, 1800);
     } catch (_err) {
       setError('Could not send. Please try again.');
@@ -57,9 +71,9 @@ export default function FeedbackWidget({ user }) {
         </button>
       )}
 
-      {/* Sheet */}
+      {/* Sheet — z-[70] unmistakably above bottom nav (z-50) */}
       {open && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
+        <div className="fixed inset-0 z-[70] flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
           onClick={e => { if (e.target === e.currentTarget) setOpen(false); }}>
           <div className="w-full max-w-lg rounded-t-3xl p-5 space-y-4"
             style={{ background: 'hsl(var(--card))', border: '1px solid rgba(255,255,255,0.1)', paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))' }}>

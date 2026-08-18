@@ -44,13 +44,19 @@ export async function fetchTMEvents(base44, params) {
     .invoke('getTicketmasterEvents', params)
     .then(res => {
       const events = res?.data?.events || [];
+      // Safety: if an error object slipped through as a 200, don't cache it
+      // as an empty successful result — throw so the .catch fires.
+      if (res?.data?.error) {
+        throw { status: res.data.upstream_status || 500, message: res.data.error };
+      }
       cache.set(key, { data: events, ts: Date.now() });
       inFlight.delete(key);
       return events;
     })
     .catch(err => {
       inFlight.delete(key);
-      const status = err?.response?.status || err?.status;
+      // Do NOT cache error responses — only successful results are cached.
+      const status = err?.response?.status || err?.status || err?.status;
       console.error('[tmCache] getTicketmasterEvents failed — status:', status, '| key:', key, '| message:', err?.message);
       throw err;
     });

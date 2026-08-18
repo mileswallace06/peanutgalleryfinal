@@ -22,7 +22,24 @@ function writeSS(data) {
   try { sessionStorage.setItem(SS_KEY, JSON.stringify(data)); } catch {}
 }
 
-import { normalizeSearch, eventMatchesKeyword } from '@/lib/searchNormalize';
+import { normalizeSearch, eventMatchesKeyword, eventWithinRadius } from '@/lib/searchNormalize';
+
+// ── Bounded pagination constants ──────────────────────────────────────────
+// M0.1: The previous Event.list('date', 50) only fetched the first 50 of 1258
+// events. This bounded pagination fetches all events in pages of 500, up to
+// a documented maximum of 5000 (10 pages). If the max is hit, a warning is shown.
+const PAGE_SIZE = 500;
+const MAX_PAGES = 10; // 5000 events max
+
+async function fetchAllEvents() {
+  const all = [];
+  for (let skip = 0; skip < MAX_PAGES * PAGE_SIZE; skip += PAGE_SIZE) {
+    const page = await base44.entities.Event.filter({}, 'date', PAGE_SIZE, skip);
+    all.push(...page);
+    if (page.length < PAGE_SIZE) break; // no more pages
+  }
+  return all;
+}
 
 export default function Events() {
   const _ss = readSS();
@@ -37,6 +54,9 @@ export default function Events() {
 
   const [tmError, setTmError] = useState(false);
   const [networkError, setNetworkError] = useState(false);
+  const [pgError, setPgError] = useState(false);       // PG-source failure (distinct from TM)
+  const [partialData, setPartialData] = useState(false); // TM failed, PG partial results shown
+  const [truncated, setTruncated] = useState(false);     // hit the 5000-event bounded max
   const [keyword, setKeyword] = useState('');
   // Sort: 'soonest' = upcoming soonest (default), 'latest' = latest upcoming
   // showPast: when false (default) hides past events; when true shows everything
@@ -79,6 +99,9 @@ export default function Events() {
     setLoading(true);
     setTmError(false);
     setNetworkError(false);
+    setPgError(false);
+    setPartialData(false);
+    setTruncated(false);
     const now = Date.now();
     const tmParams = { size: 40 };
     if (ll) { tmParams.latlong = ll; tmParams.radius = '50'; }
@@ -89,20 +112,28 @@ export default function Events() {
 
     try {
       // Decouple PG and TM fetches — TM failure must not block PG results.
+      // M0.1: PG fetch now uses bounded pagination (all events, not just first 50).
       const [localResult, tmResult] = await Promise.allSettled([
-        base44.entities.Event.list('date', 50),
+        fetchAllEvents(),
         fetchTMEvents(base44, tmParams),
       ]);
 
+      // ── Distinguish PG-source failure from TM-source failure ──────────
       const localData = localResult.status === 'fulfilled' ? localResult.value : [];
-      const tmEventsRaw = tmResult.status === 'fulfilled' ? tmResult.value.events : [];
+      const tmEventsRaw = tmResult.status === 'fulfilled' ? tmResult.value : [];
 
-      // Surface TM rate-limit/network errors without blocking PG results
-      if (tmResult.status === 'rejected') {
-        const tmErr = tmResult.reason;
-        const status = tmErr?.response?.status || tmErr?.status;
+      if (localResult.status === 'rejected' && !signal.aborted) {
+        console.error('[Events] PG fetch failed:', localResult.reason?.message);
+        setPgError(true);
+      }
+
+      // Track partial data: TM failed but PG succeeded
+      const tmFailed = tmResult.status === 'rejected';
+      if (tmFailed && localResult.status === 'fulfilled' && !signal.aborted) {
+        const status = tmResult.reason?.response?.status || tmResult.reason?.status;
         if (status === 429) setTmError(true);
-        else if (!signal.aborted) console.warn('[Events] TM fetch failed, showing PG only:', tmErr?.message);
+        else setPartialData(true);
+        console.warn('[Events] TM fetch failed — showing PG partial results');
       }
 
       const eligible = localData.filter(e => e.status !== 'ended');
@@ -119,11 +150,11 @@ export default function Events() {
         );
       }
       if (ll) {
-        // Only filter PG events by TM cities if TM returned results.
-        // If TM failed or returned nothing, show all PG events (don't hide them).
-        const tmCities = new Set(tmEventsRaw.map(e => e.city?.toLowerCase()).filter(Boolean));
-        if (tmCities.size > 0) {
-          pgFiltered = pgFiltered.filter(e => !e.city || tmCities.has(e.city.toLowerCase()));
+        // M0.1: Geospatial near-me filter — filter PG events by haversine distance.
+        // Events missing coordinates are INCLUDED (safe default — don't hide them).
+        const [lat, lng] = ll.split(',').map(Number);
+        if (!isNaN(lat) && !isNaN(lng)) {
+          pgFiltered = pgFiltered.filter(e => eventWithinRadius(e, lat, lng, 50));
         }
       }
       if (keyword) {
@@ -392,6 +423,25 @@ export default function Events() {
             className="flex items-center gap-1 text-xs font-bold underline underline-offset-2 flex-shrink-0">
             <RefreshCw className="w-3 h-3" /> Retry
           </button>
+        </div>
+      )}
+      {/* M0.1: PG-source failure (distinct from TM failure) */}
+      {pgError && !networkError && (
+        <div className="mx-4 mb-3 px-4 py-3 rounded-2xl text-sm font-medium flex items-center justify-between gap-3"
+          style={{ background: 'rgba(var(--neon-pink-rgb), 0.08)', border: '1px solid rgba(var(--neon-pink-rgb), 0.2)', color: 'var(--neon-pink)' }}>
+          <span>Could not load Peanut Gallery events. Showing Ticketmaster only.</span>
+          <button onClick={() => fetchEvents(latlongRef.current || null, null, null, true)}
+            className="flex items-center gap-1 text-xs font-bold underline underline-offset-2 flex-shrink-0">
+            <RefreshCw className="w-3 h-3" /> Retry
+          </button>
+        </div>
+      )}
+      {/* M0.1: Partial data — TM failed, PG partial results shown */}
+      {partialData && !tmError && (
+        <div className="mx-4 mb-3 px-4 py-3 rounded-2xl text-xs font-medium flex items-center gap-2"
+          style={{ background: 'rgba(var(--neon-yellow-rgb), 0.06)', border: '1px solid rgba(var(--neon-yellow-rgb), 0.2)', color: 'var(--neon-yellow)' }}>
+          <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0" />
+          <span>Showing Peanut Gallery events only — Ticketmaster is temporarily unavailable.</span>
         </div>
       )}
 
