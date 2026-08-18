@@ -31,43 +31,6 @@ Deno.serve(async (req) => {
 
   const body = await req.json().catch(() => ({}));
 
-  // TEMPORARY F.3.1 PROBE WIRING — removed after probe execution
-  if (body?.action === 'authority_probe_v2') {
-    const adminUrl = Deno.env.get('AUTHORITY_DB_URL_DEV_ADMIN');
-    const executorUrl = Deno.env.get('AUTHORITY_DB_URL_DEV_EXECUTOR');
-    if (!adminUrl || !executorUrl) {
-      return Response.json({ error: 'Secrets not configured' }, { status: 500 });
-    }
-    const { runAuthorityProbeV2 } = await import('../../shared/authorityProbeV2.js');
-    const probeResults = await runAuthorityProbeV2(adminUrl, executorUrl);
-    // Compact summary for visibility, plus full results
-    const compact = {
-      verdict: probeResults.verdict,
-      synthetic_rows_remaining: probeResults.synthetic_rows_remaining,
-      proofs: Object.fromEntries(
-        Object.entries(probeResults.proofs).filter(([k]) => ['p12_privileges','p13_executor_secret','p14_latency','p15_cleanup'].includes(k)).map(([k, v]) => [k, {
-          pass: v.pass,
-          error: v.error || null,
-          ...(v.result != null ? { result: v.result } : {}),
-          ...(v.step2_reserve != null ? { step2_reserve: v.step2_reserve, step3_conflict: v.step3_conflict, step4_release: v.step4_release, step5_replay: v.step5_replay } : {}),
-          ...(v.exact_match != null ? { exact_match: v.exact_match } : {}),
-          ...(v.step1 != null ? { step1: v.step1, step2: v.step2 } : {}),
-          ...(v.injected_error != null ? { injected_error: v.injected_error, state_after_rollback: v.state_after_rollback } : {}),
-          ...(v.winners != null ? { winners: v.winners, conflicts: v.conflicts, errors: v.errors, winner_result: v.winner_result } : {}),
-          ...(v.successful_count != null && v.operation_count != null ? { successful_count: v.successful_count, operation_count: v.operation_count, operation_status: v.operation_status, all_identical: v.all_identical, sample_result: v.sample_result } : {}),
-          ...(v.state_before != null ? { state_before: v.state_before, result: v.result, state_after: v.state_after } : {}),
-          ...(v.recovered != null ? { recovered: v.recovered } : {}),
-          ...(v.successful_count != null && v.operation_count == null ? { successful_count: v.successful_count, error_count: v.error_count, unique_incident_ids: v.unique_incident_ids, final_incident_id: v.final_incident_id, final_occurrence_count: v.final_occurrence_count, all_same_id: v.all_same_id } : {}),
-          ...(v.checks ? { checks: v.checks, method: v.method } : {}),
-          ...(v.executor_user != null ? { executor_user: v.executor_user, database: v.database, admin_user: v.admin_user, executor_is_probe_role: v.executor_is_probe_role, admin_is_different: v.admin_is_different } : {}),
-          ...(v.samples != null ? { samples: v.samples, latencies_ms: v.latencies_ms, min_ms: v.min_ms, median_ms: v.median_ms, p95_ms: v.p95_ms, max_ms: v.max_ms } : {}),
-          ...(v.cleanup != null ? { cleanup: v.cleanup, count_after: v.count_after } : {}),
-        }])
-      ),
-    };
-    return Response.json(compact);
-  }
-
   const confirm = body?.confirm === true;
   const batchLimit = Math.min(500, Math.max(1, Number(body?.batch_limit) || 200));
   const resumeAfter = body?.resume_after || {};

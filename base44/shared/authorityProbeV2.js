@@ -37,11 +37,15 @@ export async function runAuthorityProbeV2(adminUrl, executorUrl) {
   const admin = createAdminClient(adminUrl);
   const executorSql = neon(executorUrl); // raw executor for privilege denial tests
 
+  const runId = `run_${crypto.randomUUID()}`;
+  const startedAt = new Date().toISOString();
   const results = {
     phase: '1B',
     gate: 'F.3.1',
     type: 'RETAIN-AND-CERTIFY',
-    timestamp: new Date().toISOString(),
+    run_id: runId,
+    started_at: startedAt,
+    timestamp: startedAt,
     verdict: 'PASS',
     database: runtime.fingerprint.database,
     schema: 'authority_probe_v2',
@@ -50,6 +54,11 @@ export async function runAuthorityProbeV2(adminUrl, executorUrl) {
     provider_calls: 0,
     synthetic_rows_remaining: 0,
     secret_leakage: false,
+    sql_artifact_hashes: {
+      '001_schema.sql': '8155a5301b286b6a7b6df56045bdd182ff1f1bd10493761d9436f401112c4c1f',
+      '002_functions.sql': '1c503d6641587536a3f07b3f48a8dd9710a0d3f75cf6398fdcf1e06841befad4',
+      '003_roles.sql': '274c3c931aa5c801158e3cde8a7dcb92aa590aafae63a50430b532b19a4a80a6',
+    },
     corrections_applied: [
       'SECURITY DEFINER search_path hardened: authority_probe_v2, pg_catalog',
       'pgcrypto digest() schema-qualified as public.digest()',
@@ -169,17 +178,20 @@ GRANT EXECUTE ON FUNCTION authority_probe_v2.upsert_incident(TEXT,TEXT,TEXT,TEXT
     const step2 = await runtime.reserveListing('probe_v2_p3_listing', 0, 'buyer_p3', 'token_p3', expiresAt, 'probe_v2_p3_reserve_op', { test: 'p3', step: 'reserve' });
     const step3 = await runtime.reserveListing('probe_v2_p3_listing', 0, 'buyer_p3_b', 'token_p3_b', expiresAt, 'probe_v2_p3_conflict_op', { test: 'p3', step: 'conflict' });
     const step4 = await runtime.releaseListing('probe_v2_p3_listing', 1, 'buyer_p3', 'probe_v2_p3_release_op', { test: 'p3', step: 'release' });
+    const stateAfterRelease = await runtime.getState('probe_v2_p3_listing');
     const step5Full = await runtime.getOperationResult('probe_v2_p3_conflict_op');
     const step5 = step5Full?.result_json || step5Full;
     const exactMatch = step3?.ok === step5?.ok && step3?.code === step5?.code;
     const pass = step2?.ok === true && step3?.code === 'CONFLICT' && step4?.ok === true &&
+      stateAfterRelease?.lifecycle_state === 'available' && stateAfterRelease?.buyer_user_id === null &&
       step5?.code === 'CONFLICT' && exactMatch;
     results.proofs.p3_conflict_persistence = {
       pass,
-      step2_reserve: step2,
-      step3_conflict: step3,
-      step4_release: step4,
-      step5_replay: step5,
+      step2_reserve: { ok: step2?.ok, version: step2?.version },
+      step3_conflict: { ok: step3?.ok, code: step3?.code },
+      step4_release: { ok: step4?.ok, version: step4?.version },
+      state_after_release: { lifecycle_state: stateAfterRelease?.lifecycle_state, buyer_user_id: stateAfterRelease?.buyer_user_id, version: stateAfterRelease?.version },
+      step5_replay: { ok: step5?.ok, code: step5?.code },
       exact_match: exactMatch,
     };
     if (!pass) allPass = false;
@@ -190,7 +202,7 @@ GRANT EXECUTE ON FUNCTION authority_probe_v2.upsert_incident(TEXT,TEXT,TEXT,TEXT
     const step1 = await runtime.initializeListing('probe_v2_p4_listing', 'seller_p4', 'probe_v2_p4_op', { test: 'p4', step: 1 });
     const step2 = await runtime.initializeListing('probe_v2_p4_listing', 'seller_p4', 'probe_v2_p4_op', { test: 'p4', step: 2 });
     const pass = step1?.ok === true && step2?.code === 'OPERATION_ID_CONFLICT';
-    results.proofs.p4_operation_id_conflict = { pass, step1, step2 };
+    results.proofs.p4_operation_id_conflict = { pass, step1: { ok: step1?.ok, version: step1?.version }, step2: { ok: step2?.ok, code: step2?.code } };
     if (!pass) allPass = false;
   } catch (e) { fail('p4_operation_id_conflict', e); }
 
@@ -214,12 +226,21 @@ GRANT EXECUTE ON FUNCTION authority_probe_v2.upsert_incident(TEXT,TEXT,TEXT,TEXT
       injected = true;
     }
     const state = await runtime.getState('probe_v2_p6_listing');
+    const residueRows = await admin.exec`
+      SELECT count(*) as cnt FROM authority_probe_v2.reservation_operations
+      WHERE operation_id = 'probe_v2_p6_fail_op'
+    `;
+    const residue = Number(residueRows[0]?.cnt || 0);
+    const retry = await runtime.reserveListing('probe_v2_p6_listing', 0, 'buyer_p6_retry', 'token_p6_retry', expiresAt, 'probe_v2_p6_retry_op', { test: 'p6_retry' });
     const pass = injected && state?.ok === true && state?.version === 0 &&
-      state?.lifecycle_state === 'available' && state?.buyer_user_id === null;
+      state?.lifecycle_state === 'available' && state?.buyer_user_id === null &&
+      residue === 0 && retry?.ok === true;
     results.proofs.p6_rollback = {
       pass,
       injected_error: injected ? 'INJECTED_FAILURE' : 'NOT_RAISED',
-      state_after_rollback: state,
+      state_after_rollback: { ok: state?.ok, version: state?.version, lifecycle_state: state?.lifecycle_state, buyer_user_id: state?.buyer_user_id },
+      operation_residue: residue,
+      retry_result: { ok: retry?.ok, version: retry?.version },
     };
     if (!pass) allPass = false;
   } catch (e) { fail('p6_rollback', e); }
@@ -243,7 +264,7 @@ GRANT EXECUTE ON FUNCTION authority_probe_v2.upsert_incident(TEXT,TEXT,TEXT,TEXT
       } else errors++;
     }
     const pass = winners === 1 && conflicts === 99 && errors === 0;
-    results.proofs.p7_concurrent_distinct = { pass, winners, conflicts, errors, winner_result: winnerResult, winner_buyer_index: winnerBuyerIndex };
+    results.proofs.p7_concurrent_distinct = { pass, winners, conflicts, errors, winner_buyer_index: winnerBuyerIndex, winner_version: winnerResult?.version };
     if (!pass) allPass = false;
   } catch (e) { fail('p7_concurrent_distinct', e); }
 
@@ -282,7 +303,7 @@ GRANT EXECUTE ON FUNCTION authority_probe_v2.upsert_incident(TEXT,TEXT,TEXT,TEXT
       operation_status: opStatus,
       successful_count: successful,
       all_identical: allIdentical,
-      sample_result: sampleResult,
+      sample_version: sampleResult?.version,
     };
     if (!pass) allPass = false;
   } catch (e) { fail('p8_concurrent_identical', e); }
@@ -294,7 +315,12 @@ GRANT EXECUTE ON FUNCTION authority_probe_v2.upsert_incident(TEXT,TEXT,TEXT,TEXT
     const r = await runtime.releaseListing('probe_v2_p7_listing', 1, winnerBuyerId, 'probe_v2_p9_release_op', { test: 'p9' });
     const stateAfter = await runtime.getState('probe_v2_p7_listing');
     const pass = r?.ok === true && stateAfter?.lifecycle_state === 'available' && stateAfter?.buyer_user_id === null;
-    results.proofs.p9_release = { pass, state_before: stateBefore, result: r, state_after: stateAfter };
+    results.proofs.p9_release = {
+      pass,
+      state_before: { lifecycle_state: stateBefore?.lifecycle_state, buyer_user_id: stateBefore?.buyer_user_id, version: stateBefore?.version },
+      result: { ok: r?.ok, version: r?.version },
+      state_after: { lifecycle_state: stateAfter?.lifecycle_state, buyer_user_id: stateAfter?.buyer_user_id, version: stateAfter?.version },
+    };
     if (!pass) allPass = false;
   } catch (e) { fail('p9_release', e); }
 
@@ -304,7 +330,7 @@ GRANT EXECUTE ON FUNCTION authority_probe_v2.upsert_incident(TEXT,TEXT,TEXT,TEXT
     await runtime.reserveListing('probe_v2_p10_listing', 0, 'buyer_p10', 'token_p10', expiresAt, 'probe_v2_p10_op', { test: 'p10' });
     const recovered = await runtime.getOperationResult('probe_v2_p10_op');
     const pass = recovered?.ok === true && recovered?.status === 'committed' && recovered?.result_json?.ok === true;
-    results.proofs.p10_unknown_recovery = { pass, recovered };
+    results.proofs.p10_unknown_recovery = { pass, recovered: { ok: recovered?.ok, status: recovered?.status, committed_version: recovered?.committed_version, result_ok: recovered?.result_json?.ok } };
     if (!pass) allPass = false;
   } catch (e) { fail('p10_unknown_recovery', e); }
 
@@ -344,8 +370,14 @@ GRANT EXECUTE ON FUNCTION authority_probe_v2.upsert_incident(TEXT,TEXT,TEXT,TEXT
   try {
     const checks = {};
     const isDenied = (e) => {
-      const msg = String(e?.message || e || '').toLowerCase();
-      return msg.includes('permission denied') || msg.includes('permission_denied') || msg.includes('denied');
+      const code = e?.code || e?.cause?.code;
+      const msg = String(e?.message || e || '');
+      // SQLSTATE 42501 = insufficient_privilege — the ONLY acceptable denial code
+      if (code === '42501') return true;
+      // Postgres error text for 42501 contains "permission denied"
+      if (/\bpermission denied\b/i.test(msg)) return true;
+      // Explicitly reject non-permission errors (syntax, missing, connection, timeout, generic)
+      return false;
     };
     // Direct table operations denied
     try { await executorSql`SELECT * FROM authority_probe_v2.reservation_authority LIMIT 1`; checks.executor_select_denied = false; }
@@ -416,7 +448,6 @@ GRANT EXECUTE ON FUNCTION authority_probe_v2.upsert_incident(TEXT,TEXT,TEXT,TEXT
     results.proofs.p14_latency = {
       pass,
       samples: latencies.length,
-      latencies_ms: latencies,
       min_ms: min,
       median_ms: median,
       p95_ms: p95,
@@ -436,6 +467,7 @@ GRANT EXECUTE ON FUNCTION authority_probe_v2.upsert_incident(TEXT,TEXT,TEXT,TEXT
     if (!pass) allPass = false;
   } catch (e) { fail('p15_cleanup', e); }
 
+  results.completed_at = new Date().toISOString();
   results.verdict = allPass ? 'PASS' : 'FAIL';
   return results;
 }
