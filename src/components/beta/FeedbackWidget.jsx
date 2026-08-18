@@ -20,11 +20,11 @@ export default function FeedbackWidget({ user }) {
   const [error, setError] = useState(null);
   const [cooldownUntil, setCooldownUntil] = useState(0);
 
-  // M0.1 SECURITY: Do NOT send user_email or user_name from the client.
-  // Base44 auto-sets created_by_id (immutable authenticated creator identity).
-  // Admins join to User via created_by_id for email/name — never trust client input.
-  // M0.1 RATE LIMIT: Client-side 5s cooldown between submissions.
-  //   Server-side rate-limiting requires a backend function (BLOCKED at 50-fn limit).
+  // M0.2 SECURITY: Feedback is submitted via the submitFeedback backend function,
+  // which enforces server-side cooldowns (60s per user, 3 per 10 min) and derives
+  // user identity from the authenticated session. Client-supplied email/name
+  // fields are never sent or trusted.
+  // A short client-side 5s cooldown remains for double-tap prevention (UX only).
   const MAX_MESSAGE_LEN = 2000;
 
   const handleSend = async () => {
@@ -33,22 +33,27 @@ export default function FeedbackWidget({ user }) {
       setError('Please wait a few seconds before sending again.');
       return;
     }
-    // Field-length validation
     const trimmed = message.slice(0, MAX_MESSAGE_LEN).trim();
     setSending(true);
     setError(null);
     try {
-      await base44.entities.BetaFeedbackEvent.create({
+      await base44.functions.invoke('submitFeedback', {
         feedback_type: selected,
         page: location.pathname,
         message: trimmed || null,
-        // user_email and user_name intentionally omitted — derived from created_by_id
       });
       setSent(true);
-      setCooldownUntil(Date.now() + 5000); // 5s cooldown
+      setCooldownUntil(Date.now() + 5000); // 5s UX cooldown (server enforces 60s)
       setTimeout(() => { setSent(false); setOpen(false); setSelected(null); setMessage(''); }, 1800);
-    } catch (_err) {
-      setError('Could not send. Please try again.');
+    } catch (err) {
+      // M0.2: Handle server-side cooldown responses
+      const status = err?.response?.status || err?.status;
+      if (status === 429) {
+        const retryAfter = err?.response?.data?.retry_after || err?.data?.retry_after || 60;
+        setError(`Please wait ${retryAfter}s before sending again.`);
+      } else {
+        setError('Could not send. Please try again.');
+      }
     } finally {
       setSending(false);
     }
