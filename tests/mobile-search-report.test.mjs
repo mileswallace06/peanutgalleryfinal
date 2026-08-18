@@ -20,17 +20,15 @@ import assert from 'assert';
 import {
   normalizeSearch,
   eventMatchesKeyword,
-  haversineDistance,
   eventWithinRadius,
 } from '../src/lib/searchNormalize.js';
 import { classifyTMResponse } from '../src/lib/tmResponseHandler.js';
 
 let passed = 0, failed = 0;
-function test(name, fn) {
-  try { fn(); console.log(`  PASS: ${name}`); passed++; }
-  catch (e) { console.error(`  FAIL: ${name} — ${e.message}`); failed++; }
-}
+const tests = [];
+function test(name, fn) { tests.push({ name, fn }); }
 
+(async () => {
 console.log('╔══════════════════════════════════════════════════════════════════╗');
 console.log('║  mobile-search-report.test.mjs — M0.1 behavior tests           ║');
 console.log('╚══════════════════════════════════════════════════════════════════╝\n');
@@ -41,7 +39,6 @@ test('partial failure: TM 429 → rate_limited, PG events still shown', () => {
   assert.strictEqual(tmResult.error, 'rate_limited');
   assert.strictEqual(tmResult.events.length, 0);
   assert.strictEqual(tmResult.partial, true);
-  // PG events are independent — they would still be shown
 });
 
 test('partial failure: TM 500 → upstream_error, PG events still shown', () => {
@@ -57,37 +54,28 @@ test('partial failure: TM timeout → upstream_error, PG events still shown', ()
 });
 
 test('partial failure: TM malformed JSON → not cached as success', () => {
-  // The backend function catches .json() throw and returns 502
-  // classifyTMResponse with ok=true + data=null → no error (empty result)
-  // But the backend function handles this case by returning 502 before reaching here
   const r = classifyTMResponse({ ok: true, status: 200, data: null });
   assert.strictEqual(r.events.length, 0);
 });
 
 test('PG failure distinct from TM failure: both can fail independently', () => {
   const tmResult = classifyTMResponse({ ok: false, status: 429, data: null });
-  // PG failure would be a rejected promise from fetchAllEvents — simulated here
   const pgFailed = true;
   const tmFailed = tmResult.error !== null;
-  // Both can be true simultaneously
   assert.ok(pgFailed && tmFailed, 'both PG and TM can fail independently');
 });
 
 // ── 2. More-than-50-record search ────────────────────────────────────────
 test('search beyond 50: client-side filter finds match in position 100+', () => {
-  // Simulate 100+ events (as would be fetched by bounded pagination)
   const events = [];
   for (let i = 0; i < 100; i++) {
     events.push({ title: `Event ${i}`, venue: `Venue ${i}`, city: 'Phoenix' });
   }
-  // Target at position 100 (beyond first 50)
   events.push({ title: 'You Are Cordially Invited to the End of the World!', venue: 'Allen Theatre', city: 'Ashland' });
 
-  // The first 50 would miss this — bounded pagination fetches all
   const first50 = events.slice(0, 50);
   assert.ok(!first50.some(e => eventMatchesKeyword(e, 'Cordially Invited')));
 
-  // Full set finds it
   const full = events.filter(e => eventMatchesKeyword(e, 'Cordially Invited'));
   assert.strictEqual(full.length, 1);
   assert.strictEqual(full[0].title, 'You Are Cordially Invited to the End of the World!');
@@ -122,9 +110,6 @@ test('429 propagation: not converted to "no events" (error is non-null)', () => 
 });
 
 test('429 propagation: error response is not cached as empty success', () => {
-  // The tmCache.js .then() only runs on success (200).
-  // A 429 causes the promise to reject, so .catch fires, and the result is NOT cached.
-  // This test verifies the classifyTMResponse output would trigger the .catch path.
   const r = classifyTMResponse({ ok: false, status: 429, data: null });
   assert.ok(r.error !== null, 'error is non-null → backend returns 429 → SDK rejects → not cached');
 });
@@ -146,15 +131,13 @@ test('geospatial: event missing coords → included (safe default)', () => {
 });
 
 test('geospatial: does not show every PG event globally when near-me TM returns zero', () => {
-  // When TM returns 0 events for near-me, PG events are filtered by haversine,
-  // not by TM cities. Events outside the radius are excluded.
   const pgEvents = [
     { title: 'Phoenix Event', venue_lat: 33.45, venue_lng: -112.07 },
     { title: 'Tucson Event', venue_lat: 32.22, venue_lng: -110.97 },
     { title: 'No Coords Event', venue_lat: null, venue_lng: null },
   ];
   const filtered = pgEvents.filter(e => eventWithinRadius(e, 33.4484, -112.0740, 50));
-  assert.strictEqual(filtered.length, 2); // Phoenix + No Coords (safe default)
+  assert.strictEqual(filtered.length, 2);
   assert.ok(!filtered.some(e => e.title === 'Tucson Event'));
 });
 
@@ -181,27 +164,24 @@ test('diacritic: normalizeSearch strips combining marks', () => {
 });
 
 // ── 6. Feedback double submission (logic) ────────────────────────────────
-test('feedback double submission: sending guard prevents re-entry', () => {
+test('feedback double submission: sending guard prevents re-entry', async () => {
   let sending = false;
   let createCalls = 0;
   const handleSend = async () => {
-    if (sending) return; // guard
+    if (sending) return;
     sending = true;
     createCalls++;
     await new Promise(r => setTimeout(r, 10));
     sending = false;
   };
-  // First call
   await handleSend();
-  // Second call immediately (sending=false after first completes)
   await handleSend();
-  assert.strictEqual(createCalls, 2); // both succeed (sequential)
+  assert.strictEqual(createCalls, 2);
 
-  // Now test simultaneous calls
   sending = false;
   createCalls = 0;
   const p1 = handleSend();
-  const p2 = handleSend(); // should be blocked by guard
+  const p2 = handleSend();
   await Promise.all([p1, p2]);
   assert.strictEqual(createCalls, 1, 'simultaneous double call → only 1 create');
 });
@@ -215,8 +195,8 @@ test('feedback cooldown: prevents rapid re-submission', () => {
     cooldownUntil = Date.now() + 5000;
     return true;
   };
-  assert.ok(handleSend());     // first call succeeds
-  assert.ok(!handleSend());   // second call blocked by cooldown
+  assert.ok(handleSend());
+  assert.ok(!handleSend());
 });
 
 // ── 7. Feedback field-length validation (logic) ──────────────────────────
@@ -233,8 +213,15 @@ test('feedback validation: empty message → null (not empty string)', () => {
   assert.strictEqual(result, null);
 });
 
+// ── Run all tests ─────────────────────────────────────────────────────────
+for (const { name, fn } of tests) {
+  try { await fn(); console.log(`  PASS: ${name}`); passed++; }
+  catch (e) { console.error(`  FAIL: ${name} — ${e.message}`); failed++; }
+}
+
 // ── Summary ──────────────────────────────────────────────────────────────
 console.log('');
 console.log(`  Total: ${passed} passed, ${failed} failed`);
 if (failed === 0) { console.log('  ✅ ALL PASSED'); process.exit(0); }
 else { console.log('  ❌ FAILURES'); process.exit(1); }
+})();

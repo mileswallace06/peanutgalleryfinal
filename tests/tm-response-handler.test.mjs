@@ -37,10 +37,11 @@ test('200 with no events → success, empty array', () => {
   assert.strictEqual(r.partial, false);
 });
 
-test('200 with null data → success, empty array', () => {
+test('200 with null data → success, empty array (null is valid JSON)', () => {
   const r = classifyTMResponse({ ok: true, status: 200, data: null });
   assert.strictEqual(r.error, null);
   assert.strictEqual(r.events.length, 0);
+  assert.strictEqual(r.partial, false);
 });
 
 test('429 → rate_limited, partial=true', () => {
@@ -73,15 +74,13 @@ test('404 → not an error, empty events', () => {
   assert.strictEqual(r.partial, false);
 });
 
-test('malformed JSON (data=null after parse fail) → malformed_response', () => {
+test('malformed JSON handled by backend (not by classifyTMResponse)', () => {
+  // The backend function catches .json() throw and returns 502 before
+  // classifyTMResponse is called. So classifyTMResponse only sees
+  // successfully-parsed data (which can be null for empty TM responses).
   const r = classifyTMResponse({ ok: true, status: 200, data: null });
-  // When .json() throws, data is null but ok was true → malformed
-  // But our 200+null case above returns success. Let's test the actual malformed path:
-  // The function checks !data AFTER !ok, so ok=true + data=null → success with 0 events.
-  // This is because a 200 with empty body is valid (no events).
-  // The malformed case is when .json() throws, which the backend catches separately.
-  // For the pure function, ok=true + data=null → no error (empty result).
   assert.strictEqual(r.error, null);
+  assert.strictEqual(r.events.length, 0);
 });
 
 test('timeout (ok=false, status=0) → upstream_error', () => {

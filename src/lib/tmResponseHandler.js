@@ -33,12 +33,10 @@ export function classifyTMResponse({ ok, status, data }) {
     return { error: 'upstream_error', upstream_status: status, events: [], partial: true };
   }
 
-  // Malformed JSON (data is null because .json() threw or returned null)
-  if (!data) {
-    return { error: 'malformed_response', upstream_status: status, events: [], partial: true };
-  }
-
-  // Success — extract events
+  // data can be null (valid JSON null response from TM) — the backend
+  // function handles truly malformed JSON (.json() throw) separately and
+  // returns 502 before this function is ever called.
+  // Extract events safely with optional chaining.
   const rawEvents = data?._embedded?.events || [];
   return { error: null, upstream_status: status, events: rawEvents, partial: false };
 }
