@@ -8,6 +8,7 @@ import { getEventUrl } from '@/lib/eventUrl';
 import { logNavEvent } from '@/lib/navLogger';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { fetchTMEvents, bustTMCache } from '@/lib/tmCache';
+import { mergeEventSources } from '@/lib/eventSourceMerger';
 import { useLocationDetect } from '@/hooks/useLocationDetect';
 import LocationAutocomplete from '@/components/LocationAutocomplete';
 import EventsEmptyState from '@/components/events/EventsEmptyState';
@@ -22,23 +23,38 @@ function writeSS(data) {
   try { sessionStorage.setItem(SS_KEY, JSON.stringify(data)); } catch {}
 }
 
-import { normalizeSearch, eventMatchesKeyword, eventWithinRadius } from '@/lib/searchNormalize';
+import { normalizeSearch, escapeRegex } from '@/lib/searchNormalize';
 
-// ── Bounded pagination constants ──────────────────────────────────────────
-// M0.1: The previous Event.list('date', 50) only fetched the first 50 of 1258
-// events. This bounded pagination fetches all events in pages of 500, up to
-// a documented maximum of 5000 (10 pages). If the max is hit, a warning is shown.
-const PAGE_SIZE = 500;
-const MAX_PAGES = 10; // 5000 events max
+// ── Server-side filtered search (M0.2) ─────────────────────────────────────
+// Replaces the download-all strategy: instead of fetching up to 5000 events
+// and filtering client-side, we query search_text_normalized server-side with
+// $regex and a bounded result limit.
+const PG_SEARCH_LIMIT = 100;   // keyword search: max 100 results
+const PG_BROWSE_LIMIT = 200;  // city/near-me browse: max 200 results
 
-async function fetchAllEvents() {
-  const all = [];
-  for (let skip = 0; skip < MAX_PAGES * PAGE_SIZE; skip += PAGE_SIZE) {
-    const page = await base44.entities.Event.filter({}, 'date', PAGE_SIZE, skip);
-    all.push(...page);
-    if (page.length < PAGE_SIZE) break; // no more pages
+function buildPGQuery({ keyword, cityOverride, ll }) {
+  const query = {};
+  if (keyword) {
+    const normalized = normalizeSearch(keyword);
+    const escaped = escapeRegex(normalized);
+    if (escaped) query.search_text_normalized = { $regex: escaped, $options: 'i' };
   }
-  return all;
+  if (cityOverride) {
+    const cityNorm = normalizeSearch(cityOverride);
+    const escaped = escapeRegex(cityNorm);
+    if (escaped) query.city = { $regex: escaped, $options: 'i' };
+  }
+  if (ll) {
+    // Near-me: only fetch events with valid coordinates (server-side filter).
+    // The haversine radius filter is applied client-side by the merger.
+    query.venue_lat = { $ne: null };
+    query.venue_lng = { $ne: null };
+  }
+  return query;
+}
+
+async function fetchPGEvents(query, limit) {
+  return await base44.entities.Event.filter(query, 'date', limit, 0);
 }
 
 export default function Events() {
@@ -112,70 +128,37 @@ export default function Events() {
 
     try {
       // Decouple PG and TM fetches — TM failure must not block PG results.
-      // M0.1: PG fetch now uses bounded pagination (all events, not just first 50).
+      const pgQuery = buildPGQuery({ keyword, cityOverride, ll });
+      const pgLimit = keyword ? PG_SEARCH_LIMIT : PG_BROWSE_LIMIT;
       const [localResult, tmResult] = await Promise.allSettled([
-        fetchAllEvents(),
+        fetchPGEvents(pgQuery, pgLimit),
         fetchTMEvents(base44, tmParams),
       ]);
 
-      // ── Distinguish PG-source failure from TM-source failure ──────────
-      const localData = localResult.status === 'fulfilled' ? localResult.value : [];
-      const tmEventsRaw = tmResult.status === 'fulfilled' ? tmResult.value : [];
+      if (signal.aborted) return;
 
-      if (localResult.status === 'rejected' && !signal.aborted) {
+      // M0.2: Use the shared event-source merger — fixes the tmResult.value contract
+      // mismatch (fetchTMEvents returns { events, fromCache }, not an array).
+      const merged = mergeEventSources({
+        localResult, tmResult,
+        filters: { cityOverride, ll, keyword, isAdmin, now },
+      });
+
+      if (merged.pgError) {
         console.error('[Events] PG fetch failed:', localResult.reason?.message);
         setPgError(true);
       }
-
-      // Track partial data: TM failed but PG succeeded
-      const tmFailed = tmResult.status === 'rejected';
-      if (tmFailed && localResult.status === 'fulfilled' && !signal.aborted) {
-        const status = tmResult.reason?.response?.status || tmResult.reason?.status;
-        if (status === 429) setTmError(true);
-        else setPartialData(true);
+      if (merged.tmError) setTmError(true);
+      if (merged.partialData) {
         console.warn('[Events] TM fetch failed — showing PG partial results');
+        setPartialData(true);
       }
 
-      const eligible = localData.filter(e => e.status !== 'ended');
-      const pgEvents = isAdmin
-        ? eligible
-        : eligible.filter(e => !e.date || now < new Date(e.date).getTime());
-      let pgFiltered = pgEvents.filter(e => !e.is_beta_live);
-
-      if (cityOverride) {
-        const cityNorm = normalizeSearch(cityOverride);
-        pgFiltered = pgFiltered.filter(e =>
-          normalizeSearch(e.city).includes(cityNorm) ||
-          normalizeSearch(e.venue).includes(cityNorm)
-        );
-      }
-      if (ll) {
-        // M0.1: Geospatial near-me filter — filter PG events by haversine distance.
-        // Events missing coordinates are INCLUDED (safe default — don't hide them).
-        const [lat, lng] = ll.split(',').map(Number);
-        if (!isNaN(lat) && !isNaN(lng)) {
-          pgFiltered = pgFiltered.filter(e => eventWithinRadius(e, lat, lng, 50));
-        }
-      }
-      if (keyword) {
-        pgFiltered = pgFiltered.filter(e => eventMatchesKeyword(e, keyword));
-      }
-
-      if (signal.aborted) return;
-      const pgMapped = pgFiltered.map(e => ({ ...e, source: 'pg' }));
-      // Apply keyword filter to TM events client-side too (TM may return unfiltered
-      // results when only keyword is sent without a location).
-      let tmEvents = tmEventsRaw.map(e => ({ ...e, id: `tm_${e.tm_id}`, source: 'ticketmaster' }));
-      if (keyword) {
-        tmEvents = tmEvents.filter(e => eventMatchesKeyword(e, keyword));
-      }
-      setEvents([...pgMapped, ...tmEvents]);
+      setEvents(merged.events);
 
       // Persist TM events locally so they survive past start time.
       // SESSION DEDUP: only sync each tm_id once per session to prevent duplicate DB records.
-      // The syncTMEvent function is an upsert, but concurrent calls from multiple tabs/renders
-      // can still create duplicates if the first write hasn't committed before the second read.
-      const toSync = tmEventsRaw.filter(e => e.tm_id && !syncedTmIds.current.has(e.tm_id));
+      const toSync = merged.tmEventsRaw.filter(e => e.tm_id && !syncedTmIds.current.has(e.tm_id));
       toSync.forEach(e => syncedTmIds.current.add(e.tm_id)); // mark BEFORE async call
       // Serialize syncs to avoid write races — stagger by 200ms per event
       toSync.forEach((e, i) => {
@@ -184,6 +167,7 @@ export default function Events() {
             tm_id: e.tm_id, title: e.title, venue: e.venue, city: e.city,
             state: e.state, date: e.date, image_url: e.image_url,
             tm_url: e.tm_url, category: e.category || null,
+            venue_lat: e.venue_lat ?? null, venue_lng: e.venue_lng ?? null,
           }).catch(syncErr => console.warn('[Events] syncTMEvent failed for', e.tm_id, syncErr?.message));
         }, i * 200);
       });

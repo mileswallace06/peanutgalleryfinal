@@ -10,7 +10,7 @@
  * and empty-result responses. No live Ticketmaster calls.
  */
 import assert from 'assert';
-import { classifyTMResponse, normalizeTMEvent } from '../src/lib/tmResponseHandler.js';
+import { classifyTMResponse, normalizeTMEvent } from '../base44/shared/tmResponseHandler.js';
 
 let passed = 0, failed = 0;
 function test(name, fn) {
@@ -118,11 +118,31 @@ test('normalizeTMEvent: full event', () => {
   assert.strictEqual(e.source, 'ticketmaster');
 });
 
+test('normalizeTMEvent: preserves venue lat/lng', () => {
+  const raw = {
+    id: '1', name: 'Test',
+    _embedded: { venues: [{ id: 'v1', name: 'V', city: { name: 'C' }, state: { stateCode: 'AZ' }, location: { latitude: 33.4484, longitude: -112.0740 } }] },
+    images: [], dates: { start: {} },
+  };
+  const e = normalizeTMEvent(raw);
+  assert.strictEqual(e.venue_lat, 33.4484);
+  assert.strictEqual(e.venue_lng, -112.0740);
+});
+
+test('normalizeTMEvent: null lat/lng when missing', () => {
+  const raw = { id: '1', name: 'Test', _embedded: { venues: [{ id: 'v1', name: 'V', city: { name: 'C' } }] }, images: [], dates: { start: {} } };
+  const e = normalizeTMEvent(raw);
+  assert.strictEqual(e.venue_lat, null);
+  assert.strictEqual(e.venue_lng, null);
+});
+
 test('normalizeTMEvent: missing venue', () => {
   const raw = { id: '1', name: 'Test', _embedded: {}, images: [], dates: { start: {} } };
   const e = normalizeTMEvent(raw);
   assert.strictEqual(e.venue, '');
   assert.strictEqual(e.city, '');
+  assert.strictEqual(e.venue_lat, null);
+  assert.strictEqual(e.venue_lng, null);
 });
 
 test('normalizeTMEvent: fallback date from localDate', () => {

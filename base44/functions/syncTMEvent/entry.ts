@@ -2,15 +2,15 @@
  * Upserts a Ticketmaster event into the local Event entity and maintains a
  * normalized Venue record keyed by Ticketmaster's stable venue ID.
  *
- * Body: { tm_id, title, venue, city, state, date, image_url, tm_url, category, tm_venue_id }
+ * M0.2: Now generates search_text_normalized for server-side keyword search
+ * and preserves venue_lat/venue_lng for near-me geospatial filtering.
  *
- * - Captures tm_venue_id (the permanent relationship — venue names can change).
- * - Auto-creates/updates a Venue row by tm_venue_id.
- * - Resolves and stores Event.hero_image_url using the shared hero resolver:
- *     TM event artwork → Venue hero_image → '' (UI renders GeneratedHero).
+ * Body: { tm_id, title, venue, city, state, date, image_url, tm_url, category,
+ *         tm_venue_id, venue_lat, venue_lng }
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import { resolveEventHero } from '../../shared/eventHero.js';
+import { generateSearchTextNormalized } from '../../shared/searchNormalize.js';
 
 const CATEGORY_TO_IDENTITY = {
   concert: 'concert',
@@ -27,11 +27,16 @@ Deno.serve(async (req) => {
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await req.json().catch(() => ({}));
-    const { tm_id, title, venue, city, state, date, image_url, tm_url, category, tm_venue_id } = body;
+    const { tm_id, title, venue, city, state, date, image_url, tm_url, category, tm_venue_id, venue_lat, venue_lng } = body;
 
     if (!tm_id || !title) {
       return Response.json({ error: 'tm_id and title are required' }, { status: 400 });
     }
+
+    // ── Generate normalized search text ──────────────────────────────────
+    const searchTextNormalized = generateSearchTextNormalized({
+      title, venue, city, state,
+    });
 
     // ── Upsert Venue by Ticketmaster's stable venue ID ──────────────────────
     let venueRecord = null;
@@ -76,6 +81,9 @@ Deno.serve(async (req) => {
           image_url: effectiveImage,
           tm_url: tm_url || canonical.tm_url,
           tm_venue_id: tm_venue_id || canonical.tm_venue_id,
+          venue_lat: venue_lat ?? canonical.venue_lat,
+          venue_lng: venue_lng ?? canonical.venue_lng,
+          search_text_normalized: searchTextNormalized,
           hero_image_url: resolveEventHero({ image_url: effectiveImage }, venueRecord) || '',
         });
         return Response.json({ status: 'deduped', id: canonical.id, duplicates_removed: sorted.length - 1 });
@@ -86,6 +94,9 @@ Deno.serve(async (req) => {
         image_url: effectiveImage,
         tm_url: tm_url || existing[0].tm_url,
         tm_venue_id: tm_venue_id || existing[0].tm_venue_id,
+        venue_lat: venue_lat ?? existing[0].venue_lat,
+        venue_lng: venue_lng ?? existing[0].venue_lng,
+        search_text_normalized: searchTextNormalized,
         hero_image_url: resolveEventHero({ image_url: effectiveImage }, venueRecord) || '',
       });
       return Response.json({ status: 'updated', id: existing[0].id });
@@ -98,6 +109,7 @@ Deno.serve(async (req) => {
       venue: venue || '',
       city: city || '',
       state: state || '',
+      search_text_normalized: searchTextNormalized,
       date: date || undefined,
       image_url: image_url || '',
       tm_url: tm_url || '',
@@ -105,11 +117,13 @@ Deno.serve(async (req) => {
       status: 'upcoming',
       is_beta_live: false,
       tm_venue_id: tm_venue_id || '',
+      venue_lat: venue_lat ?? null,
+      venue_lng: venue_lng ?? null,
       hero_image_url: resolveEventHero({ image_url: image_url || '' }, venueRecord) || '',
     });
 
     return Response.json({ status: 'created', id: created.id });
-  } catch (error) {
-    return Response.json({ error: error.message }, { status: 500 });
+  } catch (_error) {
+    return Response.json({ error: 'internal_error' }, { status: 500 });
   }
 });

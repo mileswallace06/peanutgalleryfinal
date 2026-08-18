@@ -43,11 +43,17 @@ export async function fetchTMEvents(base44, params) {
   const promise = base44.functions
     .invoke('getTicketmasterEvents', params)
     .then(res => {
-      const events = res?.data?.events || [];
       // Safety: if an error object slipped through as a 200, don't cache it
       // as an empty successful result — throw so the .catch fires.
       if (res?.data?.error) {
         throw { status: res.data.upstream_status || 500, message: res.data.error };
+      }
+      // M0.2: Validate events is an array — malformed responses must NOT be
+      // cached as empty successful results. The previous `|| []` silently
+      // converted null/non-array to [], hiding contract violations.
+      const events = res?.data?.events;
+      if (!Array.isArray(events)) {
+        throw { status: 502, message: 'malformed_tm_response' };
       }
       cache.set(key, { data: events, ts: Date.now() });
       inFlight.delete(key);

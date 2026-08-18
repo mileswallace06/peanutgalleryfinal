@@ -74,8 +74,18 @@ export function haversineDistance(lat1, lng1, lat2, lng2) {
 }
 
 /**
+ * Escape a string for safe use in a RegExp.
+ * @param {string} s
+ * @returns {string}
+ */
+export function escapeRegex(s) {
+  return (s || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
  * Check if an event is within a given radius of a point.
- * Events missing coordinates are INCLUDED (safe default — don't hide them).
+ * M0.2: Events missing coordinates are EXCLUDED from near-me results.
+ * They remain discoverable through keyword/city search.
  *
  * @param {object} event - Event with venue_lat, venue_lng
  * @param {number} lat - Center latitude
@@ -84,8 +94,8 @@ export function haversineDistance(lat1, lng1, lat2, lng2) {
  * @returns {boolean}
  */
 export function eventWithinRadius(event, lat, lng, radiusMiles) {
-  // Safe default: events without coordinates are always included
-  if (event.venue_lat == null || event.venue_lng == null) return true;
+  // M0.2: Events without coordinates are EXCLUDED from near-me
+  if (event.venue_lat == null || event.venue_lng == null) return false;
   const dist = haversineDistance(lat, lng, event.venue_lat, event.venue_lng);
   return dist <= radiusMiles;
 }

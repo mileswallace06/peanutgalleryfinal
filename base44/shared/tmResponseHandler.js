@@ -1,11 +1,12 @@
 /**
- * Pure TM response classification logic — shared between the backend function
- * and the frontend tests. This module contains NO side effects and NO I/O,
- * making it directly testable in Node.js (.mjs) test runners.
+ * Shared TM response classification and event normalization.
  *
- * The backend function (base44/functions/getTicketmasterEvents/entry.ts)
- * mirrors this logic inline because Deno cannot import from src/lib/.
- * Tests import THIS module to verify the production logic.
+ * Genuinely shared between the deployed backend (getTicketmasterEvents) and
+ * test suites — NOT a copied implementation. The backend imports this module
+ * directly; tests import the same module to verify production logic.
+ *
+ * This module contains NO side effects and NO I/O, making it directly testable
+ * in Node.js (.mjs) test runners.
  */
 
 /**
@@ -23,12 +24,12 @@ export function classifyTMResponse({ ok, status, data }) {
     if (status === 429) {
       return { error: 'rate_limited', upstream_status: 429, events: [], partial: true };
     }
-    if (status >= 500) {
-      return { error: 'upstream_error', upstream_status: status, events: [], partial: true };
-    }
     if (status === 404) {
       // 404 from TM = no events found, not an error
       return { error: null, upstream_status: 404, events: [], partial: false };
+    }
+    if (status >= 500) {
+      return { error: 'upstream_error', upstream_status: status, events: [], partial: true };
     }
     return { error: 'upstream_error', upstream_status: status, events: [], partial: true };
   }
@@ -43,6 +44,9 @@ export function classifyTMResponse({ ok, status, data }) {
 
 /**
  * Normalize a raw TM event into the app's event shape.
+ *
+ * M0.2: Now preserves venue latitude and longitude when supplied by TM.
+ *
  * @param {object} e - Raw Ticketmaster event object
  * @returns {object} Normalized event
  */
@@ -59,6 +63,8 @@ export function normalizeTMEvent(e) {
     venue: venue?.name || '',
     city: venue?.city?.name || '',
     state: venue?.state?.stateCode || '',
+    venue_lat: venue?.location?.latitude ?? null,
+    venue_lng: venue?.location?.longitude ?? null,
     image_url: image?.url || '',
     tm_url: e.url || '',
     source: 'ticketmaster',
