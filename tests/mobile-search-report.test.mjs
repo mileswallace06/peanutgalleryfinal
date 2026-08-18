@@ -22,7 +22,7 @@ import {
   eventMatchesKeyword,
   eventWithinRadius,
 } from '../src/lib/searchNormalize.js';
-import { classifyTMResponse } from '../src/lib/tmResponseHandler.js';
+import { classifyTMResponse } from '../base44/shared/tmResponseHandler.js';
 
 let passed = 0, failed = 0;
 const tests = [];
@@ -125,9 +125,9 @@ test('geospatial: event in Tucson (~114 miles) → excluded from 50-mile radius'
   assert.ok(!eventWithinRadius(e, 33.4484, -112.0740, 50));
 });
 
-test('geospatial: event missing coords → included (safe default)', () => {
+test('geospatial: event missing coords → excluded (M0.2: no auto-include)', () => {
   const e = { venue_lat: null, venue_lng: null };
-  assert.ok(eventWithinRadius(e, 33.4484, -112.0740, 50));
+  assert.ok(!eventWithinRadius(e, 33.4484, -112.0740, 50));
 });
 
 test('geospatial: does not show every PG event globally when near-me TM returns zero', () => {
@@ -137,8 +137,9 @@ test('geospatial: does not show every PG event globally when near-me TM returns 
     { title: 'No Coords Event', venue_lat: null, venue_lng: null },
   ];
   const filtered = pgEvents.filter(e => eventWithinRadius(e, 33.4484, -112.0740, 50));
-  assert.strictEqual(filtered.length, 2);
+  assert.strictEqual(filtered.length, 1);
   assert.ok(!filtered.some(e => e.title === 'Tucson Event'));
+  assert.ok(!filtered.some(e => e.title === 'No Coords Event'));
 });
 
 // ── 5. Unicode/diacritic normalization ────────────────────────────────────

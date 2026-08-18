@@ -144,14 +144,14 @@ test('eventWithinRadius: event outside radius', () => {
   assert.ok(!eventWithinRadius(e, 33.4484, -112.0740, 50));
 });
 
-test('eventWithinRadius: missing coords → included (safe default)', () => {
+test('eventWithinRadius: missing coords → excluded (M0.2: no auto-include)', () => {
   const e = { venue_lat: null, venue_lng: null };
-  assert.ok(eventWithinRadius(e, 33.4484, -112.0740, 50));
+  assert.ok(!eventWithinRadius(e, 33.4484, -112.0740, 50));
 });
 
-test('eventWithinRadius: missing lat only → included', () => {
+test('eventWithinRadius: missing lat only → excluded', () => {
   const e = { venue_lat: null, venue_lng: -112.07 };
-  assert.ok(eventWithinRadius(e, 33.4484, -112.0740, 50));
+  assert.ok(!eventWithinRadius(e, 33.4484, -112.0740, 50));
 });
 
 // ── Summary ──────────────────────────────────────────────────────────────
