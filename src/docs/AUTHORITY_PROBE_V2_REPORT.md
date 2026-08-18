@@ -1,24 +1,28 @@
-# Authority Probe v2 — F.3 Certification Report
+# Authority Probe v2 — F.3.1 Certification Report
 
-**Phase 1B · Gate F.3 · RETAIN-AND-CERTIFY**
+**Phase 1B · Gate F.3.1 · ARTIFACT-AND-RUNTIME-BOUNDARY CORRECTION**
 **Verdict: PASS**
-**Date: 2026-08-12**
+**Date: 2026-08-18**
+**Run ID: `run_cc5796a6-94bc-4449-a645-ba82c520fae0`**
 
 ---
 
 ## 1. Executive Summary
 
-The Authority Probe v2 was executed against the Neon development database with all three corrections applied:
+The Authority Probe v2 was re-executed against the Neon development database with the F.3.1 artifact-and-runtime-boundary correction applied. This gate splits the authority client into a runtime-only executor client and a separate admin/test client, restricts executor grants to 6 allowlisted functions only, and makes the 15-proof certification substantive via independent invariant assertions.
 
-1. **SECURITY DEFINER hardening** — `search_path` changed from `authority_probe_v2, public, pg_temp` to `authority_probe_v2, pg_catalog`. `digest()` schema-qualified as `public.digest()`. No untrusted schema in `search_path`.
-2. **P12 ACL evaluation** — regex-based `proacl` text matching replaced with `aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner)))` effective ACL evaluation. Verifies no `grantee = 0` (PUBLIC) entry grants `EXECUTE`.
-3. **P11 exact concurrency** — brand-new incident key, exactly 100 simultaneous calls, `occurrence_count = 100` (no setup/final upsert).
+**F.3.1 Corrections:**
 
-**All 15 proofs PASS. Zero synthetic rows remain. Zero secret leakage detected.**
+1. **Client split** — `authorityClient.js` (runtime, executor-only, 6 allowlisted methods) separated from `authorityAdmin.js` (deployment/test-only, raw SQL, schema management). Production handlers import only the runtime client.
+2. **Executor privilege reduction** — `003_roles.sql` revokes EXECUTE on ALL functions from executor, then grants only 6 runtime-allowlisted functions. `acquire_operation`, `cleanup_synthetic`, `count_synthetic`, and `reserve_and_fail` are explicitly NOT granted.
+3. **Substantive test** — `tests/authority-probe-v2-live.test.mjs` rewritten with 114 independent invariant assertions. Each proof's evidence fields are verified against expected invariants, not merely `pass === true`. SQL artifact hashes are independently recomputed and compared.
+4. **Canonical results** — Full 15-proof evidence persisted in `tests/authority-probe-v2-live-results.json` under a single run ID. No rerun required for certification retrieval.
+
+**All 15 proofs PASS. 114/114 invariant assertions satisfied. Zero synthetic rows remain. Zero secret leakage detected.**
 
 ---
 
-## 2. Live Proof Results (Final Run)
+## 2. Live Proof Results (Final Run — 2026-08-18T20:41:18Z)
 
 | Proof | Description | Result |
 |-------|-------------|--------|
@@ -29,49 +33,56 @@ The Authority Probe v2 was executed against the Neon development database with a
 | P3 | Persist conflict → make eligible → replay returns original conflict | ✅ PASS (exact_match: true) |
 | P4 | Operation ID reuse with changed payload → OPERATION_ID_CONFLICT | ✅ PASS |
 | P5 | Stale expected version → CONFLICT | ✅ PASS |
-| P6 | Post-update failure → transaction rollback (state unchanged) | ✅ PASS |
-| P7 | 100 concurrent distinct reservations → 1 winner, 99 conflicts | ✅ PASS |
+| P6 | Post-update failure → transaction rollback (state unchanged, 0 residue) | ✅ PASS |
+| P7 | 100 concurrent distinct reservations → 1 winner, 99 conflicts, 0 errors | ✅ PASS |
 | P8 | 100 concurrent identical retries → 1 operation row, all identical | ✅ PASS |
 | P9 | Release reservation → available, version incremented | ✅ PASS |
 | P10 | Unknown client response → recover by operation ID | ✅ PASS |
 | P11 | 100 concurrent incident upserts → 1 row, 1 ID, occurrence_count = 100 | ✅ PASS |
-| P12 | Privilege matrix (aclexplode ACL evaluation) | ✅ PASS |
+| P12 | Privilege matrix (aclexplode ACL evaluation, PUBLIC EXECUTE count = 0) | ✅ PASS |
 | P13 | Handler uses executor secret, never admin | ✅ PASS |
-| P14 | 25 latency samples (min 8ms, median 9ms, p95 12ms, max 13ms) | ✅ PASS |
+| P14 | 25 latency samples (min 9ms, median 10ms, p95 11ms, max 11ms) | ✅ PASS |
 | P15 | Cleanup → zero synthetic rows | ✅ PASS |
 
-### Key Correction Verification
+### F.3.1 Boundary Verification
 
-- **P3 (conflict persistence):** Step 3 reserve with stale version → `{ok: false, code: "CONFLICT"}`. Step 4 release makes the listing eligible again. Step 5 replays the same operation ID → returns the original stored conflict `{ok: false, code: "CONFLICT"}`, not a new success. `exact_match: true`.
-
-- **P11 (exact concurrency):** Brand-new key `probe_v2_p11_incident_<timestamp>`. Exactly 100 concurrent `upsert_incident` calls. `successful_count: 100`, `error_count: 0`, `unique_incident_ids: 1`, `final_occurrence_count: 100`. No setup call, no final verification upsert.
-
-- **P12 (ACL evaluation):** `aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner)))` with `grantee = 0 AND privilege = 'EXECUTE'`. `public_execute_count: 0`. Runtime denials: executor SELECT/INSERT/UPDATE/DELETE denied, `reserve_and_fail` denied to executor.
+- **Runtime client (`authorityClient.js`):** Executor-only URL parameter. No admin URL. No raw-SQL method. 6 allowlisted function calls via hardcoded names. Fingerprint validation (role + Neon hostname + database name).
+- **Admin client (`authorityAdmin.js`):** Never imported by any production handler (`base44/functions/*/entry.ts`). Used only by the probe module for schema deployment and privilege auditing.
+- **Executor grants:** `acquire_operation`, `cleanup_synthetic`, `count_synthetic`, `reserve_and_fail` explicitly NOT granted to `authority_probe_executor`. P12 verifies all 4 are denied (SQLSTATE 42501).
+- **PUBLIC EXECUTE:** `public_execute_count: 0` across all 10 functions. `aclexplode(COALESCE(proacl, acldefault('f', proowner)))` evaluation confirms no grantee=0 EXECUTE entries.
 
 ---
 
-## 3. Corrections Applied
+## 3. F.3.1 Corrections Applied
 
-### 3.1 SECURITY DEFINER Hardening
+### 3.1 Client Split (F.3.1)
 
-All 10 stored functions in `database/authority_probe_v2/002_functions.sql` and the embedded SQL in the probe module:
+- **Before (F.3):** Single `authorityClient.js` with both runtime and admin capabilities.
+- **After (F.3.1):** Two modules:
+  - `base44/shared/authorityClient.js` — `createRuntimeClient(executorUrl)`. Exports 6 methods + `verifyEnvironment()` + fingerprint metadata. No admin URL, no raw SQL, no schema management.
+  - `base44/shared/authorityAdmin.js` — `createAdminClient(adminUrl)`. Raw SQL execution, schema deployment, privilege auditing, synthetic data management. Importable only by test/deployment code.
 
-- **Before:** `SET search_path = authority_probe_v2, public, pg_temp`
-- **After:** `SET search_path = authority_probe_v2, pg_catalog`
+### 3.2 Executor Privilege Reduction (F.3.1)
 
-`pgcrypto`'s `digest()` is schema-qualified as `public.digest()` — the verified installation schema on Neon (discovered from `pg_extension` / `pg_namespace`). `pg_catalog` is trusted and required for `gen_random_uuid()`. No untrusted schema appears in `search_path`.
+`database/authority_probe_v2/003_roles.sql` updated:
 
-### 3.2 P12 ACL Evaluation
+- **REVOKE EXECUTE** on ALL functions in schema from PUBLIC and executor (clean slate).
+- **GRANT EXECUTE** only on 6 runtime functions: `get_state`, `initialize_listing`, `reserve_listing`, `release_listing`, `get_operation_result`, `upsert_incident`.
+- **NOT GRANTED:** `acquire_operation` (internal helper), `cleanup_synthetic` (deletes all probe data), `count_synthetic` (diagnostic), `reserve_and_fail` (test-only rollback verification).
+- **Default privileges** altered to prevent future functions from gaining PUBLIC EXECUTE.
 
-- **Before:** Regex on `p.proacl::text` matching `(^|,)=X` — prone to false positives/negatives.
-- **After:** `aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner)))` — effective ACL evaluation. `acldefault('f', proowner)` handles `NULL proacl` (Postgres default grants PUBLIC EXECUTE on functions). `grantee = 0` is the OID of PUBLIC. `privilege = 'EXECUTE'` is the text privilege name returned by `aclexplode`.
+### 3.3 Substantive Test (F.3.1)
 
-Runtime denial attempts retained: executor cannot SELECT/INSERT/UPDATE/DELETE authority tables, executor cannot invoke `reserve_and_fail`.
+`tests/authority-probe-v2-live.test.mjs` rewritten:
 
-### 3.3 P11 Exact Concurrency
+- **114 independent invariant assertions** — each proof's evidence fields verified against expected values (e.g., P3: `step2_reserve.ok === true`, `step3_conflict.code === 'CONFLICT'`, `state_after_release.lifecycle_state === 'available'`, `exact_match === true`).
+- **SQL artifact hash verification** — SHA-256 of each committed SQL file independently recomputed at test time and compared against the hash recorded in the canonical results. Detects SQL drift.
+- **No-secret-leakage scan** — raw results JSON scanned for `postgres://`, `postgresql://`, `@neon.tech` patterns.
+- **Zero-synthetic-rows verification** — P15 `count_after.total === 0` asserted independently.
 
-- **Before:** 100 concurrent calls + 1 final verification upsert → `occurrence_count = 101`.
-- **After:** Brand-new unique key per run. Exactly 100 concurrent calls, no setup, no final upsert. Final `occurrence_count` read via admin `SELECT` (read-only, no mutation). Required: `successful_count = 100`, `unique_incident_ids = 1`, `final_occurrence_count = 100`, `error_count = 0`.
+### 3.4 Canonical Results Persistence (F.3.1)
+
+Full 15-proof evidence persisted in `tests/authority-probe-v2-live-results.json` under run ID `run_cc5796a6-94bc-4449-a645-ba82c520fae0`. Single run, no rerun. Stale file at `src/tests/authority-probe-v2-live-results.json` deleted.
 
 ---
 
@@ -79,19 +90,24 @@ Runtime denial attempts retained: executor cannot SELECT/INSERT/UPDATE/DELETE au
 
 | File | SHA-256 |
 |------|---------|
-| `base44/shared/authorityClient.js` | `1e2bdf1031cfc4d5fcf9040f4d9ce3c97f18765d1f67ff1b97d78f479e8b7643` |
+| `base44/shared/authorityClient.js` | `164cbaef0b16f1d41332744258cdd2efde73903e8e822e7e65a0caddbdd0f817` |
+| `base44/shared/authorityAdmin.js` | `ed47d5cf99611311784c1d037eb3f715ce69e5c744f13afe5961f5dc1996bd92` |
+| `base44/shared/authorityProbeV2.js` | `8d0de841dfd7d00c6db4a88091392bc7c7e4561a82372d23c7f5695cebb26f1b` |
 | `database/authority_probe_v2/001_schema.sql` | `8155a5301b286b6a7b6df56045bdd182ff1f1bd10493761d9436f401112c4c1f` |
 | `database/authority_probe_v2/002_functions.sql` | `1c503d6641587536a3f07b3f48a8dd9710a0d3f75cf6398fdcf1e06841befad4` |
-| `database/authority_probe_v2/003_roles.sql` | `5b1afb82f118d29fde6710109fa8708420122344738ec3e5292592b7d4d892a2` |
-| `tests/authority-probe-v2-live.test.mjs` | `55e6d4894ca847298a8c8a51bc2fd6a2d1a6d5f79b86e5282c0a0a8c13eed363` |
-| `src/tests/authority-probe-v2-live-results.json` | `36bb5289277ca0bb56b7393795648f86a89bd31ce91d5d275c5a607a044d2ae5` |
+| `database/authority_probe_v2/003_roles.sql` | `274c3c931aa5c801158e3cde8a7dcb92aa590aafae63a50430b532b19a4a80a6` |
+| `tests/authority-probe-v2-live.test.mjs` | `af7b80346560fa35f520b0cd2f071235b3c50bd74fac9eb820c2a034c39653c0` |
+| `tests/authority-probe-v2-live-results.json` | `a83d5c3832b6bbee4a8c25fe76a5361f0f4af8311bbdffb93f3d69c942987e62` |
 | `base44/functions/migrateSensitiveData/entry.ts` | `cc24c49c6969ba091b8f97c412159ca30b93af14838b379b15873dc401d8cc92` |
-| `package.json` | `49e839864c8e79df08452bb547c9beca64809500a0d69fc2a8c819f2e289ab6a` |
 
-### Temporary Artifacts Removed
+### Files Deleted
 
-- `base44/shared/authorityProbeV2.js` — **DELETED** (temporary probe module)
+- `src/tests/authority-probe-v2-live-results.json` — **DELETED** (stale location; canonical results moved to `tests/`)
+
+### Temporary Wiring Removed
+
 - `migrateSensitiveData` `authority_probe_v2` action — **REMOVED** (restored to pre-test hash `cc24c49c`)
+- Persisted MigrationRun probe records (migration_version 99) — **CLEANED** (1 record deleted)
 
 ---
 
@@ -99,21 +115,26 @@ Runtime denial attempts retained: executor cannot SELECT/INSERT/UPDATE/DELETE au
 
 | Command | Exit Code | Notes |
 |---------|----------|-------|
-| `npm run build` | **TIMEOUT** | Exec sandbox cannot run `node`/`npm` commands — `spawnSync ETIMEDOUT` at 110s. Known sandbox limitation. Build not verified in this environment. |
-| `npm test` | **TIMEOUT** | Same sandbox limitation. Test suite not executed via CLI. Results JSON validated directly in sandbox: all 15 proofs PASS. |
-| `npm run lint:backend` | **TIMEOUT** | Same sandbox limitation. Scoped ESLint not executed via CLI. |
-| `npm run lint` | **TIMEOUT** | Same sandbox limitation. |
+| `npm run test:authority-probe-v2` | **0** | 114 passed, 0 failed. All F.3.1 invariants certified. |
+| `npm run build` | **0** | Vite build succeeded. |
+| `npm test` | **1** | Pre-existing `launch-gate` RED failure (not F.3.1 related). 19/21 suites PASS. `concurrent-alert-deduplication` is a known-limitation. |
+| `npm run lint:backend` | **0** | 0 errors, 116 warnings (all `no-unused-vars`, pre-existing). |
+| `npm run lint` | **1** | 82 pre-existing `unused-imports` errors in untouched frontend files. Not F.3.1 related. |
+| Scoped ESLint `authorityProbeV2.js` | **0** | 0 errors, 6 warnings (pre-existing). |
+| Scoped ESLint `migrateSensitiveData/entry.ts` | **0** | 0 errors, 7 warnings (pre-existing). |
+| Scoped ESLint `authority-probe-v2-live.test.mjs` | **0** | Clean. |
 
-**Note:** The Base44 exec sandbox (`exec_tool`) runs Node.js CommonJS but cannot spawn `node` or `npm` child processes — they time out with `spawnSync ETIMEDOUT`. This is a platform limitation, not a code issue. The results JSON was validated directly in the sandbox by parsing and checking all 15 proof pass flags. The retained artifacts are syntactically valid SQL and JavaScript (no syntax errors detected during live execution against Neon).
+**Note:** `npm test` exit 1 is caused by the pre-existing launch-gate RED (production integration not implemented). All authority-related suites PASS. The `lint` exit 1 is caused by pre-existing unused-import errors in frontend files not touched by F.3.1.
 
 ---
 
 ## 6. Restoration Verification
 
 - **`migrateSensitiveData` hash:** `cc24c49c6969ba091b8f97c412159ca30b93af14838b379b15873dc401d8cc92` — matches pre-test hash `cc24c49c` ✅
-- **`authorityProbeV2.js`:** DELETED ✅
+- **`authorityAdmin.js` never imported by production handlers:** Verified (0 matches in `base44/functions/*/entry.ts`) ✅
+- **Runtime client has no admin URL / raw-SQL method:** Verified (regex flags were false positives from security-rule comments) ✅
+- **Environment fingerprint distinguishes Neon projects:** Verified (hostname `.neon.tech`/`.neon.build` + role + database, not merely `neondb`) ✅
 - **Production reservation entry points:** NOT modified ✅
-- **Function count:** 50 (unchanged) ✅
 - **Maintenance mode:** ON ✅
 
 ---
@@ -124,7 +145,7 @@ Runtime denial attempts retained: executor cannot SELECT/INSERT/UPDATE/DELETE au
 - **Schema retained:** `authority_probe_v2` (3 tables, 10 functions) ✅
 - **Executor role retained:** `authority_probe_executor` ✅
 - **Base44 secrets retained:** `AUTHORITY_DB_URL_DEV_ADMIN`, `AUTHORITY_DB_URL_DEV_EXECUTOR` ✅
-- **Secret leakage scan:** 0 findings across all 8 retained artifacts ✅
+- **Secret leakage scan:** 0 findings across all retained artifacts ✅
 
 ---
 
@@ -147,4 +168,4 @@ Runtime denial attempts retained: executor cannot SELECT/INSERT/UPDATE/DELETE au
 
 ---
 
-**F.3 certification complete. All retained artifacts committed.**
+**F.3.1 certification complete. All retained artifacts committed.**
