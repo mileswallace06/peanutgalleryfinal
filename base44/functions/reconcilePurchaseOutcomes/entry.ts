@@ -30,6 +30,7 @@ import { isMaintenanceActive } from '../../shared/maintenance.ts';
 import { sendTransactionalEmail } from '../../shared/notifications.ts';
 import { recordTerminalOutcome } from '../../shared/recordOutcome.ts';
 import { getPurchasePrivate, upsertPurchasePrivate, getUserSecurityProfile, upsertUserSecurityProfile, alertPrivateWriteFailure } from '../../shared/privateData.ts';
+import { repairCanaryMirrorOutbox } from '../../shared/canaryMirrorRepair.js';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
@@ -48,7 +49,20 @@ Deno.serve(async (req) => {
     // No session = called by the automation scheduler — allow.
   }
 
-  if (isMaintenanceActive()) return Response.json({ ok: true, skipped: 'maintenance mode' });
+  // ── Canary mirror outbox repair (always applies, not maintenance-gated) ──
+  // Canary testing happens during maintenance by design. The authority
+  // (Postgres) already committed the transition; the mirror MUST eventually be
+  // applied. This pass repairs pending CanaryMirrorOutbox items exactly once:
+  // pending→repaired (mirror applied) or pending→orphaned (listing deleted).
+  // Not gated by `confirm` — infrastructure repair, not business logic.
+  let canaryMirrorRepairResult = null;
+  try {
+    canaryMirrorRepairResult = await repairCanaryMirrorOutbox(base44.asServiceRole.entities);
+  } catch (_) {
+    // Best-effort: never let canary infrastructure repair break the main pass.
+  }
+
+  if (isMaintenanceActive()) return Response.json({ ok: true, skipped: 'maintenance mode', canary_mirror_repair: canaryMirrorRepairResult });
 
   const body = await req.json().catch(() => ({}));
   const confirm = body?.confirm === true;
@@ -364,6 +378,7 @@ Deno.serve(async (req) => {
   return Response.json({
     mode: confirm ? 'applied' : 'dry_run',
     findings,
+    canary_mirror_repair: canaryMirrorRepairResult,
     note: confirm
       ? 'Repairs applied: missing outcomes created, duplicates consolidated to oldest, duplicate points reversed, counters recomputed, stuck seller_notified cleared, failed channels retried.'
       : 'Dry run — no records were modified. Re-run with { confirm: true } to apply.',
