@@ -29,9 +29,13 @@ import { sha256Hex, canonicalEnvelope, genId, applyMirrorWithOutbox } from './ca
 
 export async function runCanaryScheduledRelease(deps) {
   const { entities, executorUrl, listing_id } = deps;
+  // Testability injection points — defaults preserve deployed behavior.
+  const isCanaryEnabledFn = deps.isCanaryEnabledFn || isCanaryEnabled;
+  const createClientFn = deps.createClientFn || createAuthorityV1Client;
+  const applyMirrorFn = deps.applyMirrorFn || applyMirrorWithOutbox;
 
   if (!listing_id) return { status: 400, body: { error: 'listing_id required' } };
-  if (!isCanaryEnabled()) return { status: 503, body: { error: 'Canary disabled', code: 'CANARY_DISABLED' } };
+  if (!isCanaryEnabledFn()) return { status: 503, body: { error: 'Canary disabled', code: 'CANARY_DISABLED' } };
   if (!executorUrl) return { status: 500, body: { error: 'No executor URL', code: 'NO_EXECUTOR_URL' } };
 
   // Read listing
@@ -50,10 +54,16 @@ export async function runCanaryScheduledRelease(deps) {
       listing_id: listing_id,
       transfer_status: 'pending_transfer',
     });
-  } catch (e) {
+  } catch {
     return {
       status: 409,
       body: { error: 'Active-purchase lookup failed — unsafe to release', code: 'LOOKUP_UNSAFE' },
+    };
+  }
+  if (!Array.isArray(activePurchases)) {
+    return {
+      status: 409,
+      body: { error: 'Active-purchase lookup returned malformed data — unsafe to release', code: 'LOOKUP_MALFORMED' },
     };
   }
   if (activePurchases.length > 0) {
@@ -64,7 +74,7 @@ export async function runCanaryScheduledRelease(deps) {
   }
 
   // ── Authority_v1 release (Postgres authoritative) ───────────────────────
-  const client = createAuthorityV1Client(executorUrl);
+  const client = createClientFn(executorUrl);
   await client.verifyEnvironment();
 
   const state = await client.getState(listing_id);
@@ -102,7 +112,7 @@ export async function runCanaryScheduledRelease(deps) {
       reservation_revision: null,
     },
   };
-  const mirror = await applyMirrorWithOutbox(
+  const mirror = await applyMirrorFn(
     entities, listing_id, mirrorPayload, false,
     result.version, result.revision, 'release',
   );

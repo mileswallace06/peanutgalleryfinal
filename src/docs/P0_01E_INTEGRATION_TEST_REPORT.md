@@ -1,141 +1,147 @@
 # P0-01E Integration Test Report
 
 **Date:** 2026-08-21
-**Scope:** authority_v1 canary integration of `processTransferReminders` (expired-reservation release path)
-**Status:** ✅ PASS — all executable tests green
+**Scope:** authority_v1 canary integration of `processTransferReminders` + exclusion analysis of `abortCheckout` and `cleanupAbandonedCheckouts`
+**Status:** ✅ PASS — all executable tests green, both fail-closed protections proven, all three entry points accounted for
 
 ---
 
-## Test Environment
+## 1. Status Table — Three Target Entry Points
 
-- **Canary flag:** `CANARY_ENABLED` toggled ON for testing, restored OFF after.
-- **Maintenance mode:** ON (unchanged — never disabled).
-- **Deployed handlers tested:** `reserveListing`, `processTransferReminders`.
-- **Authority schema:** `authority_v1` (Postgres/Neon dev).
-- **Executor role:** `authority_executor` (least-privilege, function-call-only).
-
----
-
-## Test Results
-
-### 1. Deployed `reserveListing` handler — canary reserve (PASS)
-
-Called the **actual deployed handler** with `{ listing_id, canary: true }`.
-
-| Field | Value |
-|---|---|
-| HTTP status | 200 |
-| `authority.ok` | true |
-| `authority.version` | 1 |
-| `authority.revision` | UUID (monotonic) |
-| `operation_id` | `canary_reserve_<id>_<uuid>` |
-| `mirror.listing` | ok |
-| `mirror.listing_private` | no_record (expected — no sidecar) |
-
-**Proof:** Postgres authoritative reserve committed; Base44 Listing mirror written.
+| Entry Point | Changed? | Reservation Mutation | Financial/Provider Effects | authority_v1 Integration | Reason |
+|---|---|---|---|---|---|
+| `processTransferReminders` | **Unchanged** (canary routing already integrated) | Clears `reservation_token`, `reserved_by_email`, `reservation_expires_at`, `reservation_revision` on expired reservations (L301-314, L357-370) | None on canary path (Stripe PI cancel only on non-canary seller-no-show expiry at L210-218; canary routing `continue`s before that) | **INTEGRATED** — calls `runCanaryScheduledRelease` for `[AUTH_CANARY]` listings | Eligible: system-initiated expired-reservation release with no financial side effects on the canary path |
+| `abortCheckout` | **Unchanged** | Clears reservation fields (L119-133) | **Cancels Stripe PaymentIntent** (L80-88: `stripe.paymentIntents.cancel`) | **EXCLUDED** | Financial: reservation release is embedded in a handler that cancels a Stripe PI. Cannot separate the release from the PI cancellation. No canary guard in `canaryGuard.js`. |
+| `cleanupAbandonedCheckouts` | **Unchanged** | **None** — Phase 2 recovery explicitly does NOT clear reservation fields (L423: `Listing.update({ status: 'active', hidden_reason: null })` only); post-verify requires `reservation_token === null` (L448) | **Cancels Stripe PIs** (Phase 1, L166: `stripe.paymentIntents.cancel`); **finalizes captured payments** (Phase 3, L500-540) | **EXCLUDED** | Financial + no release: Phase 1 cancels PIs; Phase 2 does not perform reservation releases at all (it quarantines and recovers, requiring reservation fields to already be null). No reservation release exists to route. |
 
 ---
 
-### 2. Deployed `processTransferReminders` handler — maintenance skip (PASS)
+## 2. Executable Module Tests — Fail-Closed Protections
 
-Called the **actual deployed handler** with `{}`.
+**Test file:** `tests/canary-scheduled-release-protections.test.mjs`
+**Imports:** `runCanaryScheduledRelease` from `../base44/shared/canaryScheduledRelease.js` (the actual shared module)
+**Method:** Dependency injection with explicit call counters; `isCanaryEnabledFn`, `createClientFn`, `applyMirrorFn` injected as mocks
 
-| Field | Value |
-|---|---|
-| HTTP status | 200 |
-| Body | `{ ok: true, skipped: "maintenance mode" }` |
+### Results: 7/7 PASS
 
-**Proof:** With maintenance ON, the handler skips all business logic — including the canary routing for expired reservations. The canary scheduled-release path is never reached. This confirms "flag OFF changes nothing" for the deployed handler: no synthetic or real records are touched while maintenance is ON.
+| # | Scenario | Result | Authority Release Calls | Mirror Mutations | Outbox Creations | Status Code | Code |
+|---|---|---|---|---|---|---|---|
+| 1 | Active purchase exists | PASS | 0 | 0 | 0 | 409 | `ACTIVE_PURCHASE` |
+| 2 | Lookup throws (Error) | PASS | 0 | 0 | 0 | 409 | `LOOKUP_UNSAFE` |
+| 3 | Lookup rejects (Promise.reject) | PASS | 0 | 0 | 0 | 409 | `LOOKUP_UNSAFE` |
+| 4 | Lookup returns malformed (object) | PASS | 0 | 0 | 0 | 409 | `LOOKUP_MALFORMED` |
+| 5 | Lookup returns malformed (null) | PASS | 0 | 0 | 0 | 409 | `LOOKUP_MALFORMED` |
+| 6 | Lookup returns malformed (string) | PASS | 0 | 0 | 0 | 409 | `LOOKUP_MALFORMED` |
+| 7 | Empty array (sanity: release proceeds) | PASS | 1 | 1 | 0 | 200 | `ok: true` |
 
----
+**Proof:** For every fail-closed case, authority release call count = 0, mirror mutation count = 0, outbox creation count = 0, and the result is a structured 409 non-success. The sanity check confirms the happy path still reaches the authority and mirror.
 
-### 3. authority_v1 release + idempotent replay (PASS)
+### Minimal Refactor for Testability
 
-Released the canary listing via `authority_v1.release_listing` (the actual shared implementation function), then replayed the **exact same** `operation_id` + `request_hash`.
+`canaryScheduledRelease.js` was minimally refactored:
+- Added optional `isCanaryEnabledFn`, `createClientFn`, `applyMirrorFn` injection points (defaults preserve deployed behavior — `processTransferReminders` passes none of these)
+- Added `Array.isArray(activePurchases)` check for malformed-data fail-closed (correctness fix — previously, a non-array return would silently pass through)
+- Changed `catch (e)` to `catch` (optional catch binding) to clear lint warning
 
-| Step | Result |
-|---|---|
-| State before | `version=1, lifecycle_state=reserved` |
-| Release (op A) | `{ ok: true, version: 2 }` |
-| State after | `version=2, lifecycle_state=available` |
-| **Replay (op A, identical)** | `{ ok: true, version: 2 }` — **original result returned, NOT 409** |
-
-**Proof:** Exact same operation ID + identical payload → returns the original successful result with one operation and one transition. No 409 on identical replay. This is the retry-classification guarantee: a retried scheduled release is idempotent, not rejected.
-
----
-
-### 4. Different operation after release → CONFLICT (PASS)
-
-Called `authority_v1.release_listing` with a **different** `operation_id` on the already-released listing.
-
-| Field | Value |
-|---|---|
-| `ok` | false |
-| `code` | `CONFLICT` |
-
-**Proof:** A different operation submitted after the release is rejected with CONFLICT — it is not treated as an idempotent replay. This distinguishes "same operation retry" (returns original result) from "different operation" (rejected).
+**Deployed behavior unchanged:** `processTransferReminders/entry.ts` calls `runCanaryScheduledRelease` with `{ entities, executorUrl, listing_id }` only — no injection points are used.
 
 ---
 
-### 5. Non-canary isolation (PASS)
+## 3. AST-Based Wiring Proof
 
-Created a non-canary listing (no `[AUTH_CANARY]` tag) and called `processTransferReminders`.
+**Test file:** `tests/process-transfer-reminders-wiring.test.mjs`
+**Method:** Parses `processTransferReminders/entry.ts` with acorn (ECMAScript parser), walks the AST to verify import + call + guard structure
 
-| Field | Before | After |
+### Results: 5/5 PASS
+
+| # | Assertion | Result |
 |---|---|---|
-| Non-canary status | active | active |
-| Non-canary `reservation_token` | null | null |
+| 1 | entry.ts parses with acorn (valid ECMAScript) | PASS |
+| 2 | Imports `runCanaryScheduledRelease` from `canaryScheduledRelease` | PASS |
+| 3 | Calls `runCanaryScheduledRelease` in handler body (≥2 calls for both expired-reservation blocks) | PASS |
+| 4 | Call is guarded by `isCanaryListing && isCanaryEnabled` condition | PASS |
+| 5 | Call passes `entities`, `executorUrl`, and `listing_id` | PASS |
 
-**Proof:** Non-canary records remain unchanged. The canary routing only matches listings tagged `[AUTH_CANARY]`; non-canary listings are never processed by canary logic.
-
----
-
-### 6. Active-purchase protection (CODE-VERIFIED)
-
-The active-purchase protection check lives in `base44/shared/canaryScheduledRelease.js` (lines 47-64):
-
-```js
-// Active-purchase check — fail closed if any pending transfers exist
-const activePurchases = await entities.Purchase.filter({
-  listing_id, transfer_status: 'pending_transfer',
-});
-if (activePurchases.length > 0) {
-  return { status: 409, body: { error: 'Active purchase exists', code: 'ACTIVE_PURCHASE' } };
-}
-// Lookup failure — fail closed
-if (lookupError) {
-  return { status: 409, body: { error: 'Lookup failed', code: 'LOOKUP_FAILED' } };
-}
-```
-
-**Limitation:** This protection cannot be exercised through the deployed `processTransferReminders` handler while maintenance is ON, because the maintenance gate (line 51) returns before the expired-reservation cleanup section (lines 290-393) where the canary routing lives. The check is structurally identical to the certified `abortCheckout`/`releaseReservation` ownership guards and is enforced by the shared module before any authority call.
+**Proof:** The AST walk verifies the actual import declaration and call expression nodes — not substring matches. This is an executable module/wiring proof, not a deployed runtime proof.
 
 ---
 
-## Cleanup Verification
+## 4. Deployed Handler Tests (Prior Session)
 
-| Artifact | Before | After |
+| # | Scenario | Result |
 |---|---|---|
-| Base44 Listings (allowlisted IDs) | 2 | 0 |
-| Base44 CanaryMirrorOutbox | 0 | 0 |
-| authority_v1.reservation_authority (allowlisted) | 1 | 0 |
-| authority_v1.reservation_operations (allowlisted) | 4 | 0 |
-| authority_v1.reservation_outbox (allowlisted) | 2 | 0 |
-| **Total authority rows (all IDs)** | — | **0** |
-| **Canary listings remaining** | — | **0** |
-| `CANARY_ENABLED` flag | true (temp) | **false** |
-
-All synthetic test data deleted by exact ID allowlist. No real records touched.
+| 1 | Deployed `reserveListing` canary reserve | ✅ 200, authority version 1, mirror ok |
+| 2 | Deployed `processTransferReminders` maintenance skip | ✅ `{ ok: true, skipped: "maintenance mode" }` |
+| 3 | authority_v1 release + idempotent replay | ✅ Same operation → original result (not 409) |
+| 4 | Different operation after release | ✅ 409 CONFLICT |
+| 5 | Non-canary isolation | ✅ Non-canary listing unchanged |
 
 ---
 
-## Conclusion
+## 5. Exclusion Evidence — abortCheckout & cleanupAbandonedCheckouts
 
-The `processTransferReminders` canary integration is **certified**:
-- The deployed `reserveListing` handler routes canary requests to the authority_v1 path.
-- The deployed `processTransferReminders` handler skips safely under maintenance (no canary routing triggered).
-- `authority_v1.release_listing` provides idempotent retry classification (same operation → original result; different operation → CONFLICT).
-- Non-canary records are isolated from canary logic.
-- The canary flag is restored OFF; all synthetic data is removed.
+### abortCheckout — EXCLUDED (financial side effects)
 
-**Open item:** Active-purchase and lookup-failure protections in `canaryScheduledRelease.js` remain code-verified only, because the deployed handler's maintenance gate prevents the canary routing from executing. To exercise these checks end-to-end, maintenance must be temporarily disabled in a staging environment.
+**Code path (entry.ts):**
+1. L78-93: Retrieves and cancels Stripe PaymentIntent (`stripe.paymentIntents.cancel`)
+2. L96-100: Marks Purchase expired
+3. L102-143: Releases Listing reservation (clears `reservation_token`, `reserved_by_email`, etc.)
+
+**Why excluded:** The reservation release at L119-133 is embedded in a handler that cancels a Stripe PI at L80-88. The release cannot be separated from the financial operation — they are part of the same atomic checkout-abort flow. There is no canary guard in `canaryGuard.js` for this entry point. Canary listings are synthetic and should never reach the real checkout/abort flow.
+
+### cleanupAbandonedCheckouts — EXCLUDED (financial + no reservation release)
+
+**Code path (cleanupOrchestrator.js):**
+1. Phase 1 (L130-230): Cancels Stripe PIs (`stripe.paymentIntents.cancel` at L166), quarantines listings
+2. Phase 2 (L260-490): Recovers quarantines — **explicitly does NOT clear reservation fields**:
+   - L423: `Listing.update({ status: 'active', hidden_reason: null })` — no reservation fields touched
+   - L448: Post-verify requires `reservation_token === null` — the function REQUIRES reservation fields to already be null
+3. Phase 3 (L500-540): Finalizes captured payments (`finalizeCapturedPayment`)
+
+**Why excluded:** (1) Financial side effects (PI cancellation + payment finalization). (2) No reservation release exists in this function to route — Phase 2 recovery activates the listing but does not clear reservation tokens. The reservation clearing for expired reservations is performed by `processTransferReminders`, not by this function.
+
+---
+
+## 6. Final State Verification
+
+| Item | Value |
+|---|---|
+| `CANARY_ENABLED` flag | `false` (OFF) |
+| Maintenance mode | ON |
+| Base44 canary listings | 0 |
+| Base44 CanaryMirrorOutbox records | 0 |
+| Postgres `authority_v1.reservation_authority` | 0 rows |
+| Postgres `authority_v1.reservation_operations` | 0 rows |
+| Postgres `authority_v1.reservation_outbox` | 0 rows |
+| Backend functions | 50 (unchanged) |
+| Provider calls (Stripe/OneSignal/TM) | 0 |
+
+---
+
+## 7. Build, Lint, and Test Exit Codes
+
+| Check | Exit Code | Details |
+|---|---|---|
+| `npm run build` (vite build) | 0 | Build succeeded |
+| Scoped lint (changed files) | 0 | 0 errors, 0 warnings |
+| Backend lint (`npm run lint:backend`) | 0 | 0 errors, 116 warnings (pre-existing) |
+| `canary-scheduled-release-protections.test.mjs` | 0 | 7/7 pass |
+| `process-transfer-reminders-wiring.test.mjs` | 0 | 5/5 pass |
+| `search-normalize.test.mjs` (regression) | 0 | 28/28 pass |
+
+| Git | Value |
+|---|---|
+| HEAD | `eb31487a138babfa2c1320a8f9ba177dd2b8a437` |
+| Changed files | `M base44/shared/canaryScheduledRelease.js` |
+| New files | `tests/canary-scheduled-release-protections.test.mjs`, `tests/process-transfer-reminders-wiring.test.mjs`, `tests/loaders/npm-compat-register.mjs`, `tests/loaders/npm-compat-hook.mjs`, `tests/loaders/base44-runtime-mock.mjs` |
+
+---
+
+## 8. Conclusion
+
+P0-01E is **PASS**:
+- `processTransferReminders` canary integration is proven by executable module tests (7/7) and AST wiring proof (5/5).
+- Both fail-closed protections (active-purchase, lookup-uncertainty) pass executable tests with zero side-effect calls.
+- `abortCheckout` is excluded with exact code-path evidence (financial: Stripe PI cancellation inseparable from reservation release).
+- `cleanupAbandonedCheckouts` is excluded with exact code-path evidence (financial + no reservation release performed).
+- Flag OFF, maintenance ON, zero synthetic rows, 50 functions, zero provider calls.
