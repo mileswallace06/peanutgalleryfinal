@@ -281,6 +281,21 @@ CREATE INDEX idx_payment_actions_claimable
 CREATE INDEX idx_payment_actions_purchase
   ON authority_v1.payment_actions (purchase_id, action_type);
 
+-- One pending action per purchase per action_type — prevents concurrent
+-- begin_cancel/begin_capture/begin_refund from creating multiple durable
+-- actions for the same purchase (database-level enforcement).
+CREATE UNIQUE INDEX idx_one_pending_cancel_per_purchase
+  ON authority_v1.payment_actions (purchase_id)
+  WHERE action_type = 'cancel' AND status IN ('pending', 'in_flight');
+
+CREATE UNIQUE INDEX idx_one_pending_capture_per_purchase
+  ON authority_v1.payment_actions (purchase_id)
+  WHERE action_type = 'capture' AND status IN ('pending', 'in_flight');
+
+CREATE UNIQUE INDEX idx_one_pending_refund_per_purchase
+  ON authority_v1.payment_actions (purchase_id)
+  WHERE action_type = 'refund' AND status IN ('pending', 'in_flight');
+
 -- ── 5. stripe_webhook_events — Webhook Deduplication with Leasing ─────────
 CREATE TABLE authority_v1.stripe_webhook_events (
   webhook_event_id       TEXT        PRIMARY KEY,

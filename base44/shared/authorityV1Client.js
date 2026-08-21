@@ -15,7 +15,9 @@
  *   - Never logs, returns, or places credential-bearing values in errors.
  *
  * Allowlisted methods:
- *   getState, initializeListing, reserveListing, releaseListing
+ *   getState, initializeListing, reserveListing, releaseListing,
+ *   bindPaymentIntent, beginCancel, recordCancelResult, abortBinding,
+ *   expireListing
  */
 import { neon } from 'npm:@neondatabase/serverless@0.10.4';
 
@@ -100,6 +102,31 @@ export function createAuthorityV1Client(executorUrl) {
     /** release_listing(listing_id, expected_version, operation_id, request_hash) → JSONB */
     async releaseListing(listingId, expectedVersion, operationId, requestHash) {
       return callFn('release_listing', listingId, expectedVersion, operationId, requestHash);
+    },
+
+    /** expire_listing(listing_id, expected_version, operation_id, request_hash) → JSONB */
+    async expireListing(listingId, expectedVersion, operationId, requestHash) {
+      return callFn('expire_listing', listingId, expectedVersion, operationId, requestHash);
+    },
+
+    /** bind_payment_intent(listing_id, purchase_id, payment_intent_id, buyer_user_id, authority_version, reservation_revision, token_hash, operation_id, request_hash) → JSONB */
+    async bindPaymentIntent(listingId, purchaseId, paymentIntentId, buyerUserId, authorityVersion, reservationRevision, tokenHash, operationId, requestHash) {
+      return callFn('bind_payment_intent', listingId, purchaseId, paymentIntentId, buyerUserId, authorityVersion, reservationRevision, tokenHash, operationId, requestHash);
+    },
+
+    /** begin_cancel(listing_id, expected_version, purchase_id, payment_intent_id, buyer_user_id, expected_revision, action_id, stripe_idem_key, operation_id, request_hash) → JSONB */
+    async beginCancel(listingId, expectedVersion, purchaseId, paymentIntentId, buyerUserId, expectedRevision, actionId, stripeIdemKey, operationId, requestHash) {
+      return callFn('begin_cancel', listingId, expectedVersion, purchaseId, paymentIntentId, buyerUserId, expectedRevision, actionId, stripeIdemKey, operationId, requestHash);
+    },
+
+    /** record_cancel_result(action_id, result_derived, stripe_response, worker_id, operation_id, request_hash) → JSONB */
+    async recordCancelResult(actionId, resultDerived, stripeResponse, workerId, operationId, requestHash) {
+      return callFn('record_cancel_result', actionId, resultDerived, stripeResponse, workerId, operationId, requestHash);
+    },
+
+    /** abort_binding(listing_id, expected_version, purchase_id, operation_id, request_hash) → JSONB */
+    async abortBinding(listingId, expectedVersion, purchaseId, operationId, requestHash) {
+      return callFn('abort_binding', listingId, expectedVersion, purchaseId, operationId, requestHash);
     },
   };
 }

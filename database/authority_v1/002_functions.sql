@@ -992,6 +992,10 @@ $$;
 --   Authority stays reserved/frozen + recovery_blocked. Incident. Persist.
 -- Unknown: binding → cancel_unknown, authority frozen + recovery_blocked.
 --   Incident. Persist.
+--
+-- IDEMPOTENT REPLAY FIRST: The operation_id is acquired BEFORE the action
+-- status check, so a duplicate call with the same operation_id + request_hash
+-- returns the stored result even after the action is already completed.
 CREATE OR REPLACE FUNCTION authority_v1.record_cancel_result(
   p_action_id TEXT,
   p_result_derived TEXT,
@@ -1011,7 +1015,7 @@ DECLARE
   v_updated_count INTEGER; v_new_version INTEGER;
   v_result_json TEXT;
 BEGIN
-  -- Action-not-found handled BEFORE acquiring operation
+  -- Step 1: Look up the action for listing_id (needed for acquire_operation).
   SELECT * INTO v_action FROM payment_actions WHERE action_id = p_action_id FOR UPDATE;
   IF NOT FOUND THEN
     RETURN jsonb_build_object('ok', false, 'code', 'ACTION_NOT_FOUND', 'action_id', p_action_id);
@@ -1020,26 +1024,32 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'code', 'ACTION_TYPE_MISMATCH',
       'expected', 'cancel', 'got', v_action.action_type);
   END IF;
-  IF v_action.status NOT IN ('pending','in_flight') THEN
-    RETURN jsonb_build_object('ok', false, 'code', 'ACTION_STATUS_INVALID',
-      'expected', 'pending or in_flight', 'got', v_action.status);
-  END IF;
 
-  -- Verify lease ownership (worker path only)
-  IF p_worker_id IS NOT NULL THEN
-    IF v_action.lease_owner IS NULL OR v_action.lease_owner != p_worker_id
-       OR v_action.lease_expires_at IS NULL OR v_action.lease_expires_at < now() THEN
-      RETURN jsonb_build_object('ok', false, 'code', 'LEASE_NOT_HELD',
-        'action_id', p_action_id, 'worker_id', p_worker_id);
-    END IF;
-  END IF;
-
+  -- Step 2: Acquire operation BEFORE checking action status — so a duplicate
+  -- call with the same operation_id + request_hash returns the stored result
+  -- even after the action is already completed (idempotent replay).
   SELECT * INTO v_acquired, v_op_status, v_replay, v_stored_hash FROM acquire_operation(
     p_server_operation_id, 'listing', v_action.listing_id, v_action.listing_id,
     'record_cancel', 'frozen', 0, p_request_hash);
   IF v_replay IS NOT NULL THEN RETURN v_replay; END IF;
   IF NOT v_acquired THEN
     RETURN jsonb_build_object('ok', false, 'code', v_op_status);
+  END IF;
+
+  -- Step 3: Verify action is in an allowed prior status (only for NEW operations,
+  -- not replays — replays already returned above).
+  IF v_action.status NOT IN ('pending','in_flight') THEN
+    RETURN jsonb_build_object('ok', false, 'code', 'ACTION_STATUS_INVALID',
+      'expected', 'pending or in_flight', 'got', v_action.status);
+  END IF;
+
+  -- Step 4: Verify lease ownership (worker path only)
+  IF p_worker_id IS NOT NULL THEN
+    IF v_action.lease_owner IS NULL OR v_action.lease_owner != p_worker_id
+       OR v_action.lease_expires_at IS NULL OR v_action.lease_expires_at < now() THEN
+      RETURN jsonb_build_object('ok', false, 'code', 'LEASE_NOT_HELD',
+        'action_id', p_action_id, 'worker_id', p_worker_id);
+    END IF;
   END IF;
 
   -- Load and lock binding

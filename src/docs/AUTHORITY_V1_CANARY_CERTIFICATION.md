@@ -61,6 +61,57 @@ Both fail-closed protections pass executable tests:
 
 ---
 
+## 7. P0-01F Status: ✅ PASS — Payment Saga Cancellation Primitives
+
+**Scope:** Development-only Postgres payment-saga gate. Cancellation primitives proven; `abortCheckout` integration NOT certified.
+
+### Deployment
+
+Full authority_v1 SQL artifacts deployed to dev database: 7 tables, 29 functions (19 authority + 10 workers), 6 roles. Previously only 3 tables and 5 functions were deployed (canary subset).
+
+### Schema Changes
+
+| Change | Details |
+|---|---|
+| New tables (4) | `reservation_payment_bindings`, `payment_actions`, `stripe_webhook_events`, `operational_incidents` |
+| New functions (24) | `expire_listing`, `bind_payment_intent`, `begin_capture`, `record_capture_result`, `finalize_sale`, `begin_cancel`, `record_cancel_result`, `begin_refund`, `record_refund_result`, `abort_binding`, `cancel_listing`, `quarantine_listing`, `check_user_obligations`, `anonymize_user` + 10 worker functions |
+| New roles (3) | `authority_owner` (NOLOGIN), `authority_stripe_recorder`, `authority_worker` |
+| New indexes (3) | `idx_one_pending_cancel_per_purchase`, `idx_one_pending_capture_per_purchase`, `idx_one_pending_refund_per_purchase` — partial unique indexes preventing concurrent durable actions |
+| Modified function (1) | `record_cancel_result` — restructured to check idempotent replay BEFORE action status |
+
+### Test Evidence: 37/37 PASS
+
+| # | Test | Result |
+|---|---|---|
+| 1 | Cancellation success | ✅ |
+| 2 | Definitive failure | ✅ |
+| 3 | Timeout/unknown | ✅ |
+| 4 | Later webhook success (durable unknown) | ✅ |
+| 5 | Later reconciliation success (durable unknown) | ✅ |
+| 6 | Duplicate webhook (idempotent) | ✅ |
+| 7 | Identical retry | ✅ |
+| 8 | Conflicting retry (OPERATION_ID_CONFLICT) | ✅ |
+| 9 | 20 concurrent begin (1 success, 1 payment_action) | ✅ |
+| 10 | Injected rollback (conflicting action NOT created) | ✅ |
+| 11 | Incident uniqueness (1 incident, occurrence_count ≥ 2) | ✅ |
+| 12 | Executor denied direct table mutation | ✅ |
+| 13 | Cleanup by exact synthetic ID allowlist | ✅ |
+
+### Client Separation
+
+| Client | Purpose | Import by production? |
+|---|---|---|
+| `authorityV1Client.js` (executor) | Allowlisted function calls only | ✅ Yes |
+| `authorityV1TestAdmin.js` (admin/test) | Raw SQL for setup/cleanup | ❌ Never |
+
+### Final State
+
+- Flag OFF, maintenance ON, 0 synthetic rows, 50 functions, 0 real Stripe calls
+- No production entry points modified (abortCheckout, capturePayment, refunds, webhook, 7C.9D unchanged)
+- See `src/docs/P0_01F_PAYMENT_SAGA_GATE_REPORT.md` for full details
+
+---
+
 ## 3. Test Results (Fresh, Through Deployed Entry Points)
 
 | # | Scenario | Result |
