@@ -7,8 +7,10 @@
  * SECURITY RULES:
  *   - No admin URL. No admin connection.
  *   - No arbitrary raw-SQL method. Allowlisted function calls only.
- *   - Executor role must be 'authority_probe_executor' (matches the existing
- *     AUTHORITY_DB_URL_DEV_EXECUTOR connection).
+ *   - Executor role must be 'authority_executor' (the dedicated authority_v1
+ *     executor role; NOT the legacy authority_probe_executor).
+ *   - Secret is read by the handler via secrets.get('AUTHORITY_V1_DB_URL_DEV_EXECUTOR')
+ *     from base44:runtime and passed into createAuthorityV1Client.
  *   - Validates a real Neon dev fingerprint (hostname + database + role).
  *   - Never logs, returns, or places credential-bearing values in errors.
  *
@@ -17,7 +19,7 @@
  */
 import { neon } from 'npm:@neondatabase/serverless@0.10.4';
 
-const EXECUTOR_ROLE = 'authority_probe_executor';
+const EXECUTOR_ROLE = 'authority_executor';
 
 function validateFingerprint(urlStr) {
   if (!urlStr || typeof urlStr !== 'string') {

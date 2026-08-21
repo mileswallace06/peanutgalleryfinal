@@ -9,6 +9,7 @@
  * Body: { action: 'reserve' | 'release', listing_id: string }
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { secrets } from 'base44:runtime';
 import { isCanaryEnabled, runCanaryReserve, runCanaryRelease } from '../../shared/authCanary.js';
 
 Deno.serve(async (req) => {
@@ -32,7 +33,7 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'action must be reserve or release' }, { status: 400 });
     }
 
-    const executorUrl = Deno.env.get('AUTHORITY_DB_URL_DEV_EXECUTOR');
+    const executorUrl = secrets.get('AUTHORITY_V1_DB_URL_DEV_EXECUTOR');
     if (!executorUrl) {
       return Response.json({ error: 'Authority executor URL not configured', code: 'NO_EXECUTOR_URL' }, { status: 500 });
     }
