@@ -67,7 +67,10 @@ export async function maybeRouteCanary({ base44, user, body, listing, executorUr
     entities: base44.asServiceRole.entities,
     user,
     executorUrl,
-    params: { listing_id: listing.id },
+    params: {
+      listing_id: listing.id,
+      simulate_mirror_failure: body?.simulate_mirror_failure === true,
+    },
   };
   return action === 'release' ? runCanaryRelease(deps) : runCanaryReserve(deps);
 }

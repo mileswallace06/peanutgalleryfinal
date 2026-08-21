@@ -1,0 +1,88 @@
+{
+  "name": "CanaryMirrorOutbox",
+  "type": "object",
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  },
+  "properties": {
+    "listing_id": {
+      "type": "string",
+      "description": "FK to the synthetic [AUTH_CANARY] Listing whose mirror failed."
+    },
+    "operation_type": {
+      "type": "string",
+      "enum": [
+        "reserve",
+        "release"
+      ],
+      "description": "The authority operation that committed but whose mirror failed."
+    },
+    "authority_version": {
+      "type": "number",
+      "description": "Postgres authority version after the committed transition."
+    },
+    "authority_revision": {
+      "type": "string",
+      "description": "Postgres authority reservation_revision after the committed transition."
+    },
+    "mirror_payload": {
+      "type": "object",
+      "description": "JSON snapshot of the exact fields to write to the Base44 Listing (and ListingPrivate) mirror. Structure: { listing: {...}, listing_private: {...} }.",
+      "properties": {
+        "listing": {
+          "type": "object"
+        },
+        "listing_private": {
+          "type": "object"
+        }
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "repaired",
+        "orphaned"
+      ],
+      "default": "pending",
+      "description": "pending = mirror not yet applied; repaired = mirror applied exactly once; orphaned = listing deleted, mirror target gone (quarantine)."
+    },
+    "repair_attempts": {
+      "type": "number",
+      "default": 0,
+      "description": "Number of repair attempts. Incremented on each repairCanaryMirror pass."
+    },
+    "repaired_at": {
+      "type": "string",
+      "description": "ISO timestamp when the mirror was successfully repaired."
+    },
+    "orphaned_reason": {
+      "type": "string",
+      "description": "Reason the outbox item was classified as orphaned (quarantine)."
+    }
+  },
+  "required": [
+    "listing_id",
+    "operation_type",
+    "authority_version"
+  ]
+}

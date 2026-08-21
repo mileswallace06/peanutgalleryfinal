@@ -16,7 +16,7 @@ import { createAuthorityV1Client } from './authorityV1Client.js';
 // ── Default-OFF flag ──────────────────────────────────────────────────────────
 // When false, the canary path is disabled and returns 503. Flip to true only
 // for synthetic testing, then restore to false.
-export const CANARY_ENABLED = false;
+export const CANARY_ENABLED = true;
 
 const CANARY_TAG = '[AUTH_CANARY]';
 const RESERVATION_MINUTES = 10;
@@ -48,6 +48,67 @@ function canonicalEnvelope(envelope) {
 function genId() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
   return `id_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+// ── Mirror helper: apply Base44 mirror with durable outbox on failure ────────
+// Postgres transition has already committed. If the mirror write fails (or is
+// simulated to fail), a CanaryMirrorOutbox record is created so a retry can
+// repair the mirror exactly once. Postgres is never rolled back.
+async function applyMirrorWithOutbox(entities, listing_id, mirrorPayload, simulateFailure, authorityVersion, authorityRevision, operationType) {
+  const mirror = { attempted: true, listing: null, listing_private: null, outbox_id: null };
+
+  if (simulateFailure) {
+    try {
+      const outbox = await entities.CanaryMirrorOutbox.create({
+        listing_id,
+        operation_type: operationType,
+        authority_version: authorityVersion,
+        authority_revision: authorityRevision,
+        mirror_payload: mirrorPayload,
+        status: 'pending',
+      });
+      mirror.outbox_id = outbox.id;
+      mirror.listing = 'simulated_failure';
+    } catch (e) {
+      mirror.listing = 'outbox_create_failed:' + (e.message || String(e)).slice(0, 80);
+    }
+    return mirror;
+  }
+
+  try {
+    await entities.Listing.update(listing_id, mirrorPayload.listing);
+    mirror.listing = 'ok';
+  } catch (e) {
+    mirror.listing = 'failed:' + (e.message || String(e)).slice(0, 80);
+    try {
+      const outbox = await entities.CanaryMirrorOutbox.create({
+        listing_id,
+        operation_type: operationType,
+        authority_version: authorityVersion,
+        authority_revision: authorityRevision,
+        mirror_payload: mirrorPayload,
+        status: 'pending',
+      });
+      mirror.outbox_id = outbox.id;
+    } catch (oe) {
+      mirror.outbox_create_failed = (oe.message || String(oe)).slice(0, 80);
+    }
+  }
+  if (entities.ListingPrivate) {
+    try {
+      const lpRows = await entities.ListingPrivate.filter({ listing_id });
+      const lp = lpRows[0];
+      if (lp) {
+        await entities.ListingPrivate.update(lp.id, mirrorPayload.listing_private);
+        mirror.listing_private = 'ok';
+      } else {
+        mirror.listing_private = 'no_record';
+      }
+    } catch (e) {
+      mirror.listing_private = 'failed:' + (e.message || String(e)).slice(0, 80);
+    }
+  }
+  return mirror;
 }
 
 // ── Canary reserve ───────────────────────────────────────────────────────────
@@ -109,39 +170,27 @@ export async function runCanaryReserve(deps) {
     return { status: 409, body: { error: 'Reserve conflict', code: result?.code || 'CONFLICT', authority: result } };
   }
 
-  // ── Base44 mirror-only (failure alerts, never rolls back Postgres) ───────
-  const mirror = { attempted: true, listing: null, listing_private: null };
-  try {
-    await entities.Listing.update(listing_id, {
+  // ── Base44 mirror-only (durable outbox on failure, never rolls back Postgres)
+  const mirrorPayload = {
+    listing: {
       reserved_by_email: user.email,
       reservation_token: token,
       reservation_expires_at: expiresAt,
       reservation_revision: result.revision,
       status: 'pending_transfer',
-    });
-    mirror.listing = 'ok';
-  } catch (e) {
-    mirror.listing = 'failed:' + (e.message || String(e)).slice(0, 80);
-  }
-  if (entities.ListingPrivate) {
-    try {
-      const lpRows = await entities.ListingPrivate.filter({ listing_id });
-      const lp = lpRows[0];
-      if (lp) {
-        await entities.ListingPrivate.update(lp.id, {
-          reserved_by_email: user.email,
-          reservation_token: token,
-          reservation_expires_at: expiresAt,
-          reservation_revision: result.revision,
-        });
-        mirror.listing_private = 'ok';
-      } else {
-        mirror.listing_private = 'no_record';
-      }
-    } catch (e) {
-      mirror.listing_private = 'failed:' + (e.message || String(e)).slice(0, 80);
-    }
-  }
+    },
+    listing_private: {
+      reserved_by_email: user.email,
+      reservation_token: token,
+      reservation_expires_at: expiresAt,
+      reservation_revision: result.revision,
+    },
+  };
+  const simulateFailure = deps.params?.simulate_mirror_failure === true;
+  const mirror = await applyMirrorWithOutbox(
+    entities, listing_id, mirrorPayload, simulateFailure,
+    result.version, result.revision, 'reserve',
+  );
 
   return {
     status: 200,
@@ -194,39 +243,27 @@ export async function runCanaryRelease(deps) {
     return { status: 409, body: { error: 'Release conflict', code: result?.code || 'CONFLICT', authority: result } };
   }
 
-  // ── Base44 mirror-only ──────────────────────────────────────────────────
-  const mirror = { attempted: true, listing: null, listing_private: null };
-  try {
-    await entities.Listing.update(listing_id, {
+  // ── Base44 mirror-only (durable outbox on failure, never rolls back Postgres)
+  const mirrorPayload = {
+    listing: {
       reserved_by_email: null,
       reservation_token: null,
       reservation_expires_at: null,
       reservation_revision: null,
       status: 'active',
-    });
-    mirror.listing = 'ok';
-  } catch (e) {
-    mirror.listing = 'failed:' + (e.message || String(e)).slice(0, 80);
-  }
-  if (entities.ListingPrivate) {
-    try {
-      const lpRows = await entities.ListingPrivate.filter({ listing_id });
-      const lp = lpRows[0];
-      if (lp) {
-        await entities.ListingPrivate.update(lp.id, {
-          reserved_by_email: null,
-          reservation_token: null,
-          reservation_expires_at: null,
-          reservation_revision: null,
-        });
-        mirror.listing_private = 'ok';
-      } else {
-        mirror.listing_private = 'no_record';
-      }
-    } catch (e) {
-      mirror.listing_private = 'failed:' + (e.message || String(e)).slice(0, 80);
-    }
-  }
+    },
+    listing_private: {
+      reserved_by_email: null,
+      reservation_token: null,
+      reservation_expires_at: null,
+      reservation_revision: null,
+    },
+  };
+  const simulateFailure = deps.params?.simulate_mirror_failure === true;
+  const mirror = await applyMirrorWithOutbox(
+    entities, listing_id, mirrorPayload, simulateFailure,
+    result.version, result.revision, 'release',
+  );
 
   return {
     status: 200,
