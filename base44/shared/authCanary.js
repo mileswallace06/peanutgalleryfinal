@@ -16,7 +16,7 @@ import { createAuthorityV1Client } from './authorityV1Client.js';
 // ── Default-OFF flag ──────────────────────────────────────────────────────────
 // When false, the canary path is disabled and returns 503. Flip to true only
 // for synthetic testing, then restore to false.
-export const CANARY_ENABLED = true;
+export const CANARY_ENABLED = false;
 
 const CANARY_TAG = '[AUTH_CANARY]';
 const RESERVATION_MINUTES = 10;
