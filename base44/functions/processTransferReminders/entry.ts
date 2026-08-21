@@ -18,9 +18,12 @@
 
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import Stripe from 'npm:stripe@14.21.0';
+import { secrets } from 'base44:runtime';
 import { isMaintenanceActive } from '../../shared/maintenance.ts';
 import { sendUserNotification, sendTransactionalEmail } from '../../shared/notifications.ts';
 import { getPurchasePrivate, upsertPurchasePrivate, upsertListingPrivate, getListingPrivate } from '../../shared/privateData.ts';
+import { isCanaryListing, isCanaryEnabled } from '../../shared/authCanary.js';
+import { runCanaryScheduledRelease } from '../../shared/canaryScheduledRelease.js';
 
 const SELLER_REMINDER_1_MS  =  5 * 60 * 1000;  //  5 min
 const SELLER_REMINDER_2_MS  = 15 * 60 * 1000;  // 15 min
@@ -294,6 +297,21 @@ Deno.serve(async (req) => {
       if (l.reservation_token && l.reservation_expires_at) {
         const expiredMs = new Date(l.reservation_expires_at).getTime();
         if (expiredMs < now) {
+          // ── Canary routing for synthetic [AUTH_CANARY] listings ──
+          if (isCanaryListing(l) && isCanaryEnabled()) {
+            try {
+              const canaryResult = await runCanaryScheduledRelease({
+                entities: base44.asServiceRole.entities,
+                executorUrl: secrets.get('AUTHORITY_V1_DB_URL_DEV_EXECUTOR'),
+                listing_id: l.id,
+              });
+              if (canaryResult.status === 200) reservationsCleared++;
+              else console.log('[reminders] canary scheduled release skipped:', l.id, canaryResult.body?.code);
+            } catch (e) {
+              console.error('[reminders] canary scheduled release error:', l.id, e?.message);
+            }
+            continue;
+          }
           const activePurchases = await base44.asServiceRole.entities.Purchase.filter({
             listing_id: l.id,
             transfer_status: 'pending_transfer',
@@ -335,6 +353,21 @@ Deno.serve(async (req) => {
       if (l.reserved_by_email && l.reservation_expires_at) {
         const expiredMs = new Date(l.reservation_expires_at).getTime();
         if (expiredMs < now) {
+          // ── Canary routing for synthetic [AUTH_CANARY] listings ──
+          if (isCanaryListing(l) && isCanaryEnabled()) {
+            try {
+              const canaryResult = await runCanaryScheduledRelease({
+                entities: base44.asServiceRole.entities,
+                executorUrl: secrets.get('AUTHORITY_V1_DB_URL_DEV_EXECUTOR'),
+                listing_id: l.id,
+              });
+              if (canaryResult.status === 200) reservationsCleared++;
+              else console.log('[reminders] canary scheduled release skipped:', l.id, canaryResult.body?.code);
+            } catch (e) {
+              console.error('[reminders] canary scheduled release error:', l.id, e?.message);
+            }
+            continue;
+          }
           try {
             await base44.asServiceRole.entities.Listing.update(l.id, {
               reserved_by_email: null,
