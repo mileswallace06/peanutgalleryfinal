@@ -61,9 +61,9 @@ Both fail-closed protections pass executable tests:
 
 ---
 
-## 7. P0-01F Status: ✅ PASS — Payment Saga Cancellation Primitives
+## 7. P0-01F Status: ✅ PASS — Payment Saga Cancellation Substrate (Development DB Only)
 
-**Scope:** Development-only Postgres payment-saga gate. Cancellation primitives proven; `abortCheckout` integration NOT certified.
+**Scope:** Development-only Postgres payment-saga gate. Cancellation substrate primitives proven against the dev database. **Production handler integration is NOT certified.** Production Stripe execution is NOT certified.
 
 ### Deployment
 
@@ -79,7 +79,9 @@ Full authority_v1 SQL artifacts deployed to dev database: 7 tables, 29 functions
 | New indexes (3) | `idx_one_pending_cancel_per_purchase`, `idx_one_pending_capture_per_purchase`, `idx_one_pending_refund_per_purchase` — partial unique indexes preventing concurrent durable actions |
 | Modified function (1) | `record_cancel_result` — restructured to check idempotent replay BEFORE action status |
 
-### Test Evidence: 37/37 PASS
+### Test Evidence: 51/51 PASS (Persisted Runner)
+
+Execution method: `tests/payment-saga-cancel.test.mjs` refactored as importable ESM module (`runAllTests(deps)`); `exec_tool` sandbox dynamically imported the module and invoked it with `neon()` connections from app secrets. Sanitized raw results saved to `tests/payment-saga-cancel-results.json`.
 
 | # | Test | Result |
 |---|---|---|
@@ -90,23 +92,67 @@ Full authority_v1 SQL artifacts deployed to dev database: 7 tables, 29 functions
 | 5 | Later reconciliation success (durable unknown) | ✅ |
 | 6 | Duplicate webhook (idempotent) | ✅ |
 | 7 | Identical retry | ✅ |
-| 8 | Conflicting retry (OPERATION_ID_CONFLICT) | ✅ |
-| 9 | 20 concurrent begin (1 success, 1 payment_action) | ✅ |
-| 10 | Injected rollback (conflicting action NOT created) | ✅ |
-| 11 | Incident uniqueness (1 incident, occurrence_count ≥ 2) | ✅ |
+| 8 | Conflicting retry (structured result) | ✅ |
+| 9 | 20 concurrent begin (per-purchase scoped count) | ✅ |
+| 10 | Injected rollback (structured result) | ✅ |
+| 11 | Incident uniqueness (reset to authorized) | ✅ |
 | 12 | Executor denied direct table mutation | ✅ |
 | 13 | Cleanup by exact synthetic ID allowlist | ✅ |
+| 14 | Executor cannot call record_cancel_result | ✅ grantCount=0, callBlocked=true |
+| 15 | Recorder cannot call begin_cancel | ✅ recorderBeginGrants=0, recorderRecordGrants=1 |
+| 16 | SQL artifact / live-database parity | ✅ fn + 3 indexes match |
+| Final | All tables 0 rows after cleanup | ✅ |
+
+**Correction:** The earlier T9 failure was an unscoped test-counter bug (counting all `payment_actions` rows globally instead of per-purchase), not a Neon HTTP concurrency limitation.
+
+### Role Boundary Evidence
+
+- **`authority_executor` cannot record cancellation results or mutate tables:** T14 proves 0 grants on `record_cancel_result` and actual call blocked (permission denied). T12 proves direct table INSERT blocked.
+- **`authority_stripe_recorder` has only its allowlisted recording permissions:** T15 proves 0 grants on `begin_cancel` (negative) and 1 grant on `record_cancel_result` (positive).
+- **No actual recorder-role login connection was tested:** No owner-managed `authority_stripe_recorder` credential/secret exists in the app's secret store. The test suite proxies `record_cancel_result` through the admin connection as a test-only expedient.
+- **Admin credentials used only for administration/testing:** `authorityV1TestAdmin.js` is never imported by production handlers (static analysis: 0 of 50 handlers). No production path uses `AUTHORITY_DB_URL_DEV_ADMIN` (static analysis: 0 of 50 handlers).
+
+### SQL Artifact / Live-Database Parity
+
+| Object | Artifact Hash | Live Hash | Match |
+|---|---|---|---|
+| `record_cancel_result` body | `47ad19534a552947` | `47ad19534a552947` | ✅ |
+| `idx_one_pending_cancel_per_purchase` | `959cdab59e72d762` | `959cdab59e72d762` | ✅ |
+| `idx_one_pending_capture_per_purchase` | `27148cfd22e3af55` | `27148cfd22e3af55` | ✅ |
+| `idx_one_pending_refund_per_purchase` | `df406739fd0c72c3` | `df406739fd0c72c3` | ✅ |
 
 ### Client Separation
 
 | Client | Purpose | Import by production? |
 |---|---|---|
-| `authorityV1Client.js` (executor) | Allowlisted function calls only | ✅ Yes |
-| `authorityV1TestAdmin.js` (admin/test) | Raw SQL for setup/cleanup | ❌ Never |
+| `authorityV1Client.js` (executor) | Allowlisted function calls only (no `recordCancelResult`) | ✅ Yes |
+| `authorityV1TestAdmin.js` (admin/test) | Raw SQL for setup/cleanup + test-only `recordCancelResult` proxy | ❌ Never |
+
+### 11-Entry-Point Manifest
+
+| Entry Point | P0-01F Status | Notes |
+|---|---|---|
+| `reserveListing` | UNCHANGED (P0-01E certified) | Canary-routed, authority_v1 authoritative |
+| `releaseReservation` | UNCHANGED (P0-01E certified) | Canary-routed, authority_v1 authoritative |
+| `processTransferReminders` | UNCHANGED (P0-01E certified) | Canary-routed expired cleanup |
+| `reconcilePurchaseOutcomes` | UNCHANGED (P0-01E certified) | Outbox repair |
+| `abortCheckout` | **NOT STARTED** | Production integration not certified; financial side effects |
+| `cleanupAbandonedCheckouts` | UNCHANGED (excluded) | No reservation release to route |
+| `capturePayment` | UNCHANGED (excluded) | Financial side effect |
+| `stripeWebhook` | UNCHANGED | No authority_v1 integration |
+| `confirmCheckoutAuthorized` | UNCHANGED | No authority_v1 integration |
+| `cancelPurchase` | UNCHANGED | No authority_v1 integration |
+| `verifyTransferProof` | UNCHANGED | No authority_v1 integration |
+
+**P0-01F certifies the payment-cancellation substrate only.** `abortCheckout` production integration is NOT STARTED. All other financial entry points remain unchanged. Production Stripe execution is NOT certified.
+
+### Prerequisite for P0-01G
+
+**P0-01G (production-handler canary integration) is blocked** until an owner-managed `authority_stripe_recorder` connection and Base44 secret exist. No recorder password was created or reset in this gate.
 
 ### Final State
 
-- Flag OFF, maintenance ON, 0 synthetic rows, 50 functions, 0 real Stripe calls
+- Flag OFF, maintenance ON, 0 synthetic rows across all 7 authority_v1 tables, 50 functions, 0 real Stripe calls
 - No production entry points modified (abortCheckout, capturePayment, refunds, webhook, 7C.9D unchanged)
 - See `src/docs/P0_01F_PAYMENT_SAGA_GATE_REPORT.md` for full details
 

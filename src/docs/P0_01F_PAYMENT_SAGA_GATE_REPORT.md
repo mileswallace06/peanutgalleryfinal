@@ -1,8 +1,8 @@
 # P0-01F Payment Saga Cancellation Gate Report
 
-**Date:** 2026-08-21
-**Scope:** Development-only Postgres payment-saga gate — cancellation primitives
-**Status:** ✅ PASS — all 37 executable tests green, 0 synthetic rows, 50 functions, 0 real Stripe calls
+**Date:** 2026-08-22
+**Scope:** Development-only Postgres payment-saga gate — cancellation primitives (substrate only)
+**Status:** ✅ PASS — development database saga-substrate certification. Production handler integration is NOT certified.
 
 ---
 
@@ -24,90 +24,29 @@
 
 ## 2. Architecture Audit — Existing vs Missing
 
-### Audit against `ATOMICITY_ARCHITECTURE_DECISION.md` payment-saga specification
-
-**Finding:** The SQL artifacts (`database/authority_v1/001_schema.sql`, `002_functions.sql`, `003_workers.sql`, `004_roles_and_grants.sql`) already contained the complete payment-saga substrate — 7 tables, 29 functions, 6 roles. However, only 3 tables and 5 functions were deployed to the live dev database (the canary subset). The remaining 4 tables, 24 functions, and 3 roles were in the SQL files but not deployed.
-
-### Tables: Existing vs Missing
-
-| Table | In SQL File | Deployed (before) | Status |
-|---|---|---|---|
-| `reservation_authority` | ✅ | ✅ | Already deployed |
-| `reservation_operations` | ✅ | ✅ | Already deployed |
-| `reservation_outbox` | ✅ | ✅ | Already deployed |
-| `reservation_payment_bindings` | ✅ | ❌ | **Deployed by P0-01F** |
-| `payment_actions` | ✅ | ❌ | **Deployed by P0-01F** |
-| `stripe_webhook_events` | ✅ | ❌ | **Deployed by P0-01F** |
-| `operational_incidents` | ✅ | ❌ | **Deployed by P0-01F** |
-
-### Functions: Existing vs Missing
-
-| Function | In SQL File | Deployed (before) | Status |
-|---|---|---|---|
-| `acquire_operation` | ✅ | ✅ | Already deployed |
-| `get_state` | ✅ | ✅ | Already deployed |
-| `initialize_listing` | ✅ | ✅ | Already deployed |
-| `reserve_listing` | ✅ | ✅ | Already deployed |
-| `release_listing` | ✅ | ✅ | Already deployed |
-| `expire_listing` | ✅ | ❌ | **Deployed by P0-01F** |
-| `bind_payment_intent` | ✅ | ❌ | **Deployed by P0-01F** |
-| `begin_capture` | ✅ | ❌ | **Deployed by P0-01F** |
-| `record_capture_result` | ✅ | ❌ | **Deployed by P0-01F** |
-| `finalize_sale` | ✅ | ❌ | **Deployed by P0-01F** |
-| `begin_cancel` | ✅ | ❌ | **Deployed by P0-01F** |
-| `record_cancel_result` | ✅ | ❌ | **Deployed by P0-01F** (modified — replay-first) |
-| `begin_refund` | ✅ | ❌ | **Deployed by P0-01F** |
-| `record_refund_result` | ✅ | ❌ | **Deployed by P0-01F** |
-| `abort_binding` | ✅ | ❌ | **Deployed by P0-01F** |
-| `cancel_listing` | ✅ | ❌ | **Deployed by P0-01F** |
-| `quarantine_listing` | ✅ | ❌ | **Deployed by P0-01F** |
-| `check_user_obligations` | ✅ | ❌ | **Deployed by P0-01F** |
-| `anonymize_user` | ✅ | ❌ | **Deployed by P0-01F** |
-| Worker functions (10) | ✅ | ❌ | **Deployed by P0-01F** |
-
-### Roles: Existing vs Missing
-
-| Role | In SQL File | Deployed (before) | Status |
-|---|---|---|---|
-| `authority_executor` | ✅ | ✅ | Already deployed |
-| `authority_probe_executor` | N/A | ✅ | Legacy probe |
-| `authority_probe_owner` | N/A | ✅ | Legacy probe |
-| `authority_owner` | ✅ | ❌ | **Deployed by P0-01F** |
-| `authority_stripe_recorder` | ✅ | ❌ | **Deployed by P0-01F** |
-| `authority_worker` | ✅ | ❌ | **Deployed by P0-01F** |
+The SQL artifacts (`database/authority_v1/001_schema.sql`–`004_roles_and_grants.sql`) already contained the complete payment-saga substrate — 7 tables, 29 functions, 6 roles. Only 3 tables and 5 functions were deployed to the live dev database (the canary subset). The remaining 4 tables, 24 functions, and 3 roles were in the SQL files but not deployed. P0-01F deployed the full set.
 
 ### Documentation Inconsistency Noted
 
-Section 7.11 of `ATOMICITY_ARCHITECTURE_DECISION.md` says `record_cancel_result` failed → binding `failed`, unknown → remains `cancel_requested`. Section 6.2 (corrected state machine) says failed → `cancel_failed`, unknown → `cancel_unknown`. The correction log (Section 18, item #8) resolves this: `cancel_failed` and `refund_failed` were added as explicitly unsettled states. **Section 6.2 is authoritative.** Section 7.11 is a pre-correction summary that was not updated. No semantic ambiguity — the correction log resolves it.
+Section 7.11 of `ATOMICITY_ARCHITECTURE_DECISION.md` says `record_cancel_result` failed → binding `failed`, unknown → remains `cancel_requested`. Section 6.2 (corrected state machine) says failed → `cancel_failed`, unknown → `cancel_unknown`. The correction log (Section 18, item #8) resolves this: `cancel_failed` and `refund_failed` were added as explicitly unsettled states. **Section 6.2 is authoritative.**
 
 ---
 
 ## 3. Schema Changes Made
 
-### Deployment
-
-The full SQL artifacts were deployed to the dev database by dropping the existing 3 tables (CASCADE, 0 rows) and running the full `001_schema.sql` → `002_functions.sql` → `003_workers.sql` → `004_roles_and_grants.sql` in order.
-
-### New Tables (4)
-
-| Table | Purpose |
-|---|---|
-| `reservation_payment_bindings` | 15-state payment binding with one-active-binding-per-listing unique index |
-| `payment_actions` | Durable Stripe command log with unique stable idempotency key + leasing |
-| `stripe_webhook_events` | Webhook deduplication (PRIMARY KEY on event_id) + leasing |
-| `operational_incidents` | Authoritative incident records with UNIQUE `incident_key` |
+The full SQL artifacts were deployed to the dev database by dropping the existing 3 tables (CASCADE, 0 rows) and running `001_schema.sql` → `002_functions.sql` → `003_workers.sql` → `004_roles_and_grants.sql` in order.
 
 ### New Indexes (3 — concurrency enforcement)
 
 | Index | Purpose |
 |---|---|
-| `idx_one_pending_cancel_per_purchase` | UNIQUE on `payment_actions(purchase_id)` WHERE `action_type='cancel' AND status IN ('pending','in_flight')` — prevents concurrent begin_cancel from creating multiple durable actions |
+| `idx_one_pending_cancel_per_purchase` | UNIQUE on `payment_actions(purchase_id)` WHERE `action_type='cancel' AND status IN ('pending','in_flight')` |
 | `idx_one_pending_capture_per_purchase` | Same for capture actions |
 | `idx_one_pending_refund_per_purchase` | Same for refund actions |
 
 ### Modified Function (1)
 
-**`record_cancel_result`** — restructured to check idempotent replay BEFORE action status. The original code checked action status first, which prevented duplicate webhook/reconciliation calls from returning the stored result. The fix moves `acquire_operation` before the `ACTION_STATUS_INVALID` check, so a duplicate call with the same `operation_id + request_hash` returns the stored result even after the action is already completed.
+**`record_cancel_result`** — restructured to check idempotent replay BEFORE action status. `acquire_operation` now runs before the `ACTION_STATUS_INVALID` check, so a duplicate call with the same `operation_id + request_hash` returns the stored result even after the action is already completed.
 
 ### Deployed Objects (after)
 
@@ -123,60 +62,50 @@ The full SQL artifacts were deployed to the dev database by dropping the existin
 
 ### Begin Cancellation (`begin_cancel`)
 
-1. **Acquires operation_id** — unique per call, idempotent replay or conflict detection
-2. **Locks binding** with `SELECT ... FOR UPDATE` — row-level lock
-3. **Verifies binding** is in cancellable state (`authorized`, `capture_requested`, `capture_unknown`)
-4. **Updates binding** to `cancel_requested` — conditional UPDATE with `ROW_COUNT` check (exactly 1 row)
-5. **Creates payment_action** — durable saga record with unique `stripe_idempotency_key`
-6. **Commits** — all changes atomic
+1. Acquires `operation_id` — unique per call, idempotent replay or conflict detection
+2. Locks binding with `SELECT ... FOR UPDATE` — row-level lock
+3. Verifies binding is in cancellable state (`authorized`, `capture_requested`, `capture_unknown`)
+4. Updates binding to `cancel_requested` — conditional UPDATE with `ROW_COUNT` check (exactly 1 row)
+5. Creates `payment_action` — durable saga record with unique `stripe_idempotency_key`
+6. Commits — all changes atomic
 
 **No Stripe call inside the transaction.** The Stripe cancel call happens between `begin_cancel` and `record_cancel_result`.
 
 ### Record Cancellation Result (`record_cancel_result`)
 
-1. **Looks up action** for `listing_id` (needed for `acquire_operation`)
-2. **Acquires operation** — idempotent replay returns stored result; conflict returns error
-3. **Checks action status** (only for new operations, not replays)
-4. **Records Stripe result** on the action (exactly 1 row)
-5. **Branches on result:**
-   - **succeeded** → binding `canceled`, authority `available` (released), mirror event
-   - **failed** → binding `cancel_failed` (unsettled), authority frozen + `recovery_blocked`, incident
-   - **unknown** → binding `cancel_unknown` (unsettled), authority frozen + `recovery_blocked`, incident
-6. **Commits** — all changes atomic
+1. Looks up action for `listing_id` (needed for `acquire_operation`)
+2. Acquires operation — idempotent replay returns stored result; conflict returns error (BEFORE status check)
+3. Checks action status (only for new operations, not replays)
+4. Records Stripe result on the action (exactly 1 row)
+5. Branches: succeeded → binding `canceled`, authority `available`; failed → `cancel_failed`, frozen, `recovery_blocked`, incident; unknown → `cancel_unknown`, frozen, `recovery_blocked`, incident
+6. Commits — all changes atomic
 
-### Required Transaction Behavior — Verified
+### Correction: T9 Failure Root Cause
 
-| Requirement | Test | Result |
-|---|---|---|
-| Begin cancellation atomically freezes/protects authority state and creates exactly one durable payment action | T9 (20 concurrent) | ✅ 1 success, 19 rejected, 1 payment_action |
-| No Stripe call occurs inside a database transaction | Architecture (begin_cancel creates action, Stripe call is between begin and record) | ✅ |
-| Confirmed cancellation success releases the reservation exactly once | T1 | ✅ authority → available, binding → canceled |
-| Confirmed failure follows fail-closed state and never falsely reports release | T2 | ✅ authority frozen, binding cancel_failed, recovery_blocked |
-| Timeout/unknown keeps reservation protected, records cancel_unknown, blocks unsafe recovery, creates one incident | T3 | ✅ authority frozen, cancel_unknown, recovery_blocked, 1 incident |
-| Webhook or reconciliation resolves unknown outcomes idempotently | T6 (duplicate) | ✅ same result returned |
-| Repeated operation IDs with identical payloads replay the original result | T7 (identical retry) | ✅ ok=true on retry |
-| Reused operation IDs with changed payloads are rejected | T8 (conflicting retry) | ✅ OPERATION_ID_CONFLICT |
-| Concurrent begin calls produce one durable action | T9 (20 concurrent) | ✅ 1 payment_action |
-| Transaction failure commits nothing | T10 (injected rollback) | ✅ conflicting action NOT created |
+An earlier version of T9 counted **all** `payment_actions` rows globally (`countAll().payment_actions`) instead of counting only the **current test's purchase** (`WHERE purchase_id = ${ctx.purchaseId}`). This produced a false failure because rows from prior tests (T1–T8) were included in the count. The database unique constraint and partial index (`idx_one_pending_cancel_per_purchase`) were working correctly — the failure was an **unscoped test-counter bug**, not a Neon HTTP concurrency limitation. The corrected test counts only its own purchase's `payment_actions` and passes reliably.
 
 ---
 
-## 5. Client Separation
+## 5. Client Separation and Role Boundary
 
 ### Executor Client (`authorityV1Client.js`)
 
-- **Allowlisted methods only:** getState, initializeListing, reserveListing, releaseListing, expireListing, bindPaymentIntent, beginCancel, recordCancelResult, abortBinding
-- **No admin URL. No admin connection.**
-- **No arbitrary raw-SQL method.** All calls go through `SELECT authority_v1.<fn>(...)` with parameterized args.
-- **No credentials logged or returned.** Fingerprint returns role/hostname/database only.
-- **Validates Neon dev fingerprint** (hostname + database + role).
+- **Allowlisted methods (executor-granted only):** getState, initializeListing, reserveListing, releaseListing, expireListing, bindPaymentIntent, beginCancel, abortBinding
+- **`recordCancelResult` is NOT in the executor client** — the executor role lacks EXECUTE permission on it (granted to `authority_stripe_recorder` only, per `004_roles_and_grants.sql` §11). The method was removed from the executor client to enforce the boundary at the code level.
+- **No admin URL. No admin connection.** No arbitrary raw-SQL method. No credentials logged or returned. Validates Neon dev fingerprint (hostname + database + role).
 
 ### Admin/Test Client (`authorityV1TestAdmin.js`)
 
-- **NEVER imported by production handlers.** Clearly labeled "TEST USE ONLY."
-- **Raw SQL execution** for test setup, state verification, and cleanup.
-- **Cleanup by exact synthetic ID allowlist** — never a blanket DELETE (except `cleanupAll` for test teardown).
-- **No credentials logged or returned.**
+- **NEVER imported by production handlers.** Static analysis: 0 of 50 production handler files import `authorityV1TestAdmin`.
+- **No production runtime path uses the admin URL** (`AUTHORITY_DB_URL_DEV_ADMIN`). Static analysis: 0 of 50 production handler files reference `AUTHORITY_DB_URL_DEV_ADMIN`.
+- Raw SQL execution for test setup, state verification, and cleanup. Cleanup by exact synthetic ID allowlist. No credentials logged or returned.
+
+### Role Evidence
+
+| Test | Proof | Result |
+|---|---|---|
+| T14: Executor cannot call `record_cancel_result` | `information_schema.role_routine_grants`: `authority_executor` has 0 grants on `record_cancel_result`. Actual call as executor: blocked (permission denied). | ✅ grantCount=0, callBlocked=true |
+| T15: Recorder cannot call `begin_cancel` | `information_schema.role_routine_grants`: `authority_stripe_recorder` has 0 grants on `begin_cancel` (negative proof). `authority_stripe_recorder` has 1 grant on `record_cancel_result` (positive proof of allowlist). | ✅ recorderBeginGrants=0, recorderRecordGrants=1 |
 
 ### Role Separation
 
@@ -189,9 +118,56 @@ The full SQL artifacts were deployed to the dev database by dropping the existin
 
 **No role passwords or secrets were altered.**
 
+### Recorder Login/Secret Prerequisite
+
+No owner-managed `authority_stripe_recorder` login/secret exists in the app's secret store. The `authority_stripe_recorder` role was created with `LOGIN` in the database (`004_roles_and_grants.sql` §1), but no connection URL secret (e.g., `AUTHORITY_V1_DB_URL_DEV_RECORDER`) has been provisioned. **No actual recorder-role login connection was tested** because no owner-managed recorder credential/secret exists.
+
+This is a **prerequisite for the later handler-integration gate (P0-01G)**: when a production handler needs to call `record_cancel_result`, it must use a recorder-role connection, not the executor or admin connection. The recorder password/secret must be provisioned by the app owner out-of-band. **Do not create or reset the recorder password in this gate.** The test suite proxies `record_cancel_result` through the admin connection as a test-only expedient.
+
+Admin credentials (`AUTHORITY_DB_URL_DEV_ADMIN`) were used only for administration and testing and are not imported by production handlers.
+
 ---
 
-## 6. Test Evidence — 37/37 PASS
+## 6. SQL Artifact / Live-Database Parity (T16)
+
+### Function Parity
+
+| Object | Artifact Hash | Live Hash | Match |
+|---|---|---|---|
+| `record_cancel_result` body | `47ad19534a552947` | `47ad19534a552947` | ✅ |
+
+**Method:** The function body (between `AS $$` and `$$`) was extracted from `002_functions.sql` and compared with `pg_proc.prosrc` from the live database. Both were normalized (comments stripped, whitespace collapsed, type casts removed, lowercased) and hashed with SHA-256 (first 16 hex chars). The replay-before-status structure was also verified: `acquire_operation` appears before `ACTION_STATUS_INVALID` in the live `prosrc`.
+
+### Index Parity
+
+| Index | Artifact Hash | Live Hash | Match |
+|---|---|---|---|
+| `idx_one_pending_cancel_per_purchase` | `959cdab59e72d762` | `959cdab59e72d762` | ✅ |
+| `idx_one_pending_capture_per_purchase` | `27148cfd22e3af55` | `27148cfd22e3af55` | ✅ |
+| `idx_one_pending_refund_per_purchase` | `df406739fd0c72c3` | `df406739fd0c72c3` | ✅ |
+
+**Method:** Each index definition was extracted from `001_schema.sql` and compared with `pg_indexes.indexdef` from the live database. Both were normalized (schema prefix removed, `USING btree` removed, `::text` casts removed, `= ANY(ARRAY[...])` → `IN (...)`, parentheses removed, whitespace collapsed, lowercased) and hashed with SHA-256 (first 16 hex chars).
+
+---
+
+## 7. Test Evidence — 51/51 PASS from Persisted Runner
+
+### Execution Method
+
+The test module (`tests/payment-saga-cancel.test.mjs`) was refactored into an importable ESM module exporting `runAllTests(deps)`. The `exec_tool` sandbox dynamically imported the module and invoked `runAllTests({ execSql, adminSql })` with `neon()` connections created from the app's secrets (`AUTHORITY_V1_DB_URL_DEV_EXECUTOR` and `AUTHORITY_DB_URL_DEV_ADMIN`). This avoids the platform's restriction on passing DB credentials to child processes. Sanitized raw results were saved to `tests/payment-saga-cancel-results.json`.
+
+**Exact command (reproducibility):**
+```
+node --import ./tests/loaders/npm-compat-register.mjs -e "
+  const { neon } = require('@neondatabase/serverless');
+  const execSql = neon(process.env.AUTHORITY_V1_DB_URL_DEV_EXECUTOR);
+  const adminSql = neon(process.env.AUTHORITY_DB_URL_DEV_ADMIN);
+  const m = await import('./tests/payment-saga-cancel.test.mjs');
+  const r = await m.runAllTests({ execSql, adminSql });
+  console.log(JSON.stringify({ passed: r.passed, failed: r.failed }, null, 2));
+"
+```
+Note: `exec_tool` sandbox proxies the same import+invoke pattern internally.
 
 ### Test Scenarios (Fake Stripe Adapter Only)
 
@@ -204,22 +180,23 @@ The full SQL artifacts were deployed to the dev database by dropping the existin
 | 5 | Later reconciliation success (durable unknown) | 3 | ✅ PASS |
 | 6 | Duplicate webhook (idempotent) | 2 | ✅ PASS |
 | 7 | Identical retry (same op_id + same hash) | 2 | ✅ PASS |
-| 8 | Conflicting retry (same op_id + different hash) | 3 | ✅ PASS |
-| 9 | 20 concurrent begin requests | 2 | ✅ PASS (1 success, 19 rejected, 1 payment_action) |
-| 10 | Injected rollback | 2 | ✅ PASS |
-| 11 | Incident uniqueness | 2 | ✅ PASS (1 incident, occurrence_count ≥ 2) |
-| 12 | Executor denied direct table mutation | 2 | ✅ PASS (0 privileges, INSERT blocked) |
+| 8 | Conflicting retry (structured result) | 3 | ✅ PASS |
+| 9 | 20 concurrent begin (per-purchase scoped count) | 2 | ✅ PASS |
+| 10 | Injected rollback (structured result) | 2 | ✅ PASS |
+| 11 | Incident uniqueness (reset to authorized) | 2 | ✅ PASS |
+| 12 | Executor denied direct table mutation | 2 | ✅ PASS |
 | 13 | Cleanup by exact synthetic ID allowlist | 2 | ✅ PASS |
+| 14 | Executor cannot call record_cancel_result | 2 | ✅ PASS (grantCount=0, callBlocked=true) |
+| 15 | Recorder cannot call begin_cancel | 2 | ✅ PASS (recorderBeginGrants=0, recorderRecordGrants=1) |
+| 16 | SQL artifact / live-database parity | 3 | ✅ PASS (fn + 3 indexes match) |
 | Final | All tables 0 rows after cleanup | 1 | ✅ PASS |
-| **Total** | | **37** | **37/37 PASS** |
+| **Total** | | **51** | **51/51 PASS** |
 
-**Note:** Tests were run inline via the exec_tool sandbox because the platform blocks passing DB credentials to child processes. The test file (`tests/payment-saga-cancel.test.mjs`) is provided for reproducibility with the npm-compat loader.
-
-**Fake Stripe adapter:** The tests use a simple JavaScript function that returns a predetermined result (succeeded/failed/unknown). No real Stripe API is called. No real Stripe keys are used.
+**Fake Stripe adapter:** Tests use a JavaScript function returning a predetermined result (succeeded/failed/unknown). No real Stripe API is called. No real Stripe keys are used.
 
 ---
 
-## 7. Build, Lint, and Regression Results
+## 8. Build, Lint, and Regression Results
 
 | Check | Exit Code | Details |
 |---|---|---|
@@ -229,11 +206,11 @@ The full SQL artifacts were deployed to the dev database by dropping the existin
 | P0-01E protections regression | 0 | 7/7 pass |
 | P0-01E wiring regression | 0 | 5/5 pass |
 | Search normalize regression | 0 | 28/28 pass |
-| Payment saga cancellation tests | 0 | 37/37 pass |
+| Payment saga cancellation tests (persisted runner) | 0 | 51/51 pass |
 
 ---
 
-## 8. Final State
+## 9. Final State
 
 | Item | Value |
 |---|---|
@@ -247,28 +224,31 @@ The full SQL artifacts were deployed to the dev database by dropping the existin
 | Real Stripe calls | 0 |
 | Real email/push/points/notifications | 0 |
 | Production entry points modified | 0 (abortCheckout, capturePayment, refunds, webhook, 7C.9D unchanged) |
+| Admin client imports in production handlers | 0 (50 handlers checked) |
+| Admin URL usage in production handlers | 0 (50 handlers checked) |
 
 ---
 
-## 9. Files Changed
+## 10. Files Changed
 
 | File | Change |
 |---|---|
 | `database/authority_v1/001_schema.sql` | Added 3 concurrency unique indexes |
 | `database/authority_v1/002_functions.sql` | Modified `record_cancel_result` (replay-first) |
-| `base44/shared/authorityV1Client.js` | Added 5 payment saga methods to executor client allowlist |
-| `base44/shared/authorityV1TestAdmin.js` | NEW — admin/test-only client for authority_v1 |
-| `tests/payment-saga-cancel.test.mjs` | NEW — 13-scenario executable test suite |
+| `base44/shared/authorityV1Client.js` | Removed `recordCancelResult` from executor allowlist (recorder-only); added recorder-only comment |
+| `base44/shared/authorityV1TestAdmin.js` | NEW — admin/test-only client with recordCancelResult proxy, per-purchase count, resetBindingToAuthorized, grant verification, artifact parity helpers |
+| `tests/payment-saga-cancel.test.mjs` | NEW — 16-scenario importable ESM module (51 assertions) with fake Stripe adapter, structured result assertions, per-purchase scoped counts, role boundary proofs, artifact parity proofs |
+| `tests/payment-saga-cancel-results.json` | NEW — sanitized raw results from persisted runner execution |
 
 ---
 
-## 10. Conclusion
+## 11. Conclusion
 
-P0-01F is **PASS**:
-- The cancellation saga primitives are proven by 37/37 executable tests against the real Postgres database.
+P0-01F is **PASS** as a **development database saga-substrate certification**:
+- The cancellation saga primitives are proven by 51/51 executable tests from the **persisted runner** (not replacement inline code) against the real Postgres database.
 - All required transaction behaviors are verified: atomic begin, no Stripe in transaction, exactly-once release on success, fail-closed on failure, unknown protection with incident, idempotent replay, conflict rejection, concurrent exactly-one, rollback safety.
-- Client separation is strict: executor client has allowlisted function calls only; admin/test client is never imported by production handlers.
-- Zero real Stripe/email/push/points/notifications calls. Zero production entry points modified. 50 functions unchanged.
-- Clean state: flag OFF, maintenance ON, 0 synthetic rows.
+- **Role boundary is proven:** executor cannot call `record_cancel_result` (grant table + actual call); recorder cannot call `begin_cancel` (grant table + positive proof of recorder allowlist); admin client never imported by production (static analysis of 50 handlers); no production path uses admin URL (static analysis).
+- **Artifact/live parity is proven:** `record_cancel_result` body and all 3 unique indexes match by normalized hash.
+- **Production Stripe execution is NOT certified.** No production handler calls `begin_cancel` or `record_cancel_result`. `abortCheckout` integration is NOT STARTED.
 
-**This gate certifies the cancellation saga primitives. It does NOT certify `abortCheckout` integration.**
+**P0-01G (production-handler canary integration) is blocked** until an owner-managed `authority_stripe_recorder` connection and Base44 secret exist. No recorder password was created or reset in this gate.
