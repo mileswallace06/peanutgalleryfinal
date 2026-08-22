@@ -192,5 +192,88 @@ export function createAuthorityV1TestAdmin(adminUrl) {
         return { blocked: true, error: (e.message || String(e)).slice(0, 200) };
       }
     },
+
+    /** Call record_cancel_result via admin connection (recorder proxy for tests). */
+    async recordCancelResult(actionId, resultDerived, stripeResponse, workerId, opId, requestHash) {
+      const rows = await sql(
+        `SELECT authority_v1.record_cancel_result($1, $2, $3::jsonb, $4, $5, $6) as result`,
+        [actionId, resultDerived, JSON.stringify(stripeResponse), workerId, opId, requestHash]
+      );
+      return rows[0]?.result;
+    },
+
+    /** Count payment_actions for a specific purchase (scoped, not global). */
+    async countPaymentActionsByPurchase(purchaseId) {
+      const rows = await sql`SELECT count(*)::int as c FROM authority_v1.payment_actions WHERE purchase_id = ${purchaseId}`;
+      return rows[0]?.c || 0;
+    },
+
+    /** Reset binding to 'authorized' and clear recovery_blocked (for T11 second iteration). */
+    async resetBindingToAuthorized(purchaseId, listingId) {
+      await sql`UPDATE authority_v1.reservation_payment_bindings SET capture_state = 'authorized', updated_at = now() WHERE purchase_id = ${purchaseId}`;
+      await sql`UPDATE authority_v1.reservation_authority SET recovery_blocked = false, recovery_blocked_reason = null, recovery_blocked_at = null, updated_at = now() WHERE listing_id = ${listingId}`;
+      return { ok: true };
+    },
+
+    /** Prove executor cannot call record_cancel_result (permission denied). */
+    async checkExecutorCannotRecordCancel(executorUrl) {
+      const executorSql = neon(executorUrl);
+      try {
+        await executorSql(
+          `SELECT authority_v1.record_cancel_result('test', 'succeeded', '{}'::jsonb, null, 'test_op', 'test_hash') as result`
+        );
+        return { blocked: false, error: null };
+      } catch (e) {
+        return { blocked: true, error: (e.message || String(e)).slice(0, 200) };
+      }
+    },
+
+    /** Prove recorder cannot call begin_cancel (SET ROLE test). */
+    async checkRecorderCannotBeginCancel() {
+      try {
+        await sql`SET ROLE authority_stripe_recorder`;
+        try {
+          await sql(
+            `SELECT authority_v1.begin_cancel('test', 1, 'test', 'test', 'test', 'test', 'test', 'test', 'test', 'test') as result`
+          );
+          return { blocked: false, error: null };
+        } catch (e) {
+          return { blocked: true, error: (e.message || String(e)).slice(0, 200) };
+        }
+      } finally {
+        await sql`RESET ROLE`;
+      }
+    },
+
+    /** Get EXECUTE grants for a specific role. */
+    async getRoleGrants(roleName) {
+      return sql`
+        SELECT p.proname, pg_get_function_identity_arguments(p.oid) as args
+        FROM pg_proc p
+        JOIN pg_namespace n ON p.pronamespace = n.oid
+        JOIN information_schema.role_routine_grants g
+          ON g.routine_schema = 'authority_v1'
+          AND g.routine_name = p.proname
+          AND g.grantee = ${roleName}
+        WHERE n.nspname = 'authority_v1'
+        ORDER BY p.proname`;
+    },
+
+    /** Get live function definition (prosrc) for artifact parity. */
+    async getLiveFunctionDefinition(fnName) {
+      const rows = await sql`
+        SELECT prosrc FROM pg_proc p
+        JOIN pg_namespace n ON p.pronamespace = n.oid
+        WHERE n.nspname = 'authority_v1' AND p.proname = ${fnName}`;
+      return rows[0]?.prosrc || null;
+    },
+
+    /** Get live index definition for artifact parity. */
+    async getLiveIndexDefinition(indexName) {
+      const rows = await sql`
+        SELECT indexdef FROM pg_indexes
+        WHERE schemaname = 'authority_v1' AND indexname = ${indexName}`;
+      return rows[0]?.indexdef || null;
+    },
   };
 }

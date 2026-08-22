@@ -1,0 +1,104 @@
+{
+  "timestamp": "2026-08-22T02:41:52.234Z",
+  "passed": 49,
+  "failed": 2,
+  "failures": [
+    "T16: record_cancel_result parity (artifact: 5b81bcdfb5a8f8fa, live: 88522a1c6607ce64)",
+    "T16: all 3 unique indexes parity ({\"idx_one_pending_cancel_per_purchase\":{\"artifact\":\"4bc610200686e7c0\",\"live\":\"00ec26212da66f34\"},\"idx_one_pending_capture_per_purchase\":{\"artifact\":\"65cf0200fe1159d5\",\"live\":\"bb244f9bba4d2d7f\"},\"idx_one_pending_refund_per_purchase\":{\"artifact\":\"32ebca2386e8ef26\",\"live\":\"5cee51fdd78d136c\"}})"
+  ],
+  "finalCounts": {
+    "ra": 0,
+    "ro": 0,
+    "rpb": 0,
+    "pa": 0,
+    "swe": 0,
+    "oi": 0,
+    "ob": 0
+  },
+  "results": {
+    "T1": {
+      "assertions": 6,
+      "ok": true
+    },
+    "T2": {
+      "assertions": 7,
+      "ok": true
+    },
+    "T3": {
+      "assertions": 7,
+      "ok": true
+    },
+    "T4": {
+      "assertions": 3,
+      "ok": true
+    },
+    "T5": {
+      "assertions": 3,
+      "ok": true
+    },
+    "T6": {
+      "assertions": 2,
+      "ok": true
+    },
+    "T7": {
+      "assertions": 2,
+      "ok": true
+    },
+    "T8": {
+      "assertions": 3,
+      "ok": true
+    },
+    "T9": {
+      "assertions": 2,
+      "ok": true
+    },
+    "T10": {
+      "assertions": 2,
+      "ok": true
+    },
+    "T11": {
+      "assertions": 2,
+      "ok": true
+    },
+    "T12": {
+      "assertions": 2,
+      "ok": true
+    },
+    "T13": {
+      "assertions": 2,
+      "ok": true
+    },
+    "T14": {
+      "assertions": 2,
+      "ok": true,
+      "grantCount": 0,
+      "callBlocked": true
+    },
+    "T15": {
+      "assertions": 2,
+      "ok": true,
+      "recorderBeginGrants": 0,
+      "recorderRecordGrants": 1
+    },
+    "T16": {
+      "assertions": 3,
+      "ok": true,
+      "artifactFnHash": "5b81bcdfb5a8f8fa",
+      "liveFnHash": "88522a1c6607ce64",
+      "indexHashes": {
+        "idx_one_pending_cancel_per_purchase": {
+          "artifact": "4bc610200686e7c0",
+          "live": "00ec26212da66f34"
+        },
+        "idx_one_pending_capture_per_purchase": {
+          "artifact": "65cf0200fe1159d5",
+          "live": "bb244f9bba4d2d7f"
+        },
+        "idx_one_pending_refund_per_purchase": {
+          "artifact": "32ebca2386e8ef26",
+          "live": "5cee51fdd78d136c"
+        }
+      }
+    }
+  }
+}

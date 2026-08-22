@@ -14,10 +14,13 @@
  *   - Validates a real Neon dev fingerprint (hostname + database + role).
  *   - Never logs, returns, or places credential-bearing values in errors.
  *
- * Allowlisted methods:
+ * Allowlisted methods (executor-granted only):
  *   getState, initializeListing, reserveListing, releaseListing,
- *   bindPaymentIntent, beginCancel, recordCancelResult, abortBinding,
- *   expireListing
+ *   bindPaymentIntent, beginCancel, abortBinding, expireListing
+ *
+ * NOT included — recorder-only (authority_stripe_recorder):
+ *   recordCancelResult, recordCaptureResult, recordRefundResult, finalizeSale
+ * The executor role lacks EXECUTE on these by design (004_roles_and_grants.sql §11).
  */
 import { neon } from 'npm:@neondatabase/serverless@0.10.4';
 
@@ -117,11 +120,6 @@ export function createAuthorityV1Client(executorUrl) {
     /** begin_cancel(listing_id, expected_version, purchase_id, payment_intent_id, buyer_user_id, expected_revision, action_id, stripe_idem_key, operation_id, request_hash) → JSONB */
     async beginCancel(listingId, expectedVersion, purchaseId, paymentIntentId, buyerUserId, expectedRevision, actionId, stripeIdemKey, operationId, requestHash) {
       return callFn('begin_cancel', listingId, expectedVersion, purchaseId, paymentIntentId, buyerUserId, expectedRevision, actionId, stripeIdemKey, operationId, requestHash);
-    },
-
-    /** record_cancel_result(action_id, result_derived, stripe_response, worker_id, operation_id, request_hash) → JSONB */
-    async recordCancelResult(actionId, resultDerived, stripeResponse, workerId, operationId, requestHash) {
-      return callFn('record_cancel_result', actionId, resultDerived, stripeResponse, workerId, operationId, requestHash);
     },
 
     /** abort_binding(listing_id, expected_version, purchase_id, operation_id, request_hash) → JSONB */

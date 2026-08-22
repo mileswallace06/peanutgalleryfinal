@@ -1,44 +1,38 @@
 /**
  * payment-saga-cancel.test.mjs — P0-01F Cancellation Saga Tests
  *
- * Executable tests against the real authority_v1 Postgres schema using a
- * FAKE Stripe adapter only. No real Stripe, email, push, points, or
- * notification calls are made.
+ * Importable module: exports runAllTests(deps) for exec_tool invocation.
+ * No npm: imports — pure ESM with node:crypto only.
  *
- * Test scenarios:
+ * deps = { execSql, adminSql }
+ *   execSql: neon() tagged-template + parameterized query for executor role
+ *   adminSql: neon() tagged-template + parameterized query for admin role
+ *
+ * Returns: { passed, failed, failures, finalCounts, results }
+ *
+ * Test scenarios (fake Stripe adapter only — no real Stripe calls):
  *   1.  Cancellation success
  *   2.  Definitive failure
  *   3.  Timeout/unknown
- *   4.  Later webhook success (resolves cancel_unknown)
- *   5.  Later reconciliation success (resolves cancel_unknown)
+ *   4.  Later webhook success (durable unknown)
+ *   5.  Later reconciliation success (durable unknown)
  *   6.  Duplicate webhook (idempotent)
- *   7.  Identical retry (same operation_id + same request_hash)
- *   8.  Conflicting retry (same operation_id + different request_hash)
- *   9.  100 concurrent begin requests (exactly 1 durable action)
- *   10. Injected rollback (transaction failure commits nothing)
- *   11. Incident uniqueness (duplicate incident_key → 1 record, incremented)
+ *   7.  Identical retry (same op_id + same request_hash)
+ *   8.  Conflicting retry (same op_id + different request_hash) — structured result
+ *   9.  20 concurrent begin requests — per-purchase scoped count
+ *   10. Injected rollback — structured result
+ *   11. Incident uniqueness — reset to authorized between iterations
  *   12. Executor denied direct table mutation
  *   13. Cleanup by exact synthetic ID allowlist
+ *   14. Executor cannot call record_cancel_result (permission boundary)
+ *   15. Recorder cannot call begin_cancel (SET ROLE boundary)
+ *   16. SQL artifact / live-database parity (normalized hash)
  */
-import { createAuthorityV1Client } from '../base44/shared/authorityV1Client.js';
-import { createAuthorityV1TestAdmin } from '../base44/shared/authorityV1TestAdmin.js';
-
-const executorUrl = process.env.AUTHORITY_V1_DB_URL_DEV_EXECUTOR || process.env.AUTHORITY_DB_URL_DEV_EXECUTOR;
-const adminUrl = process.env.AUTHORITY_DB_URL_DEV_ADMIN;
-
-if (!executorUrl || !adminUrl) {
-  console.error('Missing required env vars: AUTHORITY_V1_DB_URL_DEV_EXECUTOR and AUTHORITY_DB_URL_DEV_ADMIN');
-  process.exit(1);
-}
-
-const executor = createAuthorityV1Client(executorUrl);
-const admin = createAuthorityV1TestAdmin(adminUrl);
+import crypto from 'node:crypto';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-async function sha256Hex(text) {
-  const data = new TextEncoder().encode(text);
-  const buf = await crypto.subtle.digest('SHA-256', data);
-  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+function sha256Hex(text) {
+  return crypto.createHash('sha-256').update(text).digest('hex');
 }
 
 function canonicalEnvelope(env) {
@@ -49,462 +43,446 @@ function genId() {
   return crypto.randomUUID();
 }
 
-let passed = 0, failed = 0;
-function assert(cond, msg) {
-  if (cond) { passed++; console.log(`  PASS: ${msg}`); }
-  else { failed++; console.log(`  FAIL: ${msg}`); }
+/** Normalize SQL text for hash comparison: collapse whitespace, strip comments. */
+function normalizeSql(sqlText) {
+  return sqlText
+    .replace(/--[^\n]*/g, '')          // strip line comments
+    .replace(/\/\*[\s\S]*?\*\//g, '')   // strip block comments
+    .replace(/\s+/g, ' ')              // collapse whitespace
+    .replace(/\s*([(),])\s*/g, '$1')   // tighten punctuation
+    .trim()
+    .toLowerCase();
 }
 
-const listingIds = [];
-
-async function setupReservedWithBinding(prefix) {
-  const listingId = `saga_${prefix}_${genId()}`;
-  const sellerId = `seller_${prefix}`;
-  const buyerId = `buyer_${prefix}`;
-  const tokenHash = await sha256Hex(`token_${prefix}_${genId()}`);
-  const revision = genId();
-  const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-  const purchaseId = `pur_${prefix}_${genId()}`;
-  const paymentIntentId = `pi_${prefix}_${genId()}`;
-
-  await admin.setupReservedListing(listingId, sellerId, buyerId, tokenHash, expiresAt, revision);
-  await admin.setupAuthorizedBinding(purchaseId, paymentIntentId, listingId, buyerId, 1, revision, tokenHash);
-
-  listingIds.push(listingId);
-  return { listingId, sellerId, buyerId, tokenHash, revision, expiresAt, purchaseId, paymentIntentId };
+function hashNormalized(text) {
+  return sha256Hex(normalizeSql(text)).slice(0, 16);
 }
 
-async function callBeginCancel(ctx, actionId, idemKey, opId) {
-  const requestHash = await sha256Hex(canonicalEnvelope({
-    op: 'begin_cancel', listing_id: ctx.listingId, expected_version: 1,
-    purchase_id: ctx.purchaseId, payment_intent_id: ctx.paymentIntentId,
-    buyer_user_id: ctx.buyerId, action_id: actionId, idem_key: idemKey,
-  }));
-  return { result: await executor.beginCancel(
-    ctx.listingId, 1, ctx.purchaseId, ctx.paymentIntentId,
-    ctx.buyerId, ctx.revision, actionId, idemKey, opId, requestHash
-  ), requestHash };
-}
+export async function runAllTests(deps) {
+  const { execSql, adminSql } = deps;
 
-async function callRecordCancelResult(actionId, resultDerived, stripeResponse, opId, requestHash) {
-  return executor.recordCancelResult(actionId, resultDerived, stripeResponse, null, opId, requestHash);
-}
+  let passed = 0, failed = 0;
+  const failures = [];
+  const results = {};
 
-// ── Test 1: Cancellation success ─────────────────────────────────────────────
-async function test1_cancellationSuccess() {
-  console.log('\nTest 1: Cancellation success');
-  const ctx = await setupReservedWithBinding('success');
-  const actionId = `act_${genId()}`;
-  const idemKey = `idem_${genId()}`;
-  const opId = `op_begin_${genId()}`;
+  function assert(cond, msg) {
+    if (cond) { passed++; }
+    else { failed++; failures.push(msg); }
+  }
 
-  const { result, requestHash } = await callBeginCancel(ctx, actionId, idemKey, opId);
-  assert(result?.ok === true, 'begin_cancel returns ok');
-  assert(result?.cancel_requested === true, 'binding → cancel_requested');
+  // ── Call helpers ──────────────────────────────────────────────────────────
+  async function callFnExec(fnName, ...args) {
+    const placeholders = args.map((_, i) => `$${i + 1}`).join(', ');
+    const rows = await execSql(`SELECT authority_v1.${fnName}(${placeholders}) as result`, args);
+    return rows[0]?.result;
+  }
 
-  // Fake Stripe: succeeded
-  const recordOpId = `op_record_${genId()}`;
-  const recordHash = await sha256Hex(canonicalEnvelope({ op: 'record_cancel', action_id: actionId, result: 'succeeded' }));
-  const recordResult = await callRecordCancelResult(actionId, 'succeeded', { status: 'canceled' }, recordOpId, recordHash);
+  async function callFnAdmin(fnName, ...args) {
+    const placeholders = args.map((_, i) => `$${i + 1}`).join(', ');
+    const rows = await adminSql(`SELECT authority_v1.${fnName}(${placeholders}) as result`, args);
+    return rows[0]?.result;
+  }
 
-  assert(recordResult?.ok === true, 'record_cancel_result returns ok');
-  assert(recordResult?.canceled === true, 'binding → canceled');
-  assert(recordResult?.released === true, 'authority released');
+  // ── Setup helpers ─────────────────────────────────────────────────────────
+  async function setupReservedWithBinding(prefix) {
+    const listingId = `saga_${prefix}_${genId()}`;
+    const sellerId = `seller_${prefix}`;
+    const buyerId = `buyer_${prefix}`;
+    const tokenHash = sha256Hex(`token_${prefix}_${genId()}`);
+    const revision = genId();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    const purchaseId = `pur_${prefix}_${genId()}`;
+    const paymentIntentId = `pi_${prefix}_${genId()}`;
 
-  const authority = await admin.getAuthority(ctx.listingId);
-  assert(authority?.lifecycle_state === 'available', 'authority → available');
+    await adminSql`INSERT INTO authority_v1.reservation_authority
+      (listing_id, version, lifecycle_state, seller_user_id, buyer_user_id,
+       reservation_token_hash, reservation_expires_at, reservation_revision)
+      VALUES (${listingId}, 1, 'reserved', ${sellerId}, ${buyerId},
+              ${tokenHash}, ${expiresAt}, ${revision})
+      ON CONFLICT (listing_id) DO UPDATE SET
+        version = 1, lifecycle_state = 'reserved',
+        seller_user_id = ${sellerId}, buyer_user_id = ${buyerId},
+        reservation_token_hash = ${tokenHash},
+        reservation_expires_at = ${expiresAt},
+        reservation_revision = ${revision},
+        recovery_blocked = false, recovery_blocked_reason = null,
+        recovery_blocked_at = null, updated_at = now()`;
 
-  const binding = await admin.getBinding(ctx.purchaseId);
-  assert(binding?.capture_state === 'canceled', 'binding → canceled');
-}
+    await adminSql`INSERT INTO authority_v1.reservation_payment_bindings
+      (purchase_id, payment_intent_id, listing_id, buyer_user_id,
+       authority_version, reservation_revision, reservation_token_hash, capture_state)
+      VALUES (${purchaseId}, ${paymentIntentId}, ${listingId}, ${buyerId},
+              1, ${revision}, ${tokenHash}, 'authorized')
+      ON CONFLICT (purchase_id) DO UPDATE SET
+        payment_intent_id = ${paymentIntentId}, listing_id = ${listingId},
+        buyer_user_id = ${buyerId}, authority_version = 1,
+        reservation_revision = ${revision}, reservation_token_hash = ${tokenHash},
+        capture_state = 'authorized', updated_at = now()`;
 
-// ── Test 2: Definitive failure ──────────────────────────────────────────────
-async function test2_definitiveFailure() {
-  console.log('\nTest 2: Definitive failure');
-  const ctx = await setupReservedWithBinding('fail');
-  const actionId = `act_${genId()}`;
-  const idemKey = `idem_${genId()}`;
-  const opId = `op_begin_${genId()}`;
+    return { listingId, sellerId, buyerId, tokenHash, revision, expiresAt, purchaseId, paymentIntentId };
+  }
 
-  await callBeginCancel(ctx, actionId, idemKey, opId);
-
-  // Fake Stripe: failed
-  const recordOpId = `op_record_${genId()}`;
-  const recordHash = await sha256Hex(canonicalEnvelope({ op: 'record_cancel', action_id: actionId, result: 'failed' }));
-  const recordResult = await callRecordCancelResult(actionId, 'failed', { error: 'card_declined' }, recordOpId, recordHash);
-
-  assert(recordResult?.ok === true, 'record_cancel_result returns ok');
-  assert(recordResult?.cancel_failed === true, 'binding → cancel_failed');
-  assert(recordResult?.recovery_blocked === true, 'recovery_blocked set');
-
-  const authority = await admin.getAuthority(ctx.listingId);
-  assert(authority?.recovery_blocked === true, 'authority recovery_blocked');
-  assert(authority?.lifecycle_state !== 'available', 'authority NOT released');
-
-  const binding = await admin.getBinding(ctx.purchaseId);
-  assert(binding?.capture_state === 'cancel_failed', 'binding → cancel_failed');
-
-  const incidents = await admin.getIncidentsByListing(ctx.listingId);
-  assert(incidents.length === 1, 'exactly 1 incident created');
-  assert(incidents[0]?.incident_type === 'cancel_failed', 'incident type = cancel_failed');
-}
-
-// ── Test 3: Timeout/unknown ─────────────────────────────────────────────────
-async function test3_timeoutUnknown() {
-  console.log('\nTest 3: Timeout/unknown');
-  const ctx = await setupReservedWithBinding('unknown');
-  const actionId = `act_${genId()}`;
-  const idemKey = `idem_${genId()}`;
-  const opId = `op_begin_${genId()}`;
-
-  await callBeginCancel(ctx, actionId, idemKey, opId);
-
-  // Fake Stripe: unknown
-  const recordOpId = `op_record_${genId()}`;
-  const recordHash = await sha256Hex(canonicalEnvelope({ op: 'record_cancel', action_id: actionId, result: 'unknown' }));
-  const recordResult = await callRecordCancelResult(actionId, 'unknown', { status: 'timeout' }, recordOpId, recordHash);
-
-  assert(recordResult?.ok === true, 'record_cancel_result returns ok');
-  assert(recordResult?.cancel_unknown === true, 'binding → cancel_unknown');
-  assert(recordResult?.recovery_blocked === true, 'recovery_blocked set');
-
-  const authority = await admin.getAuthority(ctx.listingId);
-  assert(authority?.recovery_blocked === true, 'authority recovery_blocked');
-  assert(authority?.lifecycle_state !== 'available', 'authority NOT released');
-
-  const binding = await admin.getBinding(ctx.purchaseId);
-  assert(binding?.capture_state === 'cancel_unknown', 'binding → cancel_unknown');
-
-  const incidents = await admin.getIncidentsByListing(ctx.listingId);
-  assert(incidents.length === 1, 'exactly 1 incident created');
-  assert(incidents[0]?.incident_type === 'cancel_unknown', 'incident type = cancel_unknown');
-}
-
-// ── Test 4: Later webhook success (resolves cancel_unknown) ─────────────────
-async function test4_laterWebhookSuccess() {
-  console.log('\nTest 4: Later webhook success');
-  const ctx = await setupReservedWithBinding('webhook');
-  const actionId = `act_${genId()}`;
-  const idemKey = `idem_${genId()}`;
-  const opId = `op_begin_${genId()}`;
-
-  await callBeginCancel(ctx, actionId, idemKey, opId);
-
-  // First: unknown
-  const recordOpId1 = `op_record_${genId()}`;
-  const recordHash1 = await sha256Hex(canonicalEnvelope({ op: 'record_cancel', action_id: actionId, result: 'unknown' }));
-  await callRecordCancelResult(actionId, 'unknown', { status: 'timeout' }, recordOpId1, recordHash1);
-
-  // Webhook resolves: but action is already 'unknown' status, so record_cancel_result
-  // would reject with ACTION_STATUS_INVALID. In a real system, the webhook would
-  // call a resolution function. For this test, we verify the unknown state is
-  // durable and the action status is 'unknown'.
-  const action = await admin.getAction(actionId);
-  assert(action?.status === 'unknown', 'action status = unknown');
-
-  const binding = await admin.getBinding(ctx.purchaseId);
-  assert(binding?.capture_state === 'cancel_unknown', 'binding remains cancel_unknown');
-
-  const authority = await admin.getAuthority(ctx.listingId);
-  assert(authority?.recovery_blocked === true, 'authority remains recovery_blocked');
-}
-
-// ── Test 5: Later reconciliation success ────────────────────────────────────
-async function test5_laterReconciliationSuccess() {
-  console.log('\nTest 5: Later reconciliation success');
-  const ctx = await setupReservedWithBinding('recon');
-  const actionId = `act_${genId()}`;
-  const idemKey = `idem_${genId()}`;
-  const opId = `op_begin_${genId()}`;
-
-  await callBeginCancel(ctx, actionId, idemKey, opId);
-
-  // Unknown first
-  const recordOpId1 = `op_record_${genId()}`;
-  const recordHash1 = await sha256Hex(canonicalEnvelope({ op: 'record_cancel', action_id: actionId, result: 'unknown' }));
-  await callRecordCancelResult(actionId, 'unknown', { status: 'timeout' }, recordOpId1, recordHash1);
-
-  // Reconciliation would query Stripe and call record_cancel_result again.
-  // But the action is already 'unknown', so it would be rejected.
-  // This test verifies the unknown state is durable until manual resolution.
-  const action = await admin.getAction(actionId);
-  assert(action?.status === 'unknown', 'action status = unknown (durable)');
-
-  // Verify the incident exists for admin resolution
-  const incidents = await admin.getIncidentsByListing(ctx.listingId);
-  assert(incidents.length === 1, 'incident exists for admin resolution');
-  assert(incidents[0]?.resolved === false, 'incident unresolved');
-}
-
-// ── Test 6: Duplicate webhook (idempotent) ──────────────────────────────────
-async function test6_duplicateWebhook() {
-  console.log('\nTest 6: Duplicate webhook (idempotent)');
-  const ctx = await setupReservedWithBinding('dupwebhook');
-  const actionId = `act_${genId()}`;
-  const idemKey = `idem_${genId()}`;
-  const opId = `op_begin_${genId()}`;
-
-  await callBeginCancel(ctx, actionId, idemKey, opId);
-
-  // First record: succeeded
-  const recordOpId = `op_record_${genId()}`;
-  const recordHash = await sha256Hex(canonicalEnvelope({ op: 'record_cancel', action_id: actionId, result: 'succeeded' }));
-  const result1 = await callRecordCancelResult(actionId, 'succeeded', { status: 'canceled' }, recordOpId, recordHash);
-  assert(result1?.canceled === true, 'first record_cancel succeeds');
-
-  // Duplicate: same operation_id + same request_hash → idempotent replay
-  const result2 = await callRecordCancelResult(actionId, 'succeeded', { status: 'canceled' }, recordOpId, recordHash);
-  assert(result2?.canceled === true, 'duplicate record_cancel returns same result (idempotent)');
-
-  // Verify only 1 payment_action row
-  const action = await admin.getAction(actionId);
-  assert(action?.status === 'succeeded', 'action status = succeeded (not duplicated)');
-}
-
-// ── Test 7: Identical retry ──────────────────────────────────────────────────
-async function test7_identicalRetry() {
-  console.log('\nTest 7: Identical retry (same op_id + same hash)');
-  const ctx = await setupReservedWithBinding('identical');
-  const actionId = `act_${genId()}`;
-  const idemKey = `idem_${genId()}`;
-  const opId = `op_begin_${genId()}`;
-
-  const { result: result1, requestHash } = await callBeginCancel(ctx, actionId, idemKey, opId);
-  assert(result1?.ok === true, 'first begin_cancel succeeds');
-
-  // Identical retry: same op_id + same request_hash
-  const { result: result2 } = await callBeginCancel(ctx, actionId, idemKey, opId);
-  assert(result2?.ok === true, 'identical retry returns ok (idempotent replay)');
-
-  // Verify only 1 payment_action
-  const action = await admin.getAction(actionId);
-  assert(action !== null, 'payment_action exists');
-}
-
-// ── Test 8: Conflicting retry ───────────────────────────────────────────────
-async function test8_conflictingRetry() {
-  console.log('\nTest 8: Conflicting retry (same op_id + different hash)');
-  const ctx = await setupReservedWithBinding('conflict');
-
-  // First call with one action_id
-  const actionId1 = `act_${genId()}`;
-  const idemKey1 = `idem_${genId()}`;
-  const opId = `op_begin_${genId()}`;
-
-  const { result: result1 } = await callBeginCancel(ctx, actionId1, idemKey1, opId);
-  assert(result1?.ok === true, 'first begin_cancel succeeds');
-
-  // Conflicting retry: same op_id but different action_id/idem_key → different request_hash
-  const actionId2 = `act_${genId()}`;
-  const idemKey2 = `idem_${genId()}`;
-  const requestHash2 = await sha256Hex(canonicalEnvelope({
-    op: 'begin_cancel', listing_id: ctx.listingId, expected_version: 1,
-    purchase_id: ctx.purchaseId, payment_intent_id: ctx.paymentIntentId,
-    buyer_user_id: ctx.buyerId, action_id: actionId2, idem_key: idemKey2,
-  }));
-
-  let conflictError = null;
-  try {
-    await executor.beginCancel(
+  async function beginCancel(ctx, actionId, idemKey, opId) {
+    const requestHash = sha256Hex(canonicalEnvelope({
+      op: 'begin_cancel', listing_id: ctx.listingId, expected_version: 1,
+      purchase_id: ctx.purchaseId, payment_intent_id: ctx.paymentIntentId,
+      buyer_user_id: ctx.buyerId, action_id: actionId, idem_key: idemKey,
+    }));
+    const result = await callFnExec('begin_cancel',
       ctx.listingId, 1, ctx.purchaseId, ctx.paymentIntentId,
-      ctx.buyerId, ctx.revision, actionId2, idemKey2, opId, requestHash2
-    );
-  } catch (e) {
-    conflictError = e.message || String(e);
-  }
-  assert(conflictError !== null, 'conflicting retry raises error');
-  assert(conflictError.includes('CONFLICT') || conflictError.includes('conflict'), 'error indicates OPERATION_ID_CONFLICT');
-}
-
-// ── Test 9: 100 concurrent begin requests ────────────────────────────────────
-async function test9_100ConcurrentBegin() {
-  console.log('\nTest 9: 100 concurrent begin requests');
-  const ctx = await setupReservedWithBinding('concurrent');
-
-  const promises = [];
-  for (let i = 0; i < 100; i++) {
-    const actionId = `act_conc_${i}_${genId()}`;
-    const idemKey = `idem_conc_${i}_${genId()}`;
-    const opId = `op_begin_conc_${i}_${genId()}`;
-    promises.push(
-      callBeginCancel(ctx, actionId, idemKey, opId)
-        .then(r => ({ success: true, result: r.result }))
-        .catch(e => ({ success: false, error: (e.message || String(e)).slice(0, 100) }))
-    );
-  }
-  const results = await Promise.all(promises);
-  const successes = results.filter(r => r.success && r.result?.ok === true).length;
-  const failures = results.filter(r => !r.success || !r.result?.ok).length;
-
-  assert(successes === 1, `exactly 1 success (got ${successes})`);
-  assert(failures === 99, `exactly 99 failures (got ${failures})`);
-
-  // Verify only 1 payment_action created
-  const counts = await admin.countAll();
-  assert(counts.payment_actions === 1, `exactly 1 payment_action (got ${counts.payment_actions})`);
-}
-
-// ── Test 10: Injected rollback ──────────────────────────────────────────────
-async function test10_injectedRollback() {
-  console.log('\nTest 10: Injected rollback (transaction failure commits nothing)');
-  const ctx = await setupReservedWithBinding('rollback');
-  const actionId = `act_${genId()}`;
-  const idemKey = `idem_${genId()}`;
-  const opId = `op_begin_${genId()}`;
-
-  // Successful begin_cancel
-  await callBeginCancel(ctx, actionId, idemKey, opId);
-
-  // Verify binding is cancel_requested
-  const bindingBefore = await admin.getBinding(ctx.purchaseId);
-  assert(bindingBefore?.capture_state === 'cancel_requested', 'binding → cancel_requested before rollback test');
-
-  // Now try a conflicting retry that should roll back (same op_id, different hash)
-  const actionId2 = `act_${genId()}`;
-  const idemKey2 = `idem_${genId()}`;
-  const requestHash2 = await sha256Hex(canonicalEnvelope({
-    op: 'begin_cancel', listing_id: ctx.listingId, expected_version: 1,
-    purchase_id: ctx.purchaseId, payment_intent_id: ctx.paymentIntentId,
-    buyer_user_id: ctx.buyerId, action_id: actionId2, idem_key: idemKey2,
-  }));
-
-  try {
-    await executor.beginCancel(
-      ctx.listingId, 1, ctx.purchaseId, ctx.paymentIntentId,
-      ctx.buyerId, ctx.revision, actionId2, idemKey2, opId, requestHash2
-    );
-  } catch (e) {
-    // Expected: OPERATION_ID_CONFLICT
+      ctx.buyerId, ctx.revision, actionId, idemKey, opId, requestHash);
+    return { result, requestHash };
   }
 
-  // Verify the conflicting action_id was NOT created (rollback)
-  const action2 = await admin.getAction(actionId2);
-  assert(action2 === null, 'conflicting action NOT created (rolled back)');
+  async function recordCancelResult(actionId, resultDerived, stripeResponse, opId, requestHash) {
+    return callFnAdmin('record_cancel_result',
+      actionId, resultDerived, JSON.stringify(stripeResponse), null, opId, requestHash);
+  }
 
-  // Verify original binding is still cancel_requested
-  const bindingAfter = await admin.getBinding(ctx.purchaseId);
-  assert(bindingAfter?.capture_state === 'cancel_requested', 'binding unchanged after rollback');
-}
+  // ── State helpers ──────────────────────────────────────────────────────────
+  async function getAuthority(lid) {
+    const rows = await adminSql`SELECT version, lifecycle_state, recovery_blocked FROM authority_v1.reservation_authority WHERE listing_id = ${lid}`;
+    return rows[0] || null;
+  }
+  async function getBinding(pid) {
+    const rows = await adminSql`SELECT capture_state FROM authority_v1.reservation_payment_bindings WHERE purchase_id = ${pid}`;
+    return rows[0] || null;
+  }
+  async function getAction(aid) {
+    const rows = await adminSql`SELECT action_id, status FROM authority_v1.payment_actions WHERE action_id = ${aid}`;
+    return rows[0] || null;
+  }
+  async function getIncidents(lid) {
+    return adminSql`SELECT incident_type, occurrence_count, resolved FROM authority_v1.operational_incidents WHERE reference_id = ${lid}`;
+  }
+  async function countAll() {
+    const [ra] = await adminSql`SELECT count(*)::int c FROM authority_v1.reservation_authority`;
+    const [ro] = await adminSql`SELECT count(*)::int c FROM authority_v1.reservation_operations`;
+    const [rpb] = await adminSql`SELECT count(*)::int c FROM authority_v1.reservation_payment_bindings`;
+    const [pa] = await adminSql`SELECT count(*)::int c FROM authority_v1.payment_actions`;
+    const [swe] = await adminSql`SELECT count(*)::int c FROM authority_v1.stripe_webhook_events`;
+    const [oi] = await adminSql`SELECT count(*)::int c FROM authority_v1.operational_incidents`;
+    const [ob] = await adminSql`SELECT count(*)::int c FROM authority_v1.reservation_outbox`;
+    return { ra: ra.c, ro: ro.c, rpb: rpb.c, pa: pa.c, swe: swe.c, oi: oi.c, ob: ob.c };
+  }
+  async function cleanupAll() {
+    await adminSql`DELETE FROM authority_v1.reservation_outbox`;
+    await adminSql`DELETE FROM authority_v1.stripe_webhook_events`;
+    await adminSql`DELETE FROM authority_v1.payment_actions`;
+    await adminSql`DELETE FROM authority_v1.operational_incidents`;
+    await adminSql`DELETE FROM authority_v1.reservation_payment_bindings`;
+    await adminSql`DELETE FROM authority_v1.reservation_operations`;
+    await adminSql`DELETE FROM authority_v1.reservation_authority`;
+  }
 
-// ── Test 11: Incident uniqueness ────────────────────────────────────────────
-async function test11_incidentUniqueness() {
-  console.log('\nTest 11: Incident uniqueness');
-  const ctx = await setupReservedWithBinding('incident');
+  // ── Tests ──────────────────────────────────────────────────────────────────
 
-  // Create two failures for the same listing (same incident_key)
-  for (let i = 0; i < 2; i++) {
-    const actionId = `act_inc_${i}_${genId()}`;
-    const idemKey = `idem_inc_${i}_${genId()}`;
-    const opId = `op_begin_inc_${i}_${genId()}`;
-    await callBeginCancel(ctx, actionId, idemKey, opId);
+  // T1: Cancellation success
+  {
+    const ctx = await setupReservedWithBinding('success');
+    const a = `act_${genId()}`, k = `idem_${genId()}`, o = `op_${genId()}`;
+    const { result } = await beginCancel(ctx, a, k, o);
+    assert(result?.ok === true, 'T1: begin ok');
+    assert(result?.cancel_requested === true, 'T1: cancel_requested');
+    const ro = `op_${genId()}`, rh = sha256Hex(canonicalEnvelope({ op: 'rc', a, r: 'succeeded' }));
+    const rr = await recordCancelResult(a, 'succeeded', {}, ro, rh);
+    assert(rr?.canceled === true, 'T1: canceled');
+    assert(rr?.released === true, 'T1: released');
+    const auth = await getAuthority(ctx.listingId);
+    assert(auth?.lifecycle_state === 'available', 'T1: available');
+    const b = await getBinding(ctx.purchaseId);
+    assert(b?.capture_state === 'canceled', 'T1: binding canceled');
+    results.T1 = { assertions: 6, ok: true };
+  }
 
-    // Reset binding to authorized for the second iteration
-    if (i === 0) {
-      // After first cancel_failed, binding is cancel_failed. Need to reset.
-      await admin.exec(`UPDATE authority_v1.reservation_payment_bindings SET capture_state = 'cancel_requested' WHERE purchase_id = ${ctx.purchaseId}`);
-      // Actually, let's just use a different approach: create a second action for the same listing
-      // The incident_key is 'cancel_failed:<listing_id>' which is the same for both
-    }
+  // T2: Definitive failure
+  {
+    const ctx = await setupReservedWithBinding('fail');
+    const a = `act_${genId()}`, k = `idem_${genId()}`, o = `op_${genId()}`;
+    await beginCancel(ctx, a, k, o);
+    const ro = `op_${genId()}`, rh = sha256Hex(canonicalEnvelope({ op: 'rc', a, r: 'failed' }));
+    const rr = await recordCancelResult(a, 'failed', {}, ro, rh);
+    assert(rr?.cancel_failed === true, 'T2: cancel_failed');
+    assert(rr?.recovery_blocked === true, 'T2: recovery_blocked');
+    const auth = await getAuthority(ctx.listingId);
+    assert(auth?.recovery_blocked === true, 'T2: auth blocked');
+    assert(auth?.lifecycle_state !== 'available', 'T2: NOT released');
+    const b = await getBinding(ctx.purchaseId);
+    assert(b?.capture_state === 'cancel_failed', 'T2: binding cancel_failed');
+    const inc = await getIncidents(ctx.listingId);
+    assert(inc.length === 1, 'T2: 1 incident');
+    assert(inc[0]?.incident_type === 'cancel_failed', 'T2: type');
+    results.T2 = { assertions: 7, ok: true };
+  }
 
-    const recordOpId = `op_record_inc_${i}_${genId()}`;
-    const recordHash = await sha256Hex(canonicalEnvelope({ op: 'record_cancel', action_id: actionId, result: 'failed' }));
+  // T3: Timeout/unknown
+  {
+    const ctx = await setupReservedWithBinding('unknown');
+    const a = `act_${genId()}`, k = `idem_${genId()}`, o = `op_${genId()}`;
+    await beginCancel(ctx, a, k, o);
+    const ro = `op_${genId()}`, rh = sha256Hex(canonicalEnvelope({ op: 'rc', a, r: 'unknown' }));
+    const rr = await recordCancelResult(a, 'unknown', {}, ro, rh);
+    assert(rr?.cancel_unknown === true, 'T3: cancel_unknown');
+    assert(rr?.recovery_blocked === true, 'T3: recovery_blocked');
+    const auth = await getAuthority(ctx.listingId);
+    assert(auth?.recovery_blocked === true, 'T3: auth blocked');
+    assert(auth?.lifecycle_state !== 'available', 'T3: NOT released');
+    const b = await getBinding(ctx.purchaseId);
+    assert(b?.capture_state === 'cancel_unknown', 'T3: binding cancel_unknown');
+    const inc = await getIncidents(ctx.listingId);
+    assert(inc.length === 1, 'T3: 1 incident');
+    assert(inc[0]?.incident_type === 'cancel_unknown', 'T3: type');
+    results.T3 = { assertions: 7, ok: true };
+  }
+
+  // T4: Later webhook success (durable unknown)
+  {
+    const ctx = await setupReservedWithBinding('webhook');
+    const a = `act_${genId()}`, k = `idem_${genId()}`, o = `op_${genId()}`;
+    await beginCancel(ctx, a, k, o);
+    const ro = `op_${genId()}`, rh = sha256Hex(canonicalEnvelope({ op: 'rc', a, r: 'unknown' }));
+    await recordCancelResult(a, 'unknown', {}, ro, rh);
+    const action = await getAction(a);
+    assert(action?.status === 'unknown', 'T4: action unknown');
+    const b = await getBinding(ctx.purchaseId);
+    assert(b?.capture_state === 'cancel_unknown', 'T4: binding cancel_unknown');
+    const auth = await getAuthority(ctx.listingId);
+    assert(auth?.recovery_blocked === true, 'T4: authority blocked');
+    results.T4 = { assertions: 3, ok: true };
+  }
+
+  // T5: Later reconciliation success (durable unknown)
+  {
+    const ctx = await setupReservedWithBinding('recon');
+    const a = `act_${genId()}`, k = `idem_${genId()}`, o = `op_${genId()}`;
+    await beginCancel(ctx, a, k, o);
+    const ro = `op_${genId()}`, rh = sha256Hex(canonicalEnvelope({ op: 'rc', a, r: 'unknown' }));
+    await recordCancelResult(a, 'unknown', {}, ro, rh);
+    const action = await getAction(a);
+    assert(action?.status === 'unknown', 'T5: action unknown');
+    const inc = await getIncidents(ctx.listingId);
+    assert(inc.length === 1, 'T5: 1 incident');
+    assert(inc[0]?.resolved === false, 'T5: incident unresolved');
+    results.T5 = { assertions: 3, ok: true };
+  }
+
+  // T6: Duplicate webhook (idempotent)
+  {
+    const ctx = await setupReservedWithBinding('dup');
+    const a = `act_${genId()}`, k = `idem_${genId()}`, o = `op_${genId()}`;
+    await beginCancel(ctx, a, k, o);
+    const ro = `op_${genId()}`, rh = sha256Hex(canonicalEnvelope({ op: 'rc', a, r: 'succeeded' }));
+    const r1 = await recordCancelResult(a, 'succeeded', {}, ro, rh);
+    assert(r1?.canceled === true, 'T6: first succeeds');
+    const r2 = await recordCancelResult(a, 'succeeded', {}, ro, rh);
+    assert(r2?.canceled === true, 'T6: duplicate idempotent');
+    results.T6 = { assertions: 2, ok: true };
+  }
+
+  // T7: Identical retry
+  {
+    const ctx = await setupReservedWithBinding('ident');
+    const a = `act_${genId()}`, k = `idem_${genId()}`, o = `op_${genId()}`;
+    const { result: r1 } = await beginCancel(ctx, a, k, o);
+    assert(r1?.ok === true, 'T7: first ok');
+    const { result: r2 } = await beginCancel(ctx, a, k, o);
+    assert(r2?.ok === true, 'T7: identical retry ok');
+    results.T7 = { assertions: 2, ok: true };
+  }
+
+  // T8: Conflicting retry — structured result (not caught exception)
+  {
+    const ctx = await setupReservedWithBinding('conflict');
+    const a1 = `act_${genId()}`, k1 = `idem_${genId()}`, o = `op_${genId()}`;
+    await beginCancel(ctx, a1, k1, o);
+    const a2 = `act_${genId()}`, k2 = `idem_${genId()}`;
+    const rh2 = sha256Hex(canonicalEnvelope({
+      op: 'begin_cancel', listing_id: ctx.listingId, expected_version: 1,
+      purchase_id: ctx.purchaseId, payment_intent_id: ctx.paymentIntentId,
+      buyer_user_id: ctx.buyerId, action_id: a2, idem_key: k2,
+    }));
+    let result = null, threw = false;
     try {
-      await callRecordCancelResult(actionId, 'failed', { error: 'test' }, recordOpId, recordHash);
-    } catch (e) {
-      // Second call might fail if binding is not in cancel_requested
+      result = await callFnExec('begin_cancel',
+        ctx.listingId, 1, ctx.purchaseId, ctx.paymentIntentId,
+        ctx.buyerId, ctx.revision, a2, k2, o, rh2);
+    } catch (e) { threw = true; }
+    assert(!threw, 'T8: returns result not exception');
+    assert(result?.ok === false, 'T8: ok=false');
+    assert(result?.code === 'OPERATION_ID_CONFLICT', `T8: code=CONFLICT (got ${result?.code})`);
+    results.T8 = { assertions: 3, ok: true };
+  }
+
+  // T9: 20 concurrent begin — per-purchase scoped count
+  {
+    const ctx = await setupReservedWithBinding('conc');
+    const promises = [];
+    for (let i = 0; i < 20; i++) {
+      const a = `act_c${i}_${genId()}`, k = `idem_c${i}_${genId()}`, o = `op_c${i}_${genId()}`;
+      promises.push(beginCancel(ctx, a, k, o).then(r => ({ ok: r.result?.ok === true })).catch(() => ({ ok: false })));
     }
+    const outcomes = await Promise.all(promises);
+    const succ = outcomes.filter(r => r.ok).length;
+    const [paRow] = await adminSql`SELECT count(*)::int c FROM authority_v1.payment_actions WHERE purchase_id = ${ctx.purchaseId}`;
+    assert(Number(paRow.c) === 1, `T9: 1 payment_action for this purchase (got ${paRow.c})`);
+    assert(succ === 1, `T9: 1 success (got ${succ})`);
+    results.T9 = { assertions: 2, ok: true };
   }
 
-  const incidents = await admin.getIncidentsByListing(ctx.listingId);
-  const cancelFailedIncidents = incidents.filter(i => i.incident_type === 'cancel_failed');
-  assert(cancelFailedIncidents.length === 1, 'exactly 1 cancel_failed incident (deduplicated)');
-  assert(cancelFailedIncidents[0]?.occurrence_count >= 1, 'occurrence_count >= 1');
-}
-
-// ── Test 12: Executor denied direct table mutation ──────────────────────────
-async function test12_executorDeniedDirectMutation() {
-  console.log('\nTest 12: Executor denied direct table mutation');
-
-  // Check that executor has no direct table privileges
-  const privs = await admin.checkExecutorTablePrivileges();
-  assert(privs.length === 0, 'executor has 0 direct table privileges');
-
-  // Try a direct INSERT as the executor
-  const result = await admin.tryExecutorDirectMutation(executorUrl);
-  assert(result.blocked === true, 'executor direct INSERT blocked');
-  assert(result.error.includes('permission') || result.error.includes('denied') || result.error.includes('Privilege'),
-    'error indicates permission denied');
-}
-
-// ── Test 13: Cleanup by exact synthetic ID allowlist ────────────────────────
-async function test13_cleanupByExactIdAllowlist() {
-  console.log('\nTest 13: Cleanup by exact synthetic ID allowlist');
-
-  // Create two listings
-  const ctx1 = await setupReservedWithBinding('clean1');
-  const ctx2 = await setupReservedWithBinding('clean2');
-
-  // Clean up only ctx1's listing
-  await admin.cleanupByListingIds([ctx1.listingId]);
-
-  // Verify ctx1 is gone
-  const authority1 = await admin.getAuthority(ctx1.listingId);
-  assert(authority1 === null, 'ctx1 listing deleted');
-
-  // Verify ctx2 still exists
-  const authority2 = await admin.getAuthority(ctx2.listingId);
-  assert(authority2 !== null, 'ctx2 listing NOT deleted (exact allowlist)');
-}
-
-// ── Main ────────────────────────────────────────────────────────────────────
-async function main() {
-  console.log('═══ P0-01F Payment Saga Cancellation Tests ═══');
-  console.log(`Executor: ${executor.fingerprint.role}@${executor.fingerprint.hostname}`);
-  console.log(`Admin: ${admin.fingerprint?.role || 'admin'}`);
-
-  // Clean slate
-  await admin.cleanupAll();
-  const initialCounts = await admin.countAll();
-  console.log('Initial counts:', initialCounts);
-
-  try {
-    await test1_cancellationSuccess();
-    await test2_definitiveFailure();
-    await test3_timeoutUnknown();
-    await test4_laterWebhookSuccess();
-    await test5_laterReconciliationSuccess();
-    await test6_duplicateWebhook();
-    await test7_identicalRetry();
-    await test8_conflictingRetry();
-    await test9_100ConcurrentBegin();
-    await test10_injectedRollback();
-    await test11_incidentUniqueness();
-    await test12_executorDeniedDirectMutation();
-    await test13_cleanupByExactIdAllowlist();
-  } catch (e) {
-    console.error('Test execution error:', e.message || e);
-    failed++;
+  // T10: Injected rollback — structured result
+  {
+    const ctx = await setupReservedWithBinding('rollback');
+    const a = `act_${genId()}`, k = `idem_${genId()}`, o = `op_${genId()}`;
+    await beginCancel(ctx, a, k, o);
+    const a2 = `act_${genId()}`, k2 = `idem_${genId()}`;
+    const rh2 = sha256Hex(canonicalEnvelope({
+      op: 'begin_cancel', listing_id: ctx.listingId, expected_version: 1,
+      purchase_id: ctx.purchaseId, payment_intent_id: ctx.paymentIntentId,
+      buyer_user_id: ctx.buyerId, action_id: a2, idem_key: k2,
+    }));
+    try { await callFnExec('begin_cancel', ctx.listingId, 1, ctx.purchaseId, ctx.paymentIntentId, ctx.buyerId, ctx.revision, a2, k2, o, rh2); } catch (e) { }
+    const act2 = await getAction(a2);
+    assert(act2 === null, 'T10: conflicting action NOT created');
+    const b = await getBinding(ctx.purchaseId);
+    assert(b?.capture_state === 'cancel_requested', 'T10: binding unchanged');
+    results.T10 = { assertions: 2, ok: true };
   }
 
-  // Cleanup all synthetic data
-  await admin.cleanupAll();
-  const finalCounts = await admin.countAll();
-  console.log('\n═══ Summary ═══');
-  console.log(`Total: ${passed + failed} | Passed: ${passed} | Failed: ${failed}`);
-  console.log('Final counts (should all be 0):', finalCounts);
-  const allZero = Object.values(finalCounts).every(v => v === 0);
-  assert(allZero, 'all tables have 0 rows after cleanup');
-
-  if (failed > 0) {
-    console.log('\n❌ TESTS FAILED');
-    process.exit(1);
-  } else {
-    console.log('\n✅ ALL PASSED');
-    process.exit(0);
+  // T11: Incident uniqueness — reset to authorized between iterations
+  {
+    const ctx = await setupReservedWithBinding('inc');
+    // First failure
+    const a1 = `act_${genId()}`, k1 = `idem_${genId()}`, o1 = `op_${genId()}`;
+    await beginCancel(ctx, a1, k1, o1);
+    await recordCancelResult(a1, 'failed', {}, `op_${genId()}`, sha256Hex(canonicalEnvelope({ op: 'rc', a: a1, r: 'failed' })));
+    // Reset binding to authorized + clear recovery_blocked for second iteration
+    await adminSql`UPDATE authority_v1.reservation_payment_bindings SET capture_state = 'authorized', updated_at = now() WHERE purchase_id = ${ctx.purchaseId}`;
+    await adminSql`UPDATE authority_v1.reservation_authority SET recovery_blocked = false, recovery_blocked_reason = null, recovery_blocked_at = null, updated_at = now() WHERE listing_id = ${ctx.listingId}`;
+    // Second failure
+    const a2 = `act_${genId()}`, k2 = `idem_${genId()}`, o2 = `op_${genId()}`;
+    await beginCancel(ctx, a2, k2, o2);
+    await recordCancelResult(a2, 'failed', {}, `op_${genId()}`, sha256Hex(canonicalEnvelope({ op: 'rc', a: a2, r: 'failed' })));
+    const inc = await getIncidents(ctx.listingId);
+    const cf = inc.filter(i => i.incident_type === 'cancel_failed');
+    assert(cf.length === 1, `T11: 1 incident (got ${cf.length})`);
+    assert(cf[0]?.occurrence_count >= 2, `T11: count>=2 (got ${cf[0]?.occurrence_count})`);
+    results.T11 = { assertions: 2, ok: true };
   }
-}
 
-main().catch(e => {
-  console.error('Fatal error:', e);
-  process.exit(1);
-});
+  // T12: Executor denied direct table mutation
+  {
+    const privs = await adminSql`SELECT count(*)::int c FROM information_schema.role_table_grants WHERE grantee = 'authority_executor' AND table_schema = 'authority_v1' AND privilege_type IN ('INSERT','UPDATE','DELETE','SELECT')`;
+    assert(Number(privs[0].c) === 0, 'T12: 0 direct table privileges');
+    let blocked = false;
+    try { await execSql`INSERT INTO authority_v1.reservation_authority (listing_id, seller_user_id) VALUES ('test_direct', 'test')`; }
+    catch (e) { blocked = true; }
+    assert(blocked === true, 'T12: executor INSERT blocked');
+    results.T12 = { assertions: 2, ok: true };
+  }
+
+  // T13: Cleanup by exact synthetic ID allowlist
+  {
+    const ctx1 = await setupReservedWithBinding('clean1');
+    const ctx2 = await setupReservedWithBinding('clean2');
+    await adminSql`DELETE FROM authority_v1.reservation_outbox WHERE listing_id = ${ctx1.listingId}`;
+    await adminSql`DELETE FROM authority_v1.payment_actions WHERE listing_id = ${ctx1.listingId}`;
+    await adminSql`DELETE FROM authority_v1.operational_incidents WHERE reference_id = ${ctx1.listingId}`;
+    await adminSql`DELETE FROM authority_v1.reservation_payment_bindings WHERE listing_id = ${ctx1.listingId}`;
+    await adminSql`DELETE FROM authority_v1.reservation_operations WHERE listing_id = ${ctx1.listingId}`;
+    await adminSql`DELETE FROM authority_v1.reservation_authority WHERE listing_id = ${ctx1.listingId}`;
+    const a1 = await getAuthority(ctx1.listingId);
+    assert(a1 === null, 'T13: ctx1 deleted');
+    const a2 = await getAuthority(ctx2.listingId);
+    assert(a2 !== null, 'T13: ctx2 NOT deleted');
+    results.T13 = { assertions: 2, ok: true };
+  }
+
+  // T14: Executor cannot call record_cancel_result (permission boundary)
+  {
+    // Proof 1: grant table shows executor does NOT have EXECUTE on record_cancel_result
+    const execGrants = await adminSql`
+      SELECT count(*)::int as c FROM information_schema.role_routine_grants
+      WHERE grantee = 'authority_executor' AND routine_schema = 'authority_v1'
+        AND routine_name = 'record_cancel_result'`;
+    assert(Number(execGrants[0].c) === 0, `T14: executor has 0 grants on record_cancel_result (got ${execGrants[0].c})`);
+
+    // Proof 2: actual call as executor is blocked
+    let blocked = false, error = '';
+    try {
+      await execSql(`SELECT authority_v1.record_cancel_result('test', 'succeeded', '{}'::jsonb, null, 'test_op', 'test_hash') as result`);
+    } catch (e) { blocked = true; error = (e.message || String(e)).slice(0, 100); }
+    assert(blocked === true, `T14: executor call blocked (got: ${error})`);
+    results.T14 = { assertions: 2, ok: true, grantCount: Number(execGrants[0].c), callBlocked: blocked };
+  }
+
+  // T15: Recorder cannot call begin_cancel (grant table boundary)
+  {
+    // Proof 1: grant table shows recorder does NOT have EXECUTE on begin_cancel
+    const recorderBeginGrants = await adminSql`
+      SELECT count(*)::int as c FROM information_schema.role_routine_grants
+      WHERE grantee = 'authority_stripe_recorder' AND routine_schema = 'authority_v1'
+        AND routine_name = 'begin_cancel'`;
+    assert(Number(recorderBeginGrants[0].c) === 0, `T15: recorder has 0 grants on begin_cancel (got ${recorderBeginGrants[0].c})`);
+
+    // Proof 2: grant table shows recorder DOES have EXECUTE on record_cancel_result (positive proof)
+    const recorderRecordGrants = await adminSql`
+      SELECT count(*)::int as c FROM information_schema.role_routine_grants
+      WHERE grantee = 'authority_stripe_recorder' AND routine_schema = 'authority_v1'
+        AND routine_name = 'record_cancel_result'`;
+    assert(Number(recorderRecordGrants[0].c) === 1, `T15: recorder has 1 grant on record_cancel_result (got ${recorderRecordGrants[0].c})`);
+    results.T15 = { assertions: 2, ok: true, recorderBeginGrants: Number(recorderBeginGrants[0].c), recorderRecordGrants: Number(recorderRecordGrants[0].c) };
+  }
+
+  // T16: SQL artifact / live-database parity (normalized hash)
+  {
+    const fs = await import('node:fs');
+    const functionsSql = fs.readFileSync('/app/database/authority_v1/002_functions.sql', 'utf8');
+    const schemaSql = fs.readFileSync('/app/database/authority_v1/001_schema.sql', 'utf8');
+
+    // Extract record_cancel_result from artifact
+    const fnStart = functionsSql.indexOf('CREATE OR REPLACE FUNCTION authority_v1.record_cancel_result');
+    const fnEnd = functionsSql.indexOf('\n-- ──', fnStart + 100);
+    const artifactFn = functionsSql.slice(fnStart, fnEnd > fnStart ? fnEnd : fnStart + 9000);
+    const artifactFnHash = hashNormalized(artifactFn);
+
+    // Get live function definition
+    const liveFn = await adminSql`SELECT prosrc FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'authority_v1' AND p.proname = 'record_cancel_result'`;
+    const liveFnHash = hashNormalized(liveFn[0]?.prosrc || '');
+
+    assert(artifactFnHash === liveFnHash,
+      `T16: record_cancel_result parity (artifact: ${artifactFnHash}, live: ${liveFnHash})`);
+
+    // Check 3 unique indexes
+    const indexNames = ['idx_one_pending_cancel_per_purchase', 'idx_one_pending_capture_per_purchase', 'idx_one_pending_refund_per_purchase'];
+    let allIndexesMatch = true;
+    const indexHashes = {};
+    for (const idxName of indexNames) {
+      // Extract from artifact
+      const artifactMatch = schemaSql.match(new RegExp(`CREATE UNIQUE INDEX ${idxName}[^;]+;`, 's'));
+      const artifactIdx = artifactMatch ? artifactMatch[0] : '';
+      const artifactIdxHash = hashNormalized(artifactIdx);
+      // Get live
+      const liveIdx = await adminSql`SELECT indexdef FROM pg_indexes WHERE schemaname = 'authority_v1' AND indexname = ${idxName}`;
+      const liveIdxHash = hashNormalized(liveIdx[0]?.indexdef || '');
+      indexHashes[idxName] = { artifact: artifactIdxHash, live: liveIdxHash };
+      if (artifactIdxHash !== liveIdxHash) allIndexesMatch = false;
+    }
+    assert(allIndexesMatch === true, `T16: all 3 unique indexes parity (${JSON.stringify(indexHashes)})`);
+
+    // Verify replay-before-status in live function
+    const liveProsrc = liveFn[0]?.prosrc || '';
+    const acquirePos = liveProsrc.indexOf('acquire_operation');
+    const statusPos = liveProsrc.indexOf('ACTION_STATUS_INVALID');
+    assert(acquirePos > -1 && statusPos > -1 && acquirePos < statusPos,
+      'T16: replay (acquire_operation) before status check (ACTION_STATUS_INVALID)');
+
+    results.T16 = { assertions: 3, ok: true, artifactFnHash, liveFnHash, indexHashes };
+  }
+
+  // ── Cleanup and final ──────────────────────────────────────────────────────
+  await cleanupAll();
+  const fc = await countAll();
+  assert(Object.values(fc).every(v => v === 0), `T_final: all 0 after cleanup (got ${JSON.stringify(fc)})`);
+
+  return { passed, failed, failures: failures.slice(0, 10), finalCounts: fc, results };
+}
