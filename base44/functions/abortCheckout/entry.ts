@@ -15,13 +15,20 @@
  *   6. Release the Listing only if it still belongs to this Purchase/reservation.
  *   7. Idempotent — re-aborting an already-expired purchase is a no-op.
  *
+ * P0-01G: Canary-eligible synthetic [AUTH_CANARY] records are routed to the
+ * tested abortCanaryOrchestrator (Postgres authoritative, Base44 mirror-only).
+ * All non-canary traffic and flag-OFF behavior remains identical to the
+ * legacy path.
+ *
  * Expiring a Purchase does NOT affect seller trust, buyer trust, points, or
  * transfer intelligence (recordTransferOutcome only acts on completed/disputed).
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { secrets } from 'base44:runtime';
 import Stripe from 'npm:stripe@14.21.0';
 import { isMaintenanceActive, maintenance503 } from '../../shared/maintenance.ts';
 import { getPurchasePrivate, getListingPrivate, upsertListingPrivate, alertPrivateWriteFailure } from '../../shared/privateData.ts';
+import { maybeRouteCanaryAbort } from '../../shared/abortCanaryOrchestrator.js';
 
 const CANCELLABLE_STATUSES = [
   'requires_payment_method',
@@ -36,6 +43,64 @@ Deno.serve(async (req) => {
   const user = await base44.auth.me();
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
+  const body = await req.json().catch(() => ({}));
+  const { purchase_id } = body;
+  if (!purchase_id) return Response.json({ error: 'purchase_id is required' }, { status: 400 });
+
+  // ── Fetch purchase + listing for canary eligibility check (before maintenance) ──
+  let purchase: any = null;
+  try {
+    const [p] = await base44.asServiceRole.entities.Purchase.filter({ id: purchase_id });
+    purchase = p || null;
+  } catch (_) {}
+
+  let listing: any = null;
+  if (purchase?.listing_id) {
+    try {
+      const [l] = await base44.asServiceRole.entities.Listing.filter({ id: purchase.listing_id });
+      listing = l || null;
+    } catch (_) {}
+  }
+
+  // ── Canary guard (admin + synthetic [AUTH_CANARY] listing only) ─────────
+  // Returns null for normal listings/requests → fall through to the
+  // maintenance-gated legacy path. Returns {status, body} for any canary-eligible
+  // or canary-rejected request — synthetic listings never reach the normal path.
+  if (listing && purchase) {
+    const executorUrl = secrets.get('AUTHORITY_V1_DB_URL_DEV_EXECUTOR');
+    const recorderUrl = secrets.get('AUTHORITY_V1_DB_URL_DEV_STRIPE_RECORDER');
+    const secretKey = Deno.env.get('STRIPELIVESECRETKEY');
+    const stripeAdapter = secretKey ? {
+      async cancelPaymentIntent(piId: string, idemKey: string) {
+        const stripe = new Stripe(secretKey);
+        try {
+          const pi = await stripe.paymentIntents.retrieve(piId);
+          if (CANCELLABLE_STATUSES.includes(pi.status)) {
+            try {
+              await stripe.paymentIntents.cancel(piId, { idempotencyKey: idemKey });
+              return { derived: 'succeeded' as const, raw: { status: 'canceled', pi_status: pi.status } };
+            } catch (e) {
+              return { derived: 'failed' as const, raw: { error: (e?.message || String(e)).slice(0, 200), pi_status: pi.status } };
+            }
+          }
+          if (pi.status === 'canceled') return { derived: 'succeeded' as const, raw: { status: 'already_canceled', pi_status: pi.status } };
+          if (pi.status === 'succeeded') return { derived: 'failed' as const, raw: { status: 'already_succeeded', pi_status: pi.status } };
+          return { derived: 'unknown' as const, raw: { pi_status: pi.status } };
+        } catch (e) {
+          return { derived: 'unknown' as const, raw: { error: (e?.message || String(e)).slice(0, 200) } };
+        }
+      },
+    } : null;
+
+    const canaryResult = await maybeRouteCanaryAbort({
+      base44, user, body, listing, purchase,
+      executorUrl, recorderUrl,
+      stripeAdapter,
+    });
+    if (canaryResult) return Response.json(canaryResult.body, { status: canaryResult.status });
+  }
+
+  // ── Legacy path (non-canary traffic + flag-OFF) — unchanged ──────────────
   if (isMaintenanceActive()) return maintenance503('Checkout abort is temporarily unavailable for scheduled maintenance.');
 
   const secretKey = Deno.env.get('STRIPELIVESECRETKEY');
@@ -44,10 +109,6 @@ Deno.serve(async (req) => {
   }
   const stripe = new Stripe(secretKey);
 
-  const { purchase_id } = await req.json().catch(() => ({}));
-  if (!purchase_id) return Response.json({ error: 'purchase_id is required' }, { status: 400 });
-
-  const [purchase] = await base44.asServiceRole.entities.Purchase.filter({ id: purchase_id });
   if (!purchase) return Response.json({ error: 'Purchase not found' }, { status: 404 });
 
   // Phase 1B: read authoritative buyer identity, payment_intent_id, payment_captured from PurchasePrivate
@@ -100,12 +161,14 @@ Deno.serve(async (req) => {
   }
 
   // Release the Listing only if it still belongs to this Purchase/reservation.
-  let listing = null;
-  try {
-    const listings = await base44.asServiceRole.entities.Listing.filter({ id: purchase.listing_id });
-    listing = listings[0];
-  } catch (err) {
-    await alertPrivateWriteFailure(base44, { entity: 'Listing', reference_id: purchase.listing_id, reference_type: 'listing', error: err });
+  // Reuse listing fetched above; re-fetch if null (may have been skipped for non-canary).
+  if (!listing && purchase.listing_id) {
+    try {
+      const listings = await base44.asServiceRole.entities.Listing.filter({ id: purchase.listing_id });
+      listing = listings[0] || null;
+    } catch (err) {
+      await alertPrivateWriteFailure(base44, { entity: 'Listing', reference_id: purchase.listing_id, reference_type: 'listing', error: err });
+    }
   }
   const lp = listing ? await getListingPrivate(base44, listing.id) : null;
   const authoritativeReservedBy = lp?.reserved_by_email ?? listing?.reserved_by_email;
