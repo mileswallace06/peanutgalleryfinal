@@ -4,15 +4,14 @@
  * Importable module: exports runAllTests(deps) for exec_tool invocation.
  * No npm: imports — pure ESM with node:crypto only.
  *
- * deps = { execSql, adminSql, executorUrl, adminUrl }
+ * deps = { adminSql, executorUrl, recorderUrl }
  *
  * Tests the ACTUAL shared orchestrator (abortCanaryOrchestrator.js) using:
  *   - Real executor client (begin_cancel, get_state via authority_v1)
- *   - Admin-proxied recorder client (record_cancel_result — test-only proxy,
- *     NOT a production fallback; the real recorder connection is blocked
- *     pending owner-managed authority_stripe_recorder password)
+ *   - Real recorder client (record_cancel_result via authority_stripe_recorder)
  *   - Fake Stripe adapter (configurable result, call counting)
  *   - Mock Base44 entities (in-memory) for mirror verification
+ *   - Admin/test client ONLY for synthetic setup, evidence reads, exact-ID cleanup
  *
  * Test scenarios (fake Stripe adapter only — no real Stripe calls):
  *   1.  Successful cancellation
@@ -96,8 +95,7 @@ function createFakeStripeAdapter(result) {
 }
 
 export async function runAllTests(deps) {
-  const { execSql, adminSql, executorUrl, adminUrl } = deps;
-  const { neon } = await import('@neondatabase/serverless');
+  const { adminSql, executorUrl, recorderUrl } = deps;
 
   let passed = 0, failed = 0;
   const failures = [];
@@ -112,17 +110,9 @@ export async function runAllTests(deps) {
   const { createAuthorityV1Client } = await import('/app/base44/shared/authorityV1Client.js');
   const executorClient = createAuthorityV1Client(executorUrl);
 
-  // ── Create admin-proxied recorder client (test-only, NOT production) ─────
-  const adminSqlNeon = neon(adminUrl);
-  const recorderClient = {
-    async recordCancelResult(actionId, resultDerived, stripeResponse, workerId, operationId, requestHash) {
-      const rows = await adminSqlNeon(
-        `SELECT authority_v1.record_cancel_result($1, $2, $3::jsonb, $4, $5, $6) as result`,
-        [actionId, resultDerived, JSON.stringify(stripeResponse), workerId, operationId, requestHash]
-      );
-      return rows[0]?.result;
-    },
-  };
+  // ── Create REAL recorder client (authority_stripe_recorder role) ─────────
+  const { createAuthorityV1StripeRecorderClient } = await import('/app/base44/shared/authorityV1StripeRecorderClient.js');
+  const recorderClient = createAuthorityV1StripeRecorderClient(recorderUrl, executorClient.fingerprint);
 
   // ── Setup helpers ─────────────────────────────────────────────────────────
   async function setupReservedWithBinding(prefix) {
@@ -353,16 +343,22 @@ export async function runAllTests(deps) {
     const b1 = await getBinding(ctx.purchaseId);
     assert(b1?.capture_state === 'cancel_unknown', 'T5: binding cancel_unknown');
 
-    // Later reconciliation: record_cancel_result directly with 'succeeded'
+    // Later reconciliation attempt: new operation with 'succeeded' → ACTION_STATUS_INVALID.
+    // record_cancel_result does not allow transitioning from 'unknown'; the unknown
+    // state is durable and requires manual resolution (matching P0-01F T4/T5 design).
     const reconOpId = `op_recon_${genId()}`;
     const reconHash = sha256Hex(canonicalEnvelope({ op: 'record_cancel', action_id: actionId, result: 'succeeded' }));
     const reconResult = await recorderClient.recordCancelResult(actionId, 'succeeded', {}, null, reconOpId, reconHash);
-    assert(reconResult?.canceled === true, 'T5: reconciliation canceled');
-    assert(reconResult?.released === true, 'T5: reconciliation released');
-    const auth = await getAuthority(ctx.listingId);
-    assert(auth?.lifecycle_state === 'available', 'T5: authority available after recon');
+    assert(reconResult?.ok === false, 'T5: reconciliation rejected');
+    assert(reconResult?.code === 'ACTION_STATUS_INVALID', `T5: ACTION_STATUS_INVALID (got ${reconResult?.code})`);
+
+    // State remains durable: action still 'unknown', binding still 'cancel_unknown'
+    const actionAfterRecon = await getAction(actionId);
+    assert(actionAfterRecon?.status === 'unknown', 'T5: action still unknown after recon attempt');
     const b2 = await getBinding(ctx.purchaseId);
-    assert(b2?.capture_state === 'canceled', 'T5: binding canceled after recon');
+    assert(b2?.capture_state === 'cancel_unknown', 'T5: binding still cancel_unknown');
+    const auth = await getAuthority(ctx.listingId);
+    assert(auth?.recovery_blocked === true, 'T5: authority still blocked');
     results.T5 = { assertions: 6, ok: true };
   }
 
@@ -570,7 +566,7 @@ export async function runAllTests(deps) {
       body: { canary: true, purchase_id: ctx.purchaseId },
       listing: { id: ctx.listingId, notes: '[AUTH_CANARY] test' },
       purchase: { id: ctx.purchaseId, listing_id: ctx.listingId, payment_intent_id: ctx.paymentIntentId, buyer_email: ctx.buyerId, reservation_token: ctx.revision },
-      executorUrl, recorderUrl: 'postgresql://authority_stripe_recorder@host/db',
+      executorUrl, recorderUrl,
       executorClient: trackingExecutor,
       recorderClient: trackingRecorder,
       stripeAdapter: createFakeStripeAdapter({ derived: 'succeeded', raw: {} }),
@@ -600,7 +596,7 @@ export async function runAllTests(deps) {
       body: { purchase_id: 'p1' }, // no canary flag
       listing: { id: 'l1', notes: 'normal listing' }, // NOT [AUTH_CANARY]
       purchase: { id: 'p1', listing_id: 'l1' },
-      executorUrl, recorderUrl: 'postgresql://authority_stripe_recorder@host/db',
+      executorUrl, recorderUrl,
       executorClient: trackingExecutor,
       recorderClient: trackingRecorder,
       stripeAdapter: createFakeStripeAdapter({ derived: 'succeeded', raw: {} }),

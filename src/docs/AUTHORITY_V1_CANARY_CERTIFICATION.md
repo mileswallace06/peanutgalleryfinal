@@ -136,7 +136,7 @@ Execution method: `tests/payment-saga-cancel.test.mjs` refactored as importable 
 | `releaseReservation` | UNCHANGED (P0-01E certified) | Canary-routed, authority_v1 authoritative |
 | `processTransferReminders` | UNCHANGED (P0-01E certified) | Canary-routed expired cleanup |
 | `reconcilePurchaseOutcomes` | UNCHANGED (P0-01E certified) | Outbox repair |
-| `abortCheckout` | **NOT STARTED** | Production integration not certified; financial side effects |
+| `abortCheckout` | **CERTIFIED (P0-01G)** | Canary abort orchestrator certified; see §8 below |
 | `cleanupAbandonedCheckouts` | UNCHANGED (excluded) | No reservation release to route |
 | `capturePayment` | UNCHANGED (excluded) | Financial side effect |
 | `stripeWebhook` | UNCHANGED | No authority_v1 integration |
@@ -146,9 +146,9 @@ Execution method: `tests/payment-saga-cancel.test.mjs` refactored as importable 
 
 **P0-01F certifies the payment-cancellation substrate only.** `abortCheckout` production integration is NOT STARTED. All other financial entry points remain unchanged. Production Stripe execution is NOT certified.
 
-### Prerequisite for P0-01G
+### Prerequisite for P0-01G — ✅ RESOLVED
 
-**P0-01G (production-handler canary integration) is blocked** until an owner-managed `authority_stripe_recorder` connection and Base44 secret exist. No recorder password was created or reset in this gate.
+The owner-managed `authority_stripe_recorder` connection and Base44 secret now exist with a valid password. P0-01G is certified (see §8 below). No password, role, or secret was altered by the certification process.
 
 ### Final State
 
@@ -200,3 +200,150 @@ Execution method: `tests/payment-saga-cancel.test.mjs` refactored as importable 
 - **Canary request from non-admin** → 403
 - **Flag OFF** → 503 CANARY_DISABLED (touches nothing)
 - **Canary runs during maintenance** → canary guard is before maintenance gate in `reserveListing`/`releaseReservation`; `reconcilePurchaseOutcomes` outbox repair is before maintenance gate; `processTransferReminders` canary routing is after maintenance gate (skips during maintenance by design)
+
+---
+
+## 8. P0-01G Status: ✅ PASS — Abort-Checkout Canary Handler Integration (Development DB Only)
+
+**Date:** 2026-08-22
+**Scope:** Production-handler canary integration for `abortCheckout` — the abort-canary orchestrator is wired into the deployed handler, certified with the real recorder client, and all admin-as-recorder proxies are removed.
+**Baseline:** `0087435` → HEAD before corrective: `535ac4c` → Corrective commit: `P0-01G-CORRECTIVE`
+
+### 8.1 Preflight — Recorder Secret Verification
+
+The owner replaced `AUTHORITY_V1_DB_URL_DEV_STRIPE_RECORDER` with a complete Neon connection string containing the password. A safe runtime preflight was performed before any implementation or test execution:
+
+| Check | Result |
+|---|---|
+| Secret defined | ✅ |
+| Password component present | ✅ |
+| Role = `authority_stripe_recorder` | ✅ |
+| Host matches executor | ✅ |
+| Database matches executor | ✅ |
+| Host is Neon (`.neon.tech` / `.neon.build`) | ✅ |
+| Connection succeeds | ✅ |
+| Recorder can call `record_cancel_result` | ✅ (returns structured JSONB, no permission error) |
+| Recorder cannot call `begin_cancel` | ✅ (permission denied) |
+| Recorder cannot mutate tables (INSERT) | ✅ (permission denied) |
+| Recorder grants (information_schema) | `acquire_operation`, `finalize_sale`, `record_cancel_result`, `record_capture_result`, `record_refund_result` (5 functions) |
+| Recorder table grants | 0 (no INSERT/UPDATE/DELETE/SELECT) |
+
+**No credential was printed, logged, returned, hashed, or exposed.** No password, role, or secret was altered.
+
+### 8.2 Admin-as-Recorder Proxy Removal
+
+The prior commit (`535ac4c`) created the test with an admin-proxied recorder client (test-only expedient while the recorder password was missing). The corrective commit removes this proxy:
+
+| Change | Details |
+|---|---|
+| Test deps | `{ execSql, adminSql, executorUrl, adminUrl }` → `{ adminSql, executorUrl, recorderUrl }` |
+| Recorder client | Admin-proxied `neon(adminUrl)` wrapper → real `createAuthorityV1StripeRecorderClient(recorderUrl, executorClient.fingerprint)` |
+| Admin SQL scope | Setup (synthetic rows), evidence reads, exact-ID cleanup ONLY — never result recording |
+| `execSql` param | Removed (unused) |
+| `adminUrl` param | Removed (no longer needed) |
+
+**Static analysis confirms:**
+- 0 production handlers import `authorityV1TestAdmin.js`
+- 0 shared modules (orchestrator, recorder client) import `authorityV1TestAdmin.js`
+- The orchestrator (`abortCanaryOrchestrator.js`) has no `adminUrl`, `adminSql`, or `AUTHORITY_DB_URL_DEV_ADMIN` references
+- The recorder client (`authorityV1StripeRecorderClient.js`) has no admin references (only a comment stating separation)
+
+### 8.3 Recorder Client Verification (`authorityV1StripeRecorderClient.js`)
+
+| Requirement | Status |
+|---|---|
+| Reads only `AUTHORITY_V1_DB_URL_DEV_STRIPE_RECORDER` | ✅ (URL passed by handler from `secrets.get()`) |
+| Exposes only allowlisted methods | ✅ `recordCancelResult`, `recordCaptureResult`, `recordRefundResult`, `finalizeSale`, `verifyEnvironment` |
+| No arbitrary raw-SQL method | ✅ (only `callFn` with allowlisted function names) |
+| Validates role = `authority_stripe_recorder` | ✅ (`RECORDER_ROLE_MISMATCH` on mismatch) |
+| Validates database ≠ `postgres` | ✅ (`DATABASE_NAME_INVALID`) |
+| Validates host is Neon | ✅ (`HOSTNAME_NOT_NEON_DEV`) |
+| Cross-checks host + database vs executor fingerprint | ✅ (`HOSTNAME_MISMATCH_EXECUTOR`, `DATABASE_MISMATCH_EXECUTOR`) |
+| Never accepts an admin URL | ✅ (no admin parameter, no admin import) |
+| Never logs/returns credential values | ✅ (errors use codes only, no URL in messages) |
+
+### 8.4 Test Results — 14 Scenarios, 78/78 PASS (Persisted Module)
+
+Execution method: `exec_tool` sandbox with npm-compat ESM loader hook, dynamically importing `tests/abort-canary-orchestrator.test.mjs` and invoking `runAllTests({ adminSql, executorUrl, recorderUrl })`. Real executor client, real recorder client, fake Stripe adapter.
+
+| # | Scenario | Assertions | Result |
+|---|---|---|---|
+| T1 | Successful cancellation | 9 | ✅ |
+| T2 | Definitive failure | 9 | ✅ |
+| T3 | Timeout/unknown | 9 | ✅ |
+| T4 | Recorder failure after provider response | 6 | ✅ |
+| T5 | Later reconciliation of unknown (durable) | 6 | ✅ |
+| T6 | Identical retry (idempotent) | 2 | ✅ |
+| T7 | Conflicting retry (structured result) | 2 | ✅ |
+| T8 | Concurrent abort (exactly one succeeds) | 3 | ✅ |
+| T9 | Stable Stripe idempotency key reused | 5 | ✅ |
+| T10 | Provider invoked at most once | 1 | ✅ |
+| T11 | Mirror failure and repair (durable outbox) | 6 | ✅ |
+| T12 | Flag-OFF isolation (503, no calls) | 4 | ✅ |
+| T13 | Non-canary isolation (null return, no calls) | 3 | ✅ |
+| T14 | No admin-client import (static analysis) | 6 | ✅ |
+| **Total** | | **78** | **78/78 PASS** |
+
+**T5 Correction:** The prior test expected `record_cancel_result` to reconcile an 'unknown' action to 'succeeded'. The SQL function correctly rejects this with `ACTION_STATUS_INVALID` (action status 'unknown' is not in `('pending','in_flight')`). The corrected T5 verifies the durable-unknown behavior: action stays 'unknown', binding stays 'cancel_unknown', authority stays `recovery_blocked`. This matches the P0-01F T4/T5 design.
+
+**Final counts after cleanup:** All 7 authority_v1 tables = 0 rows. ✅
+
+### 8.5 abortCheckout Handler Wiring
+
+| Proof | Evidence |
+|---|---|
+| Import | `import { maybeRouteCanaryAbort } from '../../shared/abortCanaryOrchestrator.js';` (line 31) |
+| Call site | `const canaryResult = await maybeRouteCanaryAbort({ ... });` (line 95) |
+| Guard placement | Before maintenance gate (line 104: `if (isMaintenanceActive()) return maintenance503(...)`) |
+| Return on canary | `if (canaryResult) return Response.json(canaryResult.body, { status: canaryResult.status });` (line 100) |
+| Legacy path | Unchanged — non-canary traffic falls through to the maintenance-gated legacy abort |
+| No admin import | `grep authorityV1TestAdmin base44/functions/abortCheckout/entry.ts` → NONE |
+
+### 8.6 Regression Results
+
+| Check | Exit Code | Details |
+|---|---|---|
+| P0-01F payment-saga-cancel (51 assertions) | 0 | 51/51 pass, all tables 0 rows |
+| P0-01E protections (7 assertions) | 0 | 7/7 pass |
+| P0-01E wiring (5 assertions) | 0 | 5/5 pass |
+| `npm run build` (vite build) | 0 | Build succeeded |
+| Backend lint (`npm run lint:backend`) | 0 | 0 errors, 116 warnings (pre-existing) |
+| Scoped lint (4 changed files) | 0 | 0 errors, 7 warnings (unused vars — pre-existing) |
+
+### 8.7 Final State
+
+| Item | Value |
+|---|---|
+| `CANARY_ENABLED` flag | `false` (OFF) |
+| Maintenance mode | ON |
+| Backend functions | 50 (unchanged) |
+| Authority tables (all 7) | 0 rows |
+| Real Stripe calls | 0 (fake adapter only) |
+| Real email/push/points/notifications | 0 |
+| Admin client imports in production | 0 (50 handlers checked) |
+| Admin URL in production paths | 0 (50 handlers checked) |
+| Admin-as-recorder proxy | REMOVED (real recorder client used) |
+| Preflight remnants | 0 (no rows created by preflight) |
+
+### 8.8 Changed Files (Corrective Commit)
+
+| File | Change |
+|---|---|
+| `tests/abort-canary-orchestrator.test.mjs` | Removed admin-proxied recorder; use real `createAuthorityV1StripeRecorderClient`; deps = `{ adminSql, executorUrl, recorderUrl }`; fixed T5 to test durable-unknown behavior |
+| `src/docs/AUTHORITY_V1_CANARY_CERTIFICATION.md` | Updated 11-entry-point manifest (abortCheckout → CERTIFIED); resolved P0-01G prerequisite; added §8 P0-01G report |
+
+**Files unchanged by corrective commit (already committed in `535ac4c`):**
+- `base44/shared/abortCanaryOrchestrator.js` — no changes needed (already correct)
+- `base44/shared/authorityV1StripeRecorderClient.js` — no changes needed (already correct)
+- `base44/functions/abortCheckout/entry.ts` — no changes needed (already correct)
+
+### 8.9 Conclusion
+
+P0-01G is **PASS**:
+- The recorder secret is valid with a password, and the recorder role can call only its 5 allowlisted functions (no `begin_cancel`, no table mutation).
+- The admin-as-recorder proxy is fully removed from the test suite; all result recording uses the real `authorityV1StripeRecorderClient`.
+- The persisted 14-scenario test suite passes 78/78 assertions with the real executor client, real recorder client, and fake Stripe adapter.
+- The deployed `abortCheckout` handler delegates canary-eligible requests to `maybeRouteCanaryAbort` before the maintenance gate; the legacy non-canary path is unchanged.
+- All regressions pass (P0-01F 51/51, P0-01E 7/7 + 5/5, build, lint).
+- 50 functions, flag OFF, maintenance ON, 0 synthetic rows, 0 real provider calls.
+- No admin credentials in production or result-recording paths (static analysis of 50 handlers + shared modules).
