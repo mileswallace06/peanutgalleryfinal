@@ -1,10 +1,8 @@
 {
-  "timestamp": "2026-08-22T02:44:57.143Z",
-  "passed": 50,
-  "failed": 1,
-  "failures": [
-    "T16: all 3 unique indexes parity ({\"idx_one_pending_cancel_per_purchase\":{\"artifact\":\"959cdab59e72d762\",\"live\":\"dfbd357f337b3529\"},\"idx_one_pending_capture_per_purchase\":{\"artifact\":\"27148cfd22e3af55\",\"live\":\"5c8e902708b10e85\"},\"idx_one_pending_refund_per_purchase\":{\"artifact\":\"df406739fd0c72c3\",\"live\":\"7a6362f1c667b320\"}})"
-  ],
+  "timestamp": "2026-08-22T02:46:01.105Z",
+  "passed": 51,
+  "failed": 0,
+  "failures": [],
   "finalCounts": {
     "ra": 0,
     "ro": 0,
@@ -87,15 +85,15 @@
       "indexHashes": {
         "idx_one_pending_cancel_per_purchase": {
           "artifact": "959cdab59e72d762",
-          "live": "dfbd357f337b3529"
+          "live": "959cdab59e72d762"
         },
         "idx_one_pending_capture_per_purchase": {
           "artifact": "27148cfd22e3af55",
-          "live": "5c8e902708b10e85"
+          "live": "27148cfd22e3af55"
         },
         "idx_one_pending_refund_per_purchase": {
           "artifact": "df406739fd0c72c3",
-          "live": "7a6362f1c667b320"
+          "live": "df406739fd0c72c3"
         }
       }
     }

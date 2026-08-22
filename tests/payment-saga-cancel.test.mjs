@@ -51,7 +51,7 @@ function normalizeSql(sqlText) {
     .replace(/--[^\n]*/g, '')          // strip line comments
     .replace(/\/\*[\s\S]*?\*\//g, '')   // strip block comments
     .replace(/::\w+/g, '')             // strip type casts (::text, ::jsonb, etc.)
-    .replace(/=\s*any\s*\(\s*array\s*\[/gi, ' in(')  // = ANY(ARRAY[ → in(
+    .replace(/=\s*any\s*\(\s*array\s*\[/gi, ' in (')  // = ANY(ARRAY[ → in (
     .replace(/\]\s*\)/g, ')')          // close array bracket
     .replace(/using btree/gi, '')       // normalize USING btree (case-insensitive)
     .replace(/authority_v1\./g, '')     // normalize schema prefix
