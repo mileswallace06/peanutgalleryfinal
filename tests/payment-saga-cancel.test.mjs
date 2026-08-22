@@ -43,15 +43,21 @@ function genId() {
   return crypto.randomUUID();
 }
 
-/** Normalize SQL text for hash comparison: collapse whitespace, strip comments. */
+/** Normalize SQL text for hash comparison: collapse whitespace, strip comments,
+ *  normalize Postgres internal representations. */
 function normalizeSql(sqlText) {
   return sqlText
     .replace(/--[^\n]*/g, '')          // strip line comments
     .replace(/\/\*[\s\S]*?\*\//g, '')   // strip block comments
+    .replace(/::\w+/g, '')             // strip type casts (::text, ::jsonb, etc.)
+    .replace(/=\s*any\s*\(\s*array\s*\[/gi, ' in(')  // = ANY(ARRAY[ → in(
+    .replace(/\]\s*\)/g, ')')          // close array bracket
+    .replace(/using btree/g, '')        // normalize USING btree
+    .replace(/authority_v1\./g, '')     // normalize schema prefix
     .replace(/\s+/g, ' ')              // collapse whitespace
     .replace(/\s*([(),])\s*/g, '$1')   // tighten punctuation
-    .replace(/using btree/g, '')       // normalize USING btree (pg_indexes adds it)
-    .replace(/authority_v1\./g, '')    // normalize schema prefix
+    .replace(/\(\s+/g, '(')            // tighten open paren
+    .replace(/\s+\)/g, ')')            // tighten close paren
     .trim()
     .toLowerCase();
 }
@@ -60,9 +66,10 @@ function hashNormalized(text) {
   return sha256Hex(normalizeSql(text)).slice(0, 16);
 }
 
-/** Extract function body (between AS $$ and $$) from a CREATE FUNCTION statement. */
+/** Extract function body (between AS $$ and closing $$) from a CREATE FUNCTION statement. */
 function extractFunctionBody(createFnSql) {
-  const asMatch = createFnSql.match(/AS\s*\$\$(?:.*?\$\$)?([\s\S]*?)\$\$\s*$/);
+  // Match AS $$ <body> $$ — body is everything between first $$ and next $$
+  const asMatch = createFnSql.match(/AS\s*\$\$([\s\S]*?)\$\$/);
   if (asMatch) return asMatch[1];
   // Fallback: try AS ' ... ' (single-quoted body)
   const asSingle = createFnSql.match(/AS\s*'([\s\S]*?)'\s*$/);
