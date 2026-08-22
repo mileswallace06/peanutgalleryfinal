@@ -44,7 +44,8 @@ function genId() {
 }
 
 /** Normalize SQL text for hash comparison: collapse whitespace, strip comments,
- *  normalize Postgres internal representations. */
+ *  normalize Postgres internal representations. Aggressive enough to match
+ *  artifact SQL with live pg_indexes/pg_proc output. */
 function normalizeSql(sqlText) {
   return sqlText
     .replace(/--[^\n]*/g, '')          // strip line comments
@@ -52,12 +53,11 @@ function normalizeSql(sqlText) {
     .replace(/::\w+/g, '')             // strip type casts (::text, ::jsonb, etc.)
     .replace(/=\s*any\s*\(\s*array\s*\[/gi, ' in(')  // = ANY(ARRAY[ → in(
     .replace(/\]\s*\)/g, ')')          // close array bracket
-    .replace(/using btree/g, '')        // normalize USING btree
+    .replace(/using btree/gi, '')       // normalize USING btree (case-insensitive)
     .replace(/authority_v1\./g, '')     // normalize schema prefix
+    .replace(/;\s*$/g, '')             // strip trailing semicolon
+    .replace(/[()]/g, '')              // remove ALL parens (logical content unchanged)
     .replace(/\s+/g, ' ')              // collapse whitespace
-    .replace(/\s*([(),])\s*/g, '$1')   // tighten punctuation
-    .replace(/\(\s+/g, '(')            // tighten open paren
-    .replace(/\s+\)/g, ')')            // tighten close paren
     .trim()
     .toLowerCase();
 }

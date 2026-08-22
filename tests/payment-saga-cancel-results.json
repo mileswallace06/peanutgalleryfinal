@@ -1,9 +1,9 @@
 {
-  "timestamp": "2026-08-22T02:43:46.219Z",
+  "timestamp": "2026-08-22T02:44:57.143Z",
   "passed": 50,
   "failed": 1,
   "failures": [
-    "T16: all 3 unique indexes parity ({\"idx_one_pending_cancel_per_purchase\":{\"artifact\":\"6674ec1ef8fd32bd\",\"live\":\"f5a2e6bf3c1d142a\"},\"idx_one_pending_capture_per_purchase\":{\"artifact\":\"eb124a202c840b5d\",\"live\":\"88ee0bfe2defd5bb\"},\"idx_one_pending_refund_per_purchase\":{\"artifact\":\"dda082c4fe816e6d\",\"live\":\"e888ce9bc21690ca\"}})"
+    "T16: all 3 unique indexes parity ({\"idx_one_pending_cancel_per_purchase\":{\"artifact\":\"959cdab59e72d762\",\"live\":\"dfbd357f337b3529\"},\"idx_one_pending_capture_per_purchase\":{\"artifact\":\"27148cfd22e3af55\",\"live\":\"5c8e902708b10e85\"},\"idx_one_pending_refund_per_purchase\":{\"artifact\":\"df406739fd0c72c3\",\"live\":\"7a6362f1c667b320\"}})"
   ],
   "finalCounts": {
     "ra": 0,
@@ -82,20 +82,20 @@
     "T16": {
       "assertions": 3,
       "ok": true,
-      "artifactFnHash": "6920abab50a5cfc2",
-      "liveFnHash": "6920abab50a5cfc2",
+      "artifactFnHash": "47ad19534a552947",
+      "liveFnHash": "47ad19534a552947",
       "indexHashes": {
         "idx_one_pending_cancel_per_purchase": {
-          "artifact": "6674ec1ef8fd32bd",
-          "live": "f5a2e6bf3c1d142a"
+          "artifact": "959cdab59e72d762",
+          "live": "dfbd357f337b3529"
         },
         "idx_one_pending_capture_per_purchase": {
-          "artifact": "eb124a202c840b5d",
-          "live": "88ee0bfe2defd5bb"
+          "artifact": "27148cfd22e3af55",
+          "live": "5c8e902708b10e85"
         },
         "idx_one_pending_refund_per_purchase": {
-          "artifact": "dda082c4fe816e6d",
-          "live": "e888ce9bc21690ca"
+          "artifact": "df406739fd0c72c3",
+          "live": "7a6362f1c667b320"
         }
       }
     }
