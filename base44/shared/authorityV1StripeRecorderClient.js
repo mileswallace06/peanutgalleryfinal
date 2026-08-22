@@ -18,11 +18,15 @@
  *   - Never logs, returns, or places credential-bearing values in errors.
  *
  * Allowlisted methods (recorder-granted only, per 004_roles_and_grants.sql §11):
- *   recordCancelResult, recordCaptureResult, recordRefundResult, finalizeSale
+ *   recordCancelResult, recordCaptureResult, recordRefundResult
  *
  * NOT included — executor-only:
  *   beginCancel, beginCapture, beginRefund, reserveListing, releaseListing, etc.
  * The recorder role lacks EXECUTE on these by design.
+ *
+ * finalizeSale is NOT exposed — record_capture_result atomically finalizes
+ * the sale on succeeded capture (binding → finalized, authority → sold).
+ * The recorder role cannot call finalize_sale directly.
  *
  * COMPLETELY SEPARATE from authorityV1Client.js (executor) and
  * authorityV1TestAdmin.js (admin/test). No shared state, no cross-imports.
@@ -138,13 +142,5 @@ export function createAuthorityV1StripeRecorderClient(recorderUrl, executorFinge
         actionId, resultDerived, JSON.stringify(stripeResponse), workerId, operationId, requestHash);
     },
 
-    /**
-     * finalize_sale(listing_id, expected_version, purchase_id, payment_intent_id,
-     *   buyer_user_id, action_id, operation_id, request_hash) → JSONB
-     */
-    async finalizeSale(listingId, expectedVersion, purchaseId, paymentIntentId, buyerUserId, actionId, operationId, requestHash) {
-      return callFn('finalize_sale',
-        listingId, expectedVersion, purchaseId, paymentIntentId, buyerUserId, actionId, operationId, requestHash);
-    },
   };
 }

@@ -9,8 +9,9 @@
 --   1. authority_owner is a NOLOGIN role — it owns objects but cannot connect.
 --   2. authority_executor is for ordinary authority operations.
 --   3. authority_stripe_recorder is for Stripe-result recording only
---      (record_capture_result, record_cancel_result, record_refund_result,
---      finalize_sale).
+--      (record_capture_result, record_cancel_result, record_refund_result).
+--      finalize_sale is NOT granted — record_capture_result atomically
+--      finalizes on succeeded capture.
 --   4. authority_worker is a dedicated worker role for lease claiming and
 --      recovery. Ordinary authority callers do NOT get worker privileges.
 --   5. Executor roles get CONNECT, USAGE, and EXECUTE only — NO direct table
@@ -150,17 +151,21 @@ GRANT EXECUTE ON FUNCTION authority_v1.anonymize_user(TEXT,TEXT,TEXT,TEXT) TO au
 
 -- ── 11. Grant EXECUTE — Stripe-result recording to authority_stripe_recorder ─
 -- Separate least-privilege boundary: only the Stripe-result recording functions
--- and finalize_sale are granted to the stripe_recorder role.
+-- are granted to the stripe_recorder role.
 --
 -- acquire_operation is NOT granted to the recorder role. It is called
 -- INTERNALLY by the SECURITY DEFINER record_*_result functions, which execute
 -- as authority_owner. The recorder role does not need direct EXECUTE on it.
--- Revoking this grant reduces the recorder's surface area without breaking
--- any recording path (proven by P0-01G corrective tests).
+--
+-- finalize_sale is NOT granted to the recorder role. On succeeded capture,
+-- record_capture_result ATOMICALLY finalizes the sale (binding → finalized,
+-- authority frozen → sold, outbox events) in the same SECURITY DEFINER
+-- transaction. No separate finalize_sale call is required. The recorder
+-- role cannot call finalize_sale directly (proven by P0-01G corrective tests).
 GRANT EXECUTE ON FUNCTION authority_v1.record_capture_result(TEXT,TEXT,JSONB,TEXT,TEXT,TEXT) TO authority_stripe_recorder;
 GRANT EXECUTE ON FUNCTION authority_v1.record_cancel_result(TEXT,TEXT,JSONB,TEXT,TEXT,TEXT) TO authority_stripe_recorder;
 GRANT EXECUTE ON FUNCTION authority_v1.record_refund_result(TEXT,TEXT,JSONB,TEXT,TEXT,TEXT) TO authority_stripe_recorder;
-GRANT EXECUTE ON FUNCTION authority_v1.finalize_sale(TEXT,INTEGER,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT) TO authority_stripe_recorder;
+REVOKE EXECUTE ON FUNCTION authority_v1.finalize_sale(TEXT,INTEGER,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT) FROM authority_stripe_recorder;
 
 -- ── 12. Grant EXECUTE — worker functions to authority_worker only ──────────
 -- Worker functions (claim/recover/escalate) are granted to the dedicated

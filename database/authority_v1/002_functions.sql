@@ -525,9 +525,10 @@ BEGIN
 END;
 $$;
 
--- ── 9. record_capture_result — SINGLE Completion Path (Capture Only) ───────
--- Records the Stripe capture result. Authority remains 'frozen' on success.
--- Finalization is a SEPARATE step (finalize_sale).
+-- ── 9. record_capture_result — SINGLE Completion Path (Atomic Capture+Finalize) ─
+-- Records the Stripe capture result. On succeeded, ATOMICALLY finalizes the
+-- sale: binding → finalized, authority frozen → sold, outbox events — all in
+-- one transaction. No separate finalize_sale call is required.
 --
 -- SINGLE COMPLETION PATH: This is the SOLE function that updates a capture
 -- payment action's status. The separate action-completion function is REMOVED. The worker
@@ -539,8 +540,10 @@ $$;
 -- the call is from a verified webhook handler (signature verified by the
 -- backend function).
 --
--- ACTION-NOT-FIRST: The action is looked up BEFORE acquiring the operation
--- so a null listing_id is never passed to acquire_operation.
+-- IDEMPOTENT REPLAY FIRST: The operation_id is acquired BEFORE the action
+-- status check, so a duplicate call with the same operation_id + request_hash
+-- returns the stored result even after the action is already completed.
+-- The action is looked up first only to get the listing_id for acquire_operation.
 --
 -- EVERY BRANCH FINISHES WITH DETERMINISTIC RESULT: No branch leaves the
 -- operation status as 'pending'. Every branch updates reservation_operations
@@ -575,34 +578,36 @@ BEGIN
       'action_id', p_action_id);
   END IF;
 
-  -- Step 2: Verify action type
-  IF v_action.action_type <> 'capture' THEN
-    RETURN jsonb_build_object('ok', false, 'code', 'ACTION_TYPE_MISMATCH',
-      'expected', 'capture', 'got', v_action.action_type);
-  END IF;
-
-  -- Step 3: Verify action is in an allowed prior status
-  IF v_action.status NOT IN ('pending','in_flight') THEN
-    RETURN jsonb_build_object('ok', false, 'code', 'ACTION_STATUS_INVALID',
-      'expected', 'pending or in_flight', 'got', v_action.status);
-  END IF;
-
-  -- Step 4: Verify lease ownership (worker path only)
-  IF p_worker_id IS NOT NULL THEN
-    IF v_action.lease_owner IS NULL OR v_action.lease_owner != p_worker_id
-       OR v_action.lease_expires_at IS NULL OR v_action.lease_expires_at < now() THEN
-      RETURN jsonb_build_object('ok', false, 'code', 'LEASE_NOT_HELD',
-        'action_id', p_action_id, 'worker_id', p_worker_id);
-    END IF;
-  END IF;
-
-  -- Step 5: Acquire operation using the action's listing_id (now guaranteed non-null)
+  -- Step 2: Acquire operation BEFORE checking action status — so a duplicate
+  -- call with the same operation_id + request_hash returns the stored result
+  -- even after the action is already completed (idempotent replay).
   SELECT * INTO v_acquired, v_op_status, v_replay, v_stored_hash FROM acquire_operation(
     p_server_operation_id, 'listing', v_action.listing_id, v_action.listing_id,
     'record_capture', 'frozen', 0, p_request_hash);
   IF v_replay IS NOT NULL THEN RETURN v_replay; END IF;
   IF NOT v_acquired THEN
     RETURN jsonb_build_object('ok', false, 'code', v_op_status);
+  END IF;
+
+  -- Step 3: Verify action type
+  IF v_action.action_type <> 'capture' THEN
+    RETURN jsonb_build_object('ok', false, 'code', 'ACTION_TYPE_MISMATCH',
+      'expected', 'capture', 'got', v_action.action_type);
+  END IF;
+
+  -- Step 4: Verify action is in an allowed prior status
+  IF v_action.status NOT IN ('pending','in_flight') THEN
+    RETURN jsonb_build_object('ok', false, 'code', 'ACTION_STATUS_INVALID',
+      'expected', 'pending or in_flight', 'got', v_action.status);
+  END IF;
+
+  -- Step 5: Verify lease ownership (worker path only)
+  IF p_worker_id IS NOT NULL THEN
+    IF v_action.lease_owner IS NULL OR v_action.lease_owner != p_worker_id
+       OR v_action.lease_expires_at IS NULL OR v_action.lease_expires_at < now() THEN
+      RETURN jsonb_build_object('ok', false, 'code', 'LEASE_NOT_HELD',
+        'action_id', p_action_id, 'worker_id', p_worker_id);
+    END IF;
   END IF;
 
   -- Step 6: Load and lock the binding — verify ALL fields match
@@ -655,8 +660,10 @@ BEGIN
 
   -- Step 9: Branch on result — every branch finishes with deterministic result
   IF p_result_derived = 'succeeded' THEN
-    -- Binding → captured (exactly one transition). Authority remains FROZEN.
-    UPDATE reservation_payment_bindings SET capture_state = 'captured', updated_at = now()
+    -- ATOMIC FINALIZATION: binding → finalized, authority frozen → sold,
+    -- outbox events — all in one transaction. No separate finalize_sale call.
+    UPDATE reservation_payment_bindings
+    SET capture_state = 'finalized', freeze_finalized_at = now(), updated_at = now()
     WHERE purchase_id = v_action.purchase_id
       AND capture_state IN ('capture_requested','capture_unknown');
     GET DIAGNOSTICS v_updated_count = ROW_COUNT;
@@ -664,11 +671,39 @@ BEGIN
       RAISE EXCEPTION 'CAPTURE_BINDING_COUNT: expected 1, got %', v_updated_count;
     END IF;
 
-    v_result_json := jsonb_build_object('ok', true, 'captured', true, 'action_id', p_action_id)::TEXT;
+    -- CAS: frozen → sold (exactly one transition)
+    v_new_version := v_authority.version + 1;
+    UPDATE reservation_authority
+    SET version = v_new_version, lifecycle_state = 'sold',
+        buyer_user_id = NULL, reservation_token_hash = NULL,
+        reservation_expires_at = NULL, reservation_revision = gen_random_uuid()::TEXT,
+        current_operation_id = p_server_operation_id, last_operation_type = 'record_capture',
+        last_operation_at = now(), updated_at = now()
+    WHERE listing_id = v_action.listing_id
+      AND lifecycle_state = 'frozen'
+      AND version = v_authority.version;
+    GET DIAGNOSTICS v_updated_count = ROW_COUNT;
+    IF v_updated_count != 1 THEN
+      RAISE EXCEPTION 'CAPTURE_AUTHORITY_COUNT: expected 1, got %', v_updated_count;
+    END IF;
+
+    v_result_json := jsonb_build_object('ok', true, 'captured', true, 'finalized', true,
+      'version', v_new_version, 'action_id', p_action_id)::TEXT;
     UPDATE reservation_operations SET status = 'committed', result_json = v_result_json,
       committed_at = now()
     WHERE operation_id = p_server_operation_id;
-    RETURN jsonb_build_object('ok', true, 'captured', true, 'action_id', p_action_id);
+
+    -- Outbox: mirror_project + notification_dispatch + point_award
+    INSERT INTO reservation_outbox (event_id, operation_id, listing_id, committed_version, effect_type, payload)
+    SELECT gen_random_uuid()::TEXT, p_server_operation_id, v_action.listing_id, v_new_version, effect_type, payload
+    FROM (VALUES
+      ('mirror_project', jsonb_build_object('version', v_new_version, 'state', 'sold')),
+      ('notification_dispatch', jsonb_build_object('type', 'sale_completed')),
+      ('point_award', jsonb_build_object('type', 'sale_completed'))
+    ) AS t(effect_type, payload);
+
+    RETURN jsonb_build_object('ok', true, 'captured', true, 'finalized', true,
+      'version', v_new_version, 'action_id', p_action_id);
 
   ELSIF p_result_derived = 'failed' THEN
     -- Known failure → exactly one binding transition (→failed), exactly one

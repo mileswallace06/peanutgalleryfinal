@@ -593,14 +593,18 @@ check('bind_payment_intent_exists', () => {
   return true;
 });
 
-check('record_capture_result_does_not_finalize', () => {
+check('record_capture_result_atomic_finalize', () => {
   const fnStart = functions.indexOf('CREATE OR REPLACE FUNCTION authority_v1.record_capture_result');
   const fnEnd = functions.indexOf('$$;', fnStart);
   if (fnStart < 0 || fnEnd < 0) throw new Error('record_capture_result not found');
   const fnBody = functions.substring(fnStart, fnEnd);
-  if (!fnBody.includes("'captured'")) throw new Error("record_capture_result should set binding to 'captured'");
-  if (fnBody.includes("'sold'")) throw new Error("record_capture_result must NOT finalize (no 'sold' transition)");
-  if (fnBody.includes("'finalized'")) throw new Error("record_capture_result must NOT set binding to 'finalized'");
+  // On succeeded, record_capture_result must ATOMICALLY finalize:
+  // binding → finalized, authority → sold, outbox events — all in one transaction.
+  if (!fnBody.includes("'finalized'")) throw new Error("record_capture_result must set binding to 'finalized' on succeeded");
+  if (!fnBody.includes("'sold'")) throw new Error("record_capture_result must transition authority to 'sold' on succeeded");
+  if (!fnBody.includes("'mirror_project'")) throw new Error("record_capture_result must create mirror_project outbox event");
+  if (!fnBody.includes("'notification_dispatch'")) throw new Error("record_capture_result must create notification_dispatch outbox event");
+  if (!fnBody.includes("'point_award'")) throw new Error("record_capture_result must create point_award outbox event");
   return true;
 });
 

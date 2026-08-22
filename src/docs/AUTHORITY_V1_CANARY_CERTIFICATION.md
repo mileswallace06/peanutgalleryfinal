@@ -347,15 +347,31 @@ cancel_unknown ──recon(unknown)──→ stays cancel_unknown (no-op, stays 
 |---|---|---|---|
 | `acquire_operation` | **REVOKED** | No | Called INTERNALLY by SECURITY DEFINER `record_*_result` functions, which execute as `authority_owner`. The recorder role does not need direct EXECUTE. Proven by post-revoke test: recorder can still call `record_cancel_result` (internal `acquire_operation` succeeds via owner privileges). |
 | `record_cancel_result` | Granted | Yes | Directly called by recorder role to record cancellation results. |
-| `record_capture_result` | Granted | Yes | Directly called by recorder role to record capture results. |
+| `record_capture_result` | Granted | Yes | Directly called by recorder role to record capture results. On succeeded, ATOMICALLY finalizes the sale (binding → finalized, authority → sold, outbox events) in the same SECURITY DEFINER transaction. |
 | `record_refund_result` | Granted | Yes | Directly called by recorder role to record refund results. |
-| `finalize_sale` | Granted | Yes | Directly called by recorder role as a top-level call after `record_capture_result` succeeds. Not called internally — it is a separate saga step. |
+| `finalize_sale` | **REVOKED** | No | `record_capture_result(succeeded)` atomically finalizes the sale in the same transaction — no separate `finalize_sale` call is required. The function remains in the SQL artifact for other roles/use cases but is NOT granted to any runtime role. Proven by capture-finalize-atomicity tests: recorder direct call → permission denied, executor direct call → permission denied. |
 
 **Table privileges:** 0 (no INSERT/UPDATE/DELETE/SELECT on any authority_v1 table).
 
-**Final grant matrix:** 4 functions, 0 table privileges, 0 internal-helper grants.
+**Final grant matrix:** 3 functions, 0 table privileges, 0 internal-helper grants.
 
-### 8.9 Final State
+### 8.9 Atomic Capture Finalization — `record_capture_result(succeeded)`
+
+The canonical requirement: `record_capture_result(succeeded)` must atomically record the provider result AND complete every authoritative sale-finalization mutation in one database transaction. There must be no required second network/database call to `finalize_sale`.
+
+**Prior state (external finalization):** `record_capture_result(succeeded)` set binding → `captured` and left authority `frozen`. A separate `finalize_sale` call was required to transition frozen+captured → sold.
+
+**Corrective change (atomic finalization):** `record_capture_result(succeeded)` now performs full finalization inline:
+- Binding → `finalized` (skipping the intermediate `captured` state)
+- Authority frozen → sold (CAS, exactly one transition)
+- Outbox events: `mirror_project` (state=sold), `notification_dispatch` (type=sale_completed), `point_award` (type=sale_completed)
+- All mutations in one SECURITY DEFINER transaction — injected failure rolls back the entire transaction
+
+**Idempotent replay fix:** The operation is now acquired BEFORE the action status check (matching `record_cancel_result`'s pattern), so a duplicate call with the same `operation_id` + `request_hash` returns the stored result even after the action is already completed.
+
+**`finalize_sale` function:** Remains in the SQL artifact for other roles/use cases but is NOT granted to any runtime role. The recorder client no longer exposes a `finalizeSale` method.
+
+### 8.10 Final State
 
 | Item | Value |
 |---|---|
@@ -368,35 +384,52 @@ cancel_unknown ──recon(unknown)──→ stays cancel_unknown (no-op, stays 
 | Admin client imports in production | 0 (50 handlers checked) |
 | Admin URL in production paths | 0 (50 handlers checked) |
 | Admin-as-recorder proxy | REMOVED (real recorder client used) |
-| Recorder grants | 4 functions (acquire_operation REVOKED) |
+| Recorder grants | 3 functions (record_capture, record_cancel, record_refund) |
+| Recorder `finalize_sale` grant | REVOKED |
+| Recorder `acquire_operation` grant | REVOKED |
 | Recorder table privileges | 0 |
-| SQL artifact/live parity | ✅ (reconciliation deployed, verified) |
+| SQL artifact/live parity | ✅ (atomic finalization + replay-first deployed, verified) |
 | Preflight remnants | 0 (no rows created by preflight) |
 
-### 8.10 Changed Files (Corrective Commit)
+### 8.11 Changed Files (Corrective Commit)
 
 | File | Change |
 |---|---|
-| `database/authority_v1/002_functions.sql` | Extended `record_cancel_result` to support reconciliation from 'unknown' status (succeeded → canceled + release, failed → cancel_failed, unknown → no-op) |
-| `database/authority_v1/004_roles_and_grants.sql` | Revoked `acquire_operation` from `authority_stripe_recorder` (called internally by SECURITY DEFINER functions; not needed by caller) |
-| `tests/abort-canary-orchestrator.test.mjs` | Restored T5 as real recovery test (32 assertions: initial timeout, recon success, idempotent replay, concurrent no-double-release, ambiguous stays blocked) |
-| `tests/payment-saga-cancel.test.mjs` | Updated T4/T5 to test reconciliation success (unknown → succeeded via later webhook/recon) |
-| `src/docs/AUTHORITY_V1_CANARY_CERTIFICATION.md` | Corrected manifest label, added reconciliation design (§8.7), grant audit (§8.8), updated test counts |
+| `database/authority_v1/002_functions.sql` | `record_capture_result(succeeded)` now atomically finalizes (binding → finalized, authority → sold, outbox events); reordered to acquire operation before action status check (idempotent replay first) |
+| `database/authority_v1/004_roles_and_grants.sql` | Revoked `finalize_sale` from `authority_stripe_recorder` (atomic finalization makes it unnecessary); updated comments |
+| `base44/shared/authorityV1StripeRecorderClient.js` | Removed `finalizeSale` method; updated allowlist comment (3 functions, not 4) |
+| `tests/capture-finalize-atomicity.test.mjs` | NEW — 8-scenario suite proving atomic finalization, injected failure rollback, idempotent replay, concurrent finalization, permission denied, grant matrix |
+| `tests/authority-contract.test.mjs` | Updated `record_capture_result_does_not_finalize` → `record_capture_result_atomic_finalize` (now requires 'finalized', 'sold', outbox events) |
+| `src/docs/AUTHORITY_V1_CANARY_CERTIFICATION.md` | Added atomic finalization design (§8.9), updated grant audit (§8.8: 3 functions), updated final state (§8.10) |
 
 **Files unchanged (already correct):**
 - `base44/shared/abortCanaryOrchestrator.js` — no changes needed
-- `base44/shared/authorityV1StripeRecorderClient.js` — no changes needed
 - `base44/functions/abortCheckout/entry.ts` — no changes needed
 
-### 8.11 Conclusion
+### 8.12 Test Results Summary
+
+| Suite | Scenarios | Assertions | Result |
+|---|---|---|---|
+| capture-finalize-atomicity (NEW) | 8 | 41 | ✅ 41/41 PASS |
+| abort-canary (P0-01G) | 14 | 103 | ✅ 103/103 PASS |
+| payment-saga-cancel (P0-01F) | 16 | 59 | ✅ 59/59 PASS |
+| P0-01E protections | 7 | 7 | ✅ 7/7 PASS |
+| P0-01E wiring | 5 | 5 | ✅ 5/5 PASS |
+| authority-contract (static) | 69 | 69 | ✅ 69/69 PASS |
+| Build (`npm run build`) | — | — | ✅ Exit 0 |
+| Backend lint | — | — | ✅ 0 errors, 116 warnings (pre-existing) |
+| Scoped lint (changed files) | — | — | ✅ 0 errors, 0 warnings |
+
+### 8.13 Conclusion
 
 P0-01G manifest label: **`abortCheckout — CANARY-WIRED / FAKE-PROVIDER CERTIFIED / REAL STRIPE NOT CERTIFIED / FLAG OFF`**
 
-- The `record_cancel_result` SQL function now supports controlled reconciliation from `cancel_unknown` per the canonical architecture (§6.2): succeeded → canceled + release, failed → cancel_failed, unknown → no-op.
-- The `authority_stripe_recorder` role has been audited: `acquire_operation` grant revoked (called internally by SECURITY DEFINER functions), 4 external functions remain, 0 table privileges.
-- The persisted 14-scenario abort-canary suite passes 103/103 assertions (T5: 32 assertions — real recovery test through the real recorder client).
-- The persisted 16-scenario payment-saga-cancel suite passes 59/59 assertions (T4/T5 updated to test reconciliation success).
-- All regressions pass (P0-01E 7/7 + 5/5, build, lint).
+- `record_capture_result(succeeded)` now ATOMICALLY finalizes the sale (binding → finalized, authority → sold, outbox events) in one database transaction — no required second `finalize_sale` call.
+- `finalize_sale` direct EXECUTE is REVOKED from `authority_stripe_recorder` and `authority_executor` — proven by permission-denied tests.
+- The recorder client no longer exposes a `finalizeSale` method.
+- The recorder role retains 3 function grants (`record_capture_result`, `record_cancel_result`, `record_refund_result`) and 0 table grants.
+- `record_cancel_result` supports controlled reconciliation from `cancel_unknown` per the canonical architecture (§6.2).
+- All suites pass: capture-finalize 41/41, abort-canary 103/103, payment-saga-cancel 59/59, P0-01E 7/7+5/5, authority-contract 69/69, build, lint.
 - 50 functions, flag OFF, maintenance ON, 0 synthetic rows, 0 real provider calls.
 - No admin credentials in production or result-recording paths (static analysis of 50 handlers + shared modules).
 - **Real Stripe execution is NOT certified.** The fake-provider test proves the saga logic; a later real Stripe test-mode gate is required for production certification.
