@@ -14,8 +14,8 @@
  *   1.  Cancellation success
  *   2.  Definitive failure
  *   3.  Timeout/unknown
- *   4.  Later webhook success (durable unknown)
- *   5.  Later reconciliation success (durable unknown)
+ *   4.  Later webhook success resolves unknown → canceled
+ *   5.  Later reconciliation success resolves unknown → canceled
  *   6.  Duplicate webhook (idempotent)
  *   7.  Identical retry (same op_id + same request_hash)
  *   8.  Conflicting retry (same op_id + different request_hash) — structured result
@@ -254,35 +254,54 @@ export async function runAllTests(deps) {
     results.T3 = { assertions: 7, ok: true };
   }
 
-  // T4: Later webhook success (durable unknown)
+  // T4: Later webhook success resolves unknown → canceled
   {
     const ctx = await setupReservedWithBinding('webhook');
     const a = `act_${genId()}`, k = `idem_${genId()}`, o = `op_${genId()}`;
     await beginCancel(ctx, a, k, o);
-    const ro = `op_${genId()}`, rh = sha256Hex(canonicalEnvelope({ op: 'rc', a, r: 'unknown' }));
-    await recordCancelResult(a, 'unknown', {}, ro, rh);
+    const ro1 = `op_${genId()}`, rh1 = sha256Hex(canonicalEnvelope({ op: 'rc', a, r: 'unknown' }));
+    await recordCancelResult(a, 'unknown', {}, ro1, rh1);
+    // Later webhook resolves to succeeded
+    const ro2 = `op_${genId()}`, rh2 = sha256Hex(canonicalEnvelope({ op: 'rc', a, r: 'succeeded' }));
+    const rr = await recordCancelResult(a, 'succeeded', {}, ro2, rh2);
+    assert(rr?.canceled === true, 'T4: webhook recon canceled');
+    assert(rr?.released === true, 'T4: webhook recon released');
+    assert(rr?.reconciliation === true, 'T4: reconciliation flag');
     const action = await getAction(a);
-    assert(action?.status === 'unknown', 'T4: action unknown');
+    assert(action?.status === 'succeeded', 'T4: action succeeded');
     const b = await getBinding(ctx.purchaseId);
-    assert(b?.capture_state === 'cancel_unknown', 'T4: binding cancel_unknown');
+    assert(b?.capture_state === 'canceled', 'T4: binding canceled');
     const auth = await getAuthority(ctx.listingId);
-    assert(auth?.recovery_blocked === true, 'T4: authority blocked');
-    results.T4 = { assertions: 3, ok: true };
+    assert(auth?.lifecycle_state === 'available', 'T4: authority available');
+    assert(auth?.recovery_blocked === false, 'T4: recovery_blocked cleared');
+    const inc = await getIncidents(ctx.listingId);
+    const cancelUnknownInc = inc.find(i => i.incident_type === 'cancel_unknown');
+    assert(cancelUnknownInc?.resolved === true, 'T4: incident resolved');
+    results.T4 = { assertions: 8, ok: true };
   }
 
-  // T5: Later reconciliation success (durable unknown)
+  // T5: Later reconciliation success resolves unknown → canceled
   {
     const ctx = await setupReservedWithBinding('recon');
     const a = `act_${genId()}`, k = `idem_${genId()}`, o = `op_${genId()}`;
     await beginCancel(ctx, a, k, o);
-    const ro = `op_${genId()}`, rh = sha256Hex(canonicalEnvelope({ op: 'rc', a, r: 'unknown' }));
-    await recordCancelResult(a, 'unknown', {}, ro, rh);
+    const ro1 = `op_${genId()}`, rh1 = sha256Hex(canonicalEnvelope({ op: 'rc', a, r: 'unknown' }));
+    await recordCancelResult(a, 'unknown', {}, ro1, rh1);
+    // Later reconciliation resolves to succeeded
+    const ro2 = `op_${genId()}`, rh2 = sha256Hex(canonicalEnvelope({ op: 'rc', a, r: 'succeeded' }));
+    const rr = await recordCancelResult(a, 'succeeded', {}, ro2, rh2);
+    assert(rr?.canceled === true, 'T5: recon canceled');
+    assert(rr?.reconciliation === true, 'T5: reconciliation flag');
+    // Identical replay is idempotent
+    const rr2 = await recordCancelResult(a, 'succeeded', {}, ro2, rh2);
+    assert(rr2?.canceled === true, 'T5: replay canceled');
     const action = await getAction(a);
-    assert(action?.status === 'unknown', 'T5: action unknown');
-    const inc = await getIncidents(ctx.listingId);
-    assert(inc.length === 1, 'T5: 1 incident');
-    assert(inc[0]?.resolved === false, 'T5: incident unresolved');
-    results.T5 = { assertions: 3, ok: true };
+    assert(action?.status === 'succeeded', 'T5: action succeeded');
+    const b = await getBinding(ctx.purchaseId);
+    assert(b?.capture_state === 'canceled', 'T5: binding canceled');
+    const auth = await getAuthority(ctx.listingId);
+    assert(auth?.lifecycle_state === 'available', 'T5: authority available');
+    results.T5 = { assertions: 6, ok: true };
   }
 
   // T6: Duplicate webhook (idempotent)

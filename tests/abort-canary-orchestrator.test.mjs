@@ -321,15 +321,15 @@ export async function runAllTests(deps) {
     results.T4 = { assertions: 6, ok: true };
   }
 
-  // T5: Later reconciliation of unknown
+  // T5: Later reconciliation of unknown — real recovery test
   {
+    // Phase 1: Initial timeout creates unknown
     const ctx = await setupReservedWithBinding('recon');
     const entities = createMockEntities();
-    // First run: unknown
-    const stripe1 = createFakeStripeAdapter({ derived: 'unknown', raw: {} });
+    const stripe1 = createFakeStripeAdapter({ derived: 'unknown', raw: { error: 'timeout' } });
     const actionId = `act_recon_${genId()}`;
     const idemKey = `idem_abort_${actionId}`;
-    await runCanaryAbortSaga({
+    const r1 = await runCanaryAbortSaga({
       entities, user: { id: ctx.buyerId, email: ctx.buyerId, role: 'admin' },
       executorClient, recorderClient, stripeAdapter: stripe1,
       params: {
@@ -338,28 +338,108 @@ export async function runAllTests(deps) {
         expected_revision: ctx.revision, action_id: actionId, stripe_idempotency_key: idemKey,
       },
     });
+    assert(r1.body.cancel_unknown === true, 'T5: initial timeout → cancel_unknown');
+    assert(r1.body.recovery_blocked === true, 'T5: initial recovery_blocked');
     const actionAfterUnknown = await getAction(actionId);
-    assert(actionAfterUnknown?.status === 'unknown', 'T5: action unknown after first run');
+    assert(actionAfterUnknown?.status === 'unknown', 'T5: action unknown after timeout');
     const b1 = await getBinding(ctx.purchaseId);
     assert(b1?.capture_state === 'cancel_unknown', 'T5: binding cancel_unknown');
+    const auth1 = await getAuthority(ctx.listingId);
+    assert(auth1?.recovery_blocked === true, 'T5: authority blocked after timeout');
+    const inc1 = await getIncidents(ctx.listingId);
+    assert(inc1.length === 1, 'T5: 1 incident after timeout');
+    assert(inc1[0]?.incident_type === 'cancel_unknown', 'T5: cancel_unknown incident');
+    assert(inc1[0]?.resolved === false, 'T5: incident unresolved');
 
-    // Later reconciliation attempt: new operation with 'succeeded' → ACTION_STATUS_INVALID.
-    // record_cancel_result does not allow transitioning from 'unknown'; the unknown
-    // state is durable and requires manual resolution (matching P0-01F T4/T5 design).
+    // Phase 2: Later reconciliation succeeds through real recorder client
     const reconOpId = `op_recon_${genId()}`;
     const reconHash = sha256Hex(canonicalEnvelope({ op: 'record_cancel', action_id: actionId, result: 'succeeded' }));
-    const reconResult = await recorderClient.recordCancelResult(actionId, 'succeeded', {}, null, reconOpId, reconHash);
-    assert(reconResult?.ok === false, 'T5: reconciliation rejected');
-    assert(reconResult?.code === 'ACTION_STATUS_INVALID', `T5: ACTION_STATUS_INVALID (got ${reconResult?.code})`);
-
-    // State remains durable: action still 'unknown', binding still 'cancel_unknown'
-    const actionAfterRecon = await getAction(actionId);
-    assert(actionAfterRecon?.status === 'unknown', 'T5: action still unknown after recon attempt');
+    const reconResult = await recorderClient.recordCancelResult(actionId, 'succeeded', { status: 'canceled' }, null, reconOpId, reconHash);
+    assert(reconResult?.ok === true, `T5: recon ok (got ${JSON.stringify(reconResult)})`);
+    assert(reconResult?.canceled === true, 'T5: recon canceled');
+    assert(reconResult?.released === true, 'T5: recon released');
+    assert(reconResult?.reconciliation === true, 'T5: reconciliation flag');
+    const auth2 = await getAuthority(ctx.listingId);
+    assert(auth2?.lifecycle_state === 'available', 'T5: authority available after recon');
+    assert(auth2?.recovery_blocked === false, 'T5: recovery_blocked cleared');
     const b2 = await getBinding(ctx.purchaseId);
-    assert(b2?.capture_state === 'cancel_unknown', 'T5: binding still cancel_unknown');
-    const auth = await getAuthority(ctx.listingId);
-    assert(auth?.recovery_blocked === true, 'T5: authority still blocked');
-    results.T5 = { assertions: 6, ok: true };
+    assert(b2?.capture_state === 'canceled', 'T5: binding canceled after recon');
+    const actionAfterRecon = await getAction(actionId);
+    assert(actionAfterRecon?.status === 'succeeded', 'T5: action succeeded after recon');
+    const inc2 = await getIncidents(ctx.listingId);
+    const cancelUnknownInc = inc2.find(i => i.incident_type === 'cancel_unknown');
+    assert(cancelUnknownInc?.resolved === true, 'T5: cancel_unknown incident resolved');
+
+    // Phase 3: Identical reconciliation replay is idempotent
+    const reconResult2 = await recorderClient.recordCancelResult(actionId, 'succeeded', { status: 'canceled' }, null, reconOpId, reconHash);
+    assert(reconResult2?.ok === true, 'T5: replay ok');
+    assert(reconResult2?.canceled === true, 'T5: replay canceled');
+    const auth3 = await getAuthority(ctx.listingId);
+    assert(auth3?.lifecycle_state === 'available', 'T5: still available after replay');
+    const b3 = await getBinding(ctx.purchaseId);
+    assert(b3?.capture_state === 'canceled', 'T5: still canceled after replay');
+
+    // Phase 4: Concurrent reconciliation does not double-release (new setup)
+    const ctx2 = await setupReservedWithBinding('reconconc');
+    const entities2 = createMockEntities();
+    const stripe2 = createFakeStripeAdapter({ derived: 'unknown', raw: {} });
+    const actionId2 = `act_reconconc_${genId()}`;
+    const idemKey2 = `idem_abort_${actionId2}`;
+    await runCanaryAbortSaga({
+      entities: entities2, user: { id: ctx2.buyerId, email: ctx2.buyerId, role: 'admin' },
+      executorClient, recorderClient, stripeAdapter: stripe2,
+      params: {
+        listing_id: ctx2.listingId, purchase_id: ctx2.purchaseId,
+        payment_intent_id: ctx2.paymentIntentId, buyer_user_id: ctx2.buyerId,
+        expected_revision: ctx2.revision, action_id: actionId2, stripe_idempotency_key: idemKey2,
+      },
+    });
+    const reconOpA = `op_reconA_${genId()}`;
+    const reconOpB = `op_reconB_${genId()}`;
+    const reconHashA = sha256Hex(canonicalEnvelope({ op: 'record_cancel', action_id: actionId2, result: 'succeeded', n: 'A' }));
+    const reconHashB = sha256Hex(canonicalEnvelope({ op: 'record_cancel', action_id: actionId2, result: 'succeeded', n: 'B' }));
+    const [resultA, resultB] = await Promise.all([
+      recorderClient.recordCancelResult(actionId2, 'succeeded', { status: 'canceled' }, null, reconOpA, reconHashA)
+        .then(r => ({ canceled: r?.canceled === true })).catch(() => ({ canceled: false })),
+      recorderClient.recordCancelResult(actionId2, 'succeeded', { status: 'canceled' }, null, reconOpB, reconHashB)
+        .then(r => ({ canceled: r?.canceled === true })).catch(() => ({ canceled: false })),
+    ]);
+    const succCount = [resultA, resultB].filter(r => r.canceled).length;
+    assert(succCount === 1, `T5: concurrent recon — 1 success (got ${succCount})`);
+    const auth4 = await getAuthority(ctx2.listingId);
+    assert(auth4?.lifecycle_state === 'available', 'T5: concurrent recon — authority available');
+    assert(auth4?.recovery_blocked === false, 'T5: concurrent recon — recovery_blocked cleared');
+
+    // Phase 5: Ambiguous reconciliation remains blocked (new setup)
+    const ctx3 = await setupReservedWithBinding('reconamb');
+    const entities3 = createMockEntities();
+    const stripe3 = createFakeStripeAdapter({ derived: 'unknown', raw: {} });
+    const actionId3 = `act_reconamb_${genId()}`;
+    const idemKey3 = `idem_abort_${actionId3}`;
+    await runCanaryAbortSaga({
+      entities: entities3, user: { id: ctx3.buyerId, email: ctx3.buyerId, role: 'admin' },
+      executorClient, recorderClient, stripeAdapter: stripe3,
+      params: {
+        listing_id: ctx3.listingId, purchase_id: ctx3.purchaseId,
+        payment_intent_id: ctx3.paymentIntentId, buyer_user_id: ctx3.buyerId,
+        expected_revision: ctx3.revision, action_id: actionId3, stripe_idempotency_key: idemKey3,
+      },
+    });
+    const ambOpId = `op_amb_${genId()}`;
+    const ambHash = sha256Hex(canonicalEnvelope({ op: 'record_cancel', action_id: actionId3, result: 'unknown' }));
+    const ambResult = await recorderClient.recordCancelResult(actionId3, 'unknown', { error: 'still timeout' }, null, ambOpId, ambHash);
+    assert(ambResult?.ok === true, 'T5: ambiguous recon ok');
+    assert(ambResult?.cancel_unknown === true, 'T5: ambiguous recon cancel_unknown');
+    assert(ambResult?.recovery_blocked === true, 'T5: ambiguous recon recovery_blocked');
+    assert(ambResult?.reconciliation === true, 'T5: ambiguous recon reconciliation flag');
+    assert(ambResult?.resolved === false, 'T5: ambiguous recon not resolved');
+    const auth5 = await getAuthority(ctx3.listingId);
+    assert(auth5?.recovery_blocked === true, 'T5: ambiguous recon — still blocked');
+    assert(auth5?.lifecycle_state !== 'available', 'T5: ambiguous recon — NOT released');
+    const b5 = await getBinding(ctx3.purchaseId);
+    assert(b5?.capture_state === 'cancel_unknown', 'T5: ambiguous recon — binding still cancel_unknown');
+
+    results.T5 = { assertions: 32, ok: true };
   }
 
   // T6: Identical retry (idempotent)

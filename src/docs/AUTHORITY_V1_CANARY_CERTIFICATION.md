@@ -136,7 +136,7 @@ Execution method: `tests/payment-saga-cancel.test.mjs` refactored as importable 
 | `releaseReservation` | UNCHANGED (P0-01E certified) | Canary-routed, authority_v1 authoritative |
 | `processTransferReminders` | UNCHANGED (P0-01E certified) | Canary-routed expired cleanup |
 | `reconcilePurchaseOutcomes` | UNCHANGED (P0-01E certified) | Outbox repair |
-| `abortCheckout` | **CERTIFIED (P0-01G)** | Canary abort orchestrator certified; see §8 below |
+| `abortCheckout` | **CANARY-WIRED / FAKE-PROVIDER CERTIFIED / REAL STRIPE NOT CERTIFIED / FLAG OFF** | See §8 below |
 | `cleanupAbandonedCheckouts` | UNCHANGED (excluded) | No reservation release to route |
 | `capturePayment` | UNCHANGED (excluded) | Financial side effect |
 | `stripeWebhook` | UNCHANGED | No authority_v1 integration |
@@ -272,7 +272,7 @@ Execution method: `exec_tool` sandbox with npm-compat ESM loader hook, dynamical
 | T2 | Definitive failure | 9 | ✅ |
 | T3 | Timeout/unknown | 9 | ✅ |
 | T4 | Recorder failure after provider response | 6 | ✅ |
-| T5 | Later reconciliation of unknown (durable) | 6 | ✅ |
+| T5 | Later reconciliation of unknown (real recovery) | 32 | ✅ |
 | T6 | Identical retry (idempotent) | 2 | ✅ |
 | T7 | Conflicting retry (structured result) | 2 | ✅ |
 | T8 | Concurrent abort (exactly one succeeds) | 3 | ✅ |
@@ -282,9 +282,14 @@ Execution method: `exec_tool` sandbox with npm-compat ESM loader hook, dynamical
 | T12 | Flag-OFF isolation (503, no calls) | 4 | ✅ |
 | T13 | Non-canary isolation (null return, no calls) | 3 | ✅ |
 | T14 | No admin-client import (static analysis) | 6 | ✅ |
-| **Total** | | **78** | **78/78 PASS** |
+| **Total** | | **103** | **103/103 PASS** |
 
-**T5 Correction:** The prior test expected `record_cancel_result` to reconcile an 'unknown' action to 'succeeded'. The SQL function correctly rejects this with `ACTION_STATUS_INVALID` (action status 'unknown' is not in `('pending','in_flight')`). The corrected T5 verifies the durable-unknown behavior: action stays 'unknown', binding stays 'cancel_unknown', authority stays `recovery_blocked`. This matches the P0-01F T4/T5 design.
+**T5 Real Recovery Test:** T5 now proves the full reconciliation lifecycle through the real recorder client:
+1. Initial timeout creates `unknown` (action 'unknown', binding 'cancel_unknown', authority frozen + recovery_blocked, incident unresolved)
+2. Later reconciliation succeeds (action → 'succeeded', binding → 'canceled', authority → 'available', recovery_blocked cleared, incident resolved)
+3. Identical reconciliation replay is idempotent (same operation_id + request_hash → same result, no double-release)
+4. Concurrent reconciliation does not double-release (two concurrent calls with different operation_ids → exactly 1 success)
+5. Ambiguous reconciliation remains blocked (still-unknown result → no state change, stays frozen + recovery_blocked)
 
 **Final counts after cleanup:** All 7 authority_v1 tables = 0 rows. ✅
 
@@ -303,14 +308,54 @@ Execution method: `exec_tool` sandbox with npm-compat ESM loader hook, dynamical
 
 | Check | Exit Code | Details |
 |---|---|---|
-| P0-01F payment-saga-cancel (51 assertions) | 0 | 51/51 pass, all tables 0 rows |
+| P0-01F payment-saga-cancel (59 assertions) | 0 | 59/59 pass (T4/T5 updated to test reconciliation success), all tables 0 rows |
 | P0-01E protections (7 assertions) | 0 | 7/7 pass |
 | P0-01E wiring (5 assertions) | 0 | 5/5 pass |
 | `npm run build` (vite build) | 0 | Build succeeded |
 | Backend lint (`npm run lint:backend`) | 0 | 0 errors, 116 warnings (pre-existing) |
 | Scoped lint (4 changed files) | 0 | 0 errors, 7 warnings (unused vars — pre-existing) |
 
-### 8.7 Final State
+### 8.7 Reconciliation Design — `cancel_unknown` Resolution
+
+The canonical architecture (§6.2) requires that `cancel_unknown` be resolvable by a later trusted webhook or reconciliation observation. The prior implementation rejected actions in 'unknown' status with `ACTION_STATUS_INVALID`, making the unknown state permanent and manual-only. This corrective commit extends `record_cancel_result` to support controlled reconciliation:
+
+**Cancellation Outcome Mapping (from §6.2):**
+```
+cancel_requested ──record_cancel(succeeded)──→ canceled
+cancel_requested ──record_cancel(failed)──→ cancel_failed (unsettled)
+cancel_requested ──record_cancel(unknown)──→ cancel_unknown
+
+cancel_unknown ──recon(succeeded)──→ canceled (release exactly once, clear recovery_blocked, resolve incident)
+cancel_unknown ──recon(failed)──→ cancel_failed (stays blocked, obligation preserved, escalate incident)
+cancel_unknown ──recon(unknown)──→ stays cancel_unknown (no-op, stays frozen + recovery_blocked)
+```
+
+**Implementation:** `record_cancel_result` now accepts action status 'unknown' as a valid prior status for reconciliation. When `v_is_reconciliation = true`:
+- Locks the action, payment binding, and authority row (same as first observation)
+- Verifies binding is in `cancel_unknown` state (not `cancel_requested`)
+- Verifies authority is `recovery_blocked`
+- `succeeded` → binding → `canceled`, authority → `available`, clears `recovery_blocked`, resolves `cancel_unknown` incident, creates mirror event
+- `failed` → binding → `cancel_failed`, authority stays blocked (updates reason), resolves `cancel_unknown` incident + creates `cancel_failed` incident
+- `unknown` → no state change (idempotent no-op, stays frozen + blocked), only operation ledger updated
+- Exact operation replay returns the original result (idempotent)
+- Changed-payload operation reuse is rejected (`OPERATION_ID_CONFLICT`)
+- Concurrent reconciliation attempts produce one transition (row-level locks + `FOR UPDATE`)
+
+### 8.8 Grant Audit — `authority_stripe_recorder`
+
+| Function | Direct Grant? | Required? | Rationale |
+|---|---|---|---|
+| `acquire_operation` | **REVOKED** | No | Called INTERNALLY by SECURITY DEFINER `record_*_result` functions, which execute as `authority_owner`. The recorder role does not need direct EXECUTE. Proven by post-revoke test: recorder can still call `record_cancel_result` (internal `acquire_operation` succeeds via owner privileges). |
+| `record_cancel_result` | Granted | Yes | Directly called by recorder role to record cancellation results. |
+| `record_capture_result` | Granted | Yes | Directly called by recorder role to record capture results. |
+| `record_refund_result` | Granted | Yes | Directly called by recorder role to record refund results. |
+| `finalize_sale` | Granted | Yes | Directly called by recorder role as a top-level call after `record_capture_result` succeeds. Not called internally — it is a separate saga step. |
+
+**Table privileges:** 0 (no INSERT/UPDATE/DELETE/SELECT on any authority_v1 table).
+
+**Final grant matrix:** 4 functions, 0 table privileges, 0 internal-helper grants.
+
+### 8.9 Final State
 
 | Item | Value |
 |---|---|
@@ -323,27 +368,35 @@ Execution method: `exec_tool` sandbox with npm-compat ESM loader hook, dynamical
 | Admin client imports in production | 0 (50 handlers checked) |
 | Admin URL in production paths | 0 (50 handlers checked) |
 | Admin-as-recorder proxy | REMOVED (real recorder client used) |
+| Recorder grants | 4 functions (acquire_operation REVOKED) |
+| Recorder table privileges | 0 |
+| SQL artifact/live parity | ✅ (reconciliation deployed, verified) |
 | Preflight remnants | 0 (no rows created by preflight) |
 
-### 8.8 Changed Files (Corrective Commit)
+### 8.10 Changed Files (Corrective Commit)
 
 | File | Change |
 |---|---|
-| `tests/abort-canary-orchestrator.test.mjs` | Removed admin-proxied recorder; use real `createAuthorityV1StripeRecorderClient`; deps = `{ adminSql, executorUrl, recorderUrl }`; fixed T5 to test durable-unknown behavior |
-| `src/docs/AUTHORITY_V1_CANARY_CERTIFICATION.md` | Updated 11-entry-point manifest (abortCheckout → CERTIFIED); resolved P0-01G prerequisite; added §8 P0-01G report |
+| `database/authority_v1/002_functions.sql` | Extended `record_cancel_result` to support reconciliation from 'unknown' status (succeeded → canceled + release, failed → cancel_failed, unknown → no-op) |
+| `database/authority_v1/004_roles_and_grants.sql` | Revoked `acquire_operation` from `authority_stripe_recorder` (called internally by SECURITY DEFINER functions; not needed by caller) |
+| `tests/abort-canary-orchestrator.test.mjs` | Restored T5 as real recovery test (32 assertions: initial timeout, recon success, idempotent replay, concurrent no-double-release, ambiguous stays blocked) |
+| `tests/payment-saga-cancel.test.mjs` | Updated T4/T5 to test reconciliation success (unknown → succeeded via later webhook/recon) |
+| `src/docs/AUTHORITY_V1_CANARY_CERTIFICATION.md` | Corrected manifest label, added reconciliation design (§8.7), grant audit (§8.8), updated test counts |
 
-**Files unchanged by corrective commit (already committed in `535ac4c`):**
-- `base44/shared/abortCanaryOrchestrator.js` — no changes needed (already correct)
-- `base44/shared/authorityV1StripeRecorderClient.js` — no changes needed (already correct)
-- `base44/functions/abortCheckout/entry.ts` — no changes needed (already correct)
+**Files unchanged (already correct):**
+- `base44/shared/abortCanaryOrchestrator.js` — no changes needed
+- `base44/shared/authorityV1StripeRecorderClient.js` — no changes needed
+- `base44/functions/abortCheckout/entry.ts` — no changes needed
 
-### 8.9 Conclusion
+### 8.11 Conclusion
 
-P0-01G is **PASS**:
-- The recorder secret is valid with a password, and the recorder role can call only its 5 allowlisted functions (no `begin_cancel`, no table mutation).
-- The admin-as-recorder proxy is fully removed from the test suite; all result recording uses the real `authorityV1StripeRecorderClient`.
-- The persisted 14-scenario test suite passes 78/78 assertions with the real executor client, real recorder client, and fake Stripe adapter.
-- The deployed `abortCheckout` handler delegates canary-eligible requests to `maybeRouteCanaryAbort` before the maintenance gate; the legacy non-canary path is unchanged.
-- All regressions pass (P0-01F 51/51, P0-01E 7/7 + 5/5, build, lint).
+P0-01G manifest label: **`abortCheckout — CANARY-WIRED / FAKE-PROVIDER CERTIFIED / REAL STRIPE NOT CERTIFIED / FLAG OFF`**
+
+- The `record_cancel_result` SQL function now supports controlled reconciliation from `cancel_unknown` per the canonical architecture (§6.2): succeeded → canceled + release, failed → cancel_failed, unknown → no-op.
+- The `authority_stripe_recorder` role has been audited: `acquire_operation` grant revoked (called internally by SECURITY DEFINER functions), 4 external functions remain, 0 table privileges.
+- The persisted 14-scenario abort-canary suite passes 103/103 assertions (T5: 32 assertions — real recovery test through the real recorder client).
+- The persisted 16-scenario payment-saga-cancel suite passes 59/59 assertions (T4/T5 updated to test reconciliation success).
+- All regressions pass (P0-01E 7/7 + 5/5, build, lint).
 - 50 functions, flag OFF, maintenance ON, 0 synthetic rows, 0 real provider calls.
 - No admin credentials in production or result-recording paths (static analysis of 50 handlers + shared modules).
+- **Real Stripe execution is NOT certified.** The fake-provider test proves the saga logic; a later real Stripe test-mode gate is required for production certification.

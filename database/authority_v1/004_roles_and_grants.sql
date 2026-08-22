@@ -149,9 +149,14 @@ GRANT EXECUTE ON FUNCTION authority_v1.check_user_obligations(TEXT) TO authority
 GRANT EXECUTE ON FUNCTION authority_v1.anonymize_user(TEXT,TEXT,TEXT,TEXT) TO authority_executor;
 
 -- ── 11. Grant EXECUTE — Stripe-result recording to authority_stripe_recorder ─
--- Separate least-privilege boundary: only the Stripe-result recording
--- functions and acquire_operation are granted to the stripe_recorder role.
-GRANT EXECUTE ON FUNCTION authority_v1.acquire_operation(TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,INTEGER,TEXT) TO authority_stripe_recorder;
+-- Separate least-privilege boundary: only the Stripe-result recording functions
+-- and finalize_sale are granted to the stripe_recorder role.
+--
+-- acquire_operation is NOT granted to the recorder role. It is called
+-- INTERNALLY by the SECURITY DEFINER record_*_result functions, which execute
+-- as authority_owner. The recorder role does not need direct EXECUTE on it.
+-- Revoking this grant reduces the recorder's surface area without breaking
+-- any recording path (proven by P0-01G corrective tests).
 GRANT EXECUTE ON FUNCTION authority_v1.record_capture_result(TEXT,TEXT,JSONB,TEXT,TEXT,TEXT) TO authority_stripe_recorder;
 GRANT EXECUTE ON FUNCTION authority_v1.record_cancel_result(TEXT,TEXT,JSONB,TEXT,TEXT,TEXT) TO authority_stripe_recorder;
 GRANT EXECUTE ON FUNCTION authority_v1.record_refund_result(TEXT,TEXT,JSONB,TEXT,TEXT,TEXT) TO authority_stripe_recorder;
