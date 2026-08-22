@@ -50,12 +50,24 @@ function normalizeSql(sqlText) {
     .replace(/\/\*[\s\S]*?\*\//g, '')   // strip block comments
     .replace(/\s+/g, ' ')              // collapse whitespace
     .replace(/\s*([(),])\s*/g, '$1')   // tighten punctuation
+    .replace(/using btree/g, '')       // normalize USING btree (pg_indexes adds it)
+    .replace(/authority_v1\./g, '')    // normalize schema prefix
     .trim()
     .toLowerCase();
 }
 
 function hashNormalized(text) {
   return sha256Hex(normalizeSql(text)).slice(0, 16);
+}
+
+/** Extract function body (between AS $$ and $$) from a CREATE FUNCTION statement. */
+function extractFunctionBody(createFnSql) {
+  const asMatch = createFnSql.match(/AS\s*\$\$(?:.*?\$\$)?([\s\S]*?)\$\$\s*$/);
+  if (asMatch) return asMatch[1];
+  // Fallback: try AS ' ... ' (single-quoted body)
+  const asSingle = createFnSql.match(/AS\s*'([\s\S]*?)'\s*$/);
+  if (asSingle) return asSingle[1];
+  return createFnSql;
 }
 
 export async function runAllTests(deps) {
@@ -439,18 +451,19 @@ export async function runAllTests(deps) {
     const functionsSql = fs.readFileSync('/app/database/authority_v1/002_functions.sql', 'utf8');
     const schemaSql = fs.readFileSync('/app/database/authority_v1/001_schema.sql', 'utf8');
 
-    // Extract record_cancel_result from artifact
+    // Extract record_cancel_result from artifact — compare BODY only (prosrc is body)
     const fnStart = functionsSql.indexOf('CREATE OR REPLACE FUNCTION authority_v1.record_cancel_result');
     const fnEnd = functionsSql.indexOf('\n-- ──', fnStart + 100);
-    const artifactFn = functionsSql.slice(fnStart, fnEnd > fnStart ? fnEnd : fnStart + 9000);
-    const artifactFnHash = hashNormalized(artifactFn);
+    const artifactFnFull = functionsSql.slice(fnStart, fnEnd > fnStart ? fnEnd : fnStart + 9000);
+    const artifactFnBody = extractFunctionBody(artifactFnFull);
+    const artifactFnHash = hashNormalized(artifactFnBody);
 
-    // Get live function definition
+    // Get live function body (prosrc)
     const liveFn = await adminSql`SELECT prosrc FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'authority_v1' AND p.proname = 'record_cancel_result'`;
     const liveFnHash = hashNormalized(liveFn[0]?.prosrc || '');
 
     assert(artifactFnHash === liveFnHash,
-      `T16: record_cancel_result parity (artifact: ${artifactFnHash}, live: ${liveFnHash})`);
+      `T16: record_cancel_result body parity (artifact: ${artifactFnHash}, live: ${liveFnHash})`);
 
     // Check 3 unique indexes
     const indexNames = ['idx_one_pending_cancel_per_purchase', 'idx_one_pending_capture_per_purchase', 'idx_one_pending_refund_per_purchase'];

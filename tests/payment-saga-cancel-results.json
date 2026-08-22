@@ -1,10 +1,10 @@
 {
-  "timestamp": "2026-08-22T02:41:52.234Z",
+  "timestamp": "2026-08-22T02:42:44.261Z",
   "passed": 49,
   "failed": 2,
   "failures": [
-    "T16: record_cancel_result parity (artifact: 5b81bcdfb5a8f8fa, live: 88522a1c6607ce64)",
-    "T16: all 3 unique indexes parity ({\"idx_one_pending_cancel_per_purchase\":{\"artifact\":\"4bc610200686e7c0\",\"live\":\"00ec26212da66f34\"},\"idx_one_pending_capture_per_purchase\":{\"artifact\":\"65cf0200fe1159d5\",\"live\":\"bb244f9bba4d2d7f\"},\"idx_one_pending_refund_per_purchase\":{\"artifact\":\"32ebca2386e8ef26\",\"live\":\"5cee51fdd78d136c\"}})"
+    "T16: record_cancel_result body parity (artifact: a15a29afb05fd6d5, live: 88522a1c6607ce64)",
+    "T16: all 3 unique indexes parity ({\"idx_one_pending_cancel_per_purchase\":{\"artifact\":\"6674ec1ef8fd32bd\",\"live\":\"a902df2f0e3acf28\"},\"idx_one_pending_capture_per_purchase\":{\"artifact\":\"eb124a202c840b5d\",\"live\":\"1f0fa346c3c841e7\"},\"idx_one_pending_refund_per_purchase\":{\"artifact\":\"dda082c4fe816e6d\",\"live\":\"b82c0119d93fcbee\"}})"
   ],
   "finalCounts": {
     "ra": 0,
@@ -83,20 +83,20 @@
     "T16": {
       "assertions": 3,
       "ok": true,
-      "artifactFnHash": "5b81bcdfb5a8f8fa",
+      "artifactFnHash": "a15a29afb05fd6d5",
       "liveFnHash": "88522a1c6607ce64",
       "indexHashes": {
         "idx_one_pending_cancel_per_purchase": {
-          "artifact": "4bc610200686e7c0",
-          "live": "00ec26212da66f34"
+          "artifact": "6674ec1ef8fd32bd",
+          "live": "a902df2f0e3acf28"
         },
         "idx_one_pending_capture_per_purchase": {
-          "artifact": "65cf0200fe1159d5",
-          "live": "bb244f9bba4d2d7f"
+          "artifact": "eb124a202c840b5d",
+          "live": "1f0fa346c3c841e7"
         },
         "idx_one_pending_refund_per_purchase": {
-          "artifact": "32ebca2386e8ef26",
-          "live": "5cee51fdd78d136c"
+          "artifact": "dda082c4fe816e6d",
+          "live": "b82c0119d93fcbee"
         }
       }
     }
