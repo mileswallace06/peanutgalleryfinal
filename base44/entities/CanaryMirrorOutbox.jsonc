@@ -32,7 +32,9 @@
       "type": "string",
       "enum": [
         "reserve",
-        "release"
+        "release",
+        "confirm",
+        "abort_release"
       ],
       "description": "The authority operation that committed but whose mirror failed."
     },
@@ -46,12 +48,18 @@
     },
     "mirror_payload": {
       "type": "object",
-      "description": "JSON snapshot of the exact fields to write to the Base44 Listing (and ListingPrivate) mirror. Structure: { listing: {...}, listing_private: {...} }.",
+      "description": "JSON snapshot of the exact fields to write to the Base44 mirror. Structure: { listing, listing_private } for reserve/release/abort, or { purchase, purchase_private } for confirm.",
       "properties": {
         "listing": {
           "type": "object"
         },
         "listing_private": {
+          "type": "object"
+        },
+        "purchase": {
+          "type": "object"
+        },
+        "purchase_private": {
           "type": "object"
         }
       }
