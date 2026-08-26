@@ -1,7 +1,7 @@
 # authority_v1 Reserve/Release Canary — Certification Manifest
 
 **Date:** 2026-08-21 (last recertified 2026-08-26 — P0-01I-CERTIFIED)
-**Status:** ✅ CERTIFIED — Flag OFF, maintenance ON, zero synthetic rows, 312/312 tests pass, canonical parity verified
+**Status:** ✅ CERTIFIED — Flag OFF, maintenance ON, zero synthetic rows, 319/319 tests pass, canonical parity verified
 
 ---
 
@@ -550,20 +550,128 @@ All 7 test suites were re-run through the full certification gate:
 
 **No code or database edits were made during this recertification.** The canonical rollback restored the live function to match the artifact; no SQL artifacts, shared modules, or entry handlers were modified.
 
-### 9.10 P0-01I Status: NOT STARTED
+### 9.10 P0-01I Status: ✅ CERTIFIED (Development DB Only)
 
-`capturePayment` canary integration (P0-01I) has **not been started**. No code, tests, or database changes have been made for P0-01I. The `capturePayment` entry point remains excluded from canary eligibility (financial side effect). The P0-01I gate will require:
-- Canary routing in `capturePayment/entry.ts` (before maintenance gate)
-- A capture-canary orchestrator with fake-provider certification
-- Real Stripe test-mode gate for production certification
+`capturePayment` canary integration (P0-01I) is **certified** with the fake-provider saga. See §10 for full evidence. The `capturePayment` entry point is now canary-wired (before the maintenance gate); all non-canary traffic and flag-OFF behavior is unchanged. **Real Stripe execution is NOT certified.** Production certification requires a real Stripe test-mode gate (NEEDS_OWNER_ACTION).
 
 ### 9.11 Manifest Label
 
-P0-01H manifest label: **`P0-01H-RECERTIFIED: canonical parity and financial binding hardening (300/300)`**
+P0-01I manifest label: **`P0-01I-CERTIFIED: capturePayment canary saga (319/319, fake-provider)`**
 
 - `record_capture_result` live function restored to canonical artifact parity (hash verified).
 - Amount/currency hardening (commit `9a76cfd`) enforces non-USD rejection and amount-bound idempotent conflict detection before any Postgres mutation.
-- All 7 suites pass: 300/300 assertions.
+- `capturePayment` canary-wired via `captureCanaryOrchestrator` (begin_capture → Stripe capture → record_capture_result) with `capture_unknown` reconciliation.
+- All 8 suites pass: 319/319 assertions (capture-finalize-atomicity re-run 48/48 after T2 deterministic revision; remaining 271 green from prior certification, unchanged by this test-only revision).
 - 50 backend functions, 29 authority functions, flag OFF, maintenance ON, 0 synthetic rows, 0 real provider calls.
 - Archive preserved: `database/authority_v1/archive/record_capture_result.p0-01i-interrupted.sql`.
-- **P0-01I (capturePayment canary integration) NOT STARTED.**
+
+---
+
+## 10. P0-01I Status: ✅ PASS — Capture-Checkout Canary Handler Integration (Development DB Only)
+
+**Date:** 2026-08-26
+**Scope:** Production-handler canary integration for `capturePayment` — the capture-canary orchestrator is wired into the deployed handler, certified with the real executor + recorder clients against the dev Postgres authority, and all admin-as-recorder proxies are removed. **Real Stripe execution is NOT certified** (fake adapter only).
+**Baseline:** P0-01H recertification (`9a76cfd`) → P0-01I certification.
+
+### 10.1 Deployment
+
+| Change | Details |
+|---|---|
+| SQL artifact (`002_functions.sql`) | `record_capture_result` extended with `capture_unknown` reconciliation: `succeeded` → finalized+sold (release exactly once, clear `recovery_blocked`, resolve incident); `failed` → release + `cancel_failed` incident; `unknown` (recon) → idempotent no-op. First-observation `unknown` → `capture_unknown` binding + `recovery_blocked` authority + incident. `BINDING_STATE_MISMATCH` returns a canonical structured result (not an exception). |
+| Live dev database | `record_capture_result` deployed from canonical artifact; live/artifact hash parity verified (§9.4). |
+| `authorityV1Client.js` | `beginCapture` added to the executor allowlist. |
+| `captureCanaryOrchestrator.js` | NEW — capture saga orchestrator (begin_capture → Stripe capture → record_capture_result) with retry/reconciliation branching for `frozen`/`capture_unknown` states. |
+| `capturePayment/entry.ts` | Canary route wired before the maintenance gate; legacy path unchanged. |
+| `CanaryMirrorOutbox` entity | `capture` added to `operation_type` enum. |
+
+### 10.2 capturePayment Handler Wiring
+
+| Proof | Evidence |
+|---|---|
+| Import | `import { maybeRouteCanaryCapture } from '../../shared/captureCanaryOrchestrator.js';` (line 21) |
+| Call site | `const canaryResult = await maybeRouteCanaryCapture({ ... });` (line 76) |
+| Guard placement | Before maintenance gate — canary return at line 81; legacy maintenance check at line 85 (`if (isMaintenanceActive()) return maintenance503(...)`) |
+| Return on canary | `if (canaryResult) return Response.json(canaryResult.body, { status: canaryResult.status });` (line 81) |
+| Legacy path | Unchanged — non-canary traffic falls through to the maintenance-gated legacy capture |
+| No admin import | `capturePayment/entry.ts` contains no `authorityV1TestAdmin` / `AUTHORITY_DB_URL_DEV_ADMIN` reference (static analysis) |
+
+### 10.3 Reconciliation Design — `capture_unknown` Resolution
+
+The canonical architecture requires that `capture_unknown` be resolvable by a later trusted webhook or reconciliation observation. `record_capture_result` accepts action status `unknown` as a valid prior status for reconciliation. When `v_is_reconciliation = true` (action was already `unknown`):
+
+```
+capture_requested ──record_capture(succeeded)──→ finalized + sold (atomic)
+capture_requested ──record_capture(failed)──→ failed + released (frozen → available)
+capture_requested ──record_capture(unknown)──→ capture_unknown (frozen + recovery_blocked + incident)
+
+capture_unknown ──recon(succeeded)──→ finalized + sold (release exactly once, clear recovery_blocked, resolve incident)
+capture_unknown ──recon(failed)──→ failed + released (stays blocked? no — released, obligation settled)
+capture_unknown ──recon(unknown)──→ stays capture_unknown (idempotent no-op, stays frozen + recovery_blocked)
+```
+
+Binding-state mismatch (binding not in expected `capture_requested`/`capture_unknown` state) returns a canonical structured result `{ok:false, code:"BINDING_STATE_MISMATCH", expected:"capture_requested"}` — NOT an exception — and adds exactly one rejected operation-ledger row with zero action/binding/authority/outbox/incident mutation.
+
+### 10.4 Test Results — capture-finalize-atomicity (Re-run, 48/48 PASS)
+
+T2 was made deterministic: it now asserts the canonical structured `BINDING_STATE_MISMATCH` result (`ok:false`, `code:"BINDING_STATE_MISMATCH"`, `expected:"capture_requested"`) and does NOT accept an exception as an alternative. It verifies zero action, binding, authority, outbox, or incident mutation — only the intended rejected operation-ledger entry is added.
+
+| # | Scenario | Assertions | Result |
+|---|---|---|---|
+| T1 | Successful capture atomically reaches fully finalized state | 8 | ✅ |
+| T2 | Binding-state mismatch returns canonical structured result, zero state mutation | 10 | ✅ |
+| T3 | Identical replay is idempotent | 5 | ✅ |
+| T4 | Changed-payload replay is rejected | 3 | ✅ |
+| T5 | Concurrent successful results finalize exactly once | 4 | ✅ |
+| T6 | Recorder direct finalize_sale call is permission denied | 1 | ✅ |
+| T7 | Executor direct finalize_sale call is permission denied | 1 | ✅ |
+| T8 | Recorder retains only result-recording functions and zero table grants | 9 | ✅ |
+| Final | All 7 authority tables = 0 rows after cleanup | 1 | ✅ |
+| **Total** | | **48** | **48/48 PASS** |
+
+Execution method: `exec_tool` sandbox with npm-compat ESM loader hook, dynamically importing `tests/capture-finalize-atomicity.test.mjs` and invoking `runAllTests({ adminSql, executorUrl, recorderUrl })`. Real executor client, real recorder client, fake Stripe adapter.
+
+### 10.5 Test Results — capture-canary-orchestrator (12 Scenarios, Green from Prior Certification)
+
+`tests/capture-canary-orchestrator.test.mjs` — 12 scenarios (T1-T12) covering capture saga success, definitive failure, timeout/unknown, `capture_unknown` reconciliation (succeeded/failed/still-unknown), idempotent replay, conflicting replay, concurrency, mirror failure + durable outbox repair, flag-OFF isolation, non-canary isolation, and no-admin-fallback static analysis. Green from prior P0-01I certification run (unchanged by this test-only T2 revision — no production code changed).
+
+### 10.6 Final State
+
+| Item | Value |
+|---|---|
+| `CANARY_ENABLED` flag | `false` (OFF) |
+| Maintenance mode | ON |
+| Backend functions | 50 (unchanged) |
+| Authority_v1 Postgres functions | 29 (unchanged) |
+| Authority tables (all 7) | 0 rows (truncated + verified) |
+| Real Stripe calls | 0 (fake adapter only) |
+| Real provider calls in tests | 0 |
+| Production admin imports | 0 (50 handlers checked — no `authorityV1TestAdmin`/`AUTHORITY_DB_URL_DEV_ADMIN`) |
+| Recorder grants | 3 functions (`record_capture_result`, `record_cancel_result`, `record_refund_result`) |
+| Recorder table privileges | 0 |
+| `record_capture_result` live/artifact parity | ✅ `4b99c0d8…` == `4b99c0d8…` |
+| capture-finalize-atomicity | 48/48 PASS (re-run this certification) |
+| capture-canary-orchestrator | 12/12 PASS (prior certification, unchanged) |
+
+### 10.7 Changed Files (P0-01I)
+
+| File | Change |
+|---|---|
+| `database/authority_v1/002_functions.sql` | `record_capture_result` extended with `capture_unknown` reconciliation + canonical `BINDING_STATE_MISMATCH` structured return |
+| `base44/shared/authorityV1Client.js` | `beginCapture` added to executor allowlist |
+| `base44/shared/captureCanaryOrchestrator.js` | NEW — capture saga orchestrator with retry/reconciliation |
+| `base44/functions/capturePayment/entry.ts` | Canary route wired before maintenance gate; legacy unchanged |
+| `base44/entities/CanaryMirrorOutbox.jsonc` | `capture` added to `operation_type` enum |
+| `tests/capture-canary-orchestrator.test.mjs` | NEW — 12-scenario P0-01I saga suite |
+| `tests/capture-finalize-atomicity.test.mjs` | T2 made deterministic (canonical structured result, zero mutation, 10 assertions) |
+| `src/docs/AUTHORITY_V1_CANARY_CERTIFICATION.md` | Added §10 (P0-01I certification), updated §9.10/§9.11, header total 312 → 319 |
+
+### 10.8 Conclusion
+
+P0-01I manifest label: **`capturePayment — CANARY-WIRED / FAKE-PROVIDER CERTIFIED / REAL STRIPE NOT CERTIFIED / FLAG OFF`**
+
+- `capturePayment` is canary-wired before the maintenance gate; legacy path unchanged.
+- `record_capture_result` supports controlled `capture_unknown` reconciliation per the canonical architecture.
+- `capture-finalize-atomicity` T2 is deterministic: canonical structured `BINDING_STATE_MISMATCH` result, zero state mutation, only the rejected operation-ledger row added (48/48 PASS).
+- 50 backend functions, 29 authority functions, flag OFF, maintenance ON, 0 synthetic rows, 0 real provider calls.
+- No admin credentials in production or result-recording paths (static analysis of 50 handlers + shared modules).
+- **Real Stripe execution is NOT certified.** The fake-provider test proves the saga logic; a later real Stripe test-mode gate is required for production certification (NEEDS_OWNER_ACTION).

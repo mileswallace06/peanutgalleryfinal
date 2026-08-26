@@ -211,11 +211,15 @@ export async function runAllTests(deps) {
     results.T1 = { assertions: 8, ok: true };
   }
 
-  // T2: Injected failure leaves both capture and sale uncommitted
+  // T2: Binding-state mismatch returns canonical structured result, zero state mutation
   {
-    const ctx = await setupFrozenWithCaptureAction('fail');
-    // Corrupt the binding state so the binding UPDATE in record_capture_result
-    // affects 0 rows → RAISE EXCEPTION → entire transaction rolls back
+    const ctx = await setupFrozenWithCaptureAction('mismatch');
+    // Corrupt the binding state so the binding SELECT...FOR UPDATE in
+    // record_capture_result finds 0 rows → the canonical structured
+    // BINDING_STATE_MISMATCH result (NOT an exception). The operation is
+    // acquired before the binding check, so exactly one rejected
+    // operation-ledger row is added; no action, binding, authority, outbox,
+    // or incident mutation occurs.
     await adminSql`UPDATE authority_v1.reservation_payment_bindings
       SET capture_state = 'failed', updated_at = now()
       WHERE purchase_id = ${ctx.purchaseId}`;
@@ -225,36 +229,47 @@ export async function runAllTests(deps) {
       op: 'record_capture', action_id: ctx.actionId, result: 'succeeded',
     }));
 
-    // P0-01I: record_capture_result may return a structured BINDING_STATE_MISMATCH
-    // result (no exception) OR raise an exception (injected failure). Either is
-    // acceptable as long as no state mutated.
-    let threw = false;
-    let structuredResult = null;
-    try {
-      structuredResult = await recordCapture(ctx.actionId, 'succeeded', { status: 'succeeded' }, opId, requestHash);
-    } catch (e) {
-      threw = true;
-    }
-    assert(threw === true || (structuredResult?.ok === false && structuredResult?.code === 'BINDING_STATE_MISMATCH'),
-      `T2: exception or BINDING_STATE_MISMATCH (got threw=${threw}, result=${JSON.stringify(structuredResult)})`);
+    const opsBefore = await adminSql`SELECT count(*)::int c FROM authority_v1.reservation_operations WHERE listing_id = ${ctx.listingId}`;
+    const incidentsBefore = await adminSql`SELECT count(*)::int c FROM authority_v1.operational_incidents WHERE reference_id = ${ctx.listingId}`;
 
-    // Action status should be unchanged: 'pending' (not 'succeeded')
+    // Deterministic: must return the canonical structured result, not throw.
+    const result = await recordCapture(ctx.actionId, 'succeeded', { status: 'succeeded' }, opId, requestHash);
+
+    assert(result?.ok === false, `T2: ok=false (got ${JSON.stringify(result)})`);
+    assert(result?.code === 'BINDING_STATE_MISMATCH', `T2: code=BINDING_STATE_MISMATCH (got ${result?.code})`);
+    assert(result?.expected === 'capture_requested', `T2: expected=capture_requested (got ${result?.expected})`);
+
+    // Exactly one new operation-ledger row, rejected, with matching error_code.
+    const opsAfter = await adminSql`SELECT count(*)::int c FROM authority_v1.reservation_operations WHERE listing_id = ${ctx.listingId}`;
+    assert(Number(opsAfter[0].c) === Number(opsBefore[0].c) + 1,
+      `T2: exactly 1 new operation row (before=${opsBefore[0].c}, after=${opsAfter[0].c})`);
+    const rejOp = await adminSql`SELECT status, error_code FROM authority_v1.reservation_operations WHERE operation_id = ${opId}`;
+    assert(rejOp[0]?.status === 'rejected', `T2: new op rejected (got ${rejOp[0]?.status})`);
+    assert(rejOp[0]?.error_code === 'BINDING_STATE_MISMATCH', `T2: new op error_code (got ${rejOp[0]?.error_code})`);
+
+    // Action unchanged: 'pending' (not 'succeeded')
     const action = await getAction(ctx.actionId);
     assert(action?.status === 'pending', `T2: action unchanged/pending (got ${action?.status})`);
 
-    // Authority should still be 'frozen' (not 'sold')
+    // Authority unchanged: 'frozen', not sold, recovery_blocked still false
     const auth = await getAuthority(ctx.listingId);
     assert(auth?.lifecycle_state === 'frozen', `T2: authority still frozen (got ${auth?.lifecycle_state})`);
+    assert(auth?.recovery_blocked === false, `T2: authority recovery_blocked unchanged (got ${auth?.recovery_blocked})`);
 
-    // Binding should still be 'failed' (not 'finalized')
+    // Binding unchanged: 'failed' (not 'finalized')
     const b = await getBinding(ctx.purchaseId);
     assert(b?.capture_state === 'failed', `T2: binding still failed (got ${b?.capture_state})`);
 
-    // Only 1 outbox event from begin_capture (frozen mirror); record_capture rolled back
+    // Outbox unchanged: only 1 event from begin_capture (frozen mirror)
     const outboxCount = await getOutboxCount(ctx.listingId);
     assert(outboxCount === 1, `T2: 1 outbox event from begin_capture (got ${outboxCount})`);
 
-    results.T2 = { assertions: 5, ok: true };
+    // Incidents unchanged: 0 new incidents
+    const incidentsAfter = await adminSql`SELECT count(*)::int c FROM authority_v1.operational_incidents WHERE reference_id = ${ctx.listingId}`;
+    assert(Number(incidentsAfter[0].c) === Number(incidentsBefore[0].c),
+      `T2: 0 new incidents (before=${incidentsBefore[0].c}, after=${incidentsAfter[0].c})`);
+
+    results.T2 = { assertions: 10, ok: true };
   }
 
   // T3: Identical replay is idempotent
