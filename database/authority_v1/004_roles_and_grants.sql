@@ -148,8 +148,18 @@ GRANT EXECUTE ON FUNCTION authority_v1.cancel_listing(TEXT,INTEGER,TEXT,TEXT) TO
 GRANT EXECUTE ON FUNCTION authority_v1.quarantine_listing(TEXT,TEXT,TEXT,TEXT) TO authority_executor;
 GRANT EXECUTE ON FUNCTION authority_v1.check_user_obligations(TEXT) TO authority_executor;
 GRANT EXECUTE ON FUNCTION authority_v1.anonymize_user(TEXT,TEXT,TEXT,TEXT) TO authority_executor;
--- P0-01K: Durable webhook ingestion — executor-only (runtime webhook handler)
-GRANT EXECUTE ON FUNCTION authority_v1.ingest_stripe_webhook_event(TEXT,TEXT,TEXT,BOOLEAN,TIMESTAMPTZ,TEXT,TEXT) TO authority_executor;
+-- P0-01K: Webhook processor — executor grants for webhook worker + resolve/incident functions
+GRANT EXECUTE ON FUNCTION authority_v1.claim_webhook_event(TEXT,INTEGER) TO authority_executor;
+GRANT EXECUTE ON FUNCTION authority_v1.complete_webhook_event(TEXT,BOOLEAN,TEXT) TO authority_executor;
+GRANT EXECUTE ON FUNCTION authority_v1.recover_expired_webhook_leases() TO authority_executor;
+GRANT EXECUTE ON FUNCTION authority_v1.escalate_exhausted_webhook_event() TO authority_executor;
+GRANT EXECUTE ON FUNCTION authority_v1.resolve_webhook_action(TEXT,TEXT) TO authority_executor;
+GRANT EXECUTE ON FUNCTION authority_v1.create_webhook_incident(TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT) TO authority_executor;
+GRANT EXECUTE ON FUNCTION authority_v1.flag_webhook_missing_action(TEXT,TEXT,TEXT,TEXT) TO authority_executor;
+-- P0-01K: Durable webhook ingestion — recorder-only (privilege boundary correction)
+-- Ingestion is performed by the stripeWebhook handler using the recorder client.
+-- The executor no longer has EXECUTE on this function.
+REVOKE EXECUTE ON FUNCTION authority_v1.ingest_stripe_webhook_event(TEXT,TEXT,TEXT,BOOLEAN,TIMESTAMPTZ,TEXT,TEXT) FROM authority_executor;
 
 -- ── 11. Grant EXECUTE — Stripe-result recording to authority_stripe_recorder ─
 -- Separate least-privilege boundary: only the Stripe-result recording functions
@@ -167,6 +177,8 @@ GRANT EXECUTE ON FUNCTION authority_v1.ingest_stripe_webhook_event(TEXT,TEXT,TEX
 GRANT EXECUTE ON FUNCTION authority_v1.record_capture_result(TEXT,TEXT,JSONB,TEXT,TEXT,TEXT) TO authority_stripe_recorder;
 GRANT EXECUTE ON FUNCTION authority_v1.record_cancel_result(TEXT,TEXT,JSONB,TEXT,TEXT,TEXT) TO authority_stripe_recorder;
 GRANT EXECUTE ON FUNCTION authority_v1.record_refund_result(TEXT,TEXT,JSONB,TEXT,TEXT,TEXT) TO authority_stripe_recorder;
+-- P0-01K: Durable webhook ingestion — recorder-only (privilege boundary correction)
+GRANT EXECUTE ON FUNCTION authority_v1.ingest_stripe_webhook_event(TEXT,TEXT,TEXT,BOOLEAN,TIMESTAMPTZ,TEXT,TEXT) TO authority_stripe_recorder;
 REVOKE EXECUTE ON FUNCTION authority_v1.finalize_sale(TEXT,INTEGER,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT) FROM authority_stripe_recorder;
 
 -- ── 12. Grant EXECUTE — worker functions to authority_worker only ──────────

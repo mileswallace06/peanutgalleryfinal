@@ -44,12 +44,26 @@ Deno.serve(async (req) => {
   }
 
   // ── Canary ingress (flag ON + authority-bound only) ──────────────────────
+  // P0-01K privilege boundary: ingestion uses the RECORDER client, not executor.
   // Returns null for flag-OFF, non-canary, or no-authority → legacy path.
   // Returns {status, body} for canary-owned events (durable ack or fail-closed).
   const executorUrl = await secrets.get('AUTHORITY_V1_DB_URL_DEV_EXECUTOR');
+  const recorderUrl = await secrets.get('AUTHORITY_V1_DB_URL_DEV_STRIPE_RECORDER');
+  let recorderClient = null;
+  if (executorUrl && recorderUrl) {
+    try {
+      const { createAuthorityV1Client } = await import('../../shared/authorityV1Client.js');
+      const { createAuthorityV1StripeRecorderClient } = await import('../../shared/authorityV1StripeRecorderClient.js');
+      const executorClient = createAuthorityV1Client(executorUrl);
+      recorderClient = createAuthorityV1StripeRecorderClient(recorderUrl, executorClient.fingerprint);
+    } catch (e) {
+      console.error('[stripeWebhook] Recorder client creation failed:', e?.message);
+    }
+  }
   const canaryResult = await maybeRouteCanaryWebhook({
     canaryEnabled: isCanaryEnabled(),
-    executorUrl,
+    recorderUrl,
+    recorderClient,
     event,
     rawBody: body,
   });

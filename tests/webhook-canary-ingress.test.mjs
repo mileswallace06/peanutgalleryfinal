@@ -120,7 +120,7 @@ export async function runAllTests(deps) {
 
   await check('routing_flag_off_returns_null', async () => {
     const result = await maybeRouteCanaryWebhook({
-      canaryEnabled: false, executorUrl, event: makeEvent({}), rawBody: '{}',
+      canaryEnabled: false, recorderUrl: null, event: makeEvent({}), rawBody: '{}',
     });
     assertEqual(result, null, 'flag OFF must return null (legacy)');
   });
@@ -128,9 +128,9 @@ export async function runAllTests(deps) {
   await check('routing_non_canary_returns_null', async () => {
     const mockClient = { ingestStripeWebhookEvent: async () => ({ ok: true, canary_owned: false, ingested: false }) };
     const result = await maybeRouteCanaryWebhook({
-      canaryEnabled: true, executorUrl,
+      canaryEnabled: true, recorderUrl,
       event: makeEvent({ eventId: 'e1', piId: 'pi_noncanary' }), rawBody: '{}',
-      executorClient: mockClient,
+      recorderClient: mockClient,
     });
     assertEqual(result, null, 'non-canary (no binding) must return null (legacy)');
   });
@@ -138,9 +138,9 @@ export async function runAllTests(deps) {
   await check('routing_db_outage_returns_503', async () => {
     const mockClient = { ingestStripeWebhookEvent: async () => { throw new Error('DB down'); } };
     const result = await maybeRouteCanaryWebhook({
-      canaryEnabled: true, executorUrl,
+      canaryEnabled: true, recorderUrl,
       event: makeEvent({ eventId: 'e1', piId: 'pi1' }), rawBody: '{}',
-      executorClient: mockClient,
+      recorderClient: mockClient,
     });
     assert(!!result, 'DB outage must return a result (not null)');
     assertEqual(result.status, 503, 'DB outage must return retryable 503');
@@ -150,9 +150,9 @@ export async function runAllTests(deps) {
   await check('routing_valid_canary_returns_200', async () => {
     const mockClient = { ingestStripeWebhookEvent: async () => ({ ok: true, canary_owned: true, ingested: true, replay: false, purchase_id: 'p1', listing_id: 'l1' }) };
     const result = await maybeRouteCanaryWebhook({
-      canaryEnabled: true, executorUrl,
+      canaryEnabled: true, recorderUrl,
       event: makeEvent({ eventId: 'e1', piId: 'pi1' }), rawBody: '{}',
-      executorClient: mockClient,
+      recorderClient: mockClient,
     });
     assertEqual(result.status, 200, 'valid canary must return 200 durable ack');
     assertEqual(result.body.canary_ingested, true);
@@ -162,9 +162,9 @@ export async function runAllTests(deps) {
   await check('routing_replay_returns_200', async () => {
     const mockClient = { ingestStripeWebhookEvent: async () => ({ ok: true, canary_owned: true, ingested: true, replay: true }) };
     const result = await maybeRouteCanaryWebhook({
-      canaryEnabled: true, executorUrl,
+      canaryEnabled: true, recorderUrl,
       event: makeEvent({ eventId: 'e1', piId: 'pi1' }), rawBody: '{}',
-      executorClient: mockClient,
+      recorderClient: mockClient,
     });
     assertEqual(result.status, 200, 'identical replay must return 200');
     assertEqual(result.body.replay, true);
@@ -173,9 +173,9 @@ export async function runAllTests(deps) {
   await check('routing_mismatch_returns_409', async () => {
     const mockClient = { ingestStripeWebhookEvent: async () => ({ ok: false, code: 'VERIFICATION_MISMATCH', canary_owned: true, ingested: false }) };
     const result = await maybeRouteCanaryWebhook({
-      canaryEnabled: true, executorUrl,
+      canaryEnabled: true, recorderUrl,
       event: makeEvent({ eventId: 'e1', piId: 'pi1' }), rawBody: '{}',
-      executorClient: mockClient,
+      recorderClient: mockClient,
     });
     assertEqual(result.status, 409, 'verification mismatch must fail closed 409');
     assertEqual(result.body.code, 'VERIFICATION_MISMATCH');
@@ -184,7 +184,7 @@ export async function runAllTests(deps) {
   await check('routing_no_pi_returns_null', async () => {
     const event = { id: 'e1', type: 'payout.failed', livemode: false, created: 1, data: { object: {} } };
     const result = await maybeRouteCanaryWebhook({
-      canaryEnabled: true, executorUrl, event, rawBody: '{}',
+      canaryEnabled: true, recorderUrl, event, rawBody: '{}',
     });
     assertEqual(result, null, 'no PI (payout/transfer events) must return null (legacy)');
   });
@@ -202,7 +202,7 @@ export async function runAllTests(deps) {
     const eventId = genId('cert_webhook_evt');
     const rawBody = JSON.stringify({ id: eventId, type: 'payment_intent.succeeded' });
     const payloadHash = await sha256Hex(rawBody);
-    const result = await callIngest(executorSql, {
+    const result = await callIngest(recorderSql, {
       eventId, eventType: 'payment_intent.succeeded', piId, livemode: false,
       created: new Date().toISOString(), apiVersion: '2024-06-20', payloadHash,
     });
@@ -220,8 +220,8 @@ export async function runAllTests(deps) {
     const eventId = genId('cert_webhook_evt');
     const rawBody = JSON.stringify({ id: eventId, type: 'payment_intent.succeeded' });
     const payloadHash = await sha256Hex(rawBody);
-    await callIngest(executorSql, { eventId, eventType: 'payment_intent.succeeded', piId, livemode: false, created: new Date().toISOString(), apiVersion: '2024-06-20', payloadHash });
-    const result = await callIngest(executorSql, { eventId, eventType: 'payment_intent.succeeded', piId, livemode: false, created: new Date().toISOString(), apiVersion: '2024-06-20', payloadHash });
+    await callIngest(recorderSql, { eventId, eventType: 'payment_intent.succeeded', piId, livemode: false, created: new Date().toISOString(), apiVersion: '2024-06-20', payloadHash });
+    const result = await callIngest(recorderSql, { eventId, eventType: 'payment_intent.succeeded', piId, livemode: false, created: new Date().toISOString(), apiVersion: '2024-06-20', payloadHash });
     assertEqual(result.ok, true);
     assertEqual(result.replay, true, 'second call must be replay');
     const rows = await adminSql`SELECT * FROM authority_v1.stripe_webhook_events WHERE webhook_event_id = ${eventId}`;
@@ -232,8 +232,8 @@ export async function runAllTests(deps) {
     const eventId = genId('cert_webhook_evt');
     const hash1 = await sha256Hex(JSON.stringify({ id: eventId, data: 1 }));
     const hash2 = await sha256Hex(JSON.stringify({ id: eventId, data: 2 }));
-    await callIngest(executorSql, { eventId, eventType: 'payment_intent.succeeded', piId, livemode: false, created: new Date().toISOString(), apiVersion: '2024-06-20', payloadHash: hash1 });
-    const result = await callIngest(executorSql, { eventId, eventType: 'payment_intent.succeeded', piId, livemode: false, created: new Date().toISOString(), apiVersion: '2024-06-20', payloadHash: hash2 });
+    await callIngest(recorderSql, { eventId, eventType: 'payment_intent.succeeded', piId, livemode: false, created: new Date().toISOString(), apiVersion: '2024-06-20', payloadHash: hash1 });
+    const result = await callIngest(recorderSql, { eventId, eventType: 'payment_intent.succeeded', piId, livemode: false, created: new Date().toISOString(), apiVersion: '2024-06-20', payloadHash: hash2 });
     assertEqual(result.ok, false, 'conflicting replay must fail');
     assertEqual(result.code, 'VERIFICATION_MISMATCH');
     const incRows = await adminSql`SELECT * FROM authority_v1.operational_incidents WHERE incident_key = ${'webhook_verification_mismatch:' + eventId}`;
@@ -251,8 +251,8 @@ export async function runAllTests(deps) {
     const payloadHash = await sha256Hex(rawBody);
     const ts = new Date().toISOString();
     const [r1, r2] = await Promise.all([
-      callIngest(executorSql, { eventId, eventType: 'payment_intent.succeeded', piId, livemode: false, created: ts, apiVersion: '2024-06-20', payloadHash }),
-      callIngest(executorSql, { eventId, eventType: 'payment_intent.succeeded', piId, livemode: false, created: ts, apiVersion: '2024-06-20', payloadHash }),
+      callIngest(recorderSql, { eventId, eventType: 'payment_intent.succeeded', piId, livemode: false, created: ts, apiVersion: '2024-06-20', payloadHash }),
+      callIngest(recorderSql, { eventId, eventType: 'payment_intent.succeeded', piId, livemode: false, created: ts, apiVersion: '2024-06-20', payloadHash }),
     ]);
     assertEqual(r1.ok, true);
     assertEqual(r2.ok, true);
@@ -264,7 +264,7 @@ export async function runAllTests(deps) {
     const eventId = genId('cert_webhook_evt');
     const piIdNonCanary = genId('cert_webhook_pi_noncanary');
     const payloadHash = await sha256Hex('{}');
-    const result = await callIngest(executorSql, { eventId, eventType: 'payment_intent.succeeded', piId: piIdNonCanary, livemode: false, created: new Date().toISOString(), apiVersion: '2024-06-20', payloadHash });
+    const result = await callIngest(recorderSql, { eventId, eventType: 'payment_intent.succeeded', piId: piIdNonCanary, livemode: false, created: new Date().toISOString(), apiVersion: '2024-06-20', payloadHash });
     assertEqual(result.ok, true);
     assertEqual(result.canary_owned, false);
     assertEqual(result.ingested, false);
@@ -277,7 +277,7 @@ export async function runAllTests(deps) {
     const rawBody = JSON.stringify({ id: eventId, type: 'payment_intent.payment_failed', data: { object: { id: piId, card: 'sensitive_customer_data' } } });
     const payloadHash = await sha256Hex(rawBody);
     const created = new Date().toISOString();
-    await callIngest(executorSql, { eventId, eventType: 'payment_intent.payment_failed', piId, livemode: false, created, apiVersion: '2024-06-20', payloadHash });
+    await callIngest(recorderSql, { eventId, eventType: 'payment_intent.payment_failed', piId, livemode: false, created, apiVersion: '2024-06-20', payloadHash });
     const rows = await adminSql`SELECT * FROM authority_v1.stripe_webhook_events WHERE webhook_event_id = ${eventId}`;
     assertEqual(rows.length, 1);
     const row = rows[0];
@@ -293,18 +293,17 @@ export async function runAllTests(deps) {
   // ═══ Grants (executor can, recorder denied) ═══════════════════════════════
   console.log('\n── Grants ──');
 
-  await check('grants_executor_can_call', async () => {
-    // Proven by every sql_* test above succeeding via executorSql
-    assert(passed >= 5, 'executor calls succeeded in prior SQL tests');
+  await check('grants_recorder_can_call', async () => {
+    // Proven by every sql_* test above succeeding via recorderSql
+    assert(passed >= 5, 'recorder calls succeeded in prior SQL tests');
   });
 
-  await check('grants_recorder_denied', async () => {
-    if (!recorderSql) { console.log('    [SKIP] no recorder URL'); return; }
+  await check('grants_executor_denied', async () => {
     let threw = false;
     try {
-      await recorderSql`SELECT authority_v1.ingest_stripe_webhook_event('cert_test_rec', 'test', 'test', false, NULL, 'test', 'testhash') as result`;
+      await executorSql`SELECT authority_v1.ingest_stripe_webhook_event('cert_test_exec', 'test', 'test', false, NULL, 'test', 'testhash') as result`;
     } catch (_) { threw = true; }
-    assert(threw, 'recorder role must be denied EXECUTE (permission denied)');
+    assert(threw, 'executor role must be denied EXECUTE (permission denied) — P0-01K privilege boundary correction');
   });
 
   // ═══ Zero Base44 authoritative writes (static) ════════════════════════════

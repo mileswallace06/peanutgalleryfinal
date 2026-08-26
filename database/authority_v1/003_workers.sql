@@ -68,12 +68,12 @@ BEGIN
   IF p_delivered THEN
     UPDATE reservation_outbox
     SET delivery_status = 'delivered', delivered_at = now(),
-        lease_owner = NULL, lease_expires_at = NULL, last_error = NULL
+        lease_owner = NULL, lease_expires_at = NULL, claimed_at = NULL, last_error = NULL
     WHERE outbox_id = p_outbox_id AND delivery_status = 'in_flight';
   ELSE
     UPDATE reservation_outbox
     SET delivery_status = CASE WHEN attempt_count >= max_attempts THEN 'dead_letter' ELSE 'pending' END,
-        lease_owner = NULL, lease_expires_at = NULL,
+        lease_owner = NULL, lease_expires_at = NULL, claimed_at = NULL,
         last_error = p_error,
         next_attempt_at = now() + (60 || ' seconds')::INTERVAL
     WHERE outbox_id = p_outbox_id AND delivery_status = 'in_flight';
@@ -94,7 +94,7 @@ AS $$
 DECLARE v_count INTEGER;
 BEGIN
   UPDATE reservation_outbox
-  SET delivery_status = 'pending', lease_owner = NULL, lease_expires_at = NULL
+  SET delivery_status = 'pending', lease_owner = NULL, lease_expires_at = NULL, claimed_at = NULL
   WHERE delivery_status = 'in_flight' AND lease_expires_at < now();
   GET DIAGNOSTICS v_count = ROW_COUNT;
   RETURN v_count;
@@ -155,7 +155,7 @@ DECLARE v_count INTEGER;
 BEGIN
   UPDATE payment_actions
   SET status = 'pending',
-      lease_owner = NULL, lease_expires_at = NULL,
+      lease_owner = NULL, lease_expires_at = NULL, claimed_at = NULL,
       next_attempt_at = now(),
       last_error = 'lease_expired',
       updated_at = now()
@@ -221,7 +221,7 @@ BEGIN
     -- 1. Update action status to 'unknown', clear lease, preserve idempotency key
     UPDATE payment_actions
     SET status = 'unknown',
-        lease_owner = NULL, lease_expires_at = NULL,
+        lease_owner = NULL, lease_expires_at = NULL, claimed_at = NULL,
         last_error = 'max_attempts_exceeded',
         completed_at = now(), updated_at = now()
     WHERE action_id = v_action.action_id;
@@ -311,12 +311,12 @@ BEGIN
   IF p_processed THEN
     UPDATE stripe_webhook_events
     SET processing_status = 'processed', processed_at = now(),
-        lease_owner = NULL, lease_expires_at = NULL, error_message = NULL
+        lease_owner = NULL, lease_expires_at = NULL, claimed_at = NULL, error_message = NULL
     WHERE webhook_event_id = p_webhook_event_id AND processing_status = 'processing';
   ELSE
     UPDATE stripe_webhook_events
     SET processing_status = CASE WHEN attempt_count >= max_attempts THEN 'failed' ELSE 'pending' END,
-        lease_owner = NULL, lease_expires_at = NULL,
+        lease_owner = NULL, lease_expires_at = NULL, claimed_at = NULL,
         error_message = p_error,
         next_attempt_at = now() + (30 || ' seconds')::INTERVAL
     WHERE webhook_event_id = p_webhook_event_id AND processing_status = 'processing';
@@ -338,7 +338,7 @@ DECLARE v_count INTEGER;
 BEGIN
   UPDATE stripe_webhook_events
   SET processing_status = 'pending',
-      lease_owner = NULL, lease_expires_at = NULL,
+      lease_owner = NULL, lease_expires_at = NULL, claimed_at = NULL,
       next_attempt_at = now(),
       last_error = 'lease_expired'
   WHERE processing_status = 'processing' AND lease_expires_at < now()
@@ -372,7 +372,7 @@ BEGIN
     -- Mark webhook as failed
     UPDATE stripe_webhook_events
     SET processing_status = 'failed',
-        lease_owner = NULL, lease_expires_at = NULL,
+        lease_owner = NULL, lease_expires_at = NULL, claimed_at = NULL,
         last_error = 'max_attempts_exceeded',
         processed_at = now()
     WHERE webhook_event_id = v_event.webhook_event_id;

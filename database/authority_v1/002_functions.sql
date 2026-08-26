@@ -2065,3 +2065,156 @@ BEGIN
   );
 END;
 $$;
+
+-- ── 20. resolve_webhook_action — Resolve Matching Payment Action (P0-01K) ──
+-- Secured function that resolves the exact matching payment action for a
+-- webhook event. No direct table access — the processor calls this to find
+-- the action to reconcile. Returns authority/binding state inline so the
+-- caller needs no separate get_state call.
+CREATE OR REPLACE FUNCTION authority_v1.resolve_webhook_action(
+  p_payment_intent_id TEXT,
+  p_event_type TEXT
+) RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = authority_v1, pg_temp
+AS $$
+DECLARE
+  v_binding reservation_payment_bindings%ROWTYPE;
+  v_authority reservation_authority%ROWTYPE;
+  v_action payment_actions%ROWTYPE;
+  v_action_type TEXT;
+  v_high_risk BOOLEAN := false;
+BEGIN
+  SELECT * INTO v_binding FROM reservation_payment_bindings
+  WHERE payment_intent_id = p_payment_intent_id LIMIT 1;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('ok', true, 'canary_owned', false);
+  END IF;
+
+  v_action_type := CASE p_event_type
+    WHEN 'payment_intent.succeeded' THEN 'capture'
+    WHEN 'payment_intent.canceled' THEN 'cancel'
+    WHEN 'charge.refunded' THEN 'refund'
+    ELSE NULL
+  END;
+
+  IF v_action_type IS NULL THEN
+    v_high_risk := p_event_type LIKE 'charge.dispute.%' OR p_event_type LIKE 'radar.%';
+    RETURN jsonb_build_object('ok', true, 'canary_owned', true, 'supported', false,
+      'high_risk', v_high_risk, 'event_type', p_event_type,
+      'listing_id', v_binding.listing_id, 'purchase_id', v_binding.purchase_id);
+  END IF;
+
+  SELECT * INTO v_authority FROM reservation_authority
+  WHERE listing_id = v_binding.listing_id FOR UPDATE;
+
+  SELECT * INTO v_action FROM payment_actions
+  WHERE payment_intent_id = p_payment_intent_id
+    AND action_type = v_action_type
+    AND status IN ('pending','in_flight','unknown')
+  ORDER BY created_at LIMIT 1
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    SELECT * INTO v_action FROM payment_actions
+    WHERE payment_intent_id = p_payment_intent_id
+      AND action_type = v_action_type
+      AND status IN ('succeeded','failed')
+    ORDER BY completed_at DESC LIMIT 1;
+
+    IF FOUND THEN
+      RETURN jsonb_build_object('ok', true, 'canary_owned', true, 'supported', true,
+        'action_found', true, 'already_applied', true,
+        'action_id', v_action.action_id, 'action_type', v_action.action_type,
+        'action_status', v_action.status,
+        'listing_id', v_binding.listing_id, 'purchase_id', v_binding.purchase_id,
+        'binding_state', v_binding.capture_state,
+        'authority_lifecycle', v_authority.lifecycle_state,
+        'authority_version', v_authority.version,
+        'recovery_blocked', v_authority.recovery_blocked);
+    END IF;
+
+    RETURN jsonb_build_object('ok', true, 'canary_owned', true, 'supported', true,
+      'action_found', false,
+      'listing_id', v_binding.listing_id, 'purchase_id', v_binding.purchase_id,
+      'binding_state', v_binding.capture_state,
+      'authority_lifecycle', v_authority.lifecycle_state,
+      'authority_version', v_authority.version,
+      'recovery_blocked', v_authority.recovery_blocked);
+  END IF;
+
+  RETURN jsonb_build_object('ok', true, 'canary_owned', true, 'supported', true,
+    'action_found', true, 'already_applied', false,
+    'action_id', v_action.action_id, 'action_type', v_action.action_type,
+    'action_status', v_action.status,
+    'stripe_idempotency_key', v_action.stripe_idempotency_key,
+    'listing_id', v_binding.listing_id, 'purchase_id', v_binding.purchase_id,
+    'binding_state', v_binding.capture_state,
+    'authority_lifecycle', v_authority.lifecycle_state,
+    'authority_version', v_authority.version,
+    'recovery_blocked', v_authority.recovery_blocked);
+END;
+$$;
+
+-- ── 21. create_webhook_incident — Generic Incident Creation (P0-01K) ──────
+CREATE OR REPLACE FUNCTION authority_v1.create_webhook_incident(
+  p_incident_key TEXT, p_incident_type TEXT, p_priority TEXT,
+  p_title TEXT, p_description TEXT,
+  p_reference_id TEXT, p_reference_type TEXT
+) RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = authority_v1, pg_temp
+AS $$
+BEGIN
+  INSERT INTO operational_incidents (incident_key, incident_type, priority, title, description, reference_id, reference_type)
+  VALUES (p_incident_key, p_incident_type, p_priority, p_title, p_description, p_reference_id, p_reference_type)
+  ON CONFLICT (incident_key) DO UPDATE SET
+    occurrence_count = operational_incidents.occurrence_count + 1,
+    last_occurred_at = now(),
+    updated_at = now();
+
+  RETURN jsonb_build_object('ok', true, 'incident_key', p_incident_key);
+END;
+$$;
+
+-- ── 22. flag_webhook_missing_action — Missing Action Recovery Block (P0-01K) ─
+-- When Stripe shows a terminal result but no matching authority action exists,
+-- sets recovery_blocked and creates an admin_action_required incident.
+-- Does NOT invent an action or silently mutate state.
+CREATE OR REPLACE FUNCTION authority_v1.flag_webhook_missing_action(
+  p_listing_id TEXT, p_payment_intent_id TEXT,
+  p_event_type TEXT, p_webhook_event_id TEXT
+) RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = authority_v1, pg_temp
+AS $$
+DECLARE
+  v_incident_key TEXT;
+BEGIN
+  UPDATE reservation_authority
+  SET recovery_blocked = true,
+      recovery_blocked_reason = 'webhook_missing_action:' || p_event_type,
+      recovery_blocked_at = now(),
+      updated_at = now()
+  WHERE listing_id = p_listing_id;
+
+  v_incident_key := 'webhook_missing_action:' || p_webhook_event_id;
+  INSERT INTO operational_incidents (incident_key, incident_type, priority, title, description, reference_id, reference_type)
+  VALUES (v_incident_key, 'admin_action_required', 'critical',
+    'Webhook Missing Action — Manual Reconciliation Required',
+    'Stripe event ' || p_event_type || ' for PI ' || p_payment_intent_id ||
+      ' shows terminal result but no matching authority action exists. Listing ' ||
+      p_listing_id || ' blocked pending manual reconciliation.',
+    p_listing_id, 'listing')
+  ON CONFLICT (incident_key) DO UPDATE SET
+    occurrence_count = operational_incidents.occurrence_count + 1,
+    last_occurred_at = now(),
+    updated_at = now();
+
+  RETURN jsonb_build_object('ok', true, 'incident_key', v_incident_key);
+END;
+$$;

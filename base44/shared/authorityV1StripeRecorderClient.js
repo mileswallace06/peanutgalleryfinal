@@ -142,5 +142,17 @@ export function createAuthorityV1StripeRecorderClient(recorderUrl, executorFinge
         actionId, resultDerived, JSON.stringify(stripeResponse), workerId, operationId, requestHash);
     },
 
+    /**
+     * ingest_stripe_webhook_event(webhook_event_id, event_type, payment_intent_id,
+     *   livemode, provider_created_at, api_version, payload_hash) → JSONB
+     *
+     * P0-01K privilege boundary correction: ingestion is recorder-only.
+     * The stripeWebhook handler uses the recorder client (not executor) for
+     * durable ingestion. 4 functions total on this role: ingest + 3 record_*_result.
+     */
+    async ingestStripeWebhookEvent(webhookEventId, eventType, paymentIntentId, livemode, providerCreatedAt, apiVersion, payloadHash) {
+      return callFn('ingest_stripe_webhook_event', webhookEventId, eventType, paymentIntentId, livemode, providerCreatedAt, apiVersion, payloadHash);
+    },
+
   };
 }

@@ -5,10 +5,15 @@
  * (canary) PaymentIntents into the authority_v1 Postgres boundary. PostgreSQL
  * is authoritative; Base44 is not a fallback.
  *
+ * P0-01K PRIVILEGE BOUNDARY CORRECTION: Ingestion is performed by the RECORDER
+ * client (authority_stripe_recorder), NOT the executor. The recorder role has
+ * exactly 4 functions: ingest_stripe_webhook_event + 3 record_*_result. The
+ * executor no longer has EXECUTE on ingest_stripe_webhook_event.
+ *
  * FLOW (canary-eligible only — flag ON + authority-bound PI):
  *   1. Extract minimal envelope from the verified event.
  *   2. SHA-256 the verified raw body (payload hash).
- *   3. Executor client calls ingest_stripe_webhook_event (Postgres authoritative).
+ *   3. Recorder client calls ingest_stripe_webhook_event (Postgres authoritative).
  *   4. canary_owned=true + ok → 2xx durable ack.
  *   5. canary_owned=true + VERIFICATION_MISMATCH → 409 fail-closed.
  *   6. Database failure → 503 retryable.
@@ -30,11 +35,10 @@ export async function maybeRouteCanaryWebhook(deps) {
   const { canaryEnabled, event, rawBody } = deps;
 
   // ── Trusted dependency-injected enabled state ─────────────────────────────
-  // No env/global/header/query/body/secret may override the canary flag.
   if (canaryEnabled !== true) return null;
 
-  const executorUrl = deps.executorUrl;
-  if (!executorUrl) return null; // no authority configured → legacy
+  const recorderUrl = deps.recorderUrl;
+  if (!recorderUrl) return null; // no authority configured → legacy
 
   // ── Extract minimal envelope from the verified event ─────────────────────
   const eventId = event?.id;
@@ -56,16 +60,16 @@ export async function maybeRouteCanaryWebhook(deps) {
   // No PI → cannot determine canary ownership → non-canary → legacy
   if (!piId) return null;
 
-  // ── Create executor client (or use injected for tests) ──────────────────
-  let executorClient = deps.executorClient;
-  if (!executorClient) {
-    const { createAuthorityV1Client } = await import('./authorityV1Client.js');
-    executorClient = createAuthorityV1Client(executorUrl);
+  // ── Create recorder client (or use injected for tests) ──────────────────
+  let recorderClient = deps.recorderClient;
+  if (!recorderClient) {
+    const { createAuthorityV1StripeRecorderClient } = await import('./authorityV1StripeRecorderClient.js');
+    recorderClient = createAuthorityV1StripeRecorderClient(recorderUrl);
   }
 
   let result;
   try {
-    result = await executorClient.ingestStripeWebhookEvent(
+    result = await recorderClient.ingestStripeWebhookEvent(
       eventId, eventType, piId, livemode, created, apiVersion, payloadHash,
     );
   } catch (_) {

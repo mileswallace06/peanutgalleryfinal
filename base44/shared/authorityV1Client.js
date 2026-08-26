@@ -132,9 +132,43 @@ export function createAuthorityV1Client(executorUrl) {
       return callFn('abort_binding', listingId, expectedVersion, purchaseId, operationId, requestHash);
     },
 
-    /** ingest_stripe_webhook_event(webhook_event_id, event_type, payment_intent_id, livemode, provider_created_at, api_version, payload_hash) → JSONB */
-    async ingestStripeWebhookEvent(webhookEventId, eventType, paymentIntentId, livemode, providerCreatedAt, apiVersion, payloadHash) {
-      return callFn('ingest_stripe_webhook_event', webhookEventId, eventType, paymentIntentId, livemode, providerCreatedAt, apiVersion, payloadHash);
+    // ── P0-01K: Webhook processor functions (executor-granted) ────────────
+    /** claim_webhook_event(worker_id, lease_seconds) → SETOF stripe_webhook_events */
+    async claimWebhookEvent(workerId, leaseSeconds) {
+      const rows = await sql`SELECT * FROM authority_v1.claim_webhook_event(${workerId}, ${leaseSeconds})`;
+      return rows;
+    },
+
+    /** complete_webhook_event(webhook_event_id, processed, error) → JSONB */
+    async completeWebhookEvent(webhookEventId, processed, error) {
+      return callFn('complete_webhook_event', webhookEventId, processed, error);
+    },
+
+    /** recover_expired_webhook_leases() → INTEGER */
+    async recoverExpiredWebhookLeases() {
+      const rows = await sql`SELECT authority_v1.recover_expired_webhook_leases() as result`;
+      return rows[0]?.result;
+    },
+
+    /** escalate_exhausted_webhook_event() → INTEGER */
+    async escalateExhaustedWebhookEvent() {
+      const rows = await sql`SELECT authority_v1.escalate_exhausted_webhook_event() as result`;
+      return rows[0]?.result;
+    },
+
+    /** resolve_webhook_action(payment_intent_id, event_type) → JSONB */
+    async resolveWebhookAction(paymentIntentId, eventType) {
+      return callFn('resolve_webhook_action', paymentIntentId, eventType);
+    },
+
+    /** create_webhook_incident(incident_key, incident_type, priority, title, description, reference_id, reference_type) → JSONB */
+    async createWebhookIncident(incidentKey, incidentType, priority, title, description, referenceId, referenceType) {
+      return callFn('create_webhook_incident', incidentKey, incidentType, priority, title, description, referenceId, referenceType);
+    },
+
+    /** flag_webhook_missing_action(listing_id, payment_intent_id, event_type, webhook_event_id) → JSONB */
+    async flagWebhookMissingAction(listingId, paymentIntentId, eventType, webhookEventId) {
+      return callFn('flag_webhook_missing_action', listingId, paymentIntentId, eventType, webhookEventId);
     },
   };
 }

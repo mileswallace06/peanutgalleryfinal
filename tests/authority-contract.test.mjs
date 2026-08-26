@@ -842,11 +842,15 @@ check('webhook_ingest_function_security_definer', () => {
   if (!body.includes('SET search_path = authority_v1, pg_temp')) throw new Error('must harden search_path');
   return true;
 });
-check('webhook_ingest_grant_executor_only', () => {
+check('webhook_ingest_grant_recorder_only', () => {
   const grants = roles.match(/GRANT EXECUTE ON FUNCTION authority_v1\.ingest_stripe_webhook_event[^\n]*/g);
   if (!grants || grants.length === 0) throw new Error('no grant found for ingest_stripe_webhook_event');
   for (const g of grants) {
-    if (!g.includes('authority_executor')) throw new Error('grant must be to authority_executor only: ' + g);
+    if (!g.includes('authority_stripe_recorder')) throw new Error('grant must be to authority_stripe_recorder: ' + g);
+    if (g.includes('authority_executor')) throw new Error('ingest must NOT be granted to executor (P0-01K privilege correction): ' + g);
+  }
+  if (!roles.includes('REVOKE EXECUTE ON FUNCTION authority_v1.ingest_stripe_webhook_event')) {
+    throw new Error('REVOKE from executor not found');
   }
   return true;
 });
@@ -885,6 +889,71 @@ check('webhook_ingest_idempotent_on_conflict', () => {
   const body = webhookIngestBody();
   if (!body.includes('ON CONFLICT (webhook_event_id) DO NOTHING')) {
     throw new Error('must use ON CONFLICT DO NOTHING for idempotent ingestion');
+  }
+  return true;
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TEST 25: P0-01K webhook processor — new functions, grants, and privilege boundary
+// ═══════════════════════════════════════════════════════════════════════════
+check('resolve_webhook_action_function_exists', () => {
+  if (!functions.includes('resolve_webhook_action')) throw new Error('resolve_webhook_action not found in 002_functions.sql');
+  return true;
+});
+check('create_webhook_incident_function_exists', () => {
+  if (!functions.includes('create_webhook_incident')) throw new Error('create_webhook_incident not found in 002_functions.sql');
+  return true;
+});
+check('flag_webhook_missing_action_function_exists', () => {
+  if (!functions.includes('flag_webhook_missing_action')) throw new Error('flag_webhook_missing_action not found in 002_functions.sql');
+  return true;
+});
+check('webhook_worker_functions_granted_to_executor', () => {
+  const fns = ['claim_webhook_event', 'complete_webhook_event', 'recover_expired_webhook_leases', 'escalate_exhausted_webhook_event'];
+  for (const fn of fns) {
+    const re = new RegExp('GRANT EXECUTE ON FUNCTION authority_v1\\.' + fn + '[^\\n]*TO authority_executor');
+    if (!re.test(roles)) throw new Error(fn + ' not granted to authority_executor');
+  }
+  return true;
+});
+check('processor_functions_granted_to_executor', () => {
+  const fns = ['resolve_webhook_action', 'create_webhook_incident', 'flag_webhook_missing_action'];
+  for (const fn of fns) {
+    const re = new RegExp('GRANT EXECUTE ON FUNCTION authority_v1\\.' + fn + '[^\\n]*TO authority_executor');
+    if (!re.test(roles)) throw new Error(fn + ' not granted to authority_executor');
+  }
+  return true;
+});
+check('recorder_has_exactly_four_functions', () => {
+  const lines = roles.split('\n').filter(l => l.includes('GRANT EXECUTE') && l.includes('authority_stripe_recorder'));
+  if (lines.length !== 4) throw new Error('recorder must have exactly 4 GRANT EXECUTE lines, got ' + lines.length + ': ' + lines.map(l => l.trim()).join(' | '));
+  const fns = lines.map(l => l.match(/authority_v1\.(\w+)/)?.[1]).sort();
+  const expected = ['ingest_stripe_webhook_event', 'record_cancel_result', 'record_capture_result', 'record_refund_result'].sort();
+  if (JSON.stringify(fns) !== JSON.stringify(expected)) throw new Error('recorder grants mismatch: ' + fns.join(', '));
+  return true;
+});
+check('recorder_zero_table_privileges', () => {
+  if (!roles.includes('REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA authority_v1 FROM authority_stripe_recorder')) {
+    throw new Error('recorder must have ALL table privileges revoked');
+  }
+  return true;
+});
+check('webhook_processor_no_base44_authoritative_writes', () => {
+  const src = readFileSync(join(ROOT, 'base44/shared/webhookProcessor.js'), 'utf8');
+  if (!src.includes('executorClient') || !src.includes('recorderClient')) throw new Error('must use executor + recorder clients');
+  if (src.includes('asServiceRole') || /\.entities\./.test(src)) throw new Error('must not use Base44 entities directly');
+  return true;
+});
+check('webhook_ingress_uses_recorder_not_executor', () => {
+  const src = readFileSync(join(ROOT, 'base44/shared/webhookCanaryIngress.js'), 'utf8');
+  if (!src.includes('recorderClient') || !src.includes('recorderUrl')) throw new Error('must use recorder client');
+  if (src.includes('executorClient') || src.includes('executorUrl')) throw new Error('must NOT use executor client for ingestion (P0-01K privilege correction)');
+  return true;
+});
+check('webhook_processor_entry_no_admin', () => {
+  const src = readFileSync(join(ROOT, 'base44/functions/processWebhookEvents/entry.ts'), 'utf8');
+  if (src.includes('AUTHORITY_DB_URL_DEV_ADMIN') || src.includes('authorityV1TestAdmin')) {
+    throw new Error('processor must not use admin credentials');
   }
   return true;
 });
