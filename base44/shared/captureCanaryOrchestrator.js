@@ -74,7 +74,6 @@ export async function runCanaryCaptureSaga(deps) {
   // ── Generate stable IDs (or reuse provided ones for retry) ───────────────
   const actionId = params.action_id || `act_capture_${purchaseId}_${genId()}`;
   const stripeIdemKey = params.stripe_idempotency_key || `idem_capture_${actionId}`;
-  const operationId = `op_begin_${actionId}_${genId()}`;
 
   // ── 1. Read authority state ──────────────────────────────────────────────
   let state;
@@ -87,49 +86,92 @@ export async function runCanaryCaptureSaga(deps) {
     return { status: 409, body: { error: 'Not initialized in authority', code: state?.code || 'NOT_FOUND' } };
   }
 
-  // Must be in reserved state (begin_capture transitions reserved → frozen)
-  if (state.lifecycle_state !== 'reserved') {
-    return { status: 409, body: { error: 'Not in reserved state', code: 'NOT_RESERVED', authority_state: state } };
-  }
+  // ── Branch on authority state ────────────────────────────────────────────
+  //   reserved → first attempt: call begin_capture (reserved → frozen)
+  //   frozen   → retry/reconciliation: skip begin_capture, go to Stripe + record
+  //   sold     → already finalized (succeeded): idempotent replay
+  //   available→ already released (failed): idempotent replay
+  //   other    → conflict
+  let skipBeginCapture = false;
 
-  const expectedVersion = state.version;
-
-  // ── 2. begin_capture via executor (supplies stable Stripe idempotency key) ─
-  const beginRequestHash = await sha256Hex(canonicalEnvelope({
-    op: 'begin_capture', listing_id: listingId, expected_version: expectedVersion,
-    purchase_id: purchaseId, payment_intent_id: paymentIntentId,
-    buyer_user_id: buyerUserId, action_id: actionId, idem_key: stripeIdemKey,
-  }));
-
-  let beginResult;
-  try {
-    beginResult = await executorClient.beginCapture(
-      listingId, expectedVersion, purchaseId, paymentIntentId,
-      buyerUserId, expectedRevision, actionId, stripeIdemKey, operationId, beginRequestHash,
-    );
-  } catch (e) {
-    return { status: 500, body: { error: 'begin_capture failed', code: 'BEGIN_CAPTURE_ERROR' } };
-  }
-
-  if (!beginResult?.ok) {
-    // Structured conflict (OPERATION_ID_CONFLICT, BINDING_NOT_AUTHORIZED, CONFLICT)
-    return {
-      status: 409,
-      body: { error: 'begin_capture conflict', code: beginResult?.code || 'CONFLICT', authority: beginResult },
-    };
-  }
-
-  // If this was an idempotent replay (already frozen), skip Stripe + record
-  if (beginResult.replay === true) {
+  if (state.lifecycle_state === 'reserved') {
+    // First attempt — call begin_capture
+  } else if (state.lifecycle_state === 'frozen') {
+    // Retry or reconciliation — action already exists, skip begin_capture
+    skipBeginCapture = true;
+  } else if (state.lifecycle_state === 'sold') {
+    // Already finalized — idempotent replay
     return {
       status: 200,
       body: {
         ok: true,
+        captured: true,
+        finalized: true,
         replay: true,
         action_id: actionId,
-        authority: beginResult,
+        authority: state,
       },
     };
+  } else if (state.lifecycle_state === 'available') {
+    // Already released (failed capture) — idempotent replay
+    return {
+      status: 200,
+      body: {
+        ok: true,
+        captured: false,
+        capture_failed: true,
+        released: true,
+        replay: true,
+        action_id: actionId,
+        authority: state,
+      },
+    };
+  } else {
+    return { status: 409, body: { error: 'Not in capturable state', code: 'NOT_CAPTURABLE', authority_state: state } };
+  }
+
+  let beginResult = null;
+
+  if (!skipBeginCapture) {
+    const expectedVersion = state.version;
+    const operationId = `op_begin_${actionId}_${genId()}`;
+
+    // ── 2. begin_capture via executor (supplies stable Stripe idempotency key) ─
+    const beginRequestHash = await sha256Hex(canonicalEnvelope({
+      op: 'begin_capture', listing_id: listingId, expected_version: expectedVersion,
+      purchase_id: purchaseId, payment_intent_id: paymentIntentId,
+      buyer_user_id: buyerUserId, action_id: actionId, idem_key: stripeIdemKey,
+    }));
+
+    try {
+      beginResult = await executorClient.beginCapture(
+        listingId, expectedVersion, purchaseId, paymentIntentId,
+        buyerUserId, expectedRevision, actionId, stripeIdemKey, operationId, beginRequestHash,
+      );
+    } catch (e) {
+      return { status: 500, body: { error: 'begin_capture failed', code: 'BEGIN_CAPTURE_ERROR' } };
+    }
+
+    if (!beginResult?.ok) {
+      // Structured conflict (OPERATION_ID_CONFLICT, BINDING_NOT_AUTHORIZED, CONFLICT)
+      return {
+        status: 409,
+        body: { error: 'begin_capture conflict', code: beginResult?.code || 'CONFLICT', authority: beginResult },
+      };
+    }
+
+    // If this was an idempotent replay (already frozen), skip Stripe + record
+    if (beginResult.replay === true) {
+      return {
+        status: 200,
+        body: {
+          ok: true,
+          replay: true,
+          action_id: actionId,
+          authority: beginResult,
+        },
+      };
+    }
   }
 
   // ── 3. Stripe capture OUTSIDE Postgres ──────────────────────────────────
