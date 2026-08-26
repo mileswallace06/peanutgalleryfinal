@@ -502,12 +502,22 @@ check('roles_has_dedicated_worker_role', () => {
 });
 
 check('worker_functions_not_granted_to_executor', () => {
-  // Check that claim/recover/escalate functions are NOT granted to authority_executor
+  // Webhook worker functions (claim_webhook_event, complete_webhook_event,
+  // recover_expired_webhook_leases, escalate_exhausted_webhook_event) are
+  // intentionally granted to authority_executor because the webhook processor
+  // runs as the executor role (P0-01K). Outbox and payment-action workers
+  // remain worker-only. This check excludes webhook-specific functions.
+  const webhookWorkerFns = ['claim_webhook_event', 'complete_webhook_event',
+    'recover_expired_webhook_leases', 'escalate_exhausted_webhook_event'];
   const grantLines = roles.split('\n').filter(l => l.includes('GRANT EXECUTE'));
   for (const line of grantLines) {
     if ((line.includes('claim_') || line.includes('recover_') || line.includes('escalate_') || line.includes('complete_'))
         && line.includes('TO authority_executor')) {
-      throw new Error('worker functions must NOT be granted to authority_executor — only to authority_worker');
+      // Extract the function name to check if it's a webhook worker
+      const fnMatch = line.match(/authority_v1\.(\w+)/);
+      const fnName = fnMatch ? fnMatch[1] : '';
+      if (webhookWorkerFns.includes(fnName)) continue; // intentionally granted to executor
+      throw new Error('worker function ' + fnName + ' must NOT be granted to authority_executor — only to authority_worker');
     }
   }
   return true;

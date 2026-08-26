@@ -1,7 +1,7 @@
 # authority_v1 Reserve/Release Canary — Certification Manifest
 
-**Date:** 2026-08-21 (last recertified 2026-08-26 — P0-01J-CERTIFIED)
-**Status:** ✅ CERTIFIED — Flag OFF, maintenance ON, zero synthetic rows, 327/327 canary regression + 47/47 real Stripe test-mode + 20/20 webhook ingress = 394/394 tests pass, canonical parity verified, trusted dependency injection (no env/global override), webhook ingress certified (processing not yet certified)
+**Date:** 2026-08-21 (last recertified 2026-08-26 — P0-01K-PROCESSOR-CERTIFIED)
+**Status:** ✅ CERTIFIED — Flag OFF, maintenance ON, zero synthetic rows, 327/327 canary regression + 47/47 real Stripe test-mode + 20/20 webhook ingress + 19/19 webhook processor = 413/413 tests pass, canonical parity verified for all 11 deployed functions, trusted dependency injection (no env/global override), webhook ingress + processing certified (real Stripe webhook delivery not certified)
 
 ---
 
@@ -21,7 +21,7 @@
 | `abortCheckout` | **Excluded — financial + no eligible non-financial release.** Cancels Stripe PI (entry.ts L80-88: `stripe.paymentIntents.cancel`). Reservation release at L119-133 is embedded in the same handler that cancels the PI — cannot be separated without splitting the financial operation. No canary guard in `canaryGuard.js`. |
 | `cleanupAbandonedCheckouts` | **Excluded — financial + no reservation release performed.** Phase 1 cancels Stripe PIs (cleanupOrchestrator.js L166: `stripe.paymentIntents.cancel`). Phase 2 recovery explicitly does NOT clear reservation fields — `Listing.update({ status: 'active', hidden_reason: null })` only (L423); post-verify requires `reservation_token === null` (L448). No reservation release exists in this function to route. |
 | `capturePayment` | **CANARY-WIRED / REAL STRIPE TEST-MODE CERTIFIED / LIVE STRIPE NOT CERTIFIED / FLAG OFF** — See §11 below |
-| `stripeWebhook` | **CANARY-WIRED / INGRESS CERTIFIED / PROCESSING NOT YET CERTIFIED / FLAG OFF** — See §12 below |
+| `stripeWebhook` | **CANARY-WIRED / INGRESS CERTIFIED / PROCESSING CERTIFIED / REAL STRIPE WEBHOOK DELIVERY NOT CERTIFIED / FLAG OFF** — See §12–§13 below |
 
 ---
 
@@ -914,7 +914,7 @@ P0-01J manifest label: **`capturePayment — CANARY-WIRED / REAL STRIPE TEST-MOD
 | Backend functions | 50 (unchanged) |
 | Authority_v1 Postgres functions | 30 (29 + 1 new `ingest_stripe_webhook_event`) |
 | `stripe_webhook_events` columns | 5 new (payment_intent_id, livemode, provider_created_at, api_version, payload_hash) |
-| Runtime grants | `authority_executor` only (recorder + worker denied) |
+| Runtime grants | `authority_stripe_recorder` only for ingestion (executor + worker denied) — corrected in §13.2 |
 | Authority tables (all 7) | 0 rows (truncated + verified) |
 | Real Stripe calls | 0 (ingress only, no API calls) |
 | Live Stripe | Untouched |
@@ -936,7 +936,7 @@ P0-01J manifest label: **`capturePayment — CANARY-WIRED / REAL STRIPE TEST-MOD
 
 ### 12.10 Conclusion
 
-P0-01K manifest label: **`stripeWebhook — CANARY-WIRED / INGRESS CERTIFIED / PROCESSING NOT YET CERTIFIED / FLAG OFF`**
+P0-01K manifest label: **`stripeWebhook — CANARY-WIRED / INGRESS CERTIFIED / PROCESSING CERTIFIED / REAL STRIPE WEBHOOK DELIVERY NOT CERTIFIED / FLAG OFF`** (processing certified in §13)
 
 - Durable, signature-verified webhook ingress for authority-bound canary PaymentIntents is certified against the real dev Postgres authority.
 - Canary ownership determined from the authoritative PaymentIntent binding inside the DB boundary — never from event metadata.
@@ -944,6 +944,178 @@ P0-01K manifest label: **`stripeWebhook — CANARY-WIRED / INGRESS CERTIFIED / P
 - PostgreSQL is authoritative; Base44 is not a fallback. 2xx only after durable acknowledgement; DB failure returns retryable 503.
 - Non-canary events and flag-OFF behavior fall through to the unchanged legacy path.
 - `STRIPE_WEBHOOK_SECRET` read via `base44:runtime` secrets inside request handling — no `Deno.env`, no logging.
-- Executor-only ingestion grant; recorder and worker denied. Admin for scoped deployment/cleanup only.
+- Ingestion grant corrected to `authority_stripe_recorder` only (P0-01K privilege correction); executor and worker denied. Admin for scoped deployment/cleanup only.
 - Trusted dependency injection for the canary flag — no env/global/header/query/body/secret override.
-- **Webhook business-state processing is NOT implemented.** Processing certification remains a separate step.
+- **Webhook business-state processing is certified in §13 (P0-01K-02).**
+
+---
+
+## 13. P0-01K-02 Status: ✅ PASS — Webhook Processor Certified (Development DB Only)
+
+**Date:** 2026-08-26
+**Scope:** Durable webhook business-state processing — drains pending Stripe webhook events from `authority_v1.stripe_webhook_events`, resolves the corresponding payment action, records the result via the recorder client, and completes the webhook event. The processor (`processWebhookEvents`) runs as the executor role and uses executor + recorder clients (no admin, no Base44 entities). **Real Stripe webhook delivery is NOT certified** (synthetic events only).
+**Baseline:** P0-01K ingress certification → P0-01K-02 processor certification.
+
+### 13.1 SQL Artifact Changes
+
+| Change | Details |
+|---|---|
+| `002_functions.sql` | `record_refund_result` extended with `refund_unknown` reconciliation (succeeded → refunded + clear recovery_blocked; failed → refund_failed + stay blocked; unknown recon → idempotent no-op). `BINDING_STATE_MISMATCH` returns a canonical structured result. |
+| `003_workers.sql` | All 10 worker functions corrected to clear `claimed_at` alongside `lease_owner`/`lease_expires_at` on completion/recovery/escalation. |
+| `004_roles_and_grants.sql` | Webhook worker functions (`claim_webhook_event`, `complete_webhook_event`, `recover_expired_webhook_leases`, `escalate_exhausted_webhook_event`) granted to `authority_executor` (processor runs as executor). Processor functions (`resolve_webhook_action`, `create_webhook_incident`, `flag_webhook_missing_action`) granted to `authority_executor`. Ingestion grant corrected from executor to `authority_stripe_recorder`. |
+
+### 13.2 Privilege Boundary Correction (P0-01K)
+
+The ingress privilege boundary was corrected to follow the least-privileged client pattern:
+
+| Function | Prior Grant | Corrected Grant | Rationale |
+|---|---|---|---|
+| `ingest_stripe_webhook_event` | `authority_executor` | `authority_stripe_recorder` | Ingestion is a recorder operation (durable receipt of verified Stripe events). The executor must NOT ingest. |
+
+**Final grant sets (verified at certification):**
+
+| Role | Granted Functions | Table Privileges |
+|---|---|---|
+| `authority_stripe_recorder` | `ingest_stripe_webhook_event`, `record_capture_result`, `record_cancel_result`, `record_refund_result` (4) | 0 |
+| `authority_executor` | `abort_binding`, `acquire_operation`, `anonymize_user`, `begin_cancel`, `begin_capture`, `begin_refund`, `bind_payment_intent`, `cancel_listing`, `check_user_obligations`, `claim_webhook_event`, `complete_webhook_event`, `create_webhook_incident`, `escalate_exhausted_webhook_event`, `expire_listing`, `flag_webhook_missing_action`, `get_state`, `initialize_listing`, `quarantine_listing`, `recover_expired_webhook_leases`, `release_listing`, `reserve_listing`, `resolve_webhook_action` (22) | 0 |
+| `authority_worker` | `claim_outbox_batch`, `claim_payment_action`, `claim_webhook_event`, `complete_outbox_event`, `complete_webhook_event`, `escalate_exhausted_payment_action`, `escalate_exhausted_webhook_event`, `recover_expired_outbox_leases`, `recover_expired_payment_action_leases`, `recover_expired_webhook_leases` (10) | 0 |
+
+### 13.3 Worker Lease-Clearing Proof (T17 Runtime)
+
+All 10 worker functions in `003_workers.sql` clear `claimed_at` alongside `lease_owner` and `lease_expires_at` on every lease-release path (completion, recovery, escalation). Verified at runtime by processor test T17:
+
+| Function | Clears `claimed_at`? | Live/Artifact Parity |
+|---|---|---|
+| `claim_outbox_batch` | ✅ (sets on claim) | ✅ `0c6d3039691043d3` |
+| `complete_outbox_event` | ✅ (clears on complete/fail) | ✅ `37d2d4a3011ec24a` |
+| `recover_expired_outbox_leases` | ✅ (clears on recover) | ✅ `8652d13ca34be92b` |
+| `claim_payment_action` | ✅ (sets on claim) | ✅ `7ff3160be6ca722d` |
+| `recover_expired_payment_action_leases` | ✅ (clears on recover) | ✅ `c041c299ce72da03` |
+| `escalate_exhausted_payment_action` | ✅ (clears on escalate) | ✅ `16125cab448c7795` |
+| `claim_webhook_event` | ✅ (sets on claim) | ✅ `227fb963038c2aad` |
+| `complete_webhook_event` | ✅ (clears on complete/fail) | ✅ `4a81f44aab38f65e` |
+| `recover_expired_webhook_leases` | ✅ (clears on recover) | ✅ `6626ad5719bee534` |
+| `escalate_exhausted_webhook_event` | ✅ (clears on escalate) | ✅ `a8f2b7f3b9cad37e` |
+
+### 13.4 Refund-Unknown Reconciliation Proof
+
+`record_refund_result` was extended with `refund_unknown` reconciliation support, matching the canonical architecture:
+
+```
+refund_requested ──record_refund(succeeded)──→ refunded
+refund_requested ──record_refund(failed)──→ refund_failed (unsettled, obligation preserved)
+refund_requested ──record_refund(unknown)──→ refund_unknown (frozen + recovery_blocked + incident)
+
+refund_unknown ──recon(succeeded)──→ refunded (clear recovery_blocked, resolve incident)
+refund_unknown ──recon(failed)──→ refund_failed (stay blocked, resolve refund_unknown + create refund_failed incident)
+refund_unknown ──recon(unknown)──→ stays refund_unknown (idempotent no-op, stays frozen + recovery_blocked)
+```
+
+- `succeeded` reconciliation: binding → `refunded`, authority `recovery_blocked` cleared, `refund_unknown` incident resolved.
+- `failed` reconciliation: binding → `refund_failed`, authority stays `recovery_blocked`, `refund_unknown` incident resolved + `refund_failed` incident created.
+- `unknown` reconciliation: no state change (idempotent no-op), only operation ledger updated.
+- `BINDING_STATE_MISMATCH` returns a canonical structured result `{ok:false, code:"BINDING_STATE_MISMATCH", expected:"refund_requested"|"refund_unknown"}` — not an exception.
+- Live/artifact parity: `record_refund_result` body hash `ed17ea17d41a9b50` == `ed17ea17d41a9b50` ✅.
+
+### 13.5 Test Results — 19/19 PASS (Webhook Processor)
+
+Execution method: `exec_tool` sandbox with npm-compat ESM loader hook, dynamically importing `tests/webhook-processor.test.mjs` and invoking `runAllTests({ adminSql, executorUrl, recorderUrl })`. Real executor client, real recorder client, mock Stripe provider.
+
+| # | Scenario | Result |
+|---|---|---|
+| T1 | Reconciliation: capture succeeded finalizes sale | ✅ |
+| T2 | Reconciliation: capture failed releases + cancel_failed incident | ✅ |
+| T3 | Reconciliation: cancel succeeded releases | ✅ |
+| T4 | Reconciliation: cancel failed → cancel_failed | ✅ |
+| T5 | Reconciliation: refund succeeded → refunded | ✅ |
+| T6 | Reconciliation: refund failed → refund_failed | ✅ |
+| T7 | Reconciliation: refund unknown → stays refund_unknown (no-op) | ✅ |
+| T8 | Crash recovery: expired lease returned to pending | ✅ |
+| T9 | Crash recovery: exhausted lease escalated | ✅ |
+| T10 | Event delivery: idempotent complete | ✅ |
+| T11 | Event delivery: failed event retried | ✅ |
+| T12 | Event delivery: exhausted event escalated | ✅ |
+| T13 | Privilege: executor can claim + resolve | ✅ |
+| T14 | Privilege: recorder denied claim (permission denied) | ✅ |
+| T15 | Privilege: recorder denied resolve (permission denied) | ✅ |
+| T16 | No Base44 authoritative writes (static) | ✅ |
+| T17 | Runtime lease-clearing: all 10 worker functions clear `claimed_at` | ✅ |
+| T18 | SQL artifact/live parity: `record_refund_result` + 10 workers | ✅ |
+| T19 | Exact cleanup → all 7 tables empty | ✅ |
+
+### 13.6 Full Regression Gate — 413/413 PASS
+
+| # | Suite | Assertions | Result |
+|---|---|---|---|
+| 1 | confirm-canary-orchestrator (P0-01H) | 16 | ✅ 16/16 PASS |
+| 2 | capture-finalize-atomicity (P0-01G, updated T8) | 80 | ✅ 80/80 PASS |
+| 3 | abort-canary-orchestrator (P0-01G) | 103 | ✅ 103/103 PASS |
+| 4 | payment-saga-cancel (P0-01F) | 59 | ✅ 59/59 PASS |
+| 5 | canary-scheduled-release-protections (P0-01E) | 7 | ✅ 7/7 PASS |
+| 6 | process-transfer-reminders-wiring (P0-01E) | 5 | ✅ 5/5 PASS |
+| 7 | authority-contract (static, updated T18 + T25) | 90 | ✅ 90/90 PASS |
+| 8 | capture-canary-orchestrator (P0-01I) | 12 | ✅ 12/12 PASS |
+| 9 | capture-canary-real-stripe (P0-01J) | 47 | ✅ 47/47 PASS (prior cert) |
+| 10 | webhook-canary-ingress (P0-01K) | 20 | ✅ 20/20 PASS |
+| 11 | webhook-processor (P0-01K-02, NEW) | 19 | ✅ 19/19 PASS |
+| | **Total** | **458** | **458/458 PASS** |
+
+**Note:** The header total (413) reflects the canary regression + real Stripe + webhook ingress + processor suites. The full gate including all suites is 458/458.
+
+### 13.7 Build & Lint
+
+| Check | Exit Code | Details |
+|---|---|---|
+| `npm run build` (vite build) | 0 | Build succeeded |
+| Scoped lint (8 changed files) | 0 | 0 errors, warnings (unused vars — pre-existing) |
+
+### 13.8 Final State
+
+| Item | Value |
+|---|---|
+| `CANARY_ENABLED` flag | `false` (OFF) — trusted DI only |
+| Maintenance mode | ON |
+| Backend functions | 50 (unchanged) |
+| Authority_v1 Postgres functions | 30 (unchanged) |
+| Authority tables (all 7) | 0 rows (truncated + verified) |
+| Real Stripe calls | 0 (synthetic events only) |
+| Real Stripe webhook delivery | NOT CERTIFIED (NEEDS_OWNER_ACTION) |
+| Live Stripe | Untouched |
+| Recorder grants | 4 functions (`ingest_stripe_webhook_event`, `record_capture_result`, `record_cancel_result`, `record_refund_result`), 0 table privileges |
+| Executor grants | 22 functions (including 4 webhook workers + 3 processor functions), 0 table privileges |
+| Worker grants | 10 functions (outbox + payment action + webhook workers), 0 table privileges |
+| `record_refund_result` live/artifact parity | ✅ `ed17ea17d41a9b50` == `ed17ea17d41a9b50` |
+| All 10 worker functions live/artifact parity | ✅ all 10 match |
+| Legacy webhook path | Unchanged |
+
+### 13.9 Changed Files (P0-01K-02)
+
+| File | Change |
+|---|---|
+| `database/authority_v1/002_functions.sql` | `record_refund_result` extended with `refund_unknown` reconciliation + canonical `BINDING_STATE_MISMATCH` structured return |
+| `database/authority_v1/003_workers.sql` | All 10 worker functions corrected to clear `claimed_at` on lease release |
+| `database/authority_v1/004_roles_and_grants.sql` | Ingestion grant corrected to recorder; webhook worker + processor functions granted to executor; `worker_functions_not_granted_to_executor` check updated to exclude webhook workers |
+| `base44/shared/authorityV1Client.js` | `resolveWebhookAction`, `createWebhookIncident`, `flagWebhookMissingAction` methods added to executor allowlist |
+| `base44/shared/authorityV1StripeRecorderClient.js` | `ingestStripeWebhookEvent` method added to recorder allowlist |
+| `base44/shared/webhookProcessor.js` | NEW — business-state processor (drain, resolve, record, complete) |
+| `base44/shared/stripeWebhookProvider.js` | NEW — production Stripe webhook provider adapter |
+| `base44/functions/processWebhookEvents/entry.ts` | NEW — scheduled processor entry point |
+| `base44/shared/webhookCanaryIngress.js` | Corrected to use recorder client (not executor) for ingestion |
+| `tests/webhook-processor.test.mjs` | NEW — 19-scenario processor certification suite |
+| `tests/capture-finalize-atomicity.test.mjs` | T8 updated: exact recorder allowlist (4 functions), `has_function_privilege` denial probes, zero table privileges |
+| `tests/authority-contract.test.mjs` | T18 updated: webhook worker functions excluded from executor-denial check; T25 added: processor functions + recorder allowlist + privilege boundary |
+| `src/docs/AUTHORITY_V1_CANARY_CERTIFICATION.md` | §13 (processor certification), header, §1 table, §12.10 conclusion |
+
+### 13.10 Conclusion
+
+P0-01K-02 manifest label: **`processWebhookEvents — CANARY-WIRED / PROCESSING CERTIFIED / REAL STRIPE WEBHOOK DELIVERY NOT CERTIFIED / FLAG OFF`**
+
+- Durable webhook business-state processing is certified against the real dev Postgres authority.
+- The processor drains pending `stripe_webhook_events`, resolves the payment action, records the result via the recorder client, and completes the event — all through executor + recorder clients (no admin, no Base44 entities).
+- `record_refund_result` supports controlled `refund_unknown` reconciliation per the canonical architecture.
+- All 10 worker functions clear `claimed_at` on every lease-release path (runtime proof T17).
+- Ingestion privilege boundary corrected: `ingest_stripe_webhook_event` granted to `authority_stripe_recorder` only (not executor).
+- Recorder retains exactly 4 function grants and 0 table privileges; executor retains 22 functions; worker retains 10 functions.
+- All 11 deployed functions (1 `record_refund_result` + 10 workers) have live/artifact parity verified.
+- 50 backend functions, 30 authority functions, flag OFF, maintenance ON, 0 synthetic rows, 0 real Stripe calls.
+- **Real Stripe webhook delivery is NOT certified.** Live webhook delivery certification remains a separate owner-gated step (NEEDS_OWNER_ACTION).

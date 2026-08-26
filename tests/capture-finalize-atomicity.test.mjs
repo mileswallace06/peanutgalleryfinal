@@ -387,9 +387,13 @@ export async function runAllTests(deps) {
     results.T7 = { assertions: 1, ok: true };
   }
 
-  // T8: Recorder retains only result-recording functions and zero table grants
+  // T8: Recorder retains exactly the allowlisted functions and zero table grants
   {
-    // Check function grants
+    // Exact allowlist — the recorder may call ONLY these four functions.
+    const ALLOWED = ['ingest_stripe_webhook_event', 'record_capture_result',
+      'record_cancel_result', 'record_refund_result'].sort();
+
+    // Check function grants — must match the allowlist exactly.
     const funcGrants = await adminSql`
       SELECT routine_name
       FROM information_schema.role_routine_grants
@@ -397,15 +401,64 @@ export async function runAllTests(deps) {
         AND routine_schema = 'authority_v1'
       ORDER BY routine_name
     `;
-    const grantedFunctions = funcGrants.map(r => r.routine_name);
-    assert(grantedFunctions.length === 3, `T8: 3 function grants (got ${grantedFunctions.length}: ${JSON.stringify(grantedFunctions)})`);
-    assert(grantedFunctions.includes('record_capture_result'), 'T8: record_capture_result granted');
-    assert(grantedFunctions.includes('record_cancel_result'), 'T8: record_cancel_result granted');
-    assert(grantedFunctions.includes('record_refund_result'), 'T8: record_refund_result granted');
-    assert(!grantedFunctions.includes('finalize_sale'), 'T8: finalize_sale NOT granted');
-    assert(!grantedFunctions.includes('acquire_operation'), 'T8: acquire_operation NOT granted');
+    const grantedFunctions = funcGrants.map(r => r.routine_name).sort();
+    assert(JSON.stringify(grantedFunctions) === JSON.stringify(ALLOWED),
+      `T8: exact allowlist match (got ${JSON.stringify(grantedFunctions)}, expected ${JSON.stringify(ALLOWED)})`);
 
-    // Check table grants
+    // Denial of every executor/worker-only function — the recorder must NOT
+    // have EXECUTE on any function outside the allowlist. We verify both the
+    // information_schema grant rows AND a runtime permission-denied probe for
+    // each representative function.
+    const deniedFunctions = [
+      // Executor-only
+      'finalize_sale', 'acquire_operation', 'begin_capture', 'begin_cancel',
+      'begin_refund', 'bind_payment_intent', 'initialize_listing',
+      'reserve_listing', 'release_listing', 'expire_listing', 'cancel_listing',
+      'quarantine_listing', 'abort_binding', 'check_user_obligations',
+      'anonymize_user', 'resolve_webhook_action', 'create_webhook_incident',
+      'flag_webhook_missing_action',
+      // Worker-only
+      'claim_outbox_batch', 'complete_outbox_event', 'recover_expired_outbox_leases',
+      'claim_payment_action', 'recover_expired_payment_action_leases',
+      'escalate_exhausted_payment_action', 'claim_webhook_event',
+      'complete_webhook_event', 'recover_expired_webhook_leases',
+      'escalate_exhausted_webhook_event',
+    ];
+    for (const fn of deniedFunctions) {
+      assert(!grantedFunctions.includes(fn), `T8: ${fn} NOT granted to recorder`);
+    }
+
+    // Runtime denial probes — use has_function_privilege to confirm the
+    // recorder is denied EXECUTE on representative executor and worker
+    // functions. This is the standard PostgreSQL privilege check and does
+    // not depend on matching exact argument signatures.
+    const probeFunctions = [
+      // Executor-only
+      'finalize_sale', 'begin_capture', 'bind_payment_intent',
+      'initialize_listing', 'resolve_webhook_action',
+      // Worker-only
+      'claim_outbox_batch', 'claim_payment_action', 'claim_webhook_event',
+    ];
+    for (const fn of probeFunctions) {
+      // Look up the function OID by name only (any signature)
+      const rows = await adminSql`
+        SELECT p.oid
+        FROM pg_proc p
+        JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = 'authority_v1' AND p.proname = ${fn}
+        LIMIT 1`;
+      if (rows.length === 0) {
+        assert(false, `T8: ${fn} function not found in authority_v1`);
+        continue;
+      }
+      const oid = rows[0].oid;
+      const privRows = await adminSql`
+        SELECT has_function_privilege('authority_stripe_recorder', ${oid}::oid, 'EXECUTE') as has_exec`;
+      const hasExec = privRows[0]?.has_exec === true || privRows[0]?.has_exec === 'true';
+      assert(hasExec === false, `T8: ${fn} EXECUTE denied to recorder (has_exec=${privRows[0]?.has_exec})`);
+    }
+
+    // Zero table privileges — no INSERT/UPDATE/DELETE/SELECT on any table.
     const tableGrants = await adminSql`
       SELECT count(*)::int c
       FROM information_schema.role_table_grants
@@ -414,13 +467,14 @@ export async function runAllTests(deps) {
     `;
     assert(Number(tableGrants[0]?.c || 0) === 0, `T8: 0 table grants (got ${tableGrants[0]?.c})`);
 
-    // Verify recorder client does NOT expose finalizeSale method
+    // Verify recorder client API surface — only the four allowlisted methods.
     assert(typeof recorderClient.finalizeSale === 'undefined', 'T8: recorder client has no finalizeSale method');
     assert(typeof recorderClient.recordCaptureResult === 'function', 'T8: recorder client has recordCaptureResult');
     assert(typeof recorderClient.recordCancelResult === 'function', 'T8: recorder client has recordCancelResult');
     assert(typeof recorderClient.recordRefundResult === 'function', 'T8: recorder client has recordRefundResult');
+    assert(typeof recorderClient.ingestStripeWebhookEvent === 'function', 'T8: recorder client has ingestStripeWebhookEvent');
 
-    results.T8 = { assertions: 9, ok: true };
+    results.T8 = { assertions: 1 + deniedFunctions.length + probeFunctions.length + 1 + 5, ok: true };
   }
 
   // ── Cleanup and final ──────────────────────────────────────────────────────
