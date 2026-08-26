@@ -525,10 +525,20 @@ BEGIN
 END;
 $$;
 
--- ── 9. record_capture_result — SINGLE Completion Path (Atomic Capture+Finalize) ─
+-- ── 9. record_capture_result — SINGLE Completion Path (Atomic Capture+Finalize + Reconciliation) ─
 -- Records the Stripe capture result. On succeeded, ATOMICALLY finalizes the
 -- sale: binding → finalized, authority frozen → sold, outbox events — all in
 -- one transaction. No separate finalize_sale call is required.
+--
+-- P0-01I: Restored capture_unknown reconciliation from the archived live
+-- function (record_capture_result.p0-01i-interrupted.sql). The action status
+-- 'unknown' is now a valid prior status for reconciliation. When
+-- v_is_reconciliation = true:
+--   succeeded → binding → finalized, authority → sold, clear recovery_blocked,
+--               resolve capture_unknown incident (exactly one release)
+--   failed    → binding → failed, authority → available, clear recovery_blocked,
+--               resolve capture_unknown + create capture_failed incident
+--   unknown   → no state change (idempotent no-op, stays frozen + blocked)
 --
 -- SINGLE COMPLETION PATH: This is the SOLE function that updates a capture
 -- payment action's status. The separate action-completion function is REMOVED. The worker
@@ -567,6 +577,8 @@ DECLARE
   v_updated_count INTEGER;
   v_new_version INTEGER;
   v_result_json TEXT;
+  v_is_reconciliation BOOLEAN;
+  v_expected_binding_state TEXT;
 BEGIN
   -- Step 1: Look up the action BEFORE acquiring the operation.
   -- This handles action-not-found without passing a null listing_id.
@@ -595,10 +607,19 @@ BEGIN
       'expected', 'capture', 'got', v_action.action_type);
   END IF;
 
-  -- Step 4: Verify action is in an allowed prior status
-  IF v_action.status NOT IN ('pending','in_flight') THEN
+  -- Step 4: Verify action is in an allowed prior status.
+  -- 'pending'/'in_flight' = first observation; 'unknown' = reconciliation.
+  IF v_action.status NOT IN ('pending','in_flight','unknown') THEN
     RETURN jsonb_build_object('ok', false, 'code', 'ACTION_STATUS_INVALID',
-      'expected', 'pending or in_flight', 'got', v_action.status);
+      'expected', 'pending, in_flight, or unknown', 'got', v_action.status);
+  END IF;
+
+  -- Determine if this is a reconciliation (action was already 'unknown')
+  v_is_reconciliation := (v_action.status = 'unknown');
+  IF v_is_reconciliation THEN
+    v_expected_binding_state := 'capture_unknown';
+  ELSE
+    v_expected_binding_state := 'capture_requested';
   END IF;
 
   -- Step 5: Verify lease ownership (worker path only)
@@ -610,18 +631,21 @@ BEGIN
     END IF;
   END IF;
 
-  -- Step 6: Load and lock the binding — verify ALL fields match
+  -- Step 6: Load and lock the binding — must be in expected state for the action status
   SELECT * INTO v_binding FROM reservation_payment_bindings
   WHERE purchase_id = v_action.purchase_id
     AND listing_id = v_action.listing_id
     AND payment_intent_id = v_action.payment_intent_id
+    AND capture_state = v_expected_binding_state
   FOR UPDATE;
   IF NOT FOUND THEN
-    UPDATE reservation_operations SET status = 'rejected', error_code = 'BINDING_NOT_FOUND',
-      result_json = jsonb_build_object('ok', false, 'code', 'BINDING_NOT_FOUND')::TEXT,
+    UPDATE reservation_operations SET status = 'rejected', error_code = 'BINDING_STATE_MISMATCH',
+      result_json = jsonb_build_object('ok', false, 'code', 'BINDING_STATE_MISMATCH',
+        'expected', v_expected_binding_state)::TEXT,
       committed_at = now()
     WHERE operation_id = p_server_operation_id;
-    RETURN jsonb_build_object('ok', false, 'code', 'BINDING_NOT_FOUND');
+    RETURN jsonb_build_object('ok', false, 'code', 'BINDING_STATE_MISMATCH',
+      'expected', v_expected_binding_state);
   END IF;
 
   -- Step 7: Load and lock the authority — verify frozen with matching fields
@@ -633,6 +657,17 @@ BEGIN
       committed_at = now()
     WHERE operation_id = p_server_operation_id;
     RETURN jsonb_build_object('ok', false, 'code', 'AUTHORITY_NOT_FOUND');
+  END IF;
+
+  -- For reconciliation: verify authority is recovery_blocked
+  IF v_is_reconciliation AND NOT v_authority.recovery_blocked THEN
+    UPDATE reservation_operations SET status = 'rejected', error_code = 'AUTHORITY_NOT_BLOCKED',
+      result_json = jsonb_build_object('ok', false, 'code', 'AUTHORITY_NOT_BLOCKED',
+        'reason', 'reconciliation requires recovery_blocked authority')::TEXT,
+      committed_at = now()
+    WHERE operation_id = p_server_operation_id;
+    RETURN jsonb_build_object('ok', false, 'code', 'AUTHORITY_NOT_BLOCKED',
+      'reason', 'reconciliation requires recovery_blocked authority');
   END IF;
 
   IF v_authority.lifecycle_state <> 'frozen'
@@ -648,14 +683,17 @@ BEGIN
   END IF;
 
   -- Step 8: Record the capture result on the action (exactly one row)
-  UPDATE payment_actions SET status = p_result_derived,
-    stripe_result_json = p_stripe_response::TEXT,
-    completed_at = now(), updated_at = now(),
-    lease_owner = NULL, lease_expires_at = NULL
-  WHERE action_id = p_action_id;
-  GET DIAGNOSTICS v_updated_count = ROW_COUNT;
-  IF v_updated_count != 1 THEN
-    RAISE EXCEPTION 'ACTION_UPDATE_COUNT: expected 1, got %', v_updated_count;
+  -- Skip for 'unknown' reconciliation (action already 'unknown', no change needed)
+  IF NOT (v_is_reconciliation AND p_result_derived = 'unknown') THEN
+    UPDATE payment_actions SET status = p_result_derived,
+      stripe_result_json = p_stripe_response::TEXT,
+      completed_at = now(), updated_at = now(),
+      lease_owner = NULL, lease_expires_at = NULL
+    WHERE action_id = p_action_id;
+    GET DIAGNOSTICS v_updated_count = ROW_COUNT;
+    IF v_updated_count != 1 THEN
+      RAISE EXCEPTION 'ACTION_UPDATE_COUNT: expected 1, got %', v_updated_count;
+    END IF;
   END IF;
 
   -- Step 9: Branch on result — every branch finishes with deterministic result
@@ -671,12 +709,14 @@ BEGIN
       RAISE EXCEPTION 'CAPTURE_BINDING_COUNT: expected 1, got %', v_updated_count;
     END IF;
 
-    -- CAS: frozen → sold (exactly one transition)
+    -- CAS: frozen → sold (exactly one transition). Clear recovery_blocked on
+    -- succeeded reconciliation (capture_unknown → succeeded finalizes the sale).
     v_new_version := v_authority.version + 1;
     UPDATE reservation_authority
     SET version = v_new_version, lifecycle_state = 'sold',
         buyer_user_id = NULL, reservation_token_hash = NULL,
         reservation_expires_at = NULL, reservation_revision = gen_random_uuid()::TEXT,
+        recovery_blocked = false, recovery_blocked_reason = NULL, recovery_blocked_at = NULL,
         current_operation_id = p_server_operation_id, last_operation_type = 'record_capture',
         last_operation_at = now(), updated_at = now()
     WHERE listing_id = v_action.listing_id
@@ -687,8 +727,18 @@ BEGIN
       RAISE EXCEPTION 'CAPTURE_AUTHORITY_COUNT: expected 1, got %', v_updated_count;
     END IF;
 
+    -- If reconciliation: resolve the capture_unknown incident
+    IF v_is_reconciliation THEN
+      UPDATE operational_incidents
+      SET resolved = true, resolved_at = now(),
+          resolution_notes = 'Resolved by reconciliation: capture succeeded'
+      WHERE incident_key = 'capture_unknown:' || v_action.listing_id
+        AND resolved = false;
+    END IF;
+
     v_result_json := jsonb_build_object('ok', true, 'captured', true, 'finalized', true,
-      'version', v_new_version, 'action_id', p_action_id)::TEXT;
+      'version', v_new_version, 'action_id', p_action_id,
+      'reconciliation', v_is_reconciliation)::TEXT;
     UPDATE reservation_operations SET status = 'committed', result_json = v_result_json,
       committed_at = now()
     WHERE operation_id = p_server_operation_id;
@@ -703,7 +753,8 @@ BEGIN
     ) AS t(effect_type, payload);
 
     RETURN jsonb_build_object('ok', true, 'captured', true, 'finalized', true,
-      'version', v_new_version, 'action_id', p_action_id);
+      'version', v_new_version, 'action_id', p_action_id,
+      'reconciliation', v_is_reconciliation);
 
   ELSIF p_result_derived = 'failed' THEN
     -- Known failure → exactly one binding transition (→failed), exactly one
@@ -717,12 +768,15 @@ BEGIN
       RAISE EXCEPTION 'FAILED_BINDING_COUNT: expected 1, got %', v_updated_count;
     END IF;
 
-    -- Release authority: frozen → available (exactly one transition)
+    -- Release authority: frozen → available (exactly one transition). Clear
+    -- recovery_blocked on failed reconciliation (capture_unknown → failed
+    -- releases the reservation, the obligation is settled by the failed capture).
     v_new_version := v_authority.version + 1;
     UPDATE reservation_authority
     SET version = v_new_version, lifecycle_state = 'available',
         buyer_user_id = NULL, reservation_token_hash = NULL,
         reservation_expires_at = NULL, reservation_revision = gen_random_uuid()::TEXT,
+        recovery_blocked = false, recovery_blocked_reason = NULL, recovery_blocked_at = NULL,
         current_operation_id = p_server_operation_id, last_operation_type = 'record_capture',
         last_operation_at = now(), updated_at = now()
     WHERE listing_id = v_action.listing_id AND lifecycle_state = 'frozen'
@@ -732,8 +786,18 @@ BEGIN
       RAISE EXCEPTION 'FAILED_AUTHORITY_COUNT: expected 1, got %', v_updated_count;
     END IF;
 
+    -- If reconciliation: resolve capture_unknown incident, then create capture_failed incident
+    IF v_is_reconciliation THEN
+      UPDATE operational_incidents
+      SET resolved = true, resolved_at = now(),
+          resolution_notes = 'Escalated to capture_failed by reconciliation'
+      WHERE incident_key = 'capture_unknown:' || v_action.listing_id
+        AND resolved = false;
+    END IF;
+
     v_result_json := jsonb_build_object('ok', true, 'captured', false, 'failed', true,
-      'released', true, 'version', v_new_version)::TEXT;
+      'released', true, 'version', v_new_version,
+      'reconciliation', v_is_reconciliation)::TEXT;
     UPDATE reservation_operations SET status = 'committed', result_json = v_result_json,
       committed_at = now()
     WHERE operation_id = p_server_operation_id;
@@ -744,37 +808,55 @@ BEGIN
       jsonb_build_object('version', v_new_version, 'state', 'available'));
 
     RETURN jsonb_build_object('ok', true, 'captured', false, 'failed', true,
-      'released', true, 'version', v_new_version);
+      'released', true, 'version', v_new_version,
+      'reconciliation', v_is_reconciliation);
 
   ELSE
-    -- Unknown/timeout → binding → capture_unknown, authority frozen + recovery_blocked
-    UPDATE reservation_payment_bindings SET capture_state = 'capture_unknown', updated_at = now()
-    WHERE purchase_id = v_action.purchase_id
-      AND capture_state IN ('capture_requested','capture_unknown');
-    GET DIAGNOSTICS v_updated_count = ROW_COUNT;
-    IF v_updated_count != 1 THEN
-      RAISE EXCEPTION 'UNKNOWN_BINDING_COUNT: expected 1, got %', v_updated_count;
+    -- Unknown/timeout
+    IF v_is_reconciliation THEN
+      -- Reconciliation with still-unknown result: no state change.
+      -- Binding stays capture_unknown, authority stays frozen + recovery_blocked.
+      -- The action status was already 'unknown' and stays 'unknown'.
+      -- No incident change (already exists). Idempotent no-op.
+      -- Only the operation ledger is updated.
+      v_result_json := jsonb_build_object('ok', true, 'capture_unknown', true,
+        'recovery_blocked', true, 'reconciliation', true, 'resolved', false)::TEXT;
+      UPDATE reservation_operations SET status = 'committed', result_json = v_result_json,
+        committed_at = now()
+      WHERE operation_id = p_server_operation_id;
+
+      RETURN jsonb_build_object('ok', true, 'capture_unknown', true,
+        'recovery_blocked', true, 'reconciliation', true, 'resolved', false);
+    ELSE
+      -- First observation with unknown: binding → capture_unknown, authority blocked
+      UPDATE reservation_payment_bindings SET capture_state = 'capture_unknown', updated_at = now()
+      WHERE purchase_id = v_action.purchase_id
+        AND capture_state = v_expected_binding_state;
+      GET DIAGNOSTICS v_updated_count = ROW_COUNT;
+      IF v_updated_count != 1 THEN
+        RAISE EXCEPTION 'UNKNOWN_BINDING_COUNT: expected 1, got %', v_updated_count;
+      END IF;
+
+      UPDATE reservation_authority
+      SET recovery_blocked = true, recovery_blocked_reason = 'capture_unknown',
+          recovery_blocked_at = now(), updated_at = now()
+      WHERE listing_id = v_action.listing_id;
+
+      INSERT INTO operational_incidents (incident_key, incident_type, priority, title, description, reference_id, reference_type)
+      VALUES ('capture_unknown:' || v_action.listing_id, 'capture_unknown', 'critical',
+        'Capture Result Unknown', 'Stripe capture returned unknown result', v_action.listing_id, 'listing')
+      ON CONFLICT (incident_key) DO UPDATE SET occurrence_count = operational_incidents.occurrence_count + 1,
+        last_occurred_at = now();
+
+      v_result_json := jsonb_build_object('ok', true, 'capture_unknown', true,
+        'frozen', true, 'recovery_blocked', true, 'reconciliation', false)::TEXT;
+      UPDATE reservation_operations SET status = 'committed', result_json = v_result_json,
+        committed_at = now()
+      WHERE operation_id = p_server_operation_id;
+
+      RETURN jsonb_build_object('ok', true, 'capture_unknown', true,
+        'frozen', true, 'recovery_blocked', true, 'reconciliation', false);
     END IF;
-
-    UPDATE reservation_authority
-    SET recovery_blocked = true, recovery_blocked_reason = 'capture_unknown',
-        recovery_blocked_at = now(), updated_at = now()
-    WHERE listing_id = v_action.listing_id;
-
-    INSERT INTO operational_incidents (incident_key, incident_type, priority, title, description, reference_id, reference_type)
-    VALUES ('capture_unknown:' || v_action.listing_id, 'capture_unknown', 'critical',
-      'Capture Result Unknown', 'Stripe capture returned unknown result', v_action.listing_id, 'listing')
-    ON CONFLICT (incident_key) DO UPDATE SET occurrence_count = operational_incidents.occurrence_count + 1,
-      last_occurred_at = now();
-
-    v_result_json := jsonb_build_object('ok', true, 'capture_unknown', true,
-      'frozen', true, 'recovery_blocked', true)::TEXT;
-    UPDATE reservation_operations SET status = 'committed', result_json = v_result_json,
-      committed_at = now()
-    WHERE operation_id = p_server_operation_id;
-
-    RETURN jsonb_build_object('ok', true, 'capture_unknown', true,
-      'frozen', true, 'recovery_blocked', true);
   END IF;
 END;
 $$;

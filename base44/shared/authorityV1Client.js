@@ -16,7 +16,7 @@
  *
  * Allowlisted methods (executor-granted only):
  *   getState, initializeListing, reserveListing, releaseListing,
- *   bindPaymentIntent, beginCancel, abortBinding, expireListing
+ *   bindPaymentIntent, beginCapture, beginCancel, abortBinding, expireListing
  *
  * NOT included — recorder-only (authority_stripe_recorder):
  *   recordCancelResult, recordCaptureResult, recordRefundResult, finalizeSale
@@ -115,6 +115,11 @@ export function createAuthorityV1Client(executorUrl) {
     /** bind_payment_intent(listing_id, purchase_id, payment_intent_id, buyer_user_id, authority_version, reservation_revision, token_hash, operation_id, request_hash) → JSONB */
     async bindPaymentIntent(listingId, purchaseId, paymentIntentId, buyerUserId, authorityVersion, reservationRevision, tokenHash, operationId, requestHash) {
       return callFn('bind_payment_intent', listingId, purchaseId, paymentIntentId, buyerUserId, authorityVersion, reservationRevision, tokenHash, operationId, requestHash);
+    },
+
+    /** begin_capture(listing_id, expected_version, purchase_id, payment_intent_id, buyer_user_id, expected_revision, action_id, stripe_idem_key, operation_id, request_hash) → JSONB */
+    async beginCapture(listingId, expectedVersion, purchaseId, paymentIntentId, buyerUserId, expectedRevision, actionId, stripeIdemKey, operationId, requestHash) {
+      return callFn('begin_capture', listingId, expectedVersion, purchaseId, paymentIntentId, buyerUserId, expectedRevision, actionId, stripeIdemKey, operationId, requestHash);
     },
 
     /** begin_cancel(listing_id, expected_version, purchase_id, payment_intent_id, buyer_user_id, expected_revision, action_id, stripe_idem_key, operation_id, request_hash) → JSONB */

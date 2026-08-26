@@ -34,7 +34,8 @@
         "reserve",
         "release",
         "confirm",
-        "abort_release"
+        "abort_release",
+        "capture"
       ],
       "description": "The authority operation that committed but whose mirror failed."
     },
@@ -44,11 +45,11 @@
     },
     "authority_revision": {
       "type": "string",
-      "description": "Postgres authority reservation_revision after the committed transition."
+      "description": "Postgres reservation_revision after the committed transition."
     },
     "mirror_payload": {
       "type": "object",
-      "description": "JSON snapshot of the exact fields to write to the Base44 mirror. Structure: { listing, listing_private } for reserve/release/abort, or { purchase, purchase_private } for confirm.",
+      "description": "JSON snapshot of the exact fields to write to the Base44 mirror. Structure: { listing, listing_private } for reserve/release/abort/capture, or { purchase, purchase_private } for confirm.",
       "properties": {
         "listing": {
           "type": "object"
