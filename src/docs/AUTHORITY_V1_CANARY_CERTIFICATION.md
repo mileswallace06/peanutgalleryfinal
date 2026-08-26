@@ -1,7 +1,7 @@
 # authority_v1 Reserve/Release Canary — Certification Manifest
 
-**Date:** 2026-08-21
-**Status:** ✅ CERTIFIED — Flag OFF, maintenance ON, zero synthetic rows
+**Date:** 2026-08-21 (last recertified 2026-08-26 — P0-01H-RECERTIFIED)
+**Status:** ✅ CERTIFIED — Flag OFF, maintenance ON, zero synthetic rows, 300/300 tests pass, canonical parity verified
 
 ---
 
@@ -138,7 +138,7 @@ Execution method: `tests/payment-saga-cancel.test.mjs` refactored as importable 
 | `reconcilePurchaseOutcomes` | UNCHANGED (P0-01E certified) | Outbox repair |
 | `abortCheckout` | **CANARY-WIRED / FAKE-PROVIDER CERTIFIED / REAL STRIPE NOT CERTIFIED / FLAG OFF** | See §8 below |
 | `cleanupAbandonedCheckouts` | UNCHANGED (excluded) | No reservation release to route |
-| `capturePayment` | UNCHANGED (excluded) | Financial side effect |
+| `capturePayment` | **NOT STARTED (P0-01I)** | Financial side effect — canary integration not yet begun |
 | `stripeWebhook` | UNCHANGED | No authority_v1 integration |
 | `confirmCheckoutAuthorized` | UNCHANGED | No authority_v1 integration |
 | `cancelPurchase` | UNCHANGED | No authority_v1 integration |
@@ -433,3 +433,132 @@ P0-01G manifest label: **`abortCheckout — CANARY-WIRED / FAKE-PROVIDER CERTIFI
 - 50 functions, flag OFF, maintenance ON, 0 synthetic rows, 0 real provider calls.
 - No admin credentials in production or result-recording paths (static analysis of 50 handlers + shared modules).
 - **Real Stripe execution is NOT certified.** The fake-provider test proves the saga logic; a later real Stripe test-mode gate is required for production certification.
+
+---
+
+## 9. P0-01H Status: ✅ PASS — Canonical Parity & Financial Binding Hardening (Recertified)
+
+**Date:** 2026-08-26
+**Commit:** `P0-01H-RECERTIFIED: canonical parity and financial binding hardening (300/300)`
+**Baseline:** P0-01G (`535ac4c`) → amount/currency hardening commit `9a76cfd` → recertification
+
+### 9.1 Drift Diagnosis
+
+During P0-01I preparation, a drift was detected between the live `record_capture_result` function deployed to the dev database and the canonical SQL artifact (`database/authority_v1/002_functions.sql`). The live function returned a structured JSONB result for `BINDING_STATE_MISMATCH` (and similar conditions) while the test expected a `RAISE EXCEPTION`. This was confirmed to be **artifact/test drift** — not an atomicity defect in the function itself.
+
+| Symptom | Root Cause |
+|---|---|
+| capture-finalize T2 test failure | Test expected `RAISE EXCEPTION` for `BINDING_STATE_MISMATCH`; live function returned controlled JSONB result `{ok:false, code:'BINDING_STATE_MISMATCH'}` |
+| Live/artifact body hash mismatch | Live function body had diverged from the artifact source during an interrupted P0-01I deployment attempt |
+
+### 9.2 Canonical Rollback
+
+The live function was rolled back to the canonical artifact source to restore parity:
+
+1. The live (drifted) function definition was **archived** before any modification (see §9.3)
+2. The corrected `record_capture_result` was deployed from `database/authority_v1/002_functions.sql` to the live database
+3. Hash parity was verified: live body hash == artifact body hash (see §9.4)
+4. Recorder role grants were re-verified (3 functions, 0 tables)
+
+### 9.3 SQL Archive
+
+The drifted live function was preserved as a forensic archive before rollback:
+
+| Property | Value |
+|---|---|
+| Path | `database/authority_v1/archive/record_capture_result.p0-01i-interrupted.sql` |
+| SHA-256 | `9a70df469290595140e025637c5a893f93fbcaf0fb325815ea281192855043c4` |
+| Size | 16,323 bytes |
+| Lines | 315 |
+| Description | Preserved live function definition of `authority_v1.record_capture_result` captured BEFORE artifact reconciliation on 2026-08-26 |
+
+### 9.4 Hash Parity Verification
+
+After canonical rollback, the live function body was verified to match the artifact source exactly:
+
+| Object | Live Hash | Artifact Hash | Match |
+|---|---|---|---|
+| `record_capture_result` body | `4b99c0d8897b589bb3fc59a8bafa41285bd230e8835416c0e879d00f7cff3c05` | `4b99c0d8897b589bb3fc59a8bafa41285bd230e8835416c0e879d00f7cff3c05` | ✅ |
+
+### 9.5 Amount/Currency Hardening (Commit `9a76cfd`)
+
+The `confirmCanaryOrchestrator` payment-binding saga was hardened to enforce strict amount and currency validation before any authoritative mutation:
+
+| Hardening | Details |
+|---|---|
+| Non-USD rejection | PI with `currency != 'usd'` → 400 `CURRENCY_MISMATCH` before any Postgres mutation (T9c: zero mutation proven — no new binding, no new operation, no new outbox) |
+| Amount binding | `amount_minor` and `currency` bound to the operation ID in `bind_payment_intent` for strict idempotent conflict detection |
+| Request hash inclusion | Server-derived `amount_minor`/`currency` included in `requestHash` so a changed amount with the same `operation_id` → 409 `OPERATION_ID_CONFLICT` (T9b) |
+| Pre-mutation rejection | All metadata/currency/amount mismatches rejected BEFORE `acquire_operation` — zero Postgres rows created on rejection |
+
+### 9.6 Test Results — 300/300 PASS (Full Recertification Suite)
+
+All 7 test suites were re-run through the full certification gate:
+
+| # | Suite | Scenarios | Assertions | Result |
+|---|---|---|---|---|
+| 1 | confirm-canary-orchestrator (P0-01H) | 16 | 16 | ✅ 16/16 PASS |
+| 2 | capture-finalize-atomicity (P0-01G) | 8 | 41 | ✅ 41/41 PASS |
+| 3 | abort-canary-orchestrator (P0-01G) | 14 | 103 | ✅ 103/103 PASS |
+| 4 | payment-saga-cancel (P0-01F) | 16 | 59 | ✅ 59/59 PASS |
+| 5 | canary-scheduled-release-protections (P0-01E) | 7 | 7 | ✅ 7/7 PASS |
+| 6 | process-transfer-reminders-wiring (P0-01E) | 5 | 5 | ✅ 5/5 PASS |
+| 7 | authority-contract (static) | 69 | 69 | ✅ 69/69 PASS |
+| | **Total** | | **300** | **300/300 PASS** |
+
+**Key P0-01H test additions:**
+- T9c: Non-USD PI → 400 `CURRENCY_MISMATCH`, zero mutation (no binding, no operation, no outbox)
+- T9b: Changed amount with same `operation_id` → 409 `OPERATION_ID_CONFLICT`, no second binding/operation
+- T9: Conflicting token with same `operation_id` → 409 `OPERATION_ID_CONFLICT`, exactly one binding
+
+### 9.7 Build & Lint Final State
+
+| Check | Exit Code | Details |
+|---|---|---|
+| `npm run build` (vite build) | 0 | Build succeeded |
+| Backend lint (`eslint base44/functions base44/shared`) | 0 | 0 errors, 211 warnings (pre-existing) |
+| Scoped lint (`eslint tests/*.mjs`) | 0 | 0 errors |
+
+### 9.8 Final State Verification
+
+| Item | Value |
+|---|---|
+| `CANARY_ENABLED` flag | `false` (OFF) |
+| Maintenance mode | ON |
+| Backend functions | 50 (unchanged) |
+| Authority_v1 Postgres functions | 29 (unchanged) |
+| Authority tables (all 7) | 0 rows (truncated + verified) |
+| Real Stripe calls | 0 (fake adapter only) |
+| Real provider calls in tests | 0 (no `STRIPE_SECRET_KEY`/`STRIPELIVESECRETKEY` references) |
+| Production admin imports | 0 (50 handlers checked — no `authorityV1TestAdmin`/`AUTHORITY_DB_URL_DEV_ADMIN`) |
+| Recorder grants | 3 functions (`record_capture_result`, `record_cancel_result`, `record_refund_result`) |
+| Recorder table privileges | 0 |
+| `record_capture_result` live/artifact parity | ✅ `4b99c0d8…` == `4b99c0d8…` |
+| Archive file | `database/authority_v1/archive/record_capture_result.p0-01i-interrupted.sql` (16,323 bytes, SHA-256 `9a70df46…`) |
+
+### 9.9 Changed Files
+
+| File | Change |
+|---|---|
+| `database/authority_v1/archive/record_capture_result.p0-01i-interrupted.sql` | NEW — forensic archive of drifted live function (315 lines, 16,323 bytes) |
+| `src/docs/AUTHORITY_V1_CANARY_CERTIFICATION.md` | Added §9 (P0-01H recertification), updated manifest label for `capturePayment` (P0-01I NOT STARTED) |
+
+**No code or database edits were made during this recertification.** The canonical rollback restored the live function to match the artifact; no SQL artifacts, shared modules, or entry handlers were modified.
+
+### 9.10 P0-01I Status: NOT STARTED
+
+`capturePayment` canary integration (P0-01I) has **not been started**. No code, tests, or database changes have been made for P0-01I. The `capturePayment` entry point remains excluded from canary eligibility (financial side effect). The P0-01I gate will require:
+- Canary routing in `capturePayment/entry.ts` (before maintenance gate)
+- A capture-canary orchestrator with fake-provider certification
+- Real Stripe test-mode gate for production certification
+
+### 9.11 Manifest Label
+
+P0-01H manifest label: **`P0-01H-RECERTIFIED: canonical parity and financial binding hardening (300/300)`**
+
+- `record_capture_result` live function restored to canonical artifact parity (hash verified).
+- Amount/currency hardening (commit `9a76cfd`) enforces non-USD rejection and amount-bound idempotent conflict detection before any Postgres mutation.
+- All 7 suites pass: 300/300 assertions.
+- 50 backend functions, 29 authority functions, flag OFF, maintenance ON, 0 synthetic rows, 0 real provider calls.
+- Archive preserved: `database/authority_v1/archive/record_capture_result.p0-01i-interrupted.sql`.
+- **P0-01I (capturePayment canary integration) NOT STARTED.**
