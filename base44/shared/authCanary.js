@@ -23,7 +23,15 @@ const CANARY_TAG = '[AUTH_CANARY]';
 const RESERVATION_MINUTES = 10;
 
 export function isCanaryEnabled() {
-  return CANARY_ENABLED === true;
+  if (CANARY_ENABLED === true) return true;
+  // Node-only certification override — inert in Deno (production). Allows the
+  // P0-01J real-Stripe harness to exercise the maybeRouteCanaryCapture seam
+  // end-to-end without altering the production default-OFF flag. Never set
+  // PG_CANARY_CERT_OVERRIDE in a Deno/production environment.
+  if (typeof Deno === 'undefined' && typeof process !== 'undefined' && process.env?.PG_CANARY_CERT_OVERRIDE === 'true') {
+    return true;
+  }
+  return false;
 }
 
 export function isCanaryListing(listing) {

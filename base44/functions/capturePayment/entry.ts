@@ -19,6 +19,7 @@ import { recordTerminalOutcome } from '../../shared/recordOutcome.ts';
 import { getPurchasePrivate } from '../../shared/privateData.ts';
 import { runCapturePayment } from '../../shared/captureOrchestrator.js';
 import { maybeRouteCanaryCapture } from '../../shared/captureCanaryOrchestrator.js';
+import { createStripeCaptureProvider } from '../../shared/stripeCaptureProvider.js';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
@@ -50,28 +51,8 @@ Deno.serve(async (req) => {
   if (listing && purchase) {
     const executorUrl = secrets.get('AUTHORITY_V1_DB_URL_DEV_EXECUTOR');
     const recorderUrl = secrets.get('AUTHORITY_V1_DB_URL_DEV_STRIPE_RECORDER');
-    const secretKey = Deno.env.get('STRIPELIVESECRETKEY');
-    const stripeAdapter = secretKey ? {
-      async capturePaymentIntent(piId: string, idemKey: string) {
-        const stripe = new Stripe(secretKey);
-        try {
-          const pi = await stripe.paymentIntents.retrieve(piId);
-          if (pi.status === 'requires_capture') {
-            try {
-              const captured = await stripe.paymentIntents.capture(piId, { idempotencyKey: idemKey });
-              return { derived: 'succeeded' as const, raw: { status: captured.status, pi_status: pi.status } };
-            } catch (e) {
-              return { derived: 'failed' as const, raw: { error: (e?.message || String(e)).slice(0, 200), pi_status: pi.status } };
-            }
-          }
-          if (pi.status === 'succeeded') return { derived: 'succeeded' as const, raw: { status: 'already_succeeded', pi_status: pi.status } };
-          if (pi.status === 'canceled') return { derived: 'failed' as const, raw: { status: 'already_canceled', pi_status: pi.status } };
-          return { derived: 'unknown' as const, raw: { pi_status: pi.status } };
-        } catch (e) {
-          return { derived: 'unknown' as const, raw: { error: (e?.message || String(e)).slice(0, 200) } };
-        }
-      },
-    } : null;
+    const secretKey = await secrets.get('STRIPE_SECRET_KEY');
+    const stripeAdapter = secretKey ? createStripeCaptureProvider(secretKey) : null;
 
     const canaryResult = await maybeRouteCanaryCapture({
       base44, user, body, listing, purchase,

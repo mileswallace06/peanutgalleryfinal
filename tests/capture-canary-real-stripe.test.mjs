@@ -1,22 +1,32 @@
 /**
  * capture-canary-real-stripe.test.mjs — P0-01J Real Stripe TEST-MODE certification.
  *
- * Certifies the committed capturePayment canary saga (runCanaryCaptureSaga in
- * base44/shared/captureCanaryOrchestrator.js) against the REAL Stripe API in
- * TEST MODE only. Exercises the committed orchestrator path:
- *   executor.begin_capture (real Postgres) → real Stripe capture →
- *   recorder.record_capture_result (real Postgres) → Base44 mirror.
+ * Certifies the DEPLOYED capturePayment canary path against the REAL Stripe API
+ * in TEST MODE only. Exercises the SAME routing seam the handler uses:
+ *   maybeRouteCanaryCapture (base44/shared/captureCanaryOrchestrator.js) — the
+ *   exact function capturePayment/entry.ts calls. No duplicated provider
+ *   logic: the shared production adapter (base44/shared/stripeCaptureProvider.js)
+ *   is imported and executed by both the handler and this harness. The harness
+ *   wraps the adapter in a thin observability proxy (counts + optional
+ *   lost-response throw) but never reimplements retrieve/capture behavior.
+ *
+ * SEAM: maybeRouteCanaryCapture performs the full guard (isCanaryListing,
+ *   canary action, admin, flag, executor/recorder URL) then invokes
+ *   runCanaryCaptureSaga with the shared adapter. The harness injects the same
+ *   executor/recorder clients and purchasePrivate the handler would assemble.
  *
  * SAFETY:
  *   - NEVER uses a live-mode key. The caller (exec_tool sandbox) verifies the
  *     key starts with sk_test_ before invoking runAllTests. This module never
- *     reads process.env and never logs/returns the key.
+ *     reads process.env for the key and never logs/returns it.
  *   - Synthetic IDs only. No real users, listings, purchases, cards, or money.
  *   - All Stripe test PaymentIntents are manual-capture, tagged with
  *     metadata { pg_cert: 'P0-01J', purpose: 'canary_capture_cert' }.
- *   - Flag stays OFF; maintenance stays ON. The saga is invoked directly
- *     (the flag guard is a policy layer, separately proven by the fake-provider
- *     suite). No admin fallback in the saga path.
+ *   - Flag stays OFF in production (CANARY_ENABLED = false). The harness enables
+ *     a Node-only override (PG_CANARY_CERT_OVERRIDE) to exercise the seam
+ *     end-to-end; this override is inert in Deno (production). T0 proves the
+ *     guard returns 503 with the override unset (no bypass).
+ *   - No admin fallback in the saga path. Executor-only authority access.
  *
  * deps = { adminSql, executorUrl, recorderUrl, testKey }
  *   adminSql      — neon(adminUrl) for exact synthetic setup/cleanup only
@@ -24,9 +34,11 @@
  *   recorderUrl   — AUTHORITY_V1_DB_URL_DEV_STRIPE_RECORDER (runtime recorder)
  *   testKey       — verified sk_test_ Stripe key (never logged)
  */
+import Stripe from 'npm:stripe@14.21.0';
 import { createAuthorityV1Client } from '../base44/shared/authorityV1Client.js';
 import { createAuthorityV1StripeRecorderClient } from '../base44/shared/authorityV1StripeRecorderClient.js';
-import { runCanaryCaptureSaga } from '../base44/shared/captureCanaryOrchestrator.js';
+import { maybeRouteCanaryCapture } from '../base44/shared/captureCanaryOrchestrator.js';
+import { createStripeCaptureProvider } from '../base44/shared/stripeCaptureProvider.js';
 import { sha256Hex, canonicalEnvelope } from '../base44/shared/canaryMirror.js';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -38,111 +50,60 @@ const CERT_METADATA = { pg_cert: 'P0-01J', purpose: 'canary_capture_cert' };
 const TEST_AMOUNT_MINOR = 100; // $1.00 USD — test mode, no real money
 const TEST_CURRENCY = 'usd';
 // Stripe prebuilt test PaymentMethod (Visa test card). No raw card data is sent
-// — this account does not have raw-card-data API access, so we use Stripe's
-// designated prebuilt test payment method (pm_card_visa), which Stripe resolves
-// server-side in test mode. This avoids any PCI-sensitive payload entirely.
+// — pm_card_visa is resolved server-side by Stripe in test mode. No PCI payload.
 const TEST_PAYMENT_METHOD = 'pm_card_visa';
 const RETURN_URL = 'https://peanutgallery.base44.app';
 
-// ── Stripe REST helper (no SDK dependency; raw fetch to api.stripe.com) ───────
-// Never logs the key. The key is used only in the Authorization header.
-async function stripeRequest(testKey, method, path, { params, idempotencyKey } = {}) {
-  const url = `https://api.stripe.com/v1/${path}`;
-  const headers = { Authorization: `Bearer ${testKey}` };
-  const init = { method, headers };
-  if (params) {
-    const body = new URLSearchParams();
-    const flatten = (obj, prefix) => {
-      for (const [k, v] of Object.entries(obj)) {
-        const key = prefix ? `${prefix}[${k}]` : k;
-        if (v !== null && typeof v === 'object' && !Array.isArray(v)) flatten(v, key);
-        else if (v !== undefined) body.append(key, String(v));
-      }
-    };
-    flatten(params, '');
-    init.body = body;
-    headers['Content-Type'] = 'application/x-www-form-urlencoded';
-  }
-  if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
-  const res = await fetch(url, init);
-  const json = await res.json();
-  return { status: res.status, json };
-}
-
-// Create a real Stripe TEST-mode manual-capture PaymentIntent in requires_capture.
-// Uses the prebuilt test payment method pm_card_visa (no raw card data, no PCI
-// payload). Returns { id, status: 'requires_capture', livemode: false, amount, currency, ... }.
+// ── Test fixture: create a real Stripe TEST-mode manual-capture PaymentIntent ──
+// This is test SETUP (fixture creation), NOT the capture provider behavior being
+// certified. Uses the Stripe SDK (same package as production). The certified
+// capture behavior lives in the shared stripeCaptureProvider module.
 async function createTestPaymentIntent(testKey, amountMinor, currency) {
-  const piRes = await stripeRequest(testKey, 'POST', 'payment_intents', {
-    params: {
-      amount: amountMinor,
-      currency,
-      capture_method: 'manual',
-      payment_method: TEST_PAYMENT_METHOD,
-      confirm: 'true',
-      return_url: RETURN_URL,
-      automatic_payment_methods: { enabled: 'true', allow_redirects: 'never' },
-      metadata: CERT_METADATA,
-      description: 'PG P0-01J canary capture certification (test mode)',
-    },
+  const stripe = new Stripe(testKey);
+  const pi = await stripe.paymentIntents.create({
+    amount: amountMinor,
+    currency,
+    capture_method: 'manual',
+    payment_method: TEST_PAYMENT_METHOD,
+    confirm: true,
+    return_url: RETURN_URL,
+    automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
+    metadata: CERT_METADATA,
+    description: 'PG P0-01J canary capture certification (test mode)',
   });
-  if (piRes.status !== 200 || !piRes.json?.id) {
-    throw new Error(`PI_CREATE_FAILED: status=${piRes.status} code=${piRes.json?.error?.code || 'n/a'} msg=${(piRes.json?.error?.message || 'n/a').slice(0, 160)}`);
+  if (!pi?.id) {
+    throw new Error('PI_CREATE_FAILED: no id returned');
   }
-  if (piRes.json.status !== 'requires_capture') {
-    throw new Error(`PI_UNEXPECTED_STATUS: ${piRes.json.status} (expected requires_capture)`);
+  if (pi.status !== 'requires_capture') {
+    throw new Error(`PI_UNEXPECTED_STATUS: ${pi.status} (expected requires_capture)`);
   }
-  return piRes.json;
+  return pi;
 }
 
-// ── Real Stripe adapter — mirrors the production adapter in capturePayment/entry.ts ──
-// retrieve → conditionally capture. Tracks capture/retrieve counts and livemode.
-// throwAfterCapture: after a successful real capture, throw to simulate a lost
-//   response (the orchestrator catches → 'unknown' → capture_unknown).
-function makeRealStripeAdapter(testKey, options = {}) {
+// ── Observability proxy (NOT a provider reimplementation) ─────────────────────
+// Delegates capturePaymentIntent to the shared production adapter and records
+// counts/livemode/pi_id for assertions. retrieveCount = calls (each does exactly
+// 1 retrieve per the production logic); captureCount = calls where the retrieved
+// PI was requires_capture (a capture was attempted). throwAfterCapture: after a
+// successful real capture, throw to simulate a lost response (orchestrator →
+// 'unknown' → capture_unknown).
+function wrapWithCounts(realAdapter, options = {}) {
   const state = { captureCount: 0, retrieveCount: 0, lastLivemode: null, lastPiStatus: null, lastPiId: null };
   const throwAfterCapture = options.throwAfterCapture === true;
   return {
     async capturePaymentIntent(piId, idemKey) {
-      // Retrieve first — mirrors production (entry.ts L58).
-      const retRes = await stripeRequest(testKey, 'GET', `payment_intents/${piId}`);
       state.retrieveCount++;
-      const pi = retRes.json;
-      if (retRes.status !== 200 || !pi) {
-        return { derived: 'unknown', raw: { error: `retrieve_failed:${retRes.status}`, pi_status: null } };
+      const result = await realAdapter.capturePaymentIntent(piId, idemKey);
+      if (result?.raw) {
+        if (result.raw.livemode !== undefined) state.lastLivemode = result.raw.livemode;
+        if (result.raw.pi_status !== undefined) state.lastPiStatus = result.raw.pi_status;
+        if (result.raw.pi_id !== undefined) state.lastPiId = result.raw.pi_id;
+        if (result.raw.pi_status === 'requires_capture') state.captureCount++;
       }
-      state.lastLivemode = pi.livemode;
-      state.lastPiStatus = pi.status;
-      state.lastPiId = pi.id;
-
-      if (pi.status === 'requires_capture') {
-        const capRes = await stripeRequest(testKey, 'POST', `payment_intents/${piId}/capture`, {
-          idempotencyKey: idemKey,
-        });
-        state.captureCount++;
-        const cap = capRes.json || {};
-        if (capRes.status >= 200 && capRes.status < 300 && cap.status === 'succeeded') {
-          if (throwAfterCapture) {
-            // Real capture already succeeded on Stripe; simulate lost response.
-            throw new Error('SIMULATED_LOST_RESPONSE');
-          }
-          return {
-            derived: 'succeeded',
-            raw: { status: cap.status, pi_status: pi.status, livemode: cap.livemode, amount: cap.amount, currency: cap.currency, pi_id: pi.id },
-          };
-        }
-        return {
-          derived: 'failed',
-          raw: { error: (cap.error?.message || cap.status || 'capture_failed').slice(0, 200), pi_status: pi.status, livemode: cap.livemode },
-        };
+      if (throwAfterCapture && result?.derived === 'succeeded' && result?.raw?.pi_status === 'requires_capture') {
+        throw new Error('SIMULATED_LOST_RESPONSE');
       }
-      if (pi.status === 'succeeded') {
-        return { derived: 'succeeded', raw: { status: 'already_succeeded', pi_status: pi.status, livemode: pi.livemode, amount: pi.amount, currency: pi.currency, pi_id: pi.id } };
-      }
-      if (pi.status === 'canceled') {
-        return { derived: 'failed', raw: { status: 'already_canceled', pi_status: pi.status, livemode: pi.livemode } };
-      }
-      return { derived: 'unknown', raw: { pi_status: pi.status, livemode: pi.livemode } };
+      return result;
     },
     _counts: () => ({ ...state }),
   };
@@ -153,6 +114,7 @@ function makeMockEntities() {
   const store = {
     listings: new Map(),
     listingPrivates: new Map(),
+    purchasePrivates: new Map(),
     outbox: new Map(),
   };
   return {
@@ -173,6 +135,11 @@ function makeMockEntities() {
         Object.assign(lp, data);
       },
     },
+    PurchasePrivate: {
+      async filter(q) {
+        return [...store.purchasePrivates.values()].filter(pp => pp.purchase_id === q.purchase_id);
+      },
+    },
     CanaryMirrorOutbox: {
       async create(data) {
         const id = `outbox_${genId()}`;
@@ -182,6 +149,10 @@ function makeMockEntities() {
     },
     _store: store,
   };
+}
+
+function makeMockBase44(entities) {
+  return { asServiceRole: { entities } };
 }
 
 // ── Authority setup (exact synthetic IDs; admin SQL for setup only) ──────────
@@ -228,10 +199,6 @@ async function getIncident(adminSql, lid) {
   const rows = await adminSql`SELECT incident_type, resolved FROM authority_v1.operational_incidents WHERE incident_key = ${'capture_unknown:' + lid}`;
   return rows[0] || null;
 }
-async function getOutboxCount(adminSql, lid) {
-  const rows = await adminSql`SELECT count(*)::int c FROM authority_v1.reservation_outbox WHERE listing_id = ${lid}`;
-  return Number(rows[0]?.c || 0);
-}
 async function getOpCount(adminSql, lid) {
   const rows = await adminSql`SELECT count(*)::int c FROM authority_v1.reservation_operations WHERE listing_id = ${lid}`;
   return Number(rows[0]?.c || 0);
@@ -258,6 +225,30 @@ async function truncateAll(adminSql) {
   await adminSql`TRUNCATE authority_v1.reservation_outbox, authority_v1.reservation_payment_bindings, authority_v1.payment_actions, authority_v1.stripe_webhook_events, authority_v1.operational_incidents, authority_v1.reservation_operations, authority_v1.reservation_authority RESTART IDENTITY CASCADE`;
 }
 
+// ── Seam invocation — the exact routing function capturePayment/entry.ts calls ──
+// Assembles the same deps the handler passes to maybeRouteCanaryCapture and
+// returns { result, entities } so callers can inspect the mock mirror store.
+async function runSeam(opts) {
+  const { executorUrl, recorderUrl, executorClient, recorderClient, lid, pid, pi, buyerId, revision, adapter, body } = opts;
+  const entities = makeMockEntities();
+  entities._store.listings.set(lid, { id: lid, notes: '[AUTH_CANARY]', event_id: 'evt_cert' });
+  entities._store.listingPrivates.set(`lp_${lid}`, { id: `lp_${lid}`, listing_id: lid });
+  entities._store.purchasePrivates.set(`pp_${pid}`, { id: `pp_${pid}`, purchase_id: pid, payment_intent_id: pi.id, buyer_email: buyerId, reservation_revision: revision });
+  const base44 = makeMockBase44(entities);
+  const result = await maybeRouteCanaryCapture({
+    base44,
+    user: { id: buyerId, email: 'cert@example.com', role: 'admin' },
+    body: { canary: true, purchase_id: pid, ...body },
+    listing: { id: lid, notes: '[AUTH_CANARY]' },
+    purchase: { id: pid, listing_id: lid, payment_intent_id: pi.id, buyer_email: buyerId, reservation_token: revision },
+    purchasePrivate: { purchase_id: pid, payment_intent_id: pi.id, buyer_email: buyerId, reservation_revision: revision },
+    executorUrl, recorderUrl,
+    stripeAdapter: adapter,
+    executorClient, recorderClient,
+  });
+  return { result, entities };
+}
+
 // ── Test runner ──────────────────────────────────────────────────────────────
 export async function runAllTests(deps) {
   const { adminSql, executorUrl, recorderUrl, testKey } = deps;
@@ -272,6 +263,26 @@ export async function runAllTests(deps) {
     else { failed++; failures.push(msg); }
   }
 
+  // ── T0: Flag-OFF guard — seam returns 503 CANARY_DISABLED (no bypass) ──
+  {
+    delete process.env.PG_CANARY_CERT_OVERRIDE;
+    const guardResult = await maybeRouteCanaryCapture({
+      base44: makeMockBase44(makeMockEntities()),
+      user: { id: 'guard', email: 'guard@example.com', role: 'admin' },
+      body: { canary: true, purchase_id: 'guard_p' },
+      listing: { id: 'guard_l', notes: '[AUTH_CANARY]' },
+      purchase: { id: 'guard_p', listing_id: 'guard_l', payment_intent_id: 'pi_guard', buyer_email: 'b_guard', reservation_token: 'r_guard' },
+      purchasePrivate: { purchase_id: 'guard_p', payment_intent_id: 'pi_guard', buyer_email: 'b_guard', reservation_revision: 'r_guard' },
+      executorUrl, recorderUrl,
+      stripeAdapter: { async capturePaymentIntent() { throw new Error('provider must not be called with flag OFF'); } },
+      executorClient, recorderClient,
+    });
+    assert(guardResult?.status === 503, `T0: flag-OFF guard returns 503 (got ${guardResult?.status})`);
+    assert(guardResult?.body?.code === 'CANARY_DISABLED', `T0: CANARY_DISABLED (got ${guardResult?.body?.code})`);
+    // Enable the Node-only override for the real scenarios
+    process.env.PG_CANARY_CERT_OVERRIDE = 'true';
+  }
+
   // ── T1: Successful capture → exactly one real Stripe capture, sale committed once ──
   {
     const lid = `cert_real_t1_${genId()}`;
@@ -282,16 +293,8 @@ export async function runAllTests(deps) {
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     const { revision } = await setupReservedListingWithBinding(adminSql, lid, sellerId, buyerId, token, expiresAt, pid, pi.id);
 
-    const entities = makeMockEntities();
-    entities._store.listings.set(lid, { id: lid, notes: '[AUTH_CANARY]', event_id: 'evt_cert' });
-    entities._store.listingPrivates.set(`lp_${lid}`, { id: `lp_${lid}`, listing_id: lid });
-    const adapter = makeRealStripeAdapter(testKey);
-
-    const result = await runCanaryCaptureSaga({
-      entities, user: { id: buyerId, email: 'cert@example.com', role: 'admin' },
-      executorClient, recorderClient, stripeAdapter: adapter,
-      params: { listing_id: lid, purchase_id: pid, payment_intent_id: pi.id, buyer_user_id: buyerId, expected_revision: revision },
-    });
+    const adapter = wrapWithCounts(createStripeCaptureProvider(testKey));
+    const { result } = await runSeam({ executorUrl, recorderUrl, executorClient, recorderClient, lid, pid, pi, buyerId, revision, adapter });
 
     const auth = await getAuthority(adminSql, lid);
     const binding = await getBinding(adminSql, pid);
@@ -322,20 +325,12 @@ export async function runAllTests(deps) {
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     const { revision } = await setupReservedListingWithBinding(adminSql, lid, sellerId, buyerId, token, expiresAt, pid, pi.id);
 
-    const entities = makeMockEntities();
-    entities._store.listings.set(lid, { id: lid, notes: '[AUTH_CANARY]', event_id: 'evt_cert' });
-    entities._store.listingPrivates.set(`lp_${lid}`, { id: `lp_${lid}`, listing_id: lid });
-    const adapter = makeRealStripeAdapter(testKey);
+    const adapter = wrapWithCounts(createStripeCaptureProvider(testKey));
+    const seamOpts = { executorUrl, recorderUrl, executorClient, recorderClient, lid, pid, pi, buyerId, revision, adapter };
 
-    const sagaDeps = {
-      entities, user: { id: buyerId, email: 'cert@example.com', role: 'admin' },
-      executorClient, recorderClient, stripeAdapter: adapter,
-      params: { listing_id: lid, purchase_id: pid, payment_intent_id: pi.id, buyer_user_id: buyerId, expected_revision: revision },
-    };
-
-    const r1 = await runCanaryCaptureSaga(sagaDeps);
+    const { result: r1 } = await runSeam(seamOpts);
     const opsAfterFirst = await getOpCount(adminSql, lid);
-    const r2 = await runCanaryCaptureSaga(sagaDeps); // identical replay
+    const { result: r2 } = await runSeam(seamOpts); // identical replay
     const opsAfterSecond = await getOpCount(adminSql, lid);
     const auth = await getAuthority(adminSql, lid);
     const counts = adapter._counts();
@@ -361,16 +356,9 @@ export async function runAllTests(deps) {
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     const { revision } = await setupReservedListingWithBinding(adminSql, lid, sellerId, buyerId, token, expiresAt, pid, pi.id);
 
-    // First attempt: real capture succeeds on Stripe, then adapter throws (lost response).
-    const entities1 = makeMockEntities();
-    entities1._store.listings.set(lid, { id: lid, notes: '[AUTH_CANARY]', event_id: 'evt_cert' });
-    entities1._store.listingPrivates.set(`lp_${lid}`, { id: `lp_${lid}`, listing_id: lid });
-    const adapter1 = makeRealStripeAdapter(testKey, { throwAfterCapture: true });
-    const r1 = await runCanaryCaptureSaga({
-      entities: entities1, user: { id: buyerId, email: 'cert@example.com', role: 'admin' },
-      executorClient, recorderClient, stripeAdapter: adapter1,
-      params: { listing_id: lid, purchase_id: pid, payment_intent_id: pi.id, buyer_user_id: buyerId, expected_revision: revision },
-    });
+    // First attempt: real capture succeeds on Stripe, then proxy throws (lost response).
+    const adapter1 = wrapWithCounts(createStripeCaptureProvider(testKey), { throwAfterCapture: true });
+    const { result: r1 } = await runSeam({ executorUrl, recorderUrl, executorClient, recorderClient, lid, pid, pi, buyerId, revision, adapter: adapter1 });
     const authAfterUnknown = await getAuthority(adminSql, lid);
     const bindingAfterUnknown = await getBinding(adminSql, pid);
     const incidentAfterUnknown = await getIncident(adminSql, lid);
@@ -384,15 +372,8 @@ export async function runAllTests(deps) {
     assert(incidentAfterUnknown?.incident_type === 'capture_unknown' && incidentAfterUnknown?.resolved === false, 'T3: incident open');
 
     // Reconcile: retrieve Stripe's actual state (succeeded) WITHOUT recapturing.
-    const entities2 = makeMockEntities();
-    entities2._store.listings.set(lid, { id: lid, notes: '[AUTH_CANARY]', event_id: 'evt_cert' });
-    entities2._store.listingPrivates.set(`lp_${lid}`, { id: `lp_${lid}`, listing_id: lid });
-    const adapter2 = makeRealStripeAdapter(testKey);
-    const r2 = await runCanaryCaptureSaga({
-      entities: entities2, user: { id: buyerId, email: 'cert@example.com', role: 'admin' },
-      executorClient, recorderClient, stripeAdapter: adapter2,
-      params: { listing_id: lid, purchase_id: pid, payment_intent_id: pi.id, buyer_user_id: buyerId, expected_revision: revision, action_id: actionId },
-    });
+    const adapter2 = wrapWithCounts(createStripeCaptureProvider(testKey));
+    const { result: r2 } = await runSeam({ executorUrl, recorderUrl, executorClient, recorderClient, lid, pid, pi, buyerId, revision, adapter: adapter2, body: { action_id: actionId } });
     const authAfterRecon = await getAuthority(adminSql, lid);
     const bindingAfterRecon = await getBinding(adminSql, pid);
     const incidentAfterRecon = await getIncident(adminSql, lid);
@@ -419,16 +400,8 @@ export async function runAllTests(deps) {
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     const { revision } = await setupReservedListingWithBinding(adminSql, lid, sellerId, buyerId, token, expiresAt, pid, pi.id);
 
-    const entities = makeMockEntities();
-    entities._store.listings.set(lid, { id: lid, notes: '[AUTH_CANARY]', event_id: 'evt_cert' });
-    entities._store.listingPrivates.set(`lp_${lid}`, { id: `lp_${lid}`, listing_id: lid });
-    const adapter = makeRealStripeAdapter(testKey);
-
-    const result = await runCanaryCaptureSaga({
-      entities, user: { id: buyerId, email: 'cert@example.com', role: 'admin' },
-      executorClient, recorderClient, stripeAdapter: adapter,
-      params: { listing_id: lid, purchase_id: pid, payment_intent_id: pi.id, buyer_user_id: buyerId, expected_revision: revision },
-    });
+    const adapter = wrapWithCounts(createStripeCaptureProvider(testKey));
+    const { result } = await runSeam({ executorUrl, recorderUrl, executorClient, recorderClient, lid, pid, pi, buyerId, revision, adapter });
     const auth = await getAuthority(adminSql, lid);
     const action = await getAction(adminSql, result.body?.action_id);
     const counts = adapter._counts();
@@ -438,7 +411,6 @@ export async function runAllTests(deps) {
     assert(pi.amount === TEST_AMOUNT_MINOR, 'T4: amount bound');
     assert(pi.currency === TEST_CURRENCY, 'T4: currency bound');
     assert(counts.lastPiId === pi.id, 'T4: PI identity bound across calls');
-    assert(result.body?.payment_intent_id === undefined || true, 'T4: saga used the provided PI id');
     assert(auth?.version >= 2, `T4: authority version progressed (got ${auth?.version})`);
     assert(action?.stripe_idempotency_key === result.body?.stripe_idempotency_key, 'T4: idem key bound in action');
     assert(result.body?.stripe_idempotency_key === `idem_capture_${result.body?.action_id}`, 'T4: idem key = idem_capture_<actionId>');
@@ -456,26 +428,17 @@ export async function runAllTests(deps) {
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     const { revision } = await setupReservedListingWithBinding(adminSql, lid, sellerId, buyerId, token, expiresAt, pid, pi.id);
 
-    const entities = makeMockEntities();
-    entities._store.listings.set(lid, { id: lid, notes: '[AUTH_CANARY]', event_id: 'evt_cert' });
-    entities._store.listingPrivates.set(`lp_${lid}`, { id: `lp_${lid}`, listing_id: lid });
-    const adapter = makeRealStripeAdapter(testKey);
-
-    const result = await runCanaryCaptureSaga({
-      entities, user: { id: buyerId, email: 'cert@example.com', role: 'admin' },
-      executorClient, recorderClient, stripeAdapter: adapter,
-      params: { listing_id: lid, purchase_id: pid, payment_intent_id: pi.id, buyer_user_id: buyerId, expected_revision: revision, simulate_mirror_failure: true },
-    });
+    const adapter = wrapWithCounts(createStripeCaptureProvider(testKey));
+    const { result, entities } = await runSeam({ executorUrl, recorderUrl, executorClient, recorderClient, lid, pid, pi, buyerId, revision, adapter, body: { simulate_mirror_failure: true } });
     const auth = await getAuthority(adminSql, lid);
     const binding = await getBinding(adminSql, pid);
-    const outboxCount = entities._store.outbox.size;
     const counts = adapter._counts();
 
     assert(result.status === 200 && result.body?.captured === true && result.body?.finalized === true, 'T5: captured+finalized');
     assert(counts.captureCount === 1, 'T5: 1 real capture');
     assert(auth?.lifecycle_state === 'sold', `T5: authority sold despite mirror failure (got ${auth?.lifecycle_state})`);
     assert(binding?.capture_state === 'finalized', 'T5: binding finalized despite mirror failure');
-    assert(outboxCount >= 1, `T5: outbox created (got ${outboxCount})`);
+    assert(entities._store.outbox.size >= 1, `T5: outbox created (got ${entities._store.outbox.size})`);
     assert(result.body?.mirror?.outbox_id !== null, 'T5: mirror outbox_id set');
 
     await cleanupListing(adminSql, lid);
@@ -487,7 +450,7 @@ export async function runAllTests(deps) {
     const counts = await countAll(adminSql);
     const allClean = Object.values(counts).every(c => c === 0);
     assert(allClean, `T6: all 7 tables empty (got ${JSON.stringify(counts)})`);
-    // Stripe test objects may remain with certification metadata — report sanitized IDs.
+    delete process.env.PG_CANARY_CERT_OVERRIDE;
     const sanitized = stripeObjects.map(o => ({ id: o.id, scenario: o.scenario, livemode: o.livemode, final_status: o.status }));
     return {
       passed, failed, failures: failures.slice(0, 10),
