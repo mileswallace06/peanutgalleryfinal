@@ -225,17 +225,22 @@ export async function runAllTests(deps) {
       op: 'record_capture', action_id: ctx.actionId, result: 'succeeded',
     }));
 
+    // P0-01I: record_capture_result may return a structured BINDING_STATE_MISMATCH
+    // result (no exception) OR raise an exception (injected failure). Either is
+    // acceptable as long as no state mutated.
     let threw = false;
+    let structuredResult = null;
     try {
-      await recordCapture(ctx.actionId, 'succeeded', { status: 'succeeded' }, opId, requestHash);
+      structuredResult = await recordCapture(ctx.actionId, 'succeeded', { status: 'succeeded' }, opId, requestHash);
     } catch (e) {
       threw = true;
     }
-    assert(threw === true, 'T2: exception raised on binding count mismatch');
+    assert(threw === true || (structuredResult?.ok === false && structuredResult?.code === 'BINDING_STATE_MISMATCH'),
+      `T2: exception or BINDING_STATE_MISMATCH (got threw=${threw}, result=${JSON.stringify(structuredResult)})`);
 
-    // Action status should be rolled back to 'pending' (not 'succeeded')
+    // Action status should be unchanged: 'pending' (not 'succeeded')
     const action = await getAction(ctx.actionId);
-    assert(action?.status === 'pending', `T2: action rolled back to pending (got ${action?.status})`);
+    assert(action?.status === 'pending', `T2: action unchanged/pending (got ${action?.status})`);
 
     // Authority should still be 'frozen' (not 'sold')
     const auth = await getAuthority(ctx.listingId);

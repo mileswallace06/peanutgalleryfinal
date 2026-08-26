@@ -1,7 +1,7 @@
 # authority_v1 Reserve/Release Canary — Certification Manifest
 
-**Date:** 2026-08-21 (last recertified 2026-08-26 — P0-01H-RECERTIFIED)
-**Status:** ✅ CERTIFIED — Flag OFF, maintenance ON, zero synthetic rows, 300/300 tests pass, canonical parity verified
+**Date:** 2026-08-21 (last recertified 2026-08-26 — P0-01I-CERTIFIED)
+**Status:** ✅ CERTIFIED — Flag OFF, maintenance ON, zero synthetic rows, 312/312 tests pass, canonical parity verified
 
 ---
 
@@ -20,7 +20,7 @@
 |---|---|
 | `abortCheckout` | **Excluded — financial + no eligible non-financial release.** Cancels Stripe PI (entry.ts L80-88: `stripe.paymentIntents.cancel`). Reservation release at L119-133 is embedded in the same handler that cancels the PI — cannot be separated without splitting the financial operation. No canary guard in `canaryGuard.js`. |
 | `cleanupAbandonedCheckouts` | **Excluded — financial + no reservation release performed.** Phase 1 cancels Stripe PIs (cleanupOrchestrator.js L166: `stripe.paymentIntents.cancel`). Phase 2 recovery explicitly does NOT clear reservation fields — `Listing.update({ status: 'active', hidden_reason: null })` only (L423); post-verify requires `reservation_token === null` (L448). No reservation release exists in this function to route. |
-| `capturePayment` | Captures Stripe payment — financial side effect |
+| `capturePayment` | **CANARY-WIRED / FAKE-PROVIDER CERTIFIED / REAL STRIPE NOT CERTIFIED / FLAG OFF** — See §10 below |
 
 ---
 
@@ -33,12 +33,14 @@
 | `base44/shared/canaryMirror.js` | Mirror sync + durable outbox on failure |
 | `base44/shared/canaryMirrorRepair.js` | Non-deployable repair logic (called by `reconcilePurchaseOutcomes`) |
 | `base44/shared/canaryScheduledRelease.js` | System-initiated release with active-purchase + malformed-data protection |
+| `base44/shared/captureCanaryOrchestrator.js` | P0-01I: Capture saga orchestrator (begin_capture → Stripe → record_capture_result) with retry/reconciliation branching |
 
 **Test files (executable module proofs — not deployed):**
 | Test File | Purpose |
 |---|---|
 | `tests/canary-scheduled-release-protections.test.mjs` | Fail-closed protections: active-purchase, throw, reject, malformed (7/7 pass) |
 | `tests/process-transfer-reminders-wiring.test.mjs` | AST wiring proof: entry.ts → canaryScheduledRelease (5/5 pass) |
+| `tests/capture-canary-orchestrator.test.mjs` | P0-01I: Capture saga success/failure/unknown-recovery, replay, concurrency, mirror failure, isolation (12/12 pass) |
 | `tests/loaders/npm-compat-*.mjs` | Node.js ESM loader hook for Deno `npm:` specifiers in test imports |
 
 **No new backend functions created.** Function count: 50 (unchanged).
@@ -138,7 +140,7 @@ Execution method: `tests/payment-saga-cancel.test.mjs` refactored as importable 
 | `reconcilePurchaseOutcomes` | UNCHANGED (P0-01E certified) | Outbox repair |
 | `abortCheckout` | **CANARY-WIRED / FAKE-PROVIDER CERTIFIED / REAL STRIPE NOT CERTIFIED / FLAG OFF** | See §8 below |
 | `cleanupAbandonedCheckouts` | UNCHANGED (excluded) | No reservation release to route |
-| `capturePayment` | **NOT STARTED (P0-01I)** | Financial side effect — canary integration not yet begun |
+| `capturePayment` | **CANARY-WIRED / FAKE-PROVIDER CERTIFIED / REAL STRIPE NOT CERTIFIED / FLAG OFF** | See §10 below |
 | `stripeWebhook` | UNCHANGED | No authority_v1 integration |
 | `confirmCheckoutAuthorized` | UNCHANGED | No authority_v1 integration |
 | `cancelPurchase` | UNCHANGED | No authority_v1 integration |
