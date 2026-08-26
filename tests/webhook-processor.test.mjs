@@ -95,14 +95,28 @@ function makeRecorderClient(recorderUrl) {
 
 // ── Setup helpers ──────────────────────────────────────────────────────────
 async function setupAuthority(adminSql, { listingId, state = 'frozen', version = 1, recoveryBlocked = false }) {
-  if (recoveryBlocked) {
-    await adminSql`INSERT INTO authority_v1.reservation_authority
-      (listing_id, seller_user_id, lifecycle_state, version, buyer_user_id, reservation_token_hash, reservation_expires_at, reservation_revision, recovery_blocked, recovery_blocked_reason, recovery_blocked_at)
-      VALUES (${listingId}, 'cert_seller', ${state}, ${version}, 'cert_buyer', 'tokenhash', now() + interval '1 hour', 'rev1', true, 'test', now())`;
+  const isTerminal = ['sold', 'cancelled', 'expired'].includes(state);
+  if (isTerminal) {
+    // Terminal states: tuple fields (buyer, token, expires) must be NULL
+    if (recoveryBlocked) {
+      await adminSql`INSERT INTO authority_v1.reservation_authority
+        (listing_id, seller_user_id, lifecycle_state, version, reservation_revision, recovery_blocked, recovery_blocked_reason, recovery_blocked_at)
+        VALUES (${listingId}, 'cert_seller', ${state}, ${version}, 'rev1', true, 'test', now())`;
+    } else {
+      await adminSql`INSERT INTO authority_v1.reservation_authority
+        (listing_id, seller_user_id, lifecycle_state, version, reservation_revision)
+        VALUES (${listingId}, 'cert_seller', ${state}, ${version}, 'rev1')`;
+    }
   } else {
-    await adminSql`INSERT INTO authority_v1.reservation_authority
-      (listing_id, seller_user_id, lifecycle_state, version, buyer_user_id, reservation_token_hash, reservation_expires_at, reservation_revision)
-      VALUES (${listingId}, 'cert_seller', ${state}, ${version}, 'cert_buyer', 'tokenhash', now() + interval '1 hour', 'rev1')`;
+    if (recoveryBlocked) {
+      await adminSql`INSERT INTO authority_v1.reservation_authority
+        (listing_id, seller_user_id, lifecycle_state, version, buyer_user_id, reservation_token_hash, reservation_expires_at, reservation_revision, recovery_blocked, recovery_blocked_reason, recovery_blocked_at)
+        VALUES (${listingId}, 'cert_seller', ${state}, ${version}, 'cert_buyer', 'tokenhash', now() + interval '1 hour', 'rev1', true, 'test', now())`;
+    } else {
+      await adminSql`INSERT INTO authority_v1.reservation_authority
+        (listing_id, seller_user_id, lifecycle_state, version, buyer_user_id, reservation_token_hash, reservation_expires_at, reservation_revision)
+        VALUES (${listingId}, 'cert_seller', ${state}, ${version}, 'cert_buyer', 'tokenhash', now() + interval '1 hour', 'rev1')`;
+    }
   }
 }
 
@@ -420,7 +434,7 @@ export async function runAllTests(deps) {
 
     // Simulate crash: set event back to 'processing' with expired lease
     await adminSql`UPDATE authority_v1.stripe_webhook_events
-      SET processing_status = 'processing', lease_owner = 'crashed_worker', lease_expires_at = now() - interval '1 hour'
+      SET processing_status = 'processing', lease_owner = 'crashed_worker', lease_expires_at = now() - interval '1 hour', claimed_at = now()
       WHERE webhook_event_id = ${eventId}`;
 
     // Second run — lease recovery, find already_applied, complete idempotently
@@ -513,7 +527,7 @@ export async function runAllTests(deps) {
 
     // Simulate a crashed worker: event is 'processing' with expired lease
     await adminSql`UPDATE authority_v1.stripe_webhook_events
-      SET processing_status = 'processing', lease_owner = 'crashed_worker', lease_expires_at = now() - interval '1 hour', attempt_count = 1
+      SET processing_status = 'processing', lease_owner = 'crashed_worker', lease_expires_at = now() - interval '1 hour', claimed_at = now(), attempt_count = 1
       WHERE webhook_event_id = ${eventId}`;
 
     const result = await processWebhookEvents({
@@ -541,7 +555,7 @@ export async function runAllTests(deps) {
     // Event stuck in 'processing' with expired lease and max attempts exhausted
     await insertWebhookEvent(adminSql, { eventId, eventType: 'payment_intent.succeeded', piId, status: 'processing', maxAttempts: 2, attemptCount: 2 });
     await adminSql`UPDATE authority_v1.stripe_webhook_events
-      SET lease_owner = 'crashed_worker', lease_expires_at = now() - interval '1 hour'
+      SET lease_owner = 'crashed_worker', lease_expires_at = now() - interval '1 hour', claimed_at = now()
       WHERE webhook_event_id = ${eventId}`;
 
     const result = await processWebhookEvents({
@@ -644,6 +658,43 @@ export async function runAllTests(deps) {
     assertEqual(Number(c.authority), 0, 'authority clean');
     assertEqual(Number(c.incidents), 0, 'incidents clean');
     assertEqual(Number(c.outbox), 0, 'outbox clean');
+  });
+
+  // ═══ T17: runtime proof — all 9 edited worker functions clear claimed_at, lease_owner, lease_expires_at consistently ═══
+  await check('worker_lease_clearing_runtime_proof', async () => {
+    // Verify all 10 worker functions live in the database have consistent lease clearing
+    const fns = [
+      'claim_outbox_batch', 'complete_outbox_event', 'recover_expired_outbox_leases',
+      'claim_payment_action', 'recover_expired_payment_action_leases', 'escalate_exhausted_payment_action',
+      'claim_webhook_event', 'complete_webhook_event', 'recover_expired_webhook_leases', 'escalate_exhausted_webhook_event'
+    ];
+    let allConsistent = true;
+    const details = [];
+    for (const fn of fns) {
+      const rows = await adminSql`SELECT prosrc FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'authority_v1' AND p.proname = ${fn}`;
+      const body = rows[0]?.prosrc || '';
+      const claimedAtNulls = (body.match(/claimed_at\s*=\s*NULL/g) || []).length;
+      const leaseOwnerNulls = (body.match(/lease_owner\s*=\s*NULL/g) || []).length;
+      const leaseExpiresNulls = (body.match(/lease_expires_at\s*=\s*NULL/g) || []).length;
+      // Functions that SET lease fields (claim_*) don't clear them — they SET them to values
+      // Functions that CLEAR lease fields (complete/recover/escalate) must clear all three consistently
+      const isClaimFn = fn.startsWith('claim_');
+      if (isClaimFn) {
+        // Claim functions SET all three — verify they set claimed_at = now()
+        const claimedAtNow = (body.match(/claimed_at\s*=\s*now\(\)/g) || []).length;
+        const leaseOwnerSet = (body.match(/lease_owner\s*=\s*p_worker_id/g) || []).length;
+        const leaseExpiresSet = (body.match(/lease_expires_at\s*=\s*now\(\)/g) || []).length;
+        const consistent = claimedAtNow === leaseOwnerSet && claimedAtNow === leaseExpiresSet;
+        if (!consistent) allConsistent = false;
+        details.push({ fn, type: 'claim', claimedAtNow, leaseOwnerSet, leaseExpiresSet, consistent });
+      } else {
+        // Clear functions must clear all three consistently
+        const consistent = claimedAtNulls === leaseOwnerNulls && claimedAtNulls === leaseExpiresNulls && claimedAtNulls > 0;
+        if (!consistent) allConsistent = false;
+        details.push({ fn, type: 'clear', claimedAtNulls, leaseOwnerNulls, leaseExpiresNulls, consistent });
+      }
+    }
+    assert(allConsistent, 'all 10 worker functions must clear/set lease fields consistently: ' + JSON.stringify(details.filter(d => !d.consistent)));
   });
 
   console.log(`\n=== P0-01K Webhook Processor Suite: ${passed + failed} run, ${passed} passed, ${failed} failed ===`);

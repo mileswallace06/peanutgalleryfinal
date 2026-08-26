@@ -1486,13 +1486,27 @@ BEGIN
 END;
 $$;
 
--- ── 14. record_refund_result — SINGLE Completion Path ──────────────────────
+-- ── 14. record_refund_result — SINGLE Completion Path + Reconciliation ──────
 -- Succeeded: binding → refunded. Authority stays in current state (sold or
---   frozen). Persist result.
+--   frozen). Clear recovery_blocked on recon. Persist result.
 -- Failed: binding → refund_failed (unsettled — preserves captured/finalized
 --   obligation). Authority stays + recovery_blocked. Incident. Persist.
--- Unknown: binding → refund_unknown, authority frozen + recovery_blocked.
+-- Unknown (first): binding → refund_unknown, authority frozen + recovery_blocked.
 --   Incident. Persist.
+-- Unknown (recon): no state change — stays refund_unknown, frozen,
+--   recovery_blocked. Idempotent no-op. Persist operation only.
+--
+-- RECONCILIATION: When the action is already in 'unknown' status (from a prior
+--   timeout), a later trusted webhook or reconciliation can resolve it:
+--     refund_unknown ──recon(succeeded)──→ refunded (clear recovery_blocked,
+--       resolve incident)
+--     refund_unknown ──recon(failed)──→ refund_failed (stay blocked,
+--       resolve refund_unknown + create refund_failed incident)
+--     refund_unknown ──recon(unknown)──→ stays refund_unknown (no-op)
+--
+-- IDEMPOTENT REPLAY FIRST: The operation_id is acquired BEFORE the action
+-- status check, so a duplicate call with the same operation_id + request_hash
+-- returns the stored result even after the action is already completed.
 CREATE OR REPLACE FUNCTION authority_v1.record_refund_result(
   p_action_id TEXT,
   p_result_derived TEXT,
@@ -1511,8 +1525,10 @@ DECLARE
   v_authority reservation_authority%ROWTYPE;
   v_updated_count INTEGER;
   v_result_json TEXT;
+  v_is_reconciliation BOOLEAN;
+  v_expected_binding_state TEXT;
 BEGIN
-  -- Action-not-found handled BEFORE acquiring operation
+  -- Step 1: Look up the action for listing_id (needed for acquire_operation).
   SELECT * INTO v_action FROM payment_actions WHERE action_id = p_action_id FOR UPDATE;
   IF NOT FOUND THEN
     RETURN jsonb_build_object('ok', false, 'code', 'ACTION_NOT_FOUND', 'action_id', p_action_id);
@@ -1521,20 +1537,8 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'code', 'ACTION_TYPE_MISMATCH',
       'expected', 'refund', 'got', v_action.action_type);
   END IF;
-  IF v_action.status NOT IN ('pending','in_flight') THEN
-    RETURN jsonb_build_object('ok', false, 'code', 'ACTION_STATUS_INVALID',
-      'expected', 'pending or in_flight', 'got', v_action.status);
-  END IF;
 
-  -- Verify lease ownership (worker path only)
-  IF p_worker_id IS NOT NULL THEN
-    IF v_action.lease_owner IS NULL OR v_action.lease_owner != p_worker_id
-       OR v_action.lease_expires_at IS NULL OR v_action.lease_expires_at < now() THEN
-      RETURN jsonb_build_object('ok', false, 'code', 'LEASE_NOT_HELD',
-        'action_id', p_action_id, 'worker_id', p_worker_id);
-    END IF;
-  END IF;
-
+  -- Step 2: Acquire operation BEFORE checking action status (idempotent replay).
   SELECT * INTO v_acquired, v_op_status, v_replay, v_stored_hash FROM acquire_operation(
     p_server_operation_id, 'listing', v_action.listing_id, v_action.listing_id,
     'record_refund', 'frozen', 0, p_request_hash);
@@ -1543,18 +1547,45 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'code', v_op_status);
   END IF;
 
-  -- Load and lock binding
+  -- Step 3: Verify action is in an allowed prior status.
+  -- 'pending'/'in_flight' = first observation; 'unknown' = reconciliation.
+  IF v_action.status NOT IN ('pending','in_flight','unknown') THEN
+    RETURN jsonb_build_object('ok', false, 'code', 'ACTION_STATUS_INVALID',
+      'expected', 'pending, in_flight, or unknown', 'got', v_action.status);
+  END IF;
+
+  -- Determine if this is a reconciliation (action was already 'unknown')
+  v_is_reconciliation := (v_action.status = 'unknown');
+  IF v_is_reconciliation THEN
+    v_expected_binding_state := 'refund_unknown';
+  ELSE
+    v_expected_binding_state := 'refund_requested';
+  END IF;
+
+  -- Step 4: Verify lease ownership (worker path only)
+  IF p_worker_id IS NOT NULL THEN
+    IF v_action.lease_owner IS NULL OR v_action.lease_owner != p_worker_id
+       OR v_action.lease_expires_at IS NULL OR v_action.lease_expires_at < now() THEN
+      RETURN jsonb_build_object('ok', false, 'code', 'LEASE_NOT_HELD',
+        'action_id', p_action_id, 'worker_id', p_worker_id);
+    END IF;
+  END IF;
+
+  -- Load and lock binding — must be in expected state for the action status
   SELECT * INTO v_binding FROM reservation_payment_bindings
   WHERE purchase_id = v_action.purchase_id
     AND listing_id = v_action.listing_id
     AND payment_intent_id = v_action.payment_intent_id
+    AND capture_state = v_expected_binding_state
   FOR UPDATE;
   IF NOT FOUND THEN
-    UPDATE reservation_operations SET status = 'rejected', error_code = 'BINDING_NOT_FOUND',
-      result_json = jsonb_build_object('ok', false, 'code', 'BINDING_NOT_FOUND')::TEXT,
+    UPDATE reservation_operations SET status = 'rejected', error_code = 'BINDING_STATE_MISMATCH',
+      result_json = jsonb_build_object('ok', false, 'code', 'BINDING_STATE_MISMATCH',
+        'expected', v_expected_binding_state)::TEXT,
       committed_at = now()
     WHERE operation_id = p_server_operation_id;
-    RETURN jsonb_build_object('ok', false, 'code', 'BINDING_NOT_FOUND');
+    RETURN jsonb_build_object('ok', false, 'code', 'BINDING_STATE_MISMATCH',
+      'expected', v_expected_binding_state);
   END IF;
 
   -- Load and lock authority
@@ -1568,36 +1599,67 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'code', 'AUTHORITY_NOT_FOUND');
   END IF;
 
-  -- Record the refund result on the action (exactly one row)
-  UPDATE payment_actions SET status = p_result_derived,
-    stripe_result_json = p_stripe_response::TEXT, completed_at = now(), updated_at = now(),
-    lease_owner = NULL, lease_expires_at = NULL
-  WHERE action_id = p_action_id;
-  GET DIAGNOSTICS v_updated_count = ROW_COUNT;
-  IF v_updated_count != 1 THEN
-    RAISE EXCEPTION 'ACTION_UPDATE_COUNT: expected 1, got %', v_updated_count;
+  -- For reconciliation: verify authority is recovery_blocked
+  IF v_is_reconciliation AND NOT v_authority.recovery_blocked THEN
+    UPDATE reservation_operations SET status = 'rejected', error_code = 'AUTHORITY_NOT_BLOCKED',
+      result_json = jsonb_build_object('ok', false, 'code', 'AUTHORITY_NOT_BLOCKED',
+        'reason', 'reconciliation requires recovery_blocked authority')::TEXT,
+      committed_at = now()
+    WHERE operation_id = p_server_operation_id;
+    RETURN jsonb_build_object('ok', false, 'code', 'AUTHORITY_NOT_BLOCKED',
+      'reason', 'reconciliation requires recovery_blocked authority');
+  END IF;
+
+  -- Record the refund result on the action (skip for unknown recon)
+  IF NOT (v_is_reconciliation AND p_result_derived = 'unknown') THEN
+    UPDATE payment_actions SET status = p_result_derived,
+      stripe_result_json = p_stripe_response::TEXT, completed_at = now(), updated_at = now(),
+      lease_owner = NULL, lease_expires_at = NULL
+    WHERE action_id = p_action_id;
+    GET DIAGNOSTICS v_updated_count = ROW_COUNT;
+    IF v_updated_count != 1 THEN
+      RAISE EXCEPTION 'ACTION_UPDATE_COUNT: expected 1, got %', v_updated_count;
+    END IF;
   END IF;
 
   IF p_result_derived = 'succeeded' THEN
-    -- Binding → refunded (exactly one transition). Authority stays in current state.
+    -- Binding → refunded. Authority stays in current state.
     UPDATE reservation_payment_bindings SET capture_state = 'refunded', updated_at = now()
-    WHERE purchase_id = v_action.purchase_id AND capture_state = 'refund_requested';
+    WHERE purchase_id = v_action.purchase_id
+      AND capture_state IN ('refund_requested','refund_unknown');
     GET DIAGNOSTICS v_updated_count = ROW_COUNT;
     IF v_updated_count != 1 THEN
       RAISE EXCEPTION 'REFUND_BINDING_COUNT: expected 1, got %', v_updated_count;
     END IF;
 
-    v_result_json := jsonb_build_object('ok', true, 'refunded', true)::TEXT;
+    -- Clear recovery_blocked on succeeded reconciliation
+    IF v_is_reconciliation THEN
+      UPDATE reservation_authority
+      SET recovery_blocked = false, recovery_blocked_reason = NULL, recovery_blocked_at = NULL,
+          updated_at = now()
+      WHERE listing_id = v_action.listing_id;
+
+      UPDATE operational_incidents
+      SET resolved = true, resolved_at = now(),
+          resolution_notes = 'Resolved by reconciliation: refund succeeded'
+      WHERE incident_key = 'refund_unknown:' || v_action.listing_id
+        AND resolved = false;
+    END IF;
+
+    v_result_json := jsonb_build_object('ok', true, 'refunded', true,
+      'reconciliation', v_is_reconciliation)::TEXT;
     UPDATE reservation_operations SET status = 'committed', result_json = v_result_json,
       committed_at = now()
     WHERE operation_id = p_server_operation_id;
-    RETURN jsonb_build_object('ok', true, 'refunded', true);
+    RETURN jsonb_build_object('ok', true, 'refunded', true,
+      'reconciliation', v_is_reconciliation);
 
   ELSIF p_result_derived = 'failed' THEN
     -- Refund failure → refund_failed (unsettled — preserves captured/finalized
     -- obligation). Authority stays + recovery_blocked. Incident.
     UPDATE reservation_payment_bindings SET capture_state = 'refund_failed', updated_at = now()
-    WHERE purchase_id = v_action.purchase_id AND capture_state = 'refund_requested';
+    WHERE purchase_id = v_action.purchase_id
+      AND capture_state IN ('refund_requested','refund_unknown');
     GET DIAGNOSTICS v_updated_count = ROW_COUNT;
     IF v_updated_count != 1 THEN
       RAISE EXCEPTION 'REFUND_FAILED_BINDING_COUNT: expected 1, got %', v_updated_count;
@@ -1608,6 +1670,15 @@ BEGIN
         recovery_blocked_at = now(), updated_at = now()
     WHERE listing_id = v_action.listing_id;
 
+    -- If reconciliation: resolve refund_unknown incident, then create refund_failed
+    IF v_is_reconciliation THEN
+      UPDATE operational_incidents
+      SET resolved = true, resolved_at = now(),
+          resolution_notes = 'Escalated to refund_failed by reconciliation'
+      WHERE incident_key = 'refund_unknown:' || v_action.listing_id
+        AND resolved = false;
+    END IF;
+
     INSERT INTO operational_incidents (incident_key, incident_type, priority, title, description, reference_id, reference_type)
     VALUES ('refund_failed:' || v_action.listing_id, 'refund_failed', 'critical',
       'Refund Result Failed', 'Stripe refund returned failure — obligation preserved', v_action.listing_id, 'listing')
@@ -1615,39 +1686,54 @@ BEGIN
       last_occurred_at = now();
 
     v_result_json := jsonb_build_object('ok', true, 'refunded', false, 'refund_failed', true,
-      'recovery_blocked', true)::TEXT;
+      'recovery_blocked', true, 'reconciliation', v_is_reconciliation)::TEXT;
     UPDATE reservation_operations SET status = 'committed', result_json = v_result_json,
       committed_at = now()
     WHERE operation_id = p_server_operation_id;
     RETURN jsonb_build_object('ok', true, 'refunded', false, 'refund_failed', true,
-      'recovery_blocked', true);
+      'recovery_blocked', true, 'reconciliation', v_is_reconciliation);
 
   ELSE
-    -- Unknown/timeout → refund_unknown, authority frozen + recovery_blocked
-    UPDATE reservation_payment_bindings SET capture_state = 'refund_unknown', updated_at = now()
-    WHERE purchase_id = v_action.purchase_id AND capture_state = 'refund_requested';
-    GET DIAGNOSTICS v_updated_count = ROW_COUNT;
-    IF v_updated_count != 1 THEN
-      RAISE EXCEPTION 'REFUND_UNKNOWN_BINDING_COUNT: expected 1, got %', v_updated_count;
+    -- Unknown/timeout
+    IF v_is_reconciliation THEN
+      -- Reconciliation with still-unknown result: no state change.
+      -- Binding stays refund_unknown, authority stays frozen + recovery_blocked.
+      -- Idempotent no-op. Only the operation ledger is updated.
+      v_result_json := jsonb_build_object('ok', true, 'refund_unknown', true,
+        'recovery_blocked', true, 'reconciliation', true, 'resolved', false)::TEXT;
+      UPDATE reservation_operations SET status = 'committed', result_json = v_result_json,
+        committed_at = now()
+      WHERE operation_id = p_server_operation_id;
+      RETURN jsonb_build_object('ok', true, 'refund_unknown', true,
+        'recovery_blocked', true, 'reconciliation', true, 'resolved', false);
+    ELSE
+      -- First observation with unknown: binding → refund_unknown, authority blocked
+      UPDATE reservation_payment_bindings SET capture_state = 'refund_unknown', updated_at = now()
+      WHERE purchase_id = v_action.purchase_id AND capture_state = v_expected_binding_state;
+      GET DIAGNOSTICS v_updated_count = ROW_COUNT;
+      IF v_updated_count != 1 THEN
+        RAISE EXCEPTION 'REFUND_UNKNOWN_BINDING_COUNT: expected 1, got %', v_updated_count;
+      END IF;
+
+      UPDATE reservation_authority
+      SET recovery_blocked = true, recovery_blocked_reason = 'refund_unknown',
+          recovery_blocked_at = now(), updated_at = now()
+      WHERE listing_id = v_action.listing_id;
+
+      INSERT INTO operational_incidents (incident_key, incident_type, priority, title, description, reference_id, reference_type)
+      VALUES ('refund_unknown:' || v_action.listing_id, 'refund_unknown', 'critical',
+        'Refund Result Unknown', 'Stripe refund returned unknown result', v_action.listing_id, 'listing')
+      ON CONFLICT (incident_key) DO UPDATE SET occurrence_count = operational_incidents.occurrence_count + 1,
+        last_occurred_at = now();
+
+      v_result_json := jsonb_build_object('ok', true, 'refund_unknown', true,
+        'recovery_blocked', true, 'reconciliation', false)::TEXT;
+      UPDATE reservation_operations SET status = 'committed', result_json = v_result_json,
+        committed_at = now()
+      WHERE operation_id = p_server_operation_id;
+      RETURN jsonb_build_object('ok', true, 'refund_unknown', true,
+        'recovery_blocked', true, 'reconciliation', false);
     END IF;
-
-    UPDATE reservation_authority
-    SET recovery_blocked = true, recovery_blocked_reason = 'refund_unknown',
-        recovery_blocked_at = now(), updated_at = now()
-    WHERE listing_id = v_action.listing_id;
-
-    INSERT INTO operational_incidents (incident_key, incident_type, priority, title, description, reference_id, reference_type)
-    VALUES ('refund_unknown:' || v_action.listing_id, 'refund_unknown', 'critical',
-      'Refund Result Unknown', 'Stripe refund returned unknown result', v_action.listing_id, 'listing')
-    ON CONFLICT (incident_key) DO UPDATE SET occurrence_count = operational_incidents.occurrence_count + 1,
-      last_occurred_at = now();
-
-    v_result_json := jsonb_build_object('ok', true, 'refund_unknown', true,
-      'recovery_blocked', true)::TEXT;
-    UPDATE reservation_operations SET status = 'committed', result_json = v_result_json,
-      committed_at = now()
-    WHERE operation_id = p_server_operation_id;
-    RETURN jsonb_build_object('ok', true, 'refund_unknown', true, 'recovery_blocked', true);
   END IF;
 END;
 $$;
