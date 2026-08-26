@@ -45,6 +45,7 @@ function makeFakeStripe(overrides = {}) {
         id: piId || 'pi_test_001',
         status: config.status,
         amount: config.amount,
+        currency: config.currency || 'usd',
         metadata: config.metadata,
       };
     },
@@ -167,6 +168,11 @@ async function getBindingState(adminSql, purchaseId) {
 
 async function getOpCount(adminSql, listingId) {
   const rows = await adminSql`SELECT count(*)::int as c FROM authority_v1.reservation_operations WHERE listing_id = ${listingId}`;
+  return rows[0]?.c || 0;
+}
+
+async function getOutboxCount(adminSql, listingId) {
+  const rows = await adminSql`SELECT count(*)::int as c FROM authority_v1.reservation_outbox WHERE listing_id = ${listingId}`;
   return rows[0]?.c || 0;
 }
 
@@ -513,20 +519,28 @@ export async function runAllTests(deps) {
     };
 
     const result1 = await runCanaryConfirmSaga(sagaDeps);
+    // Capture baseline counts after the first call (includes setup ops + outbox)
+    const bindingCountAfter1 = await getBindingCount(adminSql, purchaseId);
+    const opCountAfter1 = await getOpCount(adminSql, listingId);
+    const outboxCountAfter1 = await getOutboxCount(adminSql, listingId);
+
     const result2 = await runCanaryConfirmSaga(sagaDeps); // Identical replay
 
     const bindingCount = await getBindingCount(adminSql, purchaseId);
+    const opCount = await getOpCount(adminSql, listingId);
+    const outboxCount = await getOutboxCount(adminSql, listingId);
 
-    // Operation-level replay: same operation_id + same request_hash returns the
-    // stored committed result. The binding count stays at 1 (no duplicate).
-    // The `idempotent` flag may be false for operation-level replay (the stored
-    // result from the first call doesn't include it). The key invariant is:
-    // both return 200 + bound:true, and exactly one binding exists.
-    record('T8: Identical replay → idempotent',
+    // Strengthened T8: identical replay must not create a second binding, a
+    // second operation, or any outbox record. The operation is replayed (same
+    // operation_id + same request_hash → stored committed result returned),
+    // not duplicated. Verify counts did NOT increase from the baseline after
+    // the first call.
+    record('T8: Identical replay → no second binding/operation/outbox',
       result1.status === 200 && result2.status === 200 &&
       result1.body?.bound === true && result2.body?.bound === true &&
-      bindingCount === 1,
-      { r1: result1.status, r2: result2.status, bindingCount, r1_bound: result1.body?.bound, r2_bound: result2.body?.bound });
+      bindingCount === 1 &&
+      opCount === opCountAfter1 && outboxCount === outboxCountAfter1,
+      { r1: result1.status, r2: result2.status, bindingCount, opCount, outboxCount, opCountAfter1, outboxCountAfter1, r1_bound: result1.body?.bound, r2_bound: result2.body?.bound });
 
     await cleanupListing(adminSql, listingId);
   }
@@ -585,6 +599,116 @@ export async function runAllTests(deps) {
       (result2.body?.code === 'OPERATION_ID_CONFLICT' || result2.body?.authority?.code === 'OPERATION_ID_CONFLICT') &&
       bindingCount === 1,
       { r1: result1.status, r2: result2.status, r2_code: result2.body?.code || result2.body?.authority?.code, bindingCount });
+
+    await cleanupListing(adminSql, listingId);
+  }
+
+  // ── T9b: Changed amount, same operation_id → OPERATION_ID_CONFLICT ─────────
+  {
+    const listingId = `canary_confirm_t9b_${await genId()}`;
+    syntheticIds.add(listingId);
+    const purchaseId = `pur_${listingId}`;
+    const piId = `pi_${listingId}`;
+    const buyerId = `buyer_${listingId}`;
+    const sellerId = `seller_${listingId}`;
+    const token = `tok_${listingId}`;
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+
+    await setupReservedListing(adminSql, listingId, sellerId, buyerId, token, expiresAt);
+
+    // First call with amount=100 (10000 cents) — succeeds
+    const entities1 = makeMockEntities();
+    const stripe1 = makeFakeStripe({
+      amount: 10000,
+      metadata: { purchase_id: purchaseId, listing_id: listingId, buyer_email: 'buyer@example.com', seller_email: 'seller@example.com', reservation_token: token },
+    });
+    const result1 = await runCanaryConfirmSaga({
+      entities: entities1, user: { id: buyerId, email: 'buyer@example.com', role: 'admin' },
+      executorClient, stripeAdapter: stripe1,
+      params: {
+        listing_id: listingId, purchase_id: purchaseId, payment_intent_id: piId,
+        buyer_user_id: buyerId, buyer_email: 'buyer@example.com', seller_email: 'seller@example.com',
+        reservation_token: token, amount: 100,
+      },
+    });
+    // Capture baseline after first call
+    const opCountAfter1 = await getOpCount(adminSql, listingId);
+
+    // Second call with amount=200 (20000 cents) — same deterministic operation_id
+    // but different request_hash (amount_minor changed) → OPERATION_ID_CONFLICT
+    const entities2 = makeMockEntities();
+    const stripe2 = makeFakeStripe({
+      amount: 20000,
+      metadata: { purchase_id: purchaseId, listing_id: listingId, buyer_email: 'buyer@example.com', seller_email: 'seller@example.com', reservation_token: token },
+    });
+    const result2 = await runCanaryConfirmSaga({
+      entities: entities2, user: { id: buyerId, email: 'buyer@example.com', role: 'admin' },
+      executorClient, stripeAdapter: stripe2,
+      params: {
+        listing_id: listingId, purchase_id: purchaseId, payment_intent_id: piId,
+        buyer_user_id: buyerId, buyer_email: 'buyer@example.com', seller_email: 'seller@example.com',
+        reservation_token: token, amount: 200, // Different amount → different request_hash
+      },
+    });
+
+    const bindingCount = await getBindingCount(adminSql, purchaseId);
+    const opCount = await getOpCount(adminSql, listingId);
+
+    record('T9b: Changed amount, same op → OPERATION_ID_CONFLICT',
+      result1.status === 200 && result2.status === 409 &&
+      (result2.body?.code === 'OPERATION_ID_CONFLICT' || result2.body?.authority?.code === 'OPERATION_ID_CONFLICT') &&
+      bindingCount === 1 && opCount === opCountAfter1, // No second binding, no second operation
+      { r1: result1.status, r2: result2.status, r2_code: result2.body?.code || result2.body?.authority?.code, bindingCount, opCount, opCountAfter1 });
+
+    await cleanupListing(adminSql, listingId);
+  }
+
+  // ── T9c: Non-USD PI → CURRENCY_MISMATCH, zero mutation ─────────────────────
+  {
+    const listingId = `canary_confirm_t9c_${await genId()}`;
+    syntheticIds.add(listingId);
+    const purchaseId = `pur_${listingId}`;
+    const piId = `pi_${listingId}`;
+    const buyerId = `buyer_${listingId}`;
+    const sellerId = `seller_${listingId}`;
+    const token = `tok_${listingId}`;
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+
+    await setupReservedListing(adminSql, listingId, sellerId, buyerId, token, expiresAt);
+
+    // Capture baseline counts after setup (setup creates ops + outbox)
+    const opCountBaseline = await getOpCount(adminSql, listingId);
+    const outboxCountBaseline = await getOutboxCount(adminSql, listingId);
+
+    const entities = makeMockEntities();
+    const stripe = makeFakeStripe({
+      currency: 'eur', // Non-USD
+      amount: 10000,
+      metadata: { purchase_id: purchaseId, listing_id: listingId, buyer_email: 'buyer@example.com', seller_email: 'seller@example.com', reservation_token: token },
+    });
+
+    const result = await runCanaryConfirmSaga({
+      entities, user: { id: buyerId, email: 'buyer@example.com', role: 'admin' },
+      executorClient, stripeAdapter: stripe,
+      params: {
+        listing_id: listingId, purchase_id: purchaseId, payment_intent_id: piId,
+        buyer_user_id: buyerId, buyer_email: 'buyer@example.com', seller_email: 'seller@example.com',
+        reservation_token: token, amount: 100,
+      },
+    });
+
+    const bindingCount = await getBindingCount(adminSql, purchaseId);
+    const opCount = await getOpCount(adminSql, listingId);
+    const outboxCount = await getOutboxCount(adminSql, listingId);
+
+    // Non-USD must be rejected BEFORE any mutation: no new binding, no new
+    // operation, no new outbox. Counts must not increase from the baseline
+    // captured after setup.
+    record('T9c: Non-USD → CURRENCY_MISMATCH, zero mutation',
+      result.status === 400 && result.body?.code === 'CURRENCY_MISMATCH' &&
+      bindingCount === 0 &&
+      opCount === opCountBaseline && outboxCount === outboxCountBaseline,
+      { status: result.status, code: result.body?.code, bindingCount, opCount, outboxCount, opCountBaseline, outboxCountBaseline });
 
     await cleanupListing(adminSql, listingId);
   }

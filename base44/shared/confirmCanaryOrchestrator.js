@@ -205,22 +205,34 @@ export async function runCanaryConfirmSaga(deps) {
   if (!md.reservation_token || md.reservation_token !== reservationToken) {
     return { status: 500, body: { error: 'Payment verification failed', code: 'PI_METADATA_MISMATCH', field: 'reservation_token' } };
   }
+  // ── 4b. Reject non-USD BEFORE any mutation ───────────────────────────────
+  // The marketplace only operates in USD. A non-USD PI must never reach
+  // bind_payment_intent. This check runs before the token hash / authority call.
+  const piCurrency = (pi.currency || '').toLowerCase();
+  if (piCurrency !== 'usd') {
+    return { status: 400, body: { error: 'Currency mismatch — USD only', code: 'CURRENCY_MISMATCH', pi_currency: pi.currency || null } };
+  }
+
   if (Math.round((amount || 0) * 100) !== pi.amount) {
     return { status: 500, body: { error: 'Payment verification failed', code: 'AMOUNT_MISMATCH' } };
   }
 
-  // ── 5. Hash reservation token ───────────────────────────────────────────
+  // ── 5. Hash reservation token + derive amount_minor ─────────────────────
   const tokenHash = await sha256Hex(reservationToken);
+  const amountMinor = Math.round((amount || 0) * 100);
+  const currency = 'usd';
 
   // ── 6. Call bind_payment_intent (deterministic operation ID) ─────────────
   // Deterministic ID: canary_bind_{purchase_id}_{payment_intent_id}
   // Natural retries get the same operation_id → idempotent replay.
+  // requestHash binds amount_minor + currency so a changed amount or currency
+  // with the same operation_id is rejected as OPERATION_ID_CONFLICT.
   const operationId = `canary_bind_${purchaseId}_${paymentIntentId}`;
   const requestHash = await sha256Hex(canonicalEnvelope({
     op: 'bind_pi', listing_id: listingId, purchase_id: purchaseId,
     payment_intent_id: paymentIntentId, buyer_user_id: buyerUserId,
     authority_version: state.version, reservation_revision: state.reservation_revision,
-    token_hash: tokenHash,
+    token_hash: tokenHash, amount_minor: amountMinor, currency,
   }));
 
   let bindResult;
