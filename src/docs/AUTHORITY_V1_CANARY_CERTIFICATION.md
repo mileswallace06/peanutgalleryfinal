@@ -444,12 +444,15 @@ P0-01G manifest label: **`abortCheckout — CANARY-WIRED / FAKE-PROVIDER CERTIFI
 
 ### 9.1 Drift Diagnosis
 
-During P0-01I preparation, a drift was detected between the live `record_capture_result` function deployed to the dev database and the canonical SQL artifact (`database/authority_v1/002_functions.sql`). The live function returned a structured JSONB result for `BINDING_STATE_MISMATCH` (and similar conditions) while the test expected a `RAISE EXCEPTION`. This was confirmed to be **artifact/test drift** — not an atomicity defect in the function itself.
+During P0-01I preparation, a **live/artifact drift** was detected between the live `record_capture_result` function deployed to the dev database and the canonical SQL artifact (`database/authority_v1/002_functions.sql`). This drift was caused by an **interrupted, uncertified P0-01I deployment attempt** that left the live function body diverged from the canonical P0-01H artifact. There was **no atomicity defect** — the canonical P0-01H function and its test suite (including T2) remained valid throughout.
+
+The capture-finalize T2 test remained valid against the canonical P0-01H artifact. It disagreed only with the forward-drifted live function (which had been modified by the interrupted P0-01I attempt). T2's assertion — that `BINDING_STATE_MISMATCH` is rejected via a structured result or exception — held against the canonical artifact; it failed only because the live function had drifted forward from that canonical source.
 
 | Symptom | Root Cause |
 |---|---|
-| capture-finalize T2 test failure | Test expected `RAISE EXCEPTION` for `BINDING_STATE_MISMATCH`; live function returned controlled JSONB result `{ok:false, code:'BINDING_STATE_MISMATCH'}` |
-| Live/artifact body hash mismatch | Live function body had diverged from the artifact source during an interrupted P0-01I deployment attempt |
+| capture-finalize T2 test failure | T2 valid for canonical P0-01H; disagreed only with forward-drifted live function (interrupted P0-01I left live body diverged from artifact) |
+| Live/artifact body hash mismatch | Live function body drifted forward from canonical artifact during interrupted, uncertified P0-01I deployment attempt — **not** an atomicity defect |
+| Canonical P0-01H artifact | Unchanged and valid throughout — T2 and all other tests pass against it |
 
 ### 9.2 Canonical Rollback
 
