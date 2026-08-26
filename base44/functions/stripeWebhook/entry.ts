@@ -1,23 +1,27 @@
 /**
  * stripeWebhook — Public Stripe webhook handler (no auth required)
  *
- * 7C.9B: All webhook logic is delegated to the shared, testable
- * webhookOrchestrator.js. This entry.ts is a thin Deno wrapper that:
- *   1. Verifies the Stripe webhook signature.
- *   2. Injects Deno-specific dependencies.
- *   3. Calls runStripeWebhook and returns the HTTP response.
+ * 7C.9B: Legacy webhook logic delegated to webhookOrchestrator.js.
  *
- * No external push/email — all notifications queued via webhookNotifications.
- * The durable in-app Notification record IS the delivery mechanism.
+ * P0-01K: Canary-eligible authority-bound events are durably ingested into the
+ * authority_v1 Postgres boundary (ingest_stripe_webhook_event) before any 2xx.
+ * PostgreSQL is authoritative; Base44 is not a fallback. Non-canary events and
+ * flag-OFF behavior fall through to the unchanged legacy path.
+ *
+ * STRIPE_WEBHOOK_SECRET is read via base44:runtime secrets inside request
+ * handling — no Deno.env, no module-scope loading, no logging of secret material.
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { secrets } from 'base44:runtime';
 import Stripe from 'npm:stripe@14.21.0';
 import { runStripeWebhook } from '../../shared/webhookOrchestrator.js';
+import { maybeRouteCanaryWebhook } from '../../shared/webhookCanaryIngress.js';
+import { isCanaryEnabled } from '../../shared/authCanary.js';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
   const secretKey = Deno.env.get('STRIPELIVESECRETKEY');
-  const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET');
+  const webhookSecret = await secrets.get('STRIPE_WEBHOOK_SECRET');
 
   if (!secretKey || !webhookSecret) {
     return Response.json({ error: 'Stripe not configured' }, { status: 500 });
@@ -39,6 +43,21 @@ Deno.serve(async (req) => {
     return new Response('Invalid signature', { status: 400 });
   }
 
+  // ── Canary ingress (flag ON + authority-bound only) ──────────────────────
+  // Returns null for flag-OFF, non-canary, or no-authority → legacy path.
+  // Returns {status, body} for canary-owned events (durable ack or fail-closed).
+  const executorUrl = await secrets.get('AUTHORITY_V1_DB_URL_DEV_EXECUTOR');
+  const canaryResult = await maybeRouteCanaryWebhook({
+    canaryEnabled: isCanaryEnabled(),
+    executorUrl,
+    event,
+    rawBody: body,
+  });
+  if (canaryResult) {
+    return Response.json(canaryResult.body, { status: canaryResult.status });
+  }
+
+  // ── Legacy path (non-canary + flag-OFF) — unchanged ───────────────────────
   const deps = {
     entities: base44.asServiceRole.entities,
     stripe,

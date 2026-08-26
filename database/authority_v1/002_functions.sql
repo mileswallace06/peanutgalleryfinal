@@ -1936,3 +1936,132 @@ BEGIN
   RETURN jsonb_build_object('ok', true, 'anonymized', true, 'pseudonymous_id', p_pseudonymous_id);
 END;
 $$;
+
+-- ── 16. ingest_stripe_webhook_event — Durable Webhook Ingestion (P0-01K) ───
+-- Idempotent security-definer ingestion of a signature-verified Stripe webhook
+-- event for an authority-bound (canary) PaymentIntent.
+--
+-- CANARY OWNERSHIP is determined from the authoritative PaymentIntent binding
+-- (reservation_payment_bindings) inside the secured database boundary —
+-- NEVER from event metadata. If no binding exists for the PaymentIntent, the
+-- event is non-canary and NOT ingested (returns canary_owned=false so the
+-- handler falls through to the legacy path).
+--
+-- IDEMPOTENCY:
+--   - Same event_id + same payload_hash → replay success (one durable row)
+--   - Same event_id + different payload_hash → fail closed + durable incident
+--     (verification_mismatch)
+--
+-- MINIMUM ENVELOPE: stores event_id, event_type, payment_intent_id, livemode,
+-- provider_created_at, api_version, and SHA-256 of the verified raw body.
+-- Does NOT store signatures, secrets, the full raw payload, or customer data.
+--
+-- Returns JSONB: { ok, canary_owned, ingested, replay, code?, purchase_id?, listing_id? }
+CREATE OR REPLACE FUNCTION authority_v1.ingest_stripe_webhook_event(
+  p_webhook_event_id    TEXT,
+  p_event_type          TEXT,
+  p_payment_intent_id   TEXT,
+  p_livemode            BOOLEAN,
+  p_provider_created_at TIMESTAMPTZ,
+  p_api_version         TEXT,
+  p_payload_hash        TEXT
+) RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = authority_v1, pg_temp
+AS $$
+DECLARE
+  v_binding     RECORD;
+  v_inserted_id TEXT;
+  v_stored_hash TEXT;
+  v_replay      BOOLEAN;
+BEGIN
+  IF p_webhook_event_id IS NULL OR p_webhook_event_id = '' THEN
+    RAISE EXCEPTION 'INGEST_VALIDATION: webhook_event_id required';
+  END IF;
+  IF p_event_type IS NULL OR p_event_type = '' THEN
+    RAISE EXCEPTION 'INGEST_VALIDATION: event_type required';
+  END IF;
+  IF p_payload_hash IS NULL OR p_payload_hash = '' THEN
+    RAISE EXCEPTION 'INGEST_VALIDATION: payload_hash required';
+  END IF;
+
+  -- ── 1. Determine canary ownership from the authoritative binding ──────────
+  -- No binding → non-canary → do NOT ingest; handler falls through to legacy.
+  IF p_payment_intent_id IS NULL OR p_payment_intent_id = '' THEN
+    RETURN jsonb_build_object('ok', true, 'canary_owned', false, 'ingested', false);
+  END IF;
+
+  SELECT purchase_id, listing_id INTO v_binding
+  FROM reservation_payment_bindings
+  WHERE payment_intent_id = p_payment_intent_id
+  LIMIT 1;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('ok', true, 'canary_owned', false, 'ingested', false);
+  END IF;
+
+  -- ── 2. Canary-owned — idempotent ingestion ──────────────────────────────
+  INSERT INTO stripe_webhook_events (
+    webhook_event_id, event_type, payment_intent_id, livemode,
+    provider_created_at, api_version, payload_hash,
+    processing_status, received_at
+  ) VALUES (
+    p_webhook_event_id, p_event_type, p_payment_intent_id, p_livemode,
+    p_provider_created_at, p_api_version, p_payload_hash,
+    'pending', now()
+  )
+  ON CONFLICT (webhook_event_id) DO NOTHING
+  RETURNING webhook_event_id INTO v_inserted_id;
+
+  IF v_inserted_id IS NOT NULL THEN
+    v_replay := false;
+    v_stored_hash := p_payload_hash;
+  ELSE
+    SELECT payload_hash INTO v_stored_hash
+    FROM stripe_webhook_events
+    WHERE webhook_event_id = p_webhook_event_id;
+    v_replay := true;
+  END IF;
+
+  -- ── 3. Hash comparison ────────────────────────────────────────────────────
+  IF v_stored_hash = p_payload_hash THEN
+    RETURN jsonb_build_object(
+      'ok', true,
+      'canary_owned', true,
+      'ingested', true,
+      'replay', v_replay,
+      'purchase_id', v_binding.purchase_id,
+      'listing_id', v_binding.listing_id,
+      'webhook_event_id', p_webhook_event_id
+    );
+  END IF;
+
+  -- ── 4. Verification mismatch — fail closed + durable incident ────────────
+  INSERT INTO operational_incidents (
+    incident_key, incident_type, priority, title, description, reference_id, reference_type
+  ) VALUES (
+    'webhook_verification_mismatch:' || p_webhook_event_id,
+    'verification_mismatch',
+    'critical',
+    'Stripe Webhook Verification Mismatch',
+    'Stripe event ' || p_webhook_event_id || ' (' || p_event_type ||
+      ') received with a payload hash that differs from the previously ingested event for PI ' ||
+      p_payment_intent_id || '. Possible replay tampering or event corruption.',
+    p_webhook_event_id,
+    'webhook'
+  )
+  ON CONFLICT (incident_key) DO UPDATE SET
+    occurrence_count = operational_incidents.occurrence_count + 1,
+    last_occurred_at = now(),
+    updated_at = now();
+
+  RETURN jsonb_build_object(
+    'ok', false,
+    'code', 'VERIFICATION_MISMATCH',
+    'canary_owned', true,
+    'ingested', false,
+    'webhook_event_id', p_webhook_event_id
+  );
+END;
+$$;

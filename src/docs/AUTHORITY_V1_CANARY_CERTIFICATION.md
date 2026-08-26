@@ -1,7 +1,7 @@
 # authority_v1 Reserve/Release Canary — Certification Manifest
 
 **Date:** 2026-08-21 (last recertified 2026-08-26 — P0-01J-CERTIFIED)
-**Status:** ✅ CERTIFIED — Flag OFF, maintenance ON, zero synthetic rows, 319/319 regression + 47/47 real Stripe test-mode = 366/366 tests pass, canonical parity verified, real Stripe test-mode capture certified, trusted dependency injection (no env/global override)
+**Status:** ✅ CERTIFIED — Flag OFF, maintenance ON, zero synthetic rows, 327/327 canary regression + 47/47 real Stripe test-mode + 20/20 webhook ingress = 394/394 tests pass, canonical parity verified, trusted dependency injection (no env/global override), webhook ingress certified (processing not yet certified)
 
 ---
 
@@ -21,6 +21,7 @@
 | `abortCheckout` | **Excluded — financial + no eligible non-financial release.** Cancels Stripe PI (entry.ts L80-88: `stripe.paymentIntents.cancel`). Reservation release at L119-133 is embedded in the same handler that cancels the PI — cannot be separated without splitting the financial operation. No canary guard in `canaryGuard.js`. |
 | `cleanupAbandonedCheckouts` | **Excluded — financial + no reservation release performed.** Phase 1 cancels Stripe PIs (cleanupOrchestrator.js L166: `stripe.paymentIntents.cancel`). Phase 2 recovery explicitly does NOT clear reservation fields — `Listing.update({ status: 'active', hidden_reason: null })` only (L423); post-verify requires `reservation_token === null` (L448). No reservation release exists in this function to route. |
 | `capturePayment` | **CANARY-WIRED / REAL STRIPE TEST-MODE CERTIFIED / LIVE STRIPE NOT CERTIFIED / FLAG OFF** — See §11 below |
+| `stripeWebhook` | **CANARY-WIRED / INGRESS CERTIFIED / PROCESSING NOT YET CERTIFIED / FLAG OFF** — See §12 below |
 
 ---
 
@@ -34,6 +35,7 @@
 | `base44/shared/canaryMirrorRepair.js` | Non-deployable repair logic (called by `reconcilePurchaseOutcomes`) |
 | `base44/shared/canaryScheduledRelease.js` | System-initiated release with active-purchase + malformed-data protection |
 | `base44/shared/captureCanaryOrchestrator.js` | P0-01I: Capture saga orchestrator (begin_capture → Stripe → record_capture_result) with retry/reconciliation branching |
+| `base44/shared/webhookCanaryIngress.js` | P0-01K: Webhook ingress routing (signature-verified → durable Postgres ingestion, canary ownership from binding) |
 
 **Test files (executable module proofs — not deployed):**
 | Test File | Purpose |
@@ -41,7 +43,8 @@
 | `tests/canary-scheduled-release-protections.test.mjs` | Fail-closed protections: active-purchase, throw, reject, malformed (7/7 pass) |
 | `tests/process-transfer-reminders-wiring.test.mjs` | AST wiring proof: entry.ts → canaryScheduledRelease (5/5 pass) |
 | `tests/capture-canary-orchestrator.test.mjs` | P0-01I: Capture saga success/failure/unknown-recovery, replay, concurrency, mirror failure, isolation (12/12 pass) |
-| `tests/capture-canary-real-stripe.test.mjs` | P0-01J: Real Stripe TEST-MODE capture certification — exactly-one capture, replay, lost-response reconcile, livemode=false, mirror-failure isolation, cleanup (46/46 pass) |
+| `tests/capture-canary-real-stripe.test.mjs` | P0-01J: Real Stripe TEST-MODE capture certification — exactly-one capture, replay, lost-response reconcile, livemode=false, mirror-failure isolation, cleanup (47/47 pass) |
+| `tests/webhook-canary-ingress.test.mjs` | P0-01K: Webhook ingress — signature verification, durable receipt, replay, conflict, concurrency, DB outage, flag-OFF, non-canary isolation, minimal envelope, grants, cleanup (20/20 pass) |
 | `tests/loaders/npm-compat-*.mjs` | Node.js ESM loader hook for Deno `npm:` specifiers in test imports |
 
 **No new backend functions created.** Function count: 50 (unchanged).
@@ -815,3 +818,132 @@ P0-01J manifest label: **`capturePayment — CANARY-WIRED / REAL STRIPE TEST-MOD
 - Affected gates re-confirmed green: real-Stripe harness 47/47, capture-canary 12/12, authority-contract 72/72 (incl. 3 `PG_CANARY_CERT_OVERRIDE`-absence checks), build exit 0, scoped lint 0 errors. Provider/database behavior is unchanged, so the full 319 suite was not repeated.
 - 50 backend functions, 29 authority functions, flag OFF (production default), maintenance ON, 0 synthetic rows, 0 live-mode calls.
 - **LIVE Stripe is NOT certified.** Live-mode certification remains a separate owner-gated step (NEEDS_OWNER_ACTION).
+
+---
+
+## 12. P0-01K Status: ✅ PASS — Webhook Ingress Certified (Processing Not Yet Certified)
+
+**Date:** 2026-08-26
+**Scope:** Durable, signature-verified Stripe webhook ingress for authority-bound canary PaymentIntents. The `stripeWebhook` handler durably ingests canary-owned events into the `authority_v1` Postgres boundary (`ingest_stripe_webhook_event`) before any 2xx. PostgreSQL is authoritative; Base44 is not a fallback. Non-canary events and flag-OFF behavior fall through to the unchanged legacy path. **Webhook business-state processing is NOT implemented in this step.**
+**Baseline:** P0-01J certification → P0-01K ingress.
+
+### 12.1 Safety Constraints Enforced
+
+| Constraint | Enforcement |
+|---|---|
+| Keep canary flag OFF / maintenance ON | `CANARY_ENABLED` stays `false`; maintenance stays ON. Trusted dependency injection — `canaryEnabled` supplied by caller, never from env/global/header/query/body/secret. |
+| Live Stripe untouched | No live-mode Stripe API calls. Signature verification uses `STRIPE_WEBHOOK_SECRET` for crypto only; no API calls on the canary ingress path. |
+| `STRIPE_WEBHOOK_SECRET` via base44:runtime | `await secrets.get('STRIPE_WEBHOOK_SECRET')` inside request handling — no `Deno.env`, no module-scope loading, no logging/returning of secret material. |
+| Executor/recorder privilege boundaries | Ingestion function granted to `authority_executor` only. Recorder and worker roles denied. Admin used only for scoped schema deployment and synthetic cleanup. |
+| No Base44 authoritative writes on canary path | `maybeRouteCanaryWebhook` does not touch Base44 entities — Postgres-only (static assertion). |
+| Minimum recovery envelope | Stores event_id, event_type, payment_intent_id, livemode, provider_created_at, api_version, SHA-256 of verified raw body. Does NOT store signatures, secrets, full raw payload, or customer data. |
+| Canary ownership from authoritative binding | Determined inside the DB boundary via `reservation_payment_bindings` lookup — never from event metadata. |
+
+### 12.2 SQL Artifact Changes
+
+| Change | Details |
+|---|---|
+| `001_schema.sql` | Added 5 columns to `stripe_webhook_events`: `payment_intent_id`, `livemode`, `provider_created_at`, `api_version`, `payload_hash` |
+| `002_functions.sql` | New `ingest_stripe_webhook_event` — idempotent SECURITY DEFINER ingestion with canary ownership from binding, `ON CONFLICT DO NOTHING`, `verification_mismatch` incident on hash conflict |
+| `004_roles_and_grants.sql` | `GRANT EXECUTE` on `ingest_stripe_webhook_event` to `authority_executor` only |
+
+### 12.3 Ingestion Function Design
+
+`ingest_stripe_webhook_event(webhook_event_id, event_type, payment_intent_id, livemode, provider_created_at, api_version, payload_hash)`:
+
+1. **Canary ownership**: Look up `reservation_payment_bindings` by `payment_intent_id`. No binding → `{canary_owned: false, ingested: false}` (handler falls through to legacy). Binding found → canary-owned.
+2. **Idempotent insert**: `INSERT ... ON CONFLICT (webhook_event_id) DO NOTHING RETURNING webhook_event_id`. If inserted (fresh), `replay=false`. If conflict (existing), read stored `payload_hash`.
+3. **Hash comparison**: Same hash → `{ok: true, canary_owned: true, ingested: true, replay: bool}`. Different hash → fail closed.
+4. **Verification mismatch**: Create `operational_incidents` row (`verification_mismatch`, priority `critical`), return `{ok: false, code: 'VERIFICATION_MISMATCH'}`. No second webhook row inserted.
+
+### 12.4 Handler Wiring
+
+`stripeWebhook/entry.ts`:
+- Reads `STRIPE_WEBHOOK_SECRET` via `await secrets.get(...)` from `base44:runtime` (no `Deno.env`).
+- After Stripe signature verification, calls `maybeRouteCanaryWebhook({ canaryEnabled: isCanaryEnabled(), executorUrl, event, rawBody })`.
+- Canary-owned + ok → 200 durable ack. Mismatch → 409 fail-closed. DB failure → 503 retryable. Non-canary or flag-OFF → null → legacy path (unchanged).
+- `executorUrl` from `await secrets.get('AUTHORITY_V1_DB_URL_DEV_EXECUTOR')`.
+- Legacy path preserved exactly (still `Deno.env.get('STRIPELIVESECRETKEY')` + `runStripeWebhook`).
+
+### 12.5 Test Results — 20/20 PASS
+
+| # | Scenario | Result |
+|---|---|---|
+| T1 | Missing signature → throws (handler 400) | ✅ |
+| T2 | Invalid signature → throws (handler 400) | ✅ |
+| T3 | Valid signature → verified event returned | ✅ |
+| T4 | Flag-OFF → null (legacy) | ✅ |
+| T5 | Non-canary (no binding) → null (legacy) | ✅ |
+| T6 | DB outage → 503 retryable | ✅ |
+| T7 | Valid canary → 200 durable ack | ✅ |
+| T8 | Identical replay → 200, replay=true | ✅ |
+| T9 | Verification mismatch → 409 fail-closed | ✅ |
+| T10 | No PI (payout/transfer) → null (legacy) | ✅ |
+| T11 | SQL valid durable receipt → one row, canary_owned=true | ✅ |
+| T12 | SQL identical replay → one row, replay=true | ✅ |
+| T13 | SQL conflicting replay → fail closed + incident, no second row | ✅ |
+| T14 | SQL concurrent duplicate → exactly one row | ✅ |
+| T15 | SQL non-canary → no row ingested | ✅ |
+| T16 | SQL minimal envelope → raw_payload NULL, no customer data | ✅ |
+| T17 | Grants executor can call | ✅ |
+| T18 | Grants recorder denied (permission denied) | ✅ |
+| T19 | Zero Base44 writes (static) | ✅ |
+| T20 | Exact cleanup → all synthetic rows removed | ✅ |
+
+### 12.6 Regression Gate
+
+| Suite | Result |
+|---|---|
+| Webhook ingress (NEW) | ✅ 20/20 PASS |
+| Authority-contract (static) | ✅ 80/80 PASS (8 new webhook checks) |
+| Build (`npm run build`) | ✅ Exit 0 |
+| Scoped lint | ✅ 0 errors, 1 warning (unused catch param — pre-existing pattern) |
+
+### 12.7 Artifact/Live Parity
+
+| Object | Live Hash | Artifact Hash | Match |
+|---|---|---|---|
+| `ingest_stripe_webhook_event` body | `4d0f862a39bb3fac` | `4d0f862a39bb3fac` | ✅ |
+
+### 12.8 Final State
+
+| Item | Value |
+|---|---|
+| `CANARY_ENABLED` flag | `false` (OFF) — trusted DI only |
+| Maintenance mode | ON |
+| Backend functions | 50 (unchanged) |
+| Authority_v1 Postgres functions | 30 (29 + 1 new `ingest_stripe_webhook_event`) |
+| `stripe_webhook_events` columns | 5 new (payment_intent_id, livemode, provider_created_at, api_version, payload_hash) |
+| Runtime grants | `authority_executor` only (recorder + worker denied) |
+| Authority tables (all 7) | 0 rows (truncated + verified) |
+| Real Stripe calls | 0 (ingress only, no API calls) |
+| Live Stripe | Untouched |
+| Legacy webhook path | Unchanged |
+
+### 12.9 Changed Files
+
+| File | Change |
+|---|---|
+| `database/authority_v1/001_schema.sql` | 5 new columns on `stripe_webhook_events` |
+| `database/authority_v1/002_functions.sql` | New `ingest_stripe_webhook_event` function |
+| `database/authority_v1/004_roles_and_grants.sql` | Grant to `authority_executor` |
+| `base44/shared/authorityV1Client.js` | `ingestStripeWebhookEvent` method added |
+| `base44/shared/webhookCanaryIngress.js` | NEW — `maybeRouteCanaryWebhook` routing |
+| `base44/functions/stripeWebhook/entry.ts` | Canary ingress wired + `STRIPE_WEBHOOK_SECRET` via base44:runtime |
+| `tests/webhook-canary-ingress.test.mjs` | NEW — 20-scenario ingress suite |
+| `tests/authority-contract.test.mjs` | 8 new webhook contract checks |
+| `src/docs/AUTHORITY_V1_CANARY_CERTIFICATION.md` | §12, header, §1 table, §2 modules/tests |
+
+### 12.10 Conclusion
+
+P0-01K manifest label: **`stripeWebhook — CANARY-WIRED / INGRESS CERTIFIED / PROCESSING NOT YET CERTIFIED / FLAG OFF`**
+
+- Durable, signature-verified webhook ingress for authority-bound canary PaymentIntents is certified against the real dev Postgres authority.
+- Canary ownership determined from the authoritative PaymentIntent binding inside the DB boundary — never from event metadata.
+- Same event ID + same payload hash → idempotent replay (one durable row). Same event ID + different hash → fail closed with a durable `verification_mismatch` incident.
+- PostgreSQL is authoritative; Base44 is not a fallback. 2xx only after durable acknowledgement; DB failure returns retryable 503.
+- Non-canary events and flag-OFF behavior fall through to the unchanged legacy path.
+- `STRIPE_WEBHOOK_SECRET` read via `base44:runtime` secrets inside request handling — no `Deno.env`, no logging.
+- Executor-only ingestion grant; recorder and worker denied. Admin for scoped deployment/cleanup only.
+- Trusted dependency injection for the canary flag — no env/global/header/query/body/secret override.
+- **Webhook business-state processing is NOT implemented.** Processing certification remains a separate step.

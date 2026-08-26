@@ -148,6 +148,8 @@ GRANT EXECUTE ON FUNCTION authority_v1.cancel_listing(TEXT,INTEGER,TEXT,TEXT) TO
 GRANT EXECUTE ON FUNCTION authority_v1.quarantine_listing(TEXT,TEXT,TEXT,TEXT) TO authority_executor;
 GRANT EXECUTE ON FUNCTION authority_v1.check_user_obligations(TEXT) TO authority_executor;
 GRANT EXECUTE ON FUNCTION authority_v1.anonymize_user(TEXT,TEXT,TEXT,TEXT) TO authority_executor;
+-- P0-01K: Durable webhook ingestion — executor-only (runtime webhook handler)
+GRANT EXECUTE ON FUNCTION authority_v1.ingest_stripe_webhook_event(TEXT,TEXT,TEXT,BOOLEAN,TIMESTAMPTZ,TEXT,TEXT) TO authority_executor;
 
 -- ── 11. Grant EXECUTE — Stripe-result recording to authority_stripe_recorder ─
 -- Separate least-privilege boundary: only the Stripe-result recording functions

@@ -131,5 +131,10 @@ export function createAuthorityV1Client(executorUrl) {
     async abortBinding(listingId, expectedVersion, purchaseId, operationId, requestHash) {
       return callFn('abort_binding', listingId, expectedVersion, purchaseId, operationId, requestHash);
     },
+
+    /** ingest_stripe_webhook_event(webhook_event_id, event_type, payment_intent_id, livemode, provider_created_at, api_version, payload_hash) → JSONB */
+    async ingestStripeWebhookEvent(webhookEventId, eventType, paymentIntentId, livemode, providerCreatedAt, apiVersion, payloadHash) {
+      return callFn('ingest_stripe_webhook_event', webhookEventId, eventType, paymentIntentId, livemode, providerCreatedAt, apiVersion, payloadHash);
+    },
   };
 }

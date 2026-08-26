@@ -821,6 +821,75 @@ check('no_pg_canary_cert_override_in_cert_harness', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// TEST 24: P0-01K webhook ingress — ingest_stripe_webhook_event contract
+// ═══════════════════════════════════════════════════════════════════════════
+check('webhook_ingest_function_exists', () => {
+  if (!functions.includes('ingest_stripe_webhook_event')) {
+    throw new Error('ingest_stripe_webhook_event function not found in 002_functions.sql');
+  }
+  return true;
+});
+function webhookIngestBody() {
+  const fnStart = functions.indexOf('CREATE OR REPLACE FUNCTION authority_v1.ingest_stripe_webhook_event');
+  if (fnStart === -1) throw new Error('ingest_stripe_webhook_event function not found');
+  const fnEnd = functions.indexOf('$$;', fnStart);
+  if (fnEnd === -1) throw new Error('function body end not found');
+  return functions.substring(fnStart, fnEnd);
+}
+check('webhook_ingest_function_security_definer', () => {
+  const body = webhookIngestBody();
+  if (!body.includes('SECURITY DEFINER')) throw new Error('must be SECURITY DEFINER');
+  if (!body.includes('SET search_path = authority_v1, pg_temp')) throw new Error('must harden search_path');
+  return true;
+});
+check('webhook_ingest_grant_executor_only', () => {
+  const grants = roles.match(/GRANT EXECUTE ON FUNCTION authority_v1\.ingest_stripe_webhook_event[^\n]*/g);
+  if (!grants || grants.length === 0) throw new Error('no grant found for ingest_stripe_webhook_event');
+  for (const g of grants) {
+    if (!g.includes('authority_executor')) throw new Error('grant must be to authority_executor only: ' + g);
+  }
+  return true;
+});
+check('webhook_events_envelope_columns', () => {
+  if (!schema.includes('payload_hash')) throw new Error('payload_hash column not found in schema');
+  if (!schema.includes('payment_intent_id')) throw new Error('payment_intent_id column not found');
+  if (!schema.includes('provider_created_at')) throw new Error('provider_created_at column not found');
+  if (!schema.includes('livemode')) throw new Error('livemode column not found');
+  if (!schema.includes('api_version')) throw new Error('api_version column not found');
+  return true;
+});
+check('webhook_ingest_no_raw_payload_storage', () => {
+  const body = webhookIngestBody();
+  const insertMatch = body.match(/INSERT INTO stripe_webhook_events[\s\S]*?VALUES[\s\S]*?\)/);
+  if (!insertMatch) throw new Error('INSERT statement not found in ingest function');
+  if (insertMatch[0].includes('raw_payload')) {
+    throw new Error('ingest must not store raw_payload (customer data)');
+  }
+  return true;
+});
+check('webhook_ingest_canary_ownership_from_binding', () => {
+  const body = webhookIngestBody();
+  if (!body.includes('reservation_payment_bindings')) {
+    throw new Error('must determine canary ownership from reservation_payment_bindings');
+  }
+  return true;
+});
+check('webhook_ingest_incident_on_mismatch', () => {
+  const body = webhookIngestBody();
+  if (!body.includes('verification_mismatch')) {
+    throw new Error('must create verification_mismatch incident on hash conflict');
+  }
+  return true;
+});
+check('webhook_ingest_idempotent_on_conflict', () => {
+  const body = webhookIngestBody();
+  if (!body.includes('ON CONFLICT (webhook_event_id) DO NOTHING')) {
+    throw new Error('must use ON CONFLICT DO NOTHING for idempotent ingestion');
+  }
+  return true;
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 // NOT YET TESTED: SQL parse/compile and real PostgreSQL runtime
 // ═══════════════════════════════════════════════════════════════════════════
 console.log('\n── NOT YET TESTED ──');

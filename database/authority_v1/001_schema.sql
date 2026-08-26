@@ -306,6 +306,12 @@ CREATE TABLE authority_v1.stripe_webhook_events (
   related_action_id      TEXT        REFERENCES authority_v1.payment_actions(action_id),
   related_operation_id   TEXT,
   raw_payload            JSONB,
+  -- P0-01K minimal recovery envelope (no signatures/secrets/customer data stored)
+  payment_intent_id      TEXT,
+  livemode               BOOLEAN,
+  provider_created_at    TIMESTAMPTZ,
+  api_version            TEXT,
+  payload_hash           TEXT,
   error_message          TEXT,
   processed_at           TIMESTAMPTZ,
   -- Leasing fields for worker claiming and crash recovery
