@@ -1,7 +1,7 @@
 # authority_v1 Reserve/Release Canary — Certification Manifest
 
-**Date:** 2026-08-21 (last recertified 2026-08-26 — P0-01I-CERTIFIED)
-**Status:** ✅ CERTIFIED — Flag OFF, maintenance ON, zero synthetic rows, 319/319 tests pass, canonical parity verified
+**Date:** 2026-08-21 (last recertified 2026-08-26 — P0-01J-CERTIFIED)
+**Status:** ✅ CERTIFIED — Flag OFF, maintenance ON, zero synthetic rows, 319/319 regression + 46/46 real Stripe test-mode = 365/365 tests pass, canonical parity verified, real Stripe test-mode capture certified
 
 ---
 
@@ -20,7 +20,7 @@
 |---|---|
 | `abortCheckout` | **Excluded — financial + no eligible non-financial release.** Cancels Stripe PI (entry.ts L80-88: `stripe.paymentIntents.cancel`). Reservation release at L119-133 is embedded in the same handler that cancels the PI — cannot be separated without splitting the financial operation. No canary guard in `canaryGuard.js`. |
 | `cleanupAbandonedCheckouts` | **Excluded — financial + no reservation release performed.** Phase 1 cancels Stripe PIs (cleanupOrchestrator.js L166: `stripe.paymentIntents.cancel`). Phase 2 recovery explicitly does NOT clear reservation fields — `Listing.update({ status: 'active', hidden_reason: null })` only (L423); post-verify requires `reservation_token === null` (L448). No reservation release exists in this function to route. |
-| `capturePayment` | **CANARY-WIRED / FAKE-PROVIDER CERTIFIED / REAL STRIPE NOT CERTIFIED / FLAG OFF** — See §10 below |
+| `capturePayment` | **CANARY-WIRED / REAL STRIPE TEST-MODE CERTIFIED / LIVE STRIPE NOT CERTIFIED / FLAG OFF** — See §11 below |
 
 ---
 
@@ -41,6 +41,7 @@
 | `tests/canary-scheduled-release-protections.test.mjs` | Fail-closed protections: active-purchase, throw, reject, malformed (7/7 pass) |
 | `tests/process-transfer-reminders-wiring.test.mjs` | AST wiring proof: entry.ts → canaryScheduledRelease (5/5 pass) |
 | `tests/capture-canary-orchestrator.test.mjs` | P0-01I: Capture saga success/failure/unknown-recovery, replay, concurrency, mirror failure, isolation (12/12 pass) |
+| `tests/capture-canary-real-stripe.test.mjs` | P0-01J: Real Stripe TEST-MODE capture certification — exactly-one capture, replay, lost-response reconcile, livemode=false, mirror-failure isolation, cleanup (46/46 pass) |
 | `tests/loaders/npm-compat-*.mjs` | Node.js ESM loader hook for Deno `npm:` specifiers in test imports |
 
 **No new backend functions created.** Function count: 50 (unchanged).
@@ -140,7 +141,7 @@ Execution method: `tests/payment-saga-cancel.test.mjs` refactored as importable 
 | `reconcilePurchaseOutcomes` | UNCHANGED (P0-01E certified) | Outbox repair |
 | `abortCheckout` | **CANARY-WIRED / FAKE-PROVIDER CERTIFIED / REAL STRIPE NOT CERTIFIED / FLAG OFF** | See §8 below |
 | `cleanupAbandonedCheckouts` | UNCHANGED (excluded) | No reservation release to route |
-| `capturePayment` | **CANARY-WIRED / FAKE-PROVIDER CERTIFIED / REAL STRIPE NOT CERTIFIED / FLAG OFF** | See §10 below |
+| `capturePayment` | **CANARY-WIRED / REAL STRIPE TEST-MODE CERTIFIED / LIVE STRIPE NOT CERTIFIED / FLAG OFF** | See §11 below |
 | `stripeWebhook` | UNCHANGED | No authority_v1 integration |
 | `confirmCheckoutAuthorized` | UNCHANGED | No authority_v1 integration |
 | `cancelPurchase` | UNCHANGED | No authority_v1 integration |
@@ -667,11 +668,129 @@ Execution method: `exec_tool` sandbox with npm-compat ESM loader hook, dynamical
 
 ### 10.8 Conclusion
 
-P0-01I manifest label: **`capturePayment — CANARY-WIRED / FAKE-PROVIDER CERTIFIED / REAL STRIPE NOT CERTIFIED / FLAG OFF`**
+P0-01I manifest label: **`capturePayment — CANARY-WIRED / FAKE-PROVIDER CERTIFIED / REAL STRIPE NOT CERTIFIED / FLAG OFF`** (superseded by P0-01J §11 — real Stripe test-mode capture now certified)
 
 - `capturePayment` is canary-wired before the maintenance gate; legacy path unchanged.
 - `record_capture_result` supports controlled `capture_unknown` reconciliation per the canonical architecture.
 - `capture-finalize-atomicity` T2 is deterministic: canonical structured `BINDING_STATE_MISMATCH` result, zero state mutation, only the rejected operation-ledger row added (48/48 PASS).
-- 50 backend functions, 29 authority functions, flag OFF, maintenance ON, 0 synthetic rows, 0 real provider calls.
+- 50 backend functions, 29 authority functions, flag OFF, maintenance ON, 0 synthetic rows, 0 real provider calls (fake adapter).
 - No admin credentials in production or result-recording paths (static analysis of 50 handlers + shared modules).
-- **Real Stripe execution is NOT certified.** The fake-provider test proves the saga logic; a later real Stripe test-mode gate is required for production certification (NEEDS_OWNER_ACTION).
+- **Real Stripe execution is NOT certified at P0-01I.** The fake-provider test proves the saga logic; P0-01J (§11) certifies the real Stripe test-mode capture path.
+
+---
+
+## 11. P0-01J Status: ✅ PASS — Real Stripe TEST-MODE Capture Certification (Development DB Only)
+
+**Date:** 2026-08-26
+**Scope:** Certify the committed `capturePayment` canary saga (`runCanaryCaptureSaga` in `base44/shared/captureCanaryOrchestrator.js`) against the REAL Stripe API in TEST MODE only. The committed orchestrator path is exercised end-to-end: executor `begin_capture` (real Postgres) → real Stripe test-mode capture → recorder `record_capture_result` (real Postgres) → Base44 mirror. **Live-mode Stripe is NOT certified.**
+**Baseline:** P0-01I certification → P0-01J real Stripe test-mode gate.
+
+### 11.1 Safety Constraints Enforced
+
+| Constraint | Enforcement |
+|---|---|
+| Never use/accept a live-mode key | The invoker reads `STRIPE_SECRET_KEY` and verifies `sk_test_` prefix; `STRIPELIVESECRETKEY` (live) is never read or used. Any `sk_live_` value is refused. |
+| Do not enable canary flag / disable maintenance | `CANARY_ENABLED` stays `false`; maintenance stays ON. The saga is invoked directly (the flag guard is a policy layer, separately proven by T10 in §10). |
+| No real users/listings/purchases/cards/money | Synthetic IDs only (`cert_real_t*_<uuid>`). Stripe prebuilt test PaymentMethod `pm_card_visa` — no raw card data, no PCI payload. Amount = 100 cents ($1.00) test mode. |
+| Retrieve test secret via runtime secrets; never print/log/return/commit it | The harness receives `testKey` as a dep and uses it only in the Stripe `Authorization` header. It never reads `process.env` and never includes the key in any result, error, or log. No duplicate secret name introduced. |
+| Runtime authority via executor client; admin only for setup/cleanup; no admin fallback | `executorClient` (executor) + `recorderClient` (recorder) drive the saga. `adminSql` is used ONLY for synthetic setup (initialize/reserve/bind) and exact-ID cleanup + truncate. The orchestrator path has no admin import. |
+| Exercise the committed handler/orchestrator path | The harness calls the real `runCanaryCaptureSaga` (the committed orchestrator) with a real Stripe REST adapter that mirrors the production adapter in `capturePayment/entry.ts` (retrieve → conditionally capture). No bypass. |
+
+### 11.2 Real Stripe Test-Mode Adapter
+
+The adapter (`makeRealStripeAdapter` in the harness) mirrors the production adapter (`capturePayment/entry.ts` L54-73): it retrieves the PaymentIntent first, then captures only if `requires_capture`. It tracks `captureCount` and `retrieveCount` per instance. A `throwAfterCapture` test hook throws after a successful real capture to simulate a lost response (the orchestrator catches → `unknown` → `capture_unknown`). All Stripe calls use raw `fetch` to `api.stripe.com` (no SDK dependency) with the test key in the `Authorization` header only.
+
+### 11.3 Test Results — 46/46 PASS (Real Stripe TEST-Mode)
+
+Execution method: `exec_tool` sandbox with the npm-compat ESM loader hook, dynamically importing `tests/capture-canary-real-stripe.test.mjs` and invoking `runAllTests({ adminSql, executorUrl, recorderUrl, testKey })`. Real executor client, real recorder client, REAL Stripe test-mode API (prebuilt `pm_card_visa`, manual-capture PaymentIntents tagged `metadata.pg_cert=P0-01J`).
+
+| # | Scenario | Assertions | Result |
+|---|---|---|---|
+| T1 | Successful capture → exactly 1 real Stripe capture, sale committed once | 11 | ✅ |
+| T2 | Identical replay → no 2nd Stripe request, no new operation/sale/mirror | 9 | ✅ |
+| T3 | Lost response → capture_unknown, then reconcile from Stripe state without recapturing | 13 | ✅ |
+| T4 | livemode=false; amount, currency, PI identity, version, idem key bound | 9 | ✅ |
+| T5 | Mirror failure cannot roll back PostgreSQL authority | 7 | ✅ |
+| T6 | Exact synthetic cleanup → all 7 authority tables empty | 1 | ✅ |
+| **Total** | | **46** | **46/46 PASS** |
+
+**Per-scenario provider request counts (proven by assertion):**
+- T1: captureCount=1, retrieveCount=1 (exactly one real capture).
+- T2: captureCount=1, retrieveCount=1 on replay (no second Stripe request; no new operation rows).
+- T3: first call captureCount=1 (real capture succeeded, then lost-response throw → capture_unknown); reconciliation captureCount=0, retrieveCount=1 (retrieved Stripe's `succeeded` state, did NOT recapture).
+- T4: captureCount=1, retrieveCount=1; `livemode=false`, `amount=100`, `currency=usd`, PI identity bound, authority version ≥ 2, idem key = `idem_capture_<actionId>`.
+- T5: captureCount=1; authority `sold` + binding `finalized` despite mirror failure; outbox created.
+
+### 11.4 Sanitized Stripe Test Objects
+
+All 5 Stripe test PaymentIntents are `livemode: false`, manual-capture, tagged `metadata: { pg_cert: 'P0-01J', purpose: 'canary_capture_cert' }`. They remain on the Stripe test account with certification metadata (test-mode objects; no real money).
+
+| Scenario | PaymentIntent ID | livemode | Created status |
+|---|---|---|---|
+| T1 | `pi_3U8o6REUwdSmJ9rr0w7X0oFk` | false | requires_capture → captured (succeeded) |
+| T2 | `pi_3U8o6VEUwdSmJ9rr0YOPpCwm` | false | requires_capture → captured (succeeded) |
+| T3 | `pi_3U8o6XEUwdSmJ9rr1pbmFreq` | false | requires_capture → captured (succeeded, lost-response) |
+| T4 | `pi_3U8o6aEUwdSmJ9rr0uN82r23` | false | requires_capture → captured (succeeded) |
+| T5 | `pi_3U8o6cEUwdSmJ9rr1wbFs62F` | false | requires_capture → captured (succeeded) |
+
+**Total real Stripe capture requests across the certification: 5** (one per scenario; T2 replay and T3 reconciliation made zero additional capture requests).
+
+### 11.5 Regression Gate — 319/319 PASS (Full Canary Suite Re-Run)
+
+All 8 canary suites were re-run after the real test-mode pass (provider boundary is production-critical):
+
+| # | Suite | Assertions | Result |
+|---|---|---|---|
+| 1 | confirm-canary-orchestrator (P0-01H) | 16 | ✅ 16/16 PASS |
+| 2 | capture-finalize-atomicity (P0-01G) | 48 | ✅ 48/48 PASS |
+| 3 | abort-canary-orchestrator (P0-01G) | 103 | ✅ 103/103 PASS |
+| 4 | payment-saga-cancel (P0-01F) | 59 | ✅ 59/59 PASS |
+| 5 | canary-scheduled-release-protections (P0-01E) | 7 | ✅ 7/7 PASS |
+| 6 | process-transfer-reminders-wiring (P0-01E) | 5 | ✅ 5/5 PASS |
+| 7 | authority-contract (static) | 69 | ✅ 69/69 PASS |
+| 8 | capture-canary-orchestrator (P0-01I) | 12 | ✅ 12/12 PASS |
+| | **Total** | **319** | **319/319 PASS** |
+
+All 7 authority tables = 0 rows after each suite. No production code or existing test files were modified by P0-01J (only a new test file was added), so the 319-assertion gate is structurally unchanged and re-confirmed green.
+
+### 11.6 Build & Lint
+
+| Check | Exit Code | Details |
+|---|---|---|
+| `npm run build` (vite build) | 0 | Build succeeded |
+| Backend lint (`eslint base44/functions base44/shared tests/capture-canary-real-stripe.test.mjs`) | 0 | 0 errors, 218 warnings (pre-existing `no-unused-vars`) |
+
+### 11.7 Final State
+
+| Item | Value |
+|---|---|
+| `CANARY_ENABLED` flag | `false` (OFF) |
+| Maintenance mode | ON |
+| Backend functions | 50 (unchanged) |
+| Authority_v1 Postgres functions | 29 (unchanged) |
+| Authority tables (all 7) | 0 rows (truncated + verified) |
+| Real Stripe test-mode capture requests | 5 (one per scenario; replay + reconciliation recapture = 0) |
+| Real Stripe live-mode calls | 0 (live key refused, never read) |
+| Stripe test objects remaining | 5 PaymentIntents, all `livemode:false`, tagged `pg_cert=P0-01J` |
+| Production admin imports | 0 (50 handlers checked) |
+| Recorder grants | 3 functions, 0 table privileges |
+| `record_capture_result` live/artifact parity | ✅ `4b99c0d8…` (unchanged from P0-01H) |
+
+### 11.8 Changed Files (P0-01J)
+
+| File | Change |
+|---|---|
+| `tests/capture-canary-real-stripe.test.mjs` | NEW — real Stripe test-mode certification harness (6 scenarios, 46 assertions) |
+| `src/docs/AUTHORITY_V1_CANARY_CERTIFICATION.md` | Added §11 (P0-01J certification), updated header + §1/§7 entry-point labels, §2 test-file list, §10.8 superseded note |
+
+**No production code, SQL artifacts, shared modules, or existing test files were modified.** P0-01J is a test-only addition certifying the committed saga against the real Stripe test-mode API.
+
+### 11.9 Conclusion
+
+P0-01J manifest label: **`capturePayment — CANARY-WIRED / REAL STRIPE TEST-MODE CERTIFIED / LIVE STRIPE NOT CERTIFIED / FLAG OFF`**
+
+- The committed `runCanaryCaptureSaga` orchestrator is certified against the REAL Stripe API in test mode: exactly one real capture per sale, idempotent replay (no second Stripe request), lost-response reconciliation from Stripe's actual PaymentIntent state without recapturing, `livemode:false` with amount/currency/PI/version/idempotency-key bound, and mirror failure cannot roll back PostgreSQL authority.
+- All Stripe test objects are `livemode:false` with `pg_cert=P0-01J` metadata; 5 real test-mode capture requests total.
+- Full 319-assertion regression gate re-confirmed green; build + lint pass (0 errors).
+- 50 backend functions, 29 authority functions, flag OFF, maintenance ON, 0 synthetic rows, 0 live-mode calls.
+- **LIVE Stripe is NOT certified.** Live-mode certification remains a separate owner-gated step (NEEDS_OWNER_ACTION).
