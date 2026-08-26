@@ -33,7 +33,7 @@
  * atomicity, exactly-one-winner, rollback) requires a real PostgreSQL runtime
  * test — classified as "not yet tested."
  */
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -770,6 +770,52 @@ check('schema_payment_intent_id_not_null', () => {
   if (!bindingMatch) throw new Error('reservation_payment_bindings table not found');
   if (!bindingMatch[0].includes('payment_intent_id               TEXT        UNIQUE NOT NULL')) {
     throw new Error('payment_intent_id must be NOT NULL and UNIQUE');
+  }
+  return true;
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TEST 23: No alternate canary-enablement path (PG_CANARY_CERT_OVERRIDE absent)
+// ═══════════════════════════════════════════════════════════════════════════
+// No environment variable, global, request field, query parameter, header, or
+// secret may override the canary flag. The only enabled-state source is the
+// trusted caller-supplied canaryEnabled dependency. This static check scans
+// every file under base44/functions, base44/shared, and the certification
+// harness for the literal override identifier and fails if any remains.
+function listFiles(dir, acc = []) {
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry);
+    const st = statSync(full);
+    if (st.isDirectory()) listFiles(full, acc);
+    else acc.push(full);
+  }
+  return acc;
+}
+check('no_pg_canary_cert_override_in_functions', () => {
+  const dir = join(ROOT, 'base44/functions');
+  if (!existsSync(dir)) return true;
+  const offenders = listFiles(dir)
+    .filter(f => /\.tsx?$|\.js$|\.mjs$|\.ts$/.test(f))
+    .map(f => [f, readFileSync(f, 'utf8')])
+    .filter(([, src]) => src.includes('PG_CANARY_CERT_OVERRIDE'));
+  if (offenders.length) throw new Error('PG_CANARY_CERT_OVERRIDE present in: ' + offenders.map(([f]) => f).join(', '));
+  return true;
+});
+check('no_pg_canary_cert_override_in_shared', () => {
+  const dir = join(ROOT, 'base44/shared');
+  if (!existsSync(dir)) return true;
+  const offenders = listFiles(dir)
+    .filter(f => /\.tsx?$|\.js$|\.mjs$|\.ts$/.test(f))
+    .map(f => [f, readFileSync(f, 'utf8')])
+    .filter(([, src]) => src.includes('PG_CANARY_CERT_OVERRIDE'));
+  if (offenders.length) throw new Error('PG_CANARY_CERT_OVERRIDE present in: ' + offenders.map(([f]) => f).join(', '));
+  return true;
+});
+check('no_pg_canary_cert_override_in_cert_harness', () => {
+  const file = join(ROOT, 'tests/capture-canary-real-stripe.test.mjs');
+  if (!existsSync(file)) throw new Error('certification harness not found');
+  if (readFileSync(file, 'utf8').includes('PG_CANARY_CERT_OVERRIDE')) {
+    throw new Error('PG_CANARY_CERT_OVERRIDE present in certification harness');
   }
   return true;
 });

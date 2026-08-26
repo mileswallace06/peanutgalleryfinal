@@ -23,15 +23,12 @@ const CANARY_TAG = '[AUTH_CANARY]';
 const RESERVATION_MINUTES = 10;
 
 export function isCanaryEnabled() {
-  if (CANARY_ENABLED === true) return true;
-  // Node-only certification override — inert in Deno (production). Allows the
-  // P0-01J real-Stripe harness to exercise the maybeRouteCanaryCapture seam
-  // end-to-end without altering the production default-OFF flag. Never set
-  // PG_CANARY_CERT_OVERRIDE in a Deno/production environment.
-  if (typeof Deno === 'undefined' && typeof process !== 'undefined' && process.env?.PG_CANARY_CERT_OVERRIDE === 'true') {
-    return true;
-  }
-  return false;
+  // The single source of truth for the canary flag. No environment variable,
+  // global, request field, query parameter, header, or secret may override
+  // this. The committed production default is OFF (false). Callers that need a
+  // different enabled state for trusted testing must supply it via dependency
+  // injection to the routing function — never by mutating this value.
+  return CANARY_ENABLED === true;
 }
 
 export function isCanaryListing(listing) {

@@ -29,7 +29,7 @@
  * Dependency-injected for testability. Tests inject mock clients + fake Stripe.
  */
 import { sha256Hex, canonicalEnvelope, genId, applyMirrorWithOutbox } from './canaryMirror.js';
-import { isCanaryEnabled, isCanaryListing } from './authCanary.js';
+import { isCanaryListing } from './authCanary.js';
 
 /**
  * Run the canary capture saga.
@@ -340,12 +340,17 @@ export async function runCanaryCaptureSaga(deps) {
  * @param {string} deps.executorUrl - AUTHORITY_V1_DB_URL_DEV_EXECUTOR
  * @param {string} deps.recorderUrl - AUTHORITY_V1_DB_URL_DEV_STRIPE_RECORDER
  * @param {object} deps.stripeAdapter - { capturePaymentIntent(piId, idemKey) }
+ * @param {boolean} deps.canaryEnabled - Trusted enabled state supplied by the
+ *   caller. The production handler supplies isCanaryEnabled() (the committed
+ *   default-OFF flag); a trusted certification harness may supply true. This
+ *   value must NEVER be derived from user input or runtime environment
+ *   overrides — only from the caller's trusted configuration.
  * @param {object} [deps.executorClient] - injected for tests
  * @param {object} [deps.recorderClient] - injected for tests
  * @returns {Promise<{status:number,body:object}|null>}
  */
 export async function maybeRouteCanaryCapture(deps) {
-  const { listing, body, user } = deps;
+  const { listing, body, user, canaryEnabled } = deps;
   const isCanary = isCanaryListing(listing);
   const wantsCanary = body?.canary === true;
 
@@ -373,7 +378,10 @@ export async function maybeRouteCanaryCapture(deps) {
       body: { error: 'Canary requires admin', code: 'CANARY_ADMIN_REQUIRED' },
     };
   }
-  if (!isCanaryEnabled()) {
+  // Trusted dependency-injected enabled state. When the caller supplies the
+  // real committed config (flag OFF), the canary path is disabled and returns
+  // 503. No environment/global/header/secret can override this.
+  if (canaryEnabled !== true) {
     return {
       status: 503,
       body: { error: 'Canary integration is disabled.', code: 'CANARY_DISABLED' },

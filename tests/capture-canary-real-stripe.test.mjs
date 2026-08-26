@@ -22,10 +22,14 @@
  *   - Synthetic IDs only. No real users, listings, purchases, cards, or money.
  *   - All Stripe test PaymentIntents are manual-capture, tagged with
  *     metadata { pg_cert: 'P0-01J', purpose: 'canary_capture_cert' }.
- *   - Flag stays OFF in production (CANARY_ENABLED = false). The harness enables
- *     a Node-only override (PG_CANARY_CERT_OVERRIDE) to exercise the seam
- *     end-to-end; this override is inert in Deno (production). T0 proves the
- *     guard returns 503 with the override unset (no bypass).
+ *   - Flag stays OFF in production (CANARY_ENABLED = false). The canary-routing
+ *     function accepts its enabled state as a trusted, caller-supplied
+ *     dependency (canaryEnabled). The production handler supplies
+ *     isCanaryEnabled() (the committed default-OFF flag); this harness supplies
+ *     true directly when constructing the router. No environment variable,
+ *     global, request field, header, or secret can override the flag. T0
+ *     proves the normal production configuration (canaryEnabled: false) cannot
+ *     enter the canary path while OFF.
  *   - No admin fallback in the saga path. Executor-only authority access.
  *
  * deps = { adminSql, executorUrl, recorderUrl, testKey }
@@ -245,6 +249,10 @@ async function runSeam(opts) {
     executorUrl, recorderUrl,
     stripeAdapter: adapter,
     executorClient, recorderClient,
+    // Trusted dependency injection: the harness supplies true directly when
+    // constructing the router. This mirrors the handler supplying
+    // isCanaryEnabled() — never derived from user input or the environment.
+    canaryEnabled: true,
   });
   return { result, entities };
 }
@@ -263,9 +271,11 @@ export async function runAllTests(deps) {
     else { failed++; failures.push(msg); }
   }
 
-  // ── T0: Flag-OFF guard — seam returns 503 CANARY_DISABLED (no bypass) ──
+  // ── T0: Flag-OFF guard — normal production config cannot enter the canary path ──
+  // The handler supplies isCanaryEnabled() (the committed default-OFF flag).
+  // This test supplies the same value (false) directly via dependency injection
+  // and proves the seam returns 503 CANARY_DISABLED — no bypass, no provider call.
   {
-    delete process.env.PG_CANARY_CERT_OVERRIDE;
     const guardResult = await maybeRouteCanaryCapture({
       base44: makeMockBase44(makeMockEntities()),
       user: { id: 'guard', email: 'guard@example.com', role: 'admin' },
@@ -276,11 +286,10 @@ export async function runAllTests(deps) {
       executorUrl, recorderUrl,
       stripeAdapter: { async capturePaymentIntent() { throw new Error('provider must not be called with flag OFF'); } },
       executorClient, recorderClient,
+      canaryEnabled: false, // the real committed production configuration
     });
     assert(guardResult?.status === 503, `T0: flag-OFF guard returns 503 (got ${guardResult?.status})`);
     assert(guardResult?.body?.code === 'CANARY_DISABLED', `T0: CANARY_DISABLED (got ${guardResult?.body?.code})`);
-    // Enable the Node-only override for the real scenarios
-    process.env.PG_CANARY_CERT_OVERRIDE = 'true';
   }
 
   // ── T1: Successful capture → exactly one real Stripe capture, sale committed once ──
@@ -450,7 +459,6 @@ export async function runAllTests(deps) {
     const counts = await countAll(adminSql);
     const allClean = Object.values(counts).every(c => c === 0);
     assert(allClean, `T6: all 7 tables empty (got ${JSON.stringify(counts)})`);
-    delete process.env.PG_CANARY_CERT_OVERRIDE;
     const sanitized = stripeObjects.map(o => ({ id: o.id, scenario: o.scenario, livemode: o.livemode, final_status: o.status }));
     return {
       passed, failed, failures: failures.slice(0, 10),

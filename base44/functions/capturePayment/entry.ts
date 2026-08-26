@@ -19,6 +19,7 @@ import { recordTerminalOutcome } from '../../shared/recordOutcome.ts';
 import { getPurchasePrivate } from '../../shared/privateData.ts';
 import { runCapturePayment } from '../../shared/captureOrchestrator.js';
 import { maybeRouteCanaryCapture } from '../../shared/captureCanaryOrchestrator.js';
+import { isCanaryEnabled } from '../../shared/authCanary.js';
 import { createStripeCaptureProvider } from '../../shared/stripeCaptureProvider.js';
 
 Deno.serve(async (req) => {
@@ -58,6 +59,10 @@ Deno.serve(async (req) => {
       base44, user, body, listing, purchase,
       executorUrl, recorderUrl,
       stripeAdapter,
+      // The handler always supplies the real committed canary configuration.
+      // No environment/global/header/secret can override this; the harness
+      // supplies its own trusted value via dependency injection instead.
+      canaryEnabled: isCanaryEnabled(),
     });
     if (canaryResult) return Response.json(canaryResult.body, { status: canaryResult.status });
   }
