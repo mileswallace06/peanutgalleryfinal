@@ -1,7 +1,7 @@
 # authority_v1 Reserve/Release Canary — Certification Manifest
 
 **Date:** 2026-08-21 (last recertified 2026-08-27 — P0-01L-CANARY-CERTIFIED)
-**Status:** ✅ CERTIFIED — Flag OFF, maintenance ON, zero synthetic rows, 327/327 canary regression + 47/47 real Stripe test-mode + 20/20 webhook ingress + 19/19 webhook processor + 96/96 cancel-purchase canary = 509/509 tests pass, canonical parity verified for all 11 deployed functions, trusted dependency injection (no env/global override), webhook ingress + processing certified, cancel-purchase canary certified (real Stripe cancel + captured refund NOT certified)
+**Status:** ✅ CERTIFIED — Flag OFF, maintenance ON, zero synthetic rows. Tests run this session (P0-01L correction): cancel-purchase-canary 20/20 (146 assertions), payment-saga-cancel 16/16 (59 assertions), authority-contract 99/99, build exit 0, scoped lint 0 errors. Previously certified (not re-run this session): confirm-canary 16/16, capture-finalize 80/80, abort-canary 103/103, protections 7/7, wiring 5/5, capture-canary 12/12, real-stripe 47/47, webhook-ingress 20/20, webhook-processor 19/19. Trusted dependency injection (no env/global override), webhook ingress + processing certified, cancel-purchase canary certified (real Stripe cancel + captured refund NOT certified)
 
 ---
 
@@ -48,7 +48,7 @@
 | `tests/capture-canary-orchestrator.test.mjs` | P0-01I: Capture saga success/failure/unknown-recovery, replay, concurrency, mirror failure, isolation (12/12 pass) |
 | `tests/capture-canary-real-stripe.test.mjs` | P0-01J: Real Stripe TEST-MODE capture certification — exactly-one capture, replay, lost-response reconcile, livemode=false, mirror-failure isolation, cleanup (47/47 pass) |
 | `tests/webhook-canary-ingress.test.mjs` | P0-01K: Webhook ingress — signature verification, durable receipt, replay, conflict, concurrency, DB outage, flag-OFF, non-canary isolation, minimal envelope, grants, cleanup (20/20 pass) |
-| `tests/cancel-purchase-canary.test.mjs` | P0-01L: Cancel-purchase canary — buyer/admin authz, uncaptured cancel, provider failure, timeout→unknown→reconciliation, replay, concurrency, capture-in-flight rejection, captured-sale rejection, seller-confirmed quarantine, mirror+notification failure, flag-OFF/non-canary isolation, no-admin static proof, cleanup (96/96 pass) |
+| `tests/cancel-purchase-canary.test.mjs` | P0-01L: Cancel-purchase canary — buyer/admin authz, always-quarantine (false/true/missing/uncertain/race), provider failure, timeout→unknown→reconciliation, replay (no duplicate provider/incident/outbox/notification), concurrency, capture-in-flight rejection, captured-sale rejection, mirror+notification failure, flag-OFF/non-canary isolation, no-admin static proof, cleanup (146/146 pass) |
 | `tests/loaders/npm-compat-*.mjs` | Node.js ESM loader hook for Deno `npm:` specifiers in test imports |
 
 **No new backend functions created.** Function count: 50 (unchanged).
@@ -1165,74 +1165,85 @@ The canary path authenticates through the existing handler but authorizes the bu
 | Unauthorized | Non-buyer, non-admin → 403 `UNAUTHORIZED` (T14) |
 | Client-supplied fields | Purchase fields (listing_id, purchase_id, payment_intent_id) are derived server-side from the authenticated user + URL params, never trusted from the request body |
 
-### 14.4 Transfer Guard — Quarantine vs Relist
+### 14.4 Inventory Behavior — Always Quarantine (Never Relist)
 
-The cancel-purchase saga must not automatically relist inventory unless an authoritative transfer guard proves ticket transfer has not started. A Base44 pre-read is NOT sufficient proof.
+**Correction (P0-01L):** `seller_confirmed` is a Base44 `purchase` field, not stored in `authority_v1`, and not row-locked atomically with cancellation. It is NOT authoritative proof that transfer has not started. The prior implementation relisted when `seller_confirmed=false` — this was incorrect. Every successful pre-capture canary cancellation (regardless of `seller_confirmed` value: false, true, missing, stale, or changing concurrently) now completes the payment cancellation but keeps the listing quarantined (`recovery_blocked + checkout_quarantined`) pending authoritative transfer resolution. The listing is NEVER relisted or reactivated. No active/relist outbox event is emitted. The Base44 Listing mirror is set to `hidden` with `hidden_reason = 'cancel_inventory_quarantined'`.
 
-| Transfer State | Action | Rationale |
+| Cancel Outcome | Action | Rationale |
 |---|---|---|
-| `seller_confirmed = false` + no transfer evidence | **Relist** (authority → available, mirror → active) | Transfer has not started; safe to relist |
-| `seller_confirmed = true` or transfer-uncertain | **Quarantine** (authority → quarantined, `recovery_blocked = true`, mirror → hidden) | Transfer may have started; cancel money safely but quarantine for manual resolution |
+| Pre-capture cancel succeeded (any `seller_confirmed`) | **Quarantine** (authority → available + `recovery_blocked + checkout_quarantined`, mirror → hidden, code → `CANCELLED_INVENTORY_QUARANTINED`) | `seller_confirmed` is not authoritative proof; always quarantine for manual transfer resolution |
 | Captured/finalized | **Reject** (structured `CAPTURED_OUT_OF_SCOPE` + incident) | Outside this phase; do not silently refund |
+| Capture-in-flight (frozen) | **Reject** (structured `CAPTURE_IN_FLIGHT`) | Cancellation must not race capture |
 
 ### 14.5 Reconciliation Design — `cancel_unknown` Resolution
 
 ```
-cancel_requested ──record_cancel(succeeded)──→ canceled (relist or quarantine per transfer guard)
+cancel_requested ──record_cancel(succeeded)──→ canceled + quarantine (CANCELLED_INVENTORY_QUARANTINED)
 cancel_requested ──record_cancel(failed)──→ cancel_failed (unsettled, obligation preserved)
 cancel_requested ──record_cancel(unknown)──→ cancel_unknown (frozen + recovery_blocked + incident)
 
-cancel_unknown ──recon(succeeded)──→ canceled (release exactly once, clear recovery_blocked, resolve incident)
+cancel_unknown ──recon(succeeded)──→ canceled + quarantine (release exactly once, clear recovery_blocked, resolve incident, then quarantine_listing)
 cancel_unknown ──recon(failed)──→ cancel_failed (stay blocked, resolve cancel_unknown + create cancel_failed incident)
 cancel_unknown ──recon(unknown)──→ stays cancel_unknown (idempotent no-op, stays frozen + recovery_blocked)
 ```
 
-### 14.6 Test Results — 96/96 PASS (Cancel-Purchase Canary)
+### 14.6 Test Results — 146/146 PASS (Cancel-Purchase Canary, Run This Session)
 
-Execution method: `exec_tool` sandbox with npm-compat ESM loader hook, dynamically importing `tests/cancel-purchase-canary.test.mjs` and invoking `runAllTests({ adminSql, executorUrl, recorderUrl })`. Real executor client, real recorder client, fake Stripe adapter.
+Execution method: `exec_tool` sandbox with npm-compat ESM loader hook, dynamically importing `tests/cancel-purchase-canary.test.mjs` and invoking `runAllTests({ adminSql, executorUrl, recorderUrl })`. Real executor client, real recorder client, fake Stripe adapter. Machine-produced: passed=150, failed=0, totalAssertions=146, testsRun=20.
 
 | # | Scenario | Assertions | Result |
 |---|---|---|---|
-| T1 | Successful uncaptured cancellation (seller_confirmed=false → relist) | 14 | ✅ |
-| T2 | Provider failure (cancel_failed) | 7 | ✅ |
-| T3 | Timeout → cancel_unknown → reconciliation (succeeded) | 12 | ✅ |
-| T4 | Identical replay (idempotent) | 5 | ✅ |
-| T5 | Conflicting replay (OPERATION_ID_CONFLICT) | 3 | ✅ |
-| T6 | Concurrent duplicate requests (exactly one succeeds) | 4 | ✅ |
-| T7 | Capture-in-flight rejection (frozen → CAPTURE_IN_FLIGHT) | 4 | ✅ |
-| T8 | Captured-sale rejection (sold → CAPTURED_OUT_OF_SCOPE + incident) | 5 | ✅ |
-| T9 | Seller-confirmed quarantine (cancel money but quarantine) | 8 | ✅ |
-| T10 | Mirror failure (durable outbox) | 6 | ✅ |
-| T11 | Notification called after authoritative commitment | 3 | ✅ |
-| T12 | Flag-OFF isolation (503, no calls) | 4 | ✅ |
-| T13 | Non-canary isolation (null return, no calls) | 3 | ✅ |
-| T14 | Unauthorized access (not buyer, not admin → 403) | 3 | ✅ |
-| T15 | Admin override (admin can cancel any purchase) | 3 | ✅ |
-| T16 | No admin-client import (static analysis) | 6 | ✅ |
-| T17 | Cleanup (all tables empty) | 6 | ✅ |
-| **Total** | | **96** | **96/96 PASS** |
+| T1 | seller_confirmed=false → quarantine (never relist) | 15 | ✅ |
+| T2 | Provider failure (cancel_failed) | 8 | ✅ |
+| T3 | Timeout → cancel_unknown → reconciliation (succeeded → quarantine) | 15 | ✅ |
+| T4 | Identical replay — no duplicate provider call, incident, outbox, or notification | 13 | ✅ |
+| T5 | Conflicting replay (second attempt → replay) | 7 | ✅ |
+| T6 | Concurrent duplicate requests (exactly one succeeds, quarantine) | 6 | ✅ |
+| T7 | Capture-in-flight rejection (frozen → CAPTURE_IN_FLIGHT) [unchanged] | 4 | ✅ |
+| T8 | Captured-sale rejection (sold → CAPTURED_OUT_OF_SCOPE + incident) [unchanged] | 4 | ✅ |
+| T9 | seller_confirmed=true → quarantine (never relist) | 12 | ✅ |
+| T10 | Mirror failure (durable outbox, quarantine still succeeds) | 6 | ✅ |
+| T11 | Notification called after authoritative commitment | 6 | ✅ |
+| T12 | Flag-OFF isolation (503, no calls) | 3 | ✅ |
+| T13 | Non-canary isolation (null return, no calls) | 2 | ✅ |
+| T14 | Unauthorized access (not buyer, not admin → 403) | 4 | ✅ |
+| T15 | Admin override (admin can cancel any purchase, quarantine) | 5 | ✅ |
+| T16 | No admin-client import + shouldQuarantine removed + no relist mirror (static analysis) | 11 | ✅ |
+| T17 | seller_confirmed missing (undefined) → quarantine (never relist) | 8 | ✅ |
+| T18 | seller_confirmed uncertain (non-boolean) → quarantine (never relist) | 7 | ✅ |
+| T19 | false→true race during cancellation → quarantine (never relist) | 9 | ✅ |
+| T20 | Cleanup (all tables empty) | 1 | ✅ |
+| **Total** | | **146** | **146/146 PASS** |
 
-### 14.7 Regression Gate — 509/509 PASS (Full Canary Suite Re-Run)
+### 14.7 Regression Gate — Tests Run This Session vs Previously Certified
 
-All 12 canary suites were re-run after the cancel-purchase canary integration:
+**Arithmetic correction:** The prior header claimed "509/509 tests pass" but the row values did not total 509. This section now separates tests run this session (machine-produced totals) from previously certified suites (not re-run this session).
+
+**Tests run this session (P0-01L correction):**
+
+| # | Suite | Tests | Assertions | Result |
+|---|---|---|---|---|
+| 1 | cancel-purchase-canary (P0-01L, corrected) | 20 | 146 | ✅ 146/146 PASS |
+| 2 | payment-saga-cancel (P0-01F) | 16 | 59 | ✅ 59/59 PASS |
+| 3 | authority-contract (static, incl. P0-01L checks) | 99 | 99 | ✅ 99/99 PASS |
+| 4 | build (`npm run build`) | — | — | ✅ Exit 0 |
+| 5 | scoped lint (3 changed files) | — | — | ✅ 0 errors, 13 warnings (pre-existing) |
+
+**Previously certified (not re-run this session):**
 
 | # | Suite | Assertions | Result |
 |---|---|---|---|
-| 1 | confirm-canary-orchestrator (P0-01H) | 16 | ✅ 16/16 PASS |
-| 2 | capture-finalize-atomicity (P0-01G) | 80 | ✅ 80/80 PASS |
-| 3 | abort-canary-orchestrator (P0-01G) | 103 | ✅ 103/103 PASS |
-| 4 | payment-saga-cancel (P0-01F) | 59 | ✅ 59/59 PASS |
-| 5 | canary-scheduled-release-protections (P0-01E) | 7 | ✅ 7/7 PASS |
-| 6 | process-transfer-reminders-wiring (P0-01E) | 5 | ✅ 5/5 PASS |
-| 7 | authority-contract (static, incl. 10 P0-01L checks) | 99 | ✅ 99/99 PASS |
-| 8 | capture-canary-orchestrator (P0-01I) | 12 | ✅ 12/12 PASS |
-| 9 | capture-canary-real-stripe (P0-01J) | 47 | ✅ 47/47 PASS (prior cert) |
-| 10 | webhook-canary-ingress (P0-01K) | 20 | ✅ 20/20 PASS |
-| 11 | webhook-processor (P0-01K-02) | 19 | ✅ 19/19 PASS |
-| 12 | cancel-purchase-canary (P0-01L, NEW) | 96 | ✅ 96/96 PASS |
-| | **Total** | **563** | **563/563 PASS** |
+| 1 | confirm-canary-orchestrator (P0-01H) | 16 | ✅ 16/16 PASS (prior cert) |
+| 2 | capture-finalize-atomicity (P0-01G) | 80 | ✅ 80/80 PASS (prior cert) |
+| 3 | abort-canary-orchestrator (P0-01G) | 103 | ✅ 103/103 PASS (prior cert) |
+| 4 | canary-scheduled-release-protections (P0-01E) | 7 | ✅ 7/7 PASS (prior cert) |
+| 5 | process-transfer-reminders-wiring (P0-01E) | 5 | ✅ 5/5 PASS (prior cert) |
+| 6 | capture-canary-orchestrator (P0-01I) | 12 | ✅ 12/12 PASS (prior cert) |
+| 7 | capture-canary-real-stripe (P0-01J) | 47 | ✅ 47/47 PASS (prior cert) |
+| 8 | webhook-canary-ingress (P0-01K) | 20 | ✅ 20/20 PASS (prior cert) |
+| 9 | webhook-processor (P0-01K-02) | 19 | ✅ 19/19 PASS (prior cert) |
 
-**Note:** The header total (509) reflects the canary regression + real Stripe + webhook ingress + processor + cancel-purchase suites. The full gate including all suites is 563/563.
+No grand total is claimed. Tests run this session total 146 + 59 + 99 = 304 assertions across 135 test scenarios/checks. Previously certified suites total 16 + 80 + 103 + 7 + 5 + 12 + 47 + 20 + 19 = 309 assertions (not re-run, unchanged by this correction).
 
 ### 14.8 Build & Lint
 
@@ -1267,7 +1278,7 @@ All 12 canary suites were re-run after the cancel-purchase canary integration:
 | `base44/shared/cancelPurchaseCanaryOrchestrator.js` | NEW — cancel-purchase saga orchestrator with transfer-guard quarantine + reconciliation |
 | `base44/shared/authorityV1Client.js` | `quarantineListing` added to executor allowlist |
 | `base44/functions/cancelPurchase/entry.ts` | Canary route wired before maintenance gate; secrets via `base44:runtime`; legacy unchanged |
-| `tests/cancel-purchase-canary.test.mjs` | NEW — 17-scenario P0-01L certification suite (96/96 pass) |
+| `tests/cancel-purchase-canary.test.mjs` | Updated — 20-scenario P0-01L certification suite (146/146 pass, always-quarantine correction) |
 | `tests/authority-contract.test.mjs` | 10 new P0-01L contract checks (orchestrator, provider, handler wiring, DI, no-admin, no-parallel-impl) |
 | `src/docs/AUTHORITY_V1_CANARY_CERTIFICATION.md` | §14 (P0-01L certification), header, §1 table, §2 modules/tests |
 
@@ -1279,7 +1290,7 @@ P0-01L manifest label: **`cancelPurchase — CANARY-WIRED / FAKE-PROVIDER CERTIF
 - Buyer authorization uses authoritative `buyer_user_id` from `reservation_payment_bindings` — not email or client-supplied fields.
 - The saga reuses certified primitives: `begin_cancel` (executor), `record_cancel_result` (recorder), `quarantine_listing` (executor), `create_webhook_incident` (executor), `resolve_webhook_action` (executor).
 - The shared production Stripe cancel provider (`stripeCancelProvider.js`) is used by both the handler and the harness — no parallel cancellation implementation.
-- Transfer guard: `seller_confirmed=false` → relist; `seller_confirmed=true` or transfer-uncertain → quarantine + `recovery_blocked`; captured/finalized → structured `CAPTURED_OUT_OF_SCOPE` + incident (no silent refund).
+- Inventory behavior: ALL successful pre-capture cancels → quarantine (never relist). `seller_confirmed` is not authoritative proof — false, true, missing, stale, or changing concurrently all produce `CANCELLED_INVENTORY_QUARANTINED` with `recovery_blocked + checkout_quarantined` and mirror → hidden. Captured/finalized → structured `CAPTURED_OUT_OF_SCOPE` + incident (no silent refund).
 - `cancel_unknown` reconciliation supported per the canonical architecture (succeeded → canceled, failed → cancel_failed, unknown → idempotent no-op).
 - Capture-in-flight (frozen) → `CAPTURE_IN_FLIGHT` rejection (cancellation must not race capture).
 - PostgreSQL is authoritative; Base44 Purchase/Listing changes occur only through mirror/outbox processing. Mirror or notification failure cannot roll back the cancellation.

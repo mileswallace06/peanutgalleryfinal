@@ -25,11 +25,14 @@
  * client-supplied data. Admin override preserves the existing admin policy
  * without widening it.
  *
- * TRANSFER GUARD: The authority state (reserved + authorized) is the
- * authoritative guard proving capture has not started. Base44
- * purchase.seller_confirmed is a RISK SIGNAL (not proof) — if true, the
- * transfer may have started, so money is canceled but the listing is
- * quarantined (not relisted).
+ * INVENTORY BEHAVIOR: seller_confirmed is a Base44 field, not stored in
+ * authority_v1, and not row-locked atomically with cancellation — therefore
+ * it is NOT authoritative proof that transfer has not started. Every
+ * successful pre-capture cancellation (seller_confirmed false, true, missing,
+ * stale, or changing concurrently) completes the payment cancellation but
+ * keeps the listing quarantined (recovery_blocked + checkout_quarantined)
+ * pending authoritative transfer resolution. The listing is NEVER relisted
+ * or reactivated. Returns CANCELLED_INVENTORY_QUARANTINED.
  *
  * GUARANTEES:
  *   - Provider invoked at most once per execution attempt.
@@ -57,7 +60,6 @@ import { isCanaryListing } from './authCanary.js';
  * @param {string} deps.params.listing_id
  * @param {string} deps.params.purchase_id
  * @param {string} deps.params.payment_intent_id
- * @param {boolean} [deps.params.seller_confirmed] - Base44 risk signal (NOT proof)
  * @param {string} [deps.params.action_id] - optional (generated if absent)
  * @param {string} [deps.params.stripe_idempotency_key] - optional (generated if absent)
  * @param {boolean} [deps.params.simulate_mirror_failure] - test-only
@@ -145,7 +147,10 @@ export async function runCanaryCancelPurchaseSaga(deps) {
   }
 
   // 'available' → already released → idempotent replay
+  // If recovery_blocked/checkout_quarantined, the listing was quarantined by
+  // a prior cancel → return CANCELLED_INVENTORY_QUARANTINED replay.
   if (state.lifecycle_state === 'available') {
+    const wasQuarantined = state.recovery_blocked === true || state.checkout_quarantined === true;
     return {
       status: 200,
       body: {
@@ -153,6 +158,8 @@ export async function runCanaryCancelPurchaseSaga(deps) {
         canceled: true,
         released: true,
         replay: true,
+        quarantined: wasQuarantined,
+        code: wasQuarantined ? 'CANCELLED_INVENTORY_QUARANTINED' : undefined,
         authority: state,
       },
     };
@@ -163,12 +170,12 @@ export async function runCanaryCancelPurchaseSaga(deps) {
     return { status: 409, body: { error: 'Not in cancellable state', code: 'NOT_CANCELLABLE', authority_state: state } };
   }
 
-  // ── 4. Transfer guard — seller_confirmed is a Base44 RISK SIGNAL (not proof) ──
-  // The authority state (reserved + authorized) is the authoritative guard
-  // proving capture has not started. If seller_confirmed is true, the transfer
-  // MAY have started → cancel money but quarantine (don't relist).
-  const sellerConfirmed = params.seller_confirmed === true;
-  const shouldQuarantine = sellerConfirmed;
+  // ── 4. Inventory behavior — ALWAYS quarantine (never relist) ─────────────
+  // seller_confirmed is a Base44 field, not stored in authority_v1, and not
+  // row-locked atomically with cancellation. It is NOT authoritative proof
+  // that transfer has not started. Every successful pre-capture cancellation
+  // quarantines the listing (recovery_blocked + checkout_quarantined) and
+  // mirrors the Base44 Listing to hidden. The listing is NEVER relisted.
 
   // ── 5. Find existing action or begin_cancel ───────────────────────────────
   // For reconciliation (recovery_blocked from cancel_unknown), the existing
@@ -294,101 +301,43 @@ export async function runCanaryCancelPurchaseSaga(deps) {
 
   // ── 8. Branch on result ──────────────────────────────────────────────────
   if (derived === 'succeeded' && recordResult?.canceled === true) {
-    // Cancel succeeded — authority released to 'available'
-
-    if (shouldQuarantine) {
-      // ── Transfer guard failed — quarantine the listing ─────────────────
-      // Money is canceled but the listing is NOT relisted. It is quarantined
-      // (recovery_blocked + checkout_quarantined) for manual resolution.
-      const quarantineOpId = `op_quarantine_${listingId}_${genId()}`;
-      const quarantineHash = await sha256Hex(canonicalEnvelope({
-        op: 'quarantine', listing_id: listingId, reason: 'transfer_uncertain_cancel',
-      }));
-      let quarantineOk = true;
-      try {
-        await executorClient.quarantineListing(
-          listingId, 'transfer_uncertain_cancel', quarantineOpId, quarantineHash,
-        );
-      } catch (e) {
-        quarantineOk = false;
-        // Quarantine failed — authority is released but listing not blocked.
-        // Create an incident for manual resolution.
-        try {
-          await executorClient.createWebhookIncident(
-            `quarantine_failed:${listingId}`,
-            'admin_action_required', 'critical',
-            'Quarantine Failed After Cancel',
-            `Cancel succeeded for purchase ${purchaseId} but quarantine_listing failed. ` +
-              'Authority is released but listing is not blocked. Manual resolution required.',
-            listingId, 'listing',
-          );
-        } catch (e2) { /* best-effort */ }
-      }
-
-      // Mirror: hidden (NOT active) — listing is quarantined
-      const mirrorPayload = {
-        listing: {
-          reserved_by_email: null,
-          reservation_token: null,
-          reservation_expires_at: null,
-          reservation_revision: null,
-          status: 'hidden',
-          hidden_reason: 'transfer_uncertain_cancel',
-        },
-        listing_private: {
-          reserved_by_email: null,
-          reservation_token: null,
-          reservation_expires_at: null,
-          reservation_revision: null,
-        },
-      };
-      const simulateFailure = params.simulate_mirror_failure === true;
-      const mirror = await applyMirrorWithOutbox(
-        entities, listingId, mirrorPayload, simulateFailure,
-        recordResult.version || state.version + 1,
-        recordResult.reservation_revision || null,
-        'cancel',
+    // Cancel succeeded — authority released to 'available'. ALWAYS quarantine
+    // (never relist). seller_confirmed is not authoritative proof — regardless
+    // of its value (false, true, missing, stale, or changing concurrently),
+    // the listing is quarantined (recovery_blocked + checkout_quarantined)
+    // and the Base44 mirror is set to hidden.
+    const quarantineOpId = `op_quarantine_${listingId}_${genId()}`;
+    const quarantineHash = await sha256Hex(canonicalEnvelope({
+      op: 'quarantine', listing_id: listingId, reason: 'cancel_inventory_quarantined',
+    }));
+    let quarantineOk = true;
+    try {
+      await executorClient.quarantineListing(
+        listingId, 'cancel_inventory_quarantined', quarantineOpId, quarantineHash,
       );
-
-      // Idempotent notification — only after authoritative commitment
-      if (deps.sendNotification) {
-        try {
-          await deps.sendNotification({
-            type: 'dispute',
-            listing_id: listingId,
-            purchase_id: purchaseId,
-            quarantined: true,
-            quarantine_ok: quarantineOk,
-          });
-        } catch (_) { /* notification failure does not roll back */ }
-      }
-
-      return {
-        status: 200,
-        body: {
-          ok: true,
-          canceled: true,
-          released: true,
-          quarantined: true,
-          quarantine_ok: quarantineOk,
-          action_id: actionId,
-          stripe_idempotency_key: stripeIdemKey,
-          provider_called: true,
-          provider_result: 'succeeded',
-          authority: recordResult,
-          mirror,
-        },
-      };
+    } catch (e) {
+      quarantineOk = false;
+      try {
+        await executorClient.createWebhookIncident(
+          `quarantine_failed:${listingId}`,
+          'admin_action_required', 'critical',
+          'Quarantine Failed After Cancel',
+          `Cancel succeeded for purchase ${purchaseId} but quarantine_listing failed. ` +
+            'Authority is released but listing is not blocked. Manual resolution required.',
+          listingId, 'listing',
+        );
+      } catch (e2) { /* best-effort */ }
     }
 
-    // ── Transfer guard passed — relist the listing ────────────────────────
+    // Mirror: hidden (NOT active) — listing is quarantined, never relisted
     const mirrorPayload = {
       listing: {
         reserved_by_email: null,
         reservation_token: null,
         reservation_expires_at: null,
         reservation_revision: null,
-        status: 'active',
+        status: 'hidden',
+        hidden_reason: 'cancel_inventory_quarantined',
       },
       listing_private: {
         reserved_by_email: null,
@@ -405,13 +354,17 @@ export async function runCanaryCancelPurchaseSaga(deps) {
       'cancel',
     );
 
-    // Idempotent notification — only after authoritative commitment
+    // Idempotent notification — only after authoritative commitment.
+    // action_id is a stable deduplication key for the callback.
     if (deps.sendNotification) {
       try {
         await deps.sendNotification({
-          type: 'cancelled',
+          type: 'cancel_quarantined',
           listing_id: listingId,
           purchase_id: purchaseId,
+          action_id: actionId,
+          quarantined: true,
+          quarantine_ok: quarantineOk,
         });
       } catch (_) { /* notification failure does not roll back */ }
     }
@@ -422,6 +375,9 @@ export async function runCanaryCancelPurchaseSaga(deps) {
         ok: true,
         canceled: true,
         released: true,
+        quarantined: true,
+        quarantine_ok: quarantineOk,
+        code: 'CANCELLED_INVENTORY_QUARANTINED',
         action_id: actionId,
         stripe_idempotency_key: stripeIdemKey,
         provider_called: true,
@@ -564,7 +520,6 @@ export async function maybeRouteCanaryCancelPurchase(deps) {
       listing_id: listing.id,
       purchase_id: purchase.id,
       payment_intent_id: paymentIntentId,
-      seller_confirmed: purchase.seller_confirmed === true,
       action_id: deps.body?.action_id,
       stripe_idempotency_key: deps.body?.stripe_idempotency_key,
       simulate_mirror_failure: deps.body?.simulate_mirror_failure === true,

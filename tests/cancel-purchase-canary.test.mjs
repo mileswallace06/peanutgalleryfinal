@@ -13,16 +13,22 @@
  *   - Mock Base44 entities (in-memory) for mirror verification
  *   - Admin/test client ONLY for synthetic setup, evidence reads, exact-ID cleanup
  *
+ * INVENTORY BEHAVIOR (P0-01L correction): Every successful pre-capture canary
+ * cancellation quarantines the listing (recovery_blocked + checkout_quarantined)
+ * and mirrors the Base44 Listing to hidden. The listing is NEVER relisted.
+ * seller_confirmed is not authoritative proof — false, true, missing, stale,
+ * or changing concurrently all produce the same quarantine result.
+ *
  * Test scenarios (fake Stripe adapter only — no real Stripe calls):
- *   T1  Successful uncaptured cancellation (seller_confirmed=false → relist)
+ *   T1  seller_confirmed=false → quarantine (never relist)
  *   T2  Provider failure (cancel_failed)
- *   T3  Timeout → cancel_unknown → reconciliation (succeeded)
- *   T4  Identical replay (idempotent)
- *   T5  Conflicting replay (OPERATION_ID_CONFLICT)
+ *   T3  Timeout → cancel_unknown → reconciliation (succeeded → quarantine)
+ *   T4  Identical replay — no duplicate provider call, incident, outbox, or notification
+ *   T5  Conflicting replay (second attempt → replay)
  *   T6  Concurrent duplicate requests (exactly one succeeds)
- *   T7  Capture-in-flight rejection (frozen → CAPTURE_IN_FLIGHT)
- *   T8  Captured-sale rejection (sold → CAPTURED_OUT_OF_SCOPE + incident)
- *   T9  Seller-confirmed quarantine (cancel money but quarantine)
+ *   T7  Capture-in-flight rejection (frozen → CAPTURE_IN_FLIGHT) [unchanged]
+ *   T8  Captured-sale rejection (sold → CAPTURED_OUT_OF_SCOPE + incident) [unchanged]
+ *   T9  seller_confirmed=true → quarantine (never relist)
  *   T10 Mirror failure (durable outbox)
  *   T11 Notification called after authoritative commitment
  *   T12 Flag-OFF isolation (503, no calls)
@@ -30,7 +36,10 @@
  *   T14 Unauthorized access (not buyer, not admin → 403)
  *   T15 Admin override (admin can cancel any purchase)
  *   T16 No admin-client import (static analysis)
- *   T17 Cleanup (all tables empty)
+ *   T17 seller_confirmed missing (undefined) → quarantine (never relist)
+ *   T18 seller_confirmed uncertain (non-boolean) → quarantine (never relist)
+ *   T19 false→true race during cancellation → quarantine (never relist)
+ *   T20 Cleanup (all tables empty)
  */
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -86,12 +95,13 @@ function createMockEntities() {
 }
 
 // ── Fake Stripe adapter ─────────────────────────────────────────────────────
-function createFakeStripeAdapter(result) {
+function createFakeStripeAdapter(result, hooks = {}) {
   const calls = [];
   return {
     calls,
     async cancelPaymentIntent(piId, idemKey) {
       calls.push({ piId, idemKey, time: Date.now() });
+      if (hooks.beforeReturn) await hooks.beforeReturn();
       return result;
     },
   };
@@ -131,8 +141,6 @@ export async function runAllTests(deps) {
     const captureState = opts.captureState || 'authorized';
     const recoveryBlocked = opts.recoveryBlocked || false;
 
-    // Terminal states (sold/available) must have the tuple cleared by constraint.
-    // Non-terminal states (reserved/frozen) require the full tuple.
     const isTerminal = ['sold', 'available', 'cancelled', 'expired'].includes(lifecycleState);
     const authBuyerId = isTerminal ? null : buyerId;
     const authTokenHash = isTerminal ? null : tokenHash;
@@ -187,6 +195,10 @@ export async function runAllTests(deps) {
   async function getIncidents(lid) {
     return adminSql`SELECT incident_type, occurrence_count, resolved FROM authority_v1.operational_incidents WHERE reference_id = ${lid}`;
   }
+  async function countIncidents(lid) {
+    const rows = await adminSql`SELECT count(*)::int c FROM authority_v1.operational_incidents WHERE reference_id = ${lid}`;
+    return Number(rows[0]?.c || 0);
+  }
   async function countPaymentActionsByPurchase(pid) {
     const rows = await adminSql`SELECT count(*)::int c FROM authority_v1.payment_actions WHERE purchase_id = ${pid}`;
     return Number(rows[0]?.c || 0);
@@ -210,10 +222,6 @@ export async function runAllTests(deps) {
     await adminSql`DELETE FROM authority_v1.reservation_operations`;
     await adminSql`DELETE FROM authority_v1.reservation_authority`;
   }
-  async function resetBindingToAuthorized(pid, lid) {
-    await adminSql`UPDATE authority_v1.reservation_payment_bindings SET capture_state = 'authorized', updated_at = now() WHERE purchase_id = ${pid}`;
-    await adminSql`UPDATE authority_v1.reservation_authority SET recovery_blocked = false, recovery_blocked_reason = null, recovery_blocked_at = null, checkout_quarantined = false, checkout_quarantine_reason = null, updated_at = now() WHERE listing_id = ${lid}`;
-  }
 
   // ── Import the orchestrator ──────────────────────────────────────────────
   const orchestratorModule = await import('/app/base44/shared/cancelPurchaseCanaryOrchestrator.js');
@@ -221,16 +229,16 @@ export async function runAllTests(deps) {
 
   // ── Tests ──────────────────────────────────────────────────────────────────
 
-  // T1: Successful uncaptured cancellation (seller_confirmed=false → relist)
+  // T1: seller_confirmed=false → quarantine (never relist)
   {
     const ctx = await setupReservedWithBinding('success');
     const entities = createMockEntities();
     const stripe = createFakeStripeAdapter({ derived: 'succeeded', raw: { status: 'canceled' } });
-    let notified = false;
+    let notified = false, notifyType = null;
     const result = await runCanaryCancelPurchaseSaga({
       entities, user: { id: ctx.buyerId, email: ctx.buyerId, role: 'user' },
       executorClient, recorderClient, stripeAdapter: stripe,
-      sendNotification: async () => { notified = true; },
+      sendNotification: async (info) => { notified = true; notifyType = info.type; },
       params: {
         listing_id: ctx.listingId, purchase_id: ctx.purchaseId,
         payment_intent_id: ctx.paymentIntentId,
@@ -240,16 +248,21 @@ export async function runAllTests(deps) {
     assert(result.status === 200, `T1: status 200 (got ${result.status})`);
     assert(result.body.canceled === true, 'T1: canceled');
     assert(result.body.released === true, 'T1: released');
-    assert(result.body.quarantined !== true, 'T1: NOT quarantined');
+    assert(result.body.quarantined === true, 'T1: quarantined');
+    assert(result.body.code === 'CANCELLED_INVENTORY_QUARANTINED', `T1: code (got ${result.body.code})`);
     assert(result.body.provider_called === true, 'T1: provider_called');
     assert(stripe.calls.length === 1, `T1: provider called once (got ${stripe.calls.length})`);
     const auth = await getAuthority(ctx.listingId);
     assert(auth?.lifecycle_state === 'available', 'T1: authority available');
+    assert(auth?.recovery_blocked === true, 'T1: authority recovery_blocked');
+    assert(auth?.checkout_quarantined === true, 'T1: authority checkout_quarantined');
     const b = await getBinding(ctx.purchaseId);
     assert(b?.capture_state === 'canceled', 'T1: binding canceled');
-    assert(entities._state.listings[ctx.listingId]?.status === 'active', 'T1: mirror listing active');
+    assert(entities._state.listings[ctx.listingId]?.status === 'hidden', 'T1: mirror listing hidden (NOT active)');
+    assert(entities._state.listings[ctx.listingId]?.hidden_reason === 'cancel_inventory_quarantined', 'T1: hidden_reason');
     assert(notified === true, 'T1: notification sent');
-    results.T1 = { assertions: 10, ok: true };
+    assert(notifyType === 'cancel_quarantined', `T1: notification type (got ${notifyType})`);
+    results.T1 = { assertions: 15, ok: true };
   }
 
   // T2: Provider failure (cancel_failed)
@@ -281,11 +294,10 @@ export async function runAllTests(deps) {
     results.T2 = { assertions: 8, ok: true };
   }
 
-  // T3: Timeout → cancel_unknown → reconciliation (succeeded)
+  // T3: Timeout → cancel_unknown → reconciliation (succeeded → quarantine)
   {
     const ctx = await setupReservedWithBinding('unknown');
     const entities = createMockEntities();
-    // First attempt: unknown
     const stripe1 = createFakeStripeAdapter({ derived: 'unknown', raw: { error: 'timeout' } });
     const result1 = await runCanaryCancelPurchaseSaga({
       entities, user: { id: ctx.buyerId, email: ctx.buyerId, role: 'user' },
@@ -304,7 +316,7 @@ export async function runAllTests(deps) {
     const b1 = await getBinding(ctx.purchaseId);
     assert(b1?.capture_state === 'cancel_unknown', 'T3: binding cancel_unknown');
 
-    // Reconciliation: succeeded (skip begin_cancel since recovery_blocked)
+    // Reconciliation: succeeded → quarantine
     const stripe2 = createFakeStripeAdapter({ derived: 'succeeded', raw: { status: 'canceled' } });
     const result2 = await runCanaryCancelPurchaseSaga({
       entities, user: { id: ctx.buyerId, email: ctx.buyerId, role: 'user' },
@@ -318,21 +330,26 @@ export async function runAllTests(deps) {
     assert(result2.status === 200, 'T3: recon status 200');
     assert(result2.body.canceled === true, 'T3: recon canceled');
     assert(result2.body.released === true, 'T3: recon released');
+    assert(result2.body.quarantined === true, 'T3: recon quarantined');
+    assert(result2.body.code === 'CANCELLED_INVENTORY_QUARANTINED', 'T3: recon code');
     const auth2 = await getAuthority(ctx.listingId);
     assert(auth2?.lifecycle_state === 'available', 'T3: recon authority available');
-    assert(auth2?.recovery_blocked === false, 'T3: recon recovery_blocked cleared');
+    assert(auth2?.recovery_blocked === true, 'T3: recon recovery_blocked (quarantined)');
+    assert(auth2?.checkout_quarantined === true, 'T3: recon checkout_quarantined');
     const b2 = await getBinding(ctx.purchaseId);
     assert(b2?.capture_state === 'canceled', 'T3: recon binding canceled');
-    results.T3 = { assertions: 11, ok: true };
+    assert(entities._state.listings[ctx.listingId]?.status === 'hidden', 'T3: mirror hidden (NOT active)');
+    results.T3 = { assertions: 15, ok: true };
   }
 
-  // T4: Identical replay (idempotent)
+  // T4: Identical replay — no duplicate provider call, incident, outbox, or notification
   {
     const ctx = await setupReservedWithBinding('replay');
     const entities = createMockEntities();
     const actionId = `act_replay_${genId()}`;
     const idemKey = `idem_replay_${actionId}`;
     const stripe = createFakeStripeAdapter({ derived: 'succeeded', raw: { status: 'canceled' } });
+    const notifyCalls = [];
     const params = {
       listing_id: ctx.listingId, purchase_id: ctx.purchaseId,
       payment_intent_id: ctx.paymentIntentId,
@@ -342,26 +359,43 @@ export async function runAllTests(deps) {
     };
     const result1 = await runCanaryCancelPurchaseSaga({
       entities, user: { id: ctx.buyerId, email: ctx.buyerId, role: 'user' },
-      executorClient, recorderClient, stripeAdapter: stripe, params,
+      executorClient, recorderClient, stripeAdapter: stripe,
+      sendNotification: async (info) => { notifyCalls.push(info); },
+      params,
     });
     assert(result1.status === 200, 'T4: first 200');
     assert(result1.body.canceled === true, 'T4: first canceled');
+    assert(result1.body.quarantined === true, 'T4: first quarantined');
     const calls1 = stripe.calls.length;
+    const incidents1 = await countIncidents(ctx.listingId);
+    const outbox1 = entities._state.outbox.length;
+    const notifyCount1 = notifyCalls.length;
 
     // Replay with same action_id + idem_key
     const result2 = await runCanaryCancelPurchaseSaga({
       entities, user: { id: ctx.buyerId, email: ctx.buyerId, role: 'user' },
-      executorClient, recorderClient, stripeAdapter: stripe, params,
+      executorClient, recorderClient, stripeAdapter: stripe,
+      sendNotification: async (info) => { notifyCalls.push(info); },
+      params,
     });
     assert(result2.status === 200, 'T4: replay 200');
-    // On replay, the authority is 'available' → idempotent replay path
     assert(result2.body.replay === true, 'T4: replay flag');
-    // No additional Stripe call on replay (authority already available)
-    const calls2 = stripe.calls.length;
-    assert(calls2 === calls1, `T4: no extra provider call (got ${calls2 - calls1} extra)`);
+    assert(result2.body.quarantined === true, 'T4: replay quarantined');
+    assert(result2.body.code === 'CANCELLED_INVENTORY_QUARANTINED', 'T4: replay code');
+    // No additional Stripe call on replay
+    assert(stripe.calls.length === calls1, `T4: no extra provider call (got ${stripe.calls.length - calls1} extra)`);
+    // No additional action
     const actionCount = await countPaymentActionsByPurchase(ctx.purchaseId);
     assert(actionCount === 1, `T4: exactly 1 action (got ${actionCount})`);
-    results.T4 = { assertions: 6, ok: true };
+    // No additional incident
+    const incidents2 = await countIncidents(ctx.listingId);
+    assert(incidents2 === incidents1, `T4: no extra incident (got ${incidents2 - incidents1} extra)`);
+    // No additional outbox event
+    const outbox2 = entities._state.outbox.length;
+    assert(outbox2 === outbox1, `T4: no extra outbox event (got ${outbox2 - outbox1} extra)`);
+    // No additional notification
+    assert(notifyCalls.length === notifyCount1, `T4: no extra notification (got ${notifyCalls.length - notifyCount1} extra)`);
+    results.T4 = { assertions: 13, ok: true };
   }
 
   // T5: Conflicting replay — second attempt on already-canceled listing returns replay
@@ -384,6 +418,7 @@ export async function runAllTests(deps) {
     });
     assert(result1.status === 200, 'T5: first 200');
     assert(result1.body.canceled === true, 'T5: first canceled');
+    assert(result1.body.quarantined === true, 'T5: first quarantined');
     const calls1 = stripe.calls.length;
 
     // Second attempt with same action_id — authority is already 'available' → replay
@@ -393,12 +428,11 @@ export async function runAllTests(deps) {
     });
     assert(result2.status === 200, `T5: second 200 (got ${result2.status})`);
     assert(result2.body.replay === true, 'T5: replay flag (already available)');
-    // No additional provider call
+    assert(result2.body.quarantined === true, 'T5: replay quarantined');
     assert(stripe.calls.length === calls1, `T5: no extra provider call (got ${stripe.calls.length - calls1} extra)`);
-    // Exactly one action created
     const actionCount = await countPaymentActionsByPurchase(ctx.purchaseId);
     assert(actionCount === 1, `T5: exactly 1 action (got ${actionCount})`);
-    results.T5 = { assertions: 5, ok: true };
+    results.T5 = { assertions: 7, ok: true };
   }
 
   // T6: Concurrent duplicate requests (exactly one succeeds)
@@ -422,18 +456,19 @@ export async function runAllTests(deps) {
         params,
       }),
     ]);
-    // At least one should succeed
     const oneSucceeded = (r1.body.canceled === true) || (r2.body.canceled === true);
     assert(oneSucceeded, 'T6: at least one succeeded');
-    // The other should be a conflict or replay (not both succeed with duplicate cancel)
     const auth = await getAuthority(ctx.listingId);
     assert(auth?.lifecycle_state === 'available', 'T6: authority available (exactly one release)');
+    assert(auth?.recovery_blocked === true, 'T6: authority recovery_blocked (quarantined)');
+    assert(auth?.checkout_quarantined === true, 'T6: authority checkout_quarantined');
     const b = await getBinding(ctx.purchaseId);
     assert(b?.capture_state === 'canceled', 'T6: binding canceled (exactly one)');
-    results.T6 = { assertions: 4, ok: true };
+    assert(entities._state.listings[ctx.listingId]?.status === 'hidden', 'T6: mirror hidden (NOT active)');
+    results.T6 = { assertions: 6, ok: true };
   }
 
-  // T7: Capture-in-flight rejection (frozen → CAPTURE_IN_FLIGHT)
+  // T7: Capture-in-flight rejection (frozen → CAPTURE_IN_FLIGHT) [unchanged]
   {
     const ctx = await setupReservedWithBinding('frozen', { lifecycleState: 'frozen', captureState: 'capture_requested' });
     const entities = createMockEntities();
@@ -455,7 +490,7 @@ export async function runAllTests(deps) {
     results.T7 = { assertions: 4, ok: true };
   }
 
-  // T8: Captured-sale rejection (sold → CAPTURED_OUT_OF_SCOPE + incident)
+  // T8: Captured-sale rejection (sold → CAPTURED_OUT_OF_SCOPE + incident) [unchanged]
   {
     const ctx = await setupReservedWithBinding('sold', { lifecycleState: 'sold', captureState: 'finalized' });
     const entities = createMockEntities();
@@ -478,7 +513,7 @@ export async function runAllTests(deps) {
     results.T8 = { assertions: 4, ok: true };
   }
 
-  // T9: Seller-confirmed quarantine (cancel money but quarantine)
+  // T9: seller_confirmed=true → quarantine (never relist)
   {
     const ctx = await setupReservedWithBinding('quarantine');
     const entities = createMockEntities();
@@ -491,26 +526,27 @@ export async function runAllTests(deps) {
       params: {
         listing_id: ctx.listingId, purchase_id: ctx.purchaseId,
         payment_intent_id: ctx.paymentIntentId,
-        seller_confirmed: true, // transfer may have started
+        seller_confirmed: true,
       },
     });
     assert(result.status === 200, 'T9: status 200');
     assert(result.body.canceled === true, 'T9: canceled (money canceled)');
     assert(result.body.quarantined === true, 'T9: quarantined');
     assert(result.body.quarantine_ok === true, 'T9: quarantine_ok');
+    assert(result.body.code === 'CANCELLED_INVENTORY_QUARANTINED', 'T9: code');
     const auth = await getAuthority(ctx.listingId);
     assert(auth?.lifecycle_state === 'available', 'T9: authority released (money canceled)');
     assert(auth?.recovery_blocked === true, 'T9: authority recovery_blocked (quarantined)');
     assert(auth?.checkout_quarantined === true, 'T9: authority checkout_quarantined');
     const b = await getBinding(ctx.purchaseId);
     assert(b?.capture_state === 'canceled', 'T9: binding canceled');
-    assert(entities._state.listings[ctx.listingId]?.status === 'hidden', 'T9: mirror listing hidden');
-    assert(entities._state.listings[ctx.listingId]?.hidden_reason === 'transfer_uncertain_cancel', 'T9: hidden_reason');
-    assert(notifyType === 'dispute', 'T9: dispute notification');
-    results.T9 = { assertions: 11, ok: true };
+    assert(entities._state.listings[ctx.listingId]?.status === 'hidden', 'T9: mirror listing hidden (NOT active)');
+    assert(entities._state.listings[ctx.listingId]?.hidden_reason === 'cancel_inventory_quarantined', 'T9: hidden_reason');
+    assert(notifyType === 'cancel_quarantined', `T9: notification type (got ${notifyType})`);
+    results.T9 = { assertions: 12, ok: true };
   }
 
-  // T10: Mirror failure (durable outbox)
+  // T10: Mirror failure (durable outbox) — quarantine still succeeds
   {
     const ctx = await setupReservedWithBinding('mirrorfail');
     const entities = createMockEntities();
@@ -527,13 +563,14 @@ export async function runAllTests(deps) {
     });
     assert(result.status === 200, 'T10: status 200');
     assert(result.body.canceled === true, 'T10: canceled');
+    assert(result.body.quarantined === true, 'T10: quarantined');
     assert(result.body.mirror?.outbox_id !== null, 'T10: outbox created');
-    // Authority still released (mirror failure doesn't roll back)
     const auth = await getAuthority(ctx.listingId);
     assert(auth?.lifecycle_state === 'available', 'T10: authority available (not rolled back)');
+    assert(auth?.recovery_blocked === true, 'T10: authority recovery_blocked (quarantined)');
     const b = await getBinding(ctx.purchaseId);
     assert(b?.capture_state === 'canceled', 'T10: binding canceled');
-    results.T10 = { assertions: 5, ok: true };
+    results.T10 = { assertions: 6, ok: true };
   }
 
   // T11: Notification called after authoritative commitment
@@ -555,11 +592,12 @@ export async function runAllTests(deps) {
     assert(result.status === 200, 'T11: status 200');
     assert(result.body.canceled === true, 'T11: canceled');
     assert(notifyCalls.length === 1, `T11: exactly 1 notification (got ${notifyCalls.length})`);
-    assert(notifyCalls[0]?.type === 'cancelled', 'T11: notification type');
-    // Verify authority was committed BEFORE notification
+    assert(notifyCalls[0]?.type === 'cancel_quarantined', 'T11: notification type');
+    assert(notifyCalls[0]?.action_id !== undefined, 'T11: action_id dedup key present');
     const auth = await getAuthority(ctx.listingId);
     assert(auth?.lifecycle_state === 'available', 'T11: authority committed before notification');
-    results.T11 = { assertions: 5, ok: true };
+    assert(auth?.recovery_blocked === true, 'T11: authority quarantined before notification');
+    results.T11 = { assertions: 6, ok: true };
   }
 
   // T12: Flag-OFF isolation (503, no calls)
@@ -641,9 +679,11 @@ export async function runAllTests(deps) {
     });
     assert(result.status === 200, `T15: status 200 (got ${result.status})`);
     assert(result.body.canceled === true, 'T15: canceled');
+    assert(result.body.quarantined === true, 'T15: quarantined');
     const auth = await getAuthority(ctx.listingId);
     assert(auth?.lifecycle_state === 'available', 'T15: authority available');
-    results.T15 = { assertions: 3, ok: true };
+    assert(auth?.recovery_blocked === true, 'T15: authority recovery_blocked (quarantined)');
+    results.T15 = { assertions: 5, ok: true };
   }
 
   // T16: No admin-client import (static analysis)
@@ -653,6 +693,8 @@ export async function runAllTests(deps) {
     assert(!src.includes('AUTHORITY_DB_URL_DEV_ADMIN'), 'T16: no admin URL');
     assert(!src.includes('Deno.env'), 'T16: no Deno.env');
     assert(src.includes('createStripeCancelProvider') || src.includes('stripeAdapter'), 'T16: uses shared provider');
+    assert(!src.includes('shouldQuarantine'), 'T16: shouldQuarantine removed');
+    assert(!src.includes("status: 'active'"), 'T16: no relist mirror (status active)');
 
     const handlerSrc = fs.readFileSync('/app/base44/functions/cancelPurchase/entry.ts', 'utf8');
     assert(handlerSrc.includes('maybeRouteCanaryCancelPurchase'), 'T16: handler imports orchestrator');
@@ -660,16 +702,108 @@ export async function runAllTests(deps) {
     assert(handlerSrc.includes('isCanaryEnabled'), 'T16: handler uses isCanaryEnabled');
     assert(handlerSrc.includes("secrets.get('STRIPE_SECRET_KEY')"), 'T16: handler uses base44:runtime secrets');
     assert(!handlerSrc.includes('authorityV1TestAdmin'), 'T16: handler no admin client');
-    results.T16 = { assertions: 8, ok: true };
+    assert(handlerSrc.includes('cancel_quarantined'), 'T16: handler uses cancel_quarantined notification type');
+    results.T16 = { assertions: 11, ok: true };
   }
 
-  // T17: Cleanup (all tables empty)
+  // T17: seller_confirmed missing (undefined) → quarantine (never relist)
+  {
+    const ctx = await setupReservedWithBinding('missing');
+    const entities = createMockEntities();
+    const stripe = createFakeStripeAdapter({ derived: 'succeeded', raw: { status: 'canceled' } });
+    const result = await runCanaryCancelPurchaseSaga({
+      entities, user: { id: ctx.buyerId, email: ctx.buyerId, role: 'user' },
+      executorClient, recorderClient, stripeAdapter: stripe,
+      params: {
+        listing_id: ctx.listingId, purchase_id: ctx.purchaseId,
+        payment_intent_id: ctx.paymentIntentId,
+        // seller_confirmed intentionally omitted
+      },
+    });
+    assert(result.status === 200, 'T17: status 200');
+    assert(result.body.canceled === true, 'T17: canceled');
+    assert(result.body.quarantined === true, 'T17: quarantined');
+    assert(result.body.code === 'CANCELLED_INVENTORY_QUARANTINED', 'T17: code');
+    const auth = await getAuthority(ctx.listingId);
+    assert(auth?.recovery_blocked === true, 'T17: authority recovery_blocked');
+    assert(auth?.checkout_quarantined === true, 'T17: authority checkout_quarantined');
+    assert(entities._state.listings[ctx.listingId]?.status === 'hidden', 'T17: mirror hidden (NOT active)');
+    assert(entities._state.listings[ctx.listingId]?.hidden_reason === 'cancel_inventory_quarantined', 'T17: hidden_reason');
+    results.T17 = { assertions: 8, ok: true };
+  }
+
+  // T18: seller_confirmed uncertain (non-boolean) → quarantine (never relist)
+  {
+    const ctx = await setupReservedWithBinding('uncertain');
+    const entities = createMockEntities();
+    const stripe = createFakeStripeAdapter({ derived: 'succeeded', raw: { status: 'canceled' } });
+    const result = await runCanaryCancelPurchaseSaga({
+      entities, user: { id: ctx.buyerId, email: ctx.buyerId, role: 'user' },
+      executorClient, recorderClient, stripeAdapter: stripe,
+      params: {
+        listing_id: ctx.listingId, purchase_id: ctx.purchaseId,
+        payment_intent_id: ctx.paymentIntentId,
+        seller_confirmed: 'maybe', // non-boolean, uncertain
+      },
+    });
+    assert(result.status === 200, 'T18: status 200');
+    assert(result.body.canceled === true, 'T18: canceled');
+    assert(result.body.quarantined === true, 'T18: quarantined');
+    assert(result.body.code === 'CANCELLED_INVENTORY_QUARANTINED', 'T18: code');
+    const auth = await getAuthority(ctx.listingId);
+    assert(auth?.recovery_blocked === true, 'T18: authority recovery_blocked');
+    assert(auth?.checkout_quarantined === true, 'T18: authority checkout_quarantined');
+    assert(entities._state.listings[ctx.listingId]?.status === 'hidden', 'T18: mirror hidden (NOT active)');
+    results.T18 = { assertions: 7, ok: true };
+  }
+
+  // T19: false→true race during cancellation → quarantine (never relist)
+  {
+    const ctx = await setupReservedWithBinding('race');
+    const entities = createMockEntities();
+    // The Stripe adapter hook simulates seller_confirmed changing from false
+    // to true DURING the cancellation (concurrent seller confirmation). The
+    // saga does not use seller_confirmed for branching, so the listing is
+    // quarantined regardless.
+    let sellerConfirmedDuringCancel = false;
+    const stripe = createFakeStripeAdapter(
+      { derived: 'succeeded', raw: { status: 'canceled' } },
+      {
+        beforeReturn: async () => {
+          // Simulate concurrent seller confirmation mid-saga
+          sellerConfirmedDuringCancel = true;
+        },
+      },
+    );
+    const result = await runCanaryCancelPurchaseSaga({
+      entities, user: { id: ctx.buyerId, email: ctx.buyerId, role: 'user' },
+      executorClient, recorderClient, stripeAdapter: stripe,
+      params: {
+        listing_id: ctx.listingId, purchase_id: ctx.purchaseId,
+        payment_intent_id: ctx.paymentIntentId,
+        seller_confirmed: false, // false at saga start
+      },
+    });
+    assert(result.status === 200, 'T19: status 200');
+    assert(result.body.canceled === true, 'T19: canceled');
+    assert(result.body.quarantined === true, 'T19: quarantined');
+    assert(result.body.code === 'CANCELLED_INVENTORY_QUARANTINED', 'T19: code');
+    assert(sellerConfirmedDuringCancel === true, 'T19: race simulated (seller_confirmed changed to true mid-saga)');
+    const auth = await getAuthority(ctx.listingId);
+    assert(auth?.recovery_blocked === true, 'T19: authority recovery_blocked');
+    assert(auth?.checkout_quarantined === true, 'T19: authority checkout_quarantined');
+    assert(entities._state.listings[ctx.listingId]?.status === 'hidden', 'T19: mirror hidden (NOT active despite false→true race)');
+    assert(entities._state.listings[ctx.listingId]?.hidden_reason === 'cancel_inventory_quarantined', 'T19: hidden_reason');
+    results.T19 = { assertions: 9, ok: true };
+  }
+
+  // T20: Cleanup (all tables empty)
   {
     await cleanupAll();
     const counts = await countAll();
     const allZero = Object.values(counts).every(v => v === 0);
-    assert(allZero, `T17: all tables empty (got ${JSON.stringify(counts)})`);
-    results.T17 = { assertions: 1, ok: true };
+    assert(allZero, `T20: all tables empty (got ${JSON.stringify(counts)})`);
+    results.T20 = { assertions: 1, ok: true };
   }
 
   // ── Summary ──────────────────────────────────────────────────────────────

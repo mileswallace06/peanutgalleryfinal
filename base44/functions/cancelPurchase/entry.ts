@@ -8,7 +8,7 @@
  *     shared Stripe cancel provider → record_cancel_result
  *   - authority 'frozen' (capture in-flight) → fail closed
  *   - authority 'sold' (captured) → structured conflict + incident (out of scope)
- *   - seller_confirmed (transfer may have started) → cancel money but quarantine
+ *   - All pre-capture cancels → cancel money + quarantine (never relist)
  *
  * All non-canary traffic and flag-OFF behavior remains identical to the legacy
  * path. The canary route is wired BEFORE the maintenance gate; the legacy path
@@ -65,26 +65,17 @@ Deno.serve(async (req) => {
     const secretKey = secrets.get('STRIPE_SECRET_KEY');
     const stripeAdapter = secretKey ? createStripeCancelProvider(secretKey) : null;
 
-    // Idempotent notification callback — only called after authoritative commitment
+    // Idempotent notification callback — only called after authoritative commitment.
+    // action_id is a stable deduplication key. All cancel-quarantine notifications
+    // use type 'cancel_quarantined' — the listing is NEVER relisted.
     const sendNotification = async (info: any) => {
-      if (info.type === 'cancelled') {
-        const sellerEmail = purchase.seller_email;
-        if (sellerEmail) {
-          await sendUserNotification(base44, {
-            user_email: sellerEmail,
-            title: 'Purchase cancelled',
-            body: 'The buyer cancelled their purchase. Your listing has been restored to active.',
-            type: 'listing_expired',
-            purchase_id: purchase.id,
-          }).catch(() => {});
-        }
-      } else if (info.type === 'dispute') {
+      if (info.type === 'cancel_quarantined') {
         const sellerEmail = purchase.seller_email;
         if (sellerEmail) {
           await sendUserNotification(base44, {
             user_email: sellerEmail,
             title: 'Buyer cancelled — listing quarantined',
-            body: 'The buyer cancelled their purchase. Payment was canceled but your listing is quarantined for manual review because you confirmed transfer. Please contact support.',
+            body: 'The buyer cancelled their purchase. Payment was canceled but your listing is quarantined pending transfer resolution. Please contact support.',
             type: 'listing_expired',
             purchase_id: purchase.id,
           }).catch(() => {});
