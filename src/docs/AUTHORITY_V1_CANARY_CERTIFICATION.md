@@ -1,7 +1,7 @@
 # authority_v1 Reserve/Release Canary — Certification Manifest
 
 **Date:** 2026-08-21 (last recertified 2026-08-27 — P0-01L-CANARY-CERTIFIED)
-**Status:** ✅ CERTIFIED — Flag OFF, maintenance ON, zero synthetic rows. Tests run this session (P0-01L correction): cancel-purchase-canary 20/20 (146 assertions), payment-saga-cancel 16/16 (59 assertions), authority-contract 99/99, build exit 0, scoped lint 0 errors. Previously certified (not re-run this session): confirm-canary 16/16, capture-finalize 80/80, abort-canary 103/103, protections 7/7, wiring 5/5, capture-canary 12/12, real-stripe 47/47, webhook-ingress 20/20, webhook-processor 19/19. Trusted dependency injection (no env/global override), webhook ingress + processing certified, cancel-purchase canary certified (real Stripe cancel + captured refund NOT certified)
+**Status:** ✅ CERTIFIED — Flag OFF, maintenance ON, zero synthetic rows. Tests run this session (P0-01M): transfer-canary 16/16 (74 assertions), cancel-purchase-canary 20/20 (146 assertions), payment-saga-cancel 16/16 (59 assertions), authority-contract 115/115, build exit 0, scoped lint 0 errors. Current gate: 394/394 assertions. Previously certified (not re-run this session): confirm-canary 16/16, capture-finalize 80/80, abort-canary 103/103, protections 7/7, wiring 5/5, capture-canary 12/12, real-stripe 47/47, webhook-ingress 20/20, webhook-processor 19/19. Trusted dependency injection (no env/global override), transfer-state foundation certified (seller-reported only, provider delivery not verified, auto-relist disabled)
 
 ---
 
@@ -1299,3 +1299,135 @@ P0-01L manifest label: **`cancelPurchase — CANARY-WIRED / FAKE-PROVIDER CERTIF
 - 50 backend functions, 30 authority functions, flag OFF, maintenance ON, 0 synthetic rows, 0 real Stripe calls.
 - **Real Stripe cancel is NOT certified.** The fake-provider test proves the saga logic; a later real Stripe test-mode gate is required for production certification (NEEDS_OWNER_ACTION).
 - **Captured/finalized refund is NOT in scope.** Captured purchases return a structured conflict result + incident; no silent refund, no inventory restoration, no widened buyer cancellation policy.
+
+---
+
+## 15. P0-01M Status: ✅ PASS — Authoritative Transfer-State Foundation (Development DB Only)
+
+**Date:** 2026-08-27
+**Scope:** Authoritative `transfer_state` lifecycle in `authority_v1` Postgres. Two new executor functions (`begin_transfer`, `record_seller_report`) transition transfer state with CAS on `reservation_authority.version` — the same version column used by cancellation. PostgreSQL is authoritative; Base44 is mirror-only. **Provider delivery is NOT verified** — `seller_reported_sent` is the seller's self-report only. **Real Stripe delivery is NOT certified** (fake providers only).
+**Baseline:** P0-01L certification → P0-01M transfer-state foundation.
+
+### 15.1 Manifest Label
+
+**P0-01M-AUTHORITATIVE-TRANSFER-CERTIFIED / SELLER-REPORTED ONLY / PROVIDER DELIVERY NOT VERIFIED / AUTO-RELIST DISABLED / FLAG OFF**
+
+### 15.2 Authoritative transfer_state Lifecycle
+
+The `reservation_authority` table now carries a `transfer_state` column with the following lifecycle:
+
+| State | Meaning | Transition |
+|---|---|---|
+| `not_started` | Default. No transfer initiated. | Initial state on listing initialization. |
+| `in_progress` | Seller has initiated the transfer process. | `begin_transfer` CAS: `not_started → in_progress` (version increments). |
+| `seller_reported_sent` | Seller self-reports that tickets have been sent. | `record_seller_report` CAS: `in_progress → seller_reported_sent` (version increments). |
+| `unknown` | Transfer state cannot be determined (crash/reconciliation). | Set by reconciliation logic when transfer outcome is uncertain. |
+| `terminal_cancelled` | Transfer was terminated by cancellation. | Set when cancellation commits before or during transfer. |
+
+**Transition invariants:**
+1. `begin_transfer` and `begin_cancel` both CAS on `reservation_authority.version` — only one can commit from the same starting version.
+2. `record_seller_report` CAS requires `transfer_state = 'in_progress'` — it cannot skip the `begin_transfer` step.
+3. Every transition increments `version` and writes a `reservation_outbox` mirror event.
+4. All transitions are replay-safe via `acquire_operation` (operation_id + request_hash idempotency).
+
+### 15.3 seller_reported_sent — Unverified Seller Assertion
+
+The state `seller_reported_sent` is the seller's self-report that they have sent the tickets. It is **never** labeled or treated as provider-verified delivery. The state does not prove that:
+- The transfer was received by the buyer.
+- The transfer was verified by the ticketing platform.
+- The tickets are valid or deliverable.
+
+The `record_seller_report` function always returns `provider_verified: false` in both its result JSON and outbox payload. The Base44 mirror sets `seller_confirmed: true` but never sets any provider-verification field. Buyer confirmation and AI proof verification remain separate, downstream processes.
+
+### 15.4 Cancellation / Transfer CAS Concurrency
+
+`begin_cancel` and `begin_transfer` both use `FOR UPDATE` row-level locks on `reservation_authority` and CAS on `version`. The lock order is consistent (both lock `reservation_authority` first), preventing deadlock.
+
+| Race Outcome | Behavior |
+|---|---|
+| Cancel commits first (version increments) | Transfer-start with old version → CONFLICT. Listing is quarantined (always-quarantine per P0-01L). |
+| Transfer-start commits first (version increments) | Cancel with old version → CONFLICT. Cancel-purchase orchestrator re-reads state and retries with the new version. Cancel may still proceed, but inventory remains quarantined. |
+| Concurrent begin_cancel (same version) | Exactly one succeeds (CAS). The other gets CONFLICT. |
+| Concurrent begin_transfer (same version) | Exactly one succeeds (CAS). The other gets CONFLICT or idempotent replay. |
+
+The cancel-purchase orchestrator's CONFLICT retry path (P0-01M) re-reads state after a transfer-start commit and retries `begin_cancel` with the new version. Cancellation may still complete, but the listing is **always quarantined** — never relisted.
+
+### 15.5 Base44 Mirror-Only Behavior and Failure Isolation
+
+PostgreSQL is authoritative. The `sellerConfirmTransferCanaryOrchestrator` mirrors to Base44 **after** the authoritative commit:
+- `begin_transfer` commits → mirror `transfer_state: 'in_progress'` to Base44 Listing.
+- `record_seller_report` commits → mirror `seller_confirmed: true` and `transfer_state: 'seller_reported_sent'` to Base44 Purchase + Listing.
+
+Mirror failure does not roll back the authoritative state. A durable `CanaryMirrorOutbox` record is created on mirror failure, repaired by `reconcilePurchaseOutcomes`. The orchestrator returns the authoritative result even if the mirror fails.
+
+### 15.6 Automatic Relisting Remains Disabled
+
+No transfer state permits automatic relisting. The orchestrator never sets Listing `status: 'active'` or clears `recovery_blocked`. The cancel-purchase orchestrator's always-quarantine behavior (P0-01L) is preserved: every successful pre-capture cancellation quarantines the listing regardless of `seller_confirmed` value.
+
+### 15.7 Flag OFF, Maintenance ON, Fake Providers Only
+
+| Item | Value |
+|---|---|
+| `CANARY_ENABLED` flag | `false` (OFF) — trusted DI only |
+| Maintenance mode | ON |
+| Real Stripe calls | 0 (fake adapter only) |
+| Real provider delivery | NOT CERTIFIED (NEEDS_OWNER_ACTION) |
+
+### 15.8 Function Ownership
+
+The deployed functions were aligned with the current canonical `neondb_owner` ownership pattern. All `authority_v1` functions use `SECURITY DEFINER` with `SET search_path = authority_v1, pg_temp`, and function ownership is transferred to `neondb_owner` (the database owner) to ensure proper `SECURITY DEFINER` execution context on Neon. Least-privileged function ownership (e.g., a dedicated LOGIN owner role with only the required schema privileges) is recorded as future hardening if appropriate.
+
+### 15.9 Closeout Checks
+
+| Check | Result |
+|---|---|
+| `transfer_state` column/default/constraint matches artifact | ✅ `text`, NOT NULL, default `'not_started'`, CHECK allows exactly `not_started`, `in_progress`, `seller_reported_sent`, `unknown`, `terminal_cancelled` |
+| Live/artifact body parity — `get_state` | ✅ match (715 chars normalized) |
+| Live/artifact body parity — `begin_transfer` | ✅ match (3234 chars normalized) |
+| Live/artifact body parity — `record_seller_report` | ✅ match (3235 chars normalized) |
+| Executor grants — `begin_transfer` | ✅ `authority_executor` can EXECUTE |
+| Executor grants — `record_seller_report` | ✅ `authority_executor` can EXECUTE |
+| Recorder denial — `begin_transfer` | ✅ `authority_stripe_recorder` cannot EXECUTE |
+| Recorder denial — `record_seller_report` | ✅ `authority_stripe_recorder` cannot EXECUTE |
+| All 7 authority tables = 0 rows | ✅ all zero |
+
+### 15.10 Current Gate
+
+| Suite | Assertions | Result |
+|---|---|---|
+| transfer-canary (P0-01M) | 74 | ✅ 74/74 PASS |
+| cancel-purchase-canary (P0-01L) | 146 | ✅ 146/146 PASS |
+| payment-saga-cancel (P0-01F) | 59 | ✅ 59/59 PASS |
+| authority-contract (static) | 115 | ✅ 115/115 PASS |
+| **Total** | **394** | **394/394 PASS** |
+
+Build: exit 0. Scoped lint: 0 errors.
+
+### 15.11 Changed Files (P0-01M)
+
+| File | Change |
+|---|---|
+| `database/authority_v1/001_schema.sql` | Added `transfer_state` column + `transfer_state_updated_at` + CHECK constraint |
+| `database/authority_v1/002_functions.sql` | Added `begin_transfer` and `record_seller_report` functions; `get_state` returns `transfer_state` |
+| `database/authority_v1/004_roles_and_grants.sql` | Granted `begin_transfer` and `record_seller_report` to `authority_executor` only |
+| `base44/shared/authorityV1Client.js` | Added `beginTransfer` and `recordSellerReport` to executor allowlist |
+| `base44/shared/sellerConfirmTransferCanaryOrchestrator.js` | NEW — seller-confirmation canary saga (authority-first, mirror-only, seller self-report never provider-verified) |
+| `base44/functions/sellerConfirmTransfer/entry.ts` | Canary route wired before maintenance gate; `base44:runtime` secrets |
+| `base44/shared/cancelPurchaseCanaryOrchestrator.js` | Added transfer-state retry on CONFLICT; `transfer_state` in response |
+| `tests/transfer-canary.test.mjs` | NEW — 16-scenario P0-01M certification suite |
+| `tests/authority-contract.test.mjs` | 16 new P0-01M contract checks (115 total) |
+| `src/docs/AUTHORITY_V1_CANARY_CERTIFICATION.md` | §15 (P0-01M certification), header update |
+
+### 15.12 Conclusion
+
+P0-01M manifest label: **P0-01M-AUTHORITATIVE-TRANSFER-CERTIFIED / SELLER-REPORTED ONLY / PROVIDER DELIVERY NOT VERIFIED / AUTO-RELIST DISABLED / FLAG OFF**
+
+- Authoritative `transfer_state` lifecycle is certified against the real dev Postgres authority.
+- `begin_transfer` and `record_seller_report` use CAS on `reservation_authority.version` — the same version column used by cancellation, ensuring exactly-one-wins concurrency.
+- `seller_reported_sent` is the seller's unverified self-report — never labeled or treated as provider-verified delivery.
+- Cancellation / transfer concurrency: both operations lock the same row and CAS on version. Transfer-start commits first → cancel retries with new version and always quarantines. Cancel commits first → transfer-start gets CONFLICT.
+- PostgreSQL is authoritative; Base44 is mirror-only. Mirror failure does not roll back authoritative state.
+- Automatic relisting remains disabled — no transfer state permits it.
+- Flag OFF, maintenance ON, fake providers only. Real provider delivery is NOT certified (NEEDS_OWNER_ACTION).
+- 50 backend functions, 32 authority functions (30 + 2 new transfer functions), flag OFF, maintenance ON, 0 synthetic rows, 0 real Stripe calls.
+- Current gate: 394/394 assertions (transfer-canary 74, cancel-purchase-canary 146, payment-saga-cancel 59, authority-contract 115), build exit 0, scoped lint 0 errors.
