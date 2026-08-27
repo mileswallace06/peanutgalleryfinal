@@ -1,15 +1,15 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { MapPin, Calendar, ChevronRight, LocateFixed, X, Clock, RefreshCw, Zap } from 'lucide-react';
+import { MapPin, Calendar, ChevronRight, LocateFixed, X, Clock, RefreshCw, Zap, HelpCircle } from 'lucide-react';
 import LocationAutocomplete from '@/components/LocationAutocomplete';
 import { getEventLiveStatus, SOON_WINDOW_MINUTES } from '@/lib/eventTiming';
-import { getEventUrl } from '@/lib/eventUrl';
 import { logNavEvent } from '@/lib/navLogger';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { fetchTMEvents, bustTMCache } from '@/lib/tmCache';
 import { useLocationDetect } from '@/hooks/useLocationDetect';
+import { useAuth } from '@/lib/AuthContext';
 import WhatIsPGOverlay, { shouldShowOverlay } from '@/components/WhatIsPGOverlay';
 
 // ── sessionStorage helpers ────────────────────────────────────────────────
@@ -22,10 +22,11 @@ function writeSS(data) {
 }
 
 export default function Upgrades() {
+  const { user } = useAuth();
   const _ss = readSS();
   const [allEvents, setAllEvents] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [showOverlay, setShowOverlay] = useState(() => shouldShowOverlay());
+  const [showOverlay, setShowOverlay] = useState(() => shouldShowOverlay(user));
   const [locationInput, setLocationInput] = useState(_ss?.locationInput || '');
   const [editingLocation, setEditingLocation] = useState(false);
 
@@ -141,7 +142,7 @@ export default function Upgrades() {
 
   return (
     <div ref={containerRef} className="pb-32 transition-transform duration-200">
-      {showOverlay && <WhatIsPGOverlay onDismiss={() => setShowOverlay(false)} />}
+      {showOverlay && <WhatIsPGOverlay onDismiss={() => setShowOverlay(false)} user={user} />}
       {pulling && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-4 py-2 rounded-full"
           style={{ background: 'rgba(var(--neon-green-rgb), 0.1)', border: '1px solid rgba(var(--neon-green-rgb), 0.25)' }}>
@@ -182,8 +183,19 @@ export default function Upgrades() {
         </div>
       </div>
 
+      {/* Help — reopen "What is PG?" onboarding */}
+      <div className="px-4 mt-3 mb-1">
+        <button
+          onClick={() => setShowOverlay(true)}
+          className="text-xs text-muted-foreground flex items-center gap-1.5 active:opacity-70"
+        >
+          <HelpCircle className="w-3.5 h-3.5" />
+          What is Peanut Gallery?
+        </button>
+      </div>
+
       {/* Location bar — compact, secondary */}
-      <div className="px-4 mt-3 mb-4">
+      <div className="px-4 mt-2 mb-4">
         {editingLocation ? (
           <div className="space-y-2">
             <div className="flex gap-2">

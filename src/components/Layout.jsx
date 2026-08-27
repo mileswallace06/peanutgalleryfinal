@@ -47,7 +47,7 @@ const NAV = [
 ];
 
 export default function Layout() {
-  const { user } = useAuth();
+  const { user, authChecked, isAuthenticated } = useAuth();
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('pg_onboarded'));
   const [unreadCount, setUnreadCount] = useState(0);
   const [liveEventId, setLiveEventId] = useState(null);
@@ -158,7 +158,9 @@ export default function Layout() {
     <div className="bg-background font-sans dark:rave-bg" style={{ height: '100dvh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       {user?.email && <DonationWinNotification userEmail={user.email} />}
       {user && <FeedbackWidget user={user} />}
-      {!user && (
+      {/* Sign in — only when auth has definitively resolved as unauthenticated.
+          During loading (authChecked=false) render nothing so "Sign in" never flashes. */}
+      {authChecked && !isAuthenticated && !user && (
         <div className="fixed right-4 z-[99]" style={{ top: 'calc(1rem + env(safe-area-inset-top))' }}>
           <button
             onClick={() => base44.auth.redirectToLogin()}
