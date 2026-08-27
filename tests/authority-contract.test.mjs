@@ -1053,6 +1053,125 @@ check('cancel_purchase_no_parallel_implementation', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// TEST 27: P0-01M transfer-state foundation — schema, functions, orchestrator, handler
+// ═══════════════════════════════════════════════════════════════════════════
+check('schema_has_transfer_state_column', () => {
+  if (!schema.includes('transfer_state')) throw new Error('schema missing transfer_state column on reservation_authority');
+  if (!schema.includes("'not_started'")) throw new Error("schema missing 'not_started' transfer state");
+  if (!schema.includes("'in_progress'")) throw new Error("schema missing 'in_progress' transfer state");
+  if (!schema.includes("'seller_reported_sent'")) throw new Error("schema missing 'seller_reported_sent' transfer state");
+  if (!schema.includes("'terminal_cancelled'")) throw new Error("schema missing 'terminal_cancelled' transfer state");
+  return true;
+});
+check('schema_has_transfer_operation_types', () => {
+  if (!schema.includes("'begin_transfer'")) throw new Error("schema missing 'begin_transfer' operation type");
+  if (!schema.includes("'record_seller_report'")) throw new Error("schema missing 'record_seller_report' operation type");
+  return true;
+});
+check('begin_transfer_function_exists', () => {
+  if (!functions.includes('CREATE OR REPLACE FUNCTION authority_v1.begin_transfer')) {
+    throw new Error('begin_transfer function not found in 002_functions.sql');
+  }
+  return true;
+});
+check('record_seller_report_function_exists', () => {
+  if (!functions.includes('CREATE OR REPLACE FUNCTION authority_v1.record_seller_report')) {
+    throw new Error('record_seller_report function not found in 002_functions.sql');
+  }
+  return true;
+});
+check('begin_transfer_security_definer', () => {
+  const fnStart = functions.indexOf('CREATE OR REPLACE FUNCTION authority_v1.begin_transfer');
+  const fnEnd = functions.indexOf('$$;', fnStart);
+  const fnBody = functions.substring(fnStart, fnEnd);
+  if (!fnBody.includes('SECURITY DEFINER')) throw new Error('begin_transfer must be SECURITY DEFINER');
+  if (!fnBody.includes('SET search_path = authority_v1, pg_temp')) throw new Error('begin_transfer must harden search_path');
+  if (!fnBody.includes('acquire_operation')) throw new Error('begin_transfer must use acquire_operation for replay safety');
+  return true;
+});
+check('record_seller_report_never_provider_verified', () => {
+  const fnStart = functions.indexOf('CREATE OR REPLACE FUNCTION authority_v1.record_seller_report');
+  const fnEnd = functions.indexOf('$$;', fnStart);
+  const fnBody = functions.substring(fnStart, fnEnd);
+  if (!fnBody.includes("'seller_reported_sent'")) throw new Error("must transition to 'seller_reported_sent'");
+  if (!fnBody.includes("'provider_verified', false")) throw new Error("must explicitly set provider_verified=false (seller self-report is NOT provider-verified)");
+  return true;
+});
+check('get_state_returns_transfer_state', () => {
+  const fnStart = functions.indexOf('CREATE OR REPLACE FUNCTION authority_v1.get_state');
+  const fnEnd = functions.indexOf('$$;', fnStart);
+  const fnBody = functions.substring(fnStart, fnEnd);
+  if (!fnBody.includes('transfer_state')) throw new Error('get_state must return transfer_state');
+  if (!fnBody.includes('transfer_state_updated_at')) throw new Error('get_state must return transfer_state_updated_at');
+  return true;
+});
+check('roles_grant_transfer_functions_to_executor', () => {
+  if (!roles.includes('GRANT EXECUTE ON FUNCTION authority_v1.begin_transfer')) {
+    throw new Error('begin_transfer not granted to authority_executor');
+  }
+  if (!roles.includes('GRANT EXECUTE ON FUNCTION authority_v1.record_seller_report')) {
+    throw new Error('record_seller_report not granted to authority_executor');
+  }
+  return true;
+});
+check('seller_confirm_orchestrator_exists', () => {
+  const path = join(ROOT, 'base44/shared/sellerConfirmTransferCanaryOrchestrator.js');
+  if (!existsSync(path)) throw new Error('sellerConfirmTransferCanaryOrchestrator.js not found');
+  return true;
+});
+check('seller_confirm_orchestrator_no_admin', () => {
+  const src = readFileSync(join(ROOT, 'base44/shared/sellerConfirmTransferCanaryOrchestrator.js'), 'utf8');
+  if (src.includes('authorityV1TestAdmin')) throw new Error('must not import admin client');
+  if (src.includes('AUTHORITY_DB_URL_DEV_ADMIN')) throw new Error('must not reference admin URL');
+  if (src.includes('Deno.env')) throw new Error('must not use Deno.env');
+  return true;
+});
+check('seller_confirm_orchestrator_uses_certified_primitives', () => {
+  const src = readFileSync(join(ROOT, 'base44/shared/sellerConfirmTransferCanaryOrchestrator.js'), 'utf8');
+  if (!src.includes('beginTransfer')) throw new Error('must use executor beginTransfer');
+  if (!src.includes('recordSellerReport')) throw new Error('must use executor recordSellerReport');
+  if (!src.includes('canaryEnabled')) throw new Error('must accept canaryEnabled DI');
+  return true;
+});
+check('seller_confirm_orchestrator_no_auto_relist', () => {
+  const src = readFileSync(join(ROOT, 'base44/shared/sellerConfirmTransferCanaryOrchestrator.js'), 'utf8');
+  if (src.includes("status: 'active'")) throw new Error('must not set listing status to active (no auto-relist)');
+  if (src.includes('recovery_blocked: false')) throw new Error('must not clear recovery_blocked (no auto-recovery)');
+  return true;
+});
+check('seller_confirm_handler_wiring', () => {
+  const src = readFileSync(join(ROOT, 'base44/functions/sellerConfirmTransfer/entry.ts'), 'utf8');
+  if (!src.includes('maybeRouteCanarySellerConfirm')) throw new Error('handler must import orchestrator');
+  if (!src.includes('isCanaryEnabled')) throw new Error('handler must use isCanaryEnabled');
+  if (!src.includes("secrets.get('AUTHORITY_V1_DB_URL_DEV_EXECUTOR')")) throw new Error('handler must use base44:runtime for executor URL');
+  if (src.includes('authorityV1TestAdmin')) throw new Error('handler must not import admin client');
+  if (src.includes('Deno.env')) throw new Error('handler must not use Deno.env');
+  return true;
+});
+check('seller_confirm_handler_canary_before_maintenance', () => {
+  const src = readFileSync(join(ROOT, 'base44/functions/sellerConfirmTransfer/entry.ts'), 'utf8');
+  const canaryIdx = src.indexOf('maybeRouteCanarySellerConfirm');
+  const maintenanceIdx = src.indexOf('isMaintenanceActive()');
+  if (canaryIdx < 0 || maintenanceIdx < 0) throw new Error('both canary and maintenance checks must exist');
+  if (canaryIdx > maintenanceIdx) throw new Error('canary route must be before maintenance gate');
+  return true;
+});
+check('executor_client_has_transfer_functions', () => {
+  const src = readFileSync(join(ROOT, 'base44/shared/authorityV1Client.js'), 'utf8');
+  if (!src.includes('beginTransfer')) throw new Error('executor client must expose beginTransfer');
+  if (!src.includes('recordSellerReport')) throw new Error('executor client must expose recordSellerReport');
+  return true;
+});
+check('cancel_purchase_reads_transfer_state', () => {
+  const src = readFileSync(join(ROOT, 'base44/shared/cancelPurchaseCanaryOrchestrator.js'), 'utf8');
+  // The cancel-purchase orchestrator must include transfer_state in its response
+  // and handle the transfer-wins concurrency case (retry on CONFLICT).
+  if (!src.includes('transfer_state')) throw new Error('cancel-purchase orchestrator must reference transfer_state');
+  if (!src.includes('CONFLICT')) throw new Error('cancel-purchase orchestrator must handle CONFLICT retry');
+  return true;
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 // NOT YET TESTED: SQL parse/compile and real PostgreSQL runtime
 // ═══════════════════════════════════════════════════════════════════════════
 console.log('\n── NOT YET TESTED ──');

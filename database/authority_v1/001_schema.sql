@@ -35,6 +35,12 @@ CREATE TABLE authority_v1.reservation_authority (
   recovery_not_before          TIMESTAMPTZ,
   seller_cancel_requested_at   TIMESTAMPTZ,
   seller_pause_requested_at    TIMESTAMPTZ,
+  -- P0-01M: Authoritative transfer lifecycle state. Distinct from lifecycle_state
+  -- (reservation) and capture_state (payment). Seller self-report is NEVER
+  -- provider-verified — 'seller_reported_sent' is the seller's attestation only.
+  transfer_state               TEXT        NOT NULL DEFAULT 'not_started'
+    CHECK (transfer_state IN ('not_started','in_progress','seller_reported_sent','unknown','terminal_cancelled')),
+  transfer_state_updated_at    TIMESTAMPTZ,
   current_operation_id         TEXT,
   last_operation_type          TEXT,
   last_operation_at            TIMESTAMPTZ,
@@ -124,7 +130,8 @@ CREATE TABLE authority_v1.reservation_operations (
       'begin_capture','record_capture','finalize',
       'begin_cancel','record_cancel',
       'begin_refund','record_refund',
-      'abort','cancel','expire','initialize','quarantine','anonymize'
+      'abort','cancel','expire','initialize','quarantine','anonymize',
+      'begin_transfer','record_seller_report'
     )),
   requested_state    TEXT        NOT NULL,
   expected_version   INTEGER     NOT NULL,
@@ -142,12 +149,13 @@ CREATE TABLE authority_v1.reservation_operations (
 ALTER TABLE authority_v1.reservation_operations
   ADD CONSTRAINT valid_operation_subject_combination
   CHECK (
-    (subject_type = 'listing' AND operation_type IN (
-      'reserve','release','freeze','bind_pi',
-      'begin_capture','record_capture','finalize',
-      'begin_cancel','record_cancel',
-      'begin_refund','record_refund',
-      'abort','cancel','expire','initialize','quarantine'))
+  (subject_type = 'listing' AND operation_type IN (
+    'reserve','release','freeze','bind_pi',
+    'begin_capture','record_capture','finalize',
+    'begin_cancel','record_cancel',
+    'begin_refund','record_refund',
+    'abort','cancel','expire','initialize','quarantine',
+    'begin_transfer','record_seller_report'))
     OR
     (subject_type = 'user' AND operation_type = 'anonymize')
   );
@@ -363,7 +371,8 @@ CREATE TABLE authority_v1.operational_incidents (
       'failed_transfer_after_payment','new_dispute','expired_verification',
       'low_confidence_listing','conflicting_community_reports',
       'transfer_disabled_active_listing','buyer_waiting_for_transfer',
-      'seller_missed_deadline','seller_reliability_drop','admin_action_required'
+      'seller_missed_deadline','seller_reliability_drop','admin_action_required',
+      'transfer_cancelled_inventory_quarantined','transfer_state_conflict'
     )),
   priority             TEXT        NOT NULL DEFAULT 'medium'
     CHECK (priority IN ('critical','high','medium','low')),
@@ -429,3 +438,12 @@ ALTER TABLE authority_v1.reservation_outbox
 CREATE INDEX idx_outbox_claimable
   ON authority_v1.reservation_outbox (next_attempt_at)
   WHERE delivery_status IN ('pending','in_flight');
+
+-- ── P0-01M Migration: Add transfer_state columns to reservation_authority ────
+-- Idempotent migration for existing databases. The CREATE TABLE above already
+-- includes these columns for fresh installs.
+ALTER TABLE authority_v1.reservation_authority
+  ADD COLUMN IF NOT EXISTS transfer_state TEXT NOT NULL DEFAULT 'not_started'
+    CHECK (transfer_state IN ('not_started','in_progress','seller_reported_sent','unknown','terminal_cancelled'));
+ALTER TABLE authority_v1.reservation_authority
+  ADD COLUMN IF NOT EXISTS transfer_state_updated_at TIMESTAMPTZ;

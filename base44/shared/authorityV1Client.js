@@ -175,5 +175,15 @@ export function createAuthorityV1Client(executorUrl) {
     async quarantineListing(listingId, reason, operationId, requestHash) {
       return callFn('quarantine_listing', listingId, reason, operationId, requestHash);
     },
+
+    /** begin_transfer(listing_id, expected_version, seller_user_id, operation_id, request_hash) → JSONB */
+    async beginTransfer(listingId, expectedVersion, sellerUserId, operationId, requestHash) {
+      return callFn('begin_transfer', listingId, expectedVersion, sellerUserId, operationId, requestHash);
+    },
+
+    /** record_seller_report(listing_id, expected_version, seller_user_id, operation_id, request_hash) → JSONB */
+    async recordSellerReport(listingId, expectedVersion, sellerUserId, operationId, requestHash) {
+      return callFn('record_seller_report', listingId, expectedVersion, sellerUserId, operationId, requestHash);
+    },
   };
 }

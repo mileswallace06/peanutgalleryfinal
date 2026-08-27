@@ -224,15 +224,17 @@ export async function runCanaryCancelPurchaseSaga(deps) {
 
   if (!skipBeginCancel) {
     // ── 5a. begin_cancel via executor ─────────────────────────────────────
-    const expectedVersion = state.version;
-    const expectedRevision = state.reservation_revision;
-    const operationId = `op_begin_${actionId}_${genId()}`;
+    let expectedVersion = state.version;
+    let expectedRevision = state.reservation_revision;
+    let operationId = `op_begin_${actionId}_${genId()}`;
 
-    const beginRequestHash = await sha256Hex(canonicalEnvelope({
-      op: 'begin_cancel', listing_id: listingId, expected_version: expectedVersion,
+    const buildBeginHash = (ver, rev) => sha256Hex(canonicalEnvelope({
+      op: 'begin_cancel', listing_id: listingId, expected_version: ver,
       purchase_id: purchaseId, payment_intent_id: paymentIntentId,
       buyer_user_id: authoritativeBuyerUserId, action_id: actionId, idem_key: stripeIdemKey,
     }));
+
+    let beginRequestHash = await buildBeginHash(expectedVersion, expectedRevision);
 
     let beginResult;
     try {
@@ -242,6 +244,37 @@ export async function runCanaryCancelPurchaseSaga(deps) {
       );
     } catch (e) {
       return { status: 500, body: { error: 'begin_cancel failed', code: 'BEGIN_CANCEL_ERROR' } };
+    }
+
+    // ── 5b. Retry on CONFLICT (transfer-start may have committed first) ──
+    // P0-01M: If transfer-start committed first (version incremented), the
+    // begin_cancel CAS on the old version fails with CONFLICT. Re-read the
+    // state and retry once with the new version. Cancellation may still
+    // proceed, but inventory remains quarantined (always quarantine — never
+    // relist). The transfer snapshot from Postgres is included in the response.
+    if (!beginResult?.ok && beginResult?.code === 'CONFLICT') {
+      let retryState;
+      try {
+        retryState = await executorClient.getState(listingId);
+      } catch (e) {
+        return { status: 500, body: { error: 'State re-read failed on retry', code: 'STATE_READ_FAILED' } };
+      }
+      if (retryState?.ok && retryState.lifecycle_state === 'reserved' &&
+          retryState.buyer_user_id === authoritativeBuyerUserId) {
+        // Transfer-start committed first — retry with new version
+        expectedVersion = retryState.version;
+        expectedRevision = retryState.reservation_revision;
+        operationId = `op_begin_${actionId}_${genId()}`;
+        beginRequestHash = await buildBeginHash(expectedVersion, expectedRevision);
+        try {
+          beginResult = await executorClient.beginCancel(
+            listingId, expectedVersion, purchaseId, paymentIntentId,
+            authoritativeBuyerUserId, expectedRevision, actionId, stripeIdemKey, operationId, beginRequestHash,
+          );
+        } catch (e) {
+          return { status: 500, body: { error: 'begin_cancel retry failed', code: 'BEGIN_CANCEL_RETRY_ERROR' } };
+        }
+      }
     }
 
     if (!beginResult?.ok) {
@@ -378,6 +411,7 @@ export async function runCanaryCancelPurchaseSaga(deps) {
         quarantined: true,
         quarantine_ok: quarantineOk,
         code: 'CANCELLED_INVENTORY_QUARANTINED',
+        transfer_state: state.transfer_state,
         action_id: actionId,
         stripe_idempotency_key: stripeIdemKey,
         provider_called: true,

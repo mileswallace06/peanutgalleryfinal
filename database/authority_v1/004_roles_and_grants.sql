@@ -77,8 +77,11 @@ ALTER SEQUENCE authority_v1.operational_incidents_incident_id_seq OWNER TO autho
 ALTER SEQUENCE authority_v1.reservation_outbox_outbox_id_seq OWNER TO authority_owner;
 
 -- ── 4. Function ownership transfer (by exact signature) ──────────────────
--- Transfer ownership of every function to authority_owner using exact
--- routine signatures — not ambiguous routine names.
+-- Transfer ownership of every function to neondb_owner (the database owner).
+-- Functions owned by authority_owner (NOLOGIN) cannot resolve tables in
+-- SECURITY DEFINER context on Neon — the search_path is set but the NOLOGIN
+-- owner lacks the implicit schema USAGE that a LOGIN database owner has.
+-- neondb_owner is the database owner and has full access to all schemas.
 DO $$
 DECLARE r RECORD;
 BEGIN
@@ -88,7 +91,7 @@ BEGIN
     JOIN pg_namespace n ON p.pronamespace = n.oid
     WHERE n.nspname = 'authority_v1'
   LOOP
-    EXECUTE format('ALTER FUNCTION authority_v1.%I(%s) OWNER TO authority_owner',
+    EXECUTE format('ALTER FUNCTION authority_v1.%I(%s) OWNER TO neondb_owner',
       r.proname, r.args);
   END LOOP;
 END $$;
@@ -156,6 +159,9 @@ GRANT EXECUTE ON FUNCTION authority_v1.escalate_exhausted_webhook_event() TO aut
 GRANT EXECUTE ON FUNCTION authority_v1.resolve_webhook_action(TEXT,TEXT) TO authority_executor;
 GRANT EXECUTE ON FUNCTION authority_v1.create_webhook_incident(TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT) TO authority_executor;
 GRANT EXECUTE ON FUNCTION authority_v1.flag_webhook_missing_action(TEXT,TEXT,TEXT,TEXT) TO authority_executor;
+-- P0-01M: Transfer lifecycle — executor-only (seller-confirmation canary)
+GRANT EXECUTE ON FUNCTION authority_v1.begin_transfer(TEXT,INTEGER,TEXT,TEXT,TEXT) TO authority_executor;
+GRANT EXECUTE ON FUNCTION authority_v1.record_seller_report(TEXT,INTEGER,TEXT,TEXT,TEXT) TO authority_executor;
 -- P0-01K: Durable webhook ingestion — recorder-only (privilege boundary correction)
 -- Ingestion is performed by the stripeWebhook handler using the recorder client.
 -- The executor no longer has EXECUTE on this function.
