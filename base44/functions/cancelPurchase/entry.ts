@@ -1,8 +1,32 @@
+/**
+ * cancelPurchase — Buyer-initiated purchase cancellation.
+ *
+ * P0-01L: Canary-eligible synthetic [AUTH_CANARY] purchases are routed to the
+ * authority-backed cancel-purchase canary orchestrator (Postgres authoritative,
+ * Base44 mirror-only). The canary path handles PRE-CAPTURE cancellation only:
+ *   - authority 'reserved' (authorized but uncaptured PI) → begin_cancel →
+ *     shared Stripe cancel provider → record_cancel_result
+ *   - authority 'frozen' (capture in-flight) → fail closed
+ *   - authority 'sold' (captured) → structured conflict + incident (out of scope)
+ *   - seller_confirmed (transfer may have started) → cancel money but quarantine
+ *
+ * All non-canary traffic and flag-OFF behavior remains identical to the legacy
+ * path. The canary route is wired BEFORE the maintenance gate; the legacy path
+ * is unchanged.
+ *
+ * The canary path uses base44:runtime secrets (no Deno.env), executor for
+ * command initiation, recorder for provider results, no admin fallback, and
+ * no test-controlled production bypass (trusted canaryEnabled DI).
+ */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { secrets } from 'base44:runtime';
 import Stripe from 'npm:stripe@14.21.0';
 import { isMaintenanceActive, maintenance503 } from '../../shared/maintenance.ts';
 import { sendUserNotification, sendTransactionalEmail } from '../../shared/notifications.ts';
 import { getPurchasePrivate, upsertPurchasePrivate, upsertListingPrivate, alertPrivateWriteFailure } from '../../shared/privateData.ts';
+import { isCanaryEnabled } from '../../shared/authCanary.js';
+import { maybeRouteCanaryCancelPurchase } from '../../shared/cancelPurchaseCanaryOrchestrator.js';
+import { createStripeCancelProvider } from '../../shared/stripeCancelProvider.js';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
@@ -11,6 +35,74 @@ Deno.serve(async (req) => {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const { purchase_id } = await req.json().catch(() => ({}));
+  if (!purchase_id) {
+    return Response.json({ error: 'purchase_id is required' }, { status: 400 });
+  }
+
+  // ── Fetch purchase + listing for canary eligibility check (before maintenance) ──
+  let purchase: any = null;
+  try {
+    const [p] = await base44.asServiceRole.entities.Purchase.filter({ id: purchase_id });
+    purchase = p || null;
+  } catch (_) {}
+
+  let listing: any = null;
+  if (purchase?.listing_id) {
+    try {
+      const [l] = await base44.asServiceRole.entities.Listing.filter({ id: purchase.listing_id });
+      listing = l || null;
+    } catch (_) {}
+  }
+
+  // ── Canary route (synthetic [AUTH_CANARY] listings only) — before maintenance gate ──
+  // Returns null for normal listings → fall through to the maintenance-gated
+  // legacy path. Returns {status, body} for any canary-eligible or canary-rejected
+  // request — synthetic listings never reach the normal path.
+  if (listing && purchase) {
+    const executorUrl = secrets.get('AUTHORITY_V1_DB_URL_DEV_EXECUTOR');
+    const recorderUrl = secrets.get('AUTHORITY_V1_DB_URL_DEV_STRIPE_RECORDER');
+    const secretKey = secrets.get('STRIPE_SECRET_KEY');
+    const stripeAdapter = secretKey ? createStripeCancelProvider(secretKey) : null;
+
+    // Idempotent notification callback — only called after authoritative commitment
+    const sendNotification = async (info: any) => {
+      if (info.type === 'cancelled') {
+        const sellerEmail = purchase.seller_email;
+        if (sellerEmail) {
+          await sendUserNotification(base44, {
+            user_email: sellerEmail,
+            title: 'Purchase cancelled',
+            body: 'The buyer cancelled their purchase. Your listing has been restored to active.',
+            type: 'listing_expired',
+            purchase_id: purchase.id,
+          }).catch(() => {});
+        }
+      } else if (info.type === 'dispute') {
+        const sellerEmail = purchase.seller_email;
+        if (sellerEmail) {
+          await sendUserNotification(base44, {
+            user_email: sellerEmail,
+            title: 'Buyer cancelled — listing quarantined',
+            body: 'The buyer cancelled their purchase. Payment was canceled but your listing is quarantined for manual review because you confirmed transfer. Please contact support.',
+            type: 'listing_expired',
+            purchase_id: purchase.id,
+          }).catch(() => {});
+        }
+      }
+    };
+
+    const canaryResult = await maybeRouteCanaryCancelPurchase({
+      base44, user, listing, purchase,
+      executorUrl, recorderUrl,
+      stripeAdapter,
+      canaryEnabled: isCanaryEnabled(),
+      sendNotification,
+    });
+    if (canaryResult) return Response.json(canaryResult.body, { status: canaryResult.status });
+  }
+
+  // ── Legacy path (non-canary traffic + flag-OFF) — unchanged ──────────────
   if (isMaintenanceActive()) return maintenance503('Purchase cancellation is temporarily unavailable for scheduled maintenance.');
 
   const secretKey = Deno.env.get('STRIPELIVESECRETKEY');
@@ -19,14 +111,7 @@ Deno.serve(async (req) => {
   }
 
   const stripe = new Stripe(secretKey);
-  const { purchase_id } = await req.json();
 
-  if (!purchase_id) {
-    return Response.json({ error: 'purchase_id is required' }, { status: 400 });
-  }
-
-  const purchases = await base44.asServiceRole.entities.Purchase.filter({ id: purchase_id });
-  const purchase = purchases[0];
   if (!purchase) {
     return Response.json({ error: 'Purchase not found' }, { status: 404 });
   }

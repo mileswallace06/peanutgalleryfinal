@@ -170,5 +170,10 @@ export function createAuthorityV1Client(executorUrl) {
     async flagWebhookMissingAction(listingId, paymentIntentId, eventType, webhookEventId) {
       return callFn('flag_webhook_missing_action', listingId, paymentIntentId, eventType, webhookEventId);
     },
+
+    /** quarantine_listing(listing_id, reason, operation_id, request_hash) → JSONB */
+    async quarantineListing(listingId, reason, operationId, requestHash) {
+      return callFn('quarantine_listing', listingId, reason, operationId, requestHash);
+    },
   };
 }

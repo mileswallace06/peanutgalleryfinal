@@ -969,6 +969,90 @@ check('webhook_processor_entry_no_admin', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// TEST 26: P0-01L cancel-purchase canary — orchestrator, provider, handler
+// ═══════════════════════════════════════════════════════════════════════════
+check('cancel_purchase_orchestrator_exists', () => {
+  const path = join(ROOT, 'base44/shared/cancelPurchaseCanaryOrchestrator.js');
+  if (!existsSync(path)) throw new Error('cancelPurchaseCanaryOrchestrator.js not found');
+  return true;
+});
+check('cancel_purchase_shared_provider_exists', () => {
+  const path = join(ROOT, 'base44/shared/stripeCancelProvider.js');
+  if (!existsSync(path)) throw new Error('stripeCancelProvider.js not found');
+  const src = readFileSync(path, 'utf8');
+  if (!src.includes('createStripeCancelProvider')) throw new Error('must export createStripeCancelProvider');
+  if (!src.includes('cancelPaymentIntent')) throw new Error('must export cancelPaymentIntent');
+  return true;
+});
+check('cancel_purchase_orchestrator_no_admin', () => {
+  const src = readFileSync(join(ROOT, 'base44/shared/cancelPurchaseCanaryOrchestrator.js'), 'utf8');
+  if (src.includes('authorityV1TestAdmin')) throw new Error('must not import admin client');
+  if (src.includes('AUTHORITY_DB_URL_DEV_ADMIN')) throw new Error('must not reference admin URL');
+  if (src.includes('Deno.env')) throw new Error('must not use Deno.env');
+  return true;
+});
+check('cancel_purchase_orchestrator_uses_certified_primitives', () => {
+  const src = readFileSync(join(ROOT, 'base44/shared/cancelPurchaseCanaryOrchestrator.js'), 'utf8');
+  // Must reuse begin_cancel (executor) and record_cancel_result (recorder)
+  if (!src.includes('beginCancel')) throw new Error('must use executor beginCancel');
+  if (!src.includes('recordCancelResult')) throw new Error('must use recorder recordCancelResult');
+  // Must use quarantine_listing for transfer-uncertain quarantine
+  if (!src.includes('quarantineListing')) throw new Error('must use quarantineListing for transfer guard');
+  // Must use createWebhookIncident for captured-out-of-scope incident
+  if (!src.includes('createWebhookIncident')) throw new Error('must use createWebhookIncident for captured rejection');
+  // Must use resolveWebhookAction for reconciliation
+  if (!src.includes('resolveWebhookAction')) throw new Error('must use resolveWebhookAction for reconciliation');
+  return true;
+});
+check('cancel_purchase_orchestrator_canary_enabled_di', () => {
+  const src = readFileSync(join(ROOT, 'base44/shared/cancelPurchaseCanaryOrchestrator.js'), 'utf8');
+  // Must use canaryEnabled DI (not isCanaryEnabled internal call)
+  if (!src.includes('canaryEnabled')) throw new Error('must accept canaryEnabled DI');
+  // Check for isCanaryEnabled() as a function call (exclude JSDoc comment lines)
+  const codeLines = src.split('\n').filter(l => !l.trim().startsWith('*') && !l.trim().startsWith('//'));
+  const code = codeLines.join('\n');
+  if (code.includes('isCanaryEnabled()')) throw new Error('must NOT call isCanaryEnabled() internally (use DI)');
+  return true;
+});
+check('cancel_purchase_handler_wiring', () => {
+  const src = readFileSync(join(ROOT, 'base44/functions/cancelPurchase/entry.ts'), 'utf8');
+  if (!src.includes('maybeRouteCanaryCancelPurchase')) throw new Error('handler must import orchestrator');
+  if (!src.includes('createStripeCancelProvider')) throw new Error('handler must import shared provider');
+  if (!src.includes('isCanaryEnabled')) throw new Error('handler must use isCanaryEnabled');
+  if (!src.includes("secrets.get('STRIPE_SECRET_KEY')")) throw new Error('handler must use base44:runtime secrets for Stripe key');
+  if (!src.includes("secrets.get('AUTHORITY_V1_DB_URL_DEV_EXECUTOR')")) throw new Error('handler must use base44:runtime for executor URL');
+  if (!src.includes("secrets.get('AUTHORITY_V1_DB_URL_DEV_STRIPE_RECORDER')")) throw new Error('handler must use base44:runtime for recorder URL');
+  if (src.includes('authorityV1TestAdmin')) throw new Error('handler must not import admin client');
+  return true;
+});
+check('cancel_purchase_handler_canary_before_maintenance', () => {
+  const src = readFileSync(join(ROOT, 'base44/functions/cancelPurchase/entry.ts'), 'utf8');
+  const canaryIdx = src.indexOf('maybeRouteCanaryCancelPurchase');
+  const maintenanceIdx = src.indexOf('isMaintenanceActive()');
+  if (canaryIdx < 0 || maintenanceIdx < 0) throw new Error('both canary and maintenance checks must exist');
+  // The canary call must appear before the maintenance gate in the legacy path
+  // (the canary route is before the second isMaintenanceActive check)
+  const lastMaintenanceIdx = src.lastIndexOf('isMaintenanceActive()');
+  if (canaryIdx > lastMaintenanceIdx) throw new Error('canary route must be before maintenance gate');
+  return true;
+});
+check('cancel_purchase_executor_client_has_quarantine', () => {
+  const src = readFileSync(join(ROOT, 'base44/shared/authorityV1Client.js'), 'utf8');
+  if (!src.includes('quarantineListing')) throw new Error('executor client must expose quarantineListing');
+  return true;
+});
+check('cancel_purchase_no_parallel_implementation', () => {
+  // The orchestrator must NOT reimplement cancel logic — it must call begin_cancel
+  // and record_cancel_result (the certified primitives). It must NOT directly
+  // call stripe.paymentIntents.cancel (that's in the shared provider).
+  const orchSrc = readFileSync(join(ROOT, 'base44/shared/cancelPurchaseCanaryOrchestrator.js'), 'utf8');
+  if (orchSrc.includes('stripe.paymentIntents')) throw new Error('orchestrator must not call Stripe SDK directly (use shared provider)');
+  const providerSrc = readFileSync(join(ROOT, 'base44/shared/stripeCancelProvider.js'), 'utf8');
+  if (!providerSrc.includes('stripe.paymentIntents.cancel')) throw new Error('shared provider must call Stripe cancel API');
+  return true;
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 // NOT YET TESTED: SQL parse/compile and real PostgreSQL runtime
 // ═══════════════════════════════════════════════════════════════════════════
 console.log('\n── NOT YET TESTED ──');
