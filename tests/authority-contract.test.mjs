@@ -829,6 +829,14 @@ check('no_pg_canary_cert_override_in_cert_harness', () => {
   }
   return true;
 });
+check('no_pg_canary_cert_override_in_cancel_cert_harness', () => {
+  const file = join(ROOT, 'tests/cancel-purchase-real-stripe.test.mjs');
+  if (!existsSync(file)) throw new Error('cancel-purchase certification harness not found');
+  if (readFileSync(file, 'utf8').includes('PG_CANARY_CERT_OVERRIDE')) {
+    throw new Error('PG_CANARY_CERT_OVERRIDE present in cancel-purchase certification harness');
+  }
+  return true;
+});
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TEST 24: P0-01K webhook ingress — ingest_stripe_webhook_event contract
@@ -1168,6 +1176,62 @@ check('cancel_purchase_reads_transfer_state', () => {
   // and handle the transfer-wins concurrency case (retry on CONFLICT).
   if (!src.includes('transfer_state')) throw new Error('cancel-purchase orchestrator must reference transfer_state');
   if (!src.includes('CONFLICT')) throw new Error('cancel-purchase orchestrator must handle CONFLICT retry');
+  return true;
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TEST 28: P0-01N cancel-purchase real Stripe test-mode certification harness
+// ═══════════════════════════════════════════════════════════════════════════
+check('cancel_purchase_real_stripe_harness_exists', () => {
+  const path = join(ROOT, 'tests/cancel-purchase-real-stripe.test.mjs');
+  if (!existsSync(path)) throw new Error('cancel-purchase-real-stripe.test.mjs not found');
+  return true;
+});
+check('cancel_purchase_real_stripe_uses_seam', () => {
+  const src = readFileSync(join(ROOT, 'tests/cancel-purchase-real-stripe.test.mjs'), 'utf8');
+  if (!src.includes('maybeRouteCanaryCancelPurchase')) throw new Error('must import maybeRouteCanaryCancelPurchase (the production seam)');
+  return true;
+});
+check('cancel_purchase_real_stripe_uses_shared_provider', () => {
+  const src = readFileSync(join(ROOT, 'tests/cancel-purchase-real-stripe.test.mjs'), 'utf8');
+  if (!src.includes('createStripeCancelProvider')) throw new Error('must import createStripeCancelProvider (shared production adapter)');
+  return true;
+});
+check('cancel_purchase_real_stripe_no_direct_orchestrator', () => {
+  const src = readFileSync(join(ROOT, 'tests/cancel-purchase-real-stripe.test.mjs'), 'utf8');
+  if (src.includes('runCanaryCancelPurchaseSaga')) throw new Error('must NOT call runCanaryCancelPurchaseSaga directly (use the seam)');
+  return true;
+});
+check('cancel_purchase_real_stripe_no_flag_override', () => {
+  const src = readFileSync(join(ROOT, 'tests/cancel-purchase-real-stripe.test.mjs'), 'utf8');
+  if (src.includes('PG_CANARY_CERT_OVERRIDE')) throw new Error('must not contain PG_CANARY_CERT_OVERRIDE');
+  return true;
+});
+check('cancel_purchase_real_stripe_no_live_key', () => {
+  const src = readFileSync(join(ROOT, 'tests/cancel-purchase-real-stripe.test.mjs'), 'utf8');
+  if (src.includes('STRIPELIVESECRETKEY')) throw new Error('must not read STRIPELIVESECRETKEY');
+  return true;
+});
+check('cancel_purchase_real_stripe_tags_p0_01n', () => {
+  const src = readFileSync(join(ROOT, 'tests/cancel-purchase-real-stripe.test.mjs'), 'utf8');
+  if (!src.includes("pg_cert: 'P0-01N'")) throw new Error('must tag Stripe objects with metadata.pg_cert=P0-01N');
+  return true;
+});
+check('cancel_purchase_real_stripe_no_admin', () => {
+  const src = readFileSync(join(ROOT, 'tests/cancel-purchase-real-stripe.test.mjs'), 'utf8');
+  if (src.includes('authorityV1TestAdmin')) throw new Error('must not import admin client');
+  return true;
+});
+check('cancel_purchase_real_stripe_instruments_cancel_separately', () => {
+  const src = readFileSync(join(ROOT, 'tests/cancel-purchase-real-stripe.test.mjs'), 'utf8');
+  if (!src.includes('cancelCount')) throw new Error('must instrument cancel POSTs separately (cancelCount)');
+  if (!src.includes('retrieveCount')) throw new Error('must instrument retrievals separately (retrieveCount)');
+  return true;
+});
+check('cancel_purchase_real_stripe_manual_capture', () => {
+  const src = readFileSync(join(ROOT, 'tests/cancel-purchase-real-stripe.test.mjs'), 'utf8');
+  if (!src.includes("capture_method: 'manual'")) throw new Error('must use manual-capture test PaymentIntents');
+  if (!src.includes('pm_card_visa')) throw new Error('must use predefined Stripe test payment method (pm_card_visa)');
   return true;
 });
 
