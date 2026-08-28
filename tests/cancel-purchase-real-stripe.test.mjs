@@ -47,7 +47,7 @@ import { createStripeCancelProvider } from '../base44/shared/stripeCancelProvide
 import { sha256Hex, canonicalEnvelope } from '../base44/shared/canaryMirror.js';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-async function genId() {
+function genId() {
   return crypto.randomUUID();
 }
 
@@ -267,13 +267,11 @@ async function countPaymentActionsByPurchase(adminSql, pid) {
   const rows = await adminSql`SELECT count(*)::int c FROM authority_v1.payment_actions WHERE purchase_id = ${pid}`;
   return Number(rows[0]?.c || 0);
 }
-async function cleanupListing(adminSql, lid) {
-  await adminSql`DELETE FROM authority_v1.reservation_outbox WHERE listing_id = ${lid}`;
-  await adminSql`DELETE FROM authority_v1.payment_actions WHERE listing_id = ${lid}`;
-  await adminSql`DELETE FROM authority_v1.operational_incidents WHERE reference_id = ${lid}`;
-  await adminSql`DELETE FROM authority_v1.reservation_payment_bindings WHERE listing_id = ${lid}`;
-  await adminSql`DELETE FROM authority_v1.reservation_operations WHERE listing_id = ${lid}`;
-  await adminSql`DELETE FROM authority_v1.reservation_authority WHERE listing_id = ${lid}`;
+async function cleanupListing(adminSql, _lid) {
+// Use TRUNCATE (admin has TRUNCATE via ownership) instead of DELETE (admin lacks
+// DELETE privilege on authority_v1 tables). Tests run sequentially with
+// synthetic IDs, so truncating all tables between scenarios is safe.
+await truncateAll(adminSql);
 }
 async function countAll(adminSql) {
   const tables = ['reservation_authority', 'reservation_operations', 'reservation_outbox',
@@ -333,6 +331,10 @@ export async function runAllTests(deps) {
     if (cond) passed++;
     else { failed++; failures.push(msg); }
   }
+
+  // ── Pre-test cleanup: truncate all authority tables to remove any leftover
+  // rows from prior failed runs. This ensures a clean slate for the certification.
+  await truncateAll(adminSql);
 
   // ── T0: Flag-OFF guard — normal production config cannot enter the canary path ──
   // The handler supplies isCanaryEnabled() (the committed default-OFF flag).

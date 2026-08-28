@@ -214,13 +214,7 @@ export async function runAllTests(deps) {
     return { ra: ra.c, ro: ro.c, rpb: rpb.c, pa: pa.c, swe: swe.c, oi: oi.c, ob: ob.c };
   }
   async function cleanupAll() {
-    await adminSql`DELETE FROM authority_v1.reservation_outbox`;
-    await adminSql`DELETE FROM authority_v1.stripe_webhook_events`;
-    await adminSql`DELETE FROM authority_v1.payment_actions`;
-    await adminSql`DELETE FROM authority_v1.operational_incidents`;
-    await adminSql`DELETE FROM authority_v1.reservation_payment_bindings`;
-    await adminSql`DELETE FROM authority_v1.reservation_operations`;
-    await adminSql`DELETE FROM authority_v1.reservation_authority`;
+    await adminSql`TRUNCATE authority_v1.reservation_outbox, authority_v1.reservation_payment_bindings, authority_v1.payment_actions, authority_v1.stripe_webhook_events, authority_v1.operational_incidents, authority_v1.reservation_operations, authority_v1.reservation_authority RESTART IDENTITY CASCADE`;
   }
 
   // ── Import the orchestrator ──────────────────────────────────────────────

@@ -1199,7 +1199,9 @@ check('cancel_purchase_real_stripe_uses_shared_provider', () => {
 });
 check('cancel_purchase_real_stripe_no_direct_orchestrator', () => {
   const src = readFileSync(join(ROOT, 'tests/cancel-purchase-real-stripe.test.mjs'), 'utf8');
-  if (src.includes('runCanaryCancelPurchaseSaga')) throw new Error('must NOT call runCanaryCancelPurchaseSaga directly (use the seam)');
+  // Look for actual function CALLS (with opening paren), not mere mentions in JSDoc comments.
+  // The seam is maybeRouteCanaryCancelPurchase; the saga function must never be called directly.
+  if (/runCanaryCancelPurchaseSaga\s*\(/.test(src)) throw new Error('must NOT call runCanaryCancelPurchaseSaga directly (use the seam)');
   return true;
 });
 check('cancel_purchase_real_stripe_no_flag_override', () => {
