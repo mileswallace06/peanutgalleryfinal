@@ -396,6 +396,7 @@ export default function Me() {
             {[
               { to: '/why-peanut-gallery', label: 'Why Peanut Gallery?', sub: 'How Peanut Gallery protects fans', emoji: '🥜' },
               { to: '/seller-payout-guide', label: 'Seller Payout Guide', sub: 'Stripe setup & payouts', emoji: '🏦' },
+              { to: '/our-story', label: 'Our Story', sub: 'Built by a fan, for fans', emoji: '✨' },
             ].map((item, i, arr) => (
               <Link key={item.to} to={item.to}
                 className="flex items-center gap-3 px-4 py-3.5 transition-all active:scale-[0.98]"

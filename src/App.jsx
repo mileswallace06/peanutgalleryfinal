@@ -33,6 +33,7 @@ const BetaQA = lazy(() => import('@/pages/BetaQA'));
 const TermsOfService = lazy(() => import('@/pages/TermsOfService'));
 const PrivacyPolicy = lazy(() => import('@/pages/PrivacyPolicy'));
 const CookiePolicy = lazy(() => import('@/pages/CookiePolicy'));
+const OurStory = lazy(() => import('@/pages/OurStory'));
 const InstantListingsGuide = lazy(() => import('@/pages/InstantListingsGuide'));
 const SellerPayoutGuide = lazy(() => import('@/pages/SellerPayoutGuide'));
 const WhyPeanutGallery = lazy(() => import('@/pages/WhyPeanutGallery'));
@@ -77,6 +78,7 @@ const AuthenticatedApp = () => {
           <Route path="/terms" element={<TermsOfService />} />
           <Route path="/privacy" element={<PrivacyPolicy />} />
           <Route path="/cookies" element={<CookiePolicy />} />
+          <Route path="/our-story" element={<OurStory />} />
           <Route element={<Layout />}>
             <Route path="/events" element={<Events />} />
             <Route path="/events/:id" element={<EventDetail />} />

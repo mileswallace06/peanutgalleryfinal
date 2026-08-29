@@ -11,6 +11,7 @@ import { fetchTMEvents, bustTMCache } from '@/lib/tmCache';
 import { useLocationDetect } from '@/hooks/useLocationDetect';
 import { useAuth } from '@/lib/AuthContext';
 import WhatIsPGOverlay, { shouldShowOverlay } from '@/components/WhatIsPGOverlay';
+import FounderStoryCard from '@/components/founder/FounderStoryCard';
 
 // ── sessionStorage helpers ────────────────────────────────────────────────
 const SS_KEY = 'pg_upgrades_location';
@@ -388,6 +389,11 @@ export default function Upgrades() {
             </section>
           </>
         )}
+
+        {/* Founder story card — near the bottom */}
+        <div className="mt-8">
+          <FounderStoryCard />
+        </div>
       </div>
     </div>
   );
