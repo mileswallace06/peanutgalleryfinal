@@ -134,6 +134,15 @@ END $$;
 GRANT USAGE ON SCHEMA authority_v1 TO authority_executor;
 GRANT USAGE ON SCHEMA authority_v1 TO authority_stripe_recorder;
 GRANT USAGE ON SCHEMA authority_v1 TO authority_worker;
+-- authority_owner (NOLOGIN) owns all tables and sequences. Internal RI
+-- constraint triggers on those tables execute as the table owner
+-- (authority_owner) and must resolve referenced tables in this schema
+-- (e.g. reservation_outbox FK → reservation_operations). Without USAGE,
+-- the RI trigger fails with "permission denied for schema authority_v1"
+-- on any INSERT/UPDATE that passes CHECK constraints and reaches the FK
+-- trigger. This grant gives authority_owner USAGE only — no table/sequence
+-- privileges are added to any runtime role (executor/recorder/worker).
+GRANT USAGE ON SCHEMA authority_v1 TO authority_owner;
 
 -- ── 10. Grant EXECUTE — ordinary authority operations to authority_executor ─
 GRANT EXECUTE ON FUNCTION authority_v1.acquire_operation(TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,INTEGER,TEXT) TO authority_executor;
