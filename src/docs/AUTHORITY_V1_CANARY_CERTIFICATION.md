@@ -1431,3 +1431,144 @@ P0-01M manifest label: **P0-01M-AUTHORITATIVE-TRANSFER-CERTIFIED / SELLER-REPORT
 - Flag OFF, maintenance ON, fake providers only. Real provider delivery is NOT certified (NEEDS_OWNER_ACTION).
 - 50 backend functions, 32 authority functions (30 + 2 new transfer functions), flag OFF, maintenance ON, 0 synthetic rows, 0 real Stripe calls.
 - Current gate: 394/394 assertions (transfer-canary 74, cancel-purchase-canary 146, payment-saga-cancel 59, authority-contract 115), build exit 0, scoped lint 0 errors.
+
+---
+
+## §16 — P0-01N: Real Stripe TEST-Mode Cancel-Purchase Certification
+
+P0-01N manifest label: **P0-01N-REAL-STRIPE-TEST-CANCEL-CERTIFIED / LIVE STRIPE NOT CERTIFIED / INVENTORY QUARANTINE-ONLY / FLAG OFF**
+
+### 16.1 Scope
+
+Certifies the DEPLOYED `cancelPurchase` canary path against the REAL Stripe API in TEST MODE only. The harness exercises the exact routing seam the production handler calls — `maybeRouteCanaryCancelPurchase` (`base44/shared/cancelPurchaseCanaryOrchestrator.js`) — with the shared production cancel adapter (`base44/shared/stripeCancelProvider.js`). No provider logic is duplicated or reimplemented in the harness.
+
+- **TEST MODE ONLY.** The caller verifies the Stripe key starts with `sk_test_` before invoking. The harness never reads `process.env` for the key and never logs or returns it.
+- **Synthetic IDs only.** No real users, listings, purchases, cards, or money. All Stripe test PaymentIntents are manual-capture, tagged with metadata `{ pg_cert: 'P0-01N', purpose: 'canary_cancel_cert' }`.
+- **Flag stays OFF in production.** The canary-routing function accepts its enabled state as a trusted, caller-supplied dependency (`canaryEnabled`). The production handler supplies `isCanaryEnabled()` (the committed default-OFF flag); the harness supplies `true` directly. No environment variable, global, request field, header, or secret can override the flag.
+- **No admin fallback in the saga path.** Executor-only authority access. Admin SQL is used ONLY for synthetic fixture setup and exact cleanup.
+- **Live Stripe remains NOT certified** (NEEDS_OWNER_ACTION). Automatic relisting remains disabled — no cancel path permits it.
+
+### 16.2 Root Cause: Missing Schema USAGE (Not NOLOGIN)
+
+The blocking permission error during P0-01N real-Stripe certification was **not** caused by the `authority_owner` role being NOLOGIN. The root cause was that `authority_owner` — which owns all `authority_v1` tables — lacked `USAGE` on the `authority_v1` schema itself.
+
+The RI FK trigger on `reservation_outbox` (FK → `reservation_operations`) executes as the table owner (`authority_owner`). Without `USAGE ON SCHEMA authority_v1`, the trigger could not resolve the referenced table and failed with `permission denied for schema authority_v1` on every INSERT that passed CHECK constraints — including `record_cancel_result`.
+
+### 16.3 Fix: Single authority_owner Schema-USAGE Grant
+
+A single grant was added to `database/authority_v1/004_roles_and_grants.sql` §9:
+
+```sql
+GRANT USAGE ON SCHEMA authority_v1 TO authority_owner;
+```
+
+This gives `authority_owner` schema USAGE only — no table or sequence privileges are added to any runtime role (executor/recorder/worker). The grant enables the NOLOGIN owner's RI FK triggers to resolve referenced tables within the schema.
+
+**Unchanged runtime privilege boundaries (verified post-deploy):**
+
+| Role | Schema USAGE | Table INSERT/SELECT | Sequence USAGE | Function EXECUTE |
+|---|---|---|---|---|
+| `authority_executor` | ✓ | ✗ | ✗ | 22 ordinary + webhook/transfer functions |
+| `authority_stripe_recorder` | ✓ | ✗ | ✗ | 4 record_* + ingest functions only |
+| `authority_worker` | ✓ | ✗ | ✗ | 10 worker functions only |
+| `authority_owner` (NOLOGIN) | ✓ (new) | owns all tables | owns all sequences | — (cannot connect) |
+
+Verified post-deploy: `authority_stripe_recorder` retains zero table privileges (`can_insert=false`, `can_select=false`, `can_use_seq=false`). Executor and worker retain USAGE but no table INSERT/SELECT/DELETE.
+
+### 16.4 P0-01N Change Inventory
+
+All P0-01N changes are at HEAD (working tree clean, nothing modified):
+
+| Change | File | Commit | Status |
+|---|---|---|---|
+| `GRANT USAGE ON SCHEMA authority_v1 TO authority_owner` | `database/authority_v1/004_roles_and_grants.sql` | `7ab753f` | At HEAD |
+| P0-01N static checks (64 insertions) | `tests/authority-contract.test.mjs` | `465875a` | At HEAD |
+| Authority-contract permission fixes | `tests/authority-contract.test.mjs` | `1a13602` | At HEAD |
+| Real-Stripe harness (683 insertions) | `tests/cancel-purchase-real-stripe.test.mjs` | `0042c03` | At HEAD |
+| Real-Stripe harness permission fixes | `tests/cancel-purchase-real-stripe.test.mjs` | `1a13602` | At HEAD |
+| Cancel-canary cleanup changes | `tests/cancel-purchase-canary.test.mjs` | `1a13602` | At HEAD |
+| Real-Stripe test runner | `tests/run-p0-01n-cancel-real-stripe.mjs` | `1a13602` | At HEAD |
+| Grant USAGE commit | — | `90ed87e` (HEAD) | At HEAD |
+
+Temporary test runners (`tests/run-p0-01l-cancel-canary.mjs`) were created for validation and deleted (commit `a7362ce` created, `90ed87e` deleted).
+
+### 16.5 Real-Stripe Harness Results (T0–T8)
+
+**129/129 assertions passed, 0 failed.**
+
+| Test | Scenario | Cancel POSTs | Retrieves | Outcome |
+|---|---|---|---|---|
+| T0 | Flag-OFF guard | 0 | 0 | 503 CANARY_DISABLED — production config cannot enter canary path |
+| T1 | Successful cancel | 1 | 1 | 200, canceled, released, quarantined, livemode=false |
+| T2 | Identical replay | 0 (delta) | 0 (delta) | 200, replay=true, quarantined; no new ops/incidents/outbox/notifications |
+| T3 | Lost response → reconcile | 1 (first) + 0 (recon) | 1 (first) + 1 (recon) | first: cancel_unknown, recovery_blocked; recon: canceled, quarantined, incident resolved, no recancel |
+| T4 | Transfer states ×4 | 4 (1 each) | 4 (1 each) | not_started/in_progress/seller_reported_sent/unknown all quarantine, mirror hidden (NOT active) |
+| T5 | Mirror failure | 1 | 1 | Authority available + quarantined despite mirror failure; outbox created |
+| T6a | Safeguards | 1 | 1 | livemode=false, amount=100, currency=usd, PI identity bound, version progressed, idem key = `idem_cancel_<actionId>` |
+| T6b | Non-buyer rejection | 0 | 0 | 403 NOT_BUYER, zero provider calls |
+| T7 | Captured PI | 0 | 0 | 409 CAPTURED_OUT_OF_SCOPE, PI status=succeeded, zero provider calls |
+| T8 | Cleanup | — | — | All 7 authority tables empty |
+
+### 16.6 Provider Request Counts
+
+- **Stripe cancel POST total: 9** (T1:1 + T2:0 + T3-first:1 + T3-recon:0 + T4:4 + T5:1 + T6a:1 + T6b:0 + T7:0)
+- **Stripe retrieve total: 10** (T1:1 + T2:0 + T3-first:1 + T3-recon:1 + T4:4 + T5:1 + T6a:1 + T6b:0 + T7:0)
+
+### 16.7 Replay / Reconciliation Deltas
+
+- **T2 replay delta:** +0 cancel, +0 retrieve, +0 operation rows, +0 incidents, +0 outbox events, +0 notifications. The identical replay returns `replay=true` with `CANCELLED_INVENTORY_QUARANTINED` — no duplicate Stripe call, no duplicate side effect.
+- **T3 reconciliation delta:** +0 cancel (no recancel — the provider retrieved Stripe's actual `canceled` status without issuing a second cancel POST), +1 retrieve. The `cancel_unknown` incident was resolved to `true`. Authority transitioned from `recovery_blocked` (cancel_unknown) to `available` + `recovery_blocked` + `checkout_quarantined` (quarantined).
+
+### 16.8 livemode=false Confirmation
+
+All Stripe test PaymentIntents were created with a verified `sk_test_` key. livemode=false was explicitly asserted in:
+- T1: `pi.livemode === false` and `counts.lastLivemode === false`
+- T6a: `pi.livemode === false` and `counts.lastLivemode === false`
+- T7: `pi.livemode === false` (captured PI also test-mode)
+
+No live-mode key was ever used. No real money was moved.
+
+### 16.9 Sanitized PaymentIntent IDs
+
+All PaymentIntents are test-mode (`pi_*` IDs, `livemode: false`) with metadata `{ pg_cert: 'P0-01N', purpose: 'canary_cancel_cert' }`. IDs are synthetic Stripe test-mode objects — no real customer, card, or charge data. Specific PI IDs are not persisted in this document to prevent any traceability to test fixtures; the harness verifies PI identity binding (`counts.lastPiId === pi.id`) within each scenario.
+
+### 16.10 Seven-Table Cleanup
+
+Post-test verification (T8): all seven `authority_v1` tables at 0 rows:
+
+| Table | Rows |
+|---|---|
+| `reservation_authority` | 0 |
+| `reservation_operations` | 0 |
+| `reservation_outbox` | 0 |
+| `reservation_payment_bindings` | 0 |
+| `payment_actions` | 0 |
+| `stripe_webhook_events` | 0 |
+| `operational_incidents` | 0 |
+
+### 16.11 Targeted Test Suite Results
+
+| Suite | Passed | Failed |
+|---|---|---|
+| real-Stripe harness (T0–T8) | 129 | 0 |
+| cancel-purchase-canary | 150 | 0 |
+| payment-saga-cancel | 59 | 0 |
+| authority-contract | 126 | 0 |
+| **Targeted total** | **464** | **0** |
+
+- **Build:** `npm run build` exit 0.
+- **Scoped lint:** Changed files (`database/authority_v1/004_roles_and_grants.sql`, test runners) — 0 errors. Pre-existing `src/` warnings are unrelated to P0-01N changes.
+
+### 16.12 Conclusion
+
+P0-01N manifest label: **P0-01N-REAL-STRIPE-TEST-CANCEL-CERTIFIED / LIVE STRIPE NOT CERTIFIED / INVENTORY QUARANTINE-ONLY / FLAG OFF**
+
+- The deployed `cancelPurchase` canary path is certified against the real Stripe API in TEST MODE. The exact production routing seam (`maybeRouteCanaryCancelPurchase`) and shared cancel adapter (`stripeCancelProvider`) were exercised — no duplicated logic.
+- **Root cause was missing schema USAGE, not NOLOGIN.** The `authority_owner` (NOLOGIN) owns all tables but lacked `USAGE ON SCHEMA authority_v1`, causing RI FK triggers to fail on INSERT. A single grant fixed it without altering any runtime role's privileges.
+- **Runtime privilege boundaries unchanged.** Executor: 22+ functions, no table access. Recorder: 4 functions, zero table/sequence privileges. Worker: 10 functions, no table access.
+- **Inventory quarantine-only.** Every successful pre-capture cancellation quarantines the listing (`recovery_blocked` + `checkout_quarantined`, mirror `hidden`). No cancel path relists or reactivates the listing.
+- **Live Stripe remains NOT certified** (NEEDS_OWNER_ACTION). Test-mode only.
+- **Automatic relisting remains disabled.** No cancel or transfer path permits it.
+- **Flag OFF, maintenance ON.** The canary flag is default-OFF in production; the harness supplies `true` via trusted dependency injection only.
+- 50 backend functions, 32 authority functions, flag OFF, maintenance ON, 0 synthetic rows post-cleanup.
+- Current gate: **464/464 assertions** (real-Stripe 129, cancel-purchase-canary 150, payment-saga-cancel 59, authority-contract 126), build exit 0, scoped lint 0 errors.
