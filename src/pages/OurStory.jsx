@@ -15,7 +15,7 @@ export default function OurStory() {
       >
         <div className="flex items-center gap-3 px-4 pb-3">
           <button
-            onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/'))}
+            onClick={() => navigate(-1)}
             className="w-9 h-9 rounded-xl flex items-center justify-center"
             style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
             aria-label="Go back"
