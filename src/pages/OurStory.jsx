@@ -57,19 +57,34 @@ export default function OurStory() {
           </h2>
         </section>
 
-        {/* ═══ Typography lockup (no portrait) ═══ */}
-        <section className="px-6 pb-10">
-          <div
-            className="font-bold text-foreground"
-            style={{ ...EDITORIAL, fontSize: 'clamp(1.5rem, 7vw, 2rem)', lineHeight: 1.1 }}
-          >
-            Miles Wallace
-          </div>
-          <div
-            className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mt-1.5"
-            style={MONO}
-          >
-            Founder
+        {/* ═══ Portrait + Name lockup ═══ */}
+        <section className="px-6 pb-10 flex items-center gap-4">
+          {/* TEMPORARY_FOUNDER_PORTRAIT — placeholder until official headshot */}
+          <img
+            src="https://media.base44.com/images/public/69ef9900cf3862dc0ea39734/fd334eef4_handsomeboy.jpg"
+            alt="Miles Wallace, founder of Peanut Gallery"
+            className="rounded-full object-cover flex-shrink-0"
+            style={{
+              width: 72,
+              height: 72,
+              border: '2px solid hsl(var(--background))',
+              boxShadow: '0 0 20px rgba(191,95,255,0.3)',
+              objectPosition: 'center 30%',
+            }}
+          />
+          <div>
+            <div
+              className="font-bold text-foreground"
+              style={{ ...EDITORIAL, fontSize: 'clamp(1.5rem, 7vw, 2rem)', lineHeight: 1.1 }}
+            >
+              Miles Wallace
+            </div>
+            <div
+              className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mt-1.5"
+              style={MONO}
+            >
+              Founder
+            </div>
           </div>
         </section>
 
