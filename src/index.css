@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&family=Instrument+Serif:ital@0;1&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -8,6 +8,9 @@
   :root {
     --font-display: 'Black Han Sans', Impact, sans-serif;
     --font-sans: 'DM Sans', system-ui, sans-serif;
+    --font-editorial: 'Bricolage Grotesque', sans-serif;
+    --font-serif-italic: 'Instrument Serif', Georgia, serif;
+    --font-mono-label: ui-monospace, 'SF Mono', Menlo, monospace;
 
     /* Light mode — warm, cohesive palette */
     --background: 240 20% 98%;
@@ -400,4 +403,36 @@
     background: linear-gradient(135deg, #BF5FFF44, #FF2D7822, #00FF8722);
     z-index: -1;
   }
+
+  /* ── Founder Story: grain + ticket-stub perforation ── */
+  .grain-overlay::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0.035;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  .stub-perf-h {
+    position: relative;
+    height: 1px;
+    background-image: linear-gradient(to right, hsl(var(--border)) 50%, transparent 50%);
+    background-size: 8px 1px;
+    background-repeat: repeat-x;
+  }
+  .stub-perf-h::before,
+  .stub-perf-h::after {
+    content: '';
+    position: absolute;
+    top: -5px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: hsl(var(--background));
+    border: 1px solid hsl(var(--border));
+  }
+  .stub-perf-h::before { left: -5px; }
+  .stub-perf-h::after { right: -5px; }
 }

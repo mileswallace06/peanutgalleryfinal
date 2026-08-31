@@ -1,14 +1,23 @@
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
 import FounderPortrait from '@/components/founder/FounderPortrait';
+import FounderPhotoCard from '@/components/founder/FounderPhotoCard';
+import FounderFeature from '@/components/founder/FounderFeature';
 import { FOUNDER_PHOTOS } from '@/lib/founderAssets';
+
+const MONO = { fontFamily: 'var(--font-mono-label)' };
+const EDITORIAL = { fontFamily: 'var(--font-editorial)' };
+const SERIF_ITALIC = { fontFamily: 'var(--font-serif-italic)' };
 
 export default function OurStory() {
   const navigate = useNavigate();
 
   return (
-    <div className="dark:rave-bg" style={{ height: '100dvh', overflowY: 'auto' }}>
-      {/* Header */}
+    <div
+      className="dark:rave-bg grain-overlay"
+      style={{ height: '100dvh', overflowY: 'auto', overflowX: 'hidden' }}
+    >
+      {/* ── Sticky header ── */}
       <div
         className="sticky top-0 z-20 frosted-bar border-b border-border"
         style={{ paddingTop: 'calc(env(safe-area-inset-top) + 10px)' }}
@@ -26,64 +35,215 @@ export default function OurStory() {
         </div>
       </div>
 
-      {/* Content */}
+      {/* ── Content ── */}
       <div
-        className="px-5 py-8 max-w-2xl mx-auto"
-        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 5rem)' }}
+        className="relative max-w-md mx-auto"
+        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 4rem)' }}
       >
-        {/* Portrait */}
-        <div className="flex justify-center mb-6">
-          <FounderPortrait size={96} />
-        </div>
+        {/* ═══ Hero ═══ */}
+        <section className="px-6 pt-12 pb-8">
+          <div
+            className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground mb-4"
+            style={MONO}
+          >
+            Our Story
+          </div>
+          <h2
+            className="font-bold leading-[0.95] text-foreground"
+            style={{ ...EDITORIAL, fontSize: 'clamp(2.5rem, 11vw, 3.5rem)' }}
+          >
+            Built from<br />the stands.
+          </h2>
+        </section>
 
-        {/* Tagline */}
-        <h2 className="font-display text-2xl text-center mb-8 gradient-text-purple">
-          Built from the stands.
-        </h2>
-
-        {/* Story body */}
-        <div className="space-y-5 text-sm leading-relaxed text-foreground">
-          <p>
-            I&rsquo;m Miles Wallace, founder of Peanut Gallery. I&rsquo;ve spent my life in the
-            crowd&mdash;at baseball and basketball games, wrestling shows, concerts, and anywhere a
-            great live moment could happen.
-          </p>
-          <p>
-            Peanut Gallery started with a simple question: if better seats become available after an
-            event begins, why should they stay empty while fans already inside would love the chance
-            to move closer?
-          </p>
-          <p>
-            I&rsquo;m building a responsible fan-to-fan way to make those moments possible. Peanut
-            Gallery is being built by a fan, for fans&mdash;and earning your trust is part of the
-            product, not an afterthought.
-          </p>
-        </div>
-
-        {/* Signature */}
-        <p className="text-sm font-bold text-foreground mt-6">&mdash; Miles</p>
-
-        {/* "Fan before founder" section — reserved for original photos.
-            We will add original photos later. No empty cards or
-            screenshot-quality event images are rendered until
-            FOUNDER_PHOTOS is populated. */}
-        {FOUNDER_PHOTOS.length > 0 && (
-          <section className="mt-10">
-            <h3 className="font-display text-lg text-foreground mb-4">Fan before founder</h3>
-            <div className="space-y-4">
-              {FOUNDER_PHOTOS.map((photo, i) => (
-                <figure key={i}>
-                  <img src={photo.url} alt={photo.alt} className="rounded-2xl w-full" />
-                  {photo.caption && (
-                    <figcaption className="text-xs text-muted-foreground mt-2">
-                      {photo.caption}
-                    </figcaption>
-                  )}
-                </figure>
-              ))}
+        {/* ═══ Portrait + Name ═══ */}
+        <section className="px-6 pb-10 flex items-center gap-4">
+          <FounderPortrait size={80} />
+          <div>
+            <div className="font-bold text-foreground text-lg">Miles Wallace</div>
+            <div
+              className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground"
+              style={MONO}
+            >
+              Founder
             </div>
-          </section>
-        )}
+          </div>
+        </section>
+
+        <div className="stub-perf-h mx-6" />
+
+        {/* ═══ Chapter 1: Intro ═══ */}
+        <section className="px-6 py-8 space-y-5">
+          <p className="text-[15px] leading-relaxed text-foreground">Hi, fans.</p>
+          <p className="text-[15px] leading-relaxed text-foreground">
+            My name is Miles Wallace, and Peanut Gallery is the passion project of all passion projects.
+          </p>
+          <p className="text-[15px] leading-relaxed text-foreground">
+            Ever since I was a little kid, I needed an event on the calendar—something to count down to and look forward to. As I grew up, I became obsessed with everything live: sports, concerts, festivals, professional wrestling—anything capable of creating a moment you could never experience the same way again.
+          </p>
+          <p className="text-[15px] leading-relaxed text-foreground">
+            The more events I attended, the more I realized how much being close to the action changes the memory you take home.
+          </p>
+        </section>
+
+        {/* ═══ Fan Before Founder ═══ */}
+        <section className="px-6 pb-10">
+          <div
+            className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground mb-5"
+            style={MONO}
+          >
+            Fan Before Founder
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            {FOUNDER_PHOTOS.map((photo, i) => (
+              <FounderPhotoCard key={i} photo={photo} />
+            ))}
+          </div>
+        </section>
+
+        <div className="stub-perf-h mx-6" />
+
+        {/* ═══ Chapter 2: WrestleMania ═══ */}
+        <section className="px-6 py-8 space-y-5">
+          <p className="text-[15px] leading-relaxed text-foreground">
+            That realization came to a head at WrestleMania 42 in Las Vegas. I had paid an absurd amount of money for a seat in the nosebleeds. From up there, I could see entire stretches of incredible seats sitting empty—seats that might as well have cost my life savings.
+          </p>
+          <p className="text-[15px] leading-relaxed text-foreground">
+            I remember looking down and thinking:
+          </p>
+          {/* ── Pull quote 1 ── */}
+          <blockquote
+            className="italic text-foreground py-2"
+            style={{ ...SERIF_ITALIC, fontSize: 'clamp(1.25rem, 5.5vw, 1.75rem)', lineHeight: 1.3 }}
+          >
+            Why am I paying this much to sit this far away while some of the best views in the building are going to waste?
+          </blockquote>
+          <p className="text-[15px] leading-relaxed text-foreground">
+            I couldn&rsquo;t let that question go.
+          </p>
+          <p className="text-[15px] leading-relaxed text-foreground">
+            What if fans already inside could move closer in real time? What if an empty premium seat could become someone&rsquo;s favorite memory? What if a better experience didn&rsquo;t require paying a ridiculous price months before the event?
+          </p>
+          <p className="text-[15px] leading-relaxed text-foreground">
+            And then came the biggest question: If this idea makes so much sense, why hasn&rsquo;t one of the major ticketing apps already built it?
+          </p>
+        </section>
+
+        {/* ═══ Chapter 3: The answer ═══ */}
+        <section className="px-6 py-8 space-y-5">
+          <p className="text-[15px] leading-relaxed text-foreground">
+            The answer became clear. Major ticketing platforms were built to sell access before an event. Once your ticket scans and you enter the building, their job is effectively over. Meanwhile, fans are still dealing with excessive fees, scalping, unused seats, loyalty programs based on spending, and platforms that treat the transaction as more important than the experience.
+          </p>
+        </section>
+
+        {/* ═══ Pull quote 2 (oversized) ═══ */}
+        <section className="px-6 py-10">
+          <blockquote
+            className="italic text-foreground"
+            style={{ ...SERIF_ITALIC, fontSize: 'clamp(1.75rem, 8vw, 2.5rem)', lineHeight: 1.2 }}
+          >
+            It could have been done. It just wasn&rsquo;t valuable enough to the companies controlling ticketing.
+            <span className="block mt-3" style={{ color: 'var(--neon-cyan)' }}>
+              It was valuable to fans.
+            </span>
+          </blockquote>
+        </section>
+
+        {/* ═══ Chapter 4: That is why ═══ */}
+        <section className="px-6 py-8 space-y-5">
+          <p className="text-[15px] leading-relaxed text-foreground">
+            That is why I started Peanut Gallery.
+          </p>
+          <p className="text-[15px] leading-relaxed text-foreground">
+            Peanut Gallery is not another version of the same ticket marketplace. It is being built to solve the problems those marketplaces created, accepted, or left behind.
+          </p>
+        </section>
+
+        <div className="stub-perf-h mx-6" />
+
+        {/* ═══ Features ═══ */}
+        <section className="px-6 py-10">
+          <div
+            className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground mb-6"
+            style={MONO}
+          >
+            The Manifesto
+          </div>
+          <div className="space-y-6">
+            <FounderFeature
+              label="Live Upgrades"
+              body="A real-time marketplace built specifically for fans who are already inside the event. Better seats no longer have to sit empty while other fans watch from farther away."
+              accent="cyan"
+            />
+            <FounderFeature
+              label="Venue-Verified Access"
+              body="Location safeguards are designed to keep Live Upgrades inside the venue and out of the hands of outside scalpers trying to turn them into inventory."
+              accent="magenta"
+            />
+            <FounderFeature
+              label="Protected Payments"
+              body="Payment is not treated as complete until the upgrade process is confirmed, giving fans protection that informal seat-swapping could never provide."
+              accent="green"
+            />
+            <FounderFeature
+              label="Fan Drops"
+              body="Fans can win upgraded experiences for free. The best moment in the building should not always belong to whoever has the most money."
+              accent="cyan"
+            />
+            <FounderFeature
+              label="The Fan Zone"
+              body="A live, event-specific home for fans to share photos, videos, reactions, and everything happening around the venue—not hours later on an unrelated social platform."
+              accent="magenta"
+            />
+            <FounderFeature
+              label="Fan Points"
+              body="A rewards system based on being an active, trustworthy fan—not on how much money you can pump into the app."
+              accent="green"
+            />
+            <FounderFeature
+              label="The Lowest Fees on the Market"
+              body="Peanut Gallery was not built to bury fans beneath the same fees they already hate. Keeping the platform affordable is not a promotion. It is part of its foundation."
+              accent="cyan"
+            />
+          </div>
+        </section>
+
+        <div className="stub-perf-h mx-6" />
+
+        {/* ═══ Closing ═══ */}
+        <section className="px-6 py-10 space-y-5">
+          <p className="text-[15px] leading-relaxed text-foreground">
+            These are not minor additions to the traditional resale model. Together, they create something the major ticketing apps have never offered: a platform centered on improving the fan&rsquo;s experience after the event has already begun.
+          </p>
+          <p className="text-[15px] leading-relaxed text-foreground">
+            Every part of Peanut Gallery is being built around the questions I have asked, the frustrations I have felt, and the features I have always wished existed as a fan. And because this platform will handle people&rsquo;s tickets, payments, and once-in-a-lifetime moments, earning your trust has to be part of the product—not an afterthought.
+          </p>
+          <p className="text-[15px] leading-relaxed text-foreground">
+            The future of live events should not be decided only by the biggest ticketing companies or the fans with the biggest wallets.
+          </p>
+          <p
+            className="font-bold text-foreground"
+            style={{ ...EDITORIAL, fontSize: 'clamp(1.5rem, 6vw, 2rem)', lineHeight: 1.15 }}
+          >
+            It should be built around all of us.
+          </p>
+          <p className="text-[15px] leading-relaxed text-foreground">
+            From one fan to another, welcome to the Gallery.
+          </p>
+        </section>
+
+        {/* ═══ Signature ═══ */}
+        <section className="px-6 pb-8">
+          <div className="text-[13px] text-muted-foreground" style={MONO}>
+            — Miles Wallace
+          </div>
+          <div
+            className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground mt-1"
+            style={MONO}
+          >
+            Founder, Peanut Gallery
+          </div>
+        </section>
       </div>
     </div>
   );

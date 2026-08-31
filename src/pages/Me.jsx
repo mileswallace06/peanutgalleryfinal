@@ -112,6 +112,12 @@ export default function Me() {
         >
           <LogIn className="w-4 h-4" /> Sign In
         </button>
+        <Link
+          to="/our-story"
+          className="text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors"
+        >
+          Read our story →
+        </Link>
       </div>
     );
   }

@@ -5,7 +5,7 @@ import { FOUNDER_PORTRAIT_URL, FOUNDER_PORTRAIT_OBJECT_POSITION, FOUNDER_PORTRAI
  *
  * Displays the founder image with object-position to tightly crop around
  * the face. Falls back to a gradient circle with initials when no image URL
- * is configured.
+ * is configured. Eager-loaded (never lazy).
  *
  * @param {number} size - diameter in pixels (default 72)
  */

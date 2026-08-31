@@ -4,7 +4,7 @@ import FounderPortrait from './FounderPortrait';
 
 /**
  * FounderStoryCard — compact card for the Upgrades page.
- * "Built by a fan — meet the founder" with a small portrait.
+ * "Built by a fan — meet Miles" with a small portrait.
  * Links to /our-story. Works signed in or out.
  */
 export default function FounderStoryCard() {
@@ -20,7 +20,7 @@ export default function FounderStoryCard() {
       <FounderPortrait size={44} />
       <div className="flex-1 min-w-0">
         <div className="text-sm font-bold text-foreground">Built by a fan</div>
-        <div className="text-[10px] text-muted-foreground">Meet the founder</div>
+        <div className="text-[10px] text-muted-foreground">Meet Miles</div>
       </div>
       <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
     </Link>
