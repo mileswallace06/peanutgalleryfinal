@@ -1,13 +1,14 @@
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
-import FounderPortrait from '@/components/founder/FounderPortrait';
-import FounderPhotoCard from '@/components/founder/FounderPhotoCard';
 import FounderFeature from '@/components/founder/FounderFeature';
 import { FOUNDER_PHOTOS } from '@/lib/founderAssets';
 
 const MONO = { fontFamily: 'var(--font-mono-label)' };
 const EDITORIAL = { fontFamily: 'var(--font-editorial)' };
 const SERIF_ITALIC = { fontFamily: 'var(--font-serif-italic)' };
+const BODY = { fontSize: '17px', lineHeight: 1.7 };
+
+const PHOTO_STYLE = { borderRadius: '0.25rem', border: '1px solid hsl(var(--border))' };
 
 export default function OurStory() {
   const navigate = useNavigate();
@@ -56,17 +57,19 @@ export default function OurStory() {
           </h2>
         </section>
 
-        {/* ═══ Portrait + Name ═══ */}
-        <section className="px-6 pb-10 flex items-center gap-4">
-          <FounderPortrait size={80} />
-          <div>
-            <div className="font-bold text-foreground text-lg">Miles Wallace</div>
-            <div
-              className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground"
-              style={MONO}
-            >
-              Founder
-            </div>
+        {/* ═══ Typography lockup (no portrait) ═══ */}
+        <section className="px-6 pb-10">
+          <div
+            className="font-bold text-foreground"
+            style={{ ...EDITORIAL, fontSize: 'clamp(1.5rem, 7vw, 2rem)', lineHeight: 1.1 }}
+          >
+            Miles Wallace
+          </div>
+          <div
+            className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground mt-1.5"
+            style={MONO}
+          >
+            Founder
           </div>
         </section>
 
@@ -74,41 +77,100 @@ export default function OurStory() {
 
         {/* ═══ Chapter 1: Intro ═══ */}
         <section className="px-6 py-8 space-y-5">
-          <p className="text-[15px] leading-relaxed text-foreground">Hi, fans.</p>
-          <p className="text-[15px] leading-relaxed text-foreground">
+          <p style={BODY} className="text-foreground">Hi, fans.</p>
+          <p style={BODY} className="text-foreground">
             My name is Miles Wallace, and Peanut Gallery is the passion project of all passion projects.
           </p>
-          <p className="text-[15px] leading-relaxed text-foreground">
+          <p style={BODY} className="text-foreground">
             Ever since I was a little kid, I needed an event on the calendar—something to count down to and look forward to. As I grew up, I became obsessed with everything live: sports, concerts, festivals, professional wrestling—anything capable of creating a moment you could never experience the same way again.
           </p>
-          <p className="text-[15px] leading-relaxed text-foreground">
+          <p style={BODY} className="text-foreground">
             The more events I attended, the more I realized how much being close to the action changes the memory you take home.
           </p>
         </section>
 
-        {/* ═══ Fan Before Founder ═══ */}
+        {/* ═══ Fan Before Founder — flowing photo essay ═══ */}
         <section className="px-6 pb-10">
           <div
-            className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground mb-5"
+            className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground mb-6"
             style={MONO}
           >
             Fan Before Founder
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            {FOUNDER_PHOTOS.map((photo, i) => (
-              <FounderPhotoCard key={i} photo={photo} />
-            ))}
+
+          {/* Photo 1: full-width (childhood) */}
+          <figure
+            className="relative mb-6"
+            style={{ transform: `rotate(${FOUNDER_PHOTOS[0].rotation}deg)` }}
+          >
+            <img
+              src={FOUNDER_PHOTOS[0].url}
+              alt={FOUNDER_PHOTOS[0].alt}
+              loading="lazy"
+              className="w-full h-auto block select-none"
+              style={PHOTO_STYLE}
+            />
+          </figure>
+
+          {/* Photos 2-3: natural-width pair */}
+          <div className="grid grid-cols-2 gap-3 mb-6">
+            <figure style={{ transform: `rotate(${FOUNDER_PHOTOS[1].rotation}deg)` }}>
+              <img
+                src={FOUNDER_PHOTOS[1].url}
+                alt={FOUNDER_PHOTOS[1].alt}
+                loading="lazy"
+                className="w-full h-auto block select-none"
+                style={PHOTO_STYLE}
+              />
+            </figure>
+            <figure style={{ transform: `rotate(${FOUNDER_PHOTOS[2].rotation}deg)` }}>
+              <img
+                src={FOUNDER_PHOTOS[2].url}
+                alt={FOUNDER_PHOTOS[2].alt}
+                loading="lazy"
+                className="w-full h-auto block select-none"
+                style={PHOTO_STYLE}
+              />
+            </figure>
           </div>
+
+          {/* Photo 4: full-width (wrestling) */}
+          <figure
+            className="relative mb-6"
+            style={{ transform: `rotate(${FOUNDER_PHOTOS[3].rotation}deg)` }}
+          >
+            <img
+              src={FOUNDER_PHOTOS[3].url}
+              alt={FOUNDER_PHOTOS[3].alt}
+              loading="lazy"
+              className="w-full h-auto block select-none"
+              style={PHOTO_STYLE}
+            />
+          </figure>
+
+          {/* Photo 5: full-width (later fandom) */}
+          <figure
+            className="relative"
+            style={{ transform: `rotate(${FOUNDER_PHOTOS[4].rotation}deg)` }}
+          >
+            <img
+              src={FOUNDER_PHOTOS[4].url}
+              alt={FOUNDER_PHOTOS[4].alt}
+              loading="lazy"
+              className="w-full h-auto block select-none"
+              style={PHOTO_STYLE}
+            />
+          </figure>
         </section>
 
         <div className="stub-perf-h mx-6" />
 
         {/* ═══ Chapter 2: WrestleMania ═══ */}
         <section className="px-6 py-8 space-y-5">
-          <p className="text-[15px] leading-relaxed text-foreground">
+          <p style={BODY} className="text-foreground">
             That realization came to a head at WrestleMania 42 in Las Vegas. I had paid an absurd amount of money for a seat in the nosebleeds. From up there, I could see entire stretches of incredible seats sitting empty—seats that might as well have cost my life savings.
           </p>
-          <p className="text-[15px] leading-relaxed text-foreground">
+          <p style={BODY} className="text-foreground">
             I remember looking down and thinking:
           </p>
           {/* ── Pull quote 1 ── */}
@@ -118,20 +180,20 @@ export default function OurStory() {
           >
             Why am I paying this much to sit this far away while some of the best views in the building are going to waste?
           </blockquote>
-          <p className="text-[15px] leading-relaxed text-foreground">
+          <p style={BODY} className="text-foreground">
             I couldn&rsquo;t let that question go.
           </p>
-          <p className="text-[15px] leading-relaxed text-foreground">
+          <p style={BODY} className="text-foreground">
             What if fans already inside could move closer in real time? What if an empty premium seat could become someone&rsquo;s favorite memory? What if a better experience didn&rsquo;t require paying a ridiculous price months before the event?
           </p>
-          <p className="text-[15px] leading-relaxed text-foreground">
+          <p style={BODY} className="text-foreground">
             And then came the biggest question: If this idea makes so much sense, why hasn&rsquo;t one of the major ticketing apps already built it?
           </p>
         </section>
 
         {/* ═══ Chapter 3: The answer ═══ */}
         <section className="px-6 py-8 space-y-5">
-          <p className="text-[15px] leading-relaxed text-foreground">
+          <p style={BODY} className="text-foreground">
             The answer became clear. Major ticketing platforms were built to sell access before an event. Once your ticket scans and you enter the building, their job is effectively over. Meanwhile, fans are still dealing with excessive fees, scalping, unused seats, loyalty programs based on spending, and platforms that treat the transaction as more important than the experience.
           </p>
         </section>
@@ -151,10 +213,10 @@ export default function OurStory() {
 
         {/* ═══ Chapter 4: That is why ═══ */}
         <section className="px-6 py-8 space-y-5">
-          <p className="text-[15px] leading-relaxed text-foreground">
+          <p style={BODY} className="text-foreground">
             That is why I started Peanut Gallery.
           </p>
-          <p className="text-[15px] leading-relaxed text-foreground">
+          <p style={BODY} className="text-foreground">
             Peanut Gallery is not another version of the same ticket marketplace. It is being built to solve the problems those marketplaces created, accepted, or left behind.
           </p>
         </section>
@@ -212,13 +274,13 @@ export default function OurStory() {
 
         {/* ═══ Closing ═══ */}
         <section className="px-6 py-10 space-y-5">
-          <p className="text-[15px] leading-relaxed text-foreground">
+          <p style={BODY} className="text-foreground">
             These are not minor additions to the traditional resale model. Together, they create something the major ticketing apps have never offered: a platform centered on improving the fan&rsquo;s experience after the event has already begun.
           </p>
-          <p className="text-[15px] leading-relaxed text-foreground">
+          <p style={BODY} className="text-foreground">
             Every part of Peanut Gallery is being built around the questions I have asked, the frustrations I have felt, and the features I have always wished existed as a fan. And because this platform will handle people&rsquo;s tickets, payments, and once-in-a-lifetime moments, earning your trust has to be part of the product—not an afterthought.
           </p>
-          <p className="text-[15px] leading-relaxed text-foreground">
+          <p style={BODY} className="text-foreground">
             The future of live events should not be decided only by the biggest ticketing companies or the fans with the biggest wallets.
           </p>
           <p
@@ -227,7 +289,7 @@ export default function OurStory() {
           >
             It should be built around all of us.
           </p>
-          <p className="text-[15px] leading-relaxed text-foreground">
+          <p style={BODY} className="text-foreground">
             From one fan to another, welcome to the Gallery.
           </p>
         </section>
