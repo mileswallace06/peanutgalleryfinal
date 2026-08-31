@@ -148,9 +148,9 @@ export default function OurStory() {
             />
           </figure>
 
-          {/* Photo 5: full-width (later fandom) */}
+          {/* Photo 5: full-width (mascot, concourse) */}
           <figure
-            className="relative"
+            className="relative mb-6"
             style={{ transform: `rotate(${FOUNDER_PHOTOS[4].rotation}deg)` }}
           >
             <img
@@ -161,6 +161,28 @@ export default function OurStory() {
               style={PHOTO_STYLE}
             />
           </figure>
+
+          {/* Photos 6-7: natural-width pair (recent NBA All-Star) */}
+          <div className="grid grid-cols-2 gap-3">
+            <figure style={{ transform: `rotate(${FOUNDER_PHOTOS[5].rotation}deg)` }}>
+              <img
+                src={FOUNDER_PHOTOS[5].url}
+                alt={FOUNDER_PHOTOS[5].alt}
+                loading="lazy"
+                className="w-full h-auto block select-none"
+                style={PHOTO_STYLE}
+              />
+            </figure>
+            <figure style={{ transform: `rotate(${FOUNDER_PHOTOS[6].rotation}deg)` }}>
+              <img
+                src={FOUNDER_PHOTOS[6].url}
+                alt={FOUNDER_PHOTOS[6].alt}
+                loading="lazy"
+                className="w-full h-auto block select-none"
+                style={PHOTO_STYLE}
+              />
+            </figure>
+          </div>
         </section>
 
         <div className="stub-perf-h mx-6" />
