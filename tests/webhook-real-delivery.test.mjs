@@ -39,10 +39,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const ROOT = join(__dirname, '..');
 
-// Construct sensitive strings dynamically to avoid literal matches in static
-// contract checks (authority-contract.test.mjs scans for these literals).
-const _LIVE_KEY = ['STRIPE', 'LIVE', 'SECRET', 'KEY'].join('');
-const _INGRESS_SEAM = ['maybe', 'Route', 'Canary', 'Webhook'].join('');
+// Prohibited paths are documented below using their real names (not hidden via
+// dynamic string construction). Static contract checks (TEST 29 in
+// authority-contract.test.mjs) scan the PRODUCTION HANDLER's executable code
+// (comments/JSDoc stripped) to prove these paths are not executed — not that
+// their names are absent from documentation.
 
 let passed = 0, failed = 0;
 const failures = [];
@@ -117,7 +118,7 @@ export async function runAllTests(deps) {
   // 1b. Deployed handler must NOT read the live key
   await check('env_handler_never_reads_live_key', async () => {
     const src = readHandlerSource();
-    if (src.includes(_LIVE_KEY)) {
+    if (src.includes('STRIPELIVESECRETKEY')) {
       blockers.push('Deployed stripeWebhook handler reads the live key — violates the never-read-live-key requirement');
       throw new Error('Deployed handler reads the live key — must use STRIPE_SECRET_KEY (test mode)');
     }
@@ -185,7 +186,7 @@ export async function runAllTests(deps) {
   // 2b. Handler exercises the canary ingress seam
   await check('chain_handler_uses_ingress_seam', async () => {
     const src = readHandlerSource();
-    assert(src.includes(_INGRESS_SEAM), 'handler must call the canary ingress seam');
+    assert(src.includes('maybeRouteCanaryWebhook'), 'handler must call the canary ingress seam');
     assert(src.includes('webhookCanaryIngress'), 'handler must import from webhookCanaryIngress');
   });
 

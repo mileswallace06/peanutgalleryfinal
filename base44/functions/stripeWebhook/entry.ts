@@ -20,7 +20,7 @@ import { isCanaryEnabled } from '../../shared/authCanary.js';
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
-  const secretKey = Deno.env.get('STRIPELIVESECRETKEY');
+  const secretKey = await secrets.get('STRIPE_SECRET_KEY');
   const webhookSecret = await secrets.get('STRIPE_WEBHOOK_SECRET');
 
   if (!secretKey || !webhookSecret) {
