@@ -1,7 +1,7 @@
 # authority_v1 Reserve/Release Canary — Certification Manifest
 
-**Date:** 2026-08-21 (last recertified 2026-08-31 — P0-01P-REAL-STRIPE-TEST-ABORT-CERTIFIED)
-**Status:** ✅ CERTIFIED — Flag OFF, maintenance ON, zero synthetic rows. Tests run this session (P0-01P): real-Stripe abort 92/92, abort-canary 103/103, payment-saga-cancel 59/59, authority-contract 163/163, build exit 0, scoped lint 0 errors. Current targeted gate: 417/417 assertions. Previously certified (not re-run this session): confirm-canary 16/16, capture-finalize 80/80, protections 7/7, wiring 5/5, capture-canary 12/12, real-stripe-capture 47/47, webhook-ingress 20/20, webhook-processor 19/19, transfer-canary 74/74, cancel-purchase-canary 146/146, cancel-purchase-real-stripe 129/129. Trusted dependency injection (no env/global override), transfer-state foundation certified (seller-reported only, provider delivery not verified, auto-relist disabled)
+**Date:** 2026-08-21 (last recertified 2026-08-31 — P0-01Q-CONFIRM-CANARY-WIRED)
+**Status:** ✅ CERTIFIED — Flag OFF, maintenance ON, zero synthetic rows. Tests run this session (P0-01Q): confirm-canary 16/16, capture-canary 12/12, authority-contract 178/178, build exit 0, scoped lint 0 errors. Current targeted gate: 206/206 assertions. Previously certified (not re-run this session): real-Stripe abort 92/92, abort-canary 103/103, payment-saga-cancel 59/59, capture-finalize 80/80, protections 7/7, wiring 5/5, real-stripe-capture 47/47, webhook-ingress 20/20, webhook-processor 19/19, transfer-canary 74/74, cancel-purchase-canary 146/146, cancel-purchase-real-stripe 129/129. Trusted dependency injection (no env/global override), transfer-state foundation certified (seller-reported only, provider delivery not verified, auto-relist disabled)
 
 ---
 
@@ -23,6 +23,7 @@
 | `capturePayment` | **CANARY-WIRED / REAL STRIPE TEST-MODE CERTIFIED / LIVE STRIPE NOT CERTIFIED / FLAG OFF** — See §11 below |
 | `stripeWebhook` | **CANARY-WIRED / INGRESS CERTIFIED / PROCESSING CERTIFIED / REAL STRIPE WEBHOOK DELIVERY NOT CERTIFIED / FLAG OFF** — See §12–§13 below |
 | `cancelPurchase` | **CANARY-WIRED / FAKE-PROVIDER CERTIFIED / REAL STRIPE CANCEL NOT CERTIFIED / CAPTURED REFUND NOT IN SCOPE / FLAG OFF** — See §14 below |
+| `confirmCheckoutAuthorized` | **CANARY-WIRED / FAKE-PROVIDER CERTIFIED / REAL STRIPE CONFIRM NOT CERTIFIED / FLAG OFF** — See §18 below |
 
 ---
 
@@ -39,6 +40,7 @@
 | `base44/shared/webhookCanaryIngress.js` | P0-01K: Webhook ingress routing (signature-verified → durable Postgres ingestion, canary ownership from binding) |
 | `base44/shared/stripeCancelProvider.js` | P0-01L: Shared production Stripe cancel provider (createStripeCancelProvider) — retrieve-then-conditionally-cancel, used by handler + harness |
 | `base44/shared/cancelPurchaseCanaryOrchestrator.js` | P0-01L: Cancel-purchase saga orchestrator (begin_cancel → Stripe cancel → record_cancel_result) with transfer-guard quarantine + reconciliation |
+| `base44/shared/confirmCanaryOrchestrator.js` | P0-01Q: Confirm-checkout saga orchestrator (bind_payment_intent via executor-only client, Stripe PI retrieve for metadata verification, mirror-only Base44 projection with durable outbox); accepts `canaryEnabled` via trusted DI |
 
 **Test files (executable module proofs — not deployed):**
 | Test File | Purpose |
@@ -152,7 +154,7 @@ Execution method: `tests/payment-saga-cancel.test.mjs` refactored as importable 
 | `cleanupAbandonedCheckouts` | UNCHANGED (excluded) | No reservation release to route |
 | `capturePayment` | **CANARY-WIRED / REAL STRIPE TEST-MODE CERTIFIED / LIVE STRIPE NOT CERTIFIED / FLAG OFF** | See §11 below |
 | `stripeWebhook` | UNCHANGED | No authority_v1 integration |
-| `confirmCheckoutAuthorized` | UNCHANGED | No authority_v1 integration |
+| `confirmCheckoutAuthorized` | **CANARY-WIRED / FAKE-PROVIDER CERTIFIED / REAL STRIPE CONFIRM NOT CERTIFIED / FLAG OFF** | See §18 below |
 | `cancelPurchase` | UNCHANGED | No authority_v1 integration |
 | `verifyTransferProof` | UNCHANGED | No authority_v1 integration |
 
@@ -1701,3 +1703,108 @@ P0-01P manifest label: **P0-01P-REAL-STRIPE-TEST-ABORT-CERTIFIED / LIVE STRIPE N
 - Flag OFF, maintenance ON, 0 synthetic rows post-cleanup. No database-role password was altered.
 - LIVE Stripe is NOT certified (NEEDS_OWNER_ACTION). P0-01O webhook delivery work is preserved and untouched.
 - Current targeted gate: **417/417 assertions** (real-Stripe abort 92, abort-canary 103, payment-saga-cancel 59, authority-contract 163), build exit 0, scoped lint 0 errors.
+
+---
+
+## §18 — P0-01Q: Confirm-Checkout Canary Handler Wiring
+
+P0-01Q manifest label: **`confirmCheckoutAuthorized — CANARY-WIRED / FAKE-PROVIDER CERTIFIED / REAL STRIPE CONFIRM NOT CERTIFIED / FLAG OFF`**
+
+### 18.1 Scope
+
+Production-handler canary integration for `confirmCheckoutAuthorized`. The `confirmCanaryOrchestrator` is wired into the deployed handler before the maintenance gate. The orchestrator binds the Stripe PaymentIntent to the authoritative `reservation_payment_bindings` table via the executor-only `authority_v1` client (no recorder, no admin), verifies PI metadata, and mirrors the authorization-confirmed state to Base44 Purchase + PurchasePrivate with a durable outbox on mirror failure. **Real Stripe confirm execution is NOT certified** (fake provider only — the confirm canary retrieves PI metadata but does not capture). P0-01O (real Stripe webhook delivery) remains parked and untouched.
+
+**Baseline:** P0-01P certification → P0-01Q handler wiring.
+
+### 18.2 Handler Wiring
+
+| Proof | Evidence |
+|---|---|
+| Import — orchestrator | `import { maybeRouteCanaryConfirm } from '../../shared/confirmCanaryOrchestrator.js';` |
+| Import — flag | `import { isCanaryEnabled } from '../../shared/authCanary.js';` |
+| Import — shared provider | `import { createStripeCaptureProvider } from '../../shared/stripeCaptureProvider.js';` |
+| Call site | `const canaryResult = await maybeRouteCanaryConfirm({ ... canaryEnabled: isCanaryEnabled() });` |
+| Guard placement | Canary route before `isMaintenanceActive()` (legacy path) |
+| Return on canary | `if (canaryResult) return Response.json(canaryResult.body, { status: canaryResult.status });` |
+| Legacy fallthrough | Unchanged — non-canary traffic falls through to `runConfirmCheckoutAuthorized` + maintenance gate + `STRIPELIVESECRETKEY` |
+| No admin import | `confirmCheckoutAuthorized/entry.ts` contains no `authorityV1TestAdmin` / `AUTHORITY_DB_URL_DEV_ADMIN` reference (static analysis) |
+
+### 18.3 Trusted Flag Injection (DI)
+
+`maybeRouteCanaryConfirm` accepts `canaryEnabled` as a trusted, caller-supplied dependency. The orchestrator does NOT call `isCanaryEnabled()` internally — the `isCanaryEnabled` import was removed from `confirmCanaryOrchestrator.js`. The production handler supplies `canaryEnabled: isCanaryEnabled()` (the committed default-OFF `CANARY_ENABLED` constant). No environment variable, global, request field, header, or secret can override the flag. T12 of the confirm-canary suite proves the flag-OFF path (`canaryEnabled: false` → 503 CANARY_DISABLED, zero side effects).
+
+### 18.4 Secret Access
+
+| Secret | Access Method | Section |
+|---|---|---|
+| `STRIPE_SECRET_KEY` | `await secrets.get('STRIPE_SECRET_KEY')` via `base44:runtime` | Canary branch only |
+| `AUTHORITY_V1_DB_URL_DEV_EXECUTOR` | `await secrets.get('AUTHORITY_V1_DB_URL_DEV_EXECUTOR')` via `base44:runtime` | Canary branch only |
+
+The new canary branch uses `base44:runtime` exclusively — no `Deno.env`. The untouched legacy branch still contains its existing `Deno.env.get('STRIPELIVESECRETKEY')` access (preserved exactly). The handler as a whole is NOT free of `Deno.env`; only the canary section is.
+
+### 18.5 Executor-Only Authority Access
+
+The confirm canary uses `createAuthorityV1Client` (executor-only) for `bind_payment_intent`. No recorder client is needed — confirm binds the PI but does not record a provider result (no capture). No admin fallback exists in the saga path. Admin SQL is used only for synthetic fixture setup and exact cleanup in the test harness.
+
+### 18.6 Shared Stripe Provider
+
+The canary branch uses `createStripeCaptureProvider(await secrets.get('STRIPE_SECRET_KEY'))` — the same shared production provider used by `capturePayment` (P0-01J). The confirm canary only calls `retrievePaymentIntent` (PI metadata verification); it never captures. The `retrievePaymentIntent` method was added to `stripeCaptureProvider.js` for this purpose. No parallel Stripe retrieve implementation exists in the handler.
+
+### 18.7 Runtime Credential Clarification
+
+`AUTHORITY_V1_DB_URL_DEV_EXECUTOR` is the existing `authority_v1` runtime credential (role `authority_executor`, Neon dev database). The separate owner-managed `AUTHORITY_DB_URL_DEV_EXECUTOR` (role `authority_probe_executor`, `authority_probe_v2` schema) was NOT accessed or modified by P0-01Q. The canary orchestrator requires `authority_executor` via `createAuthorityV1Client`; the probe credential is incompatible and was not used.
+
+### 18.8 Test Results — 206/206 Targeted Assertions
+
+| Suite | Assertions | Result |
+|---|---|---|
+| confirm-canary-orchestrator (P0-01Q) | 16 | ✅ 16/16 PASS |
+| capture-canary-orchestrator (P0-01I regression) | 12 | ✅ 12/12 PASS |
+| authority-contract (static, incl. 15 P0-01Q checks) | 178 | ✅ 178/178 PASS |
+| **Targeted total** | **206** | **206/206 PASS** |
+
+- **Build:** `npm run build` exit 0.
+- **Scoped lint:** 5 changed files — 0 errors, 6 warnings (pre-existing unused-vars pattern).
+
+All 7 `authority_v1` tables at 0 rows after confirm-canary and capture-canary suites (verified).
+
+### 18.9 Changed Files (P0-01Q)
+
+| File | Change |
+|---|---|
+| `base44/shared/confirmCanaryOrchestrator.js` | `maybeRouteCanaryConfirm` accepts `canaryEnabled` DI (removed internal `isCanaryEnabled()` call); removed `isCanaryEnabled` from import |
+| `base44/shared/stripeCaptureProvider.js` | Added `retrievePaymentIntent` method to the shared provider (confirm canary retrieves PI metadata only, never captures) |
+| `base44/functions/confirmCheckoutAuthorized/entry.ts` | Replaced `Deno.env.get('STRIPELIVESECRETKEY')` with `await secrets.get('STRIPE_SECRET_KEY')` in canary branch; replaced inline adapter with `createStripeCaptureProvider`; added `canaryEnabled: isCanaryEnabled()` DI; added imports; legacy path unchanged |
+| `tests/confirm-canary-orchestrator.test.mjs` | T12 supplies `canaryEnabled: false` explicitly; T14 expanded static analysis (DI, shared provider, no Deno.env in canary section, no live key in canary section, executor-only) |
+| `tests/authority-contract.test.mjs` | Added TEST 31 — 15 P0-01Q static handler-wiring checks (178 total) |
+| `src/docs/AUTHORITY_V1_CANARY_CERTIFICATION.md` | §18 (P0-01Q certification), header, §1 table, §2 modules, §7 11-entry-point manifest |
+
+### 18.10 Final State
+
+| Item | Value |
+|---|---|
+| `CANARY_ENABLED` flag | `false` (OFF) — trusted DI only |
+| Maintenance mode | ON |
+| Backend functions | 50 (unchanged) |
+| Authority_v1 Postgres functions | 32 (unchanged) |
+| Authority tables (all 7) | 0 rows (verified post-test) |
+| Real Stripe calls | 0 (fake provider only — confirm retrieves PI metadata, never captures) |
+| Real Stripe confirm | NOT CERTIFIED (NEEDS_OWNER_ACTION) |
+| P0-01O (webhook delivery) | Parked, untouched |
+| Recorder grants | 4 functions, 0 table privileges (unchanged) |
+| Executor grants | 22+ functions (unchanged) |
+| Production admin imports | 0 (50 handlers checked) |
+| Legacy confirmCheckoutAuthorized path | Unchanged (still uses `STRIPELIVESECRETKEY` via `Deno.env`) |
+
+### 18.11 Conclusion
+
+P0-01Q manifest label: **`confirmCheckoutAuthorized — CANARY-WIRED / FAKE-PROVIDER CERTIFIED / REAL STRIPE CONFIRM NOT CERTIFIED / FLAG OFF`**
+
+- `confirmCheckoutAuthorized` is canary-wired before the maintenance gate; legacy path unchanged.
+- The orchestrator accepts `canaryEnabled` via trusted DI — no env/global/header/secret override. The handler supplies `isCanaryEnabled()` (committed default-OFF).
+- The new canary branch uses `base44:runtime` exclusively (`secrets.get('STRIPE_SECRET_KEY')`, `secrets.get('AUTHORITY_V1_DB_URL_DEV_EXECUTOR')`). The untouched legacy branch still contains its existing `Deno.env.get('STRIPELIVESECRETKEY')` access — the handler as a whole is NOT free of `Deno.env`.
+- Executor-only authority access via `createAuthorityV1Client` (no recorder, no admin). `AUTHORITY_V1_DB_URL_DEV_EXECUTOR` is the existing `authority_v1` runtime credential; the separate `AUTHORITY_DB_URL_DEV_EXECUTOR` probe credential was not accessed or modified.
+- Shared Stripe provider (`createStripeCaptureProvider`) — no parallel implementation. Confirm retrieves PI metadata only, never captures.
+- 50 backend functions, 32 authority functions, flag OFF, maintenance ON, 0 synthetic rows, 0 real Stripe calls.
+- **Real Stripe confirm is NOT certified.** P0-01O (real Stripe webhook delivery) remains parked and untouched.
+- Current targeted gate: **206/206 assertions** (confirm-canary 16, capture-canary 12, authority-contract 178), build exit 0, scoped lint 0 errors.
