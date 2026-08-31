@@ -1678,6 +1678,64 @@ check('confirm_real_harness_proves_begin_capture', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// TEST 33: P0-01R bind_payment_intent atomic ON CONFLICT defense-in-depth
+// ═══════════════════════════════════════════════════════════════════════════
+// The canonical SQL artifact's bind_payment_intent must use ON CONFLICT
+// (purchase_id) DO NOTHING with RETURNING to atomically catch any race that
+// slips through the reservation_authority FOR UPDATE lock + pre-insert lookup.
+// This is the atomic safety net that prevents a PK violation (23505) from
+// escaping as an unstructured 500.
+check('bind_payment_intent_has_on_conflict_do_nothing', () => {
+  const fnStart = functions.indexOf('CREATE OR REPLACE FUNCTION authority_v1.bind_payment_intent');
+  const fnEnd = functions.indexOf('$$;', fnStart);
+  if (fnStart < 0 || fnEnd < 0) throw new Error('bind_payment_intent function not found');
+  const fnBody = functions.substring(fnStart, fnEnd);
+  // Must use ON CONFLICT (purchase_id) DO NOTHING on the binding INSERT
+  if (!fnBody.includes('ON CONFLICT (purchase_id) DO NOTHING')) {
+    throw new Error('bind_payment_intent must use ON CONFLICT (purchase_id) DO NOTHING for atomic race safety');
+  }
+  return true;
+});
+check('bind_payment_intent_uses_returning_to_detect_conflict', () => {
+  const fnStart = functions.indexOf('CREATE OR REPLACE FUNCTION authority_v1.bind_payment_intent');
+  const fnEnd = functions.indexOf('$$;', fnStart);
+  const fnBody = functions.substring(fnStart, fnEnd);
+  // Must use RETURNING ... INTO to detect whether the INSERT fired the conflict
+  if (!fnBody.includes('RETURNING purchase_id INTO')) {
+    throw new Error('bind_payment_intent must use RETURNING purchase_id INTO to detect ON CONFLICT');
+  }
+  // Must check the returned variable for NULL (conflict fired)
+  if (!fnBody.includes('IS NULL')) {
+    throw new Error('bind_payment_intent must check RETURNING result IS NULL to detect conflict');
+  }
+  return true;
+});
+check('bind_payment_intent_conflict_returns_structured_error', () => {
+  const fnStart = functions.indexOf('CREATE OR REPLACE FUNCTION authority_v1.bind_payment_intent');
+  const fnEnd = functions.indexOf('$$;', fnStart);
+  const fnBody = functions.substring(fnStart, fnEnd);
+  // When RETURNING is NULL (conflict fired), must return structured PAYMENT_BINDING_CONFLICT
+  if (!fnBody.includes("'PAYMENT_BINDING_CONFLICT'")) {
+    throw new Error('bind_payment_intent must return structured PAYMENT_BINDING_CONFLICT on ON CONFLICT');
+  }
+  // Must also mark the operation as rejected
+  if (!fnBody.includes("status = 'rejected'") || !fnBody.includes('error_code')) {
+    throw new Error('bind_payment_intent must mark the operation rejected with error_code on conflict');
+  }
+  return true;
+});
+check('bind_payment_intent_declares_returning_variable', () => {
+  const fnStart = functions.indexOf('CREATE OR REPLACE FUNCTION authority_v1.bind_payment_intent');
+  const fnEnd = functions.indexOf('$$;', fnStart);
+  const fnBody = functions.substring(fnStart, fnEnd);
+  // The DECLARE block must declare the RETURNING variable
+  if (!fnBody.includes('v_inserted_purchase_id')) {
+    throw new Error('bind_payment_intent must declare v_inserted_purchase_id for RETURNING');
+  }
+  return true;
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 // NOT YET TESTED: SQL parse/compile and real PostgreSQL runtime
 // ═══════════════════════════════════════════════════════════════════════════
 console.log('\n── NOT YET TESTED ──');
