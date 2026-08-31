@@ -246,10 +246,12 @@ export async function runCanaryConfirmSaga(deps) {
     // Map the known canonical conflict (primary-key violation on
     // reservation_payment_bindings — a second PaymentIntent for the same
     // purchase) to 409 with a stable public error code.
-    // Unknown/internal errors remain 500. No SQL, credentials, or stack
-    // traces are exposed — only the stable public code.
-    const msg = String(e?.message || e || '');
-    if (msg.includes('reservation_payment_bindings') && msg.includes('duplicate key')) {
+    // Match PostgreSQL SQLSTATE 23505 (unique_violation) and the constraint
+    // name, not broad exception-message text. Unknown/internal errors remain
+    // 500. No SQL, credentials, or stack traces are exposed.
+    const sqlState = e?.code || null;
+    const constraint = e?.constraint_name || e?.constraint || null;
+    if (sqlState === '23505' && constraint && constraint.includes('reservation_payment_bindings')) {
       return { status: 409, body: { error: 'Bind conflict', code: 'PAYMENT_BINDING_CONFLICT' } };
     }
     return { status: 500, body: { error: 'bind_payment_intent failed', code: 'BIND_ERROR' } };
