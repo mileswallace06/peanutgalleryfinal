@@ -383,7 +383,8 @@ export async function runAllTests(deps) {
     seamRetrievals += counts.retrieveCount;
 
     assert(r1.status === 200 && r1.body?.bound === true, 'T3: first PI bound');
-    assert(r2.status === 409 || r2.status === 500, `T3: second PI rejected (got ${r2.status})`);
+    assert(r2.status === 409, `T3: second PI rejected 409 (got ${r2.status})`);
+    assert(r2.body?.code === 'PAYMENT_BINDING_CONFLICT', `T3: stable public code (got ${r2.body?.code})`);
     assert(bindingCount === 1, `T3: still 1 binding (got ${bindingCount})`);
 
     cleanupRequests += 2;

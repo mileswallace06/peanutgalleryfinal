@@ -410,6 +410,22 @@ BEGIN
         'reason', 'payment_intent_id already bound to different purchase/buyer');
     END IF;
   ELSE
+    -- Check for existing binding by purchase_id (primary key).
+    -- A second PaymentIntent for the same purchase is a canonical conflict
+    -- that must return a structured result, not throw a PK violation.
+    SELECT * INTO v_existing_binding FROM reservation_payment_bindings
+    WHERE purchase_id = p_purchase_id FOR UPDATE;
+
+    IF FOUND THEN
+      UPDATE reservation_operations SET status = 'rejected', error_code = 'PAYMENT_BINDING_CONFLICT',
+        result_json = jsonb_build_object('ok', false, 'code', 'PAYMENT_BINDING_CONFLICT',
+          'reason', 'purchase already bound to different payment_intent')::TEXT,
+        committed_at = now()
+      WHERE operation_id = p_server_operation_id;
+      RETURN jsonb_build_object('ok', false, 'code', 'PAYMENT_BINDING_CONFLICT',
+        'reason', 'purchase already bound to different payment_intent');
+    END IF;
+
     INSERT INTO reservation_payment_bindings (
       purchase_id, payment_intent_id, listing_id, buyer_user_id,
       authority_version, reservation_revision, reservation_token_hash, capture_state
