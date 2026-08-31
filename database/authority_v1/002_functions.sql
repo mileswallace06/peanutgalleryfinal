@@ -359,6 +359,7 @@ DECLARE
   v_acquired BOOLEAN; v_op_status TEXT; v_replay JSONB; v_stored_hash TEXT;
   v_authority reservation_authority%ROWTYPE;
   v_existing_binding reservation_payment_bindings%ROWTYPE;
+  v_inserted_purchase_id TEXT;
 BEGIN
   SELECT * INTO v_acquired, v_op_status, v_replay, v_stored_hash FROM acquire_operation(
     p_server_operation_id, 'listing', p_listing_id, p_listing_id,
@@ -426,13 +427,28 @@ BEGIN
         'reason', 'purchase already bound to different payment_intent');
     END IF;
 
+    -- Atomic defense-in-depth: ON CONFLICT catches any race that slips
+    -- through the reservation_authority FOR UPDATE lock + pre-insert lookup.
+    -- RETURNING is null when the conflict fired (no row inserted).
     INSERT INTO reservation_payment_bindings (
       purchase_id, payment_intent_id, listing_id, buyer_user_id,
       authority_version, reservation_revision, reservation_token_hash, capture_state
     ) VALUES (
       p_purchase_id, p_payment_intent_id, p_listing_id, p_buyer_user_id,
       p_authority_version, p_reservation_revision, p_token_hash, 'authorized'
-    );
+    )
+    ON CONFLICT (purchase_id) DO NOTHING
+    RETURNING purchase_id INTO v_inserted_purchase_id;
+
+    IF v_inserted_purchase_id IS NULL THEN
+      UPDATE reservation_operations SET status = 'rejected', error_code = 'PAYMENT_BINDING_CONFLICT',
+        result_json = jsonb_build_object('ok', false, 'code', 'PAYMENT_BINDING_CONFLICT',
+          'reason', 'purchase already bound to different payment_intent')::TEXT,
+        committed_at = now()
+      WHERE operation_id = p_server_operation_id;
+      RETURN jsonb_build_object('ok', false, 'code', 'PAYMENT_BINDING_CONFLICT',
+        'reason', 'purchase already bound to different payment_intent');
+    END IF;
   END IF;
 
   UPDATE reservation_operations SET status = 'committed', committed_version = p_authority_version,
