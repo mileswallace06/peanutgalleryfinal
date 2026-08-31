@@ -29,6 +29,12 @@ import Stripe from 'npm:stripe@14.21.0';
 export function createStripeCaptureProvider(secretKey) {
   const stripe = new Stripe(secretKey);
   return {
+    /** retrievePaymentIntent(piId) → raw Stripe PaymentIntent object.
+     *  Used by the confirm-checkout canary (P0-01Q) which only needs to verify
+     *  authorization status + metadata, never to capture. */
+    async retrievePaymentIntent(piId) {
+      return await stripe.paymentIntents.retrieve(piId);
+    },
     async capturePaymentIntent(piId, idemKey) {
       try {
         const pi = await stripe.paymentIntents.retrieve(piId);

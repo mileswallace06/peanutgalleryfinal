@@ -18,6 +18,8 @@ import Stripe from 'npm:stripe@14.21.0';
 import { isMaintenanceActive, maintenance503 } from '../../shared/maintenance.ts';
 import { runConfirmCheckoutAuthorized } from '../../shared/confirmCheckoutOrchestrator.js';
 import { maybeRouteCanaryConfirm } from '../../shared/confirmCanaryOrchestrator.js';
+import { isCanaryEnabled } from '../../shared/authCanary.js';
+import { createStripeCaptureProvider } from '../../shared/stripeCaptureProvider.js';
 
 Deno.serve(async (req) => {
   try {
@@ -49,18 +51,17 @@ Deno.serve(async (req) => {
     // or canary-rejected request — synthetic listings never reach the normal path.
     if (listing && purchase) {
       const executorUrl = secrets.get('AUTHORITY_V1_DB_URL_DEV_EXECUTOR');
-      const secretKey = Deno.env.get('STRIPELIVESECRETKEY');
-      const stripeAdapter = secretKey ? {
-        async retrievePaymentIntent(piId: string) {
-          const stripe = new Stripe(secretKey);
-          return await stripe.paymentIntents.retrieve(piId);
-        },
-      } : null;
+      const secretKey = await secrets.get('STRIPE_SECRET_KEY');
+      const stripeAdapter = secretKey ? createStripeCaptureProvider(secretKey) : null;
 
       const canaryResult = await maybeRouteCanaryConfirm({
         base44, user, body, listing, purchase,
         executorUrl,
         stripeAdapter,
+        // The handler always supplies the real committed canary configuration.
+        // No environment/global/header/secret can override this; the harness
+        // supplies its own trusted value via dependency injection instead.
+        canaryEnabled: isCanaryEnabled(),
       });
       if (canaryResult) return Response.json(canaryResult.body, { status: canaryResult.status });
     }

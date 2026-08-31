@@ -820,7 +820,7 @@ export async function runAllTests(deps) {
       payment_intent_id: 'pi_test', transfer_status: 'pending_transfer',
     });
 
-    // maybeRouteCanaryConfirm checks isCanaryEnabled() which is false (flag OFF)
+    // maybeRouteCanaryConfirm receives canaryEnabled via trusted DI (flag OFF)
     const result = await maybeRouteCanaryConfirm({
       base44: { asServiceRole: { entities } },
       user: { id: 'admin', email: 'admin@example.com', role: 'admin' },
@@ -829,6 +829,7 @@ export async function runAllTests(deps) {
       purchase: entities._store.purchases.get(purchaseId),
       executorUrl: executorUrl,
       stripeAdapter: makeFakeStripe(),
+      canaryEnabled: false,
     });
 
     record('T12: Flag-OFF → 503 CANARY_DISABLED',
@@ -865,28 +866,63 @@ export async function runAllTests(deps) {
       { status: result?.status, code: result?.body?.code });
   }
 
-  // ── T14: No admin fallback (static analysis) ───────────────────────────────
+  // ── T14: Handler wiring + no admin fallback (static analysis) ──────────────
   {
-    // Verify the orchestrator does NOT import authorityV1TestAdmin
     const orchestratorSrc = readFileSync(new URL('../base44/shared/confirmCanaryOrchestrator.js', import.meta.url), 'utf8');
     const handlerSrc = readFileSync(new URL('../base44/functions/confirmCheckoutAuthorized/entry.ts', import.meta.url), 'utf8');
 
+    // No admin fallback
     const orchestratorImportsAdmin = orchestratorSrc.includes('authorityV1TestAdmin');
     const handlerImportsAdmin = handlerSrc.includes('authorityV1TestAdmin');
     const orchestratorHasAdminUrl = orchestratorSrc.includes('AUTHORITY_DB_URL_DEV_ADMIN');
     const handlerHasAdminUrl = handlerSrc.includes('AUTHORITY_DB_URL_DEV_ADMIN');
 
-    // Verify handler imports maybeRouteCanaryConfirm
+    // Handler imports maybeRouteCanaryConfirm
     const handlerImportsCanary = handlerSrc.includes('maybeRouteCanaryConfirm');
 
-    // Verify handler has canary guard before maintenance
+    // Canary guard before maintenance
     const canaryBeforeMaintenance = handlerSrc.indexOf('maybeRouteCanaryConfirm') < handlerSrc.indexOf('isMaintenanceActive()');
 
-    record('T14: No admin fallback (static analysis)',
+    // P0-01Q: trusted flag injection — orchestrator accepts canaryEnabled DI,
+    // does NOT call isCanaryEnabled() internally
+    const orchCodeLines = orchestratorSrc.split('\n').filter(l => !l.trim().startsWith('*') && !l.trim().startsWith('//'));
+    const orchCode = orchCodeLines.join('\n');
+    const orchestratorAcceptsDI = orchCode.includes('deps.canaryEnabled');
+    const orchestratorNoInternalFlag = !/isCanaryEnabled\s*\(\)/.test(orchCode);
+
+    // Handler imports isCanaryEnabled + supplies canaryEnabled: isCanaryEnabled()
+    const handlerImportsIsCanaryEnabled = handlerSrc.includes('isCanaryEnabled');
+    const handlerSuppliesDI = handlerSrc.includes('canaryEnabled: isCanaryEnabled()');
+
+    // Handler uses shared Stripe provider (not inline adapter)
+    const handlerUsesSharedProvider = handlerSrc.includes('createStripeCaptureProvider');
+
+    // Handler reads STRIPE_SECRET_KEY via base44:runtime (not Deno.env / STRIPELIVESECRETKEY)
+    const handlerUsesRuntimeSecret = handlerSrc.includes("secrets.get('STRIPE_SECRET_KEY')");
+
+    // Canary route (before "Legacy path") must not use Deno.env or STRIPELIVESECRETKEY
+    const canarySection = handlerSrc.substring(0, handlerSrc.indexOf('Legacy path'));
+    const canaryNoDenoEnv = !canarySection.includes('Deno.env');
+    const canaryNoLiveKey = !canarySection.includes('STRIPELIVESECRETKEY');
+
+    // Executor-only authority access (no recorder URL needed for confirm — bind only)
+    const handlerUsesExecutorUrl = handlerSrc.includes("secrets.get('AUTHORITY_V1_DB_URL_DEV_EXECUTOR')");
+
+    record('T14: Handler wiring + no admin fallback (static analysis)',
       !orchestratorImportsAdmin && !handlerImportsAdmin &&
       !orchestratorHasAdminUrl && !handlerHasAdminUrl &&
-      handlerImportsCanary && canaryBeforeMaintenance,
-      { orchestratorImportsAdmin, handlerImportsAdmin, orchestratorHasAdminUrl, handlerHasAdminUrl, handlerImportsCanary, canaryBeforeMaintenance });
+      handlerImportsCanary && canaryBeforeMaintenance &&
+      orchestratorAcceptsDI && orchestratorNoInternalFlag &&
+      handlerImportsIsCanaryEnabled && handlerSuppliesDI &&
+      handlerUsesSharedProvider && handlerUsesRuntimeSecret &&
+      canaryNoDenoEnv && canaryNoLiveKey &&
+      handlerUsesExecutorUrl,
+      { orchestratorImportsAdmin, handlerImportsAdmin, orchestratorHasAdminUrl, handlerHasAdminUrl,
+        handlerImportsCanary, canaryBeforeMaintenance,
+        orchestratorAcceptsDI, orchestratorNoInternalFlag,
+        handlerImportsIsCanaryEnabled, handlerSuppliesDI,
+        handlerUsesSharedProvider, handlerUsesRuntimeSecret,
+        canaryNoDenoEnv, canaryNoLiveKey, handlerUsesExecutorUrl });
   }
 
   // ── Cleanup ────────────────────────────────────────────────────────────────

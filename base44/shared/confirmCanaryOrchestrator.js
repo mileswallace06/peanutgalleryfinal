@@ -40,7 +40,7 @@
  * Dependency-injected for testability. Tests inject mock clients + fake Stripe.
  */
 import { sha256Hex, canonicalEnvelope } from './canaryMirror.js';
-import { isCanaryEnabled, isCanaryListing } from './authCanary.js';
+import { isCanaryListing } from './authCanary.js';
 
 // ── Mirror helper: apply authorization_confirmed_at to Purchase + PurchasePrivate ─
 // Postgres transition (bind_payment_intent) has already committed. If the mirror
@@ -326,7 +326,7 @@ export async function maybeRouteCanaryConfirm(deps) {
       body: { error: 'Canary requires admin', code: 'CANARY_ADMIN_REQUIRED' },
     };
   }
-  if (!isCanaryEnabled()) {
+  if (!deps.canaryEnabled) {
     return {
       status: 503,
       body: { error: 'Canary integration is disabled.', code: 'CANARY_DISABLED' },

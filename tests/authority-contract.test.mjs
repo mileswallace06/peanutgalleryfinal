@@ -1484,6 +1484,106 @@ check('abort_runner_no_live_key', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// TEST 31: P0-01Q confirm-checkout canary handler wiring
+// ═══════════════════════════════════════════════════════════════════════════
+// Static handler-wiring checks proving: import, call site, guard placement,
+// trusted flag injection, executor-only authority access, no admin import,
+// and unchanged legacy fallthrough.
+check('confirm_orchestrator_accepts_canary_enabled_di', () => {
+  const src = readFileSync(join(ROOT, 'base44/shared/confirmCanaryOrchestrator.js'), 'utf8');
+  if (!src.includes('deps.canaryEnabled')) throw new Error('orchestrator must accept canaryEnabled as DI');
+  const codeLines = src.split('\n').filter(l => !l.trim().startsWith('*') && !l.trim().startsWith('//'));
+  const code = codeLines.join('\n');
+  if (/isCanaryEnabled\s*\(\)/.test(code)) throw new Error('orchestrator must NOT call isCanaryEnabled() internally (use DI)');
+  return true;
+});
+check('confirm_handler_imports_orchestrator', () => {
+  const src = readFileSync(join(ROOT, 'base44/functions/confirmCheckoutAuthorized/entry.ts'), 'utf8');
+  if (!src.includes('maybeRouteCanaryConfirm')) throw new Error('handler must import maybeRouteCanaryConfirm');
+  return true;
+});
+check('confirm_handler_imports_isCanaryEnabled', () => {
+  const src = readFileSync(join(ROOT, 'base44/functions/confirmCheckoutAuthorized/entry.ts'), 'utf8');
+  if (!src.includes('isCanaryEnabled')) throw new Error('handler must import isCanaryEnabled from authCanary');
+  return true;
+});
+check('confirm_handler_supplies_canary_enabled_di', () => {
+  const src = readFileSync(join(ROOT, 'base44/functions/confirmCheckoutAuthorized/entry.ts'), 'utf8');
+  if (!src.includes('canaryEnabled: isCanaryEnabled()')) throw new Error('handler must supply canaryEnabled: isCanaryEnabled() to the seam');
+  return true;
+});
+check('confirm_handler_uses_shared_provider', () => {
+  const src = readFileSync(join(ROOT, 'base44/functions/confirmCheckoutAuthorized/entry.ts'), 'utf8');
+  if (!src.includes('createStripeCaptureProvider')) throw new Error('handler must import createStripeCaptureProvider (shared provider)');
+  return true;
+});
+check('confirm_handler_reads_stripe_secret_via_runtime', () => {
+  const src = readFileSync(join(ROOT, 'base44/functions/confirmCheckoutAuthorized/entry.ts'), 'utf8');
+  if (!src.includes("secrets.get('STRIPE_SECRET_KEY')")) throw new Error('handler must read STRIPE_SECRET_KEY via base44:runtime secrets');
+  return true;
+});
+check('confirm_handler_reads_executor_url_via_runtime', () => {
+  const src = readFileSync(join(ROOT, 'base44/functions/confirmCheckoutAuthorized/entry.ts'), 'utf8');
+  if (!src.includes("secrets.get('AUTHORITY_V1_DB_URL_DEV_EXECUTOR')")) throw new Error('handler must read AUTHORITY_V1_DB_URL_DEV_EXECUTOR via base44:runtime');
+  return true;
+});
+check('confirm_handler_canary_before_maintenance', () => {
+  const src = readFileSync(join(ROOT, 'base44/functions/confirmCheckoutAuthorized/entry.ts'), 'utf8');
+  const canaryIdx = src.indexOf('maybeRouteCanaryConfirm');
+  const maintenanceIdx = src.indexOf('isMaintenanceActive()');
+  if (canaryIdx < 0 || maintenanceIdx < 0) throw new Error('both canary and maintenance checks must exist');
+  if (canaryIdx > maintenanceIdx) throw new Error('canary route must be before maintenance gate');
+  return true;
+});
+check('confirm_handler_canary_no_deno_env', () => {
+  const src = readFileSync(join(ROOT, 'base44/functions/confirmCheckoutAuthorized/entry.ts'), 'utf8');
+  const canarySection = src.substring(0, src.indexOf('Legacy path'));
+  if (canarySection.includes('Deno.env')) throw new Error('canary route must not use Deno.env (use base44:runtime secrets)');
+  return true;
+});
+check('confirm_handler_canary_no_live_key', () => {
+  const src = readFileSync(join(ROOT, 'base44/functions/confirmCheckoutAuthorized/entry.ts'), 'utf8');
+  const canarySection = src.substring(0, src.indexOf('Legacy path'));
+  if (canarySection.includes('STRIPELIVESECRETKEY')) throw new Error('canary route must not use STRIPELIVESECRETKEY');
+  return true;
+});
+check('confirm_handler_no_admin_import', () => {
+  const src = readFileSync(join(ROOT, 'base44/functions/confirmCheckoutAuthorized/entry.ts'), 'utf8');
+  if (src.includes('authorityV1TestAdmin')) throw new Error('handler must not import admin client');
+  if (src.includes('AUTHORITY_DB_URL_DEV_ADMIN')) throw new Error('handler must not reference admin URL');
+  return true;
+});
+check('confirm_handler_legacy_fallthrough_preserved', () => {
+  const src = readFileSync(join(ROOT, 'base44/functions/confirmCheckoutAuthorized/entry.ts'), 'utf8');
+  // Legacy path must still exist: runConfirmCheckoutAuthorized + maintenance gate + STRIPELIVESECRETKEY
+  if (!src.includes('runConfirmCheckoutAuthorized')) throw new Error('legacy runConfirmCheckoutAuthorized must be preserved');
+  if (!src.includes('isMaintenanceActive()')) throw new Error('legacy maintenance gate must be preserved');
+  // Legacy path may still use STRIPELIVESECRETKEY (unchanged) — verify it's after the canary section
+  const legacySection = src.substring(src.indexOf('Legacy path'));
+  if (!legacySection.includes('STRIPELIVESECRETKEY')) throw new Error('legacy path must still use STRIPELIVESECRETKEY (unchanged)');
+  return true;
+});
+check('confirm_shared_provider_has_retrieve', () => {
+  const src = readFileSync(join(ROOT, 'base44/shared/stripeCaptureProvider.js'), 'utf8');
+  if (!src.includes('retrievePaymentIntent')) throw new Error('shared provider must expose retrievePaymentIntent for confirm canary');
+  return true;
+});
+check('confirm_orchestrator_no_admin', () => {
+  const src = readFileSync(join(ROOT, 'base44/shared/confirmCanaryOrchestrator.js'), 'utf8');
+  if (src.includes('authorityV1TestAdmin')) throw new Error('orchestrator must not import admin client');
+  if (src.includes('AUTHORITY_DB_URL_DEV_ADMIN')) throw new Error('orchestrator must not reference admin URL');
+  if (src.includes('Deno.env')) throw new Error('orchestrator must not use Deno.env');
+  return true;
+});
+check('confirm_orchestrator_executor_only', () => {
+  const src = readFileSync(join(ROOT, 'base44/shared/confirmCanaryOrchestrator.js'), 'utf8');
+  // Must use createAuthorityV1Client (executor-only), not recorder
+  if (!src.includes('createAuthorityV1Client')) throw new Error('orchestrator must use executor client (createAuthorityV1Client)');
+  if (src.includes('createAuthorityV1StripeRecorderClient')) throw new Error('confirm orchestrator must NOT use recorder (bind is executor-only)');
+  return true;
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 // NOT YET TESTED: SQL parse/compile and real PostgreSQL runtime
 // ═══════════════════════════════════════════════════════════════════════════
 console.log('\n── NOT YET TESTED ──');
