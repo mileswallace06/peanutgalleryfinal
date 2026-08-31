@@ -1584,6 +1584,100 @@ check('confirm_orchestrator_executor_only', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// TEST 32: P0-01R real-Stripe confirm harness contract checks
+// ═══════════════════════════════════════════════════════════════════════════
+// Static checks proving the real-Stripe confirm harness uses the routing seam,
+// shared provider, test key verification, executor client, and absence of admin
+// binding or flag overrides.
+check('confirm_real_harness_uses_routing_seam', () => {
+  const src = readFileSync(join(ROOT, 'tests/confirm-canary-real-stripe.test.mjs'), 'utf8');
+  if (!src.includes('maybeRouteCanaryConfirm')) throw new Error('harness must exercise maybeRouteCanaryConfirm (the routing seam)');
+  // The harness must NOT call the inner orchestrator directly — only through the seam.
+  // Look for actual call syntax (with opening paren), excluding comments and imports.
+  const callLines = src.split('\n').filter(l => {
+    const trimmed = l.trim();
+    if (trimmed.startsWith('*') || trimmed.startsWith('//') || trimmed.startsWith('import')) return false;
+    return /runCanaryConfirmSaga\s*\(/.test(l);
+  });
+  if (callLines.length > 0) throw new Error('harness must NOT call runCanaryConfirmSaga directly (only through the seam)');
+  return true;
+});
+check('confirm_real_harness_uses_shared_provider', () => {
+  const src = readFileSync(join(ROOT, 'tests/confirm-canary-real-stripe.test.mjs'), 'utf8');
+  if (!src.includes('createStripeCaptureProvider')) throw new Error('harness must use shared createStripeCaptureProvider');
+  if (!src.includes('retrievePaymentIntent')) throw new Error('harness must use shared provider retrievePaymentIntent');
+  return true;
+});
+check('confirm_real_runner_verifies_sk_test', () => {
+  const src = readFileSync(join(ROOT, 'tests/run-p0-01r-confirm-real-stripe.mjs'), 'utf8');
+  if (!src.includes('sk_test_')) throw new Error('runner must verify sk_test_ prefix');
+  if (!src.includes('STRIPE_SECRET_KEY')) throw new Error('runner must read STRIPE_SECRET_KEY');
+  return true;
+});
+check('confirm_real_harness_uses_executor_client', () => {
+  const src = readFileSync(join(ROOT, 'tests/confirm-canary-real-stripe.test.mjs'), 'utf8');
+  if (!src.includes('createAuthorityV1Client')) throw new Error('harness must use executor client (createAuthorityV1Client)');
+  if (src.includes('createAuthorityV1StripeRecorderClient')) throw new Error('confirm harness must NOT use recorder (confirm is executor-only)');
+  return true;
+});
+check('confirm_real_harness_no_admin_bind', () => {
+  const src = readFileSync(join(ROOT, 'tests/confirm-canary-real-stripe.test.mjs'), 'utf8');
+  // Admin SQL must NEVER call bind_payment_intent
+  const adminBindPattern = /adminSql`[^`]*bind_payment_intent/;
+  if (adminBindPattern.test(src)) throw new Error('admin SQL must NEVER call bind_payment_intent');
+  return true;
+});
+check('confirm_real_harness_no_flag_override', () => {
+  const src = readFileSync(join(ROOT, 'tests/confirm-canary-real-stripe.test.mjs'), 'utf8');
+  // Must not read CANARY_ENABLED from process.env or Deno.env
+  if (src.includes('process.env.CANARY_ENABLED')) throw new Error('harness must not read CANARY_ENABLED from env');
+  if (src.includes('Deno.env')) throw new Error('harness must not use Deno.env');
+  // T0 must supply canaryEnabled: false (production config)
+  if (!src.includes('canaryEnabled: false')) throw new Error('harness must test flag-OFF with canaryEnabled: false');
+  return true;
+});
+check('confirm_real_harness_uses_authority_v1_executor_url', () => {
+  const src = readFileSync(join(ROOT, 'tests/run-p0-01r-confirm-real-stripe.mjs'), 'utf8');
+  if (!src.includes('AUTHORITY_V1_DB_URL_DEV_EXECUTOR')) throw new Error('runner must use AUTHORITY_V1_DB_URL_DEV_EXECUTOR');
+  // Must NOT use the probe credential
+  if (src.includes('AUTHORITY_DB_URL_DEV_EXECUTOR') && !src.includes('AUTHORITY_V1_DB_URL_DEV_EXECUTOR')) {
+    throw new Error('runner must not use probe credential AUTHORITY_DB_URL_DEV_EXECUTOR');
+  }
+  return true;
+});
+check('confirm_real_harness_no_live_key', () => {
+  const src = readFileSync(join(ROOT, 'tests/confirm-canary-real-stripe.test.mjs'), 'utf8');
+  if (src.includes('STRIPELIVESECRETKEY')) throw new Error('harness must not reference live Stripe key');
+  if (src.includes('sk_live_')) throw new Error('harness must not use live key prefix');
+  return true;
+});
+check('confirm_real_harness_pg_cert_metadata', () => {
+  const src = readFileSync(join(ROOT, 'tests/confirm-canary-real-stripe.test.mjs'), 'utf8');
+  if (!src.includes("pg_cert: 'P0-01R'")) throw new Error('harness must tag Stripe objects with pg_cert=P0-01R');
+  if (!src.includes("purpose: 'canary_confirm_cert'")) throw new Error('harness must tag Stripe objects with purpose=canary_confirm_cert');
+  return true;
+});
+check('confirm_real_harness_cleans_up_pis', () => {
+  const src = readFileSync(join(ROOT, 'tests/confirm-canary-real-stripe.test.mjs'), 'utf8');
+  if (!src.includes('cancelTestPaymentIntent')) throw new Error('harness must cancel open test PIs');
+  if (!src.includes('truncateAll')) throw new Error('harness must truncate all authority tables');
+  return true;
+});
+check('confirm_real_harness_counts_retrievals', () => {
+  const src = readFileSync(join(ROOT, 'tests/confirm-canary-real-stripe.test.mjs'), 'utf8');
+  if (!src.includes('retrieveCount')) throw new Error('harness must count production-seam retrievals');
+  if (!src.includes('setupRequests')) throw new Error('harness must track setup requests separately');
+  if (!src.includes('cleanupRequests')) throw new Error('harness must track cleanup requests separately');
+  return true;
+});
+check('confirm_real_harness_proves_begin_capture', () => {
+  const src = readFileSync(join(ROOT, 'tests/confirm-canary-real-stripe.test.mjs'), 'utf8');
+  if (!src.includes('beginCapture')) throw new Error('harness must prove binding accepted by begin_capture');
+  if (!src.includes('frozen')) throw new Error('harness must verify authority transitions to frozen after begin_capture');
+  return true;
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 // NOT YET TESTED: SQL parse/compile and real PostgreSQL runtime
 // ═══════════════════════════════════════════════════════════════════════════
 console.log('\n── NOT YET TESTED ──');
