@@ -1238,6 +1238,81 @@ check('cancel_purchase_real_stripe_manual_capture', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// TEST 29: P0-01O real-delivery webhook transport certification harness
+// ═══════════════════════════════════════════════════════════════════════════
+check('real_delivery_harness_exists', () => {
+  const path = join(ROOT, 'tests/webhook-real-delivery.test.mjs');
+  if (!existsSync(path)) throw new Error('webhook-real-delivery.test.mjs not found');
+  return true;
+});
+check('real_delivery_runner_exists', () => {
+  const path = join(ROOT, 'tests/run-webhook-real-delivery.mjs');
+  if (!existsSync(path)) throw new Error('run-webhook-real-delivery.mjs not found');
+  return true;
+});
+check('real_delivery_harness_uses_seam', () => {
+  const src = readFileSync(join(ROOT, 'tests/webhook-real-delivery.test.mjs'), 'utf8');
+  // The harness exercises the deployed webhook boundary (stripeWebhook entry),
+  // not a direct orchestrator shortcut. It verifies the chain statically:
+  // handler → maybeRouteCanaryWebhook → recorder → processor.
+  if (src.includes('maybeRouteCanaryWebhook')) throw new Error('harness must NOT call maybeRouteCanaryWebhook directly (must go through deployed HTTP boundary)');
+  return true;
+});
+check('real_delivery_harness_no_live_key', () => {
+  const src = readFileSync(join(ROOT, 'tests/webhook-real-delivery.test.mjs'), 'utf8');
+  if (src.includes('STRIPELIVESECRETKEY')) throw new Error('harness must not read STRIPELIVESECRETKEY');
+  return true;
+});
+check('real_delivery_harness_requires_test_key', () => {
+  const src = readFileSync(join(ROOT, 'tests/webhook-real-delivery.test.mjs'), 'utf8');
+  if (!src.includes('sk_test_')) throw new Error('harness must require sk_test_ (test mode only)');
+  return true;
+});
+check('real_delivery_harness_requires_dedicated_endpoint', () => {
+  const src = readFileSync(join(ROOT, 'tests/webhook-real-delivery.test.mjs'), 'utf8');
+  if (!src.includes('STRIPE_WEBHOOK_SECRET_TEST')) throw new Error('harness must require STRIPE_WEBHOOK_SECRET_TEST (dedicated test signing secret)');
+  if (!src.includes('WEBHOOK_TEST_ENDPOINT_URL')) throw new Error('harness must require WEBHOOK_TEST_ENDPOINT_URL (dedicated test endpoint)');
+  return true;
+});
+check('real_delivery_harness_needs_owner_action_gate', () => {
+  const src = readFileSync(join(ROOT, 'tests/webhook-real-delivery.test.mjs'), 'utf8');
+  if (!src.includes('NEEDS_OWNER_ACTION')) throw new Error('harness must stop with NEEDS_OWNER_ACTION when blockers exist');
+  if (!src.includes('blockers')) throw new Error('harness must track blockers');
+  return true;
+});
+check('real_delivery_harness_no_duplicated_handler', () => {
+  const src = readFileSync(join(ROOT, 'tests/webhook-real-delivery.test.mjs'), 'utf8');
+  // Must not create a duplicated handler or permanent test override
+  if (/Deno\.serve/.test(src)) throw new Error('harness must not create a duplicated handler (Deno.serve)');
+  return true;
+});
+check('real_delivery_harness_no_production_bypass', () => {
+  const src = readFileSync(join(ROOT, 'tests/webhook-real-delivery.test.mjs'), 'utf8');
+  // Must not override the canary flag or bypass production guards
+  if (src.includes('PG_CANARY_CERT_OVERRIDE')) throw new Error('harness must not use PG_CANARY_CERT_OVERRIDE');
+  if (src.includes('CANARY_ENABLED = true')) throw new Error('harness must not set CANARY_ENABLED = true');
+  return true;
+});
+check('real_delivery_harness_ownership_from_bindings', () => {
+  const src = readFileSync(join(ROOT, 'tests/webhook-real-delivery.test.mjs'), 'utf8');
+  // Canary ownership must derive from reservation_payment_bindings, never Stripe metadata
+  if (!src.includes('reservation_payment_bindings')) throw new Error('harness must reference reservation_payment_bindings for canary ownership');
+  return true;
+});
+check('real_delivery_runner_no_live_key', () => {
+  const src = readFileSync(join(ROOT, 'tests/run-webhook-real-delivery.mjs'), 'utf8');
+  if (src.includes('STRIPELIVESECRETKEY')) throw new Error('runner must not read STRIPELIVESECRETKEY');
+  if (!src.includes('sk_test_')) throw new Error('runner must verify sk_test_ before use');
+  return true;
+});
+check('real_delivery_runner_checks_dedicated_endpoint', () => {
+  const src = readFileSync(join(ROOT, 'tests/run-webhook-real-delivery.mjs'), 'utf8');
+  if (!src.includes('STRIPE_WEBHOOK_SECRET_TEST')) throw new Error('runner must check for STRIPE_WEBHOOK_SECRET_TEST');
+  if (!src.includes('WEBHOOK_TEST_ENDPOINT_URL')) throw new Error('runner must check for WEBHOOK_TEST_ENDPOINT_URL');
+  return true;
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 // NOT YET TESTED: SQL parse/compile and real PostgreSQL runtime
 // ═══════════════════════════════════════════════════════════════════════════
 console.log('\n── NOT YET TESTED ──');
