@@ -1,7 +1,7 @@
 # authority_v1 Reserve/Release Canary — Certification Manifest
 
-**Date:** 2026-08-21 (last recertified 2026-08-27 — P0-01L-CANARY-CERTIFIED)
-**Status:** ✅ CERTIFIED — Flag OFF, maintenance ON, zero synthetic rows. Tests run this session (P0-01M): transfer-canary 16/16 (74 assertions), cancel-purchase-canary 20/20 (146 assertions), payment-saga-cancel 16/16 (59 assertions), authority-contract 115/115, build exit 0, scoped lint 0 errors. Current gate: 394/394 assertions. Previously certified (not re-run this session): confirm-canary 16/16, capture-finalize 80/80, abort-canary 103/103, protections 7/7, wiring 5/5, capture-canary 12/12, real-stripe 47/47, webhook-ingress 20/20, webhook-processor 19/19. Trusted dependency injection (no env/global override), transfer-state foundation certified (seller-reported only, provider delivery not verified, auto-relist disabled)
+**Date:** 2026-08-21 (last recertified 2026-08-31 — P0-01P-REAL-STRIPE-TEST-ABORT-CERTIFIED)
+**Status:** ✅ CERTIFIED — Flag OFF, maintenance ON, zero synthetic rows. Tests run this session (P0-01P): real-Stripe abort 92/92, abort-canary 103/103, payment-saga-cancel 59/59, authority-contract 163/163, build exit 0, scoped lint 0 errors. Current targeted gate: 417/417 assertions. Previously certified (not re-run this session): confirm-canary 16/16, capture-finalize 80/80, protections 7/7, wiring 5/5, capture-canary 12/12, real-stripe-capture 47/47, webhook-ingress 20/20, webhook-processor 19/19, transfer-canary 74/74, cancel-purchase-canary 146/146, cancel-purchase-real-stripe 129/129. Trusted dependency injection (no env/global override), transfer-state foundation certified (seller-reported only, provider delivery not verified, auto-relist disabled)
 
 ---
 
@@ -18,7 +18,7 @@
 ### Disqualified (financial side effects — NOT canary-eligible)
 | Entry Point | Reason |
 |---|---|
-| `abortCheckout` | **Excluded — financial + no eligible non-financial release.** Cancels Stripe PI (entry.ts L80-88: `stripe.paymentIntents.cancel`). Reservation release at L119-133 is embedded in the same handler that cancels the PI — cannot be separated without splitting the financial operation. No canary guard in `canaryGuard.js`. |
+| `abortCheckout` | **CANARY-WIRED / REAL STRIPE TEST-MODE CERTIFIED / LIVE STRIPE NOT CERTIFIED / FLAG OFF** — See §17 below |
 | `cleanupAbandonedCheckouts` | **Excluded — financial + no reservation release performed.** Phase 1 cancels Stripe PIs (cleanupOrchestrator.js L166: `stripe.paymentIntents.cancel`). Phase 2 recovery explicitly does NOT clear reservation fields — `Listing.update({ status: 'active', hidden_reason: null })` only (L423); post-verify requires `reservation_token === null` (L448). No reservation release exists in this function to route. |
 | `capturePayment` | **CANARY-WIRED / REAL STRIPE TEST-MODE CERTIFIED / LIVE STRIPE NOT CERTIFIED / FLAG OFF** — See §11 below |
 | `stripeWebhook` | **CANARY-WIRED / INGRESS CERTIFIED / PROCESSING CERTIFIED / REAL STRIPE WEBHOOK DELIVERY NOT CERTIFIED / FLAG OFF** — See §12–§13 below |
@@ -49,6 +49,8 @@
 | `tests/capture-canary-real-stripe.test.mjs` | P0-01J: Real Stripe TEST-MODE capture certification — exactly-one capture, replay, lost-response reconcile, livemode=false, mirror-failure isolation, cleanup (47/47 pass) |
 | `tests/webhook-canary-ingress.test.mjs` | P0-01K: Webhook ingress — signature verification, durable receipt, replay, conflict, concurrency, DB outage, flag-OFF, non-canary isolation, minimal envelope, grants, cleanup (20/20 pass) |
 | `tests/cancel-purchase-canary.test.mjs` | P0-01L: Cancel-purchase canary — buyer/admin authz, always-quarantine (false/true/missing/uncertain/race), provider failure, timeout→unknown→reconciliation, replay (no duplicate provider/incident/outbox/notification), concurrency, capture-in-flight rejection, captured-sale rejection, mirror+notification failure, flag-OFF/non-canary isolation, no-admin static proof, cleanup (146/146 pass) |
+| `tests/abort-canary-real-stripe.test.mjs` | P0-01P: Real Stripe TEST-MODE abort-checkout certification — exactly-one cancel, replay (0 additional Stripe calls), lost-response reconcile without recancel, concurrency, captured-payment protection, mirror-failure isolation, authorization denials, livemode=false, cleanup (92/92 pass) |
+| `tests/run-p0-01p-abort-real-stripe.mjs` | P0-01P: Runner for real-Stripe abort certification (verifies sk_test_, assembles deps, invokes harness) |
 | `tests/loaders/npm-compat-*.mjs` | Node.js ESM loader hook for Deno `npm:` specifiers in test imports |
 
 **No new backend functions created.** Function count: 50 (unchanged).
@@ -62,7 +64,7 @@ All three target entry points explicitly accounted for:
 | Entry Point | Status | Evidence |
 |---|---|---|
 | `processTransferReminders` | **INTEGRATED + TESTED** | Executable module tests (7/7) + AST wiring proof (5/5) |
-| `abortCheckout` | **EXCLUDED (financial)** | Code-path evidence: L80-88 cancels Stripe PI; release at L119-133 is inseparable |
+| `abortCheckout` | **CANARY-WIRED / REAL STRIPE TEST-MODE CERTIFIED** | See §17 below — real Stripe test-mode abort certified |
 | `cleanupAbandonedCheckouts` | **EXCLUDED (no release)** | Code-path evidence: Phase 2 explicitly does NOT clear reservation fields (L423, L448) |
 
 Both fail-closed protections pass executable tests:
@@ -146,7 +148,7 @@ Execution method: `tests/payment-saga-cancel.test.mjs` refactored as importable 
 | `releaseReservation` | UNCHANGED (P0-01E certified) | Canary-routed, authority_v1 authoritative |
 | `processTransferReminders` | UNCHANGED (P0-01E certified) | Canary-routed expired cleanup |
 | `reconcilePurchaseOutcomes` | UNCHANGED (P0-01E certified) | Outbox repair |
-| `abortCheckout` | **CANARY-WIRED / FAKE-PROVIDER CERTIFIED / REAL STRIPE NOT CERTIFIED / FLAG OFF** | See §8 below |
+| `abortCheckout` | **CANARY-WIRED / REAL STRIPE TEST-MODE CERTIFIED / LIVE STRIPE NOT CERTIFIED / FLAG OFF** | See §17 below |
 | `cleanupAbandonedCheckouts` | UNCHANGED (excluded) | No reservation release to route |
 | `capturePayment` | **CANARY-WIRED / REAL STRIPE TEST-MODE CERTIFIED / LIVE STRIPE NOT CERTIFIED / FLAG OFF** | See §11 below |
 | `stripeWebhook` | UNCHANGED | No authority_v1 integration |
@@ -1572,3 +1574,130 @@ P0-01N manifest label: **P0-01N-REAL-STRIPE-TEST-CANCEL-CERTIFIED / LIVE STRIPE 
 - **Flag OFF, maintenance ON.** The canary flag is default-OFF in production; the harness supplies `true` via trusted dependency injection only.
 - 50 backend functions, 32 authority functions, flag OFF, maintenance ON, 0 synthetic rows post-cleanup.
 - Current gate: **464/464 assertions** (real-Stripe 129, cancel-purchase-canary 150, payment-saga-cancel 59, authority-contract 126), build exit 0, scoped lint 0 errors.
+
+---
+
+## §17 — P0-01P: Real Stripe TEST-Mode Abort-Checkout Certification
+
+P0-01P manifest label: **P0-01P-REAL-STRIPE-TEST-ABORT-CERTIFIED / LIVE STRIPE NOT CERTIFIED / FLAG OFF**
+
+### 17.1 Scope
+
+Certifies the DEPLOYED `abortCheckout` canary path against the REAL Stripe API in TEST MODE only. The harness exercises the exact production routing seam — `maybeRouteCanaryAbort` (`base44/shared/abortCanaryOrchestrator.js`) — with the shared production cancel adapter (`base44/shared/stripeCancelProvider.js`, `createStripeCancelProvider`). No provider logic is duplicated or reimplemented in the harness. The harness never calls `runCanaryAbortSaga` directly.
+
+- **TEST MODE ONLY.** The runner verifies the Stripe key starts with `sk_test_` before use. `STRIPELIVESECRETKEY` is never read. No credential is printed, logged, returned, or exposed.
+- **Synthetic IDs only.** No real users, listings, purchases, cards, or money. All Stripe test PaymentIntents are manual-capture, tagged with metadata `{ pg_cert: 'P0-01P', purpose: 'canary_abort_cert' }`. Prebuilt test PaymentMethod `pm_card_visa` — no raw card data, no PCI payload.
+- **Flag stays OFF in production.** The canary-routing function accepts its enabled state as a trusted, caller-supplied dependency (`canaryEnabled`). The production handler supplies `isCanaryEnabled()` (the committed default-OFF flag); the harness supplies `true` directly. No environment variable, global, request field, header, or secret can override the flag.
+- **Executor secret for runtime authority, recorder secret for result recording, admin only for fixture setup and cleanup.** No admin fallback in the saga path. No database-role password was reset or altered.
+- **LIVE Stripe is NOT certified** (NEEDS_OWNER_ACTION). P0-01O webhook delivery work is preserved and untouched.
+
+### 17.2 Test Results — 417/417 Targeted Assertions
+
+| Suite | Assertions | Result |
+|---|---|---|
+| real-Stripe abort (P0-01P, NEW) | 92 | ✅ 92/92 PASS |
+| abort-canary (P0-01G) | 103 | ✅ 103/103 PASS |
+| payment-saga-cancel (P0-01F) | 59 | ✅ 59/59 PASS |
+| authority-contract (static, incl. 19 P0-01P checks) | 163 | ✅ 163/163 PASS |
+| **Targeted total** | **417** | **417/417 PASS** |
+
+- **Build:** `npm run build` exit 0.
+- **Scoped lint:** 5 changed files — 0 errors, 8 warnings (pre-existing unused-vars pattern).
+
+### 17.3 Real-Stripe Harness Scenarios (T0–T10)
+
+| Test | Scenario | Cancel POSTs | Retrieves | Outcome |
+|---|---|---|---|---|
+| T0 | Flag-OFF guard | 0 | 0 | 503 CANARY_DISABLED — production config cannot enter canary path, zero provider calls |
+| T1 | Successful abort | 1 | 1 | 200, canceled, released, livemode=false, exactly one Stripe cancel |
+| T2 | Identical replay | 0 (additional) | 0 (additional) | 200, replay=true; **0 additional Stripe calls** (1/1 figures are cumulative) |
+| T3 | Lost response → reconcile | 1 (first) + 0 (recon) | 1 (first) + 1 (recon) | first: cancel_unknown, recovery_blocked; recon: retrieved Stripe state, canceled, **no recancel** |
+| T4 | Concurrent ×20 aborts | 1 | 1 | Exactly one committed provider effect (one winner, rest CONFLICT) |
+| T5 | Captured PI | 0 | 1 | PI succeeded (not cancellable); 0 cancel POSTs — captured payment never incorrectly canceled |
+| T6 | Mirror failure | 1 | 1 | Authority released despite mirror failure; outbox created and retryable |
+| T7a | Non-admin rejection | 0 | 0 | 403 rejected before Stripe mutation; zero provider calls |
+| T7b | Conflicting replay | 0 (additional) | 0 (additional) | 200, replay=true; **0 additional Stripe calls** (1/1 figures are cumulative) |
+| T8 | Sold authority | 0 | 0 | 409 rejected before Stripe; sold listing never incorrectly released |
+| T9 | Safeguards | 1 | 1 | livemode=false, amount=100, currency=usd, PI identity bound, version progressed, idem key = `idem_cancel_<actionId>` |
+| T10 | Cleanup | — | — | All 7 authority_v1 tables empty |
+
+### 17.4 Provider Request Counts
+
+- **Stripe cancel POST total: 7** (T1:1 + T2:0 + T3-first:1 + T3-recon:0 + T4:1 + T5:0 + T6:1 + T7a:0 + T7b:0 + T8:0 + T9:1)
+- **Stripe retrieve total: 9** (T1:1 + T2:0 + T3-first:1 + T3-recon:1 + T4:1 + T5:1 + T6:1 + T7a:0 + T7b:0 + T8:0 + T9:1)
+
+**T2 and T7b:** 0 additional Stripe calls. Their 1/1 figures in the per-scenario log are cumulative (the initial call happened on the first attempt; the replay made zero additional calls).
+
+### 17.5 Certification Requirements Proven
+
+| # | Requirement | Proof |
+|---|---|---|
+| 1 | Flag OFF follows committed fallback path with zero mutation | T0: 503 CANARY_DISABLED, 0 cancel, 0 retrieve |
+| 2 | Successful abort: exactly one Stripe cancel, correct release, PI canceled | T1: cancelCount=1, authority available, PI canceled |
+| 3 | Identical replay: no additional Stripe call or side effect | T2: 0 additional cancel, 0 additional retrieve, no new ops/incidents/outbox/notifications |
+| 4 | Lost response → cancel_unknown; retry reconciles without recanceling | T3: first call cancel_unknown; recon retrieveCount=1, cancelCount=0 (retrieved state, did NOT recancel) |
+| 5 | Concurrent aborts: one committed provider effect | T4: 20 concurrent → cancelCount=1 (exactly one winner) |
+| 6 | Provider failure: fail-closed, no improper release | T5: captured PI → 0 cancel POSTs, not incorrectly canceled or released |
+| 7 | Mirror failure cannot undo authoritative result | T6: authority released despite mirror failure; outbox created and retryable |
+| 8 | Wrong buyer and conflicting replay rejected before Stripe | T7a: 403, 0 cancel, 0 retrieve; T7b: replay, 0 additional calls |
+| 9 | Captured/capture-in-flight payments never incorrectly canceled or released | T5: 0 cancel (succeeded PI); T8: 0 cancel (sold authority) |
+| 10 | PI identity, amount, currency, metadata, test-mode binding | T9: livemode=false, amount=100, currency=usd, PI identity bound, pg_cert=P0-01P metadata |
+| 11 | Cleanup: all seven authority_v1 tables empty | T10: all 7 tables at 0 rows |
+
+### 17.6 Sanitized Stripe Test Objects
+
+All 10 Stripe test PaymentIntents are `livemode: false`, tagged `metadata: { pg_cert: 'P0-01P', purpose: 'canary_abort_cert' }`. Only sanitized PaymentIntent IDs are reported:
+
+| Scenario | PaymentIntent ID | Final Status |
+|---|---|---|
+| T1 | `pi_3UAdGAEUwdSmJ9rr1NoqUAvC` | requires_capture → canceled |
+| T2 | `pi_3UAdGDEUwdSmJ9rr1mvFf0Wo` | requires_capture → canceled |
+| T3 | `pi_3UAdGFEUwdSmJ9rr0o72JjDZ` | requires_capture → canceled |
+| T4 | `pi_3UAdGIEUwdSmJ9rr1gQtyu3Z` | requires_capture → canceled |
+| T5 | `pi_3UAdGKEUwdSmJ9rr1X7Ox6t5` | succeeded (captured, not canceled) |
+| T6 | `pi_3UAdGNEUwdSmJ9rr0q0lBrq4` | requires_capture → canceled |
+| T7a | `pi_3UAdGQEUwdSmJ9rr0WPTwRYj` | requires_capture (untouched) |
+| T7b | `pi_3UAdGREUwdSmJ9rr1YH5nVUH` | requires_capture → canceled |
+| T8 | `pi_3UAdGTEUwdSmJ9rr0T8FYNRm` | succeeded (untouched) |
+| T9 | `pi_3UAdGWEUwdSmJ9rr1CrzFSgl` | requires_capture → canceled |
+
+### 17.7 Seven-Table Cleanup
+
+Post-test verification (T10): all seven `authority_v1` tables at 0 rows:
+
+| Table | Rows |
+|---|---|
+| `reservation_authority` | 0 |
+| `reservation_operations` | 0 |
+| `reservation_outbox` | 0 |
+| `reservation_payment_bindings` | 0 |
+| `payment_actions` | 0 |
+| `stripe_webhook_events` | 0 |
+| `operational_incidents` | 0 |
+
+### 17.8 Changed Files (P0-01P)
+
+| File | Change |
+|---|---|
+| `base44/shared/abortCanaryOrchestrator.js` | `maybeRouteCanaryAbort` accepts `canaryEnabled` DI (removed internal `isCanaryEnabled()` call); `runCanaryAbortSaga` adds `recovery_blocked` reconciliation via `resolveWebhookAction` (skip `begin_cancel`, retrieve Stripe state, record result); removed `isCanaryEnabled` import |
+| `base44/functions/abortCheckout/entry.ts` | Replaced inline `Deno.env.get('STRIPELIVESECRETKEY')` adapter with shared `createStripeCancelProvider(secrets.get('STRIPE_SECRET_KEY'))`; added `canaryEnabled: isCanaryEnabled()` DI; legacy path unchanged |
+| `tests/abort-canary-real-stripe.test.mjs` | NEW — 11-scenario real-Stripe harness exercising `maybeRouteCanaryAbort` with shared `createStripeCancelProvider` |
+| `tests/run-p0-01p-abort-real-stripe.mjs` | NEW — runner verifying `sk_test_` key, assembling deps, invoking harness |
+| `tests/authority-contract.test.mjs` | Added TEST 30 — 19 P0-01P static contract checks |
+| `src/docs/AUTHORITY_V1_CANARY_CERTIFICATION.md` | §17 (P0-01P certification), header, §1/§6/§7 table updates, §2 test-file list |
+
+### 17.9 Flag State
+
+`CANARY_ENABLED = false` (OFF) in `authCanary.js` — **unchanged**. The canary enabled state reaches the routing function ONLY as a trusted, caller-supplied dependency (`canaryEnabled`). The production handler supplies `isCanaryEnabled()` (the committed default-OFF flag); the harness supplies `true` directly. No environment variable, global, request field, header, or secret can override the flag.
+
+### 17.10 Conclusion
+
+P0-01P manifest label: **P0-01P-REAL-STRIPE-TEST-ABORT-CERTIFIED / LIVE STRIPE NOT CERTIFIED / FLAG OFF**
+
+- The deployed `abortCheckout` canary path is certified against the real Stripe API in test mode via the exact production routing seam (`maybeRouteCanaryAbort`) and shared cancel adapter (`createStripeCancelProvider`). No duplicated provider logic.
+- 7 cancel POSTs and 9 retrieves total across all scenarios. T2 and T7b made 0 additional Stripe calls (their 1/1 figures are cumulative).
+- `cancel_unknown` reconciliation retrieves Stripe state without recanceling. Concurrent aborts produce one committed provider effect. Wrong buyer and conflicting replay are rejected before Stripe mutation. Captured and capture-in-flight payments are never incorrectly canceled or released. PI identity, amount, currency, metadata, and test-mode binding are proven.
+- All seven `authority_v1` tables empty after cleanup.
+- Flag OFF, maintenance ON, 0 synthetic rows post-cleanup. No database-role password was altered.
+- LIVE Stripe is NOT certified (NEEDS_OWNER_ACTION). P0-01O webhook delivery work is preserved and untouched.
+- Current targeted gate: **417/417 assertions** (real-Stripe abort 92, abort-canary 103, payment-saga-cancel 59, authority-contract 163), build exit 0, scoped lint 0 errors.
