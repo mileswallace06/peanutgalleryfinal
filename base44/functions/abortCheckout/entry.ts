@@ -28,6 +28,8 @@ import { secrets } from 'base44:runtime';
 import Stripe from 'npm:stripe@14.21.0';
 import { isMaintenanceActive, maintenance503 } from '../../shared/maintenance.ts';
 import { getPurchasePrivate, getListingPrivate, upsertListingPrivate, alertPrivateWriteFailure } from '../../shared/privateData.ts';
+import { isCanaryEnabled } from '../../shared/authCanary.js';
+import { createStripeCancelProvider } from '../../shared/stripeCancelProvider.js';
 import { maybeRouteCanaryAbort } from '../../shared/abortCanaryOrchestrator.js';
 
 const CANCELLABLE_STATUSES = [
@@ -69,33 +71,14 @@ Deno.serve(async (req) => {
   if (listing && purchase) {
     const executorUrl = secrets.get('AUTHORITY_V1_DB_URL_DEV_EXECUTOR');
     const recorderUrl = secrets.get('AUTHORITY_V1_DB_URL_DEV_STRIPE_RECORDER');
-    const secretKey = Deno.env.get('STRIPELIVESECRETKEY');
-    const stripeAdapter = secretKey ? {
-      async cancelPaymentIntent(piId: string, idemKey: string) {
-        const stripe = new Stripe(secretKey);
-        try {
-          const pi = await stripe.paymentIntents.retrieve(piId);
-          if (CANCELLABLE_STATUSES.includes(pi.status)) {
-            try {
-              await stripe.paymentIntents.cancel(piId, { idempotencyKey: idemKey });
-              return { derived: 'succeeded' as const, raw: { status: 'canceled', pi_status: pi.status } };
-            } catch (e) {
-              return { derived: 'failed' as const, raw: { error: (e?.message || String(e)).slice(0, 200), pi_status: pi.status } };
-            }
-          }
-          if (pi.status === 'canceled') return { derived: 'succeeded' as const, raw: { status: 'already_canceled', pi_status: pi.status } };
-          if (pi.status === 'succeeded') return { derived: 'failed' as const, raw: { status: 'already_succeeded', pi_status: pi.status } };
-          return { derived: 'unknown' as const, raw: { pi_status: pi.status } };
-        } catch (e) {
-          return { derived: 'unknown' as const, raw: { error: (e?.message || String(e)).slice(0, 200) } };
-        }
-      },
-    } : null;
+    const secretKey = secrets.get('STRIPE_SECRET_KEY');
+    const stripeAdapter = secretKey ? createStripeCancelProvider(secretKey) : null;
 
     const canaryResult = await maybeRouteCanaryAbort({
       base44, user, body, listing, purchase,
       executorUrl, recorderUrl,
       stripeAdapter,
+      canaryEnabled: isCanaryEnabled(),
     });
     if (canaryResult) return Response.json(canaryResult.body, { status: canaryResult.status });
   }

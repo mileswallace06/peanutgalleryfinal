@@ -1379,6 +1379,111 @@ check('real_delivery_runner_checks_dedicated_endpoint', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// TEST 30: P0-01P abort-checkout real Stripe test-mode certification
+// ═══════════════════════════════════════════════════════════════════════════
+check('abort_real_stripe_harness_exists', () => {
+  const path = join(ROOT, 'tests/abort-canary-real-stripe.test.mjs');
+  if (!existsSync(path)) throw new Error('abort-canary-real-stripe.test.mjs not found');
+  return true;
+});
+check('abort_real_stripe_uses_seam', () => {
+  const src = readFileSync(join(ROOT, 'tests/abort-canary-real-stripe.test.mjs'), 'utf8');
+  if (!src.includes('maybeRouteCanaryAbort')) throw new Error('must import maybeRouteCanaryAbort (the production seam)');
+  return true;
+});
+check('abort_real_stripe_uses_shared_provider', () => {
+  const src = readFileSync(join(ROOT, 'tests/abort-canary-real-stripe.test.mjs'), 'utf8');
+  if (!src.includes('createStripeCancelProvider')) throw new Error('must import createStripeCancelProvider (shared production adapter)');
+  return true;
+});
+check('abort_real_stripe_no_direct_orchestrator', () => {
+  const src = readFileSync(join(ROOT, 'tests/abort-canary-real-stripe.test.mjs'), 'utf8');
+  if (/runCanaryAbortSaga\s*\(/.test(src)) throw new Error('must NOT call runCanaryAbortSaga directly (use the seam)');
+  return true;
+});
+check('abort_real_stripe_requires_test_key', () => {
+  const src = readFileSync(join(ROOT, 'tests/abort-canary-real-stripe.test.mjs'), 'utf8');
+  if (!src.includes('sk_test_')) throw new Error('harness must require sk_test_ (test mode only)');
+  return true;
+});
+check('abort_real_stripe_tags_p0_01p', () => {
+  const src = readFileSync(join(ROOT, 'tests/abort-canary-real-stripe.test.mjs'), 'utf8');
+  if (!src.includes("pg_cert: 'P0-01P'")) throw new Error('must tag Stripe objects with metadata.pg_cert=P0-01P');
+  if (!src.includes('canary_abort_cert')) throw new Error('must tag with purpose=canary_abort_cert');
+  return true;
+});
+check('abort_real_stripe_no_admin', () => {
+  const src = readFileSync(join(ROOT, 'tests/abort-canary-real-stripe.test.mjs'), 'utf8');
+  if (src.includes('authorityV1TestAdmin')) throw new Error('must not import admin client');
+  return true;
+});
+check('abort_real_stripe_no_live_key', () => {
+  const src = readFileSync(join(ROOT, 'tests/abort-canary-real-stripe.test.mjs'), 'utf8');
+  if (src.includes('STRIPELIVESECRETKEY')) throw new Error('must not read STRIPELIVESECRETKEY');
+  return true;
+});
+check('abort_real_stripe_no_flag_override', () => {
+  const src = readFileSync(join(ROOT, 'tests/abort-canary-real-stripe.test.mjs'), 'utf8');
+  if (src.includes('PG_CANARY_CERT_OVERRIDE')) throw new Error('must not use PG_CANARY_CERT_OVERRIDE');
+  if (src.includes('CANARY_ENABLED = true')) throw new Error('must not set CANARY_ENABLED = true');
+  return true;
+});
+check('abort_handler_uses_shared_provider', () => {
+  const src = readFileSync(join(ROOT, 'base44/functions/abortCheckout/entry.ts'), 'utf8');
+  if (!src.includes('createStripeCancelProvider')) throw new Error('handler must import createStripeCancelProvider');
+  if (!src.includes("secrets.get('STRIPE_SECRET_KEY')")) throw new Error('handler must use STRIPE_SECRET_KEY via base44:runtime');
+  return true;
+});
+check('abort_handler_no_live_key_canary', () => {
+  const src = readFileSync(join(ROOT, 'base44/functions/abortCheckout/entry.ts'), 'utf8');
+  // The canary route must not use STRIPELIVESECRETKEY (legacy path may still use it)
+  const canarySection = src.substring(0, src.indexOf('Legacy path'));
+  if (canarySection.includes('STRIPELIVESECRETKEY')) throw new Error('canary route must not use STRIPELIVESECRETKEY');
+  return true;
+});
+check('abort_handler_uses_canary_enabled_di', () => {
+  const src = readFileSync(join(ROOT, 'base44/functions/abortCheckout/entry.ts'), 'utf8');
+  if (!src.includes('isCanaryEnabled')) throw new Error('handler must import isCanaryEnabled');
+  if (!src.includes('canaryEnabled: isCanaryEnabled()')) throw new Error('handler must supply canaryEnabled: isCanaryEnabled() to the seam');
+  return true;
+});
+check('abort_orchestrator_accepts_canary_enabled_di', () => {
+  const src = readFileSync(join(ROOT, 'base44/shared/abortCanaryOrchestrator.js'), 'utf8');
+  if (!src.includes('deps.canaryEnabled')) throw new Error('orchestrator must accept canaryEnabled as DI');
+  return true;
+});
+check('abort_orchestrator_no_internal_isCanaryEnabled', () => {
+  const src = readFileSync(join(ROOT, 'base44/shared/abortCanaryOrchestrator.js'), 'utf8');
+  // The orchestrator must NOT call isCanaryEnabled() internally (use DI)
+  const codeLines = src.split('\n').filter(l => !l.trim().startsWith('*') && !l.trim().startsWith('//'));
+  const code = codeLines.join('\n');
+  if (/isCanaryEnabled\s*\(\)/.test(code)) throw new Error('orchestrator must NOT call isCanaryEnabled() internally (use DI)');
+  return true;
+});
+check('abort_orchestrator_has_reconciliation', () => {
+  const src = readFileSync(join(ROOT, 'base44/shared/abortCanaryOrchestrator.js'), 'utf8');
+  if (!src.includes('recovery_blocked')) throw new Error('orchestrator must handle recovery_blocked for reconciliation');
+  if (!src.includes('resolveWebhookAction')) throw new Error('orchestrator must use resolveWebhookAction for reconciliation');
+  if (!src.includes('skipBeginCancel')) throw new Error('orchestrator must skip begin_cancel on reconciliation');
+  return true;
+});
+check('abort_runner_exists', () => {
+  const path = join(ROOT, 'tests/run-p0-01p-abort-real-stripe.mjs');
+  if (!existsSync(path)) throw new Error('run-p0-01p-abort-real-stripe.mjs not found');
+  return true;
+});
+check('abort_runner_verifies_test_key', () => {
+  const src = readFileSync(join(ROOT, 'tests/run-p0-01p-abort-real-stripe.mjs'), 'utf8');
+  if (!src.includes('sk_test_')) throw new Error('runner must verify sk_test_ before use');
+  return true;
+});
+check('abort_runner_no_live_key', () => {
+  const src = readFileSync(join(ROOT, 'tests/run-p0-01p-abort-real-stripe.mjs'), 'utf8');
+  if (src.includes('STRIPELIVESECRETKEY')) throw new Error('runner must not read STRIPELIVESECRETKEY');
+  return true;
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 // NOT YET TESTED: SQL parse/compile and real PostgreSQL runtime
 // ═══════════════════════════════════════════════════════════════════════════
 console.log('\n── NOT YET TESTED ──');

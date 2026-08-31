@@ -23,7 +23,7 @@
  * Dependency-injected for testability. Tests inject mock clients + fake Stripe.
  */
 import { sha256Hex, canonicalEnvelope, genId, applyMirrorWithOutbox } from './canaryMirror.js';
-import { isCanaryEnabled, isCanaryListing } from './authCanary.js';
+import { isCanaryListing } from './authCanary.js';
 
 /**
  * Run the canary abort saga.
@@ -66,9 +66,8 @@ export async function runCanaryAbortSaga(deps) {
   if (!stripeAdapter) return { status: 500, body: { error: 'Stripe adapter required' } };
 
   // ── Generate stable IDs (or reuse provided ones for retry) ───────────────
-  const actionId = params.action_id || `act_abort_${purchaseId}_${genId()}`;
-  const stripeIdemKey = params.stripe_idempotency_key || `idem_abort_${actionId}`;
-  const operationId = `op_abort_${actionId}_${genId()}`;
+  let actionId = params.action_id || `act_abort_${purchaseId}_${genId()}`;
+  let stripeIdemKey = params.stripe_idempotency_key || `idem_abort_${actionId}`;
 
   // ── 1. Read authority state ──────────────────────────────────────────────
   let state;
@@ -88,43 +87,75 @@ export async function runCanaryAbortSaga(deps) {
 
   const expectedVersion = state.version;
 
-  // ── 2. begin_cancel via executor (supplies stable Stripe idempotency key) ─
-  const beginRequestHash = await sha256Hex(canonicalEnvelope({
-    op: 'begin_cancel', listing_id: listingId, expected_version: expectedVersion,
-    purchase_id: purchaseId, payment_intent_id: paymentIntentId,
-    buyer_user_id: buyerUserId, action_id: actionId, idem_key: stripeIdemKey,
-  }));
-
-  let beginResult;
-  try {
-    beginResult = await executorClient.beginCancel(
-      listingId, expectedVersion, purchaseId, paymentIntentId,
-      buyerUserId, expectedRevision, actionId, stripeIdemKey, operationId, beginRequestHash,
-    );
-  } catch (e) {
-    return { status: 500, body: { error: 'begin_cancel failed', code: 'BEGIN_CANCEL_ERROR' } };
+  // ── Reconciliation: recovery_blocked (cancel_unknown) → find existing action ──
+  // P0-01P: When recovery_blocked is true (from a prior cancel_unknown), the
+  // binding is in 'cancel_unknown' state and begin_cancel would reject it.
+  // Resolve the existing action via resolve_webhook_action and skip
+  // begin_cancel — the provider retrieves Stripe's actual state and the
+  // recorder reconciles the result. This mirrors the cancel-purchase saga.
+  let skipBeginCancel = false;
+  if (state.recovery_blocked === true) {
+    let resolved;
+    try {
+      resolved = await executorClient.resolveWebhookAction(paymentIntentId, 'payment_intent.canceled');
+    } catch (e) {
+      return { status: 500, body: { error: 'resolve_webhook_action failed', code: 'RESOLVE_FAILED' } };
+    }
+    if (!resolved?.ok) {
+      return { status: 409, body: { error: 'Reconciliation lookup failed', code: 'RECONCILE_LOOKUP_FAILED' } };
+    }
+    if (resolved.already_applied === true) {
+      return { status: 200, body: { ok: true, replay: true, action_id: resolved.action_id, authority: resolved } };
+    }
+    if (resolved.action_found === true && resolved.action_id) {
+      actionId = resolved.action_id;
+      stripeIdemKey = resolved.stripe_idempotency_key || `idem_abort_${actionId}`;
+      skipBeginCancel = true;
+    } else {
+      return { status: 409, body: { error: 'Authority is recovery_blocked but no existing cancel action found', code: 'NO_ACTION_TO_RECONCILE' } };
+    }
   }
 
-  if (!beginResult?.ok) {
-    // Structured conflict (OPERATION_ID_CONFLICT or ACTION_STATUS_INVALID)
-    return {
-      status: 409,
-      body: { error: 'begin_cancel conflict', code: beginResult?.code || 'CONFLICT', authority: beginResult },
-    };
-  }
+  if (!skipBeginCancel) {
+    // ── 2. begin_cancel via executor (supplies stable Stripe idempotency key) ─
+    const operationId = `op_abort_${actionId}_${genId()}`;
+    const beginRequestHash = await sha256Hex(canonicalEnvelope({
+      op: 'begin_cancel', listing_id: listingId, expected_version: expectedVersion,
+      purchase_id: purchaseId, payment_intent_id: paymentIntentId,
+      buyer_user_id: buyerUserId, action_id: actionId, idem_key: stripeIdemKey,
+    }));
 
-  // If this was an idempotent replay (cancel already requested), skip Stripe + record
-  // begin_cancel returns { ok: true, cancel_requested: true, replay: true/false }
-  if (beginResult.replay === true) {
-    return {
-      status: 200,
-      body: {
-        ok: true,
-        replay: true,
-        action_id: actionId,
-        authority: beginResult,
-      },
-    };
+    let beginResult;
+    try {
+      beginResult = await executorClient.beginCancel(
+        listingId, expectedVersion, purchaseId, paymentIntentId,
+        buyerUserId, expectedRevision, actionId, stripeIdemKey, operationId, beginRequestHash,
+      );
+    } catch (e) {
+      return { status: 500, body: { error: 'begin_cancel failed', code: 'BEGIN_CANCEL_ERROR' } };
+    }
+
+    if (!beginResult?.ok) {
+      // Structured conflict (OPERATION_ID_CONFLICT or ACTION_STATUS_INVALID)
+      return {
+        status: 409,
+        body: { error: 'begin_cancel conflict', code: beginResult?.code || 'CONFLICT', authority: beginResult },
+      };
+    }
+
+    // If this was an idempotent replay (cancel already requested), skip Stripe + record
+    // begin_cancel returns { ok: true, cancel_requested: true, replay: true/false }
+    if (beginResult.replay === true) {
+      return {
+        status: 200,
+        body: {
+          ok: true,
+          replay: true,
+          action_id: actionId,
+          authority: beginResult,
+        },
+      };
+    }
   }
 
   // ── 3. Stripe cancellation OUTSIDE Postgres ──────────────────────────────
@@ -302,7 +333,7 @@ export async function maybeRouteCanaryAbort(deps) {
       body: { error: 'Canary requires admin', code: 'CANARY_ADMIN_REQUIRED' },
     };
   }
-  if (!isCanaryEnabled()) {
+  if (deps.canaryEnabled !== true) {
     return {
       status: 503,
       body: { error: 'Canary integration is disabled.', code: 'CANARY_DISABLED' },
