@@ -925,6 +925,96 @@ export async function runAllTests(deps) {
         canaryNoDenoEnv, canaryNoLiveKey, handlerUsesExecutorUrl });
   }
 
+  // ── T15: Conflicting PaymentIntent (same purchase, different PI) → 409 ───
+  // Regression: a second PI for the same purchase must return a structured
+  // 409 PAYMENT_BINDING_CONFLICT, not throw a PK violation (500). Proves no
+  // second binding, no mutation, and the initial binding is unchanged.
+  {
+    const listingId = `canary_confirm_t15_${await genId()}`;
+    syntheticIds.add(listingId);
+    const purchaseId = `pur_${listingId}`;
+    const piId1 = `pi1_${listingId}`;
+    const piId2 = `pi2_${listingId}`;
+    const buyerId = `buyer_${listingId}`;
+    const sellerId = `seller_${listingId}`;
+    const token = `tok_${listingId}`;
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+
+    await setupReservedListing(adminSql, listingId, sellerId, buyerId, token, expiresAt);
+
+    // First call with PI1 → bind succeeds
+    const entities1 = makeMockEntities();
+    entities1._store.listings.set(listingId, { id: listingId, notes: '[AUTH_CANARY]', event_id: 'evt_1' });
+    entities1._store.purchases.set(purchaseId, {
+      id: purchaseId, listing_id: listingId, buyer_email: 'buyer@example.com',
+      seller_email: 'seller@example.com', amount: 100, reservation_token: token,
+      payment_intent_id: piId1, transfer_status: 'pending_transfer',
+    });
+    entities1._store.purchasePrivates.set(`pp_${purchaseId}`, {
+      id: `pp_${purchaseId}`, purchase_id: purchaseId, listing_id: listingId,
+      buyer_email: 'buyer@example.com', seller_email: 'seller@example.com',
+      payment_intent_id: piId1, reservation_token: token,
+    });
+    const stripe1 = makeFakeStripe({
+      amount: 10000,
+      metadata: { purchase_id: purchaseId, listing_id: listingId, buyer_email: 'buyer@example.com', seller_email: 'seller@example.com', reservation_token: token },
+    });
+
+    const result1 = await runCanaryConfirmSaga({
+      entities: entities1, user: { id: buyerId, email: 'buyer@example.com', role: 'admin' },
+      executorClient, stripeAdapter: stripe1,
+      params: {
+        listing_id: listingId, purchase_id: purchaseId, payment_intent_id: piId1,
+        buyer_user_id: buyerId, buyer_email: 'buyer@example.com', seller_email: 'seller@example.com',
+        reservation_token: token, amount: 100,
+      },
+    });
+
+    const bindingCountAfterFirst = await getBindingCount(adminSql, purchaseId);
+
+    // Second call with PI2 (same purchase, different PI) → 409
+    const entities2 = makeMockEntities();
+    entities2._store.listings.set(listingId, { id: listingId, notes: '[AUTH_CANARY]', event_id: 'evt_1' });
+    entities2._store.purchases.set(purchaseId, {
+      id: purchaseId, listing_id: listingId, buyer_email: 'buyer@example.com',
+      seller_email: 'seller@example.com', amount: 100, reservation_token: token,
+      payment_intent_id: piId2, transfer_status: 'pending_transfer',
+    });
+    entities2._store.purchasePrivates.set(`pp_${purchaseId}`, {
+      id: `pp_${purchaseId}`, purchase_id: purchaseId, listing_id: listingId,
+      buyer_email: 'buyer@example.com', seller_email: 'seller@example.com',
+      payment_intent_id: piId2, reservation_token: token,
+    });
+    const stripe2 = makeFakeStripe({
+      amount: 10000,
+      metadata: { purchase_id: purchaseId, listing_id: listingId, buyer_email: 'buyer@example.com', seller_email: 'seller@example.com', reservation_token: token },
+    });
+
+    const result2 = await runCanaryConfirmSaga({
+      entities: entities2, user: { id: buyerId, email: 'buyer@example.com', role: 'admin' },
+      executorClient, stripeAdapter: stripe2,
+      params: {
+        listing_id: listingId, purchase_id: purchaseId, payment_intent_id: piId2,
+        buyer_user_id: buyerId, buyer_email: 'buyer@example.com', seller_email: 'seller@example.com',
+        reservation_token: token, amount: 100,
+      },
+    });
+
+    const bindingCountAfterSecond = await getBindingCount(adminSql, purchaseId);
+    const bindingRows = await adminSql`SELECT payment_intent_id, capture_state FROM authority_v1.reservation_payment_bindings WHERE purchase_id = ${purchaseId}`;
+    const initialBindingUnchanged = bindingRows[0]?.payment_intent_id === piId1 && bindingRows[0]?.capture_state === 'authorized';
+
+    record('T15: Conflicting PI → 409 PAYMENT_BINDING_CONFLICT, no second mutation',
+      result1.status === 200 && result1.body?.bound === true &&
+      result2.status === 409 && result2.body?.code === 'PAYMENT_BINDING_CONFLICT' &&
+      bindingCountAfterFirst === 1 && bindingCountAfterSecond === 1 &&
+      initialBindingUnchanged,
+      { r1Status: result1.status, r2Status: result2.status, r2Code: result2.body?.code,
+        bindingCountAfterFirst, bindingCountAfterSecond, initialBindingUnchanged });
+
+    await cleanupListing(adminSql, listingId);
+  }
+
   // ── Cleanup ────────────────────────────────────────────────────────────────
   await cleanupAll();
 
