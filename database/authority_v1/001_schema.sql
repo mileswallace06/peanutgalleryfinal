@@ -6,6 +6,7 @@
 -- INSTALLATION ORDER:
 --   001_schema.sql        — tables, constraints, indexes
 --   002_functions.sql     — all stored functions (authority + worker helpers)
+--   002c_proof_assessment.sql — P0-01S advisory proof assessment function
 --   003_workers.sql       — worker claiming, lease recovery, exhausted escalation
 --   004_roles_and_grants.sql — roles, ownership transfer, grants, revokes
 --

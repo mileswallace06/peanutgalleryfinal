@@ -62,6 +62,7 @@ function check(name, fn, classification = 'static contract check') {
 // ── File paths (corrected order) ───────────────────────────────────────────
 const SQL_SCHEMA = join(ROOT, 'database/authority_v1/001_schema.sql');
 const SQL_FUNCTIONS = join(ROOT, 'database/authority_v1/002_functions.sql');
+const SQL_PROOF = join(ROOT, 'database/authority_v1/002c_proof_assessment.sql');
 const SQL_WORKERS = join(ROOT, 'database/authority_v1/003_workers.sql');
 const SQL_ROLES = join(ROOT, 'database/authority_v1/004_roles_and_grants.sql');
 const DOC = join(ROOT, 'src/docs/ATOMICITY_ARCHITECTURE_DECISION.md');
@@ -69,6 +70,7 @@ const DOC = join(ROOT, 'src/docs/ATOMICITY_ARCHITECTURE_DECISION.md');
 // ── Load file contents ─────────────────────────────────────────────────────
 const schema = existsSync(SQL_SCHEMA) ? readFileSync(SQL_SCHEMA, 'utf8') : '';
 const functions = existsSync(SQL_FUNCTIONS) ? readFileSync(SQL_FUNCTIONS, 'utf8') : '';
+const proofFn = existsSync(SQL_PROOF) ? readFileSync(SQL_PROOF, 'utf8') : '';
 const workers = existsSync(SQL_WORKERS) ? readFileSync(SQL_WORKERS, 'utf8') : '';
 const roles = existsSync(SQL_ROLES) ? readFileSync(SQL_ROLES, 'utf8') : '';
 const doc = existsSync(DOC) ? readFileSync(DOC, 'utf8') : '';
@@ -1732,6 +1734,177 @@ check('bind_payment_intent_declares_returning_variable', () => {
   if (!fnBody.includes('v_inserted_purchase_id')) {
     throw new Error('bind_payment_intent must declare v_inserted_purchase_id for RETURNING');
   }
+  return true;
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TEST 34: P0-01S advisory proof assessment — file layout, conflict detection, advisory-only
+// ═══════════════════════════════════════════════════════════════════════════
+// Static checks proving: transfer functions restored to 002_functions.sql,
+// proof function isolated in 002c_proof_assessment.sql, different-proof conflict
+// detection (PROOF_ASSET_CONFLICT), advisory-only (no transfer_state/version change),
+// SECURITY DEFINER, executor grant, orchestrator + handler wiring.
+check('proof_assessment_file_exists', () => {
+  if (!existsSync(SQL_PROOF)) throw new Error('002c_proof_assessment.sql not found');
+  return true;
+});
+check('proof_assessment_old_002b_deleted', () => {
+  const oldPath = join(ROOT, 'database/authority_v1/002b_transfer_functions.sql');
+  if (existsSync(oldPath)) throw new Error('002b_transfer_functions.sql must be deleted (transfer functions restored to 002)');
+  return true;
+});
+check('proof_function_in_002c_not_002', () => {
+  if (!proofFn.includes('CREATE OR REPLACE FUNCTION authority_v1.record_transfer_proof_assessment')) {
+    throw new Error('record_transfer_proof_assessment not found in 002c_proof_assessment.sql');
+  }
+  // Must NOT be in 002_functions.sql (only in 002c)
+  if (functions.includes('CREATE OR REPLACE FUNCTION authority_v1.record_transfer_proof_assessment')) {
+    throw new Error('record_transfer_proof_assessment must NOT be in 002_functions.sql (only in 002c)');
+  }
+  return true;
+});
+check('proof_function_security_definer', () => {
+  const fnStart = proofFn.indexOf('CREATE OR REPLACE FUNCTION authority_v1.record_transfer_proof_assessment');
+  const fnEnd = proofFn.indexOf('$$;', fnStart);
+  if (fnStart < 0 || fnEnd < 0) throw new Error('function not found');
+  const fnBody = proofFn.substring(fnStart, fnEnd);
+  if (!fnBody.includes('SECURITY DEFINER')) throw new Error('must be SECURITY DEFINER');
+  if (!fnBody.includes('SET search_path = authority_v1, pg_temp')) throw new Error('must harden search_path');
+  return true;
+});
+check('proof_function_has_conflict_detection', () => {
+  const fnStart = proofFn.indexOf('CREATE OR REPLACE FUNCTION authority_v1.record_transfer_proof_assessment');
+  const fnEnd = proofFn.indexOf('$$;', fnStart);
+  const fnBody = proofFn.substring(fnStart, fnEnd);
+  // Must detect a different proof asset and reject with PROOF_ASSET_CONFLICT
+  if (!fnBody.includes('PROOF_ASSET_CONFLICT')) {
+    throw new Error('must return PROOF_ASSET_CONFLICT when a different proof asset is already assessed');
+  }
+  // Must compare existing proof_asset_id_hash against the new one
+  if (!fnBody.includes('proof_asset_id_hash <> p_proof_asset_id_hash')) {
+    throw new Error('must compare existing vs new proof_asset_id_hash for conflict detection');
+  }
+  // Must NOT silently overwrite — the conflict check must come BEFORE the UPDATE
+  const conflictIdx = fnBody.indexOf('PROOF_ASSET_CONFLICT');
+  const updateIdx = fnBody.indexOf('SET proof_assessment_state = p_assessment_state');
+  if (conflictIdx < 0 || updateIdx < 0) throw new Error('conflict check or UPDATE not found');
+  if (conflictIdx > updateIdx) {
+    throw new Error('PROOF_ASSET_CONFLICT check must come BEFORE the binding UPDATE (prevent silent overwrite)');
+  }
+  return true;
+});
+check('proof_function_advisory_only_no_transfer_state_change', () => {
+  const fnStart = proofFn.indexOf('CREATE OR REPLACE FUNCTION authority_v1.record_transfer_proof_assessment');
+  const fnEnd = proofFn.indexOf('$$;', fnStart);
+  const fnBody = proofFn.substring(fnStart, fnEnd);
+  // Must NOT set transfer_state on reservation_authority
+  const authUpdateMatch = fnBody.match(/UPDATE reservation_authority[\s\S]*?WHERE/);
+  if (authUpdateMatch && authUpdateMatch[0].includes('transfer_state')) {
+    throw new Error('must NOT change transfer_state on reservation_authority (advisory only)');
+  }
+  // Must NOT increment version
+  if (fnBody.includes('v_new_version := v_authority.version + 1')) {
+    throw new Error('must NOT increment version (advisory only — no lifecycle transition)');
+  }
+  // Must explicitly report transfer_state_unchanged: true
+  if (!fnBody.includes("'transfer_state_unchanged', true")) {
+    throw new Error('must report transfer_state_unchanged: true in result');
+  }
+  if (!fnBody.includes("'version_unchanged', true")) {
+    throw new Error('must report version_unchanged: true in result');
+  }
+  return true;
+});
+check('proof_function_locks_authority_before_binding', () => {
+  const fnStart = proofFn.indexOf('CREATE OR REPLACE FUNCTION authority_v1.record_transfer_proof_assessment');
+  const fnEnd = proofFn.indexOf('$$;', fnStart);
+  const fnBody = proofFn.substring(fnStart, fnEnd);
+  // Must lock reservation_authority FOR UPDATE before binding (same lock order)
+  const authLockIdx = fnBody.indexOf('FROM reservation_authority');
+  const bindingLockIdx = fnBody.indexOf('FROM reservation_payment_bindings');
+  if (authLockIdx < 0 || bindingLockIdx < 0) throw new Error('must lock both authority and binding');
+  if (authLockIdx > bindingLockIdx) {
+    throw new Error('must lock reservation_authority BEFORE reservation_payment_bindings (same lock order as begin_transfer)');
+  }
+  return true;
+});
+check('proof_function_granted_to_executor', () => {
+  if (!roles.includes('GRANT EXECUTE ON FUNCTION authority_v1.record_transfer_proof_assessment')) {
+    throw new Error('record_transfer_proof_assessment not granted to authority_executor');
+  }
+  // Must NOT be granted to recorder (advisory assessment is executor-only)
+  const recorderGrantPattern = /GRANT EXECUTE ON FUNCTION authority_v1\.record_transfer_proof_assessment[^\n]*authority_stripe_recorder/;
+  if (recorderGrantPattern.test(roles)) {
+    throw new Error('record_transfer_proof_assessment must NOT be granted to recorder (executor-only)');
+  }
+  return true;
+});
+check('proof_orchestrator_exists', () => {
+  const path = join(ROOT, 'base44/shared/verifyTransferProofCanaryOrchestrator.js');
+  if (!existsSync(path)) throw new Error('verifyTransferProofCanaryOrchestrator.js not found');
+  return true;
+});
+check('proof_orchestrator_accepts_canary_enabled_di', () => {
+  const src = readFileSync(join(ROOT, 'base44/shared/verifyTransferProofCanaryOrchestrator.js'), 'utf8');
+  if (!src.includes('deps.canaryEnabled')) throw new Error('orchestrator must accept canaryEnabled as DI');
+  const codeLines = src.split('\n').filter(l => !l.trim().startsWith('*') && !l.trim().startsWith('//'));
+  const code = codeLines.join('\n');
+  if (/isCanaryEnabled\s*\(\)/.test(code)) throw new Error('orchestrator must NOT call isCanaryEnabled() internally (use DI)');
+  return true;
+});
+check('proof_orchestrator_no_admin', () => {
+  const src = readFileSync(join(ROOT, 'base44/shared/verifyTransferProofCanaryOrchestrator.js'), 'utf8');
+  if (src.includes('authorityV1TestAdmin')) throw new Error('must not import admin client');
+  if (src.includes('AUTHORITY_DB_URL_DEV_ADMIN')) throw new Error('must not reference admin URL');
+  if (src.includes('Deno.env')) throw new Error('must not use Deno.env');
+  return true;
+});
+check('proof_orchestrator_executor_only', () => {
+  const src = readFileSync(join(ROOT, 'base44/shared/verifyTransferProofCanaryOrchestrator.js'), 'utf8');
+  if (!src.includes('recordTransferProofAssessment')) throw new Error('must use executor recordTransferProofAssessment');
+  if (src.includes('createAuthorityV1StripeRecorderClient')) throw new Error('must NOT use recorder (assessment is executor-only)');
+  return true;
+});
+check('proof_orchestrator_never_changes_transfer_state', () => {
+  const src = readFileSync(join(ROOT, 'base44/shared/verifyTransferProofCanaryOrchestrator.js'), 'utf8');
+  // Must NOT set transfer_state or call beginTransfer/recordSellerReport (advisory only)
+  if (src.includes('beginTransfer')) throw new Error('must NOT call beginTransfer (advisory only — no transfer lifecycle)');
+  if (src.includes('recordSellerReport')) throw new Error('must NOT call recordSellerReport (advisory only)');
+  // Must report transfer_state_unchanged: true
+  if (!src.includes('transfer_state_unchanged: true')) throw new Error('must report transfer_state_unchanged: true');
+  return true;
+});
+check('proof_orchestrator_uses_outbox_on_mirror_failure', () => {
+  const src = readFileSync(join(ROOT, 'base44/shared/verifyTransferProofCanaryOrchestrator.js'), 'utf8');
+  if (!src.includes('CanaryMirrorOutbox')) throw new Error('must use CanaryMirrorOutbox for durable mirror retry');
+  if (!src.includes("'proof_assessment'")) throw new Error('must use proof_assessment operation type for outbox');
+  return true;
+});
+check('proof_handler_wiring', () => {
+  const src = readFileSync(join(ROOT, 'base44/functions/verifyTransferProof/entry.ts'), 'utf8');
+  if (!src.includes('maybeRouteCanaryProofAssessment')) throw new Error('handler must import maybeRouteCanaryProofAssessment');
+  if (!src.includes('isCanaryEnabled')) throw new Error('handler must import isCanaryEnabled');
+  if (!src.includes("secrets.get('AUTHORITY_V1_DB_URL_DEV_EXECUTOR')")) throw new Error('handler must use base44:runtime for executor URL');
+  if (src.includes('authorityV1TestAdmin')) throw new Error('handler must not import admin client');
+  return true;
+});
+check('proof_handler_canary_before_maintenance', () => {
+  const src = readFileSync(join(ROOT, 'base44/functions/verifyTransferProof/entry.ts'), 'utf8');
+  const canaryIdx = src.indexOf('maybeRouteCanaryProofAssessment');
+  const maintenanceIdx = src.indexOf('isMaintenanceActive()');
+  if (canaryIdx < 0 || maintenanceIdx < 0) throw new Error('both canary and maintenance checks must exist');
+  if (canaryIdx > maintenanceIdx) throw new Error('canary route must be before maintenance gate');
+  return true;
+});
+check('proof_executor_client_has_assessment', () => {
+  const src = readFileSync(join(ROOT, 'base44/shared/authorityV1Client.js'), 'utf8');
+  if (!src.includes('recordTransferProofAssessment')) throw new Error('executor client must expose recordTransferProofAssessment');
+  return true;
+});
+check('proof_installation_order_updated', () => {
+  if (!schema.includes('002c_proof_assessment.sql')) throw new Error('001_schema.sql installation order must reference 002c_proof_assessment.sql');
+  if (!functions.includes('002c_proof_assessment')) throw new Error('002_functions.sql installation order must reference 002c_proof_assessment');
+  if (!roles.includes('002c_proof_assessment')) throw new Error('004_roles_and_grants.sql installation order must reference 002c_proof_assessment');
   return true;
 });
 

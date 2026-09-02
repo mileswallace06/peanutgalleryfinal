@@ -56,11 +56,31 @@ Deno.serve(async (req) => {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-    if (isMaintenanceActive()) return maintenance503('AI proof verification is temporarily unavailable for scheduled maintenance.');
-    if (!isProofScanningEnabled()) return proofScannerUnavailable503();
-
     const body = await req.json();
     const { purchase_id, proof_asset_id, force_reprocess } = body;
+
+    // ── Canary guard (admin + synthetic [AUTH_CANARY] listing only) ─────────
+    // Wired BEFORE the maintenance gate and legacy writes. Synthetic listings
+    // never reach the normal path. Returns null for normal listings → fall through.
+    {
+      let canaryPurchase: any = null;
+      try { const [p] = await base44.asServiceRole.entities.Purchase.filter({ id: purchase_id }); canaryPurchase = p || null; } catch (_) {}
+      let canaryListing: any = null;
+      if (canaryPurchase?.listing_id) { try { const [l] = await base44.asServiceRole.entities.Listing.filter({ id: canaryPurchase.listing_id }); canaryListing = l || null; } catch (_) {} }
+      if (canaryListing && canaryPurchase) {
+        const executorUrl = secrets.get('AUTHORITY_V1_DB_URL_DEV_EXECUTOR');
+        const canaryResult = await maybeRouteCanaryProofAssessment({
+          base44, user, body, listing: canaryListing, purchase: canaryPurchase,
+          executorUrl,
+          canaryEnabled: isCanaryEnabled(),
+        });
+        if (canaryResult) return Response.json(canaryResult.body, { status: canaryResult.status });
+      }
+    }
+
+    // ── Legacy path (non-canary traffic + flag-OFF) — unchanged ──────────────
+    if (isMaintenanceActive()) return maintenance503('AI proof verification is temporarily unavailable for scheduled maintenance.');
+    if (!isProofScanningEnabled()) return proofScannerUnavailable503();
 
     if (!purchase_id || !proof_asset_id) {
       return Response.json({ error: 'purchase_id and proof_asset_id are required' }, { status: 400 });

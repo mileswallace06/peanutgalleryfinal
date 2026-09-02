@@ -2,7 +2,7 @@
 -- authority_v1 — Roles and Grants (004)
 -- Source of truth for database security boundaries.
 --
--- INSTALLATION ORDER: 001_schema → 002_functions → 003_workers → 004_roles
+-- INSTALLATION ORDER: 001_schema → 002_functions → 002c_proof_assessment → 003_workers → 004_roles
 -- All functions (including workers) exist before this file grants EXECUTE.
 --
 -- Principles:
