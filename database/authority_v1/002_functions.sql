@@ -2402,6 +2402,16 @@ BEGIN
       last_operation_payload_hash = p_request_hash, updated_at = now()
   WHERE listing_id = p_listing_id AND version = p_expected_version
     AND transfer_state = 'not_started';
+
+  -- Frozen-version invariant: begin_transfer advances the authority version
+  -- while lifecycle_state remains 'frozen'. Any non-terminal payment binding
+  -- must track this so record_capture_result's AUTHORITY_FROZEN_MISMATCH
+  -- check still passes when capture is composed after the transfer sequence.
+  UPDATE reservation_payment_bindings
+  SET frozen_authority_version = v_new_version, updated_at = now()
+  WHERE listing_id = p_listing_id
+    AND capture_state IN ('authorized', 'in_flight', 'capture_unknown');
+
   UPDATE reservation_operations SET status = 'committed', committed_version = v_new_version,
     result_json = jsonb_build_object('ok', true, 'transfer_state', 'in_progress',
       'version', v_new_version)::TEXT,
@@ -2475,6 +2485,16 @@ BEGIN
       last_operation_payload_hash = p_request_hash, updated_at = now()
   WHERE listing_id = p_listing_id AND version = p_expected_version
     AND transfer_state = 'in_progress';
+
+  -- Frozen-version invariant: record_seller_report advances the authority
+  -- version while lifecycle_state remains 'frozen'. Any non-terminal payment
+  -- binding must track this so record_capture_result's AUTHORITY_FROZEN_MISMATCH
+  -- check still passes when capture is composed after the transfer sequence.
+  UPDATE reservation_payment_bindings
+  SET frozen_authority_version = v_new_version, updated_at = now()
+  WHERE listing_id = p_listing_id
+    AND capture_state IN ('authorized', 'in_flight', 'capture_unknown');
+
   UPDATE reservation_operations SET status = 'committed', committed_version = v_new_version,
     result_json = jsonb_build_object('ok', true, 'transfer_state', 'seller_reported_sent',
       'version', v_new_version, 'provider_verified', false)::TEXT,

@@ -373,23 +373,78 @@ export async function runCanaryBuyerConfirmSaga(deps) {
   }
 
   // ── 8. Run capture saga ──────────────────────────────────────────────────
-  const captureResult = await runCanaryCaptureSaga({
-    entities,
-    user,
-    executorClient,
-    recorderClient,
-    stripeAdapter,
-    params: {
-      listing_id: listingId,
-      purchase_id: purchaseId,
-      payment_intent_id: paymentIntentId,
-      buyer_user_id: authoritativeBuyerUserId,
-      expected_revision: expectedRevision,
-      action_id: actionId,
-      stripe_idempotency_key: stripeIdemKey,
-      simulate_mirror_failure: params.simulate_mirror_failure === true,
-    },
-  });
+  let captureResult;
+  let captureThrew = false;
+  let captureError = null;
+  try {
+    captureResult = await runCanaryCaptureSaga({
+      entities,
+      user,
+      executorClient,
+      recorderClient,
+      stripeAdapter,
+      params: {
+        listing_id: listingId,
+        purchase_id: purchaseId,
+        payment_intent_id: paymentIntentId,
+        buyer_user_id: authoritativeBuyerUserId,
+        expected_revision: expectedRevision,
+        action_id: actionId,
+        stripe_idempotency_key: stripeIdemKey,
+        simulate_mirror_failure: params.simulate_mirror_failure === true,
+      },
+    });
+  } catch (e) {
+    captureThrew = true;
+    captureError = (e?.message || String(e)).slice(0, 200);
+  }
+
+  // ── DIAGNOSTIC (temporary) ──────────────────────────────────────────────
+  // Sanitized instrumentation — no credentials, IDs, URLs, SQL, or stacks.
+  const _diag = {
+    capture_threw: captureThrew,
+    capture_error_class: captureError ? captureError.split(':')[0].slice(0, 60) : null,
+    result_type: captureResult ? typeof captureResult : 'undefined',
+    has_status: captureResult && typeof captureResult.status === 'number',
+    has_body: captureResult && typeof captureResult.body === 'object',
+    result_keys: captureResult ? Object.keys(captureResult) : [],
+    body_keys: captureResult?.body ? Object.keys(captureResult.body) : [],
+    body_ok: captureResult?.body?.ok,
+    body_code: captureResult?.body?.code || captureResult?.body?.error_code || null,
+  };
+  if (process.env.P01T_DIAG === '1') {
+    console.log('[P01T-DIAG] capture saga result:', JSON.stringify(_diag));
+  }
+
+  if (captureThrew) {
+    return {
+      status: 500,
+      body: {
+        ok: false,
+        error: 'Capture saga threw',
+        code: 'CAPTURE_SAGA_ERROR',
+        error_class: captureError,
+        buyer_confirmed: true,
+        buyer_confirm_replay: buyerConfirmReplay,
+        transfer_state: 'buyer_confirmed_received',
+      },
+    };
+  }
+
+  if (!captureResult || typeof captureResult.status !== 'number') {
+    return {
+      status: 500,
+      body: {
+        ok: false,
+        error: 'Capture saga returned invalid result',
+        code: 'CAPTURE_SAGA_INVALID',
+        result_type: typeof captureResult,
+        buyer_confirmed: true,
+        buyer_confirm_replay: buyerConfirmReplay,
+        transfer_state: 'buyer_confirmed_received',
+      },
+    };
+  }
 
   // ── 9. Return combined result ───────────────────────────────────────────
   // Buyer confirmation is already committed in the authority. The capture
