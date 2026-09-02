@@ -1,7 +1,7 @@
 # authority_v1 Reserve/Release Canary — Certification Manifest
 
-**Date:** 2026-08-21 (last recertified 2026-09-02 — P0-01R-REAL-STRIPE-TEST-CONFIRM-CERTIFIED)
-**Status:** ✅ CERTIFIED — Flag OFF, maintenance ON, zero synthetic rows. Tests run this session (P0-01R): real-Stripe confirm 46/46, concurrency 31/31, confirm-canary 17/17, capture regression 12/12, authority-contract 194/194, build exit 0, scoped lint 0 errors. Current targeted gate: 300/300 assertions. Previously certified (not re-run this session): real-Stripe abort 92/92, abort-canary 103/103, payment-saga-cancel 59/59, capture-finalize 80/80, protections 7/7, wiring 5/5, real-stripe-capture 47/47, webhook-ingress 20/20, webhook-processor 19/19, transfer-canary 74/74, cancel-purchase-canary 146/146, cancel-purchase-real-stripe 129/129. Trusted dependency injection (no env/global override), transfer-state foundation certified (seller-reported only, provider delivery not verified, auto-relist disabled)
+**Date:** 2026-08-21 (last recertified 2026-09-02 — P0-01S-ADVISORY-PROOF-ASSESSMENT-CERTIFIED)
+**Status:** ✅ CERTIFIED — Flag OFF, maintenance ON, zero synthetic rows. Tests run this session (P0-01S): transfer-proof-assessment 66/66, authority-contract 212/212, transfer-canary regression 79/79, cancel-purchase-canary regression 150/150, build exit 0, scoped lint 0 errors. Current targeted gate: 507/507 assertions. Previously certified (not re-run this session): real-Stripe confirm 46/46, concurrency 31/31, confirm-canary 17/17, capture regression 12/12, real-Stripe abort 92/92, abort-canary 103/103, payment-saga-cancel 59/59, capture-finalize 80/80, protections 7/7, wiring 5/5, real-stripe-capture 47/47, webhook-ingress 20/20, webhook-processor 19/19, cancel-purchase-real-stripe 129/129. Trusted dependency injection (no env/global override), transfer-state foundation certified (seller-reported only, provider delivery not verified, auto-relist disabled), advisory proof assessment certified (AI advisory only, no transfer-completion authority, no financial effects)
 
 ---
 
@@ -24,6 +24,7 @@
 | `stripeWebhook` | **CANARY-WIRED / INGRESS CERTIFIED / PROCESSING CERTIFIED / REAL STRIPE WEBHOOK DELIVERY NOT CERTIFIED / FLAG OFF** — See §12–§13 below |
 | `cancelPurchase` | **CANARY-WIRED / FAKE-PROVIDER CERTIFIED / REAL STRIPE CANCEL NOT CERTIFIED / CAPTURED REFUND NOT IN SCOPE / FLAG OFF** — See §14 below |
 | `confirmCheckoutAuthorized` | **CANARY-WIRED / REAL STRIPE TEST-MODE CERTIFIED / LIVE STRIPE NOT CERTIFIED / FLAG OFF** — See §18–§19 below |
+| `verifyTransferProof` | **CANARY-WIRED / ADVISORY-AI AUTHORITY CERTIFIED / REAL INVOKELLM NOT CERTIFIED / NO TRANSFER-COMPLETION AUTHORITY / FLAG OFF** — See §20 below |
 
 ---
 
@@ -41,6 +42,7 @@
 | `base44/shared/stripeCancelProvider.js` | P0-01L: Shared production Stripe cancel provider (createStripeCancelProvider) — retrieve-then-conditionally-cancel, used by handler + harness |
 | `base44/shared/cancelPurchaseCanaryOrchestrator.js` | P0-01L: Cancel-purchase saga orchestrator (begin_cancel → Stripe cancel → record_cancel_result) with transfer-guard quarantine + reconciliation |
 | `base44/shared/confirmCanaryOrchestrator.js` | P0-01Q: Confirm-checkout saga orchestrator (bind_payment_intent via executor-only client, Stripe PI retrieve for metadata verification, mirror-only Base44 projection with durable outbox); accepts `canaryEnabled` via trusted DI |
+| `base44/shared/verifyTransferProofCanaryOrchestrator.js` | P0-01S: Advisory AI proof-assessment orchestrator (executor-only `record_transfer_proof_assessment`, advisory states only, never changes `transfer_state` or version, mirror-only Base44 projection with durable outbox); accepts `canaryEnabled` via trusted DI |
 
 **Test files (executable module proofs — not deployed):**
 | Test File | Purpose |
@@ -53,6 +55,7 @@
 | `tests/cancel-purchase-canary.test.mjs` | P0-01L: Cancel-purchase canary — buyer/admin authz, always-quarantine (false/true/missing/uncertain/race), provider failure, timeout→unknown→reconciliation, replay (no duplicate provider/incident/outbox/notification), concurrency, capture-in-flight rejection, captured-sale rejection, mirror+notification failure, flag-OFF/non-canary isolation, no-admin static proof, cleanup (146/146 pass) |
 | `tests/abort-canary-real-stripe.test.mjs` | P0-01P: Real Stripe TEST-MODE abort-checkout certification — exactly-one cancel, replay (0 additional Stripe calls), lost-response reconcile without recancel, concurrency, captured-payment protection, mirror-failure isolation, authorization denials, livemode=false, cleanup (92/92 pass) |
 | `tests/run-p0-01p-abort-real-stripe.mjs` | P0-01P: Runner for real-Stripe abort certification (verifies sk_test_, assembles deps, invokes harness) |
+| `tests/transfer-proof-assessment.test.mjs` | P0-01S: Advisory proof-assessment runtime suite — assessment recording, idempotent replay, proof-asset conflict, seller/binding/version/state eligibility, advisory-only (no transfer_state/version change), zero financial effects, mirror/outbox recovery (66/66 pass) |
 | `tests/loaders/npm-compat-*.mjs` | Node.js ESM loader hook for Deno `npm:` specifiers in test imports |
 
 **No new backend functions created.** Function count: 50 (unchanged).
@@ -156,7 +159,7 @@ Execution method: `tests/payment-saga-cancel.test.mjs` refactored as importable 
 | `stripeWebhook` | UNCHANGED | No authority_v1 integration |
 | `confirmCheckoutAuthorized` | **CANARY-WIRED / REAL STRIPE TEST-MODE CERTIFIED / LIVE STRIPE NOT CERTIFIED / FLAG OFF** | See §18–§19 below |
 | `cancelPurchase` | UNCHANGED | No authority_v1 integration |
-| `verifyTransferProof` | UNCHANGED | No authority_v1 integration |
+| `verifyTransferProof` | **CANARY-WIRED / ADVISORY-AI AUTHORITY CERTIFIED / REAL INVOKELLM NOT CERTIFIED / NO TRANSFER-COMPLETION AUTHORITY / FLAG OFF** | See §20 below |
 
 **P0-01F certifies the payment-cancellation substrate only.** `abortCheckout` production integration is NOT STARTED. All other financial entry points remain unchanged. Production Stripe execution is NOT certified.
 
@@ -1980,3 +1983,163 @@ P0-01R manifest label: **`confirmCheckoutAuthorized — CANARY-WIRED / REAL STRI
 - **P0-01O parked, live Stripe uncertified.** Flag OFF, maintenance ON, 0 synthetic rows post-cleanup.
 - 50 backend functions, 32 authority functions, flag OFF, maintenance ON, 0 synthetic rows.
 - Current targeted gate: **300/300 assertions** (real-Stripe confirm 46, concurrency 31, confirm-canary 17, capture regression 12, authority-contract 194), build exit 0, scoped lint 0 errors.
+
+---
+
+## §20 — P0-01S: Authoritative Advisory Transfer-Proof Assessment
+
+P0-01S manifest label: **`verifyTransferProof — CANARY-WIRED / ADVISORY-AI AUTHORITY CERTIFIED / REAL INVOKELLM NOT CERTIFIED / NO TRANSFER-COMPLETION AUTHORITY / FLAG OFF`**
+
+### 20.1 Scope
+
+Authoritative advisory AI proof assessment on `reservation_payment_bindings` in the `authority_v1` Postgres boundary. A new executor function `record_transfer_proof_assessment` records AI analysis of a seller's transfer-proof screenshot as **advisory evidence only** — it never marks a transfer completed, releases payment, triggers payout, issues refund, cancels, relists inventory, or changes `transfer_state`. The function locks `reservation_authority FOR UPDATE` (same lock order as `begin_transfer`/`record_seller_report`) to verify seller linkage and eligible transfer state, but does NOT increment `version` or change `transfer_state`. The assessment is recorded on `reservation_payment_bindings` only.
+
+**Key invariants:**
+- AI analysis is advisory evidence, not authoritative proof of delivery.
+- `transfer_state` and `version` on `reservation_authority` are **never changed** by this function.
+- No consumer makes payout, capture, refund, release, relist, or completion decisions from AI fields.
+- Buyer confirmation remains a separate, uncertified process.
+- P0-01O (real Stripe webhook delivery) remains parked and untouched.
+- The separate probe credential (`AUTHORITY_DB_URL_DEV_EXECUTOR`, `authority_probe_v2` schema) was not accessed or modified.
+
+### 20.2 Advisory States
+
+The function accepts exactly three advisory assessment states:
+
+| State | Meaning |
+|---|---|
+| `ai_likely_valid` | AI assesses the proof as likely valid (high confidence) |
+| `ai_uncertain` | AI cannot determine validity (medium confidence or ambiguous) |
+| `ai_suspicious` | AI detects suspicious indicators (low confidence or fraud flags) |
+
+These are stored on `reservation_payment_bindings.proof_assessment_state` with the full AI analysis JSON in `proof_assessment_data`. They are **advisory only** — no downstream consumer treats them as authoritative transfer completion.
+
+### 20.3 Conflict Detection
+
+The function detects two conflict scenarios and rejects with structured error codes (never silently overwrites):
+
+| Scenario | Error Code | Behavior |
+|---|---|---|
+| Different proof asset already assessed | `PROOF_ASSET_CONFLICT` | Returns existing + attempted hash; no overwrite |
+| Same proof already assessed by different operation | `PROOF_ALREADY_ASSESSED` | Returns existing assessment state; no overwrite |
+
+An exact replay (same `operation_id` + `request_hash`) is handled by `acquire_operation` and returns the original result (idempotent). A re-assessment of the same proof with the same `proof_asset_id_hash` by a different operation is rejected — an explicit versioned reassessment path would be required to override (not yet implemented).
+
+### 20.4 Concurrency and Lock Order
+
+The function locks `reservation_authority FOR UPDATE` **before** `reservation_payment_bindings FOR UPDATE` — the same lock order as `begin_transfer` and `record_seller_report`. This prevents deadlock. The `acquire_operation` call provides operation-level idempotency and replay safety.
+
+### 20.5 Mirror/Outbox Recovery
+
+On successful assessment, a `mirror_project` outbox event is created with `advisory_only: true` and `transfer_state_unchanged: true`. If the Base44 mirror write fails, a `CanaryMirrorOutbox` record with `operation_type: 'proof_assessment'` is created for durable retry by `reconcilePurchaseOutcomes`. Mirror failure does not roll back the authoritative assessment.
+
+### 20.6 Zero Financial Effects
+
+The function performs **no** financial mutations:
+- No payout, no capture, no refund, no release
+- No relist, no `transfer_state` change, no `version` increment
+- No notification dispatch, no point award
+- The result explicitly reports `transfer_state_unchanged: true` and `version_unchanged: true`
+
+No consumer reads AI assessment fields to make payout, capture, refund, release, relist, or completion decisions. AI fields are advisory evidence for human review and downstream (separate) buyer-confirmation flow only.
+
+### 20.7 Buyer Confirmation Separate and Uncertified
+
+Buyer confirmation of transfer receipt remains a separate, uncertified process. The advisory proof assessment does not substitute for buyer confirmation, nor does it trigger buyer-confirmation flows. The two are decoupled by design.
+
+### 20.8 P0-01O Parked
+
+P0-01O (real Stripe webhook delivery) remains parked and untouched. No webhook delivery certification was performed in P0-01S.
+
+### 20.9 Probe Credential Untouched
+
+The separate owner-managed `AUTHORITY_DB_URL_DEV_EXECUTOR` (role `authority_probe_executor`, `authority_probe_v2` schema) was NOT accessed, modified, or referenced by P0-01S. The proof-assessment canary requires `authority_executor` via `createAuthorityV1Client` using `AUTHORITY_V1_DB_URL_DEV_EXECUTOR`; the probe credential is incompatible and was not used.
+
+### 20.10 Deployment Parity
+
+| Check | Artifact | Live | Match |
+|---|---|---|---|
+| `proof_assessment_state` column | ✅ in `001_schema.sql` | ✅ deployed | ✅ |
+| `proof_assessment_data` column | ✅ in `001_schema.sql` | ✅ deployed | ✅ |
+| `proof_assessment_at` column | ✅ in `001_schema.sql` | ✅ deployed | ✅ |
+| `proof_asset_id_hash` column | ✅ in `001_schema.sql` | ✅ deployed | ✅ |
+| `record_transfer_proof_assessment` function | ✅ in `002c_proof_assessment.sql` | ✅ deployed | ✅ |
+| `begin_transfer` unchanged | ✅ in `002_functions.sql` | ✅ deployed (exists) | ✅ |
+| `record_seller_report` unchanged | ✅ in `002_functions.sql` | ✅ deployed (exists) | ✅ |
+| Function owner | `neondb_owner` (artifact) | `neondb_owner` (live) | ✅ |
+| SECURITY DEFINER | ✅ (artifact) | ✅ (`prosecdef=true`) | ✅ |
+| Hardened search_path | `authority_v1, pg_temp` (artifact) | `search_path=authority_v1, pg_temp` (live) | ✅ |
+| Executor grant | ✅ in `004_roles_and_grants.sql` | `authority_executor` ✅ | ✅ |
+| Recorder denial | ✅ (not granted in artifact) | not in grant list ✅ | ✅ |
+| Worker denial | ✅ (not granted in artifact) | not in grant list ✅ | ✅ |
+| PUBLIC denial | ✅ (`REVOKE EXECUTE ON ALL FUNCTIONS` in artifact) | not in grant list ✅ | ✅ |
+
+### 20.11 All Seven Authority Tables Empty
+
+Post-certification verification: all seven `authority_v1` tables at 0 rows:
+
+| Table | Rows |
+|---|---|
+| `reservation_authority` | 0 |
+| `reservation_operations` | 0 |
+| `reservation_outbox` | 0 |
+| `reservation_payment_bindings` | 0 |
+| `payment_actions` | 0 |
+| `stripe_webhook_events` | 0 |
+| `operational_incidents` | 0 |
+
+### 20.12 Test Results — 507/507 Targeted Assertions
+
+| Suite | Assertions | Result |
+|---|---|---|
+| transfer-proof-assessment (P0-01S, NEW) | 66 | ✅ 66/66 PASS |
+| authority-contract (static, incl. P0-01S checks) | 212 | ✅ 212/212 PASS |
+| transfer-canary (P0-01M regression) | 79 | ✅ 79/79 PASS |
+| cancel-purchase-canary (P0-01L regression) | 150 | ✅ 150/150 PASS |
+| **Targeted total** | **507** | **507/507 PASS** |
+
+- **Build:** `npm run build` exit 0.
+- **Scoped lint:** 4 changed files — 0 errors, 9 warnings (pre-existing unused-vars pattern in `verifyTransferProof/entry.ts`).
+
+### 20.13 Replay Evidence
+
+The test suite proves idempotent replay through:
+- Identical result data (same `assessment_state`, `transfer_state`, `version`, `proof_asset_id_hash`)
+- Unchanged timestamps (verified via value comparison, not reference identity)
+- Zero new operation-ledger rows or outbox events on replay
+- The `acquire_operation` call returns the stored result for the same `operation_id` + `request_hash`
+
+### 20.14 Changed Files (P0-01S)
+
+| File | Change |
+|---|---|
+| `database/authority_v1/001_schema.sql` | Added `proof_assessment_state`, `proof_assessment_data`, `proof_assessment_at`, `proof_asset_id_hash` columns on `reservation_payment_bindings`; installation order references `002c_proof_assessment.sql` |
+| `database/authority_v1/002c_proof_assessment.sql` | NEW — `record_transfer_proof_assessment` function (advisory-only, conflict detection, same lock order, executor-only) |
+| `database/authority_v1/002_functions.sql` | `begin_transfer` and `record_seller_report` restored (were temporarily in `002b`); installation order references `002c_proof_assessment` |
+| `database/authority_v1/004_roles_and_grants.sql` | `GRANT EXECUTE` on `record_transfer_proof_assessment` to `authority_executor` only; installation order references `002c_proof_assessment` |
+| `base44/shared/verifyTransferProofCanaryOrchestrator.js` | NEW — advisory proof-assessment canary saga (executor-only, advisory states, never changes transfer_state, mirror/outbox recovery, `canaryEnabled` DI) |
+| `base44/shared/authorityV1Client.js` | `recordTransferProofAssessment` added to executor allowlist |
+| `base44/functions/verifyTransferProof/entry.ts` | Canary route wired before maintenance gate; `base44:runtime` secrets for executor URL; `maybeRouteCanaryProofAssessment` with `canaryEnabled: isCanaryEnabled()` DI |
+| `tests/transfer-proof-assessment.test.mjs` | NEW — 66-assertion runtime suite (assessment recording, idempotent replay, proof conflicts, eligibility, advisory-only, mirror/outbox recovery) |
+| `tests/authority-contract.test.mjs` | TEST 34 added — P0-01S static contract checks (file layout, conflict detection, advisory-only, SECURITY DEFINER, executor grant, orchestrator/handler wiring, installation order) |
+| `src/docs/AUTHORITY_V1_CANARY_CERTIFICATION.md` | §20 (P0-01S certification), header, §1 table, §2 modules/tests, §7 11-entry-point manifest |
+
+### 20.15 Conclusion
+
+P0-01S manifest label: **`verifyTransferProof — CANARY-WIRED / ADVISORY-AI AUTHORITY CERTIFIED / REAL INVOKELLM NOT CERTIFIED / NO TRANSFER-COMPLETION AUTHORITY / FLAG OFF`**
+
+- Authoritative advisory AI proof assessment is certified against the real dev Postgres authority.
+- `record_transfer_proof_assessment` records AI analysis as advisory evidence only — it never changes `transfer_state`, increments `version`, or performs any financial mutation.
+- Conflict detection: a different proof asset already assessed → `PROOF_ASSET_CONFLICT`; same proof assessed by different operation → `PROOF_ALREADY_ASSESSED`. Neither silently overwrites.
+- Same lock order as `begin_transfer`/`record_seller_report` (authority before binding) — no deadlock risk.
+- Idempotent replay via `acquire_operation` (same `operation_id` + `request_hash` → same result, zero new rows).
+- Mirror/outbox recovery: `CanaryMirrorOutbox` with `operation_type: 'proof_assessment'` on mirror failure; repaired by `reconcilePurchaseOutcomes`.
+- Zero financial effects: no payout, capture, refund, release, relist, or completion decisions from AI fields. No consumer reads AI fields for financial decisions.
+- Buyer confirmation remains separate and uncertified.
+- P0-01O remains parked and untouched.
+- The separate probe credential (`AUTHORITY_DB_URL_DEV_EXECUTOR`) was not accessed or modified.
+- Function owner: `neondb_owner`; SECURITY DEFINER; hardened `search_path = authority_v1, pg_temp`; executor-only grant; recorder/worker/PUBLIC denied.
+- `begin_transfer` and `record_seller_report` remain unchanged (restored to `002_functions.sql`, no longer in a separate `002b` file).
+- All seven `authority_v1` tables empty post-certification.
+- 50 backend functions, 33 authority functions (32 + 1 new `record_transfer_proof_assessment`), flag OFF, maintenance ON, 0 synthetic rows.
+- Current targeted gate: **507/507 assertions** (transfer-proof-assessment 66, authority-contract 212, transfer-canary regression 79, cancel-purchase-canary regression 150), build exit 0, scoped lint 0 errors.
