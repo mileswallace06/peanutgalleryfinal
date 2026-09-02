@@ -44,6 +44,14 @@ function sha256(s) {
 function genId() {
   return crypto.randomUUID();
 }
+// Compare timestamps by value — Neon returns them as Date objects, so ===
+// compares object identity, not time value.
+function sameTime(a, b) {
+  if (a == null || b == null) return a === b;
+  const ta = a instanceof Date ? a.getTime() : new Date(a).getTime();
+  const tb = b instanceof Date ? b.getTime() : new Date(b).getTime();
+  return ta === tb;
+}
 
 // ── Setup helpers ──────────────────────────────────────────────────────────
 async function setupReservedListing(listingId, sellerId, buyerId) {
@@ -196,12 +204,27 @@ async function run() {
 
     const opsAfter1 = await countOperations(listingId);
     const outboxAfter1 = await countOutbox(listingId);
+    const bindingAfter1 = await getBindingState(purchaseId);
+    const authAfter1 = await getAuthorityState(listingId);
 
-    // Identical replay (same opId + reqHash)
+    // Identical replay (same opId + reqHash) — returns stored original result unchanged
     const result2 = await callAssessment(listingId, 1, sellerId, purchaseId, proofHash, 'ai_likely_valid', assessmentData, opId, reqHash);
     assert('T2_replay_ok', result2?.ok === true);
-    assert('T2_replay_idempotent', result2?.idempotent === true, `got ${JSON.stringify(result2).slice(0, 200)}`);
 
+    // Idempotence proof 1: identical result data (replay returns stored result unchanged)
+    assert('T2_replay_identical_ok', result2?.ok === result1?.ok);
+    assert('T2_replay_identical_state', result2?.assessment_state === result1?.assessment_state);
+    assert('T2_replay_identical_version', result2?.version === result1?.version);
+    assert('T2_replay_identical_transfer_unchanged', result2?.transfer_state_unchanged === result1?.transfer_state_unchanged);
+
+    // Idempotence proof 2: unchanged timestamps/state
+    const bindingAfter2 = await getBindingState(purchaseId);
+    const authAfter2 = await getAuthorityState(listingId);
+    assert('T2_binding_timestamp_unchanged', sameTime(bindingAfter2?.proof_assessment_at, bindingAfter1?.proof_assessment_at));
+    assert('T2_auth_transfer_ts_unchanged', sameTime(authAfter2?.transfer_state_updated_at, authAfter1?.transfer_state_updated_at));
+    assert('T2_auth_version_unchanged', authAfter2?.version === authAfter1?.version);
+
+    // Idempotence proof 3: zero new operations or outbox rows
     const opsAfter2 = await countOperations(listingId);
     const outboxAfter2 = await countOutbox(listingId);
     assert('T2_no_new_operation', opsAfter2 === opsAfter1, `ops: ${opsAfter1} → ${opsAfter2}`);
@@ -307,7 +330,7 @@ async function run() {
     // At least one must succeed, the other must be idempotent or conflict
     const okCount = [r1, r2].filter(r => r?.ok === true).length;
     assert('T5_at_least_one_ok', okCount >= 1, `okCount=${okCount}`);
-    assert('T5_both_ok_or_idempotent', r1?.ok === true && r2?.ok === true, `r1=${r1?.ok}, r2=${r2?.ok}, r1.idempotent=${r1?.idempotent}, r2.idempotent=${r2?.idempotent}`);
+    assert('T5_both_ok', r1?.ok === true && r2?.ok === true, `r1.ok=${r1?.ok}, r2.ok=${r2?.ok}`);
 
     // Only 1 outbox item (no duplicate)
     const outboxCount = await countOutbox(listingId);
