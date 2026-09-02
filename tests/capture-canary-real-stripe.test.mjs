@@ -319,7 +319,8 @@ export async function runAllTests(deps) {
     assert(pi.livemode === false, 'T1: created PI livemode=false');
     assert(pi.amount === TEST_AMOUNT_MINOR, `T1: amount bound (got ${pi.amount})`);
     assert(pi.currency === TEST_CURRENCY, `T1: currency bound (got ${pi.currency})`);
-    assert(result.body?.stripe_idempotency_key?.startsWith('idem_capture_'), 'T1: idempotency key bound');
+    assert(result.body?.action_id === undefined, 'T1: no action_id leak in response');
+    assert(result.body?.stripe_idempotency_key === undefined, 'T1: no stripe_idempotency_key leak in response');
 
     await cleanupListing(adminSql, lid);
   }
@@ -366,15 +367,17 @@ export async function runAllTests(deps) {
     const { revision } = await setupReservedListingWithBinding(adminSql, lid, sellerId, buyerId, token, expiresAt, pid, pi.id);
 
     // First attempt: real capture succeeds on Stripe, then proxy throws (lost response).
+    // Provide explicit action_id (response no longer leaks it).
+    const explicitActionId = `act_t3_${genId()}`;
     const adapter1 = wrapWithCounts(createStripeCaptureProvider(testKey), { throwAfterCapture: true });
-    const { result: r1 } = await runSeam({ executorUrl, recorderUrl, executorClient, recorderClient, lid, pid, pi, buyerId, revision, adapter: adapter1 });
+    const { result: r1 } = await runSeam({ executorUrl, recorderUrl, executorClient, recorderClient, lid, pid, pi, buyerId, revision, adapter: adapter1, body: { action_id: explicitActionId } });
     const authAfterUnknown = await getAuthority(adminSql, lid);
     const bindingAfterUnknown = await getBinding(adminSql, pid);
     const incidentAfterUnknown = await getIncident(adminSql, lid);
     const counts1 = adapter1._counts();
-    const actionId = r1.body?.action_id;
 
     assert(r1.status === 200 && r1.body?.capture_unknown === true, 'T3: first call capture_unknown');
+    assert(r1.body?.action_id === undefined, 'T3: no action_id leak in response');
     assert(counts1.captureCount === 1, `T3: first call did 1 real capture (got ${counts1.captureCount})`);
     assert(authAfterUnknown?.lifecycle_state === 'frozen' && authAfterUnknown?.recovery_blocked === true, 'T3: frozen+blocked');
     assert(bindingAfterUnknown?.capture_state === 'capture_unknown', 'T3: binding capture_unknown');
@@ -382,7 +385,7 @@ export async function runAllTests(deps) {
 
     // Reconcile: retrieve Stripe's actual state (succeeded) WITHOUT recapturing.
     const adapter2 = wrapWithCounts(createStripeCaptureProvider(testKey));
-    const { result: r2 } = await runSeam({ executorUrl, recorderUrl, executorClient, recorderClient, lid, pid, pi, buyerId, revision, adapter: adapter2, body: { action_id: actionId } });
+    const { result: r2 } = await runSeam({ executorUrl, recorderUrl, executorClient, recorderClient, lid, pid, pi, buyerId, revision, adapter: adapter2, body: { action_id: explicitActionId } });
     const authAfterRecon = await getAuthority(adminSql, lid);
     const bindingAfterRecon = await getBinding(adminSql, pid);
     const incidentAfterRecon = await getIncident(adminSql, lid);
@@ -409,10 +412,12 @@ export async function runAllTests(deps) {
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     const { revision } = await setupReservedListingWithBinding(adminSql, lid, sellerId, buyerId, token, expiresAt, pid, pi.id);
 
+    // Provide explicit action_id — response no longer leaks it; verify via DB.
+    const explicitActionId = `act_t4_${genId()}`;
     const adapter = wrapWithCounts(createStripeCaptureProvider(testKey));
-    const { result } = await runSeam({ executorUrl, recorderUrl, executorClient, recorderClient, lid, pid, pi, buyerId, revision, adapter });
+    const { result } = await runSeam({ executorUrl, recorderUrl, executorClient, recorderClient, lid, pid, pi, buyerId, revision, adapter, body: { action_id: explicitActionId } });
     const auth = await getAuthority(adminSql, lid);
-    const action = await getAction(adminSql, result.body?.action_id);
+    const action = await getAction(adminSql, explicitActionId);
     const counts = adapter._counts();
 
     assert(pi.livemode === false, 'T4: created PI livemode=false');
@@ -421,8 +426,9 @@ export async function runAllTests(deps) {
     assert(pi.currency === TEST_CURRENCY, 'T4: currency bound');
     assert(counts.lastPiId === pi.id, 'T4: PI identity bound across calls');
     assert(auth?.version >= 2, `T4: authority version progressed (got ${auth?.version})`);
-    assert(action?.stripe_idempotency_key === result.body?.stripe_idempotency_key, 'T4: idem key bound in action');
-    assert(result.body?.stripe_idempotency_key === `idem_capture_${result.body?.action_id}`, 'T4: idem key = idem_capture_<actionId>');
+    assert(result.body?.action_id === undefined, 'T4: no action_id leak in response');
+    assert(result.body?.stripe_idempotency_key === undefined, 'T4: no stripe_idempotency_key leak in response');
+    assert(action?.stripe_idempotency_key === `idem_capture_${explicitActionId}`, 'T4: idem key bound in payment_actions');
 
     await cleanupListing(adminSql, lid);
   }

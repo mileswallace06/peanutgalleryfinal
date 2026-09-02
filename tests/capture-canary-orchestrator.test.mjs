@@ -243,6 +243,10 @@ export async function runAllTests(deps) {
       authState?.lifecycle_state === 'sold' && bindingState?.capture_state === 'finalized',
       { status: result.status, authState: authState?.lifecycle_state, bindingState: bindingState?.capture_state });
 
+    record('T1: No credential leak in response',
+      result.body?.action_id === undefined && result.body?.stripe_idempotency_key === undefined,
+      { action_id: result.body?.action_id, stripe_idempotency_key: result.body?.stripe_idempotency_key });
+
     await cleanupListing(adminSql, listingId);
   }
 
@@ -337,7 +341,8 @@ export async function runAllTests(deps) {
     const setup = await setupReservedListingWithBinding(adminSql, listingId, sellerId, buyerId, token, expiresAt, purchaseId, piId);
     const expectedRevision = setup.revision;
 
-    // First call: unknown
+    // First call: unknown — provide explicit action_id (response no longer leaks it)
+    const explicitActionId = `act_t4_${genId()}`;
     const entities1 = makeMockEntities();
     const stripe1 = makeFakeStripe({ status: 'processing' });
     const result1 = await runCanaryCaptureSaga({
@@ -346,13 +351,13 @@ export async function runAllTests(deps) {
       params: {
         listing_id: listingId, purchase_id: purchaseId, payment_intent_id: piId,
         buyer_user_id: buyerId, expected_revision: expectedRevision,
+        action_id: explicitActionId,
       },
     });
 
     const authAfterUnknown = await getAuthorityState(adminSql, listingId);
 
     // Second call: succeeded (reconciliation) — reuse same action_id
-    const actionId = result1.body?.action_id;
     const entities2 = makeMockEntities();
     const stripe2 = makeFakeStripe({ status: 'requires_capture' });
     const result2 = await runCanaryCaptureSaga({
@@ -361,7 +366,7 @@ export async function runAllTests(deps) {
       params: {
         listing_id: listingId, purchase_id: purchaseId, payment_intent_id: piId,
         buyer_user_id: buyerId, expected_revision: expectedRevision,
-        action_id: actionId,
+        action_id: explicitActionId,
       },
     });
 
@@ -395,7 +400,8 @@ export async function runAllTests(deps) {
     const setup = await setupReservedListingWithBinding(adminSql, listingId, sellerId, buyerId, token, expiresAt, purchaseId, piId);
     const expectedRevision = setup.revision;
 
-    // First call: unknown
+    // First call: unknown — provide explicit action_id (response no longer leaks it)
+    const explicitActionId = `act_t5_${genId()}`;
     const entities1 = makeMockEntities();
     const stripe1 = makeFakeStripe({ status: 'processing' });
     const result1 = await runCanaryCaptureSaga({
@@ -404,11 +410,11 @@ export async function runAllTests(deps) {
       params: {
         listing_id: listingId, purchase_id: purchaseId, payment_intent_id: piId,
         buyer_user_id: buyerId, expected_revision: expectedRevision,
+        action_id: explicitActionId,
       },
     });
 
     // Second call: failed (reconciliation)
-    const actionId = result1.body?.action_id;
     const entities2 = makeMockEntities();
     const stripe2 = makeFakeStripe({ status: 'canceled' });
     const result2 = await runCanaryCaptureSaga({
@@ -417,7 +423,7 @@ export async function runAllTests(deps) {
       params: {
         listing_id: listingId, purchase_id: purchaseId, payment_intent_id: piId,
         buyer_user_id: buyerId, expected_revision: expectedRevision,
-        action_id: actionId,
+        action_id: explicitActionId,
       },
     });
 
@@ -450,7 +456,8 @@ export async function runAllTests(deps) {
     const setup = await setupReservedListingWithBinding(adminSql, listingId, sellerId, buyerId, token, expiresAt, purchaseId, piId);
     const expectedRevision = setup.revision;
 
-    // First call: unknown
+    // First call: unknown — provide explicit action_id (response no longer leaks it)
+    const explicitActionId = `act_t6_${genId()}`;
     const entities1 = makeMockEntities();
     const stripe1 = makeFakeStripe({ status: 'processing' });
     const result1 = await runCanaryCaptureSaga({
@@ -459,11 +466,11 @@ export async function runAllTests(deps) {
       params: {
         listing_id: listingId, purchase_id: purchaseId, payment_intent_id: piId,
         buyer_user_id: buyerId, expected_revision: expectedRevision,
+        action_id: explicitActionId,
       },
     });
 
     // Second call: unknown again (reconciliation no-op)
-    const actionId = result1.body?.action_id;
     const entities2 = makeMockEntities();
     const stripe2 = makeFakeStripe({ status: 'processing' });
     const result2 = await runCanaryCaptureSaga({
@@ -472,7 +479,7 @@ export async function runAllTests(deps) {
       params: {
         listing_id: listingId, purchase_id: purchaseId, payment_intent_id: piId,
         buyer_user_id: buyerId, expected_revision: expectedRevision,
-        action_id: actionId,
+        action_id: explicitActionId,
       },
     });
 

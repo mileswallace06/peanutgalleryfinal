@@ -108,7 +108,6 @@ export async function runCanaryCaptureSaga(deps) {
         captured: true,
         finalized: true,
         replay: true,
-        action_id: actionId,
         authority: state,
       },
     };
@@ -122,7 +121,6 @@ export async function runCanaryCaptureSaga(deps) {
         capture_failed: true,
         released: true,
         replay: true,
-        action_id: actionId,
         authority: state,
       },
     };
@@ -131,9 +129,9 @@ export async function runCanaryCaptureSaga(deps) {
   }
 
   let beginResult = null;
+  const expectedVersion = state.version;
 
   if (!skipBeginCapture) {
-    const expectedVersion = state.version;
     const operationId = `op_begin_${actionId}_${genId()}`;
 
     // ── 2. begin_capture via executor (supplies stable Stripe idempotency key) ─
@@ -167,7 +165,6 @@ export async function runCanaryCaptureSaga(deps) {
         body: {
           ok: true,
           replay: true,
-          action_id: actionId,
           authority: beginResult,
         },
       };
@@ -208,8 +205,6 @@ export async function runCanaryCaptureSaga(deps) {
         ok: false,
         error: 'Recorder failed after provider response',
         code: 'RECORDER_FAILED',
-        action_id: actionId,
-        stripe_idempotency_key: stripeIdemKey,
         provider_called: true,
         provider_result: derived,
       },
@@ -248,8 +243,6 @@ export async function runCanaryCaptureSaga(deps) {
         ok: true,
         captured: true,
         finalized: true,
-        action_id: actionId,
-        stripe_idempotency_key: stripeIdemKey,
         provider_called: true,
         provider_result: 'succeeded',
         authority: recordResult,
@@ -290,8 +283,6 @@ export async function runCanaryCaptureSaga(deps) {
         captured: false,
         capture_failed: true,
         released: true,
-        action_id: actionId,
-        stripe_idempotency_key: stripeIdemKey,
         provider_called: true,
         provider_result: 'failed',
         authority: recordResult,
@@ -308,8 +299,6 @@ export async function runCanaryCaptureSaga(deps) {
       captured: false,
       capture_unknown: true,
       recovery_blocked: true,
-      action_id: actionId,
-      stripe_idempotency_key: stripeIdemKey,
       provider_called: true,
       provider_result: 'unknown',
       authority: recordResult,
