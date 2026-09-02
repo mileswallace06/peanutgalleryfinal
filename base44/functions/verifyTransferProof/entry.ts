@@ -12,9 +12,12 @@
  */
 
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { secrets } from 'base44:runtime';
 import { isMaintenanceActive, maintenance503, isProofScanningEnabled, proofScannerUnavailable503 } from '../../shared/maintenance.ts';
 import { sendTransactionalEmail } from '../../shared/notifications.ts';
 import { getPurchasePrivate, upsertPurchasePrivate, alertPrivateWriteFailure } from '../../shared/privateData.ts';
+import { maybeRouteCanaryProofAssessment } from '../../shared/verifyTransferProofCanaryOrchestrator.js';
+import { isCanaryEnabled } from '../../shared/authCanary.js';
 
 // ── Confidence thresholds ─────────────────────────────────────────────────────
 const THRESHOLDS = {

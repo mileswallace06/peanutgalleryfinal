@@ -171,6 +171,8 @@ GRANT EXECUTE ON FUNCTION authority_v1.flag_webhook_missing_action(TEXT,TEXT,TEX
 -- P0-01M: Transfer lifecycle — executor-only (seller-confirmation canary)
 GRANT EXECUTE ON FUNCTION authority_v1.begin_transfer(TEXT,INTEGER,TEXT,TEXT,TEXT) TO authority_executor;
 GRANT EXECUTE ON FUNCTION authority_v1.record_seller_report(TEXT,INTEGER,TEXT,TEXT,TEXT) TO authority_executor;
+-- P0-01S: Advisory proof assessment — executor-only (AI assessment is advisory)
+GRANT EXECUTE ON FUNCTION authority_v1.record_transfer_proof_assessment(TEXT,INTEGER,TEXT,TEXT,TEXT,TEXT,JSONB,TEXT,TEXT) TO authority_executor;
 -- P0-01K: Durable webhook ingestion — recorder-only (privilege boundary correction)
 -- Ingestion is performed by the stripeWebhook handler using the recorder client.
 -- The executor no longer has EXECUTE on this function.

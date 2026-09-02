@@ -131,7 +131,8 @@ CREATE TABLE authority_v1.reservation_operations (
       'begin_cancel','record_cancel',
       'begin_refund','record_refund',
       'abort','cancel','expire','initialize','quarantine','anonymize',
-      'begin_transfer','record_seller_report'
+      'begin_transfer','record_seller_report',
+      'record_proof_assessment'
     )),
   requested_state    TEXT        NOT NULL,
   expected_version   INTEGER     NOT NULL,
@@ -155,7 +156,7 @@ ALTER TABLE authority_v1.reservation_operations
     'begin_cancel','record_cancel',
     'begin_refund','record_refund',
     'abort','cancel','expire','initialize','quarantine',
-    'begin_transfer','record_seller_report'))
+    'begin_transfer','record_seller_report','record_proof_assessment'))
     OR
     (subject_type = 'user' AND operation_type = 'anonymize')
   );
@@ -214,6 +215,16 @@ CREATE TABLE authority_v1.reservation_payment_bindings (
   frozen_authority_version        INTEGER,
   freeze_finalized_at             TIMESTAMPTZ,
   finalization_started_at         TIMESTAMPTZ,
+  -- P0-01S: Advisory proof-assessment state. Distinct from capture_state (payment)
+  -- and transfer_state (reservation). AI analysis is ADVISORY EVIDENCE ONLY —
+  -- it never marks a transfer completed, releases payment, triggers payout,
+  -- relists inventory, or changes transfer_state. None of these states means
+  -- provider-, buyer-, or human-verified.
+  proof_assessment_state          TEXT        NOT NULL DEFAULT 'not_assessed'
+    CHECK (proof_assessment_state IN ('not_assessed','ai_likely_valid','ai_uncertain','ai_suspicious')),
+  proof_assessment_data           JSONB,
+  proof_asset_id_hash             TEXT,
+  proof_assessment_at             TIMESTAMPTZ,
   created_at                      TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at                      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -447,3 +458,14 @@ ALTER TABLE authority_v1.reservation_authority
     CHECK (transfer_state IN ('not_started','in_progress','seller_reported_sent','unknown','terminal_cancelled'));
 ALTER TABLE authority_v1.reservation_authority
   ADD COLUMN IF NOT EXISTS transfer_state_updated_at TIMESTAMPTZ;
+
+-- ── P0-01S Migration: Add proof-assessment columns to reservation_payment_bindings ──
+ALTER TABLE authority_v1.reservation_payment_bindings
+  ADD COLUMN IF NOT EXISTS proof_assessment_state TEXT NOT NULL DEFAULT 'not_assessed'
+    CHECK (proof_assessment_state IN ('not_assessed','ai_likely_valid','ai_uncertain','ai_suspicious'));
+ALTER TABLE authority_v1.reservation_payment_bindings
+  ADD COLUMN IF NOT EXISTS proof_assessment_data JSONB;
+ALTER TABLE authority_v1.reservation_payment_bindings
+  ADD COLUMN IF NOT EXISTS proof_asset_id_hash TEXT;
+ALTER TABLE authority_v1.reservation_payment_bindings
+  ADD COLUMN IF NOT EXISTS proof_assessment_at TIMESTAMPTZ;
