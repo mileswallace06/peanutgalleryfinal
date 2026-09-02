@@ -138,7 +138,6 @@ export async function runAllTests({ adminSql, executorUrl, recorderUrl }) {
     const sellerId = opts.sellerId || genEmail('seller');
     const buyerId = opts.buyerId || genEmail('buyer');
     const tokenHash = sha256Hex(`token_${prefix}_${genId()}`);
-    const revision = genId();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     const purchaseId = `pur_${prefix}_${genId()}`;
     const paymentIntentId = `pi_${prefix}_${genId()}`;
@@ -150,30 +149,34 @@ export async function runAllTests({ adminSql, executorUrl, recorderUrl }) {
     const initHash = sha256Hex(JSON.stringify({ op: 'initialize', listing_id: listingId, seller_user_id: sellerId }));
     await executorClient.initializeListing(listingId, sellerId, initOpId, initHash);
 
-    // 2. Reserve listing
+    // 2. Reserve listing — captures the authority-generated reservation_revision
     const reserveOpId = `op_reserve_${listingId}_${genId()}`;
     const reserveHash = sha256Hex(JSON.stringify({ op: 'reserve', listing_id: listingId, expected_version: 0, buyer_user_id: buyerId, token_hash: tokenHash, expires_at: expiresAt }));
-    await executorClient.reserveListing(listingId, 0, buyerId, tokenHash, expiresAt, reserveOpId, reserveHash);
+    const reserveResult = await executorClient.reserveListing(listingId, 0, buyerId, tokenHash, expiresAt, reserveOpId, reserveHash);
+    const revision = reserveResult?.revision;
+    if (!revision) throw new Error('reserveListing did not return a revision');
 
-    // 3. Bind payment intent
+    // 3. Bind payment intent (uses the authority-generated revision)
     const bindOpId = `op_bind_${listingId}_${genId()}`;
     const bindHash = sha256Hex(JSON.stringify({ op: 'bind', listing_id: listingId, purchase_id: purchaseId, payment_intent_id: paymentIntentId, buyer_user_id: buyerId, authority_version: 1, reservation_revision: revision, token_hash: tokenHash }));
     await executorClient.bindPaymentIntent(listingId, purchaseId, paymentIntentId, buyerId, 1, revision, tokenHash, bindOpId, bindHash);
 
     // 4. Begin capture (reserved → frozen, creates payment action)
+    // Version sequence: initialize(0) → reserve(0→1) → bind(1, no increment) → begin_capture(1→2)
     const beginOpId = `op_begin_${listingId}_${genId()}`;
-    const beginHash = sha256Hex(JSON.stringify({ op: 'begin_capture', listing_id: listingId, expected_version: 2, purchase_id: purchaseId, payment_intent_id: paymentIntentId, buyer_user_id: buyerId, action_id: actionId, idem_key: stripeIdemKey }));
-    await executorClient.beginCapture(listingId, 2, purchaseId, paymentIntentId, buyerId, revision, actionId, stripeIdemKey, beginOpId, beginHash);
+    const beginHash = sha256Hex(JSON.stringify({ op: 'begin_capture', listing_id: listingId, expected_version: 1, purchase_id: purchaseId, payment_intent_id: paymentIntentId, buyer_user_id: buyerId, action_id: actionId, idem_key: stripeIdemKey }));
+    await executorClient.beginCapture(listingId, 1, purchaseId, paymentIntentId, buyerId, revision, actionId, stripeIdemKey, beginOpId, beginHash);
 
     // 5. Optionally set transfer_state via begin_transfer + record_seller_report
+    // After begin_capture: version=2. begin_transfer(2→3), record_seller_report(3→4)
     if (opts.transferState === 'seller_reported_sent') {
       const transferOpId = `op_transfer_${listingId}_${genId()}`;
-      const transferHash = sha256Hex(JSON.stringify({ op: 'begin_transfer', listing_id: listingId, expected_version: 3, seller_user_id: sellerId }));
-      await executorClient.beginTransfer(listingId, 3, sellerId, transferOpId, transferHash);
+      const transferHash = sha256Hex(JSON.stringify({ op: 'begin_transfer', listing_id: listingId, expected_version: 2, seller_user_id: sellerId }));
+      await executorClient.beginTransfer(listingId, 2, sellerId, transferOpId, transferHash);
 
       const reportOpId = `op_report_${listingId}_${genId()}`;
-      const reportHash = sha256Hex(JSON.stringify({ op: 'record_seller_report', listing_id: listingId, expected_version: 4, seller_user_id: sellerId }));
-      await executorClient.recordSellerReport(listingId, 4, sellerId, reportOpId, reportHash);
+      const reportHash = sha256Hex(JSON.stringify({ op: 'record_seller_report', listing_id: listingId, expected_version: 3, seller_user_id: sellerId }));
+      await executorClient.recordSellerReport(listingId, 3, sellerId, reportOpId, reportHash);
     }
 
     return { listingId, sellerId, buyerId, purchaseId, paymentIntentId, actionId, stripeIdemKey, revision };

@@ -360,10 +360,18 @@ export async function runCanaryBuyerConfirmSaga(deps) {
   // Buyer confirmation is already committed in the authority. The capture
   // result is returned to the caller. If capture failed or is unknown, the
   // buyer confirmation is still recorded — the authority is the source of truth.
+  //
+  // SECURITY: Strip sensitive operational credentials (action_id,
+  // stripe_idempotency_key) from the capture result before returning. These
+  // are internal authority identifiers and must never appear in API responses.
+  const captureBody = { ...captureResult.body };
+  delete captureBody.action_id;
+  delete captureBody.stripe_idempotency_key;
+
   return {
     status: captureResult.status,
     body: {
-      ...captureResult.body,
+      ...captureBody,
       buyer_confirmed: true,
       buyer_confirm_replay: buyerConfirmReplay,
       transfer_state: 'buyer_confirmed_received',
