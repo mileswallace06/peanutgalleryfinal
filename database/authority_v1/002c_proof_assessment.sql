@@ -92,13 +92,33 @@ BEGIN
       'attempted_proof_asset_id_hash', p_proof_asset_id_hash);
   END IF;
 
-  -- Record advisory assessment (same proof hash = idempotent re-assessment, allowed)
+  -- CONFLICT DETECTION: same proof already assessed by a different operation — reject.
+  -- An exact replay (same operation_id + request_hash) is handled by acquire_operation
+  -- above and returns the original result. Reaching here with a non-null assessment
+  -- means a DIFFERENT operation is attempting to re-assess the same proof. This must
+  -- NOT silently overwrite — return PROOF_ALREADY_ASSESSED. An explicit versioned
+  -- reassessment path would be required to override (not yet implemented).
+  IF v_binding.proof_asset_id_hash = p_proof_asset_id_hash
+     AND v_binding.proof_assessment_state IS NOT NULL THEN
+    UPDATE reservation_operations SET status = 'conflict', error_code = 'PROOF_ALREADY_ASSESSED',
+      result_json = jsonb_build_object('ok', false, 'code', 'PROOF_ALREADY_ASSESSED',
+        'reason', 'This proof asset was already assessed by a different operation',
+        'existing_assessment_state', v_binding.proof_assessment_state,
+        'existing_proof_asset_id_hash', v_binding.proof_asset_id_hash)::TEXT, committed_at = now()
+    WHERE operation_id = p_server_operation_id;
+    RETURN jsonb_build_object('ok', false, 'code', 'PROOF_ALREADY_ASSESSED',
+      'reason', 'This proof asset was already assessed by a different operation',
+      'existing_assessment_state', v_binding.proof_assessment_state,
+      'existing_proof_asset_id_hash', v_binding.proof_asset_id_hash);
+  END IF;
+
+  -- Record advisory assessment (first assessment of this proof — no prior assessment exists)
   UPDATE reservation_payment_bindings
   SET proof_assessment_state = p_assessment_state, proof_assessment_data = p_assessment_data,
       proof_asset_id_hash = p_proof_asset_id_hash, proof_assessment_at = now(), updated_at = now()
   WHERE purchase_id = p_purchase_id AND listing_id = p_listing_id;
   GET DIAGNOSTICS v_row_count = ROW_COUNT;
-  IF NOT v_row_count THEN
+  IF v_row_count = 0 THEN
     UPDATE reservation_operations SET status = 'conflict', error_code = 'BINDING_UPDATE_FAILED',
       result_json = jsonb_build_object('ok', false, 'code', 'BINDING_UPDATE_FAILED')::TEXT, committed_at = now()
     WHERE operation_id = p_server_operation_id;
