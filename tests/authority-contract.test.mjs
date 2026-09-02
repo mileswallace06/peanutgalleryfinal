@@ -63,6 +63,7 @@ function check(name, fn, classification = 'static contract check') {
 const SQL_SCHEMA = join(ROOT, 'database/authority_v1/001_schema.sql');
 const SQL_FUNCTIONS = join(ROOT, 'database/authority_v1/002_functions.sql');
 const SQL_PROOF = join(ROOT, 'database/authority_v1/002c_proof_assessment.sql');
+const SQL_BUYER = join(ROOT, 'database/authority_v1/002d_buyer_confirmation.sql');
 const SQL_WORKERS = join(ROOT, 'database/authority_v1/003_workers.sql');
 const SQL_ROLES = join(ROOT, 'database/authority_v1/004_roles_and_grants.sql');
 const DOC = join(ROOT, 'src/docs/ATOMICITY_ARCHITECTURE_DECISION.md');
@@ -71,6 +72,7 @@ const DOC = join(ROOT, 'src/docs/ATOMICITY_ARCHITECTURE_DECISION.md');
 const schema = existsSync(SQL_SCHEMA) ? readFileSync(SQL_SCHEMA, 'utf8') : '';
 const functions = existsSync(SQL_FUNCTIONS) ? readFileSync(SQL_FUNCTIONS, 'utf8') : '';
 const proofFn = existsSync(SQL_PROOF) ? readFileSync(SQL_PROOF, 'utf8') : '';
+const buyerFn = existsSync(SQL_BUYER) ? readFileSync(SQL_BUYER, 'utf8') : '';
 const workers = existsSync(SQL_WORKERS) ? readFileSync(SQL_WORKERS, 'utf8') : '';
 const roles = existsSync(SQL_ROLES) ? readFileSync(SQL_ROLES, 'utf8') : '';
 const doc = existsSync(DOC) ? readFileSync(DOC, 'utf8') : '';
@@ -1905,6 +1907,212 @@ check('proof_installation_order_updated', () => {
   if (!schema.includes('002c_proof_assessment.sql')) throw new Error('001_schema.sql installation order must reference 002c_proof_assessment.sql');
   if (!functions.includes('002c_proof_assessment')) throw new Error('002_functions.sql installation order must reference 002c_proof_assessment');
   if (!roles.includes('002c_proof_assessment')) throw new Error('004_roles_and_grants.sql installation order must reference 002c_proof_assessment');
+  return true;
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TEST 35: P0-01T authoritative buyer transfer confirmation — file layout, state, CAS, grants, orchestrator, handler wiring
+// ═══════════════════════════════════════════════════════════════════════════
+check('buyer_confirmation_file_exists', () => {
+  if (!existsSync(SQL_BUYER)) throw new Error('002d_buyer_confirmation.sql not found');
+  return true;
+});
+check('buyer_confirmation_function_in_002d_not_002', () => {
+  if (!buyerFn.includes('CREATE OR REPLACE FUNCTION authority_v1.record_buyer_transfer_confirmation')) {
+    throw new Error('record_buyer_transfer_confirmation not found in 002d_buyer_confirmation.sql');
+  }
+  if (functions.includes('CREATE OR REPLACE FUNCTION authority_v1.record_buyer_transfer_confirmation')) {
+    throw new Error('record_buyer_transfer_confirmation must NOT be in 002_functions.sql (only in 002d)');
+  }
+  return true;
+});
+check('buyer_confirmation_function_security_definer', () => {
+  const fnStart = buyerFn.indexOf('CREATE OR REPLACE FUNCTION authority_v1.record_buyer_transfer_confirmation');
+  const fnEnd = buyerFn.indexOf('$$;', fnStart);
+  if (fnStart < 0 || fnEnd < 0) throw new Error('function not found');
+  const fnBody = buyerFn.substring(fnStart, fnEnd);
+  if (!fnBody.includes('SECURITY DEFINER')) throw new Error('must be SECURITY DEFINER');
+  if (!fnBody.includes('SET search_path = authority_v1, pg_temp')) throw new Error('must harden search_path');
+  return true;
+});
+check('buyer_confirmation_has_cas_version_check', () => {
+  const fnStart = buyerFn.indexOf('CREATE OR REPLACE FUNCTION authority_v1.record_buyer_transfer_confirmation');
+  const fnEnd = buyerFn.indexOf('$$;', fnStart);
+  const fnBody = buyerFn.substring(fnStart, fnEnd);
+  if (!fnBody.includes('v_new_version := v_authority.version + 1')) throw new Error('must compute new version');
+  if (!fnBody.includes('WHERE listing_id = p_listing_id AND version = p_expected_version')) throw new Error('must CAS on version');
+  if (!fnBody.includes('GET DIAGNOSTICS v_row_count = ROW_COUNT')) throw new Error('must check row count after CAS');
+  if (!fnBody.includes("'STALE_VERSION'")) throw new Error('must return STALE_VERSION on CAS failure');
+  return true;
+});
+check('buyer_confirmation_locks_authority_before_binding', () => {
+  const fnStart = buyerFn.indexOf('CREATE OR REPLACE FUNCTION authority_v1.record_buyer_transfer_confirmation');
+  const fnEnd = buyerFn.indexOf('$$;', fnStart);
+  const fnBody = buyerFn.substring(fnStart, fnEnd);
+  const authLockIdx = fnBody.indexOf('FROM reservation_authority');
+  const bindingLockIdx = fnBody.indexOf('FROM reservation_payment_bindings');
+  if (authLockIdx < 0 || bindingLockIdx < 0) throw new Error('must lock both authority and binding');
+  if (authLockIdx > bindingLockIdx) {
+    throw new Error('must lock reservation_authority BEFORE reservation_payment_bindings (same lock order)');
+  }
+  return true;
+});
+check('buyer_confirmation_verifies_buyer_identity', () => {
+  const fnStart = buyerFn.indexOf('CREATE OR REPLACE FUNCTION authority_v1.record_buyer_transfer_confirmation');
+  const fnEnd = buyerFn.indexOf('$$;', fnStart);
+  const fnBody = buyerFn.substring(fnStart, fnEnd);
+  // Must verify buyer_user_id against authority
+  if (!fnBody.includes('AND buyer_user_id = p_buyer_user_id')) throw new Error('must verify buyer_user_id against authority');
+  // Must verify buyer_user_id against binding (defense-in-depth)
+  if (!fnBody.includes('v_binding.buyer_user_id <> p_buyer_user_id')) throw new Error('must verify buyer_user_id against binding');
+  if (!fnBody.includes("'NOT_BUYER'")) throw new Error('must return NOT_BUYER on mismatch');
+  return true;
+});
+check('buyer_confirmation_valid_preceding_states', () => {
+  const fnStart = buyerFn.indexOf('CREATE OR REPLACE FUNCTION authority_v1.record_buyer_transfer_confirmation');
+  const fnEnd = buyerFn.indexOf('$$;', fnStart);
+  const fnBody = buyerFn.substring(fnStart, fnEnd);
+  // Must only accept in_progress and seller_reported_sent as preceding states
+  if (!fnBody.includes("transfer_state IN ('in_progress', 'seller_reported_sent')")) {
+    throw new Error('must only accept in_progress and seller_reported_sent as preceding states');
+  }
+  // Must require lifecycle_state = frozen
+  if (!fnBody.includes("AND lifecycle_state = 'frozen'")) {
+    throw new Error('must require lifecycle_state = frozen');
+  }
+  // Must reject recovery_blocked
+  if (!fnBody.includes('AND recovery_blocked = false')) {
+    throw new Error('must reject recovery_blocked listings');
+  }
+  return true;
+});
+check('buyer_confirmation_no_financial_effects', () => {
+  const fnStart = buyerFn.indexOf('CREATE OR REPLACE FUNCTION authority_v1.record_buyer_transfer_confirmation');
+  const fnEnd = buyerFn.indexOf('$$;', fnStart);
+  const fnBody = buyerFn.substring(fnStart, fnEnd);
+  // Must NOT call begin_capture, record_capture_result, finalize_sale, begin_cancel, begin_refund
+  if (fnBody.includes('begin_capture')) throw new Error('must NOT call begin_capture');
+  if (fnBody.includes('record_capture_result')) throw new Error('must NOT call record_capture_result');
+  if (fnBody.includes('finalize_sale')) throw new Error('must NOT call finalize_sale');
+  if (fnBody.includes('begin_cancel')) throw new Error('must NOT call begin_cancel');
+  if (fnBody.includes('begin_refund')) throw new Error('must NOT call begin_refund');
+  // Must report no_financial_effects: true
+  if (!fnBody.includes("'no_financial_effects', true")) throw new Error('must report no_financial_effects: true');
+  return true;
+});
+check('buyer_confirmation_idempotent_replay', () => {
+  const fnStart = buyerFn.indexOf('CREATE OR REPLACE FUNCTION authority_v1.record_buyer_transfer_confirmation');
+  const fnEnd = buyerFn.indexOf('$$;', fnStart);
+  const fnBody = buyerFn.substring(fnStart, fnEnd);
+  // Must use acquire_operation for replay safety
+  if (!fnBody.includes('acquire_operation')) throw new Error('must use acquire_operation for replay safety');
+  // Must handle already-confirmed state (idempotent)
+  if (!fnBody.includes("'buyer_confirmed_received'")) throw new Error('must check for buyer_confirmed_received state');
+  if (!fnBody.includes("'idempotent_replay'")) throw new Error('must mark idempotent replays');
+  if (!fnBody.includes("'idempotent', true")) throw new Error('must return idempotent: true');
+  return true;
+});
+check('buyer_confirmation_creates_outbox_event', () => {
+  const fnStart = buyerFn.indexOf('CREATE OR REPLACE FUNCTION authority_v1.record_buyer_transfer_confirmation');
+  const fnEnd = buyerFn.indexOf('$$;', fnStart);
+  const fnBody = buyerFn.substring(fnStart, fnEnd);
+  if (!fnBody.includes('INSERT INTO reservation_outbox')) throw new Error('must create outbox event');
+  if (!fnBody.includes("'mirror_project'")) throw new Error('must create mirror_project outbox event');
+  if (!fnBody.includes("'buyer_confirmed', true")) throw new Error('must include buyer_confirmed: true in outbox payload');
+  return true;
+});
+check('buyer_confirmation_granted_to_executor_only', () => {
+  if (!roles.includes('GRANT EXECUTE ON FUNCTION authority_v1.record_buyer_transfer_confirmation')) {
+    throw new Error('record_buyer_transfer_confirmation not granted to authority_executor');
+  }
+  const recorderGrantPattern = /GRANT EXECUTE ON FUNCTION authority_v1\.record_buyer_transfer_confirmation[^\n]*authority_stripe_recorder/;
+  if (recorderGrantPattern.test(roles)) {
+    throw new Error('record_buyer_transfer_confirmation must NOT be granted to recorder (executor-only)');
+  }
+  const workerGrantPattern = /GRANT EXECUTE ON FUNCTION authority_v1\.record_buyer_transfer_confirmation[^\n]*authority_worker/;
+  if (workerGrantPattern.test(roles)) {
+    throw new Error('record_buyer_transfer_confirmation must NOT be granted to worker (executor-only)');
+  }
+  return true;
+});
+check('buyer_confirmation_schema_has_state_and_column', () => {
+  if (!schema.includes("'buyer_confirmed_received'")) throw new Error("schema missing 'buyer_confirmed_received' transfer state");
+  if (!schema.includes('buyer_confirmed_at')) throw new Error('schema missing buyer_confirmed_at column');
+  if (!schema.includes("'record_buyer_confirmation'")) throw new Error("schema missing 'record_buyer_confirmation' operation type");
+  return true;
+});
+check('buyer_confirmation_orchestrator_exists', () => {
+  const path = join(ROOT, 'base44/shared/buyerConfirmTransferCanaryOrchestrator.js');
+  if (!existsSync(path)) throw new Error('buyerConfirmTransferCanaryOrchestrator.js not found');
+  return true;
+});
+check('buyer_confirmation_orchestrator_accepts_canary_enabled_di', () => {
+  const src = readFileSync(join(ROOT, 'base44/shared/buyerConfirmTransferCanaryOrchestrator.js'), 'utf8');
+  if (!src.includes('deps.canaryEnabled') && !src.includes('canaryEnabled')) throw new Error('orchestrator must accept canaryEnabled');
+  const codeLines = src.split('\n').filter(l => !l.trim().startsWith('*') && !l.trim().startsWith('//'));
+  const code = codeLines.join('\n');
+  if (/isCanaryEnabled\s*\(\)/.test(code)) throw new Error('orchestrator must NOT call isCanaryEnabled() internally (use DI)');
+  return true;
+});
+check('buyer_confirmation_orchestrator_no_admin', () => {
+  const src = readFileSync(join(ROOT, 'base44/shared/buyerConfirmTransferCanaryOrchestrator.js'), 'utf8');
+  if (src.includes('authorityV1TestAdmin')) throw new Error('must not import admin client');
+  if (src.includes('AUTHORITY_DB_URL_DEV_ADMIN')) throw new Error('must not reference admin URL');
+  if (src.includes('Deno.env')) throw new Error('must not use Deno.env');
+  return true;
+});
+check('buyer_confirmation_orchestrator_executor_only', () => {
+  const src = readFileSync(join(ROOT, 'base44/shared/buyerConfirmTransferCanaryOrchestrator.js'), 'utf8');
+  if (!src.includes('recordBuyerTransferConfirmation')) throw new Error('must use executor recordBuyerTransferConfirmation');
+  if (src.includes('createAuthorityV1StripeRecorderClient')) throw new Error('must NOT use recorder (buyer confirmation is executor-only)');
+  return true;
+});
+check('buyer_confirmation_orchestrator_no_financial_effects', () => {
+  const src = readFileSync(join(ROOT, 'base44/shared/buyerConfirmTransferCanaryOrchestrator.js'), 'utf8');
+  if (src.includes('beginCapture')) throw new Error('must NOT call beginCapture (no financial capture)');
+  if (src.includes('recordCaptureResult')) throw new Error('must NOT call recordCaptureResult');
+  if (src.includes('beginCancel')) throw new Error('must NOT call beginCancel');
+  if (!src.includes('no_financial_effects: true')) throw new Error('must report no_financial_effects: true');
+  return true;
+});
+check('buyer_confirmation_orchestrator_uses_outbox_on_mirror_failure', () => {
+  const src = readFileSync(join(ROOT, 'base44/shared/buyerConfirmTransferCanaryOrchestrator.js'), 'utf8');
+  if (!src.includes('applyMirrorWithOutbox')) throw new Error('must use applyMirrorWithOutbox for durable mirror retry');
+  if (!src.includes("'buyer_confirmation'")) throw new Error('must use buyer_confirmation operation type for outbox');
+  return true;
+});
+check('buyer_confirmation_handler_wiring', () => {
+  const src = readFileSync(join(ROOT, 'base44/functions/capturePayment/entry.ts'), 'utf8');
+  if (!src.includes('maybeRouteCanaryBuyerConfirm')) throw new Error('handler must import maybeRouteCanaryBuyerConfirm');
+  if (!src.includes("confirming_role === 'buyer'")) throw new Error('handler must check confirming_role === buyer');
+  if (!src.includes('isCanaryEnabled')) throw new Error('handler must use isCanaryEnabled');
+  if (!src.includes("secrets.get('AUTHORITY_V1_DB_URL_DEV_EXECUTOR')")) throw new Error('handler must use base44:runtime for executor URL');
+  if (src.includes('authorityV1TestAdmin')) throw new Error('handler must not import admin client');
+  return true;
+});
+check('buyer_confirmation_handler_canary_before_capture', () => {
+  const src = readFileSync(join(ROOT, 'base44/functions/capturePayment/entry.ts'), 'utf8');
+  // Search for the CALL SITES (await ...), not the imports
+  const buyerIdx = src.indexOf('await maybeRouteCanaryBuyerConfirm');
+  const captureIdx = src.indexOf('await maybeRouteCanaryCapture');
+  if (buyerIdx < 0 || captureIdx < 0) throw new Error('both canary call sites must exist');
+  if (buyerIdx > captureIdx) throw new Error('buyer-confirmation canary call must be before capture canary call');
+  return true;
+});
+check('buyer_confirmation_executor_client_has_method', () => {
+  const src = readFileSync(join(ROOT, 'base44/shared/authorityV1Client.js'), 'utf8');
+  if (!src.includes('recordBuyerTransferConfirmation')) throw new Error('executor client must expose recordBuyerTransferConfirmation');
+  return true;
+});
+check('buyer_confirmation_installation_order_updated', () => {
+  if (!schema.includes('002d_buyer_confirmation.sql')) throw new Error('001_schema.sql installation order must reference 002d_buyer_confirmation.sql');
+  if (!functions.includes('002d_buyer_confirmation')) throw new Error('002_functions.sql installation order must reference 002d_buyer_confirmation');
+  if (!roles.includes('002d_buyer_confirmation')) throw new Error('004_roles_and_grants.sql installation order must reference 002d_buyer_confirmation');
+  return true;
+});
+check('buyer_confirmation_canary_mirror_outbox_enum', () => {
+  const src = readFileSync(join(ROOT, 'base44/entities/CanaryMirrorOutbox.jsonc'), 'utf8');
+  if (!src.includes('buyer_confirmation')) throw new Error('CanaryMirrorOutbox operation_type enum must include buyer_confirmation');
   return true;
 });
 

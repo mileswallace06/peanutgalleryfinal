@@ -2,7 +2,7 @@
 -- authority_v1 — Stored Functions (002)
 -- Source of truth for all authority transaction logic.
 --
--- INSTALLATION ORDER: 001_schema → 002_functions → 002c_proof_assessment → 003_workers → 004_roles
+-- INSTALLATION ORDER: 001_schema → 002_functions → 002c_proof_assessment → 002d_buyer_confirmation → 003_workers → 004_roles
 --
 -- A PL/pgSQL function invocation executes inside the caller's PostgreSQL
 -- transaction. Transaction-control statements (BEGIN/COMMIT) are NOT placed

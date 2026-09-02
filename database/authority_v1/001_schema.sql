@@ -7,6 +7,7 @@
 --   001_schema.sql        — tables, constraints, indexes
 --   002_functions.sql     — all stored functions (authority + worker helpers)
 --   002c_proof_assessment.sql — P0-01S advisory proof assessment function
+--   002d_buyer_confirmation.sql — P0-01T authoritative buyer transfer confirmation
 --   003_workers.sql       — worker claiming, lease recovery, exhausted escalation
 --   004_roles_and_grants.sql — roles, ownership transfer, grants, revokes
 --
@@ -40,8 +41,12 @@ CREATE TABLE authority_v1.reservation_authority (
   -- (reservation) and capture_state (payment). Seller self-report is NEVER
   -- provider-verified — 'seller_reported_sent' is the seller's attestation only.
   transfer_state               TEXT        NOT NULL DEFAULT 'not_started'
-    CHECK (transfer_state IN ('not_started','in_progress','seller_reported_sent','unknown','terminal_cancelled')),
+    CHECK (transfer_state IN ('not_started','in_progress','seller_reported_sent','buyer_confirmed_received','unknown','terminal_cancelled')),
   transfer_state_updated_at    TIMESTAMPTZ,
+  -- P0-01T: Authoritative buyer confirmation timestamp. Set when the
+  -- authenticated buyer confirms receipt (transfer_state → 'buyer_confirmed_received').
+  -- This is the buyer's self-confirmation only — NOT provider verification.
+  buyer_confirmed_at           TIMESTAMPTZ,
   current_operation_id         TEXT,
   last_operation_type          TEXT,
   last_operation_at            TIMESTAMPTZ,
@@ -133,7 +138,8 @@ CREATE TABLE authority_v1.reservation_operations (
       'begin_refund','record_refund',
       'abort','cancel','expire','initialize','quarantine','anonymize',
       'begin_transfer','record_seller_report',
-      'record_proof_assessment'
+      'record_proof_assessment',
+      'record_buyer_confirmation'
     )),
   requested_state    TEXT        NOT NULL,
   expected_version   INTEGER     NOT NULL,
@@ -157,7 +163,8 @@ ALTER TABLE authority_v1.reservation_operations
     'begin_cancel','record_cancel',
     'begin_refund','record_refund',
     'abort','cancel','expire','initialize','quarantine',
-    'begin_transfer','record_seller_report','record_proof_assessment'))
+    'begin_transfer','record_seller_report','record_proof_assessment',
+    'record_buyer_confirmation'))
     OR
     (subject_type = 'user' AND operation_type = 'anonymize')
   );

@@ -19,6 +19,7 @@ import { recordTerminalOutcome } from '../../shared/recordOutcome.ts';
 import { getPurchasePrivate } from '../../shared/privateData.ts';
 import { runCapturePayment } from '../../shared/captureOrchestrator.js';
 import { maybeRouteCanaryCapture } from '../../shared/captureCanaryOrchestrator.js';
+import { maybeRouteCanaryBuyerConfirm } from '../../shared/buyerConfirmTransferCanaryOrchestrator.js';
 import { isCanaryEnabled } from '../../shared/authCanary.js';
 import { createStripeCaptureProvider } from '../../shared/stripeCaptureProvider.js';
 
@@ -43,6 +44,22 @@ Deno.serve(async (req) => {
       const [l] = await base44.asServiceRole.entities.Listing.filter({ id: purchase.listing_id });
       listing = l || null;
     } catch (_) {}
+  }
+
+  // ── P0-01T: Canary buyer-confirmation route (before capture canary) ──────
+  // The buyer's "I Received My Tickets" button calls capturePayment with
+  // confirming_role='buyer'. For canary-eligible synthetic listings, route to
+  // the buyer-confirmation orchestrator (authority-only, NO financial capture)
+  // before the capture canary. This records buyer confirmation without
+  // triggering payout, capture, refund, release, relist, or recovery-unblock.
+  if (listing && purchase && body?.confirming_role === 'buyer') {
+    const executorUrl = secrets.get('AUTHORITY_V1_DB_URL_DEV_EXECUTOR');
+    const canaryBuyerResult = await maybeRouteCanaryBuyerConfirm({
+      base44, user, body, listing, purchase,
+      executorUrl,
+      canaryEnabled: isCanaryEnabled(),
+    });
+    if (canaryBuyerResult) return Response.json(canaryBuyerResult.body, { status: canaryBuyerResult.status });
   }
 
   // ── Canary guard (admin + synthetic [AUTH_CANARY] listing only) ─────────

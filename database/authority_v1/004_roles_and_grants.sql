@@ -2,7 +2,7 @@
 -- authority_v1 — Roles and Grants (004)
 -- Source of truth for database security boundaries.
 --
--- INSTALLATION ORDER: 001_schema → 002_functions → 002c_proof_assessment → 003_workers → 004_roles
+-- INSTALLATION ORDER: 001_schema → 002_functions → 002c_proof_assessment → 002d_buyer_confirmation → 003_workers → 004_roles
 -- All functions (including workers) exist before this file grants EXECUTE.
 --
 -- Principles:
@@ -173,6 +173,10 @@ GRANT EXECUTE ON FUNCTION authority_v1.begin_transfer(TEXT,INTEGER,TEXT,TEXT,TEX
 GRANT EXECUTE ON FUNCTION authority_v1.record_seller_report(TEXT,INTEGER,TEXT,TEXT,TEXT) TO authority_executor;
 -- P0-01S: Advisory proof assessment — executor-only (AI assessment is advisory)
 GRANT EXECUTE ON FUNCTION authority_v1.record_transfer_proof_assessment(TEXT,INTEGER,TEXT,TEXT,TEXT,TEXT,JSONB,TEXT,TEXT) TO authority_executor;
+-- P0-01T: Authoritative buyer transfer confirmation — executor-only
+-- Buyer identity derived from authenticated session, verified against binding.
+-- No financial side effects (no payout, capture, refund, release, relist, recovery-unblock).
+GRANT EXECUTE ON FUNCTION authority_v1.record_buyer_transfer_confirmation(TEXT,INTEGER,TEXT,TEXT,TEXT,TEXT) TO authority_executor;
 -- P0-01K: Durable webhook ingestion — recorder-only (privilege boundary correction)
 -- Ingestion is performed by the stripeWebhook handler using the recorder client.
 -- The executor no longer has EXECUTE on this function.

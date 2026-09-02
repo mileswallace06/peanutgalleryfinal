@@ -2,7 +2,7 @@
 -- authority_v1 — Proof Assessment Function (002c)
 -- P0-01S: Advisory AI Proof Assessment
 --
--- INSTALLATION ORDER: 001_schema → 002_functions → 002c_proof_assessment → 003_workers → 004_roles
+-- INSTALLATION ORDER: 001_schema → 002_functions → 002c_proof_assessment → 002d_buyer_confirmation → 003_workers → 004_roles
 -- This file must exist before 004 grants EXECUTE.
 -- ═══════════════════════════════════════════════════════════════════════════
 

@@ -190,5 +190,10 @@ export function createAuthorityV1Client(executorUrl) {
     async recordTransferProofAssessment(listingId, expectedVersion, sellerUserId, purchaseId, proofAssetIdHash, assessmentState, assessmentData, operationId, requestHash) {
       return callFn('record_transfer_proof_assessment', listingId, expectedVersion, sellerUserId, purchaseId, proofAssetIdHash, assessmentState, assessmentData, operationId, requestHash);
     },
+
+    /** record_buyer_transfer_confirmation(listing_id, expected_version, buyer_user_id, purchase_id, operation_id, request_hash) → JSONB */
+    async recordBuyerTransferConfirmation(listingId, expectedVersion, buyerUserId, purchaseId, operationId, requestHash) {
+      return callFn('record_buyer_transfer_confirmation', listingId, expectedVersion, buyerUserId, purchaseId, operationId, requestHash);
+    },
   };
 }

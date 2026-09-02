@@ -36,7 +36,8 @@
         "confirm",
         "abort_release",
         "capture",
-        "proof_assessment"
+        "proof_assessment",
+        "buyer_confirmation"
       ],
       "description": "The authority operation that committed but whose mirror failed."
     },
@@ -50,7 +51,7 @@
     },
     "mirror_payload": {
       "type": "object",
-      "description": "JSON snapshot of the exact fields to write to the Base44 mirror. Structure: { listing, listing_private } for reserve/release/abort/capture, or { purchase, purchase_private } for confirm/proof_assessment.",
+      "description": "JSON snapshot of the exact fields to write to the Base44 mirror. Structure: { listing, listing_private } for reserve/release/abort/capture, or { purchase, purchase_private } for confirm/proof_assessment/buyer_confirmation.",
       "properties": {
         "listing": {
           "type": "object"
