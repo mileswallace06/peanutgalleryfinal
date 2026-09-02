@@ -1,7 +1,7 @@
 # authority_v1 Reserve/Release Canary — Certification Manifest
 
-**Date:** 2026-08-21 (last recertified 2026-08-31 — P0-01Q-CONFIRM-CANARY-WIRED)
-**Status:** ✅ CERTIFIED — Flag OFF, maintenance ON, zero synthetic rows. Tests run this session (P0-01Q): confirm-canary 16/16, capture-canary 12/12, authority-contract 178/178, build exit 0, scoped lint 0 errors. Current targeted gate: 206/206 assertions. Previously certified (not re-run this session): real-Stripe abort 92/92, abort-canary 103/103, payment-saga-cancel 59/59, capture-finalize 80/80, protections 7/7, wiring 5/5, real-stripe-capture 47/47, webhook-ingress 20/20, webhook-processor 19/19, transfer-canary 74/74, cancel-purchase-canary 146/146, cancel-purchase-real-stripe 129/129. Trusted dependency injection (no env/global override), transfer-state foundation certified (seller-reported only, provider delivery not verified, auto-relist disabled)
+**Date:** 2026-08-21 (last recertified 2026-09-02 — P0-01R-REAL-STRIPE-TEST-CONFIRM-CERTIFIED)
+**Status:** ✅ CERTIFIED — Flag OFF, maintenance ON, zero synthetic rows. Tests run this session (P0-01R): real-Stripe confirm 46/46, concurrency 31/31, confirm-canary 17/17, capture regression 12/12, authority-contract 194/194, build exit 0, scoped lint 0 errors. Current targeted gate: 300/300 assertions. Previously certified (not re-run this session): real-Stripe abort 92/92, abort-canary 103/103, payment-saga-cancel 59/59, capture-finalize 80/80, protections 7/7, wiring 5/5, real-stripe-capture 47/47, webhook-ingress 20/20, webhook-processor 19/19, transfer-canary 74/74, cancel-purchase-canary 146/146, cancel-purchase-real-stripe 129/129. Trusted dependency injection (no env/global override), transfer-state foundation certified (seller-reported only, provider delivery not verified, auto-relist disabled)
 
 ---
 
@@ -23,7 +23,7 @@
 | `capturePayment` | **CANARY-WIRED / REAL STRIPE TEST-MODE CERTIFIED / LIVE STRIPE NOT CERTIFIED / FLAG OFF** — See §11 below |
 | `stripeWebhook` | **CANARY-WIRED / INGRESS CERTIFIED / PROCESSING CERTIFIED / REAL STRIPE WEBHOOK DELIVERY NOT CERTIFIED / FLAG OFF** — See §12–§13 below |
 | `cancelPurchase` | **CANARY-WIRED / FAKE-PROVIDER CERTIFIED / REAL STRIPE CANCEL NOT CERTIFIED / CAPTURED REFUND NOT IN SCOPE / FLAG OFF** — See §14 below |
-| `confirmCheckoutAuthorized` | **CANARY-WIRED / FAKE-PROVIDER CERTIFIED / REAL STRIPE CONFIRM NOT CERTIFIED / FLAG OFF** — See §18 below |
+| `confirmCheckoutAuthorized` | **CANARY-WIRED / REAL STRIPE TEST-MODE CERTIFIED / LIVE STRIPE NOT CERTIFIED / FLAG OFF** — See §18–§19 below |
 
 ---
 
@@ -154,7 +154,7 @@ Execution method: `tests/payment-saga-cancel.test.mjs` refactored as importable 
 | `cleanupAbandonedCheckouts` | UNCHANGED (excluded) | No reservation release to route |
 | `capturePayment` | **CANARY-WIRED / REAL STRIPE TEST-MODE CERTIFIED / LIVE STRIPE NOT CERTIFIED / FLAG OFF** | See §11 below |
 | `stripeWebhook` | UNCHANGED | No authority_v1 integration |
-| `confirmCheckoutAuthorized` | **CANARY-WIRED / FAKE-PROVIDER CERTIFIED / REAL STRIPE CONFIRM NOT CERTIFIED / FLAG OFF** | See §18 below |
+| `confirmCheckoutAuthorized` | **CANARY-WIRED / REAL STRIPE TEST-MODE CERTIFIED / LIVE STRIPE NOT CERTIFIED / FLAG OFF** | See §18–§19 below |
 | `cancelPurchase` | UNCHANGED | No authority_v1 integration |
 | `verifyTransferProof` | UNCHANGED | No authority_v1 integration |
 
@@ -1708,7 +1708,7 @@ P0-01P manifest label: **P0-01P-REAL-STRIPE-TEST-ABORT-CERTIFIED / LIVE STRIPE N
 
 ## §18 — P0-01Q: Confirm-Checkout Canary Handler Wiring
 
-P0-01Q manifest label: **`confirmCheckoutAuthorized — CANARY-WIRED / FAKE-PROVIDER CERTIFIED / REAL STRIPE CONFIRM NOT CERTIFIED / FLAG OFF`**
+P0-01Q manifest label: **`confirmCheckoutAuthorized — CANARY-WIRED / REAL STRIPE TEST-MODE CERTIFIED / LIVE STRIPE NOT CERTIFIED / FLAG OFF`** (real Stripe test-mode certified in §19)
 
 ### 18.1 Scope
 
@@ -1798,7 +1798,7 @@ All 7 `authority_v1` tables at 0 rows after confirm-canary and capture-canary su
 
 ### 18.11 Conclusion
 
-P0-01Q manifest label: **`confirmCheckoutAuthorized — CANARY-WIRED / FAKE-PROVIDER CERTIFIED / REAL STRIPE CONFIRM NOT CERTIFIED / FLAG OFF`**
+P0-01Q manifest label: **`confirmCheckoutAuthorized — CANARY-WIRED / REAL STRIPE TEST-MODE CERTIFIED / LIVE STRIPE NOT CERTIFIED / FLAG OFF`** (real Stripe test-mode certified in §19)
 
 - `confirmCheckoutAuthorized` is canary-wired before the maintenance gate; legacy path unchanged.
 - The orchestrator accepts `canaryEnabled` via trusted DI — no env/global/header/secret override. The handler supplies `isCanaryEnabled()` (committed default-OFF).
@@ -1808,3 +1808,175 @@ P0-01Q manifest label: **`confirmCheckoutAuthorized — CANARY-WIRED / FAKE-PROV
 - 50 backend functions, 32 authority functions, flag OFF, maintenance ON, 0 synthetic rows, 0 real Stripe calls.
 - **Real Stripe confirm is NOT certified.** P0-01O (real Stripe webhook delivery) remains parked and untouched.
 - Current targeted gate: **206/206 assertions** (confirm-canary 16, capture-canary 12, authority-contract 178), build exit 0, scoped lint 0 errors.
+
+---
+
+## §19 — P0-01R: Real Stripe TEST-Mode Confirm-Checkout Certification
+
+P0-01R manifest label: **`confirmCheckoutAuthorized — CANARY-WIRED / REAL STRIPE TEST-MODE CERTIFIED / LIVE STRIPE NOT CERTIFIED / FLAG OFF`**
+
+### 19.1 Scope
+
+Certifies the DEPLOYED `confirmCheckoutAuthorized` canary path against the REAL Stripe API in TEST MODE only. The harness exercises the exact production routing seam — `maybeRouteCanaryConfirm` (`base44/shared/confirmCanaryOrchestrator.js`) — with the shared production Stripe capture provider (`base44/shared/stripeCaptureProvider.js`, `createStripeCaptureProvider`). No provider logic is duplicated or reimplemented in the harness. The harness never calls `runCanaryConfirmSaga` directly.
+
+- **TEST MODE ONLY.** The runner verifies the Stripe key starts with `sk_test_` before use. `STRIPELIVESECRETKEY` is never read. No credential is printed, logged, returned, or exposed.
+- **Synthetic IDs only.** No real users, listings, purchases, cards, or money. All Stripe test PaymentIntents are manual-capture, tagged with metadata `{ pg_cert: 'P0-01R', purpose: 'canary_confirm_cert' }`. Prebuilt test PaymentMethod `pm_card_visa` — no raw card data, no PCI payload.
+- **Flag stays OFF in production.** The canary-routing function accepts its enabled state as a trusted, caller-supplied dependency (`canaryEnabled`). The production handler supplies `isCanaryEnabled()` (the committed default-OFF flag); the harness supplies `true` directly. No environment variable, global, request field, header, or secret can override the flag.
+- **Executor-only authority access.** The confirm canary uses `createAuthorityV1Client` (executor) for `bind_payment_intent`. No recorder, no admin fallback in the saga path. Admin SQL is used only for synthetic fixture setup and exact cleanup.
+- **LIVE Stripe is NOT certified** (NEEDS_OWNER_ACTION). P0-01O (real Stripe webhook delivery) remains parked and untouched.
+
+### 19.2 Atomic ON CONFLICT Defense-in-Depth
+
+The canonical `bind_payment_intent` function (`database/authority_v1/002_functions.sql`) was hardened with an atomic `ON CONFLICT (purchase_id) DO NOTHING` clause on the binding INSERT, with `RETURNING purchase_id INTO v_inserted_purchase_id` to detect whether the conflict fired. When the conflict fires (a second PaymentIntent races to bind the same purchase), the function returns a structured `{ok: false, code: 'PAYMENT_BINDING_CONFLICT'}` result and marks the operation as rejected with `error_code` — never an unstructured 500 or PK violation exception.
+
+This is the atomic safety net that catches any race that slips through the `reservation_authority FOR UPDATE` lock + pre-insert lookup. The orchestrator (`confirmCanaryOrchestrator.js`) maps this to HTTP 409 with a stable public error code `PAYMENT_BINDING_CONFLICT`.
+
+### 19.3 T3 — Exact 409 Conflict
+
+T3 of the real-Stripe harness proves the exact conflict behavior when two different synthetic PaymentIntent IDs race to bind the same purchase:
+
+| Step | Result |
+|---|---|
+| First PI (`pi_3UAeaCEUwdSmJ9rr1M3Wd9me`) | 200 — binding created, `capture_state='authorized'`, `bound=true` |
+| Second PI (`pi_3UAeaDEUwdSmJ9rr00qlGFpz`) | 409 — `PAYMENT_BINDING_CONFLICT`, `bound=false` |
+| Binding count after first | 1 |
+| Binding count after second | 1 (unchanged — no second mutation) |
+| Initial binding unchanged | ✅ (winner PI ID and `authorized` state preserved) |
+
+The second PI never mutates any authoritative state — no new binding, no new operation, no outbox event. The `ON CONFLICT DO NOTHING` clause atomically absorbs the race, and the `RETURNING`-null detection returns the structured conflict.
+
+### 19.4 Concurrency Stress Test — 25 Iterations
+
+`tests/bind-payment-concurrency.test.mjs` performs 25 iterations of true concurrent `Promise.allSettled` races. Each iteration fires two different PaymentIntent IDs against the same purchase simultaneously:
+
+| Requirement | Result (25/25 iterations) |
+|---|---|
+| Exactly one successful binding per iteration | ✅ 25/25 |
+| Exactly one structured `PAYMENT_BINDING_CONFLICT` per iteration | ✅ 25/25 |
+| Zero thrown database exceptions | ✅ 0 |
+| Exactly one binding row per iteration | ✅ 25/25 |
+| Winning binding unchanged (correct PI, `authorized` state) | ✅ 25/25 |
+| All 7 authority tables empty post-test | ✅ |
+
+Uses the EXECUTOR runtime client (not admin) to prove the production path. Runner: `tests/run-bind-payment-concurrency.mjs` (committed, permanently runnable via `node tests/run-bind-payment-concurrency.mjs`).
+
+### 19.5 Downstream begin_capture Acceptance
+
+T11 of the real-Stripe harness proves the binding created by `bind_payment_intent` is accepted by the downstream `begin_capture` transition. After `bind_payment_intent` commits with `capture_state='authorized'`, the harness calls `beginCapture` which transitions the authority to `frozen` — proving the binding is structurally valid and the capture pipeline can proceed.
+
+### 19.6 Test-Mode Proof
+
+All 11 Stripe test PaymentIntents are `livemode: false`, verified by assertion in the harness. The runner (`tests/run-p0-01r-confirm-real-stripe.mjs`) verifies the key starts with `sk_test_` before use. No live-mode key was ever read or used. No real money was moved.
+
+| Scenario | PaymentIntent ID | livemode | Final Status |
+|---|---|---|---|
+| T1 | `pi_3UAea7EUwdSmJ9rr092bjAac` | false | requires_capture |
+| T2 | `pi_3UAea9EUwdSmJ9rr1IKBispe` | false | requires_capture |
+| T3-pi1 | `pi_3UAeaCEUwdSmJ9rr1M3Wd9me` | false | requires_capture |
+| T3-pi2 | `pi_3UAeaDEUwdSmJ9rr00qlGFpz` | false | requires_capture |
+| T4 | `pi_3UAeaGEUwdSmJ9rr1vY5V2aT` | false | requires_capture |
+| T5 | `pi_3UAeaIEUwdSmJ9rr01cfwPD8` | false | requires_capture |
+| T6 | `pi_3UAeaKEUwdSmJ9rr1Dohh6mo` | false | requires_capture |
+| T7 | `pi_3UAeaMEUwdSmJ9rr129xEfVn` | false | canceled |
+| T8 | `pi_3UAeaOEUwdSmJ9rr0mOkgOaw` | false | requires_capture |
+| T9 | `pi_3UAeaREUwdSmJ9rr0yLzhTC2` | false | requires_capture |
+| T10 | `pi_3UAeaTEUwdSmJ9rr1yCkI8Xm` | false | requires_capture |
+
+### 19.7 Provider Request Counts
+
+- **Stripe setup creations (PaymentIntent creates):** 11 (one per scenario T1–T10, two for T3)
+- **Stripe cleanup cancellations (PaymentIntent cancels):** 11 (all open PIs canceled in cleanup)
+- **Production-seam retrievals (`retrievePaymentIntent` via shared provider):** 20 (the harness exercises the production seam `maybeRouteCanaryConfirm` which retrieves PI metadata for verification — never captures)
+
+No duplicate provider logic. The harness uses the same `createStripeCaptureProvider` shared module the handler uses.
+
+### 19.8 Normalized Live/Artifact Parity
+
+The deployed `bind_payment_intent` function includes the `ON CONFLICT (purchase_id) DO NOTHING` + `RETURNING` clause from the canonical SQL artifact (`database/authority_v1/002_functions.sql`). The authority-contract static checks (TEST 33) verify the artifact contains:
+- `ON CONFLICT (purchase_id) DO NOTHING` on the binding INSERT
+- `RETURNING purchase_id INTO v_inserted_purchase_id`
+- `IS NULL` check to detect conflict
+- `'PAYMENT_BINDING_CONFLICT'` structured error return
+- `status = 'rejected'` + `error_code` on conflict
+- `v_inserted_purchase_id` declared in DECLARE block
+
+### 19.9 Ownership and Grants
+
+| Role | Schema USAGE | Table INSERT/SELECT | Function EXECUTE |
+|---|---|---|---|
+| `authority_executor` | ✓ | ✗ | 22+ functions (including `bind_payment_intent`) |
+| `authority_stripe_recorder` | ✓ | ✗ | 4 record_* + ingest functions only |
+| `authority_worker` | ✓ | ✗ | 10 worker functions only |
+| `authority_owner` (NOLOGIN) | ✓ | owns all tables | — (cannot connect) |
+
+`bind_payment_intent` is granted to `authority_executor` only. The recorder and worker roles cannot call it. No table privileges are granted to any runtime role.
+
+### 19.10 Probe Credential Untouched
+
+The separate owner-managed `AUTHORITY_DB_URL_DEV_EXECUTOR` (role `authority_probe_executor`, `authority_probe_v2` schema) was NOT accessed, modified, or referenced by P0-01R. The confirm canary requires `authority_executor` via `createAuthorityV1Client` using `AUTHORITY_V1_DB_URL_DEV_EXECUTOR`; the probe credential is incompatible and was not used.
+
+### 19.11 All Seven Tables Empty
+
+Post-test verification: all seven `authority_v1` tables at 0 rows after every suite:
+
+| Table | Rows |
+|---|---|
+| `reservation_authority` | 0 |
+| `reservation_operations` | 0 |
+| `reservation_outbox` | 0 |
+| `reservation_payment_bindings` | 0 |
+| `payment_actions` | 0 |
+| `stripe_webhook_events` | 0 |
+| `operational_incidents` | 0 |
+
+### 19.12 Targeted Test Suite Results — 300/300
+
+| Suite | Passed | Failed |
+|---|---|---|
+| real-Stripe confirm (T0–T11) | 46 | 0 |
+| bind-payment-concurrency (25 iterations) | 31 | 0 |
+| confirm-canary-orchestrator (incl. T15 regression) | 17 | 0 |
+| capture-canary-orchestrator (regression) | 12 | 0 |
+| authority-contract (static, incl. 4 ON CONFLICT checks) | 194 | 0 |
+| **Targeted total** | **300** | **0** |
+
+- **Build:** `npm run build` exit 0.
+- **Scoped lint:** 5 files — 0 errors.
+
+### 19.13 Changed Files (P0-01R)
+
+| File | Change |
+|---|---|
+| `database/authority_v1/002_functions.sql` | `bind_payment_intent` hardened with `ON CONFLICT (purchase_id) DO NOTHING` + `RETURNING purchase_id INTO v_inserted_purchase_id` + structured `PAYMENT_BINDING_CONFLICT` return |
+| `base44/shared/confirmCanaryOrchestrator.js` | Error handler maps PostgreSQL 23505 / `reservation_payment_bindings` constraint violation to 409 `PAYMENT_BINDING_CONFLICT` |
+| `tests/confirm-canary-real-stripe.test.mjs` | NEW — 12-scenario real-Stripe harness exercising `maybeRouteCanaryConfirm` with shared `createStripeCaptureProvider` |
+| `tests/run-p0-01r-confirm-real-stripe.mjs` | NEW — runner verifying `sk_test_` key, assembling deps, invoking harness |
+| `tests/bind-payment-concurrency.test.mjs` | NEW — 25-iteration concurrency stress test using executor runtime client |
+| `tests/run-bind-payment-concurrency.mjs` | NEW — committed runner for concurrency stress test |
+| `tests/confirm-canary-orchestrator.test.mjs` | T15 added — conflicting PI → 409 `PAYMENT_BINDING_CONFLICT`, no second mutation |
+| `tests/authority-contract.test.mjs` | TEST 33 added — 4 `bind_payment_intent` ON CONFLICT static contract checks (194 total) |
+| `src/docs/AUTHORITY_V1_CANARY_CERTIFICATION.md` | §19 (P0-01R certification), header, §1/§7 label updates, §18 label updates |
+
+### 19.14 P0-01O Parked, Live Stripe Uncertified
+
+- **P0-01O** (real Stripe webhook delivery) remains parked and untouched. No webhook delivery certification was performed in P0-01R.
+- **LIVE Stripe is NOT certified.** The confirm canary retrieves PI metadata and binds the payment intent in test mode only. Live-mode certification remains a separate owner-gated step (NEEDS_OWNER_ACTION).
+- **Flag OFF, maintenance ON.** The canary flag is default-OFF in production; the harness supplies `true` via trusted dependency injection only.
+
+### 19.15 Conclusion
+
+P0-01R manifest label: **`confirmCheckoutAuthorized — CANARY-WIRED / REAL STRIPE TEST-MODE CERTIFIED / LIVE STRIPE NOT CERTIFIED / FLAG OFF`**
+
+- The deployed `confirmCheckoutAuthorized` canary path is certified against the real Stripe API in test mode via the exact production routing seam (`maybeRouteCanaryConfirm`) and shared provider (`createStripeCaptureProvider`). No duplicated provider logic.
+- **Atomic ON CONFLICT defense-in-depth:** `bind_payment_intent` uses `ON CONFLICT (purchase_id) DO NOTHING` with `RETURNING` to atomically catch any race that slips through the `FOR UPDATE` lock. T3 proves the exact 409 `PAYMENT_BINDING_CONFLICT` — second PI rejected, binding count unchanged, winner preserved.
+- **25-iteration concurrency stress test:** every iteration produces exactly one successful binding and one structured 409 conflict, with zero thrown database exceptions, exactly one binding row, and the winning binding unchanged.
+- **Downstream `begin_capture` acceptance:** T11 proves the binding is structurally valid and the capture pipeline can proceed (authority → `frozen`).
+- **Test-mode proof:** all 11 Stripe test PaymentIntents are `livemode: false`. The runner verifies `sk_test_` before use. No live key was ever read.
+- **20 production-seam retrievals, 11 setup creations, 11 cleanup cancellations.** No duplicate provider logic.
+- **Normalized live/artifact parity:** the deployed function includes the `ON CONFLICT` clause from the canonical SQL artifact (4 static contract checks verify the artifact structure).
+- **Ownership/grants:** `bind_payment_intent` granted to `authority_executor` only; recorder and worker denied; zero table privileges for any runtime role.
+- **All seven `authority_v1` tables empty** after every suite.
+- **`AUTHORITY_DB_URL_DEV_EXECUTOR` probe credential untouched.** The separate probe credential was not accessed or modified.
+- **P0-01O parked, live Stripe uncertified.** Flag OFF, maintenance ON, 0 synthetic rows post-cleanup.
+- 50 backend functions, 32 authority functions, flag OFF, maintenance ON, 0 synthetic rows.
+- Current targeted gate: **300/300 assertions** (real-Stripe confirm 46, concurrency 31, confirm-canary 17, capture regression 12, authority-contract 194), build exit 0, scoped lint 0 errors.
