@@ -170,6 +170,15 @@ BEGIN
       'reason', 'Version changed — retry with current version');
   END IF;
 
+  -- Keep binding's frozen_authority_version in sync with the new authority version.
+  -- Buyer confirmation is advisory (no financial effects) — the binding's freeze
+  -- point must track the authority version through non-financial mutations so
+  -- that record_capture_result's AUTHORITY_FROZEN_MISMATCH check still passes
+  -- when capture is composed after buyer confirmation.
+  UPDATE reservation_payment_bindings
+  SET frozen_authority_version = v_new_version, updated_at = now()
+  WHERE purchase_id = p_purchase_id AND listing_id = p_listing_id;
+
   -- Commit operation ledger
   UPDATE reservation_operations SET status = 'committed', committed_version = v_new_version,
     result_json = jsonb_build_object('ok', true, 'transfer_state', 'buyer_confirmed_received',

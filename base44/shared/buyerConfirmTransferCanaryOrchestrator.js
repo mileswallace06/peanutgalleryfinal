@@ -100,6 +100,41 @@ export async function runCanaryBuyerConfirmSaga(deps) {
   }
 
   // ── 3. State checks ──────────────────────────────────────────────────────
+  // Already sold — idempotent replay (buyer already confirmed + capture finalized)
+  if (state.lifecycle_state === 'sold') {
+    return {
+      status: 200,
+      body: {
+        ok: true,
+        replay: true,
+        captured: true,
+        finalized: true,
+        capture_replay: true,
+        transfer_state: 'buyer_confirmed_received',
+        buyer_confirmed: true,
+        authority: state,
+      },
+    };
+  }
+
+  // Already available (capture failed/released) — idempotent replay
+  if (state.lifecycle_state === 'available') {
+    return {
+      status: 200,
+      body: {
+        ok: true,
+        replay: true,
+        captured: false,
+        capture_failed: true,
+        released: true,
+        capture_replay: true,
+        transfer_state: state.transfer_state,
+        buyer_confirmed: state.transfer_state === 'buyer_confirmed_received',
+        authority: state,
+      },
+    };
+  }
+
   if (state.lifecycle_state !== 'frozen') {
     return {
       status: 409,

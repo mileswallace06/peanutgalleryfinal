@@ -211,7 +211,25 @@ export async function runCanaryCaptureSaga(deps) {
     };
   }
 
-  // ── 5. Branch on result ──────────────────────────────────────────────────
+  // ── 5. Check if record_capture_result returned a structured error ─────────
+  // The recorder may return { ok: false, code: '...' } without throwing.
+  // We must not pretend recovery_blocked/finalized is true if the recorder
+  // rejected the result — the authority DB was NOT updated in that case.
+  if (recordResult?.ok === false) {
+    return {
+      status: 409,
+      body: {
+        ok: false,
+        error: 'record_capture_result rejected the result',
+        code: recordResult?.code || 'RECORD_FAILED',
+        provider_called: true,
+        provider_result: derived,
+        authority: recordResult,
+      },
+    };
+  }
+
+  // ── 6. Branch on result ──────────────────────────────────────────────────
   if (derived === 'succeeded' && recordResult?.finalized === true) {
     // Confirmed success → authority sold → Base44 mirror sold
     const mirrorPayload = {
