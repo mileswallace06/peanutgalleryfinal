@@ -2,7 +2,7 @@
 -- authority_v1 — Roles and Grants (004)
 -- Source of truth for database security boundaries.
 --
--- INSTALLATION ORDER: 001_schema → 002_functions → 002c_proof_assessment → 002d_buyer_confirmation → 003_workers → 004_roles
+-- INSTALLATION ORDER: 001_schema → 002_functions → 002c_proof_assessment → 002d_buyer_confirmation → 002e_active_capture_context → 003_workers → 004_roles
 -- All functions (including workers) exist before this file grants EXECUTE.
 --
 -- Principles:
@@ -177,6 +177,14 @@ GRANT EXECUTE ON FUNCTION authority_v1.record_transfer_proof_assessment(TEXT,INT
 -- Buyer identity derived from authenticated session, verified against binding.
 -- No financial side effects (no payout, capture, refund, release, relist, recovery-unblock).
 GRANT EXECUTE ON FUNCTION authority_v1.record_buyer_transfer_confirmation(TEXT,INTEGER,TEXT,TEXT,TEXT,TEXT) TO authority_executor;
+-- P0-01T: Active capture context — executor-only (sensitive credentials)
+-- Returns the active capture action_id + stripe_idempotency_key for composing
+-- capture after buyer confirmation. NOT exposed via get_state (which is
+-- projected to mirrors). NOT granted to recorder, worker, or PUBLIC.
+GRANT EXECUTE ON FUNCTION authority_v1.get_active_capture_context(TEXT) TO authority_executor;
+REVOKE EXECUTE ON FUNCTION authority_v1.get_active_capture_context(TEXT) FROM authority_stripe_recorder;
+REVOKE EXECUTE ON FUNCTION authority_v1.get_active_capture_context(TEXT) FROM authority_worker;
+REVOKE EXECUTE ON FUNCTION authority_v1.get_active_capture_context(TEXT) FROM PUBLIC;
 -- P0-01K: Durable webhook ingestion — recorder-only (privilege boundary correction)
 -- Ingestion is performed by the stripeWebhook handler using the recorder client.
 -- The executor no longer has EXECUTE on this function.

@@ -2,7 +2,7 @@
 -- authority_v1 — Stored Functions (002)
 -- Source of truth for all authority transaction logic.
 --
--- INSTALLATION ORDER: 001_schema → 002_functions → 002c_proof_assessment → 002d_buyer_confirmation → 003_workers → 004_roles
+-- INSTALLATION ORDER: 001_schema → 002_functions → 002c_proof_assessment → 002d_buyer_confirmation → 002e_active_capture_context → 003_workers → 004_roles
 --
 -- A PL/pgSQL function invocation executes inside the caller's PostgreSQL
 -- transaction. Transaction-control statements (BEGIN/COMMIT) are NOT placed
@@ -98,16 +98,10 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = authority_v1, pg_temp
 AS $$
-DECLARE v_row reservation_authority%ROWTYPE; v_action_id TEXT;
+DECLARE v_row reservation_authority%ROWTYPE;
 BEGIN
   SELECT * INTO v_row FROM reservation_authority WHERE listing_id = p_listing_id;
   IF NOT FOUND THEN RETURN jsonb_build_object('ok', false, 'code', 'NOT_FOUND'); END IF;
-  -- P0-01T: Include the active capture action_id so the buyer-confirmation
-  -- orchestrator can compose capture after recording buyer confirmation.
-  SELECT action_id INTO v_action_id FROM payment_actions
-  WHERE listing_id = p_listing_id AND action_type = 'capture'
-    AND status IN ('pending','in_flight','unknown')
-  ORDER BY created_at DESC LIMIT 1;
   RETURN jsonb_build_object(
     'ok', true,
     'version', v_row.version,
@@ -119,8 +113,7 @@ BEGIN
     'checkout_quarantined', v_row.checkout_quarantined,
     'recovery_blocked', v_row.recovery_blocked,
     'transfer_state', v_row.transfer_state,
-    'transfer_state_updated_at', v_row.transfer_state_updated_at,
-    'active_capture_action_id', v_action_id
+    'transfer_state_updated_at', v_row.transfer_state_updated_at
   );
 END;
 $$;

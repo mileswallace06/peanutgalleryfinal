@@ -64,6 +64,7 @@ const SQL_SCHEMA = join(ROOT, 'database/authority_v1/001_schema.sql');
 const SQL_FUNCTIONS = join(ROOT, 'database/authority_v1/002_functions.sql');
 const SQL_PROOF = join(ROOT, 'database/authority_v1/002c_proof_assessment.sql');
 const SQL_BUYER = join(ROOT, 'database/authority_v1/002d_buyer_confirmation.sql');
+const SQL_CAPTURE_CTX = join(ROOT, 'database/authority_v1/002e_active_capture_context.sql');
 const SQL_WORKERS = join(ROOT, 'database/authority_v1/003_workers.sql');
 const SQL_ROLES = join(ROOT, 'database/authority_v1/004_roles_and_grants.sql');
 const DOC = join(ROOT, 'src/docs/ATOMICITY_ARCHITECTURE_DECISION.md');
@@ -73,6 +74,7 @@ const schema = existsSync(SQL_SCHEMA) ? readFileSync(SQL_SCHEMA, 'utf8') : '';
 const functions = existsSync(SQL_FUNCTIONS) ? readFileSync(SQL_FUNCTIONS, 'utf8') : '';
 const proofFn = existsSync(SQL_PROOF) ? readFileSync(SQL_PROOF, 'utf8') : '';
 const buyerFn = existsSync(SQL_BUYER) ? readFileSync(SQL_BUYER, 'utf8') : '';
+const captureCtxFn = existsSync(SQL_CAPTURE_CTX) ? readFileSync(SQL_CAPTURE_CTX, 'utf8') : '';
 const workers = existsSync(SQL_WORKERS) ? readFileSync(SQL_WORKERS, 'utf8') : '';
 const roles = existsSync(SQL_ROLES) ? readFileSync(SQL_ROLES, 'utf8') : '';
 const doc = existsSync(DOC) ? readFileSync(DOC, 'utf8') : '';
@@ -2132,6 +2134,124 @@ check('buyer_confirmation_installation_order_updated', () => {
 check('buyer_confirmation_canary_mirror_outbox_enum', () => {
   const src = readFileSync(join(ROOT, 'base44/entities/CanaryMirrorOutbox.jsonc'), 'utf8');
   if (!src.includes('buyer_confirmation')) throw new Error('CanaryMirrorOutbox operation_type enum must include buyer_confirmation');
+  return true;
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TEST 36: P0-01T active capture context — dedicated executor-only function
+// ═══════════════════════════════════════════════════════════════════════════
+// Proves: (1) the function lives in a separate migration file (002e), not in
+// 002_functions.sql; (2) get_state does NOT return action_id or idempotency
+// key (sensitive credentials are not exposed through the general function);
+// (3) the dedicated function is SECURITY DEFINER with hardened search_path;
+// (4) granted to executor ONLY — not recorder, not worker, not PUBLIC;
+// (5) the orchestrator uses the dedicated function, not get_state, for capture
+// context; (6) the executor client exposes the new method.
+check('capture_context_file_exists', () => {
+  if (!existsSync(SQL_CAPTURE_CTX)) throw new Error('002e_active_capture_context.sql not found');
+  return true;
+});
+check('capture_context_function_in_002e_not_002', () => {
+  if (!captureCtxFn.includes('CREATE OR REPLACE FUNCTION authority_v1.get_active_capture_context')) {
+    throw new Error('get_active_capture_context not found in 002e_active_capture_context.sql');
+  }
+  if (functions.includes('CREATE OR REPLACE FUNCTION authority_v1.get_active_capture_context')) {
+    throw new Error('get_active_capture_context must NOT be in 002_functions.sql (only in 002e)');
+  }
+  return true;
+});
+check('capture_context_function_security_definer', () => {
+  const fnStart = captureCtxFn.indexOf('CREATE OR REPLACE FUNCTION authority_v1.get_active_capture_context');
+  const fnEnd = captureCtxFn.indexOf('$$;', fnStart);
+  if (fnStart < 0 || fnEnd < 0) throw new Error('function not found');
+  const fnBody = captureCtxFn.substring(fnStart, fnEnd);
+  if (!fnBody.includes('SECURITY DEFINER')) throw new Error('must be SECURITY DEFINER');
+  if (!fnBody.includes('SET search_path = authority_v1, pg_temp')) throw new Error('must harden search_path');
+  return true;
+});
+check('get_state_does_not_expose_capture_credentials', () => {
+  const fnStart = functions.indexOf('CREATE OR REPLACE FUNCTION authority_v1.get_state');
+  const fnEnd = functions.indexOf('$$;', fnStart);
+  if (fnStart < 0 || fnEnd < 0) throw new Error('get_state not found');
+  const fnBody = functions.substring(fnStart, fnEnd);
+  // get_state MUST NOT return action_id or stripe_idempotency_key
+  if (fnBody.includes('active_capture_action_id')) {
+    throw new Error('get_state must NOT return active_capture_action_id (use get_active_capture_context)');
+  }
+  if (fnBody.includes('stripe_idempotency_key')) {
+    throw new Error('get_state must NOT return stripe_idempotency_key (use get_active_capture_context)');
+  }
+  if (fnBody.includes('active_capture_stripe_idem_key')) {
+    throw new Error('get_state must NOT return active_capture_stripe_idem_key');
+  }
+  return true;
+});
+check('capture_context_granted_to_executor_only', () => {
+  if (!roles.includes('GRANT EXECUTE ON FUNCTION authority_v1.get_active_capture_context')) {
+    throw new Error('get_active_capture_context not granted to authority_executor');
+  }
+  // Must NOT be granted to recorder
+  const recorderGrant = new RegExp('GRANT EXECUTE ON FUNCTION authority_v1\\.get_active_capture_context[^\\n]*authority_stripe_recorder');
+  if (recorderGrant.test(roles)) {
+    throw new Error('get_active_capture_context must NOT be granted to recorder');
+  }
+  // Must NOT be granted to worker
+  const workerGrant = new RegExp('GRANT EXECUTE ON FUNCTION authority_v1\\.get_active_capture_context[^\\n]*authority_worker');
+  if (workerGrant.test(roles)) {
+    throw new Error('get_active_capture_context must NOT be granted to worker');
+  }
+  return true;
+});
+check('capture_context_revoked_from_public', () => {
+  if (!roles.includes('REVOKE EXECUTE ON FUNCTION authority_v1.get_active_capture_context(TEXT) FROM PUBLIC')) {
+    throw new Error('EXECUTE not revoked from PUBLIC on get_active_capture_context');
+  }
+  if (!roles.includes('REVOKE EXECUTE ON FUNCTION authority_v1.get_active_capture_context(TEXT) FROM authority_stripe_recorder')) {
+    throw new Error('EXECUTE not revoked from recorder on get_active_capture_context');
+  }
+  if (!roles.includes('REVOKE EXECUTE ON FUNCTION authority_v1.get_active_capture_context(TEXT) FROM authority_worker')) {
+    throw new Error('EXECUTE not revoked from worker on get_active_capture_context');
+  }
+  return true;
+});
+check('capture_context_returns_only_active_actions', () => {
+  const fnStart = captureCtxFn.indexOf('CREATE OR REPLACE FUNCTION authority_v1.get_active_capture_context');
+  const fnEnd = captureCtxFn.indexOf('$$;', fnStart);
+  const fnBody = captureCtxFn.substring(fnStart, fnEnd);
+  // Must filter to active (non-terminal) statuses only
+  if (!fnBody.includes("'pending'")) throw new Error("must filter to 'pending' status");
+  if (!fnBody.includes("'in_flight'")) throw new Error("must filter to 'in_flight' status");
+  if (!fnBody.includes("'unknown'")) throw new Error("must filter to 'unknown' status");
+  // Terminal statuses must NOT be included
+  if (fnBody.includes("'succeeded'") && fnBody.includes('status IN')) {
+    throw new Error("must NOT include 'succeeded' (terminal) in active filter");
+  }
+  return true;
+});
+check('capture_context_orchestrator_uses_dedicated_function', () => {
+  const src = readFileSync(join(ROOT, 'base44/shared/buyerConfirmTransferCanaryOrchestrator.js'), 'utf8');
+  // Must call getActiveCaptureContext (the dedicated function), not rely on get_state for credentials
+  if (!src.includes('getActiveCaptureContext')) {
+    throw new Error('orchestrator must use getActiveCaptureContext for capture context');
+  }
+  // Must NOT reference active_capture_action_id or active_capture_stripe_idem_key from get_state
+  if (src.includes('active_capture_action_id')) {
+    throw new Error('orchestrator must NOT use active_capture_action_id from get_state');
+  }
+  if (src.includes('active_capture_stripe_idem_key')) {
+    throw new Error('orchestrator must NOT use active_capture_stripe_idem_key from get_state');
+  }
+  return true;
+});
+check('capture_context_executor_client_has_method', () => {
+  const src = readFileSync(join(ROOT, 'base44/shared/authorityV1Client.js'), 'utf8');
+  if (!src.includes('getActiveCaptureContext')) throw new Error('executor client must expose getActiveCaptureContext');
+  return true;
+});
+check('capture_context_installation_order_updated', () => {
+  if (!schema.includes('002e_active_capture_context')) throw new Error('001_schema.sql installation order must reference 002e_active_capture_context');
+  if (!functions.includes('002e_active_capture_context')) throw new Error('002_functions.sql installation order must reference 002e_active_capture_context');
+  if (!roles.includes('002e_active_capture_context')) throw new Error('004_roles_and_grants.sql installation order must reference 002e_active_capture_context');
   return true;
 });
 

@@ -228,10 +228,10 @@ export async function runCanaryBuyerConfirmSaga(deps) {
     };
   }
 
-  // Re-read state to get the active capture action_id + stripe_idem_key
-  let captureState;
+  // Re-read state to check if already sold (capture is a replay in that case)
+  let postConfirmState;
   try {
-    captureState = await executorClient.getState(listingId);
+    postConfirmState = await executorClient.getState(listingId);
   } catch (e) {
     return {
       status: 200,
@@ -247,7 +247,7 @@ export async function runCanaryBuyerConfirmSaga(deps) {
   }
 
   // If already sold, capture is a replay
-  if (captureState.lifecycle_state === 'sold') {
+  if (postConfirmState.lifecycle_state === 'sold') {
     return {
       status: 200,
       body: {
@@ -258,15 +258,35 @@ export async function runCanaryBuyerConfirmSaga(deps) {
         captured: true,
         finalized: true,
         capture_replay: true,
-        authority: captureState,
+        authority: postConfirmState,
+      },
+    };
+  }
+
+  // Fetch the active capture context via the DEDICATED executor-only function.
+  // This retrieves the action_id + stripe_idempotency_key without exposing
+  // them through the general get_state function (which is projected to mirrors).
+  let captureContext;
+  try {
+    captureContext = await executorClient.getActiveCaptureContext(listingId);
+  } catch (e) {
+    return {
+      status: 200,
+      body: {
+        ok: true,
+        replay: buyerConfirmReplay,
+        transfer_state: 'buyer_confirmed_received',
+        buyer_confirmed: true,
+        capture_warning: 'Active capture context read failed',
+        no_financial_effects: true,
       },
     };
   }
 
   // If no active capture action, buyer confirmation is advisory-only
-  // (payment was never authorized via begin_capture)
-  const actionId = captureState.active_capture_action_id;
-  const stripeIdemKey = captureState.active_capture_stripe_idem_key;
+  // (payment was never authorized via begin_capture, or the action is terminal)
+  const actionId = captureContext?.action_id;
+  const stripeIdemKey = captureContext?.stripe_idempotency_key;
 
   if (!actionId) {
     return {

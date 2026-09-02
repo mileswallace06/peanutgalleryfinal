@@ -195,5 +195,10 @@ export function createAuthorityV1Client(executorUrl) {
     async recordBuyerTransferConfirmation(listingId, expectedVersion, buyerUserId, purchaseId, operationId, requestHash) {
       return callFn('record_buyer_transfer_confirmation', listingId, expectedVersion, buyerUserId, purchaseId, operationId, requestHash);
     },
+
+    /** get_active_capture_context(listing_id) → JSONB (executor-only, sensitive credentials) */
+    async getActiveCaptureContext(listingId) {
+      return callFn('get_active_capture_context', listingId);
+    },
   };
 }

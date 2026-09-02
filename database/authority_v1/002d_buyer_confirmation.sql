@@ -2,7 +2,7 @@
 -- authority_v1 — Buyer Transfer Confirmation Function (002d)
 -- P0-01T: Authoritative Buyer Transfer Confirmation
 --
--- INSTALLATION ORDER: 001_schema → 002_functions → 002c_proof_assessment → 002d_buyer_confirmation → 003_workers → 004_roles
+-- INSTALLATION ORDER: 001_schema → 002_functions → 002c_proof_assessment → 002d_buyer_confirmation → 002e_active_capture_context → 003_workers → 004_roles
 -- This file must exist before 004 grants EXECUTE.
 -- ═══════════════════════════════════════════════════════════════════════════
 

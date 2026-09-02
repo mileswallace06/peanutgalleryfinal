@@ -8,6 +8,7 @@
 --   002_functions.sql     — all stored functions (authority + worker helpers)
 --   002c_proof_assessment.sql — P0-01S advisory proof assessment function
 --   002d_buyer_confirmation.sql — P0-01T authoritative buyer transfer confirmation
+--   002e_active_capture_context.sql — P0-01T active capture context (executor-only)
 --   003_workers.sql       — worker claiming, lease recovery, exhausted escalation
 --   004_roles_and_grants.sql — roles, ownership transfer, grants, revokes
 --
