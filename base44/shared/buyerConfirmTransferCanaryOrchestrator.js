@@ -399,23 +399,6 @@ export async function runCanaryBuyerConfirmSaga(deps) {
     captureError = (e?.message || String(e)).slice(0, 200);
   }
 
-  // ── DIAGNOSTIC (temporary) ──────────────────────────────────────────────
-  // Sanitized instrumentation — no credentials, IDs, URLs, SQL, or stacks.
-  const _diag = {
-    capture_threw: captureThrew,
-    capture_error_class: captureError ? captureError.split(':')[0].slice(0, 60) : null,
-    result_type: captureResult ? typeof captureResult : 'undefined',
-    has_status: captureResult && typeof captureResult.status === 'number',
-    has_body: captureResult && typeof captureResult.body === 'object',
-    result_keys: captureResult ? Object.keys(captureResult) : [],
-    body_keys: captureResult?.body ? Object.keys(captureResult.body) : [],
-    body_ok: captureResult?.body?.ok,
-    body_code: captureResult?.body?.code || captureResult?.body?.error_code || null,
-  };
-  if (process.env.P01T_DIAG === '1') {
-    console.log('[P01T-DIAG] capture saga result:', JSON.stringify(_diag));
-  }
-
   if (captureThrew) {
     return {
       status: 500,

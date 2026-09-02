@@ -352,8 +352,9 @@ export async function runAllTests({ adminSql, executorUrl, recorderUrl }) {
     let state = await getAuthorityState(adminSql, setup.listingId);
     assert('C5: after unknown: recovery_blocked=true', state?.recovery_blocked === true);
 
-    // Clear recovery_blocked for retry (admin would do this)
-    await adminSql`UPDATE authority_v1.reservation_authority SET recovery_blocked = false, recovery_blocked_reason = null WHERE listing_id = ${setup.listingId}`;
+    // Do NOT clear recovery_blocked — the reconciliation path requires it.
+    // The admin retries capture with the same action_id (still 'unknown'),
+    // and record_capture_result reconciles: unknown → succeeded finalizes.
 
     // Second call: buyer confirmation replay + capture retry succeeds
     const stripeAdapter2 = createFakeCaptureAdapter({ derived: 'succeeded', raw: { id: setup.paymentIntentId, status: 'succeeded' } });
