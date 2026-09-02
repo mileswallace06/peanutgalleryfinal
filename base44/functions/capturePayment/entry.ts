@@ -54,9 +54,13 @@ Deno.serve(async (req) => {
   // triggering payout, capture, refund, release, relist, or recovery-unblock.
   if (listing && purchase && body?.confirming_role === 'buyer') {
     const executorUrl = secrets.get('AUTHORITY_V1_DB_URL_DEV_EXECUTOR');
+    const recorderUrl = secrets.get('AUTHORITY_V1_DB_URL_DEV_STRIPE_RECORDER');
+    const buyerSecretKey = await secrets.get('STRIPE_SECRET_KEY');
+    const buyerStripeAdapter = buyerSecretKey ? createStripeCaptureProvider(buyerSecretKey) : null;
     const canaryBuyerResult = await maybeRouteCanaryBuyerConfirm({
       base44, user, body, listing, purchase,
-      executorUrl,
+      executorUrl, recorderUrl,
+      stripeAdapter: buyerStripeAdapter,
       canaryEnabled: isCanaryEnabled(),
     });
     if (canaryBuyerResult) return Response.json(canaryBuyerResult.body, { status: canaryBuyerResult.status });

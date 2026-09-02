@@ -2061,18 +2061,35 @@ check('buyer_confirmation_orchestrator_no_admin', () => {
   if (src.includes('Deno.env')) throw new Error('must not use Deno.env');
   return true;
 });
-check('buyer_confirmation_orchestrator_executor_only', () => {
+check('buyer_confirmation_orchestrator_executor_for_confirmation', () => {
   const src = readFileSync(join(ROOT, 'base44/shared/buyerConfirmTransferCanaryOrchestrator.js'), 'utf8');
+  // Buyer confirmation itself is executor-only (recordBuyerTransferConfirmation)
   if (!src.includes('recordBuyerTransferConfirmation')) throw new Error('must use executor recordBuyerTransferConfirmation');
-  if (src.includes('createAuthorityV1StripeRecorderClient')) throw new Error('must NOT use recorder (buyer confirmation is executor-only)');
+  // The composed capture uses the recorder client (created in maybeRouteCanaryBuyerConfirm)
+  // — this is correct: the capture saga needs the recorder for record_capture_result.
   return true;
 });
-check('buyer_confirmation_orchestrator_no_financial_effects', () => {
+check('buyer_confirmation_orchestrator_composes_capture', () => {
   const src = readFileSync(join(ROOT, 'base44/shared/buyerConfirmTransferCanaryOrchestrator.js'), 'utf8');
-  if (src.includes('beginCapture')) throw new Error('must NOT call beginCapture (no financial capture)');
-  if (src.includes('recordCaptureResult')) throw new Error('must NOT call recordCaptureResult');
+  // P0-01T correction: the orchestrator MUST compose capture after buyer confirmation.
+  // It imports runCanaryCaptureSaga and calls it (does not return early).
+  if (!src.includes('runCanaryCaptureSaga')) throw new Error('must import runCanaryCaptureSaga for composed capture');
+  if (!src.includes('await runCanaryCaptureSaga(')) throw new Error('must call runCanaryCaptureSaga (compose capture)');
+  return true;
+});
+check('buyer_confirmation_orchestrator_no_direct_financial_primitives', () => {
+  const src = readFileSync(join(ROOT, 'base44/shared/buyerConfirmTransferCanaryOrchestrator.js'), 'utf8');
+  // The orchestrator delegates capture to runCanaryCaptureSaga — it must NOT
+  // directly call beginCapture, recordCaptureResult, or beginCancel.
+  if (src.includes('beginCapture')) throw new Error('must NOT call beginCapture directly (delegate to capture saga)');
+  if (/\brecordCaptureResult\b/.test(src)) throw new Error('must NOT call recordCaptureResult directly (delegate to capture saga)');
   if (src.includes('beginCancel')) throw new Error('must NOT call beginCancel');
-  if (!src.includes('no_financial_effects: true')) throw new Error('must report no_financial_effects: true');
+  return true;
+});
+check('buyer_confirmation_orchestrator_reports_no_financial_effects_on_skip', () => {
+  const src = readFileSync(join(ROOT, 'base44/shared/buyerConfirmTransferCanaryOrchestrator.js'), 'utf8');
+  // The skip_capture and no-action paths still report no_financial_effects: true
+  if (!src.includes('no_financial_effects: true')) throw new Error('must report no_financial_effects: true on skip/no-action paths');
   return true;
 });
 check('buyer_confirmation_orchestrator_uses_outbox_on_mirror_failure', () => {
@@ -2087,6 +2104,8 @@ check('buyer_confirmation_handler_wiring', () => {
   if (!src.includes("confirming_role === 'buyer'")) throw new Error('handler must check confirming_role === buyer');
   if (!src.includes('isCanaryEnabled')) throw new Error('handler must use isCanaryEnabled');
   if (!src.includes("secrets.get('AUTHORITY_V1_DB_URL_DEV_EXECUTOR')")) throw new Error('handler must use base44:runtime for executor URL');
+  // P0-01T correction: handler must pass recorderUrl + stripeAdapter for composed capture
+  if (!src.includes("secrets.get('AUTHORITY_V1_DB_URL_DEV_STRIPE_RECORDER')")) throw new Error('handler must pass recorderUrl for composed capture');
   if (src.includes('authorityV1TestAdmin')) throw new Error('handler must not import admin client');
   return true;
 });

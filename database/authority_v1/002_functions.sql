@@ -98,10 +98,16 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = authority_v1, pg_temp
 AS $$
-DECLARE v_row reservation_authority%ROWTYPE;
+DECLARE v_row reservation_authority%ROWTYPE; v_action_id TEXT;
 BEGIN
   SELECT * INTO v_row FROM reservation_authority WHERE listing_id = p_listing_id;
   IF NOT FOUND THEN RETURN jsonb_build_object('ok', false, 'code', 'NOT_FOUND'); END IF;
+  -- P0-01T: Include the active capture action_id so the buyer-confirmation
+  -- orchestrator can compose capture after recording buyer confirmation.
+  SELECT action_id INTO v_action_id FROM payment_actions
+  WHERE listing_id = p_listing_id AND action_type = 'capture'
+    AND status IN ('pending','in_flight','unknown')
+  ORDER BY created_at DESC LIMIT 1;
   RETURN jsonb_build_object(
     'ok', true,
     'version', v_row.version,
@@ -113,7 +119,8 @@ BEGIN
     'checkout_quarantined', v_row.checkout_quarantined,
     'recovery_blocked', v_row.recovery_blocked,
     'transfer_state', v_row.transfer_state,
-    'transfer_state_updated_at', v_row.transfer_state_updated_at
+    'transfer_state_updated_at', v_row.transfer_state_updated_at,
+    'active_capture_action_id', v_action_id
   );
 END;
 $$;
