@@ -62,6 +62,7 @@ function check(name, fn, classification = 'static contract check') {
 // ── File paths (corrected order) ───────────────────────────────────────────
 const SQL_SCHEMA = join(ROOT, 'database/authority_v1/001_schema.sql');
 const SQL_FUNCTIONS = join(ROOT, 'database/authority_v1/002_functions.sql');
+const SQL_TRANSFER = join(ROOT, 'database/authority_v1/002b_transfer_functions.sql');
 const SQL_PROOF = join(ROOT, 'database/authority_v1/002c_proof_assessment.sql');
 const SQL_BUYER = join(ROOT, 'database/authority_v1/002d_buyer_confirmation.sql');
 const SQL_CAPTURE_CTX = join(ROOT, 'database/authority_v1/002e_active_capture_context.sql');
@@ -72,6 +73,7 @@ const DOC = join(ROOT, 'src/docs/ATOMICITY_ARCHITECTURE_DECISION.md');
 // ── Load file contents ─────────────────────────────────────────────────────
 const schema = existsSync(SQL_SCHEMA) ? readFileSync(SQL_SCHEMA, 'utf8') : '';
 const functions = existsSync(SQL_FUNCTIONS) ? readFileSync(SQL_FUNCTIONS, 'utf8') : '';
+const transferFns = existsSync(SQL_TRANSFER) ? readFileSync(SQL_TRANSFER, 'utf8') : '';
 const proofFn = existsSync(SQL_PROOF) ? readFileSync(SQL_PROOF, 'utf8') : '';
 const buyerFn = existsSync(SQL_BUYER) ? readFileSync(SQL_BUYER, 'utf8') : '';
 const captureCtxFn = existsSync(SQL_CAPTURE_CTX) ? readFileSync(SQL_CAPTURE_CTX, 'utf8') : '';
@@ -1083,30 +1085,42 @@ check('schema_has_transfer_operation_types', () => {
   return true;
 });
 check('begin_transfer_function_exists', () => {
-  if (!functions.includes('CREATE OR REPLACE FUNCTION authority_v1.begin_transfer')) {
-    throw new Error('begin_transfer function not found in 002_functions.sql');
+  if (!transferFns.includes('CREATE OR REPLACE FUNCTION authority_v1.begin_transfer')) {
+    throw new Error('begin_transfer function not found in 002b_transfer_functions.sql');
   }
   return true;
 });
 check('record_seller_report_function_exists', () => {
-  if (!functions.includes('CREATE OR REPLACE FUNCTION authority_v1.record_seller_report')) {
-    throw new Error('record_seller_report function not found in 002_functions.sql');
+  if (!transferFns.includes('CREATE OR REPLACE FUNCTION authority_v1.record_seller_report')) {
+    throw new Error('record_seller_report function not found in 002b_transfer_functions.sql');
+  }
+  return true;
+});
+check('begin_transfer_not_in_002_functions', () => {
+  if (functions.includes('CREATE OR REPLACE FUNCTION authority_v1.begin_transfer')) {
+    throw new Error('begin_transfer must NOT be in 002_functions.sql (only in 002b)');
+  }
+  return true;
+});
+check('record_seller_report_not_in_002_functions', () => {
+  if (functions.includes('CREATE OR REPLACE FUNCTION authority_v1.record_seller_report')) {
+    throw new Error('record_seller_report must NOT be in 002_functions.sql (only in 002b)');
   }
   return true;
 });
 check('begin_transfer_security_definer', () => {
-  const fnStart = functions.indexOf('CREATE OR REPLACE FUNCTION authority_v1.begin_transfer');
-  const fnEnd = functions.indexOf('$$;', fnStart);
-  const fnBody = functions.substring(fnStart, fnEnd);
+  const fnStart = transferFns.indexOf('CREATE OR REPLACE FUNCTION authority_v1.begin_transfer');
+  const fnEnd = transferFns.indexOf('$$;', fnStart);
+  const fnBody = transferFns.substring(fnStart, fnEnd);
   if (!fnBody.includes('SECURITY DEFINER')) throw new Error('begin_transfer must be SECURITY DEFINER');
   if (!fnBody.includes('SET search_path = authority_v1, pg_temp')) throw new Error('begin_transfer must harden search_path');
   if (!fnBody.includes('acquire_operation')) throw new Error('begin_transfer must use acquire_operation for replay safety');
   return true;
 });
 check('record_seller_report_never_provider_verified', () => {
-  const fnStart = functions.indexOf('CREATE OR REPLACE FUNCTION authority_v1.record_seller_report');
-  const fnEnd = functions.indexOf('$$;', fnStart);
-  const fnBody = functions.substring(fnStart, fnEnd);
+  const fnStart = transferFns.indexOf('CREATE OR REPLACE FUNCTION authority_v1.record_seller_report');
+  const fnEnd = transferFns.indexOf('$$;', fnStart);
+  const fnBody = transferFns.substring(fnStart, fnEnd);
   if (!fnBody.includes("'seller_reported_sent'")) throw new Error("must transition to 'seller_reported_sent'");
   if (!fnBody.includes("'provider_verified', false")) throw new Error("must explicitly set provider_verified=false (seller self-report is NOT provider-verified)");
   return true;
@@ -1752,9 +1766,25 @@ check('proof_assessment_file_exists', () => {
   if (!existsSync(SQL_PROOF)) throw new Error('002c_proof_assessment.sql not found');
   return true;
 });
-check('proof_assessment_old_002b_deleted', () => {
-  const oldPath = join(ROOT, 'database/authority_v1/002b_transfer_functions.sql');
-  if (existsSync(oldPath)) throw new Error('002b_transfer_functions.sql must be deleted (transfer functions restored to 002)');
+check('transfer_functions_002b_exists', () => {
+  const path = join(ROOT, 'database/authority_v1/002b_transfer_functions.sql');
+  if (!existsSync(path)) throw new Error('002b_transfer_functions.sql must exist (canonical home for begin_transfer + record_seller_report)');
+  return true;
+});
+check('transfer_functions_exist_exactly_once_in_002b', () => {
+  const beginCount = (transferFns.match(/CREATE OR REPLACE FUNCTION authority_v1\.begin_transfer/g) || []).length;
+  const reportCount = (transferFns.match(/CREATE OR REPLACE FUNCTION authority_v1\.record_seller_report/g) || []).length;
+  if (beginCount !== 1) throw new Error(`begin_transfer must appear exactly once in 002b, found ${beginCount}`);
+  if (reportCount !== 1) throw new Error(`record_seller_report must appear exactly once in 002b, found ${reportCount}`);
+  return true;
+});
+check('transfer_functions_not_duplicated_in_002_functions', () => {
+  if (functions.includes('CREATE OR REPLACE FUNCTION authority_v1.begin_transfer')) {
+    throw new Error('begin_transfer must NOT be duplicated in 002_functions.sql');
+  }
+  if (functions.includes('CREATE OR REPLACE FUNCTION authority_v1.record_seller_report')) {
+    throw new Error('record_seller_report must NOT be duplicated in 002_functions.sql');
+  }
   return true;
 });
 check('proof_function_in_002c_not_002', () => {
@@ -1819,16 +1849,16 @@ check('proof_function_advisory_only_no_transfer_state_change', () => {
   }
   return true;
 });
-check('proof_function_locks_authority_before_binding', () => {
+check('proof_function_locks_binding_before_authority', () => {
   const fnStart = proofFn.indexOf('CREATE OR REPLACE FUNCTION authority_v1.record_transfer_proof_assessment');
   const fnEnd = proofFn.indexOf('$$;', fnStart);
   const fnBody = proofFn.substring(fnStart, fnEnd);
-  // Must lock reservation_authority FOR UPDATE before binding (same lock order)
-  const authLockIdx = fnBody.indexOf('FROM reservation_authority');
+  // Must lock reservation_payment_bindings FOR UPDATE before authority (canonical: binding → authority)
   const bindingLockIdx = fnBody.indexOf('FROM reservation_payment_bindings');
-  if (authLockIdx < 0 || bindingLockIdx < 0) throw new Error('must lock both authority and binding');
-  if (authLockIdx > bindingLockIdx) {
-    throw new Error('must lock reservation_authority BEFORE reservation_payment_bindings (same lock order as begin_transfer)');
+  const authLockIdx = fnBody.indexOf('FROM reservation_authority');
+  if (bindingLockIdx < 0 || authLockIdx < 0) throw new Error('must lock both binding and authority');
+  if (bindingLockIdx > authLockIdx) {
+    throw new Error('must lock reservation_payment_bindings BEFORE reservation_authority (canonical lock order: binding → authority)');
   }
   return true;
 });
@@ -1947,15 +1977,15 @@ check('buyer_confirmation_has_cas_version_check', () => {
   if (!fnBody.includes("'STALE_VERSION'")) throw new Error('must return STALE_VERSION on CAS failure');
   return true;
 });
-check('buyer_confirmation_locks_authority_before_binding', () => {
+check('buyer_confirmation_locks_binding_before_authority', () => {
   const fnStart = buyerFn.indexOf('CREATE OR REPLACE FUNCTION authority_v1.record_buyer_transfer_confirmation');
   const fnEnd = buyerFn.indexOf('$$;', fnStart);
   const fnBody = buyerFn.substring(fnStart, fnEnd);
-  const authLockIdx = fnBody.indexOf('FROM reservation_authority');
   const bindingLockIdx = fnBody.indexOf('FROM reservation_payment_bindings');
-  if (authLockIdx < 0 || bindingLockIdx < 0) throw new Error('must lock both authority and binding');
-  if (authLockIdx > bindingLockIdx) {
-    throw new Error('must lock reservation_authority BEFORE reservation_payment_bindings (same lock order)');
+  const authLockIdx = fnBody.indexOf('FROM reservation_authority');
+  if (bindingLockIdx < 0 || authLockIdx < 0) throw new Error('must lock both binding and authority');
+  if (bindingLockIdx > authLockIdx) {
+    throw new Error('must lock reservation_payment_bindings BEFORE reservation_authority (canonical lock order: binding → authority)');
   }
   return true;
 });
@@ -2252,6 +2282,60 @@ check('capture_context_installation_order_updated', () => {
   if (!schema.includes('002e_active_capture_context')) throw new Error('001_schema.sql installation order must reference 002e_active_capture_context');
   if (!functions.includes('002e_active_capture_context')) throw new Error('002_functions.sql installation order must reference 002e_active_capture_context');
   if (!roles.includes('002e_active_capture_context')) throw new Error('004_roles_and_grants.sql installation order must reference 002e_active_capture_context');
+  return true;
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TEST 37: P0-01T corrective — canonical lock order (binding → authority) + 002b installation order
+// ═══════════════════════════════════════════════════════════════════════════
+// Statically verifies that every function locking both reservation_payment_bindings
+// and reservation_authority acquires the binding lock BEFORE the authority lock
+// (canonical order: binding → authority), preventing deadlocks.
+function stripSqlComments(sql) {
+  return sql
+    .replace(/--[^\n]*\n/g, '\n')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+}
+function checkLockOrder(fileLabel, sql, fnName) {
+  const fnStart = sql.indexOf(`CREATE OR REPLACE FUNCTION authority_v1.${fnName}`);
+  if (fnStart < 0) throw new Error(`${fnName} not found in ${fileLabel}`);
+  const fnEnd = sql.indexOf('$$;', fnStart);
+  const fnBody = stripSqlComments(sql.substring(fnStart, fnEnd));
+  const bindingIdx = fnBody.indexOf('FROM reservation_payment_bindings');
+  const authIdx = fnBody.indexOf('FROM reservation_authority');
+  if (bindingIdx < 0 && authIdx < 0) return true; // function doesn't lock both — skip
+  if (bindingIdx < 0) throw new Error(`${fnName}: locks authority but not binding`);
+  if (authIdx < 0) throw new Error(`${fnName}: locks binding but not authority`);
+  if (bindingIdx > authIdx) {
+    throw new Error(`${fnName}: must lock binding BEFORE authority (canonical: binding → authority), got authority first`);
+  }
+  return true;
+}
+check('lock_order_bind_payment_intent_binding_first', () => {
+  return checkLockOrder('002_functions.sql', functions, 'bind_payment_intent');
+});
+check('lock_order_begin_transfer_binding_first', () => {
+  return checkLockOrder('002b_transfer_functions.sql', transferFns, 'begin_transfer');
+});
+check('lock_order_record_seller_report_binding_first', () => {
+  return checkLockOrder('002b_transfer_functions.sql', transferFns, 'record_seller_report');
+});
+check('lock_order_proof_assessment_binding_first', () => {
+  return checkLockOrder('002c_proof_assessment.sql', proofFn, 'record_transfer_proof_assessment');
+});
+check('lock_order_buyer_confirmation_binding_first', () => {
+  return checkLockOrder('002d_buyer_confirmation.sql', buyerFn, 'record_buyer_transfer_confirmation');
+});
+check('installation_order_002b_in_all_declarations', () => {
+  const canonical = '002b_transfer_functions';
+  const files = { schema, functions, transferFns, proofFn, buyerFn, captureCtxFn, workers, roles };
+  const labels = { schema: '001_schema', functions: '002_functions', transferFns: '002b',
+    proofFn: '002c', buyerFn: '002d', captureCtxFn: '002e', workers: '003', roles: '004' };
+  for (const [key, content] of Object.entries(files)) {
+    if (!content.includes(canonical)) {
+      throw new Error(`${labels[key]} installation order must reference ${canonical}`);
+    }
+  }
   return true;
 });
 

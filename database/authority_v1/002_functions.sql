@@ -2,8 +2,9 @@
 -- authority_v1 — Stored Functions (002)
 -- Source of truth for all authority transaction logic.
 --
--- INSTALLATION ORDER: 001_schema → 002_functions → 002b_transfer_functions → 002c_proof_assessment → 002d_buyer_confirmation → 002e_active_capture_context → 003_workers → 004_roles
+-- INSTALLATION ORDER: 001_schema → 002_functions → 002b_transfer_functions → 002c_proof_assessment → 002d_buyer_confirmation → 002e_active_capture_context → 003_workers → 004_roles_and_grants
 --
+
 -- A PL/pgSQL function invocation executes inside the caller's PostgreSQL
 -- transaction. Transaction-control statements (BEGIN/COMMIT) are NOT placed
 -- inside ordinary functions. Each function call executes atomically — either
@@ -369,26 +370,15 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'code', v_op_status);
   END IF;
 
-  -- Verify authority is in the expected reserved state
-  SELECT * INTO v_authority FROM reservation_authority
-  WHERE listing_id = p_listing_id AND version = p_authority_version
-    AND lifecycle_state = 'reserved' AND buyer_user_id = p_buyer_user_id
-    AND reservation_revision = p_reservation_revision AND reservation_token_hash = p_token_hash
-  FOR UPDATE;
-
-  IF NOT FOUND THEN
-    UPDATE reservation_operations SET status = 'rejected', error_code = 'AUTHORITY_MISMATCH',
-      result_json = jsonb_build_object('ok', false, 'code', 'AUTHORITY_MISMATCH')::TEXT,
-      committed_at = now()
-    WHERE operation_id = p_server_operation_id;
-    RETURN jsonb_build_object('ok', false, 'code', 'AUTHORITY_MISMATCH');
-  END IF;
-
-  -- Check for existing binding by payment_intent_id (unique constraint)
+  -- Check for existing binding by payment_intent_id (unique constraint).
+  -- Lock binding BEFORE authority (canonical lock order: binding → authority).
   SELECT * INTO v_existing_binding FROM reservation_payment_bindings
   WHERE payment_intent_id = p_payment_intent_id FOR UPDATE;
 
   IF FOUND THEN
+    -- Existing-binding path: binding locked, verify match without authority lock.
+    -- The binding itself is the proof that bind succeeded; authority state is
+    -- irrelevant for replay/conflict determination.
     IF v_existing_binding.purchase_id = p_purchase_id
        AND v_existing_binding.listing_id = p_listing_id
        AND v_existing_binding.buyer_user_id = p_buyer_user_id
@@ -410,45 +400,45 @@ BEGIN
       RETURN jsonb_build_object('ok', false, 'code', 'PAYMENT_BINDING_CONFLICT',
         'reason', 'payment_intent_id already bound to different purchase/buyer');
     END IF;
-  ELSE
-    -- Check for existing binding by purchase_id (primary key).
-    -- A second PaymentIntent for the same purchase is a canonical conflict
-    -- that must return a structured result, not throw a PK violation.
-    SELECT * INTO v_existing_binding FROM reservation_payment_bindings
-    WHERE purchase_id = p_purchase_id FOR UPDATE;
+  END IF;
 
-    IF FOUND THEN
-      UPDATE reservation_operations SET status = 'rejected', error_code = 'PAYMENT_BINDING_CONFLICT',
-        result_json = jsonb_build_object('ok', false, 'code', 'PAYMENT_BINDING_CONFLICT',
-          'reason', 'purchase already bound to different payment_intent')::TEXT,
-        committed_at = now()
-      WHERE operation_id = p_server_operation_id;
-      RETURN jsonb_build_object('ok', false, 'code', 'PAYMENT_BINDING_CONFLICT',
-        'reason', 'purchase already bound to different payment_intent');
-    END IF;
+  -- New-binding path: lock authority, then insert atomically.
+  -- No existing binding row is subsequently acquired in the opposite order.
+  SELECT * INTO v_authority FROM reservation_authority
+  WHERE listing_id = p_listing_id AND version = p_authority_version
+    AND lifecycle_state = 'reserved' AND buyer_user_id = p_buyer_user_id
+    AND reservation_revision = p_reservation_revision AND reservation_token_hash = p_token_hash
+  FOR UPDATE;
 
-    -- Atomic defense-in-depth: ON CONFLICT catches any race that slips
-    -- through the reservation_authority FOR UPDATE lock + pre-insert lookup.
-    -- RETURNING is null when the conflict fired (no row inserted).
-    INSERT INTO reservation_payment_bindings (
-      purchase_id, payment_intent_id, listing_id, buyer_user_id,
-      authority_version, reservation_revision, reservation_token_hash, capture_state
-    ) VALUES (
-      p_purchase_id, p_payment_intent_id, p_listing_id, p_buyer_user_id,
-      p_authority_version, p_reservation_revision, p_token_hash, 'authorized'
-    )
-    ON CONFLICT (purchase_id) DO NOTHING
-    RETURNING purchase_id INTO v_inserted_purchase_id;
+  IF NOT FOUND THEN
+    UPDATE reservation_operations SET status = 'rejected', error_code = 'AUTHORITY_MISMATCH',
+      result_json = jsonb_build_object('ok', false, 'code', 'AUTHORITY_MISMATCH')::TEXT,
+      committed_at = now()
+    WHERE operation_id = p_server_operation_id;
+    RETURN jsonb_build_object('ok', false, 'code', 'AUTHORITY_MISMATCH');
+  END IF;
 
-    IF v_inserted_purchase_id IS NULL THEN
-      UPDATE reservation_operations SET status = 'rejected', error_code = 'PAYMENT_BINDING_CONFLICT',
-        result_json = jsonb_build_object('ok', false, 'code', 'PAYMENT_BINDING_CONFLICT',
-          'reason', 'purchase already bound to different payment_intent')::TEXT,
-        committed_at = now()
-      WHERE operation_id = p_server_operation_id;
-      RETURN jsonb_build_object('ok', false, 'code', 'PAYMENT_BINDING_CONFLICT',
-        'reason', 'purchase already bound to different payment_intent');
-    END IF;
+  -- Atomic defense-in-depth: ON CONFLICT catches any race that slips
+  -- through the reservation_authority FOR UPDATE lock + pre-insert lookup.
+  -- RETURNING is null when the conflict fired (no row inserted).
+  INSERT INTO reservation_payment_bindings (
+    purchase_id, payment_intent_id, listing_id, buyer_user_id,
+    authority_version, reservation_revision, reservation_token_hash, capture_state
+  ) VALUES (
+    p_purchase_id, p_payment_intent_id, p_listing_id, p_buyer_user_id,
+    p_authority_version, p_reservation_revision, p_token_hash, 'authorized'
+  )
+  ON CONFLICT (purchase_id) DO NOTHING
+  RETURNING purchase_id INTO v_inserted_purchase_id;
+
+  IF v_inserted_purchase_id IS NULL THEN
+    UPDATE reservation_operations SET status = 'rejected', error_code = 'PAYMENT_BINDING_CONFLICT',
+      result_json = jsonb_build_object('ok', false, 'code', 'PAYMENT_BINDING_CONFLICT',
+        'reason', 'purchase already bound to different payment_intent')::TEXT,
+      committed_at = now()
+    WHERE operation_id = p_server_operation_id;
+    RETURN jsonb_build_object('ok', false, 'code', 'PAYMENT_BINDING_CONFLICT',
+      'reason', 'purchase already bound to different payment_intent');
   END IF;
 
   UPDATE reservation_operations SET status = 'committed', committed_version = p_authority_version,

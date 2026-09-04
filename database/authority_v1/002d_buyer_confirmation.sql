@@ -2,7 +2,7 @@
 -- authority_v1 — Buyer Transfer Confirmation Function (002d)
 -- P0-01T: Authoritative Buyer Transfer Confirmation
 --
--- INSTALLATION ORDER: 001_schema → 002_functions → 002c_proof_assessment → 002d_buyer_confirmation → 002e_active_capture_context → 003_workers → 004_roles
+-- INSTALLATION ORDER: 001_schema → 002_functions → 002b_transfer_functions → 002c_proof_assessment → 002d_buyer_confirmation → 002e_active_capture_context → 003_workers → 004_roles_and_grants
 -- This file must exist before 004 grants EXECUTE.
 -- ═══════════════════════════════════════════════════════════════════════════
 
@@ -64,6 +64,28 @@ BEGIN
   END IF;
   IF NOT v_acquired THEN RETURN jsonb_build_object('ok', false, 'code', v_op_status); END IF;
 
+  -- Lock binding BEFORE authority (canonical lock order: binding → authority)
+  SELECT * INTO v_binding FROM reservation_payment_bindings
+  WHERE purchase_id = p_purchase_id AND listing_id = p_listing_id FOR UPDATE;
+  IF NOT FOUND THEN
+    UPDATE reservation_operations SET status = 'conflict', error_code = 'BINDING_NOT_FOUND',
+      result_json = jsonb_build_object('ok', false, 'code', 'BINDING_NOT_FOUND')::TEXT,
+      committed_at = now()
+    WHERE operation_id = p_server_operation_id;
+    RETURN jsonb_build_object('ok', false, 'code', 'BINDING_NOT_FOUND');
+  END IF;
+
+  -- Verify buyer identity against the binding (defense-in-depth)
+  IF v_binding.buyer_user_id <> p_buyer_user_id THEN
+    UPDATE reservation_operations SET status = 'conflict', error_code = 'NOT_BUYER',
+      result_json = jsonb_build_object('ok', false, 'code', 'NOT_BUYER',
+        'reason', 'Authenticated user does not match binding buyer')::TEXT,
+      committed_at = now()
+    WHERE operation_id = p_server_operation_id;
+    RETURN jsonb_build_object('ok', false, 'code', 'NOT_BUYER',
+      'reason', 'Authenticated user does not match binding buyer');
+  END IF;
+
   -- Lock authority: verify buyer linkage and eligible state
   -- Valid preceding transfer states: in_progress, seller_reported_sent
   -- Invalid: not_started (no transfer), unknown (uncertain), terminal_cancelled
@@ -122,28 +144,6 @@ BEGIN
       'transfer_state', v_authority.transfer_state);
   END IF;
 
-  -- Lock binding: verify purchase linkage and buyer identity
-  SELECT * INTO v_binding FROM reservation_payment_bindings
-  WHERE purchase_id = p_purchase_id AND listing_id = p_listing_id FOR UPDATE;
-  IF NOT FOUND THEN
-    UPDATE reservation_operations SET status = 'conflict', error_code = 'BINDING_NOT_FOUND',
-      result_json = jsonb_build_object('ok', false, 'code', 'BINDING_NOT_FOUND')::TEXT,
-      committed_at = now()
-    WHERE operation_id = p_server_operation_id;
-    RETURN jsonb_build_object('ok', false, 'code', 'BINDING_NOT_FOUND');
-  END IF;
-
-  -- Verify buyer identity against the binding (defense-in-depth)
-  IF v_binding.buyer_user_id <> p_buyer_user_id THEN
-    UPDATE reservation_operations SET status = 'conflict', error_code = 'NOT_BUYER',
-      result_json = jsonb_build_object('ok', false, 'code', 'NOT_BUYER',
-        'reason', 'Authenticated user does not match binding buyer')::TEXT,
-      committed_at = now()
-    WHERE operation_id = p_server_operation_id;
-    RETURN jsonb_build_object('ok', false, 'code', 'NOT_BUYER',
-      'reason', 'Authenticated user does not match binding buyer');
-  END IF;
-
   -- CAS transition: in_progress/seller_reported_sent → buyer_confirmed_received
   v_new_version := v_authority.version + 1;
   UPDATE reservation_authority
@@ -173,7 +173,7 @@ BEGIN
   -- Keep binding's frozen_authority_version in sync with the new authority version.
   -- Buyer confirmation is advisory (no financial effects) — the binding's freeze
   -- point must track the authority version through non-financial mutations so
-  -- that record_capture_result's AUTHORITY_FROZEN_MISMATCH check still passes
+  -- that the capture recorder's AUTHORITY_FROZEN_MISMATCH check still passes
   -- when capture is composed after buyer confirmation.
   UPDATE reservation_payment_bindings
   SET frozen_authority_version = v_new_version, updated_at = now()

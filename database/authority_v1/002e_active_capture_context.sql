@@ -1,9 +1,9 @@
 -- ═══════════════════════════════════════════════════════════════════════════
 -- authority_v1 — Active Capture Context (002e)
 --
--- INSTALLATION ORDER: 001_schema → 002_functions → 002c_proof_assessment
---                     → 002d_buyer_confirmation → 002e_active_capture_context
---                     → 003_workers → 004_roles
+-- INSTALLATION ORDER: 001_schema → 002_functions → 002b_transfer_functions
+--                     → 002c_proof_assessment → 002d_buyer_confirmation → 002e_active_capture_context
+--                     → 003_workers → 004_roles_and_grants
 --
 -- Dedicated executor-only function to retrieve the active capture payment
 -- action's action_id and Stripe idempotency key. These values are sensitive

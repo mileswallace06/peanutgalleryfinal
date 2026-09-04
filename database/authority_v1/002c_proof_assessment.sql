@@ -2,7 +2,7 @@
 -- authority_v1 — Proof Assessment Function (002c)
 -- P0-01S: Advisory AI Proof Assessment
 --
--- INSTALLATION ORDER: 001_schema → 002_functions → 002c_proof_assessment → 002d_buyer_confirmation → 002e_active_capture_context → 003_workers → 004_roles
+-- INSTALLATION ORDER: 001_schema → 002_functions → 002b_transfer_functions → 002c_proof_assessment → 002d_buyer_confirmation → 002e_active_capture_context → 003_workers → 004_roles_and_grants
 -- This file must exist before 004 grants EXECUTE.
 -- ═══════════════════════════════════════════════════════════════════════════
 
@@ -50,6 +50,16 @@ BEGIN
   END IF;
   IF NOT v_acquired THEN RETURN jsonb_build_object('ok', false, 'code', v_op_status); END IF;
 
+  -- Lock binding BEFORE authority (canonical lock order: binding → authority)
+  SELECT * INTO v_binding FROM reservation_payment_bindings
+  WHERE purchase_id = p_purchase_id AND listing_id = p_listing_id FOR UPDATE;
+  IF NOT FOUND THEN
+    UPDATE reservation_operations SET status = 'conflict', error_code = 'BINDING_NOT_FOUND',
+      result_json = jsonb_build_object('ok', false, 'code', 'BINDING_NOT_FOUND')::TEXT, committed_at = now()
+    WHERE operation_id = p_server_operation_id;
+    RETURN jsonb_build_object('ok', false, 'code', 'BINDING_NOT_FOUND');
+  END IF;
+
   -- Lock authority: verify seller linkage and eligible (non-terminal) state
   SELECT * INTO v_authority FROM reservation_authority
   WHERE listing_id = p_listing_id AND version = p_expected_version
@@ -65,16 +75,6 @@ BEGIN
     WHERE operation_id = p_server_operation_id;
     RETURN jsonb_build_object('ok', false, 'code', 'CONFLICT',
       'reason', 'version mismatch, wrong seller, or ineligible state');
-  END IF;
-
-  -- Lock binding
-  SELECT * INTO v_binding FROM reservation_payment_bindings
-  WHERE purchase_id = p_purchase_id AND listing_id = p_listing_id FOR UPDATE;
-  IF NOT FOUND THEN
-    UPDATE reservation_operations SET status = 'conflict', error_code = 'BINDING_NOT_FOUND',
-      result_json = jsonb_build_object('ok', false, 'code', 'BINDING_NOT_FOUND')::TEXT, committed_at = now()
-    WHERE operation_id = p_server_operation_id;
-    RETURN jsonb_build_object('ok', false, 'code', 'BINDING_NOT_FOUND');
   END IF;
 
   -- CONFLICT DETECTION: a different proof asset was already assessed — reject

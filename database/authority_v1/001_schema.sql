@@ -6,6 +6,7 @@
 -- INSTALLATION ORDER:
 --   001_schema.sql        — tables, constraints, indexes
 --   002_functions.sql     — all stored functions (authority + worker helpers)
+--   002b_transfer_functions.sql — P0-01T begin_transfer + record_seller_report
 --   002c_proof_assessment.sql — P0-01S advisory proof assessment function
 --   002d_buyer_confirmation.sql — P0-01T authoritative buyer transfer confirmation
 --   002e_active_capture_context.sql — P0-01T active capture context (executor-only)
