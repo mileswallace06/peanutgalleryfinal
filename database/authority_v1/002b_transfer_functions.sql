@@ -3,7 +3,7 @@
 -- P0-01T: begin_transfer + record_seller_report with precise frozen-version
 -- invariant.
 --
--- INSTALLATION ORDER: 001_schema → 002_functions → 002b_transfer_functions → 002c_proof_assessment → 002d_buyer_confirmation → 002e_active_capture_context → 003_workers → 004_roles_and_grants
+-- INSTALLATION ORDER: 001_schema → 002_functions → 002b_transfer_functions → 002c_proof_assessment → 002d_buyer_confirmation → 002e_active_capture_context → 002f_no_relist_invariant → 003_workers → 004_roles_and_grants
 -- ═══════════════════════════════════════════════════════════════════════════
 
 -- ── 23. begin_transfer — P0-01M Authoritative Transfer-Start ──────────────

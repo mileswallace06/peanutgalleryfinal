@@ -2,7 +2,7 @@
 -- authority_v1 — Roles and Grants (004)
 -- Source of truth for database security boundaries.
 --
--- INSTALLATION ORDER: 001_schema → 002_functions → 002b_transfer_functions → 002c_proof_assessment → 002d_buyer_confirmation → 002e_active_capture_context → 003_workers → 004_roles_and_grants
+-- INSTALLATION ORDER: 001_schema → 002_functions → 002b_transfer_functions → 002c_proof_assessment → 002d_buyer_confirmation → 002e_active_capture_context → 002f_no_relist_invariant → 003_workers → 004_roles_and_grants
 -- All functions (including workers) exist before this file grants EXECUTE.
 --
 -- Principles:
@@ -207,6 +207,11 @@ REVOKE EXECUTE ON FUNCTION authority_v1.ingest_stripe_webhook_event(TEXT,TEXT,TE
 -- role cannot call finalize_sale directly (proven by P0-01G corrective tests).
 GRANT EXECUTE ON FUNCTION authority_v1.record_capture_result(TEXT,TEXT,JSONB,TEXT,TEXT,TEXT) TO authority_stripe_recorder;
 GRANT EXECUTE ON FUNCTION authority_v1.record_cancel_result(TEXT,TEXT,JSONB,TEXT,TEXT,TEXT) TO authority_stripe_recorder;
+-- P0-01T-CORRECTIVE-4C: Explicitly revoke record_cancel_result from all non-recorder roles.
+-- The canonical definition lives in 002f_no_relist_invariant.sql. Only the recorder may call it.
+REVOKE EXECUTE ON FUNCTION authority_v1.record_cancel_result(TEXT,TEXT,JSONB,TEXT,TEXT,TEXT) FROM authority_executor;
+REVOKE EXECUTE ON FUNCTION authority_v1.record_cancel_result(TEXT,TEXT,JSONB,TEXT,TEXT,TEXT) FROM authority_worker;
+REVOKE EXECUTE ON FUNCTION authority_v1.record_cancel_result(TEXT,TEXT,JSONB,TEXT,TEXT,TEXT) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION authority_v1.record_refund_result(TEXT,TEXT,JSONB,TEXT,TEXT,TEXT) TO authority_stripe_recorder;
 -- P0-01K: Durable webhook ingestion — recorder-only (privilege boundary correction)
 GRANT EXECUTE ON FUNCTION authority_v1.ingest_stripe_webhook_event(TEXT,TEXT,TEXT,BOOLEAN,TIMESTAMPTZ,TEXT,TEXT) TO authority_stripe_recorder;

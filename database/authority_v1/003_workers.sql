@@ -3,7 +3,7 @@
 -- Source of truth for outbox/action/webhook worker claiming, lease recovery,
 -- and exhausted-lease escalation.
 --
--- INSTALLATION ORDER: 001_schema → 002_functions → 002b_transfer_functions → 002c_proof_assessment → 002d_buyer_confirmation → 002e_active_capture_context → 003_workers → 004_roles_and_grants
+-- INSTALLATION ORDER: 001_schema → 002_functions → 002b_transfer_functions → 002c_proof_assessment → 002d_buyer_confirmation → 002e_active_capture_context → 002f_no_relist_invariant → 003_workers → 004_roles_and_grants
 --
 -- A crash after begin_capture, begin_cancel, or begin_refund cannot
 -- permanently strand an action: the payment_actions leasing fields and

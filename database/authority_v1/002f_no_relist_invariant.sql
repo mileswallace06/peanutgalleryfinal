@@ -1,7 +1,7 @@
 -- ═══════════════════════════════════════════════════════════════════════════
 -- authority_v1 — No-Relist Invariant Patch (002f) — P0-01T-CORRECTIVE-4
 --
--- INSTALLATION ORDER: ... → 002_functions → 002b → 002c → 002d → 002e → 002f → 003 → 004
+-- INSTALLATION ORDER: ... → 002_functions → 002b → 002c → 002d → 002e → 002f_no_relist_invariant → 003 → 004
 --
 -- P0-01T-CORRECTIVE-4B: The no-relist invariant must cover not only capture
 -- failure (already in 002_functions.sql record_capture_result) but also

@@ -1629,45 +1629,54 @@ BEGIN
   SELECT * INTO v_authority FROM reservation_authority
   WHERE listing_id = p_listing_id FOR UPDATE;
 
-  -- P0-01T-CORRECTIVE-4B: No-relist invariant. If the buyer has confirmed
-  -- receipt (transfer_state = 'buyer_confirmed_received' OR buyer_confirmed_at
-  -- IS NOT NULL), NEVER release the listing back to available. The ticket may
-  -- have been delivered. Keep frozen and recovery-blocked.
-  -- Verify the exact listing/purchase binding and expected version.
+  -- P0-01T-CORRECTIVE-4C: Abort after buyer confirmation is REJECTED.
+  -- The buyer has confirmed receipt — the ticket may have been delivered.
+  -- The abort must NOT claim success, must NOT change the binding, must NOT
+  -- release the listing, and must NOT change authoritative business state.
+  -- A deterministic incident is recorded for observability.
   IF v_authority.transfer_state = 'buyer_confirmed_received'
      OR v_authority.buyer_confirmed_at IS NOT NULL THEN
-    UPDATE reservation_authority
-    SET recovery_blocked = true,
-        recovery_blocked_reason = 'abort_after_buyer_confirmation',
-        recovery_blocked_at = now(), updated_at = now()
-    WHERE listing_id = p_listing_id;
 
-    UPDATE reservation_payment_bindings SET capture_state = 'aborted', updated_at = now()
-    WHERE purchase_id = p_purchase_id
-      AND capture_state IN ('authorized','cancel_requested','cancel_unknown','cancel_failed',
-                            'canceled','failed','refunded');
-    GET DIAGNOSTICS v_updated_count = ROW_COUNT;
+    -- Require the exact purchase/listing binding; reject missing or mismatched
+    IF v_binding.listing_id IS DISTINCT FROM p_listing_id THEN
+      UPDATE reservation_operations SET status = 'rejected', error_code = 'BUYER_CONFIRMED_NO_ABORT',
+        result_json = jsonb_build_object('ok', false, 'code', 'BUYER_CONFIRMED_NO_ABORT',
+          'reason', 'binding listing_id mismatch')::TEXT,
+        committed_at = now()
+      WHERE operation_id = p_server_operation_id;
+      RETURN jsonb_build_object('ok', false, 'code', 'BUYER_CONFIRMED_NO_ABORT',
+        'reason', 'binding listing_id mismatch');
+    END IF;
 
+    -- Verify the expected authority version
+    IF v_authority.version <> p_expected_version THEN
+      UPDATE reservation_operations SET status = 'rejected', error_code = 'BUYER_CONFIRMED_NO_ABORT',
+        result_json = jsonb_build_object('ok', false, 'code', 'BUYER_CONFIRMED_NO_ABORT',
+          'reason', 'authority version mismatch')::TEXT,
+        committed_at = now()
+      WHERE operation_id = p_server_operation_id;
+      RETURN jsonb_build_object('ok', false, 'code', 'BUYER_CONFIRMED_NO_ABORT',
+        'reason', 'authority version mismatch');
+    END IF;
+
+    -- Deterministic incident for observability (no state change)
     INSERT INTO operational_incidents (incident_key, incident_type, priority, title, description, reference_id, reference_type)
     VALUES ('abort_after_buyer_confirmation:' || p_listing_id, 'failed_transfer_after_payment', 'critical',
-      'Abort After Buyer Confirmation',
-      'Abort attempted after buyer confirmed ticket receipt. Listing kept frozen and recovery-blocked to prevent relisting a delivered ticket.',
+      'Abort Rejected After Buyer Confirmation',
+      'Abort attempted after buyer confirmed ticket receipt. Rejected to prevent relisting a delivered ticket. No state changed.',
       p_listing_id, 'listing')
     ON CONFLICT (incident_key) DO UPDATE SET occurrence_count = operational_incidents.occurrence_count + 1,
       last_occurred_at = now(), updated_at = now();
 
-    v_result_json := jsonb_build_object('ok', true, 'aborted', true,
-      'released', false, 'recovery_blocked', true,
-      'recovery_blocked_reason', 'abort_after_buyer_confirmation',
-      'version', p_expected_version)::TEXT;
-    UPDATE reservation_operations SET status = 'committed', committed_version = p_expected_version,
-      result_json = v_result_json, committed_at = now()
+    -- Record the operation as rejected — do NOT commit, do NOT change binding/authority
+    UPDATE reservation_operations SET status = 'rejected', error_code = 'BUYER_CONFIRMED_NO_ABORT',
+      result_json = jsonb_build_object('ok', false, 'code', 'BUYER_CONFIRMED_NO_ABORT',
+        'reason', 'buyer confirmed receipt — abort rejected')::TEXT,
+      committed_at = now()
     WHERE operation_id = p_server_operation_id;
 
-    RETURN jsonb_build_object('ok', true, 'aborted', true,
-      'released', false, 'recovery_blocked', true,
-      'recovery_blocked_reason', 'abort_after_buyer_confirmation',
-      'version', p_expected_version);
+    RETURN jsonb_build_object('ok', false, 'code', 'BUYER_CONFIRMED_NO_ABORT',
+      'reason', 'buyer confirmed receipt — abort rejected');
   END IF;
 
   v_new_version := p_expected_version;

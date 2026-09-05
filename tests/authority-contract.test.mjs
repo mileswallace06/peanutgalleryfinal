@@ -66,6 +66,7 @@ const SQL_TRANSFER = join(ROOT, 'database/authority_v1/002b_transfer_functions.s
 const SQL_PROOF = join(ROOT, 'database/authority_v1/002c_proof_assessment.sql');
 const SQL_BUYER = join(ROOT, 'database/authority_v1/002d_buyer_confirmation.sql');
 const SQL_CAPTURE_CTX = join(ROOT, 'database/authority_v1/002e_active_capture_context.sql');
+const SQL_NO_RELIST = join(ROOT, 'database/authority_v1/002f_no_relist_invariant.sql');
 const SQL_WORKERS = join(ROOT, 'database/authority_v1/003_workers.sql');
 const SQL_ROLES = join(ROOT, 'database/authority_v1/004_roles_and_grants.sql');
 const DOC = join(ROOT, 'src/docs/ATOMICITY_ARCHITECTURE_DECISION.md');
@@ -77,6 +78,7 @@ const transferFns = existsSync(SQL_TRANSFER) ? readFileSync(SQL_TRANSFER, 'utf8'
 const proofFn = existsSync(SQL_PROOF) ? readFileSync(SQL_PROOF, 'utf8') : '';
 const buyerFn = existsSync(SQL_BUYER) ? readFileSync(SQL_BUYER, 'utf8') : '';
 const captureCtxFn = existsSync(SQL_CAPTURE_CTX) ? readFileSync(SQL_CAPTURE_CTX, 'utf8') : '';
+const noRelistFn = existsSync(SQL_NO_RELIST) ? readFileSync(SQL_NO_RELIST, 'utf8') : '';
 const workers = existsSync(SQL_WORKERS) ? readFileSync(SQL_WORKERS, 'utf8') : '';
 const roles = existsSync(SQL_ROLES) ? readFileSync(SQL_ROLES, 'utf8') : '';
 const doc = existsSync(DOC) ? readFileSync(DOC, 'utf8') : '';
@@ -294,9 +296,12 @@ check('record_capture_all_branches_commit', () => {
 });
 
 check('record_cancel_all_branches_commit', () => {
-  const fnStart = functions.indexOf('CREATE OR REPLACE FUNCTION authority_v1.record_cancel_result');
-  const fnEnd = functions.indexOf('$$;', fnStart);
-  const fnBody = functions.substring(fnStart, fnEnd);
+  // P0-01T-CORRECTIVE-4C: Load canonical 002f SQL for record_cancel_result.
+  // The old definition was removed from 002_functions.sql (DROP FUNCTION IF EXISTS).
+  const fnStart = noRelistFn.indexOf('CREATE OR REPLACE FUNCTION authority_v1.record_cancel_result');
+  const fnEnd = noRelistFn.indexOf('$$;', fnStart);
+  if (fnStart < 0 || fnEnd < 0) throw new Error('record_cancel_result not found in 002f_no_relist_invariant.sql');
+  const fnBody = noRelistFn.substring(fnStart, fnEnd);
   const committedCount = (fnBody.match(/SET status = 'committed'/g) || []).length;
   if (committedCount < 3) {
     throw new Error(`expected at least 3 committed status updates, got ${committedCount}`);
@@ -391,9 +396,10 @@ check('refund_failed_in_unsettled_index', () => {
 check('failed_only_for_capture_failure', () => {
   // The 'failed' state should only appear in record_capture_result, not in
   // record_cancel_result or record_refund_result (which use cancel_failed/refund_failed)
-  const cancelFnStart = functions.indexOf('CREATE OR REPLACE FUNCTION authority_v1.record_cancel_result');
-  const cancelFnEnd = functions.indexOf('$$;', cancelFnStart);
-  const cancelFnBody = functions.substring(cancelFnStart, cancelFnEnd);
+  // P0-01T-CORRECTIVE-4C: record_cancel_result is canonical in 002f, not 002_functions.sql
+  const cancelFnStart = noRelistFn.indexOf('CREATE OR REPLACE FUNCTION authority_v1.record_cancel_result');
+  const cancelFnEnd = noRelistFn.indexOf('$$;', cancelFnStart);
+  const cancelFnBody = noRelistFn.substring(cancelFnStart, cancelFnEnd);
   // record_cancel_result must NOT set binding to 'failed' (it uses cancel_failed)
   if (cancelFnBody.includes("capture_state = 'failed'")) {
     throw new Error('record_cancel_result must NOT use generic failed — use cancel_failed');
@@ -2140,9 +2146,10 @@ check('buyer_confirmation_handler_wiring', () => {
   if (!src.includes('maybeRouteCanaryBuyerConfirm')) throw new Error('handler must import maybeRouteCanaryBuyerConfirm');
   if (!src.includes("confirming_role === 'buyer'")) throw new Error('handler must check confirming_role === buyer');
   if (!src.includes('isCanaryEnabled')) throw new Error('handler must use isCanaryEnabled');
-  if (!src.includes("secrets.get('AUTHORITY_V1_DB_URL_DEV_EXECUTOR')")) throw new Error('handler must use base44:runtime for executor URL');
-  // P0-01T correction: handler must pass recorderUrl + stripeAdapter for composed capture
-  if (!src.includes("secrets.get('AUTHORITY_V1_DB_URL_DEV_STRIPE_RECORDER')")) throw new Error('handler must pass recorderUrl for composed capture');
+  // P0-01T-CORRECTIVE-4C: handler passes the secrets capability to the routing
+  // seam — it does NOT eagerly read secrets. The seam performs awaited lazy
+  // reads ONLY after confirming canary eligibility.
+  if (!src.includes('secrets,')) throw new Error('handler must pass secrets capability to routing seam');
   if (src.includes('authorityV1TestAdmin')) throw new Error('handler must not import admin client');
   return true;
 });
@@ -2359,7 +2366,8 @@ check('record_capture_reconciliation_requires_capture_unknown_reason', () => {
   const fnBody = functions.substring(fnStart, fnEnd);
   // P0-01T-CORRECTIVE-3: Reconciliation must require recovery_blocked_reason = 'capture_unknown'
   if (!fnBody.includes('RECOVERY_REASON_MISMATCH')) throw new Error('must return RECOVERY_REASON_MISMATCH when recovery_blocked_reason is not capture_unknown');
-  if (!fnBody.includes("recovery_blocked_reason <> 'capture_unknown'")) throw new Error("must check recovery_blocked_reason <> 'capture_unknown' for reconciliation");
+  // P0-01T-CORRECTIVE-4C: Must use IS DISTINCT FROM (nullable-safe), not <> (unsafe)
+  if (!fnBody.includes("recovery_blocked_reason IS DISTINCT FROM 'capture_unknown'")) throw new Error("must check recovery_blocked_reason IS DISTINCT FROM 'capture_unknown' for reconciliation");
   return true;
 });
 check('capture_orchestrator_no_http_credentials', () => {
@@ -2436,6 +2444,30 @@ check('installation_order_002b_in_all_declarations', () => {
       throw new Error(`${labels[key]} installation order must reference ${canonical}`);
     }
   }
+  return true;
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TEST 38: P0-01T-CORRECTIVE-4C — canonical 002f, parity, grants, abort rejection
+check('record_cancel_result_canonical_in_002f', () => {
+  const c = (noRelistFn.match(/CREATE OR REPLACE FUNCTION authority_v1\.record_cancel_result/g) || []).length;
+  if (c !== 1) throw new Error(`002f must have 1 CREATE, got ${c}`);
+  if (functions.includes('CREATE OR REPLACE FUNCTION authority_v1.record_cancel_result')) throw new Error('002 must NOT have CREATE');
+  if (!functions.includes('DROP FUNCTION IF EXISTS authority_v1.record_cancel_result')) throw new Error('002 must DROP old definition');
+  const sig = 'record_cancel_result(TEXT,TEXT,JSONB,TEXT,TEXT,TEXT)';
+  if (!roles.includes(`REVOKE EXECUTE ON FUNCTION authority_v1.${sig} FROM authority_executor`)) throw new Error('must revoke from executor');
+  if (!roles.includes(`REVOKE EXECUTE ON FUNCTION authority_v1.${sig} FROM authority_worker`)) throw new Error('must revoke from worker');
+  if (!roles.includes(`REVOKE EXECUTE ON FUNCTION authority_v1.${sig} FROM PUBLIC`)) throw new Error('must revoke from PUBLIC');
+  const f002f = { schema, functions, transferFns, proofFn, buyerFn, captureCtxFn, noRelistFn, workers, roles };
+  for (const [k, c] of Object.entries(f002f)) { if (!c.includes('002f_no_relist_invariant')) throw new Error(`${k} must reference 002f`); }
+  return true;
+});
+check('abort_binding_returns_buyer_confirmed_no_abort', () => {
+  const s = functions.indexOf('CREATE OR REPLACE FUNCTION authority_v1.abort_binding');
+  const b = functions.substring(s, functions.indexOf('$$;', s));
+  if (!b.includes("'BUYER_CONFIRMED_NO_ABORT'")) throw new Error('must return BUYER_CONFIRMED_NO_ABORT');
+  const bc = b.substring(b.indexOf('buyer_confirmed_received'), b.indexOf('v_new_version := p_expected_version'));
+  if (bc.includes("'aborted', true")) throw new Error('must NOT return aborted:true in buyer-confirmed block');
   return true;
 });
 
