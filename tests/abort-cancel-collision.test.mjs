@@ -144,14 +144,16 @@ export async function runAllTests({ adminSql, executorUrl, recorderUrl }) {
     const abortResult = await executorClient.abortBinding(setup.listingId, stateBefore.version, setup.purchaseId, abortOpId, abortHash);
     responseBodies.push({ test: 'AC1', body: abortResult });
 
-    assert('AC1: abort ok=true', abortResult?.ok === true, `got ${JSON.stringify(abortResult)}`);
-    assert('AC1: abort released=false', abortResult?.released === false, `got ${abortResult?.released}`);
-    assert('AC1: abort recovery_blocked=true', abortResult?.recovery_blocked === true);
-    assert('AC1: abort recovery_blocked_reason=abort_after_buyer_confirmation', abortResult?.recovery_blocked_reason === 'abort_after_buyer_confirmation');
+    // P0-01T-CORRECTIVE-4C: abort_binding after buyer confirmation is REJECTED.
+    // ok=false, code=BUYER_CONFIRMED_NO_ABORT, NO state mutation.
+    assert('AC1: abort ok=false (rejected)', abortResult?.ok === false, `got ${JSON.stringify(abortResult)}`);
+    assert('AC1: abort code=BUYER_CONFIRMED_NO_ABORT', abortResult?.code === 'BUYER_CONFIRMED_NO_ABORT', `got ${abortResult?.code}`);
+    assert('AC1: abort released=undefined (no release)', abortResult?.released === undefined, `got ${abortResult?.released}`);
+    assert('AC1: abort recovery_blocked=undefined (no mutation)', abortResult?.recovery_blocked === undefined, `got ${abortResult?.recovery_blocked}`);
 
     const state = await getAuthorityState(adminSql, setup.listingId);
     assert('AC1: lifecycle still frozen (NOT available)', state?.lifecycle_state === 'frozen', `got ${state?.lifecycle_state}`);
-    assert('AC1: recovery_blocked=true', state?.recovery_blocked === true);
+    assert('AC1: recovery_blocked still false (reject does not block)', state?.recovery_blocked === false, `got ${state?.recovery_blocked}`);
 
     // P0-01T-CORRECTIVE-4B: Verify binding was NOT marked aborted
     const binding = await getBindingState(adminSql, setup.purchaseId);
@@ -353,11 +355,17 @@ export async function runAllTests({ adminSql, executorUrl, recorderUrl }) {
     console.log('\n[AC5] 10-iteration race — buyer confirmation vs succeeded cancellation');
     await cleanupAll(adminSql);
 
-    let raceErrors = 0;
-    let buyerConfirmedAvailable = 0; // BAD: buyer_confirmed + available
-    let buyerConfirmedFrozen = 0;
-    let cancelSucceeded = 0;
-    let bothFailed = 0;
+    // P0-01T-CORRECTIVE-4C: Exact A/B/invalid/thrown outcome matrix.
+    // Each iteration must settle to exactly ONE definitive outcome:
+    //   A: buyer confirmation won → frozen + buyer_confirmed_received
+    //   B: cancellation won → available (no buyer confirmation)
+    //   invalid: buyer_confirmed + available (no-relist violation — MUST be 0)
+    //   thrown: any database error (MUST be 0)
+    let outcomeA = 0;    // buyer confirmation won
+    let outcomeB = 0;    // cancellation won
+    let outcomeInvalid = 0; // no-relist violation
+    let outcomeThrown = 0;  // database errors
+    let outcomeUnclassified = 0;
 
     for (let i = 0; i < 10; i++) {
       const listingId = `ac5_${i}_${genId()}`;
@@ -430,32 +438,43 @@ export async function runAllTests({ adminSql, executorUrl, recorderUrl }) {
         recorderClient.recordCancelResult(cancelActionId, 'succeeded', {}, null, cancelRecordOpId, cancelRecordHash),
       ]);
 
-      // Count thrown database errors
-      if (buyerSettled.status === 'rejected') raceErrors++;
-      if (cancelSettled.status === 'rejected') raceErrors++;
+      // P0-01T-CORRECTIVE-4C: Classify each iteration into exactly ONE outcome.
+      const buyerThrown = buyerSettled.status === 'rejected';
+      const cancelThrown = cancelSettled.status === 'rejected';
+
+      if (buyerThrown) outcomeThrown++;
+      if (cancelThrown) outcomeThrown++;
 
       const finalState = await getAuthorityState(adminSql, listingId);
+      const isBuyerConfirmed = finalState?.transfer_state === 'buyer_confirmed_received';
+      const isAvailable = finalState?.lifecycle_state === 'available';
+      const isFrozen = finalState?.lifecycle_state === 'frozen';
 
-      // Check for the BAD state: buyer_confirmed + available
-      if (finalState?.transfer_state === 'buyer_confirmed_received' && finalState?.lifecycle_state === 'available') {
-        buyerConfirmedAvailable++;
-      }
-      if (finalState?.transfer_state === 'buyer_confirmed_received' && finalState?.lifecycle_state === 'frozen') {
-        buyerConfirmedFrozen++;
-      }
-      if (finalState?.lifecycle_state === 'available' && finalState?.transfer_state !== 'buyer_confirmed_received') {
-        cancelSucceeded++;
-      }
-      if (finalState?.lifecycle_state === 'frozen' && finalState?.transfer_state !== 'buyer_confirmed_received') {
-        bothFailed++;
+      if (isBuyerConfirmed && isAvailable) {
+        // INVALID: no-relist violation — buyer confirmed but listing was released
+        outcomeInvalid++;
+      } else if (isBuyerConfirmed && isFrozen) {
+        // A: buyer confirmation won — frozen + buyer_confirmed_received
+        outcomeA++;
+      } else if (isAvailable && !isBuyerConfirmed) {
+        // B: cancellation won — available, no buyer confirmation
+        outcomeB++;
+      } else if (isFrozen && !isBuyerConfirmed) {
+        // Both operations failed to settle (e.g. version conflict on both)
+        // This is a valid frozen state but neither operation completed.
+        // Classify as unclassified — not A, not B, not invalid.
+        outcomeUnclassified++;
+      } else {
+        // Any other state is unclassified
+        outcomeUnclassified++;
       }
     }
 
-    assert('AC5: zero thrown database errors', raceErrors === 0, `got ${raceErrors} errors`);
-    assert('AC5: no buyer-confirmed + available state', buyerConfirmedAvailable === 0, `got ${buyerConfirmedAvailable} bad states`);
-    assert('AC5: every iteration reached a definitive state',
-      buyerConfirmedFrozen + cancelSucceeded + bothFailed === 10,
-      `buyerFrozen=${buyerConfirmedFrozen}, cancelSucceeded=${cancelSucceeded}, bothFailed=${bothFailed}`);
+    assert('AC5: zero thrown database errors', outcomeThrown === 0, `got ${outcomeThrown} errors`);
+    assert('AC5: zero invalid (no-relist violation) states', outcomeInvalid === 0, `got ${outcomeInvalid} invalid states`);
+    assert('AC5: every iteration reached A or B',
+      outcomeA + outcomeB === 10,
+      `A=${outcomeA}, B=${outcomeB}, invalid=${outcomeInvalid}, thrown=${outcomeThrown}, unclassified=${outcomeUnclassified}`);
 
     await cleanupAll(adminSql);
     console.log('  ✅ AC5 passed');

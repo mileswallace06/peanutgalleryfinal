@@ -23,6 +23,8 @@ import { pathToFileURL } from 'node:url';
 register(pathToFileURL('./tests/loaders/npm-compat-hook.mjs').href, pathToFileURL('./').href);
 
 // ── Preflight ──────────────────────────────────────────────────────────────────
+// P0-01T-CORRECTIVE-4C: Safe preflight with hostname normalization, schema
+// verification, and initial-empty proof. No cleanup runs until preflight passes.
 async function preflight({ adminUrl, executorUrl, recorderUrl }) {
   const checks = [];
 
@@ -39,11 +41,12 @@ async function preflight({ adminUrl, executorUrl, recorderUrl }) {
       const parsed = new URL(urlStr);
       return {
         role: decodeURIComponent(parsed.username),
+        hostname: parsed.hostname.toLowerCase().replace(/\.$/, ''),
         database: parsed.pathname ? parsed.pathname.replace(/^\//, '') : '',
         roleOk: decodeURIComponent(parsed.username) === expectedRole,
       };
     } catch (e) {
-      return { role: null, database: null, roleOk: false };
+      return { role: null, hostname: null, database: null, roleOk: false };
     }
   }
 
@@ -55,6 +58,7 @@ async function preflight({ adminUrl, executorUrl, recorderUrl }) {
   checks.push({ name: 'EXECUTOR_ROLE', pass: execInfo.roleOk });
   checks.push({ name: 'RECORDER_ROLE', pass: recInfo.roleOk });
 
+  // Same database (hostname may differ — Neon pooled vs direct endpoints)
   const sameDb = adminInfo.database === execInfo.database && execInfo.database === recInfo.database;
   checks.push({ name: 'SAME_DATABASE', pass: sameDb });
 
@@ -72,8 +76,48 @@ async function preflight({ adminUrl, executorUrl, recorderUrl }) {
   checks.push({ name: 'EXECUTOR_CONNECT', pass: connectResults.executor });
   checks.push({ name: 'RECORDER_CONNECT', pass: connectResults.recorder });
 
+  if (!connectResults.admin || !connectResults.executor || !connectResults.recorder) {
+    return { pass: false, checks, reason: 'CONNECTIVITY_FAILED' };
+  }
+
+  // Schema verification: authority_v1 must exist
+  const adminSql = neon(adminUrl);
+  let schemaExists = false;
+  try {
+    const rows = await adminSql`SELECT 1 FROM information_schema.schemata WHERE schema_name = 'authority_v1'`;
+    schemaExists = rows.length > 0;
+  } catch {}
+  checks.push({ name: 'SCHEMA_EXISTS', pass: schemaExists });
+
+  if (!schemaExists) {
+    return { pass: false, checks, reason: 'SCHEMA_MISSING' };
+  }
+
+  // Initial-empty proof: all 7 authority tables must be empty before testing
+  const tables = [
+    'reservation_authority', 'reservation_operations', 'reservation_outbox',
+    'reservation_payment_bindings', 'payment_actions',
+    'stripe_webhook_events', 'operational_incidents',
+  ];
+  let allEmpty = true;
+  const initialCounts = {};
+  for (const t of tables) {
+    try {
+      const rows = await adminSql(`SELECT count(*)::int as c FROM authority_v1."${t}"`);
+      initialCounts[t] = rows[0].c;
+      if (rows[0].c !== 0) allEmpty = false;
+    } catch {
+      allEmpty = false;
+    }
+  }
+  checks.push({ name: 'INITIAL_EMPTY', pass: allEmpty });
+
+  if (!allEmpty) {
+    return { pass: false, checks, reason: 'TABLES_NOT_EMPTY', initialCounts };
+  }
+
   const allPass = checks.every(c => c.pass);
-  return { pass: allPass, checks, reason: allPass ? null : 'CONNECTIVITY_FAILED' };
+  return { pass: allPass, checks, reason: allPass ? null : 'CHECKS_FAILED', adminSql };
 }
 
 // ── Credential accumulation Sets ──────────────────────────────────────────────
@@ -88,12 +132,17 @@ const PROHIBITED_KEYS = new Set([
   'buyer_user_id', 'buyer_email',
 ]);
 
-function scanRecursive(obj, knownValues, path, violations) {
+// P0-01T-CORRECTIVE-4C: Scan ALL entries in each credential Set, not just
+// the first. Accepts an object of Sets keyed by credential kind.
+function scanRecursive(obj, credentialSets, path, violations) {
   if (obj === null || obj === undefined) return;
   if (typeof obj === 'string') {
-    for (const [name, value] of Object.entries(knownValues)) {
-      if (value && typeof value === 'string' && value.length > 5 && obj.includes(value)) {
-        violations.push({ path, kind: name });
+    for (const [kind, set] of Object.entries(credentialSets)) {
+      for (const value of set) {
+        if (value && typeof value === 'string' && value.length > 5 && obj.includes(value)) {
+          violations.push({ path, kind });
+          break; // Report once per kind per string
+        }
       }
     }
     return;
@@ -104,7 +153,7 @@ function scanRecursive(obj, knownValues, path, violations) {
     if (PROHIBITED_KEYS.has(key.toLowerCase())) {
       violations.push({ path: currentPath, kind: 'prohibited_key' });
     }
-    scanRecursive(value, knownValues, currentPath, violations);
+    scanRecursive(value, credentialSets, currentPath, violations);
   }
 }
 
@@ -146,8 +195,9 @@ export async function runP001T({ adminUrl, executorUrl, recorderUrl }) {
   knownSecrets.add(executorUrl);
   knownSecrets.add(recorderUrl);
 
-  const { neon } = await import('npm:@neondatabase/serverless@0.10.4');
-  const adminSql = neon(adminUrl);
+  // P0-01T-CORRECTIVE-4C: Reuse the adminSql connection from preflight
+  // (preflight already verified schema + initial-empty).
+  const adminSql = preflightResult.adminSql;
 
   // 2. Suppress harness logs — capture instead of forwarding
   const originalLog = console.log;
@@ -176,9 +226,20 @@ export async function runP001T({ adminUrl, executorUrl, recorderUrl }) {
       { name: 'abort-cancel-collision', file: 'tests/abort-cancel-collision.test.mjs', deps: { adminSql, executorUrl, recorderUrl } },
     ];
 
+    // P0-01T-CORRECTIVE-4C: Register credential callbacks for leak scanning.
+    const credentialCallbacks = {
+      recordActionId: (id) => knownActionIds.add(id),
+      recordIdemKey: (key) => knownIdemKeys.add(key),
+      recordBuyerId: (id) => knownBuyerIds.add(id),
+      responseBodies: allResponseBodies,
+    };
+
     for (const config of suiteConfigs) {
       await cleanupAll(adminSql);
       const harness = await import(pathToFileURL(`./${config.file}`).href);
+      if (harness.setCredentialCallbacks) {
+        harness.setCredentialCallbacks(credentialCallbacks);
+      }
       const result = await harness.runAllTests(config.deps);
       await cleanupAll(adminSql);
 
@@ -195,19 +256,17 @@ export async function runP001T({ adminUrl, executorUrl, recorderUrl }) {
     }
 
     // 4. Scan captured logs and errors for credential leaks
-    const knownValues = {};
-    for (const [name, set] of Object.entries({ action_id: knownActionIds, stripe_idem_key: knownIdemKeys, buyer_email: knownBuyerIds })) {
-      // Only scan for a representative sample (first entry) to avoid O(n^2)
-      const first = set.values().next().value;
-      if (first) knownValues[name] = first;
-    }
-    for (const s of knownSecrets) {
-      knownValues[`secret_${knownSecrets.size}`] = s;
-    }
+    // P0-01T-CORRECTIVE-4C: Scan ALL entries in each Set, not just the first.
+    const credentialSets = {
+      action_id: knownActionIds,
+      stripe_idem_key: knownIdemKeys,
+      buyer_email: knownBuyerIds,
+      secret: knownSecrets,
+    };
 
     for (const line of capturedLogs) {
       const violations = [];
-      scanRecursive(line, knownValues, '', violations);
+      scanRecursive(line, credentialSets, '', violations);
       if (violations.length > 0) {
         for (const v of violations) {
           leakViolations.push({ context: 'log', kind: v.kind, path: v.path });
@@ -216,7 +275,7 @@ export async function runP001T({ adminUrl, executorUrl, recorderUrl }) {
     }
     for (const line of capturedErrors) {
       const violations = [];
-      scanRecursive(line, knownValues, '', violations);
+      scanRecursive(line, credentialSets, '', violations);
       if (violations.length > 0) {
         for (const v of violations) {
           leakViolations.push({ context: 'error', kind: v.kind, path: v.path });
@@ -227,7 +286,7 @@ export async function runP001T({ adminUrl, executorUrl, recorderUrl }) {
     // 5. Scan all response bodies for credential leaks
     for (const { test, body } of allResponseBodies) {
       const violations = [];
-      scanRecursive(body, knownValues, '', violations);
+      scanRecursive(body, credentialSets, '', violations);
       if (violations.length > 0) {
         for (const v of violations) {
           leakViolations.push({ context: `response[${test}]`, kind: v.kind, path: v.path });
@@ -255,6 +314,8 @@ export async function runP001T({ adminUrl, executorUrl, recorderUrl }) {
       allTablesEmpty: allZero,
     };
   } finally {
+    // P0-01T-CORRECTIVE-4C: Always clean up after preflight passes.
+    try { await cleanupAll(adminSql); } catch {}
     // Restore console methods
     console.log = originalLog;
     console.error = originalError;
@@ -281,6 +342,12 @@ if (isMainModule) {
   console.log('  P0-01T-CORRECTIVE-4B Runner — Final Summary');
   console.log('═══════════════════════════════════════════════════════════════════');
   console.log(`  Preflight: ${result.preflight}`);
+  if (result.preflight === 'FAILED') {
+    console.log(`  Reason: ${result.reason || 'unknown'}`);
+    for (const c of result.checks || []) {
+      console.log(`    ${c.pass ? '✓' : '✗'} ${c.name}`);
+    }
+  }
   for (const s of result.suites || []) {
     console.log(`  ${s.name}: ${s.passed} passed, ${s.failed} failed`);
   }

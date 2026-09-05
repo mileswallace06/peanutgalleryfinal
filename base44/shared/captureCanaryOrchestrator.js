@@ -274,38 +274,57 @@ export async function runCanaryCaptureSaga(deps) {
     };
   }
 
-  // ── 6. Branch on result ──────────────────────────────────────────────────
-  if (derived === 'succeeded' && recordResult?.finalized === true) {
-    // Confirmed success → authority sold → Base44 mirror sold
-    const mirrorPayload = {
-      listing: {
-        reserved_by_email: null,
-        reservation_token: null,
-        reservation_expires_at: null,
-        reservation_revision: null,
-        status: 'sold',
-      },
-      listing_private: {
-        reserved_by_email: null,
-        reservation_token: null,
-        reservation_expires_at: null,
-        reservation_revision: null,
-      },
-    };
-    const simulateFailure = params.simulate_mirror_failure === true;
-    const mirror = await applyMirrorWithOutbox(
-      entities, listingId, mirrorPayload, simulateFailure,
-      recordResult.authority_version || recordResult.version || expectedVersion + 2,
-      recordResult.reservation_revision || null,
-      'capture',
-    );
+  // ── 6. Branch on result with STRICT mutual exclusion ──────────────────────
+  // P0-01T-CORRECTIVE-4C: Each derived value matches exactly ONE branch.
+  // Within each branch, the recorder result must prove exactly ONE outcome
+  // shape. Any contradictory flag combination returns RECORDER_RESULT_INVALID.
+  // The unknown branch executes ONLY when derived === 'unknown'.
 
+  if (derived === 'succeeded') {
+    // Must have finalized=true. Must NOT have released, capture_unknown, or recovery_blocked.
+    if (recordResult?.finalized === true
+        && recordResult?.released !== true
+        && recordResult?.capture_unknown !== true
+        && recordResult?.recovery_blocked !== true) {
+      const mirrorPayload = {
+        listing: {
+          reserved_by_email: null,
+          reservation_token: null,
+          reservation_expires_at: null,
+          reservation_revision: null,
+          status: 'sold',
+        },
+        listing_private: {
+          reserved_by_email: null,
+          reservation_token: null,
+          reservation_expires_at: null,
+          reservation_revision: null,
+        },
+      };
+      const simulateFailure = params.simulate_mirror_failure === true;
+      await applyMirrorWithOutbox(
+        entities, listingId, mirrorPayload, simulateFailure,
+        recordResult.authority_version || recordResult.version || expectedVersion + 2,
+        recordResult.reservation_revision || null,
+        'capture',
+      );
+      return {
+        status: 200,
+        body: {
+          ok: true,
+          captured: true,
+          finalized: true,
+          provider_called: true,
+          provider_result: 'succeeded',
+        },
+      };
+    }
     return {
-      status: 200,
+      status: 500,
       body: {
-        ok: true,
-        captured: true,
-        finalized: true,
+        ok: false,
+        error: 'Recorder returned succeeded without finalized or with contradictory flags',
+        code: 'RECORDER_RESULT_INVALID',
         provider_called: true,
         provider_result: 'succeeded',
       },
@@ -313,15 +332,21 @@ export async function runCanaryCaptureSaga(deps) {
   }
 
   if (derived === 'failed') {
-    // P0-01T-CORRECTIVE-4B: Fail-closed recorder outcome validation.
-    // For derived=failed, accept ONLY:
-    //   A. released === true  (ordinary pre-delivery failure → release)
-    //   B. released === false AND recovery_blocked === true with an
-    //      authoritative stable reason (post-buyer-confirmation failure)
-    // Anything else returns RECORDER_RESULT_INVALID. Do not invent
-    // recovery_blocked or a fallback reason in JavaScript.
-    if (recordResult?.released === true) {
-      // Ordinary pre-delivery capture failure → authority available → mirror active
+    // Must NOT have finalized or capture_unknown in any failed branch.
+    if (recordResult?.finalized === true || recordResult?.capture_unknown === true) {
+      return {
+        status: 500,
+        body: {
+          ok: false,
+          error: 'Recorder returned failed with contradictory flags',
+          code: 'RECORDER_RESULT_INVALID',
+          provider_called: true,
+          provider_result: 'failed',
+        },
+      };
+    }
+    // A. released === true (ordinary pre-delivery failure → release)
+    if (recordResult?.released === true && recordResult?.recovery_blocked !== true) {
       const mirrorPayload = {
         listing: {
           reserved_by_email: null,
@@ -338,13 +363,12 @@ export async function runCanaryCaptureSaga(deps) {
         },
       };
       const simulateFailure = params.simulate_mirror_failure === true;
-      const mirror = await applyMirrorWithOutbox(
+      await applyMirrorWithOutbox(
         entities, listingId, mirrorPayload, simulateFailure,
         recordResult.authority_version || recordResult.version || expectedVersion + 2,
         recordResult.reservation_revision || null,
         'capture',
       );
-
       return {
         status: 200,
         body: {
@@ -357,14 +381,10 @@ export async function runCanaryCaptureSaga(deps) {
         },
       };
     }
-
-    // Post-buyer-confirmation capture failure: authority stays frozen + recovery_blocked.
-    // P0-01T-CORRECTIVE-4B: Only accept when the recorder explicitly reports
-    // released === false AND recovery_blocked === true with a stable reason.
+    // B. released === false AND recovery_blocked === true with stable reason
     if (recordResult?.released === false && recordResult?.recovery_blocked === true) {
       const stableReason = recordResult?.recovery_blocked_reason;
       if (!stableReason || typeof stableReason !== 'string') {
-        // No authoritative stable reason → reject
         return {
           status: 500,
           body: {
@@ -376,7 +396,6 @@ export async function runCanaryCaptureSaga(deps) {
           },
         };
       }
-
       return {
         status: 200,
         body: {
@@ -392,8 +411,6 @@ export async function runCanaryCaptureSaga(deps) {
         },
       };
     }
-
-    // Neither released=true nor (released=false AND recovery_blocked=true with reason)
     return {
       status: 500,
       body: {
@@ -406,9 +423,13 @@ export async function runCanaryCaptureSaga(deps) {
     };
   }
 
-  // P0-01T-CORRECTIVE-4: unknown → fail-closed ONLY when the authoritative
-  // recorder result explicitly proves capture_unknown and recovery_blocked.
-  if (recordResult?.capture_unknown === true && recordResult?.recovery_blocked === true) {
+  // derived === 'unknown' — the ONLY remaining branch.
+  // Must have capture_unknown=true AND recovery_blocked=true.
+  // Must NOT have finalized or released.
+  if (recordResult?.capture_unknown === true
+      && recordResult?.recovery_blocked === true
+      && recordResult?.finalized !== true
+      && recordResult?.released !== true) {
     return {
       status: 200,
       body: {
@@ -421,8 +442,6 @@ export async function runCanaryCaptureSaga(deps) {
       },
     };
   }
-
-  // Recorder result does not explicitly prove capture_unknown + recovery_blocked
   return {
     status: 500,
     body: {
