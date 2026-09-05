@@ -110,10 +110,55 @@ BEGIN
     -- An 'available' purchase created by cancellation, abort, or ordinary
     -- capture failure must NEVER be represented as buyer-confirmed.
     -- buyer_user_id is NOT returned (do not expose buyer email publicly).
-    IF FOUND AND v_authority.lifecycle_state IN ('sold', 'available') THEN
+    -- P0-01T-CORRECTIVE-4: Successful terminal confirmation replay must prove
+    -- the EXACT sold transaction. ALL six conditions must hold:
+    --   1. lifecycle = sold
+    --   2. transfer_state = buyer_confirmed_received
+    --   3. buyer_confirmed_at present
+    --   4. authenticated user matches binding buyer (already verified above)
+    --   5. binding is finalized
+    --   6. matching capture action succeeded
+    -- Never authorize generic available inventory.
+    IF FOUND AND v_authority.lifecycle_state = 'sold' THEN
       IF v_authority.transfer_state = 'buyer_confirmed_received'
          AND v_authority.buyer_confirmed_at IS NOT NULL THEN
-        -- Authorized terminal replay — prior authoritative confirmation exists.
+
+        -- Condition 5: binding must be finalized
+        IF v_binding.capture_state <> 'finalized' THEN
+          UPDATE reservation_operations SET status = 'conflict',
+            error_code = 'TERMINAL_NOT_BUYER_CONFIRMED',
+            result_json = jsonb_build_object('ok', false, 'code', 'TERMINAL_NOT_BUYER_CONFIRMED',
+              'reason', 'binding not finalized',
+              'lifecycle_state', v_authority.lifecycle_state,
+              'transfer_state', v_authority.transfer_state)::TEXT,
+            committed_at = now()
+          WHERE operation_id = p_server_operation_id;
+          RETURN jsonb_build_object('ok', false, 'code', 'TERMINAL_NOT_BUYER_CONFIRMED',
+            'reason', 'binding not finalized',
+            'lifecycle_state', v_authority.lifecycle_state,
+            'transfer_state', v_authority.transfer_state);
+        END IF;
+
+        -- Condition 6: matching capture action must have succeeded
+        IF NOT EXISTS(SELECT 1 FROM payment_actions
+            WHERE listing_id = p_listing_id AND purchase_id = p_purchase_id
+              AND payment_intent_id = v_binding.payment_intent_id
+              AND action_type = 'capture' AND status = 'succeeded') THEN
+          UPDATE reservation_operations SET status = 'conflict',
+            error_code = 'TERMINAL_NOT_BUYER_CONFIRMED',
+            result_json = jsonb_build_object('ok', false, 'code', 'TERMINAL_NOT_BUYER_CONFIRMED',
+              'reason', 'no succeeded capture action',
+              'lifecycle_state', v_authority.lifecycle_state,
+              'transfer_state', v_authority.transfer_state)::TEXT,
+            committed_at = now()
+          WHERE operation_id = p_server_operation_id;
+          RETURN jsonb_build_object('ok', false, 'code', 'TERMINAL_NOT_BUYER_CONFIRMED',
+            'reason', 'no succeeded capture action',
+            'lifecycle_state', v_authority.lifecycle_state,
+            'transfer_state', v_authority.transfer_state);
+        END IF;
+
+        -- All six conditions met — authorized terminal replay
         UPDATE reservation_operations SET status = 'idempotent_replay',
           result_json = jsonb_build_object('ok', true, 'transfer_state', 'buyer_confirmed_received',
             'version', v_authority.version, 'idempotent', true,
@@ -130,9 +175,7 @@ BEGIN
           'buyer_confirmed', true,
           'no_financial_effects', true);
       ELSE
-        -- Terminal state WITHOUT prior authoritative buyer confirmation.
-        -- This is an available/sold row created by cancellation, abort, or
-        -- ordinary capture failure — NOT a buyer-confirmed replay.
+        -- Sold state WITHOUT prior authoritative buyer confirmation
         UPDATE reservation_operations SET status = 'conflict',
           error_code = 'TERMINAL_NOT_BUYER_CONFIRMED',
           result_json = jsonb_build_object('ok', false, 'code', 'TERMINAL_NOT_BUYER_CONFIRMED',
@@ -144,6 +187,23 @@ BEGIN
           'lifecycle_state', v_authority.lifecycle_state,
           'transfer_state', v_authority.transfer_state);
       END IF;
+    END IF;
+
+    -- P0-01T-CORRECTIVE-4: Never authorize generic available inventory.
+    -- An available authority was released by cancellation, abort, or ordinary
+    -- capture failure. Even if the buyer previously confirmed receipt, the
+    -- listing is no longer part of a buyer-confirmed sold transaction.
+    IF FOUND AND v_authority.lifecycle_state = 'available' THEN
+      UPDATE reservation_operations SET status = 'conflict',
+        error_code = 'TERMINAL_NOT_BUYER_CONFIRMED',
+        result_json = jsonb_build_object('ok', false, 'code', 'TERMINAL_NOT_BUYER_CONFIRMED',
+          'lifecycle_state', v_authority.lifecycle_state,
+          'transfer_state', v_authority.transfer_state)::TEXT,
+        committed_at = now()
+      WHERE operation_id = p_server_operation_id;
+      RETURN jsonb_build_object('ok', false, 'code', 'TERMINAL_NOT_BUYER_CONFIRMED',
+        'lifecycle_state', v_authority.lifecycle_state,
+        'transfer_state', v_authority.transfer_state);
     END IF;
 
     -- Idempotent: already buyer_confirmed_received by this buyer (different op,

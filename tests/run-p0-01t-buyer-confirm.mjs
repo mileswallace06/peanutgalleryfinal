@@ -1,27 +1,23 @@
 /**
- * Runner for P0-01T-CORRECTIVE-3 buyer-confirmation + composition test suites.
+ * Runner for P0-01T-CORRECTIVE-4 buyer-confirmation, composition, and
+ * abort/cancel collision test suites.
  *
  * Loads the npm-compat ESM hook (for npm: specifiers), dynamically imports
- * both DI test modules, assembles deps from process.env secrets, and invokes
- * runAllTests for each. Aggregates results and asserts that sensitive
- * operational credentials (capture action_id, stripe_idempotency_key,
- * buyer_user_id, buyer_email) never appear in any response body, log output,
+ * all three DI test modules, assembles deps from process.env secrets, and
+ * invokes runAllTests for each. Aggregates results and asserts that sensitive
+ * operational credentials never appear in any response body, log output,
  * or error message.
  *
- * P0-01T-CORRECTIVE-3: The credential scanner NEVER stores a detected raw
- * secret in an assertion name, error, detail, JSON result, console message,
- * or snippet. A violation contains only a sanitized secret kind and context.
- * Console output is intercepted and compared in memory against known action
- * IDs, Stripe idempotency keys, and configured database URLs. Only violation
- * counts and sanitized categories are reported.
+ * P0-01T-CORRECTIVE-4: Never print or return a secret. Report only sanitized
+ * violation counts and categories. Return actual runtime assertion counts,
+ * C1–C11 outcomes, abort/cancel collision results, direct frozen-retry proof,
+ * sanitized leak count, and final seven-table cleanup counts.
  */
 import { register } from 'node:module';
 import { pathToFileURL } from 'node:url';
 
-// Register the npm-compat loader hook for npm: specifiers
 register(pathToFileURL('./tests/loaders/npm-compat-hook.mjs').href, pathToFileURL('./').href);
 
-// ── Verify and assemble deps from process.env ──────────────────────────────
 const adminUrl = process.env.AUTHORITY_DB_URL_DEV_ADMIN;
 const executorUrl = process.env.AUTHORITY_V1_DB_URL_DEV_EXECUTOR;
 const recorderUrl = process.env.AUTHORITY_V1_DB_URL_DEV_STRIPE_RECORDER;
@@ -33,18 +29,11 @@ if (!recorderUrl) throw new Error('AUTHORITY_V1_DB_URL_DEV_STRIPE_RECORDER not a
 const { neon } = await import('npm:@neondatabase/serverless@0.10.4');
 const adminSql = neon(adminUrl);
 
-// ── Known credentials for in-memory comparison ─────────────────────────────
-// These values are collected during test execution and compared against
-// console output. They are NEVER printed, stored in violations, or returned.
 const knownCredentials = new Set();
-// Add database URLs to known credentials (to detect leaks in logs)
 knownCredentials.add(adminUrl);
 knownCredentials.add(executorUrl);
 knownCredentials.add(recorderUrl);
 
-// ── Sanitized credential leak detection ────────────────────────────────────
-// P0-01T-CORRECTIVE-3: Never store a detected raw secret. A violation contains
-// only a sanitized secret kind and context (e.g. "log:action_id_pattern").
 const SENSITIVE_PATTERNS = [
   { kind: 'action_id', pattern: /action_id/i },
   { kind: 'stripe_idempotency_key', pattern: /stripe_idempotency_key/i },
@@ -60,12 +49,9 @@ function scanForLeaks(context, value) {
   if (!text) return;
   for (const { kind, pattern } of SENSITIVE_PATTERNS) {
     if (pattern.test(text)) {
-      // P0-01T-CORRECTIVE-3: Only store the sanitized kind and context.
-      // Never store the matching substring or raw secret value.
       leakViolations.push({ context, kind });
     }
   }
-  // Also check for known credential values in the text
   for (const cred of knownCredentials) {
     if (cred && typeof cred === 'string' && cred.length > 10 && text.includes(cred)) {
       leakViolations.push({ context, kind: 'known_credential_value' });
@@ -73,7 +59,6 @@ function scanForLeaks(context, value) {
   }
 }
 
-// ── Capture console output for leak scanning ────────────────────────────────
 const originalLog = console.log;
 const originalError = console.error;
 const capturedLogs = [];
@@ -90,7 +75,6 @@ console.error = (...args) => {
   originalError(...args);
 };
 
-// ── Cleanup helper ──────────────────────────────────────────────────────────
 async function cleanupAll(sql) {
   await sql`DELETE FROM authority_v1.reservation_outbox`;
   await sql`DELETE FROM authority_v1.stripe_webhook_events`;
@@ -101,7 +85,20 @@ async function cleanupAll(sql) {
   await sql`DELETE FROM authority_v1.reservation_authority`;
 }
 
-// ── Run both suites ────────────────────────────────────────────────────────
+async function getSevenTableCounts(sql) {
+  const tables = [
+    'reservation_authority', 'reservation_operations', 'reservation_outbox',
+    'reservation_payment_bindings', 'payment_actions',
+    'stripe_webhook_events', 'operational_incidents',
+  ];
+  const counts = {};
+  for (const t of tables) {
+    const rows = await sql(`SELECT count(*)::int as c FROM authority_v1."${t}"`);
+    counts[t] = rows[0].c;
+  }
+  return counts;
+}
+
 const allResults = { suites: [], totalPassed: 0, totalFailed: 0 };
 
 // 1. Buyer-confirmation canary suite
@@ -111,8 +108,7 @@ const allResults = { suites: [], totalPassed: 0, totalFailed: 0 };
   originalLog('═══════════════════════════════════════════════════════════════════');
 
   await cleanupAll(adminSql);
-  const harnessUrl = pathToFileURL('./tests/buyer-confirmation-canary.test.mjs').href;
-  const harness = await import(harnessUrl);
+  const harness = await import(pathToFileURL('./tests/buyer-confirmation-canary.test.mjs').href);
   const result = await harness.runAllTests({ adminSql, executorUrl });
   await cleanupAll(adminSql);
 
@@ -120,11 +116,9 @@ const allResults = { suites: [], totalPassed: 0, totalFailed: 0 };
   allResults.totalPassed += result.passed || 0;
   allResults.totalFailed += result.failed || 0;
 
-  // Scan failures for credential leaks (sanitized — only kind + context)
   if (result.failures) {
     for (const f of result.failures) {
       const failText = typeof f === 'string' ? f : (f.details || f.name || JSON.stringify(f));
-      // Check if the failure text contains known credential values
       for (const cred of knownCredentials) {
         if (cred && typeof cred === 'string' && cred.length > 10 && failText.includes(cred)) {
           leakViolations.push({ context: 'buyer-confirm failure', kind: 'known_credential_value' });
@@ -137,12 +131,11 @@ const allResults = { suites: [], totalPassed: 0, totalFailed: 0 };
 // 2. Composition suite (buyer confirmation + capture)
 {
   originalLog('\n═══════════════════════════════════════════════════════════════════');
-  originalLog('  Suite 2: P0-01T-CORRECTIVE-3 Composition — Buyer Confirmation + Capture');
+  originalLog('  Suite 2: P0-01T-CORRECTIVE-4 Composition — Buyer Confirmation + Capture');
   originalLog('═══════════════════════════════════════════════════════════════════');
 
   await cleanupAll(adminSql);
-  const harnessUrl = pathToFileURL('./tests/buyer-confirm-composition.test.mjs').href;
-  const harness = await import(harnessUrl);
+  const harness = await import(pathToFileURL('./tests/buyer-confirm-composition.test.mjs').href);
   const result = await harness.runAllTests({ adminSql, executorUrl, recorderUrl });
   await cleanupAll(adminSql);
 
@@ -150,25 +143,36 @@ const allResults = { suites: [], totalPassed: 0, totalFailed: 0 };
   allResults.totalPassed += result.passed || 0;
   allResults.totalFailed += result.failed || 0;
 
-  // Aggregate recursive leak violations from the composition suite's built-in scanner
-  // P0-01T-CORRECTIVE-3: These are already sanitized (kind + path only, no raw values)
   if (result.leakViolations && result.leakViolations.length > 0) {
     for (const lv of result.leakViolations) {
       for (const v of lv.violations) {
-        leakViolations.push({
-          context: `composition response [${lv.test}]`,
-          kind: v.kind,
-        });
+        leakViolations.push({ context: `composition response [${lv.test}]`, kind: v.kind });
       }
     }
   }
+}
+
+// 3. Abort/Cancel collision suite
+{
+  originalLog('\n═══════════════════════════════════════════════════════════════════');
+  originalLog('  Suite 3: P0-01T-CORRECTIVE-4 Abort/Cancel No-Relist Collision');
+  originalLog('═══════════════════════════════════════════════════════════════════');
+
+  await cleanupAll(adminSql);
+  const harness = await import(pathToFileURL('./tests/abort-cancel-collision.test.mjs').href);
+  const result = await harness.runAllTests({ adminSql, executorUrl });
+  await cleanupAll(adminSql);
+
+  allResults.suites.push({ name: 'abort-cancel-collision', ...result });
+  allResults.totalPassed += result.passed || 0;
+  allResults.totalFailed += result.failed || 0;
 }
 
 // Restore console
 console.log = originalLog;
 console.error = originalError;
 
-// ── Scan captured logs and errors for credential leaks (in-memory comparison) ──
+// Scan captured logs and errors for credential leaks
 for (const line of capturedLogs) {
   scanForLeaks('log', line);
 }
@@ -176,7 +180,7 @@ for (const line of capturedErrors) {
   scanForLeaks('error', line);
 }
 
-// ── Credential leak assertions ─────────────────────────────────────────────
+// Credential leak assertions
 originalLog('\n═══════════════════════════════════════════════════════════════════');
 originalLog('  Credential Leak Scan (recursive response bodies + logs + errors)');
 originalLog('═══════════════════════════════════════════════════════════════════');
@@ -186,8 +190,6 @@ if (leakViolations.length === 0) {
   originalLog('  ✅ No credential leaks detected in responses, logs, or errors');
   leakPass++;
 } else {
-  // P0-01T-CORRECTIVE-3: Report only violation counts and sanitized categories.
-  // Do not print matching substrings or raw secret values.
   originalLog(`  ❌ ${leakViolations.length} credential leak violation(s) detected:`);
   const byKind = {};
   for (const v of leakViolations) {
@@ -200,18 +202,38 @@ if (leakViolations.length === 0) {
   leakFail = leakViolations.length;
 }
 
-// ── Final summary ──────────────────────────────────────────────────────────
+// Final seven-table cleanup verification
 originalLog('\n═══════════════════════════════════════════════════════════════════');
-originalLog('  P0-01T-CORRECTIVE-3 Runner — Final Summary');
+originalLog('  Final Seven-Table Cleanup Verification');
+originalLog('═══════════════════════════════════════════════════════════════════');
+
+await cleanupAll(adminSql);
+const finalCounts = await getSevenTableCounts(adminSql);
+let allZero = true;
+for (const [table, count] of Object.entries(finalCounts)) {
+  originalLog(`  ${table}: ${count}`);
+  if (count !== 0) allZero = false;
+}
+if (allZero) {
+  originalLog('  ✅ All seven tables empty after cleanup');
+} else {
+  originalLog('  ❌ Some tables still have rows after cleanup');
+  allResults.totalFailed++;
+}
+
+// Final summary
+originalLog('\n═══════════════════════════════════════════════════════════════════');
+originalLog('  P0-01T-CORRECTIVE-4 Runner — Final Summary');
 originalLog('═══════════════════════════════════════════════════════════════════');
 for (const s of allResults.suites) {
   originalLog(`  ${s.name}: ${s.passed} passed, ${s.failed} failed`);
 }
 originalLog(`  Credential leak scan: ${leakPass} passed, ${leakFail} failed`);
+originalLog(`  Seven-table cleanup: ${allZero ? 'PASS' : 'FAIL'}`);
 originalLog(`  TOTAL: ${allResults.totalPassed + leakPass} passed, ${allResults.totalFailed + leakFail} failed`);
 originalLog('═══════════════════════════════════════════════════════════════════');
 
-const overallFailed = allResults.totalFailed + leakFail;
+const overallFailed = allResults.totalFailed + leakFail + (allZero ? 0 : 1);
 if (overallFailed > 0) {
   process.exit(1);
 }

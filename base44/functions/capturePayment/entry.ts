@@ -47,42 +47,26 @@ Deno.serve(async (req) => {
   }
 
   // ── P0-01T: Canary buyer-confirmation route (before capture canary) ──────
-  // The buyer's "I Received My Tickets" button calls capturePayment with
-  // confirming_role='buyer'. For canary-eligible synthetic listings, route to
-  // the buyer-confirmation orchestrator which composes BOTH buyer confirmation
-  // (advisory, authority-first) AND financial capture (via captureCanaryOrchestrator).
-  // No request field (including skip_capture) may bypass capture.
+  // P0-01T-CORRECTIVE-4: Canary secrets are NOT read here. The routing
+  // function reads them lazily ONLY after confirming canary eligibility.
+  // Normal non-canary traffic reaches maintenance/legacy fallthrough without
+  // depending on any canary secret.
   if (listing && purchase && body?.confirming_role === 'buyer') {
-    const executorUrl = secrets.get('AUTHORITY_V1_DB_URL_DEV_EXECUTOR');
-    const recorderUrl = secrets.get('AUTHORITY_V1_DB_URL_DEV_STRIPE_RECORDER');
-    const buyerSecretKey = await secrets.get('STRIPE_SECRET_KEY');
-    const buyerStripeAdapter = buyerSecretKey ? createStripeCaptureProvider(buyerSecretKey) : null;
     const canaryBuyerResult = await maybeRouteCanaryBuyerConfirm({
       base44, user, body, listing, purchase,
-      executorUrl, recorderUrl,
-      stripeAdapter: buyerStripeAdapter,
+      secrets,
       canaryEnabled: isCanaryEnabled(),
     });
     if (canaryBuyerResult) return Response.json(canaryBuyerResult.body, { status: canaryBuyerResult.status });
   }
 
   // ── Canary guard (admin + synthetic [AUTH_CANARY] listing only) ─────────
-  // Returns null for normal listings/requests → fall through to the
-  // maintenance-gated legacy path. Returns {status, body} for any canary-eligible
-  // or canary-rejected request — synthetic listings never reach the normal path.
+  // P0-01T-CORRECTIVE-4: Canary secrets are NOT read here. The routing
+  // function reads them lazily ONLY after confirming canary eligibility.
   if (listing && purchase) {
-    const executorUrl = secrets.get('AUTHORITY_V1_DB_URL_DEV_EXECUTOR');
-    const recorderUrl = secrets.get('AUTHORITY_V1_DB_URL_DEV_STRIPE_RECORDER');
-    const secretKey = await secrets.get('STRIPE_SECRET_KEY');
-    const stripeAdapter = secretKey ? createStripeCaptureProvider(secretKey) : null;
-
     const canaryResult = await maybeRouteCanaryCapture({
       base44, user, body, listing, purchase,
-      executorUrl, recorderUrl,
-      stripeAdapter,
-      // The handler always supplies the real committed canary configuration.
-      // No environment/global/header/secret can override this; the harness
-      // supplies its own trusted value via dependency injection instead.
+      secrets,
       canaryEnabled: isCanaryEnabled(),
     });
     if (canaryResult) return Response.json(canaryResult.body, { status: canaryResult.status });

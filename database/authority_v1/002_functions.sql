@@ -113,8 +113,10 @@ BEGIN
     'reservation_expires_at', v_row.reservation_expires_at,
     'checkout_quarantined', v_row.checkout_quarantined,
     'recovery_blocked', v_row.recovery_blocked,
+    'recovery_blocked_reason', v_row.recovery_blocked_reason,
     'transfer_state', v_row.transfer_state,
-    'transfer_state_updated_at', v_row.transfer_state_updated_at
+    'transfer_state_updated_at', v_row.transfer_state_updated_at,
+    'buyer_confirmed_at', v_row.buyer_confirmed_at
   );
 END;
 $$;
@@ -1174,6 +1176,19 @@ BEGIN
       'reason', 'revision mismatch');
   END IF;
 
+  -- P0-01T-CORRECTIVE-4: No-relist invariant. If the buyer has confirmed
+  -- receipt (transfer_state = 'buyer_confirmed_received'), NEVER allow
+  -- cancellation that would release the listing back to available.
+  IF v_authority.transfer_state = 'buyer_confirmed_received' THEN
+    UPDATE reservation_operations SET status = 'rejected', error_code = 'CANCEL_REJECTED_BUYER_CONFIRMED',
+      result_json = jsonb_build_object('ok', false, 'code', 'CANCEL_REJECTED_BUYER_CONFIRMED',
+        'reason', 'Cannot cancel after buyer confirmed receipt')::TEXT,
+      committed_at = now()
+    WHERE operation_id = p_server_operation_id;
+    RETURN jsonb_build_object('ok', false, 'code', 'CANCEL_REJECTED_BUYER_CONFIRMED',
+      'reason', 'Cannot cancel after buyer confirmed receipt');
+  END IF;
+
   -- Update binding → cancel_requested (exactly one row)
   UPDATE reservation_payment_bindings SET capture_state = 'cancel_requested', updated_at = now()
   WHERE purchase_id = p_purchase_id
@@ -1887,6 +1902,45 @@ BEGIN
   -- Lock authority
   SELECT * INTO v_authority FROM reservation_authority
   WHERE listing_id = p_listing_id FOR UPDATE;
+
+  -- P0-01T-CORRECTIVE-4: No-relist invariant. If the buyer has confirmed
+  -- receipt (transfer_state = 'buyer_confirmed_received'), NEVER release the
+  -- listing back to available. The ticket may have been delivered. Keep frozen
+  -- and recovery-blocked to prevent relisting a delivered ticket.
+  IF v_authority.transfer_state = 'buyer_confirmed_received' THEN
+    UPDATE reservation_authority
+    SET recovery_blocked = true,
+        recovery_blocked_reason = 'abort_after_buyer_confirmation',
+        recovery_blocked_at = now(), updated_at = now()
+    WHERE listing_id = p_listing_id;
+
+    UPDATE reservation_payment_bindings SET capture_state = 'aborted', updated_at = now()
+    WHERE purchase_id = p_purchase_id
+      AND capture_state IN ('authorized','cancel_requested','cancel_unknown','cancel_failed',
+                            'canceled','failed','refunded');
+    GET DIAGNOSTICS v_updated_count = ROW_COUNT;
+
+    INSERT INTO operational_incidents (incident_key, incident_type, priority, title, description, reference_id, reference_type)
+    VALUES ('abort_after_buyer_confirmation:' || p_listing_id, 'failed_transfer_after_payment', 'critical',
+      'Abort After Buyer Confirmation',
+      'Abort attempted after buyer confirmed ticket receipt. Listing kept frozen and recovery-blocked to prevent relisting a delivered ticket.',
+      p_listing_id, 'listing')
+    ON CONFLICT (incident_key) DO UPDATE SET occurrence_count = operational_incidents.occurrence_count + 1,
+      last_occurred_at = now(), updated_at = now();
+
+    v_result_json := jsonb_build_object('ok', true, 'aborted', true,
+      'released', false, 'recovery_blocked', true,
+      'recovery_blocked_reason', 'abort_after_buyer_confirmation',
+      'version', p_expected_version)::TEXT;
+    UPDATE reservation_operations SET status = 'committed', committed_version = p_expected_version,
+      result_json = v_result_json, committed_at = now()
+    WHERE operation_id = p_server_operation_id;
+
+    RETURN jsonb_build_object('ok', true, 'aborted', true,
+      'released', false, 'recovery_blocked', true,
+      'recovery_blocked_reason', 'abort_after_buyer_confirmation',
+      'version', p_expected_version);
+  END IF;
 
   v_new_version := p_expected_version;
   -- Release authority if frozen or reserved (not already available/sold/terminal)

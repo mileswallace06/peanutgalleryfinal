@@ -85,9 +85,12 @@ export async function runCanaryBuyerConfirmSaga(deps) {
   }
 
   // ── 2. Terminal replay: sold or available ────────────────────────────────
-  // record_capture_result clears authority.buyer_user_id on terminal transitions.
-  // The binding retains buyer_user_id. Call the authoritative replay check
-  // which validates buyer identity via the binding.
+  // P0-01T-CORRECTIVE-4: Successful terminal confirmation replay must prove
+  // the exact sold transaction. The authority function validates ALL six
+  // conditions: lifecycle=sold, transfer_state=buyer_confirmed_received,
+  // buyer_confirmed_at present, user matches binding buyer, binding is
+  // finalized, and matching capture action succeeded. Never authorize
+  // generic available inventory.
   if (state.lifecycle_state === 'sold' || state.lifecycle_state === 'available') {
     const opId = `op_buyer_confirm_replay_${listingId}_${genId()}`;
     const requestHash = await sha256Hex(canonicalEnvelope({
@@ -106,10 +109,11 @@ export async function runCanaryBuyerConfirmSaga(deps) {
     }
 
     if (replayResult?.ok === true && replayResult?.buyer_confirmed === true) {
-      // Authorized terminal replay — prior authoritative buyer confirmation exists.
-      // No capture, no Stripe call. Only return buyer_confirmed=true when the
-      // authority function explicitly confirmed it (transfer_state=buyer_confirmed_received
-      // AND buyer_confirmed_at IS NOT NULL).
+      // Authorized terminal replay — the authority proved ALL six conditions:
+      // lifecycle=sold, transfer_state=buyer_confirmed_received,
+      // buyer_confirmed_at present, user matches binding buyer,
+      // binding is finalized, matching capture action succeeded.
+      // No capture, no Stripe call.
       return {
         status: 200,
         body: {
@@ -119,10 +123,8 @@ export async function runCanaryBuyerConfirmSaga(deps) {
           transfer_state: replayResult.transfer_state,
           lifecycle_state: state.lifecycle_state,
           buyer_confirmed: true,
-          captured: state.lifecycle_state === 'sold',
-          finalized: state.lifecycle_state === 'sold',
-          capture_failed: state.lifecycle_state === 'available',
-          released: state.lifecycle_state === 'available',
+          captured: true,
+          finalized: true,
         },
       };
     }
@@ -131,7 +133,8 @@ export async function runCanaryBuyerConfirmSaga(deps) {
       return { status: 403, body: { ok: false, code: 'NOT_BUYER' } };
     }
 
-    // Terminal state without prior authoritative buyer confirmation
+    // Terminal state without prior authoritative buyer confirmation, or
+    // available inventory (never authorized as buyer-confirmed)
     if (replayResult?.code === 'TERMINAL_NOT_BUYER_CONFIRMED') {
       return { status: 403, body: { ok: false, code: 'TERMINAL_NOT_BUYER_CONFIRMED' } };
     }
@@ -409,7 +412,28 @@ export async function maybeRouteCanaryBuyerConfirm(deps) {
       body: { error: 'Canary integration is disabled.', code: 'CANARY_DISABLED' },
     };
   }
-  if (!deps.executorUrl) {
+  // P0-01T-CORRECTIVE-4: Read canary secrets lazily — ONLY after canary
+  // eligibility is confirmed. Normal non-canary traffic never reads canary
+  // secrets or constructs the Stripe adapter.
+  let executorUrl = deps.executorUrl;
+  let recorderUrl = deps.recorderUrl;
+  let stripeAdapter = deps.stripeAdapter;
+
+  if (!executorUrl && deps.secrets) {
+    executorUrl = deps.secrets.get('AUTHORITY_V1_DB_URL_DEV_EXECUTOR');
+  }
+  if (!recorderUrl && deps.secrets) {
+    recorderUrl = deps.secrets.get('AUTHORITY_V1_DB_URL_DEV_STRIPE_RECORDER');
+  }
+  if (!stripeAdapter && deps.secrets) {
+    const secretKey = await deps.secrets.get('STRIPE_SECRET_KEY');
+    if (secretKey) {
+      const { createStripeCaptureProvider } = await import('./stripeCaptureProvider.js');
+      stripeAdapter = createStripeCaptureProvider(secretKey);
+    }
+  }
+
+  if (!executorUrl) {
     return { status: 500, body: { error: 'Authority executor URL not configured', code: 'NO_EXECUTOR_URL' } };
   }
 
@@ -417,13 +441,13 @@ export async function maybeRouteCanaryBuyerConfirm(deps) {
   let executorClient = deps.executorClient;
   if (!executorClient) {
     const { createAuthorityV1Client } = await import('./authorityV1Client.js');
-    executorClient = createAuthorityV1Client(deps.executorUrl);
+    executorClient = createAuthorityV1Client(executorUrl);
   }
 
   let recorderClient = deps.recorderClient;
-  if (!recorderClient && deps.recorderUrl) {
+  if (!recorderClient && recorderUrl) {
     const { createAuthorityV1StripeRecorderClient } = await import('./authorityV1StripeRecorderClient.js');
-    recorderClient = createAuthorityV1StripeRecorderClient(deps.recorderUrl, executorClient.fingerprint);
+    recorderClient = createAuthorityV1StripeRecorderClient(recorderUrl, executorClient.fingerprint);
   }
 
   // ── Fetch PurchasePrivate for capture params ────────────────────────────
@@ -440,19 +464,21 @@ export async function maybeRouteCanaryBuyerConfirm(deps) {
   const paymentIntentId = purchasePrivate?.payment_intent_id ?? deps.purchase?.payment_intent_id;
   const expectedRevision = purchasePrivate?.reservation_revision ?? deps.purchase?.reservation_token;
 
+  // P0-01T-CORRECTIVE-4: simulate_mirror_failure must NEVER come from the HTTP
+  // request body. It is a trusted test dependency supplied directly to the
+  // orchestrator/harness, not a request field.
   return runCanaryBuyerConfirmSaga({
     entities: deps.base44.asServiceRole.entities,
     user: deps.user,
     executorClient,
     recorderClient,
-    stripeAdapter: deps.stripeAdapter,
+    stripeAdapter,
     sendNotification: deps.sendNotification,
     params: {
       listing_id: listing.id,
       purchase_id: deps.purchase.id,
       payment_intent_id: paymentIntentId,
       expected_revision: expectedRevision,
-      simulate_mirror_failure: deps.body?.simulate_mirror_failure === true,
     },
   });
 }

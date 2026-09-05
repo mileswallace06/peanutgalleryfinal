@@ -225,6 +225,22 @@ export async function runCanaryCaptureSaga(deps) {
     };
   }
 
+  // P0-01T-CORRECTIVE-4: Reject unexpected recorder result shape.
+  // Must not infer capture_unknown, recovery_blocked, finalized, or released
+  // state unless the authoritative recorder result explicitly proves that state.
+  if (!recordResult || typeof recordResult !== 'object' || recordResult.ok !== true) {
+    return {
+      status: 500,
+      body: {
+        ok: false,
+        error: 'Recorder returned an invalid result shape',
+        code: 'RECORDER_RESULT_INVALID',
+        provider_called: true,
+        provider_result: derived,
+      },
+    };
+  }
+
   // ── 6. Branch on result ──────────────────────────────────────────────────
   if (derived === 'succeeded' && recordResult?.finalized === true) {
     // Confirmed success → authority sold → Base44 mirror sold
@@ -324,14 +340,29 @@ export async function runCanaryCaptureSaga(deps) {
     };
   }
 
-  // unknown → fail-closed (recovery_blocked, incident)
+  // P0-01T-CORRECTIVE-4: unknown → fail-closed ONLY when the authoritative
+  // recorder result explicitly proves capture_unknown and recovery_blocked.
+  if (recordResult?.capture_unknown === true && recordResult?.recovery_blocked === true) {
+    return {
+      status: 200,
+      body: {
+        ok: true,
+        captured: false,
+        capture_unknown: true,
+        recovery_blocked: true,
+        provider_called: true,
+        provider_result: 'unknown',
+      },
+    };
+  }
+
+  // Recorder result does not explicitly prove capture_unknown + recovery_blocked
   return {
-    status: 200,
+    status: 500,
     body: {
-      ok: true,
-      captured: false,
-      capture_unknown: true,
-      recovery_blocked: true,
+      ok: false,
+      error: 'Recorder result does not prove capture_unknown state',
+      code: 'RECORDER_RESULT_INVALID',
       provider_called: true,
       provider_result: 'unknown',
     },
@@ -408,13 +439,34 @@ export async function maybeRouteCanaryCapture(deps) {
       body: { error: 'Canary integration is disabled.', code: 'CANARY_DISABLED' },
     };
   }
-  if (!deps.executorUrl) {
+  // P0-01T-CORRECTIVE-4: Read canary secrets lazily — ONLY after canary
+  // eligibility is confirmed. Normal non-canary traffic never reads canary
+  // secrets or constructs the Stripe adapter.
+  let executorUrl = deps.executorUrl;
+  let recorderUrl = deps.recorderUrl;
+  let stripeAdapter = deps.stripeAdapter;
+
+  if (!executorUrl && deps.secrets) {
+    executorUrl = deps.secrets.get('AUTHORITY_V1_DB_URL_DEV_EXECUTOR');
+  }
+  if (!recorderUrl && deps.secrets) {
+    recorderUrl = deps.secrets.get('AUTHORITY_V1_DB_URL_DEV_STRIPE_RECORDER');
+  }
+  if (!stripeAdapter && deps.secrets) {
+    const secretKey = await deps.secrets.get('STRIPE_SECRET_KEY');
+    if (secretKey) {
+      const { createStripeCaptureProvider } = await import('./stripeCaptureProvider.js');
+      stripeAdapter = createStripeCaptureProvider(secretKey);
+    }
+  }
+
+  if (!executorUrl) {
     return {
       status: 500,
       body: { error: 'Authority executor URL not configured', code: 'NO_EXECUTOR_URL' },
     };
   }
-  if (!deps.recorderUrl) {
+  if (!recorderUrl) {
     return {
       status: 500,
       body: { error: 'Authority recorder URL not configured', code: 'NO_RECORDER_URL' },
@@ -449,17 +501,16 @@ export async function maybeRouteCanaryCapture(deps) {
   let recorderClient = deps.recorderClient;
   if (!executorClient) {
     const { createAuthorityV1Client } = await import('./authorityV1Client.js');
-    executorClient = createAuthorityV1Client(deps.executorUrl);
+    executorClient = createAuthorityV1Client(executorUrl);
   }
   if (!recorderClient) {
     const { createAuthorityV1StripeRecorderClient } = await import('./authorityV1StripeRecorderClient.js');
-    recorderClient = createAuthorityV1StripeRecorderClient(deps.recorderUrl, executorClient.fingerprint);
+    recorderClient = createAuthorityV1StripeRecorderClient(recorderUrl, executorClient.fingerprint);
   }
 
-  // P0-01T-CORRECTIVE-3: Never accept operational credentials from HTTP input.
-  // action_id and stripe_idempotency_key are internal credentials generated
-  // internally for new captures, or retrieved via get_active_capture_context
-  // for frozen retries. They must never be populated from the request body.
+  // P0-01T-CORRECTIVE-4: simulate_mirror_failure must NEVER come from the HTTP
+  // request body. It is a trusted test dependency supplied directly to the
+  // orchestrator/harness, not a request field.
   return runCanaryCaptureSaga({
     entities: deps.base44.asServiceRole.entities,
     user,
@@ -472,7 +523,6 @@ export async function maybeRouteCanaryCapture(deps) {
       payment_intent_id: paymentIntentId,
       buyer_user_id: buyerUserId,
       expected_revision: expectedRevision,
-      simulate_mirror_failure: body?.simulate_mirror_failure === true,
     },
   });
 }
