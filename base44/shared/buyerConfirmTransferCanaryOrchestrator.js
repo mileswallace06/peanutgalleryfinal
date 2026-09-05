@@ -105,8 +105,11 @@ export async function runCanaryBuyerConfirmSaga(deps) {
       return { status: 500, body: { error: 'Replay check failed', code: 'REPLAY_ERROR' } };
     }
 
-    if (replayResult?.ok === true) {
-      // Authorized replay — no capture, no Stripe call
+    if (replayResult?.ok === true && replayResult?.buyer_confirmed === true) {
+      // Authorized terminal replay — prior authoritative buyer confirmation exists.
+      // No capture, no Stripe call. Only return buyer_confirmed=true when the
+      // authority function explicitly confirmed it (transfer_state=buyer_confirmed_received
+      // AND buyer_confirmed_at IS NOT NULL).
       return {
         status: 200,
         body: {
@@ -128,6 +131,11 @@ export async function runCanaryBuyerConfirmSaga(deps) {
       return { status: 403, body: { ok: false, code: 'NOT_BUYER' } };
     }
 
+    // Terminal state without prior authoritative buyer confirmation
+    if (replayResult?.code === 'TERMINAL_NOT_BUYER_CONFIRMED') {
+      return { status: 403, body: { ok: false, code: 'TERMINAL_NOT_BUYER_CONFIRMED' } };
+    }
+
     return { status: 409, body: { ok: false, code: replayResult?.code || 'REPLAY_CONFLICT' } };
   }
 
@@ -140,19 +148,31 @@ export async function runCanaryBuyerConfirmSaga(deps) {
   }
 
   // ── 4. Recovery-blocked: continue only for capture_unknown reconciliation ─
+  // P0-01T-CORRECTIVE-3: All seven conditions must be true:
+  //   1. lifecycle_state = frozen (checked above)
+  //   2. transfer_state = buyer_confirmed_received
+  //   3. recovery_blocked = true
+  //   4. recovery_blocked_reason = capture_unknown
+  //   5. binding_capture_state = capture_unknown
+  //   6. action_status = unknown
+  //   7. complete listing/purchase/PI/buyer tuple matches
   if (state.recovery_blocked === true) {
-    // Condition 1: lifecycle is frozen ✓ (checked above)
+    // Condition 4: recovery_blocked_reason must be 'capture_unknown'
+    if (state.recovery_blocked_reason !== 'capture_unknown') {
+      return { status: 409, body: { ok: false, code: 'QUARANTINED', recovery_blocked: true, reason: state.recovery_blocked_reason } };
+    }
+
     // Condition 2: transfer_state must be buyer_confirmed_received
     if (state.transfer_state !== 'buyer_confirmed_received') {
       return { status: 409, body: { ok: false, code: 'QUARANTINED', recovery_blocked: true } };
     }
 
-    // Conditions 3-5: need paymentIntentId + expectedRevision to check binding/action
+    // Conditions 5-7: need paymentIntentId + expectedRevision to check binding/action
     if (!paymentIntentId || !expectedRevision) {
       return { status: 409, body: { ok: false, code: 'QUARANTINED', recovery_blocked: true } };
     }
 
-    // Get exact capture context (validates complete tuple)
+    // Get exact capture context (validates complete tuple + state pair)
     let captureContext;
     try {
       captureContext = await executorClient.getActiveCaptureContext(
@@ -162,15 +182,22 @@ export async function runCanaryBuyerConfirmSaga(deps) {
       return { status: 409, body: { ok: false, code: 'QUARANTINED', recovery_blocked: true } };
     }
 
-    // Condition 3+4: binding exists (has_active_capture=true) AND capture_state='unknown'
-    if (!captureContext?.has_active_capture || captureContext?.capture_state !== 'unknown') {
+    // Condition 7: binding must be found (complete tuple matches)
+    if (!captureContext?.binding_found) {
+      return { status: 403, body: { ok: false, code: 'NOT_BUYER' } };
+    }
+
+    // Conditions 5+6: binding_capture_state = capture_unknown AND action_status = unknown
+    if (captureContext?.binding_capture_state !== 'capture_unknown' || captureContext?.action_status !== 'unknown') {
       return { status: 409, body: { ok: false, code: 'QUARANTINED', recovery_blocked: true } };
     }
 
-    // Condition 5: complete authoritative tuple matches ✓ (getActiveCaptureContext validated)
+    // has_active_capture validates the complete state pair
+    if (!captureContext?.has_active_capture) {
+      return { status: 409, body: { ok: false, code: 'QUARANTINED', recovery_blocked: true } };
+    }
 
-    // All 5 conditions met — reuse same action + Stripe idempotency key.
-    // Do not clear recovery_blocked manually or create another action.
+    // All conditions met — reuse same action + Stripe idempotency key.
     if (!recorderClient || !stripeAdapter) {
       return { status: 503, body: { ok: false, code: 'CAPTURE_DEPENDENCY_UNAVAILABLE' } };
     }
@@ -258,7 +285,7 @@ export async function runCanaryBuyerConfirmSaga(deps) {
     return { status: 403, body: { ok: false, code: 'NOT_BUYER' } };
   }
   if (!captureContext?.has_active_capture) {
-    // Binding found but no active capture action → no confirmation mutation
+    // Binding found but no valid active capture state pair → no confirmation mutation
     return { status: 409, body: { ok: false, code: 'CAPTURE_CONTEXT_MISMATCH' } };
   }
 

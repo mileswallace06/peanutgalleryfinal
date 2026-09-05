@@ -264,37 +264,60 @@ export async function runCanaryCaptureSaga(deps) {
   }
 
   if (derived === 'failed') {
-    // Definitive failure → authority available → Base44 mirror active (release)
-    const mirrorPayload = {
-      listing: {
-        reserved_by_email: null,
-        reservation_token: null,
-        reservation_expires_at: null,
-        reservation_revision: null,
-        status: 'active',
-      },
-      listing_private: {
-        reserved_by_email: null,
-        reservation_token: null,
-        reservation_expires_at: null,
-        reservation_revision: null,
-      },
-    };
-    const simulateFailure = params.simulate_mirror_failure === true;
-    const mirror = await applyMirrorWithOutbox(
-      entities, listingId, mirrorPayload, simulateFailure,
-      recordResult.authority_version || recordResult.version || expectedVersion + 2,
-      recordResult.reservation_revision || null,
-      'capture',
-    );
+    // P0-01T-CORRECTIVE-3: Only mirror active when the authoritative recorder
+    // result explicitly reports released === true. Never infer release merely
+    // from Stripe's derived 'failed' result. A post-buyer-confirmation failure
+    // keeps the authority frozen and recovery-blocked (no relist).
+    if (recordResult?.released === true) {
+      // Ordinary pre-delivery capture failure → authority available → mirror active
+      const mirrorPayload = {
+        listing: {
+          reserved_by_email: null,
+          reservation_token: null,
+          reservation_expires_at: null,
+          reservation_revision: null,
+          status: 'active',
+        },
+        listing_private: {
+          reserved_by_email: null,
+          reservation_token: null,
+          reservation_expires_at: null,
+          reservation_revision: null,
+        },
+      };
+      const simulateFailure = params.simulate_mirror_failure === true;
+      const mirror = await applyMirrorWithOutbox(
+        entities, listingId, mirrorPayload, simulateFailure,
+        recordResult.authority_version || recordResult.version || expectedVersion + 2,
+        recordResult.reservation_revision || null,
+        'capture',
+      );
 
+      return {
+        status: 200,
+        body: {
+          ok: true,
+          captured: false,
+          capture_failed: true,
+          released: true,
+          provider_called: true,
+          provider_result: 'failed',
+        },
+      };
+    }
+
+    // Post-buyer-confirmation capture failure (or other non-release failure):
+    // authority stays frozen + recovery_blocked. Do NOT mirror active.
     return {
       status: 200,
       body: {
         ok: true,
         captured: false,
         capture_failed: true,
-        released: true,
+        released: false,
+        recovery_blocked: true,
+        recovery_blocked_reason: recordResult?.recovery_blocked_reason || 'capture_failed',
+        code: recordResult?.code || 'CAPTURE_FAILED',
         provider_called: true,
         provider_result: 'failed',
       },
@@ -433,6 +456,10 @@ export async function maybeRouteCanaryCapture(deps) {
     recorderClient = createAuthorityV1StripeRecorderClient(deps.recorderUrl, executorClient.fingerprint);
   }
 
+  // P0-01T-CORRECTIVE-3: Never accept operational credentials from HTTP input.
+  // action_id and stripe_idempotency_key are internal credentials generated
+  // internally for new captures, or retrieved via get_active_capture_context
+  // for frozen retries. They must never be populated from the request body.
   return runCanaryCaptureSaga({
     entities: deps.base44.asServiceRole.entities,
     user,
@@ -445,8 +472,6 @@ export async function maybeRouteCanaryCapture(deps) {
       payment_intent_id: paymentIntentId,
       buyer_user_id: buyerUserId,
       expected_revision: expectedRevision,
-      action_id: body?.action_id,
-      stripe_idempotency_key: body?.stripe_idempotency_key,
       simulate_mirror_failure: body?.simulate_mirror_failure === true,
     },
   });

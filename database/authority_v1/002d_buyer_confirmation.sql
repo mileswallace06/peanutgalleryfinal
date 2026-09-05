@@ -76,7 +76,7 @@ BEGIN
 
   -- Verify buyer identity against the binding (defense-in-depth).
   -- The binding retains buyer_user_id even after terminal transitions (sold/available)
-  -- where authority.buyer_user_id is cleared by record_capture_result.
+  -- where authority.buyer_user_id is cleared on terminal transition.
   IF v_binding.buyer_user_id <> p_buyer_user_id THEN
     UPDATE reservation_operations SET status = 'conflict', error_code = 'NOT_BUYER',
       result_json = jsonb_build_object('ok', false, 'code', 'NOT_BUYER',
@@ -100,39 +100,68 @@ BEGIN
     SELECT * INTO v_authority FROM reservation_authority
     WHERE listing_id = p_listing_id FOR UPDATE;
 
-    -- Terminal replay (P0-01T-CORRECTIVE-2): sold or available.
-    -- authority.buyer_user_id was cleared on terminal transition, but the
-    -- binding buyer was already verified above. This is an authorized replay.
+    -- Terminal replay authorization (P0-01T-CORRECTIVE-3):
+    -- A terminal replay may return buyer_confirmed=true ONLY when ALL three
+    -- conditions hold:
+    --   1. The authenticated user matches the authoritative binding buyer
+    --      (already verified above via v_binding.buyer_user_id).
+    --   2. transfer_state is already 'buyer_confirmed_received'.
+    --   3. buyer_confirmed_at is non-null (prior authoritative confirmation).
+    -- An 'available' purchase created by cancellation, abort, or ordinary
+    -- capture failure must NEVER be represented as buyer-confirmed.
     -- buyer_user_id is NOT returned (do not expose buyer email publicly).
     IF FOUND AND v_authority.lifecycle_state IN ('sold', 'available') THEN
-      UPDATE reservation_operations SET status = 'idempotent_replay',
-        result_json = jsonb_build_object('ok', true, 'transfer_state', v_authority.transfer_state,
+      IF v_authority.transfer_state = 'buyer_confirmed_received'
+         AND v_authority.buyer_confirmed_at IS NOT NULL THEN
+        -- Authorized terminal replay — prior authoritative confirmation exists.
+        UPDATE reservation_operations SET status = 'idempotent_replay',
+          result_json = jsonb_build_object('ok', true, 'transfer_state', 'buyer_confirmed_received',
+            'version', v_authority.version, 'idempotent', true,
+            'lifecycle_state', v_authority.lifecycle_state,
+            'buyer_confirmed_at', v_authority.buyer_confirmed_at,
+            'buyer_confirmed', true,
+            'no_financial_effects', true)::TEXT,
+          committed_at = now()
+        WHERE operation_id = p_server_operation_id;
+        RETURN jsonb_build_object('ok', true, 'transfer_state', 'buyer_confirmed_received',
           'version', v_authority.version, 'idempotent', true,
           'lifecycle_state', v_authority.lifecycle_state,
           'buyer_confirmed_at', v_authority.buyer_confirmed_at,
-          'no_financial_effects', true)::TEXT,
-        committed_at = now()
-      WHERE operation_id = p_server_operation_id;
-      RETURN jsonb_build_object('ok', true, 'transfer_state', v_authority.transfer_state,
-        'version', v_authority.version, 'idempotent', true,
-        'lifecycle_state', v_authority.lifecycle_state,
-        'buyer_confirmed_at', v_authority.buyer_confirmed_at,
-        'no_financial_effects', true);
+          'buyer_confirmed', true,
+          'no_financial_effects', true);
+      ELSE
+        -- Terminal state WITHOUT prior authoritative buyer confirmation.
+        -- This is an available/sold row created by cancellation, abort, or
+        -- ordinary capture failure — NOT a buyer-confirmed replay.
+        UPDATE reservation_operations SET status = 'conflict',
+          error_code = 'TERMINAL_NOT_BUYER_CONFIRMED',
+          result_json = jsonb_build_object('ok', false, 'code', 'TERMINAL_NOT_BUYER_CONFIRMED',
+            'lifecycle_state', v_authority.lifecycle_state,
+            'transfer_state', v_authority.transfer_state)::TEXT,
+          committed_at = now()
+        WHERE operation_id = p_server_operation_id;
+        RETURN jsonb_build_object('ok', false, 'code', 'TERMINAL_NOT_BUYER_CONFIRMED',
+          'lifecycle_state', v_authority.lifecycle_state,
+          'transfer_state', v_authority.transfer_state);
+      END IF;
     END IF;
 
-    -- Idempotent: already buyer_confirmed_received by this buyer (different op).
-    -- authority.buyer_user_id may be null (if sold) — binding buyer was verified.
-    IF FOUND AND v_authority.transfer_state = 'buyer_confirmed_received' THEN
+    -- Idempotent: already buyer_confirmed_received by this buyer (different op,
+    -- still frozen, not yet terminal). Binding buyer was verified above.
+    IF FOUND AND v_authority.transfer_state = 'buyer_confirmed_received'
+       AND v_authority.buyer_confirmed_at IS NOT NULL THEN
       UPDATE reservation_operations SET status = 'idempotent_replay',
         result_json = jsonb_build_object('ok', true, 'transfer_state', 'buyer_confirmed_received',
           'version', v_authority.version, 'idempotent', true,
           'buyer_confirmed_at', v_authority.buyer_confirmed_at,
+          'buyer_confirmed', true,
           'no_financial_effects', true)::TEXT,
         committed_at = now()
       WHERE operation_id = p_server_operation_id;
       RETURN jsonb_build_object('ok', true, 'transfer_state', 'buyer_confirmed_received',
         'version', v_authority.version, 'idempotent', true,
         'buyer_confirmed_at', v_authority.buyer_confirmed_at,
+        'buyer_confirmed', true,
         'no_financial_effects', true);
     END IF;
 

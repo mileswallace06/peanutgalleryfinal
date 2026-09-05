@@ -2021,7 +2021,10 @@ check('buyer_confirmation_valid_preceding_states', () => {
 check('buyer_confirmation_no_financial_effects', () => {
   const fnStart = buyerFn.indexOf('CREATE OR REPLACE FUNCTION authority_v1.record_buyer_transfer_confirmation');
   const fnEnd = buyerFn.indexOf('$$;', fnStart);
-  const fnBody = buyerFn.substring(fnStart, fnEnd);
+  // P0-01T-CORRECTIVE-3: Use stripSqlComments so this assertion inspects
+  // executable SQL, not comments. A comment mentioning record_capture_result
+  // is accurate documentation and must not trigger a false failure.
+  const fnBody = stripSqlComments(buyerFn.substring(fnStart, fnEnd));
   // Must NOT call begin_capture, record_capture_result, finalize_sale, begin_cancel, begin_refund
   if (fnBody.includes('begin_capture')) throw new Error('must NOT call begin_capture');
   if (fnBody.includes('record_capture_result')) throw new Error('must NOT call record_capture_result');
@@ -2250,20 +2253,36 @@ check('capture_context_returns_only_active_actions', () => {
   const fnStart = captureCtxFn.indexOf('CREATE OR REPLACE FUNCTION authority_v1.get_active_capture_context');
   const fnEnd = captureCtxFn.indexOf('$$;', fnStart);
   const fnBody = captureCtxFn.substring(fnStart, fnEnd);
-  // Must filter to active (non-terminal) statuses only
-  if (!fnBody.includes("'pending'")) throw new Error("must filter to 'pending' status");
-  if (!fnBody.includes("'in_flight'")) throw new Error("must filter to 'in_flight' status");
-  if (!fnBody.includes("'unknown'")) throw new Error("must filter to 'unknown' status");
-  // Terminal statuses must NOT be included
-  if (fnBody.includes("'succeeded'") && fnBody.includes('status IN')) {
-    throw new Error("must NOT include 'succeeded' (terminal) in active filter");
-  }
-  // P0-01T-CORRECTIVE-2: Must validate complete tuple (4 arguments)
+  // P0-01T-CORRECTIVE-3: Must validate payment action against listing_id, purchase_id,
+  // payment_intent_id, and action_type = 'capture'
+  if (!fnBody.includes('p_listing_id')) throw new Error('must validate p_listing_id');
   if (!fnBody.includes('p_purchase_id')) throw new Error('must validate p_purchase_id (4-arg tuple)');
   if (!fnBody.includes('p_payment_intent_id')) throw new Error('must validate p_payment_intent_id (4-arg tuple)');
   if (!fnBody.includes('p_buyer_user_id')) throw new Error('must validate p_buyer_user_id (4-arg tuple)');
+  if (!fnBody.includes("action_type = 'capture'")) throw new Error("must filter payment action by action_type = 'capture'");
   // Must lock the binding to validate the tuple
   if (!fnBody.includes('FROM reservation_payment_bindings')) throw new Error('must lock reservation_payment_bindings for tuple validation');
+  // P0-01T-CORRECTIVE-3: Must return binding_capture_state and action_status as SEPARATE fields
+  if (!fnBody.includes('binding_capture_state')) throw new Error('must return binding_capture_state as a separate field');
+  if (!fnBody.includes('action_status')) throw new Error('must return action_status as a separate field');
+  // Must NOT label the action status as capture_state (obsolete field name)
+  if (fnBody.includes("'capture_state'")) throw new Error("must NOT use 'capture_state' label (use binding_capture_state + action_status)");
+  return true;
+});
+check('capture_context_valid_state_pairs_only', () => {
+  const fnStart = captureCtxFn.indexOf('CREATE OR REPLACE FUNCTION authority_v1.get_active_capture_context');
+  const fnEnd = captureCtxFn.indexOf('$$;', fnStart);
+  const fnBody = captureCtxFn.substring(fnStart, fnEnd);
+  // P0-01T-CORRECTIVE-3: Only valid state pairs return credentials
+  // Normal capture: binding=capture_requested, action=pending|in_flight
+  if (!fnBody.includes("'capture_requested'")) throw new Error("must check binding capture_requested for normal capture pair");
+  if (!fnBody.includes("'pending'")) throw new Error("must check action pending for normal capture pair");
+  if (!fnBody.includes("'in_flight'")) throw new Error("must check action in_flight for normal capture pair");
+  // Unknown reconciliation: binding=capture_unknown, action=unknown
+  if (!fnBody.includes("'capture_unknown'")) throw new Error("must check binding capture_unknown for unknown reconciliation pair");
+  if (!fnBody.includes("'unknown'")) throw new Error("must check action unknown for unknown reconciliation pair");
+  // Must have a v_valid_pair variable or equivalent logic
+  if (!fnBody.includes('v_valid_pair')) throw new Error('must use v_valid_pair to gate credential return');
   return true;
 });
 check('capture_context_orchestrator_uses_dedicated_function', () => {
@@ -2302,6 +2321,67 @@ check('capture_context_installation_order_updated', () => {
   if (!schema.includes('002e_active_capture_context')) throw new Error('001_schema.sql installation order must reference 002e_active_capture_context');
   if (!functions.includes('002e_active_capture_context')) throw new Error('002_functions.sql installation order must reference 002e_active_capture_context');
   if (!roles.includes('002e_active_capture_context')) throw new Error('004_roles_and_grants.sql installation order must reference 002e_active_capture_context');
+  return true;
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TEST 36b: P0-01T-CORRECTIVE-3 — terminal replay authorization, post-confirm failure preservation, no HTTP credentials
+// ═══════════════════════════════════════════════════════════════════════════
+check('buyer_confirmation_terminal_replay_requires_prior_confirmation', () => {
+  const fnStart = buyerFn.indexOf('CREATE OR REPLACE FUNCTION authority_v1.record_buyer_transfer_confirmation');
+  const fnEnd = buyerFn.indexOf('$$;', fnStart);
+  const fnBody = buyerFn.substring(fnStart, fnEnd);
+  // P0-01T-CORRECTIVE-3: Terminal replay must require transfer_state=buyer_confirmed_received
+  // AND buyer_confirmed_at IS NOT NULL before returning buyer_confirmed=true
+  if (!fnBody.includes('TERMINAL_NOT_BUYER_CONFIRMED')) throw new Error('must return TERMINAL_NOT_BUYER_CONFIRMED for terminal states without prior confirmation');
+  // Must check transfer_state = 'buyer_confirmed_received' in the terminal replay block
+  if (!fnBody.includes("v_authority.transfer_state = 'buyer_confirmed_received'")) throw new Error('must check transfer_state = buyer_confirmed_received for terminal replay');
+  // Must check buyer_confirmed_at IS NOT NULL
+  if (!fnBody.includes('buyer_confirmed_at IS NOT NULL')) throw new Error('must check buyer_confirmed_at IS NOT NULL for terminal replay');
+  return true;
+});
+check('record_capture_preserves_post_confirm_failure', () => {
+  const fnStart = functions.indexOf('CREATE OR REPLACE FUNCTION authority_v1.record_capture_result');
+  const fnEnd = functions.indexOf('$$;', fnStart);
+  const fnBody = functions.substring(fnStart, fnEnd);
+  // P0-01T-CORRECTIVE-3: When transfer_state = 'buyer_confirmed_received' and capture
+  // definitively fails, must NOT release to available. Must set recovery_blocked
+  // with a stable reason and return a stable public code.
+  if (!fnBody.includes("'capture_failed_after_buyer_confirmation'")) throw new Error('must set recovery_blocked_reason = capture_failed_after_buyer_confirmation');
+  if (!fnBody.includes("'CAPTURE_FAILED_AFTER_BUYER_CONFIRMATION'")) throw new Error('must return CAPTURE_FAILED_AFTER_BUYER_CONFIRMATION code');
+  // Must check transfer_state = 'buyer_confirmed_received' before the failure branch
+  if (!fnBody.includes("transfer_state = 'buyer_confirmed_received'")) throw new Error('must check transfer_state = buyer_confirmed_received in failure branch');
+  return true;
+});
+check('record_capture_reconciliation_requires_capture_unknown_reason', () => {
+  const fnStart = functions.indexOf('CREATE OR REPLACE FUNCTION authority_v1.record_capture_result');
+  const fnEnd = functions.indexOf('$$;', fnStart);
+  const fnBody = functions.substring(fnStart, fnEnd);
+  // P0-01T-CORRECTIVE-3: Reconciliation must require recovery_blocked_reason = 'capture_unknown'
+  if (!fnBody.includes('RECOVERY_REASON_MISMATCH')) throw new Error('must return RECOVERY_REASON_MISMATCH when recovery_blocked_reason is not capture_unknown');
+  if (!fnBody.includes("recovery_blocked_reason <> 'capture_unknown'")) throw new Error("must check recovery_blocked_reason <> 'capture_unknown' for reconciliation");
+  return true;
+});
+check('capture_orchestrator_no_http_credentials', () => {
+  const src = readFileSync(join(ROOT, 'base44/shared/captureCanaryOrchestrator.js'), 'utf8');
+  // P0-01T-CORRECTIVE-3: maybeRouteCanaryCapture must NOT forward body.action_id or body.stripe_idempotency_key
+  if (src.includes('body?.action_id')) throw new Error('must NOT forward body.action_id (HTTP credential)');
+  if (src.includes('body?.stripe_idempotency_key')) throw new Error('must NOT forward body.stripe_idempotency_key (HTTP credential)');
+  return true;
+});
+check('capture_orchestrator_mirrors_active_only_on_explicit_release', () => {
+  const src = readFileSync(join(ROOT, 'base44/shared/captureCanaryOrchestrator.js'), 'utf8');
+  // P0-01T-CORRECTIVE-3: Must check recordResult.released === true before mirroring active
+  if (!src.includes('recordResult?.released === true')) throw new Error('must mirror active only when recorder result explicitly reports released === true');
+  return true;
+});
+check('buyer_confirm_orchestrator_checks_recovery_reason', () => {
+  const src = readFileSync(join(ROOT, 'base44/shared/buyerConfirmTransferCanaryOrchestrator.js'), 'utf8');
+  // P0-01T-CORRECTIVE-3: Must check recovery_blocked_reason = 'capture_unknown'
+  if (!src.includes("recovery_blocked_reason") || !src.includes("'capture_unknown'")) throw new Error('must check recovery_blocked_reason = capture_unknown');
+  // Must use new capture context field names
+  if (!src.includes('binding_capture_state')) throw new Error('must use binding_capture_state from capture context');
+  if (!src.includes('action_status')) throw new Error('must use action_status from capture context');
   return true;
 });
 

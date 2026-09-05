@@ -148,7 +148,8 @@ export async function runAllTests({ adminSql, executorUrl }) {
     assert('T1: ok=true', result?.ok === true, `got ${JSON.stringify(result)}`);
     assert('T1: transfer_state=buyer_confirmed_received', result?.transfer_state === 'buyer_confirmed_received');
     assert('T1: version=2', result?.version === 2, `got ${result?.version}`);
-    assert('T1: buyer_user_id matches', result?.buyer_user_id === buyerUserId);
+    // P0-01T-CORRECTIVE-3: buyer_user_id must be ABSENT from every response (never expose buyer email)
+    assert('T1: buyer_user_id absent', result?.buyer_user_id === undefined, `buyer_user_id leaked: ${result?.buyer_user_id}`);
     assert('T1: buyer_confirmed_at present', !!result?.buyer_confirmed_at);
     assert('T1: no_financial_effects=true', result?.no_financial_effects === true);
 
@@ -570,11 +571,12 @@ export async function runAllTests({ adminSql, executorUrl }) {
     console.log('  ✅ T13 passed');
   }
 
-  // ── T14: Terminal replay (sold) — authorized buyer gets idempotent replay ──
-  // P0-01T-CORRECTIVE-2: authority.buyer_user_id is cleared after sold, but the
-  // binding retains it. The validated binding supplies buyer identity.
+  // ── T14: Terminal replay (sold) — authorized buyer with prior confirmation ──
+  // P0-01T-CORRECTIVE-3: authority.buyer_user_id is cleared after sold, but the
+  // binding retains it. Terminal replay returns buyer_confirmed=true ONLY when
+  // transfer_state=buyer_confirmed_received AND buyer_confirmed_at IS NOT NULL.
   {
-    console.log('\n[T14] Terminal replay (sold) — authorized buyer');
+    console.log('\n[T14] Terminal replay (sold) — authorized buyer with prior confirmation');
     await cleanupAll(adminSql);
     const listingId = `cert_t14_${genId()}`;
     const sellerUserId = genEmail('seller');
@@ -583,6 +585,13 @@ export async function runAllTests({ adminSql, executorUrl }) {
     const paymentIntentId = `pi_${genId()}`;
 
     await setupListing(adminSql, { listingId, sellerUserId, buyerUserId, purchaseId, paymentIntentId, lifecycleState: 'sold', transferState: 'buyer_confirmed_received' });
+
+    // Set buyer_confirmed_at to simulate prior authoritative confirmation
+    await adminSql`
+      UPDATE authority_v1.reservation_authority
+      SET buyer_confirmed_at = now() - interval '1 hour'
+      WHERE listing_id = ${listingId}
+    `;
 
     const opId = `op_buyer_confirm_${listingId}_${genId()}`;
     const requestHash = sha256(JSON.stringify({ op: 'record_buyer_confirmation', listing_id: listingId, expected_version: 1, buyer_user_id: buyerUserId, purchase_id: purchaseId }));
@@ -593,9 +602,70 @@ export async function runAllTests({ adminSql, executorUrl }) {
 
     assert('T14: ok=true (terminal replay)', result?.ok === true, `got ${JSON.stringify(result)}`);
     assert('T14: idempotent=true', result?.idempotent === true, `got ${JSON.stringify(result)}`);
+    assert('T14: buyer_confirmed=true', result?.buyer_confirmed === true, `got ${JSON.stringify(result)}`);
+    // buyer_user_id must be absent
+    assert('T14: buyer_user_id absent', result?.buyer_user_id === undefined, `buyer_user_id leaked: ${result?.buyer_user_id}`);
 
     await cleanupAll(adminSql);
     console.log('  ✅ T14 passed');
+  }
+
+  // ── T14b: Terminal state (available) WITHOUT prior confirmation → TERMINAL_NOT_BUYER_CONFIRMED ──
+  // P0-01T-CORRECTIVE-3: An available purchase created by cancellation, abort,
+  // or ordinary capture failure must NEVER be represented as buyer-confirmed.
+  {
+    console.log('\n[T14b] Terminal state (available) without prior confirmation');
+    await cleanupAll(adminSql);
+    const listingId = `cert_t14b_${genId()}`;
+    const sellerUserId = genEmail('seller');
+    const buyerUserId = genEmail('buyer');
+    const purchaseId = `pur_${genId()}`;
+    const paymentIntentId = `pi_${genId()}`;
+
+    // Setup as available with transfer_state != buyer_confirmed_received (e.g. terminal_cancelled)
+    await setupListing(adminSql, { listingId, sellerUserId, buyerUserId, purchaseId, paymentIntentId, lifecycleState: 'available', transferState: 'terminal_cancelled' });
+
+    const opId = `op_buyer_confirm_${listingId}_${genId()}`;
+    const requestHash = sha256(JSON.stringify({ op: 'record_buyer_confirmation', listing_id: listingId, expected_version: 1, buyer_user_id: buyerUserId, purchase_id: purchaseId }));
+
+    const result = await executorClient.recordBuyerTransferConfirmation(
+      listingId, 1, buyerUserId, purchaseId, opId, requestHash,
+    );
+
+    assert('T14b: ok=false', result?.ok === false, `got ${JSON.stringify(result)}`);
+    assert('T14b: code=TERMINAL_NOT_BUYER_CONFIRMED', result?.code === 'TERMINAL_NOT_BUYER_CONFIRMED', `got ${result?.code}`);
+    // buyer_user_id must be absent even in error responses
+    assert('T14b: buyer_user_id absent', result?.buyer_user_id === undefined, `buyer_user_id leaked: ${result?.buyer_user_id}`);
+
+    await cleanupAll(adminSql);
+    console.log('  ✅ T14b passed');
+  }
+
+  // ── T14c: Terminal state (sold) WITHOUT prior confirmation → TERMINAL_NOT_BUYER_CONFIRMED ──
+  {
+    console.log('\n[T14c] Terminal state (sold) without prior confirmation');
+    await cleanupAll(adminSql);
+    const listingId = `cert_t14c_${genId()}`;
+    const sellerUserId = genEmail('seller');
+    const buyerUserId = genEmail('buyer');
+    const purchaseId = `pur_${genId()}`;
+    const paymentIntentId = `pi_${genId()}`;
+
+    // Sold but transfer_state is NOT buyer_confirmed_received (e.g. seller_reported_sent)
+    await setupListing(adminSql, { listingId, sellerUserId, buyerUserId, purchaseId, paymentIntentId, lifecycleState: 'sold', transferState: 'seller_reported_sent' });
+
+    const opId = `op_buyer_confirm_${listingId}_${genId()}`;
+    const requestHash = sha256(JSON.stringify({ op: 'record_buyer_confirmation', listing_id: listingId, expected_version: 1, buyer_user_id: buyerUserId, purchase_id: purchaseId }));
+
+    const result = await executorClient.recordBuyerTransferConfirmation(
+      listingId, 1, buyerUserId, purchaseId, opId, requestHash,
+    );
+
+    assert('T14c: ok=false', result?.ok === false, `got ${JSON.stringify(result)}`);
+    assert('T14c: code=TERMINAL_NOT_BUYER_CONFIRMED', result?.code === 'TERMINAL_NOT_BUYER_CONFIRMED', `got ${result?.code}`);
+
+    await cleanupAll(adminSql);
+    console.log('  ✅ T14c passed');
   }
 
   // ── T15: Recovery-blocked rejection ───────────────────────────────────────

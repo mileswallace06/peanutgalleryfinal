@@ -683,7 +683,7 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'code', 'AUTHORITY_NOT_FOUND');
   END IF;
 
-  -- For reconciliation: verify authority is recovery_blocked
+  -- For reconciliation: verify authority is recovery_blocked with capture_unknown reason
   IF v_is_reconciliation AND NOT v_authority.recovery_blocked THEN
     UPDATE reservation_operations SET status = 'rejected', error_code = 'AUTHORITY_NOT_BLOCKED',
       result_json = jsonb_build_object('ok', false, 'code', 'AUTHORITY_NOT_BLOCKED',
@@ -692,6 +692,18 @@ BEGIN
     WHERE operation_id = p_server_operation_id;
     RETURN jsonb_build_object('ok', false, 'code', 'AUTHORITY_NOT_BLOCKED',
       'reason', 'reconciliation requires recovery_blocked authority');
+  END IF;
+
+  -- P0-01T-CORRECTIVE-3: Reconciliation must have recovery_blocked_reason = 'capture_unknown'
+  IF v_is_reconciliation AND v_authority.recovery_blocked_reason <> 'capture_unknown' THEN
+    UPDATE reservation_operations SET status = 'rejected', error_code = 'RECOVERY_REASON_MISMATCH',
+      result_json = jsonb_build_object('ok', false, 'code', 'RECOVERY_REASON_MISMATCH',
+        'reason', 'reconciliation requires recovery_blocked_reason = capture_unknown',
+        'expected', 'capture_unknown', 'got', v_authority.recovery_blocked_reason)::TEXT,
+      committed_at = now()
+    WHERE operation_id = p_server_operation_id;
+    RETURN jsonb_build_object('ok', false, 'code', 'RECOVERY_REASON_MISMATCH',
+      'reason', 'reconciliation requires recovery_blocked_reason = capture_unknown');
   END IF;
 
   IF v_authority.lifecycle_state <> 'frozen'
@@ -781,9 +793,71 @@ BEGIN
       'reconciliation', v_is_reconciliation);
 
   ELSIF p_result_derived = 'failed' THEN
-    -- Known failure → exactly one binding transition (→failed), exactly one
-    -- authority transition (frozen → available, clear tuple), persist result,
-    -- create mirror event. Return success only when all rows updated.
+    -- P0-01T-CORRECTIVE-3: Never relist an already-delivered ticket.
+    -- When transfer_state = 'buyer_confirmed_received' and Stripe capture
+    -- definitively fails, the buyer has already confirmed receipt. Releasing
+    -- the listing back to 'available' could resell a ticket the buyer says
+    -- they received. Instead, fail-closed: keep frozen, set recovery_blocked,
+    -- create a deterministic incident, and return a stable public code.
+    IF v_authority.transfer_state = 'buyer_confirmed_received' THEN
+      -- Binding → failed (the capture attempt definitively failed)
+      UPDATE reservation_payment_bindings SET capture_state = 'failed', updated_at = now()
+      WHERE purchase_id = v_action.purchase_id
+        AND capture_state IN ('capture_requested','capture_unknown');
+      GET DIAGNOSTICS v_updated_count = ROW_COUNT;
+      IF v_updated_count != 1 THEN
+        RAISE EXCEPTION 'FAILED_BINDING_COUNT: expected 1, got %', v_updated_count;
+      END IF;
+
+      -- Authority stays frozen — do NOT transition to available, do NOT
+      -- clear the reservation/ownership tuple.
+      UPDATE reservation_authority
+      SET recovery_blocked = true,
+          recovery_blocked_reason = 'capture_failed_after_buyer_confirmation',
+          recovery_blocked_at = now(), updated_at = now()
+      WHERE listing_id = v_action.listing_id;
+
+      -- Resolve capture_unknown incident if this was a reconciliation
+      IF v_is_reconciliation THEN
+        UPDATE operational_incidents
+        SET resolved = true, resolved_at = now(),
+            resolution_notes = 'Escalated to capture_failed_after_buyer_confirmation by reconciliation'
+        WHERE incident_key = 'capture_unknown:' || v_action.listing_id
+          AND resolved = false;
+      END IF;
+
+      -- Create/update deterministic operational incident
+      INSERT INTO operational_incidents (incident_key, incident_type, priority, title, description, reference_id, reference_type)
+      VALUES ('capture_failed_after_buyer_confirmation:' || v_action.listing_id,
+        'failed_transfer_after_payment', 'critical',
+        'Capture Failed After Buyer Confirmation',
+        'Stripe capture definitively failed after buyer confirmed ticket receipt. ' ||
+          'Listing kept frozen and recovery-blocked to prevent relisting a delivered ticket.',
+        v_action.listing_id, 'listing')
+      ON CONFLICT (incident_key) DO UPDATE SET
+        occurrence_count = operational_incidents.occurrence_count + 1,
+        last_occurred_at = now(), updated_at = now();
+
+      v_result_json := jsonb_build_object('ok', true, 'captured', false, 'failed', true,
+        'released', false, 'recovery_blocked', true,
+        'recovery_blocked_reason', 'capture_failed_after_buyer_confirmation',
+        'code', 'CAPTURE_FAILED_AFTER_BUYER_CONFIRMATION',
+        'reconciliation', v_is_reconciliation)::TEXT;
+      UPDATE reservation_operations SET status = 'committed', result_json = v_result_json,
+        committed_at = now()
+      WHERE operation_id = p_server_operation_id;
+
+      RETURN jsonb_build_object('ok', true, 'captured', false, 'failed', true,
+        'released', false, 'recovery_blocked', true,
+        'recovery_blocked_reason', 'capture_failed_after_buyer_confirmation',
+        'code', 'CAPTURE_FAILED_AFTER_BUYER_CONFIRMATION',
+        'reconciliation', v_is_reconciliation);
+    END IF;
+
+    -- Ordinary pre-delivery capture failure → exactly one binding transition
+    -- (→failed), exactly one authority transition (frozen → available, clear
+    -- tuple), persist result, create mirror event. Return success only when
+    -- all rows updated.
     UPDATE reservation_payment_bindings SET capture_state = 'failed', updated_at = now()
     WHERE purchase_id = v_action.purchase_id
       AND capture_state IN ('capture_requested','capture_unknown');
