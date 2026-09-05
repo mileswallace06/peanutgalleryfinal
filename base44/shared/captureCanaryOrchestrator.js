@@ -526,13 +526,13 @@ export async function maybeRouteCanaryCapture(deps) {
     }
   }
 
-  if (!executorUrl) {
+  if (!executorUrl && !deps.executorClient) {
     return {
       status: 500,
       body: { error: 'Authority executor URL not configured', code: 'NO_EXECUTOR_URL' },
     };
   }
-  if (!recorderUrl) {
+  if (!recorderUrl && !deps.recorderClient) {
     return {
       status: 500,
       body: { error: 'Authority recorder URL not configured', code: 'NO_RECORDER_URL' },

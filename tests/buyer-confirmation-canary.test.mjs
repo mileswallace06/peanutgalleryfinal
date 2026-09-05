@@ -50,7 +50,8 @@ function assert(name, cond, details) {
 // ── Setup helpers ────────────────────────────────────────────────────────────
 async function setupListing(adminSql, { listingId, sellerUserId, buyerUserId, lifecycleState = 'frozen', transferState = 'seller_reported_sent', captureState = 'authorized', purchaseId, paymentIntentId, reservationRevision = 'rev_1', tokenHash = 'tok_hash_1' }) {
   // Terminal lifecycle states (sold/cancelled/expired) require cleared tuple
-  const isTerminal = ['sold', 'cancelled', 'expired'].includes(lifecycleState);
+  // P0-01T-CORRECTIVE-4B: 'available' also requires cleared tuple (released by cancel/abort/capture-fail)
+  const isTerminal = ['sold', 'cancelled', 'expired', 'available'].includes(lifecycleState);
   const effectiveBuyerId = isTerminal ? null : buyerUserId;
   const effectiveTokenHash = isTerminal ? null : tokenHash;
   const effectiveExpiry = isTerminal ? null : 'now() + interval \'1 hour\'';
@@ -591,6 +592,21 @@ export async function runAllTests({ adminSql, executorUrl }) {
       UPDATE authority_v1.reservation_authority
       SET buyer_confirmed_at = now() - interval '1 hour'
       WHERE listing_id = ${listingId}
+    `;
+
+    // P0-01T-CORRECTIVE-4B: Seed a finalized binding and matching succeeded capture action
+    await adminSql`
+      UPDATE authority_v1.reservation_payment_bindings
+      SET capture_state = 'finalized', updated_at = now()
+      WHERE purchase_id = ${purchaseId}
+    `;
+    const t14ActionId = `act_t14_${genId()}`;
+    const t14IdemKey = `idem_t14_${t14ActionId}`;
+    await adminSql`
+      INSERT INTO authority_v1.payment_actions (action_id, listing_id, purchase_id, payment_intent_id,
+        action_type, stripe_idempotency_key, status, completed_at)
+      VALUES (${t14ActionId}, ${listingId}, ${purchaseId}, ${paymentIntentId},
+        'capture', ${t14IdemKey}, 'succeeded', now())
     `;
 
     const opId = `op_buyer_confirm_${listingId}_${genId()}`;

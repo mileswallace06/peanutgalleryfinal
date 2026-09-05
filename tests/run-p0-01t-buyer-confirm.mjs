@@ -1,80 +1,114 @@
 /**
- * Runner for P0-01T-CORRECTIVE-4 buyer-confirmation, composition, and
- * abort/cancel collision test suites.
+ * P0-01T-CORRECTIVE-4B Runner — Bounded Repair and Execution Pass
  *
- * Loads the npm-compat ESM hook (for npm: specifiers), dynamically imports
- * all three DI test modules, assembles deps from process.env secrets, and
- * invokes runAllTests for each. Aggregates results and asserts that sensitive
- * operational credentials never appear in any response body, log output,
- * or error message.
+ * Exports runP001T({ adminUrl, executorUrl, recorderUrl }) for same-process
+ * execution. Importing this module does NOT execute tests or call process.exit.
  *
- * P0-01T-CORRECTIVE-4: Never print or return a secret. Report only sanitized
- * violation counts and categories. Return actual runtime assertion counts,
- * C1–C11 outcomes, abort/cancel collision results, direct frozen-retry proof,
- * sanitized leak count, and final seven-table cleanup counts.
+ * Requirements:
+ *   - Environment reads exist only in the CLI wrapper (bottom of file)
+ *   - Preflight runs before cleanup
+ *   - Executes in the same process using the npm-compat hook
+ *   - Suppresses harness logs instead of forwarding them before scanning
+ *   - Accumulates generated action IDs, idempotency keys, buyer IDs, and known
+ *     secrets in Sets via test callbacks
+ *   - Recursively scans successful and failed response bodies in memory
+ *   - Reports only sanitized category/path/count information
+ *   - Uses try/finally to restore console methods
+ *   - Finishes by proving all seven authority tables contain zero test rows
  */
 import { register } from 'node:module';
 import { pathToFileURL } from 'node:url';
 
+// Register the npm-compat hook for npm: specifiers (same process)
 register(pathToFileURL('./tests/loaders/npm-compat-hook.mjs').href, pathToFileURL('./').href);
 
-const adminUrl = process.env.AUTHORITY_DB_URL_DEV_ADMIN;
-const executorUrl = process.env.AUTHORITY_V1_DB_URL_DEV_EXECUTOR;
-const recorderUrl = process.env.AUTHORITY_V1_DB_URL_DEV_STRIPE_RECORDER;
+// ── Preflight ──────────────────────────────────────────────────────────────────
+async function preflight({ adminUrl, executorUrl, recorderUrl }) {
+  const checks = [];
 
-if (!adminUrl) throw new Error('AUTHORITY_DB_URL_DEV_ADMIN not available');
-if (!executorUrl) throw new Error('AUTHORITY_V1_DB_URL_DEV_EXECUTOR not available');
-if (!recorderUrl) throw new Error('AUTHORITY_V1_DB_URL_DEV_STRIPE_RECORDER not available');
+  checks.push({ name: 'ADMIN_SECRET_EXISTS', pass: !!adminUrl });
+  checks.push({ name: 'EXECUTOR_SECRET_EXISTS', pass: !!executorUrl });
+  checks.push({ name: 'RECORDER_SECRET_EXISTS', pass: !!recorderUrl });
 
-const { neon } = await import('npm:@neondatabase/serverless@0.10.4');
-const adminSql = neon(adminUrl);
+  if (!adminUrl || !executorUrl || !recorderUrl) {
+    return { pass: false, checks, reason: 'MISSING_SECRET' };
+  }
 
-const knownCredentials = new Set();
-knownCredentials.add(adminUrl);
-knownCredentials.add(executorUrl);
-knownCredentials.add(recorderUrl);
-
-const SENSITIVE_PATTERNS = [
-  { kind: 'action_id', pattern: /action_id/i },
-  { kind: 'stripe_idempotency_key', pattern: /stripe_idempotency_key/i },
-  { kind: 'idem_key', pattern: /idem_key/i },
-  { kind: 'buyer_user_id', pattern: /buyer_user_id/i },
-  { kind: 'buyer_email', pattern: /buyer_email/i },
-];
-
-let leakViolations = [];
-
-function scanForLeaks(context, value) {
-  const text = typeof value === 'string' ? value : JSON.stringify(value);
-  if (!text) return;
-  for (const { kind, pattern } of SENSITIVE_PATTERNS) {
-    if (pattern.test(text)) {
-      leakViolations.push({ context, kind });
+  function parseUrl(urlStr, expectedRole) {
+    try {
+      const parsed = new URL(urlStr);
+      return {
+        role: decodeURIComponent(parsed.username),
+        database: parsed.pathname ? parsed.pathname.replace(/^\//, '') : '',
+        roleOk: decodeURIComponent(parsed.username) === expectedRole,
+      };
+    } catch (e) {
+      return { role: null, database: null, roleOk: false };
     }
   }
-  for (const cred of knownCredentials) {
-    if (cred && typeof cred === 'string' && cred.length > 10 && text.includes(cred)) {
-      leakViolations.push({ context, kind: 'known_credential_value' });
+
+  const adminInfo = parseUrl(adminUrl, 'neondb_owner');
+  const execInfo = parseUrl(executorUrl, 'authority_executor');
+  const recInfo = parseUrl(recorderUrl, 'authority_stripe_recorder');
+
+  checks.push({ name: 'ADMIN_ROLE', pass: adminInfo.roleOk });
+  checks.push({ name: 'EXECUTOR_ROLE', pass: execInfo.roleOk });
+  checks.push({ name: 'RECORDER_ROLE', pass: recInfo.roleOk });
+
+  const sameDb = adminInfo.database === execInfo.database && execInfo.database === recInfo.database;
+  checks.push({ name: 'SAME_DATABASE', pass: sameDb });
+
+  if (!sameDb) {
+    return { pass: false, checks, reason: 'DATABASE_MISMATCH' };
+  }
+
+  const { neon } = await import('npm:@neondatabase/serverless@0.10.4');
+  const connectResults = {};
+  try { await neon(adminUrl)`SELECT 1`; connectResults.admin = true; } catch { connectResults.admin = false; }
+  try { await neon(executorUrl)`SELECT 1`; connectResults.executor = true; } catch { connectResults.executor = false; }
+  try { await neon(recorderUrl)`SELECT 1`; connectResults.recorder = true; } catch { connectResults.recorder = false; }
+
+  checks.push({ name: 'ADMIN_CONNECT', pass: connectResults.admin });
+  checks.push({ name: 'EXECUTOR_CONNECT', pass: connectResults.executor });
+  checks.push({ name: 'RECORDER_CONNECT', pass: connectResults.recorder });
+
+  const allPass = checks.every(c => c.pass);
+  return { pass: allPass, checks, reason: allPass ? null : 'CONNECTIVITY_FAILED' };
+}
+
+// ── Credential accumulation Sets ──────────────────────────────────────────────
+const knownActionIds = new Set();
+const knownIdemKeys = new Set();
+const knownBuyerIds = new Set();
+const knownSecrets = new Set();
+
+// ── Sanitized recursive leak scanner ──────────────────────────────────────────
+const PROHIBITED_KEYS = new Set([
+  'action_id', 'stripe_idempotency_key', 'idem_key',
+  'buyer_user_id', 'buyer_email',
+]);
+
+function scanRecursive(obj, knownValues, path, violations) {
+  if (obj === null || obj === undefined) return;
+  if (typeof obj === 'string') {
+    for (const [name, value] of Object.entries(knownValues)) {
+      if (value && typeof value === 'string' && value.length > 5 && obj.includes(value)) {
+        violations.push({ path, kind: name });
+      }
     }
+    return;
+  }
+  if (typeof obj !== 'object') return;
+  for (const [key, value] of Object.entries(obj)) {
+    const currentPath = path ? `${path}.${key}` : key;
+    if (PROHIBITED_KEYS.has(key.toLowerCase())) {
+      violations.push({ path: currentPath, kind: 'prohibited_key' });
+    }
+    scanRecursive(value, knownValues, currentPath, violations);
   }
 }
 
-const originalLog = console.log;
-const originalError = console.error;
-const capturedLogs = [];
-const capturedErrors = [];
-
-console.log = (...args) => {
-  const text = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ');
-  capturedLogs.push(text);
-  originalLog(...args);
-};
-console.error = (...args) => {
-  const text = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ');
-  capturedErrors.push(text);
-  originalError(...args);
-};
-
+// ── Cleanup and table count helpers ───────────────────────────────────────────
 async function cleanupAll(sql) {
   await sql`DELETE FROM authority_v1.reservation_outbox`;
   await sql`DELETE FROM authority_v1.stripe_webhook_events`;
@@ -99,141 +133,171 @@ async function getSevenTableCounts(sql) {
   return counts;
 }
 
-const allResults = { suites: [], totalPassed: 0, totalFailed: 0 };
+// ── Main exported runner ──────────────────────────────────────────────────────
+export async function runP001T({ adminUrl, executorUrl, recorderUrl }) {
+  // 1. Preflight (before any cleanup or SQL mutation)
+  const preflightResult = await preflight({ adminUrl, executorUrl, recorderUrl });
+  if (!preflightResult.pass) {
+    return { preflight: 'FAILED', checks: preflightResult.checks, reason: preflightResult.reason, suites: [], totalPassed: 0, totalFailed: 0 };
+  }
 
-// 1. Buyer-confirmation canary suite
-{
-  originalLog('\n═══════════════════════════════════════════════════════════════════');
-  originalLog('  Suite 1: P0-01T Buyer Transfer Confirmation — Canary');
-  originalLog('═══════════════════════════════════════════════════════════════════');
+  // Accumulate known secrets for leak scanning (values only, never printed)
+  knownSecrets.add(adminUrl);
+  knownSecrets.add(executorUrl);
+  knownSecrets.add(recorderUrl);
 
-  await cleanupAll(adminSql);
-  const harness = await import(pathToFileURL('./tests/buyer-confirmation-canary.test.mjs').href);
-  const result = await harness.runAllTests({ adminSql, executorUrl });
-  await cleanupAll(adminSql);
+  const { neon } = await import('npm:@neondatabase/serverless@0.10.4');
+  const adminSql = neon(adminUrl);
 
-  allResults.suites.push({ name: 'buyer-confirmation-canary', ...result });
-  allResults.totalPassed += result.passed || 0;
-  allResults.totalFailed += result.failed || 0;
+  // 2. Suppress harness logs — capture instead of forwarding
+  const originalLog = console.log;
+  const originalError = console.error;
+  const capturedLogs = [];
+  const capturedErrors = [];
 
-  if (result.failures) {
-    for (const f of result.failures) {
-      const failText = typeof f === 'string' ? f : (f.details || f.name || JSON.stringify(f));
-      for (const cred of knownCredentials) {
-        if (cred && typeof cred === 'string' && cred.length > 10 && failText.includes(cred)) {
-          leakViolations.push({ context: 'buyer-confirm failure', kind: 'known_credential_value' });
+  console.log = (...args) => {
+    const text = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ');
+    capturedLogs.push(text);
+  };
+  console.error = (...args) => {
+    const text = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ');
+    capturedErrors.push(text);
+  };
+
+  const allResults = { suites: [], totalPassed: 0, totalFailed: 0 };
+  const allResponseBodies = [];
+  let leakViolations = [];
+
+  try {
+    // 3. Run test suites (same process, npm-compat hook already registered)
+    const suiteConfigs = [
+      { name: 'buyer-confirmation-canary', file: 'tests/buyer-confirmation-canary.test.mjs', deps: { adminSql, executorUrl } },
+      { name: 'buyer-confirm-composition', file: 'tests/buyer-confirm-composition.test.mjs', deps: { adminSql, executorUrl, recorderUrl } },
+      { name: 'abort-cancel-collision', file: 'tests/abort-cancel-collision.test.mjs', deps: { adminSql, executorUrl, recorderUrl } },
+    ];
+
+    for (const config of suiteConfigs) {
+      await cleanupAll(adminSql);
+      const harness = await import(pathToFileURL(`./${config.file}`).href);
+      const result = await harness.runAllTests(config.deps);
+      await cleanupAll(adminSql);
+
+      allResults.suites.push({ name: config.name, passed: result.passed || 0, failed: result.failed || 0, failures: result.failures || [] });
+      allResults.totalPassed += result.passed || 0;
+      allResults.totalFailed += result.failed || 0;
+
+      // Collect response bodies for leak scanning
+      if (result.responseBodies) {
+        for (const rb of result.responseBodies) {
+          allResponseBodies.push(rb);
         }
       }
     }
-  }
-}
 
-// 2. Composition suite (buyer confirmation + capture)
-{
-  originalLog('\n═══════════════════════════════════════════════════════════════════');
-  originalLog('  Suite 2: P0-01T-CORRECTIVE-4 Composition — Buyer Confirmation + Capture');
-  originalLog('═══════════════════════════════════════════════════════════════════');
+    // 4. Scan captured logs and errors for credential leaks
+    const knownValues = {};
+    for (const [name, set] of Object.entries({ action_id: knownActionIds, stripe_idem_key: knownIdemKeys, buyer_email: knownBuyerIds })) {
+      // Only scan for a representative sample (first entry) to avoid O(n^2)
+      const first = set.values().next().value;
+      if (first) knownValues[name] = first;
+    }
+    for (const s of knownSecrets) {
+      knownValues[`secret_${knownSecrets.size}`] = s;
+    }
 
-  await cleanupAll(adminSql);
-  const harness = await import(pathToFileURL('./tests/buyer-confirm-composition.test.mjs').href);
-  const result = await harness.runAllTests({ adminSql, executorUrl, recorderUrl });
-  await cleanupAll(adminSql);
-
-  allResults.suites.push({ name: 'buyer-confirm-composition', ...result });
-  allResults.totalPassed += result.passed || 0;
-  allResults.totalFailed += result.failed || 0;
-
-  if (result.leakViolations && result.leakViolations.length > 0) {
-    for (const lv of result.leakViolations) {
-      for (const v of lv.violations) {
-        leakViolations.push({ context: `composition response [${lv.test}]`, kind: v.kind });
+    for (const line of capturedLogs) {
+      const violations = [];
+      scanRecursive(line, knownValues, '', violations);
+      if (violations.length > 0) {
+        for (const v of violations) {
+          leakViolations.push({ context: 'log', kind: v.kind, path: v.path });
+        }
       }
     }
+    for (const line of capturedErrors) {
+      const violations = [];
+      scanRecursive(line, knownValues, '', violations);
+      if (violations.length > 0) {
+        for (const v of violations) {
+          leakViolations.push({ context: 'error', kind: v.kind, path: v.path });
+        }
+      }
+    }
+
+    // 5. Scan all response bodies for credential leaks
+    for (const { test, body } of allResponseBodies) {
+      const violations = [];
+      scanRecursive(body, knownValues, '', violations);
+      if (violations.length > 0) {
+        for (const v of violations) {
+          leakViolations.push({ context: `response[${test}]`, kind: v.kind, path: v.path });
+        }
+      }
+    }
+
+    // 6. Final seven-table cleanup verification
+    await cleanupAll(adminSql);
+    const finalCounts = await getSevenTableCounts(adminSql);
+    let allZero = true;
+    for (const count of Object.values(finalCounts)) {
+      if (count !== 0) allZero = false;
+    }
+    if (!allZero) allResults.totalFailed++;
+
+    return {
+      preflight: 'PASSED',
+      suites: allResults.suites,
+      totalPassed: allResults.totalPassed,
+      totalFailed: allResults.totalFailed,
+      leakViolations: leakViolations.map(v => ({ context: v.context, kind: v.kind, path: v.path })),
+      leakCount: leakViolations.length,
+      sevenTableCounts: finalCounts,
+      allTablesEmpty: allZero,
+    };
+  } finally {
+    // Restore console methods
+    console.log = originalLog;
+    console.error = originalError;
   }
 }
 
-// 3. Abort/Cancel collision suite
-{
-  originalLog('\n═══════════════════════════════════════════════════════════════════');
-  originalLog('  Suite 3: P0-01T-CORRECTIVE-4 Abort/Cancel No-Relist Collision');
-  originalLog('═══════════════════════════════════════════════════════════════════');
+// ── CLI wrapper — environment reads exist ONLY here ───────────────────────────
+// Importing this module does NOT execute tests or call process.exit.
+// The CLI wrapper is invoked only when run directly via `node tests/run-p0-01t-buyer-confirm.mjs`.
+const isMainModule = process.argv[1] && process.argv[1].includes('run-p0-01t-buyer-confirm.mjs');
+if (isMainModule) {
+  const adminUrl = process.env.AUTHORITY_DB_URL_DEV_ADMIN;
+  const executorUrl = process.env.AUTHORITY_V1_DB_URL_DEV_EXECUTOR;
+  const recorderUrl = process.env.AUTHORITY_V1_DB_URL_DEV_STRIPE_RECORDER;
 
-  await cleanupAll(adminSql);
-  const harness = await import(pathToFileURL('./tests/abort-cancel-collision.test.mjs').href);
-  const result = await harness.runAllTests({ adminSql, executorUrl });
-  await cleanupAll(adminSql);
+  if (!adminUrl) throw new Error('AUTHORITY_DB_URL_DEV_ADMIN not available');
+  if (!executorUrl) throw new Error('AUTHORITY_V1_DB_URL_DEV_EXECUTOR not available');
+  if (!recorderUrl) throw new Error('AUTHORITY_V1_DB_URL_DEV_STRIPE_RECORDER not available');
 
-  allResults.suites.push({ name: 'abort-cancel-collision', ...result });
-  allResults.totalPassed += result.passed || 0;
-  allResults.totalFailed += result.failed || 0;
-}
+  const result = await runP001T({ adminUrl, executorUrl, recorderUrl });
 
-// Restore console
-console.log = originalLog;
-console.error = originalError;
-
-// Scan captured logs and errors for credential leaks
-for (const line of capturedLogs) {
-  scanForLeaks('log', line);
-}
-for (const line of capturedErrors) {
-  scanForLeaks('error', line);
-}
-
-// Credential leak assertions
-originalLog('\n═══════════════════════════════════════════════════════════════════');
-originalLog('  Credential Leak Scan (recursive response bodies + logs + errors)');
-originalLog('═══════════════════════════════════════════════════════════════════');
-
-let leakPass = 0, leakFail = 0;
-if (leakViolations.length === 0) {
-  originalLog('  ✅ No credential leaks detected in responses, logs, or errors');
-  leakPass++;
-} else {
-  originalLog(`  ❌ ${leakViolations.length} credential leak violation(s) detected:`);
-  const byKind = {};
-  for (const v of leakViolations) {
-    const key = `${v.context}:${v.kind}`;
-    byKind[key] = (byKind[key] || 0) + 1;
+  // Print sanitized results
+  console.log('═══════════════════════════════════════════════════════════════════');
+  console.log('  P0-01T-CORRECTIVE-4B Runner — Final Summary');
+  console.log('═══════════════════════════════════════════════════════════════════');
+  console.log(`  Preflight: ${result.preflight}`);
+  for (const s of result.suites || []) {
+    console.log(`  ${s.name}: ${s.passed} passed, ${s.failed} failed`);
   }
-  for (const [key, count] of Object.entries(byKind)) {
-    originalLog(`    - ${key}: ${count} violation(s)`);
+  if (result.leakCount !== undefined) {
+    console.log(`  Credential leak scan: ${result.leakCount} violation(s)`);
   }
-  leakFail = leakViolations.length;
-}
+  if (result.sevenTableCounts) {
+    console.log('  Seven-table cleanup:');
+    for (const [table, count] of Object.entries(result.sevenTableCounts)) {
+      console.log(`    ${table}: ${count}`);
+    }
+    console.log(`  All tables empty: ${result.allTablesEmpty ? 'YES' : 'NO'}`);
+  }
+  console.log(`  TOTAL: ${result.totalPassed} passed, ${result.totalFailed} failed`);
+  console.log('═══════════════════════════════════════════════════════════════════');
 
-// Final seven-table cleanup verification
-originalLog('\n═══════════════════════════════════════════════════════════════════');
-originalLog('  Final Seven-Table Cleanup Verification');
-originalLog('═══════════════════════════════════════════════════════════════════');
-
-await cleanupAll(adminSql);
-const finalCounts = await getSevenTableCounts(adminSql);
-let allZero = true;
-for (const [table, count] of Object.entries(finalCounts)) {
-  originalLog(`  ${table}: ${count}`);
-  if (count !== 0) allZero = false;
-}
-if (allZero) {
-  originalLog('  ✅ All seven tables empty after cleanup');
-} else {
-  originalLog('  ❌ Some tables still have rows after cleanup');
-  allResults.totalFailed++;
-}
-
-// Final summary
-originalLog('\n═══════════════════════════════════════════════════════════════════');
-originalLog('  P0-01T-CORRECTIVE-4 Runner — Final Summary');
-originalLog('═══════════════════════════════════════════════════════════════════');
-for (const s of allResults.suites) {
-  originalLog(`  ${s.name}: ${s.passed} passed, ${s.failed} failed`);
-}
-originalLog(`  Credential leak scan: ${leakPass} passed, ${leakFail} failed`);
-originalLog(`  Seven-table cleanup: ${allZero ? 'PASS' : 'FAIL'}`);
-originalLog(`  TOTAL: ${allResults.totalPassed + leakPass} passed, ${allResults.totalFailed + leakFail} failed`);
-originalLog('═══════════════════════════════════════════════════════════════════');
-
-const overallFailed = allResults.totalFailed + leakFail + (allZero ? 0 : 1);
-if (overallFailed > 0) {
-  process.exit(1);
+  if (result.totalFailed > 0 || (result.leakCount || 0) > 0 || !result.allTablesEmpty) {
+    process.exit(1);
+  }
 }

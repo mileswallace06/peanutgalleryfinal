@@ -380,6 +380,10 @@ export async function runAllTests({ adminSql, executorUrl, recorderUrl }) {
     const binding = await getBindingState(adminSql, setup.purchaseId);
     assert('C4: binding capture_state=capture_unknown', binding?.capture_state === 'capture_unknown', `got ${binding?.capture_state}`);
 
+    // P0-01T-CORRECTIVE-4B: Assert the authoritative payment action is unknown
+    const actionRows = await adminSql`SELECT status FROM authority_v1.payment_actions WHERE action_id = ${setup.actionId}`;
+    assert('C4: payment action status=unknown', actionRows[0]?.status === 'unknown', `got ${actionRows[0]?.status}`);
+
     await cleanupAll(adminSql);
     console.log('  ✅ C4 passed');
   }
@@ -391,8 +395,17 @@ export async function runAllTests({ adminSql, executorUrl, recorderUrl }) {
     const setup = await setupFrozenWithCaptureAction('c5', { transferState: 'seller_reported_sent' });
     const entities = createMockEntities();
 
-    // First call: buyer confirms + capture unknown → recovery_blocked
+    // P0-01T-CORRECTIVE-4B: Record the supplied idempotency key and prove reuse
+    // without displaying it. Both calls must use the SAME authoritative key.
+    const c5IdemKeysUsed = [];
     const stripeAdapter1 = createFakeCaptureAdapter({ derived: 'unknown', raw: { error: 'timeout' } });
+    const origCapture1 = stripeAdapter1.capturePaymentIntent.bind(stripeAdapter1);
+    stripeAdapter1.capturePaymentIntent = async (piId, idemKey) => {
+      c5IdemKeysUsed.push(idemKey);
+      return origCapture1(piId, idemKey);
+    };
+
+    // First call: buyer confirms + capture unknown → recovery_blocked
     const firstResult = await runCanaryBuyerConfirmSaga({
       entities, user: { email: setup.buyerId, role: 'user' },
       executorClient, recorderClient, stripeAdapter: stripeAdapter1,
@@ -409,6 +422,12 @@ export async function runAllTests({ adminSql, executorUrl, recorderUrl }) {
 
     // Second call: same buyer + capture succeeds → reconciliation → sold
     const stripeAdapter2 = createFakeCaptureAdapter({ derived: 'succeeded', raw: { id: setup.paymentIntentId, status: 'succeeded' } });
+    const origCapture2 = stripeAdapter2.capturePaymentIntent.bind(stripeAdapter2);
+    stripeAdapter2.capturePaymentIntent = async (piId, idemKey) => {
+      c5IdemKeysUsed.push(idemKey);
+      return origCapture2(piId, idemKey);
+    };
+
     const result2 = await runCanaryBuyerConfirmSaga({
       entities, user: { email: setup.buyerId, role: 'user' },
       executorClient, recorderClient, stripeAdapter: stripeAdapter2,
@@ -422,6 +441,12 @@ export async function runAllTests({ adminSql, executorUrl, recorderUrl }) {
     assert('C5: status=200', result2.status === 200, `got ${result2.status}`);
     assert('C5: ok=true', result2.body?.ok === true);
     assert('C5: captured=true', result2.body?.captured === true, `got ${result2.body?.captured}`);
+
+    // P0-01T-CORRECTIVE-4B: Prove the same authoritative idempotency key was reused
+    // (without displaying the key value)
+    assert('C5: exactly 2 Stripe calls', c5IdemKeysUsed.length === 2, `got ${c5IdemKeysUsed.length}`);
+    assert('C5: same idem key reused (no display)', c5IdemKeysUsed[0] === c5IdemKeysUsed[1], 'idem keys differ');
+    assert('C5: idem key matches authoritative setup key', c5IdemKeysUsed[0] === setup.stripeIdemKey, 'idem key mismatch');
 
     state = await getAuthorityState(adminSql, setup.listingId);
     assert('C5: lifecycle=sold', state?.lifecycle_state === 'sold', `got ${state?.lifecycle_state}`);
@@ -466,26 +491,57 @@ export async function runAllTests({ adminSql, executorUrl, recorderUrl }) {
     console.log('  ✅ C6 passed');
   }
 
-  // ── C7: skip_capture=true supplied → field ignored, Stripe still called ──
+  // ── C7: skip_capture=true supplied via maybeRouteCanaryBuyerConfirm → field ignored ──
   {
-    console.log('\n[C7] skip_capture=true supplied → field ignored, Stripe still called');
+    console.log('\n[C7] skip_capture=true via maybeRouteCanaryBuyerConfirm → field ignored, Stripe still called');
     await cleanupAll(adminSql);
     const setup = await setupFrozenWithCaptureAction('c7', { transferState: 'seller_reported_sent' });
     const entities = createMockEntities();
     const stripeAdapter = createFakeCaptureAdapter({ derived: 'succeeded', raw: { id: setup.paymentIntentId, status: 'succeeded' } });
 
-    const result = await runCanaryBuyerConfirmSaga({
-      entities, user: { email: setup.buyerId, role: 'user' },
-      executorClient, recorderClient, stripeAdapter,
-      params: {
-        listing_id: setup.listingId, purchase_id: setup.purchaseId,
-        payment_intent_id: setup.paymentIntentId, expected_revision: setup.revision,
-        skip_capture: true,  // Should be ignored — capture must proceed
+    // P0-01T-CORRECTIVE-4B: Call maybeRouteCanaryBuyerConfirm, not the core saga directly.
+    // maybeRouteCanaryBuyerConfirm reads canary eligibility, constructs clients, and
+    // calls runCanaryBuyerConfirmSaga. skip_capture in the body must be ignored.
+    const { maybeRouteCanaryBuyerConfirm } = await import('../base44/shared/buyerConfirmTransferCanaryOrchestrator.js');
+
+    // Create a mock canary listing
+    const canaryListing = { id: setup.listingId, is_demo_listing: true, notes: '[AUTH_CANARY]' };
+    const canaryPurchase = { id: setup.purchaseId, listing_id: setup.listingId, payment_intent_id: setup.paymentIntentId, buyer_email: setup.buyerId, reservation_token: setup.revision };
+
+    // Mock base44 with asServiceRole.entities
+    const mockBase44 = {
+      asServiceRole: {
+        entities: {
+          PurchasePrivate: {
+            filter: async (q) => {
+              return [{ purchase_id: setup.purchaseId, payment_intent_id: setup.paymentIntentId, buyer_email: setup.buyerId, reservation_revision: setup.revision }];
+            },
+          },
+          Purchase: { update: async () => {} },
+          Listing: { update: async () => {} },
+          ListingPrivate: { filter: async () => [], update: async () => {} },
+          CanaryMirrorOutbox: { create: async () => ({}) },
+        },
       },
+    };
+
+    const result = await maybeRouteCanaryBuyerConfirm({
+      base44: mockBase44,
+      user: { email: setup.buyerId, role: 'admin' },
+      body: { confirming_role: 'buyer', skip_capture: true, purchase_id: setup.purchaseId },
+      listing: canaryListing,
+      purchase: canaryPurchase,
+      canaryEnabled: true,
+      executorClient,
+      recorderClient,
+      executorUrl,
+      recorderUrl,
+      stripeAdapter,
     });
     allResponses.push({ test: 'C7', result });
 
-    assert('C7: status=200', result.status === 200);
+    assert('C7: result is not null (canary-handled)', result !== null);
+    assert('C7: status=200', result.status === 200, `got ${result.status}`);
     assert('C7: ok=true', result.body?.ok === true);
     assert('C7: captured=true', result.body?.captured === true, `got ${result.body?.captured}`);
     assert('C7: stripe called (skip_capture ignored)', stripeAdapter.calls.length === 1, `got ${stripeAdapter.calls.length}`);

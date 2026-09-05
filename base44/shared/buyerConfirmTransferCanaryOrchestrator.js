@@ -433,7 +433,7 @@ export async function maybeRouteCanaryBuyerConfirm(deps) {
     }
   }
 
-  if (!executorUrl) {
+  if (!executorUrl && !deps.executorClient) {
     return { status: 500, body: { error: 'Authority executor URL not configured', code: 'NO_EXECUTOR_URL' } };
   }
 
