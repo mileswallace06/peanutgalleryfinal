@@ -3,16 +3,17 @@
 --
 -- INSTALLATION ORDER: ... → 002_functions → 002b → 002c → 002d → 002e → 002f → 003 → 004
 --
--- P0-01T-CORRECTIVE-4: The no-relist invariant must cover not only capture
+-- P0-01T-CORRECTIVE-4B: The no-relist invariant must cover not only capture
 -- failure (already in 002_functions.sql record_capture_result) but also
 -- abort_binding, begin_cancel, and record_cancel_result. If the buyer has
 -- confirmed receipt (transfer_state = 'buyer_confirmed_received'), the
 -- listing must NEVER be released back to available — the ticket may have
 -- been delivered.
 --
--- This file overrides record_cancel_result with the no-relist check added.
--- abort_binding and begin_cancel no-relist checks were patched directly in
--- 002_functions.sql.
+-- This file contains the CANONICAL record_cancel_result definition with the
+-- no-relist check. The old definition was removed from 002_functions.sql
+-- (replaced with DROP FUNCTION IF EXISTS) to ensure exactly one definition.
+-- abort_binding and begin_cancel no-relist checks are in 002_functions.sql.
 -- ═══════════════════════════════════════════════════════════════════════════
 
 CREATE OR REPLACE FUNCTION authority_v1.record_cancel_result(
@@ -125,7 +126,8 @@ BEGIN
     -- receipt (transfer_state = 'buyer_confirmed_received'), NEVER release
     -- the listing back to available. Binding → canceled, but authority stays
     -- frozen + recovery_blocked.
-    IF v_authority.transfer_state = 'buyer_confirmed_received' THEN
+    IF v_authority.transfer_state = 'buyer_confirmed_received'
+       OR v_authority.buyer_confirmed_at IS NOT NULL THEN
       UPDATE reservation_payment_bindings SET capture_state = 'canceled', updated_at = now()
       WHERE purchase_id = v_action.purchase_id AND capture_state = v_expected_binding_state;
       GET DIAGNOSTICS v_updated_count = ROW_COUNT;
