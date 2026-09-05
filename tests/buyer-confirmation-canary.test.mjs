@@ -570,9 +570,11 @@ export async function runAllTests({ adminSql, executorUrl }) {
     console.log('  ✅ T13 passed');
   }
 
-  // ── T14: Non-frozen lifecycle rejection ──────────────────────────────────
+  // ── T14: Terminal replay (sold) — authorized buyer gets idempotent replay ──
+  // P0-01T-CORRECTIVE-2: authority.buyer_user_id is cleared after sold, but the
+  // binding retains it. The validated binding supplies buyer identity.
   {
-    console.log('\n[T14] Non-frozen lifecycle rejection (sold)');
+    console.log('\n[T14] Terminal replay (sold) — authorized buyer');
     await cleanupAll(adminSql);
     const listingId = `cert_t14_${genId()}`;
     const sellerUserId = genEmail('seller');
@@ -580,7 +582,7 @@ export async function runAllTests({ adminSql, executorUrl }) {
     const purchaseId = `pur_${genId()}`;
     const paymentIntentId = `pi_${genId()}`;
 
-    await setupListing(adminSql, { listingId, sellerUserId, buyerUserId, purchaseId, paymentIntentId, lifecycleState: 'sold', transferState: 'seller_reported_sent' });
+    await setupListing(adminSql, { listingId, sellerUserId, buyerUserId, purchaseId, paymentIntentId, lifecycleState: 'sold', transferState: 'buyer_confirmed_received' });
 
     const opId = `op_buyer_confirm_${listingId}_${genId()}`;
     const requestHash = sha256(JSON.stringify({ op: 'record_buyer_confirmation', listing_id: listingId, expected_version: 1, buyer_user_id: buyerUserId, purchase_id: purchaseId }));
@@ -589,8 +591,8 @@ export async function runAllTests({ adminSql, executorUrl }) {
       listingId, 1, buyerUserId, purchaseId, opId, requestHash,
     );
 
-    assert('T14: ok=false', result?.ok === false);
-    assert('T14: code=CONFLICT', result?.code === 'CONFLICT', `got ${result?.code}`);
+    assert('T14: ok=true (terminal replay)', result?.ok === true, `got ${JSON.stringify(result)}`);
+    assert('T14: idempotent=true', result?.idempotent === true, `got ${JSON.stringify(result)}`);
 
     await cleanupAll(adminSql);
     console.log('  ✅ T14 passed');

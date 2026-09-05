@@ -49,9 +49,9 @@ Deno.serve(async (req) => {
   // ── P0-01T: Canary buyer-confirmation route (before capture canary) ──────
   // The buyer's "I Received My Tickets" button calls capturePayment with
   // confirming_role='buyer'. For canary-eligible synthetic listings, route to
-  // the buyer-confirmation orchestrator (authority-only, NO financial capture)
-  // before the capture canary. This records buyer confirmation without
-  // triggering payout, capture, refund, release, relist, or recovery-unblock.
+  // the buyer-confirmation orchestrator which composes BOTH buyer confirmation
+  // (advisory, authority-first) AND financial capture (via captureCanaryOrchestrator).
+  // No request field (including skip_capture) may bypass capture.
   if (listing && purchase && body?.confirming_role === 'buyer') {
     const executorUrl = secrets.get('AUTHORITY_V1_DB_URL_DEV_EXECUTOR');
     const recorderUrl = secrets.get('AUTHORITY_V1_DB_URL_DEV_STRIPE_RECORDER');

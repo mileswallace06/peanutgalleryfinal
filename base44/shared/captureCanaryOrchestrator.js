@@ -100,7 +100,7 @@ export async function runCanaryCaptureSaga(deps) {
     // Retry or reconciliation — action already exists, skip begin_capture
     skipBeginCapture = true;
   } else if (state.lifecycle_state === 'sold') {
-    // Already finalized — idempotent replay
+    // Already finalized — idempotent replay (safe projection, no internal state)
     return {
       status: 200,
       body: {
@@ -108,11 +108,10 @@ export async function runCanaryCaptureSaga(deps) {
         captured: true,
         finalized: true,
         replay: true,
-        authority: state,
       },
     };
   } else if (state.lifecycle_state === 'available') {
-    // Already released (failed capture) — idempotent replay
+    // Already released (failed capture) — idempotent replay (safe projection)
     return {
       status: 200,
       body: {
@@ -121,11 +120,10 @@ export async function runCanaryCaptureSaga(deps) {
         capture_failed: true,
         released: true,
         replay: true,
-        authority: state,
       },
     };
   } else {
-    return { status: 409, body: { error: 'Not in capturable state', code: 'NOT_CAPTURABLE', authority_state: state } };
+    return { status: 409, body: { error: 'Not in capturable state', code: 'NOT_CAPTURABLE' } };
   }
 
   let beginResult = null;
@@ -154,7 +152,7 @@ export async function runCanaryCaptureSaga(deps) {
       // Structured conflict (OPERATION_ID_CONFLICT, BINDING_NOT_AUTHORIZED, CONFLICT)
       return {
         status: 409,
-        body: { error: 'begin_capture conflict', code: beginResult?.code || 'CONFLICT', authority: beginResult },
+        body: { error: 'begin_capture conflict', code: beginResult?.code || 'CONFLICT' },
       };
     }
 
@@ -165,7 +163,6 @@ export async function runCanaryCaptureSaga(deps) {
         body: {
           ok: true,
           replay: true,
-          authority: beginResult,
         },
       };
     }
@@ -224,7 +221,6 @@ export async function runCanaryCaptureSaga(deps) {
         code: recordResult?.code || 'RECORD_FAILED',
         provider_called: true,
         provider_result: derived,
-        authority: recordResult,
       },
     };
   }
@@ -263,8 +259,6 @@ export async function runCanaryCaptureSaga(deps) {
         finalized: true,
         provider_called: true,
         provider_result: 'succeeded',
-        authority: recordResult,
-        mirror,
       },
     };
   }
@@ -303,8 +297,6 @@ export async function runCanaryCaptureSaga(deps) {
         released: true,
         provider_called: true,
         provider_result: 'failed',
-        authority: recordResult,
-        mirror,
       },
     };
   }
@@ -319,7 +311,6 @@ export async function runCanaryCaptureSaga(deps) {
       recovery_blocked: true,
       provider_called: true,
       provider_result: 'unknown',
-      authority: recordResult,
     },
   };
 }

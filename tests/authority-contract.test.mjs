@@ -2118,10 +2118,12 @@ check('buyer_confirmation_orchestrator_no_direct_financial_primitives', () => {
   if (src.includes('beginCancel')) throw new Error('must NOT call beginCancel');
   return true;
 });
-check('buyer_confirmation_orchestrator_reports_no_financial_effects_on_skip', () => {
+check('buyer_confirmation_orchestrator_no_skip_capture_bypass', () => {
   const src = readFileSync(join(ROOT, 'base44/shared/buyerConfirmTransferCanaryOrchestrator.js'), 'utf8');
-  // The skip_capture and no-action paths still report no_financial_effects: true
-  if (!src.includes('no_financial_effects: true')) throw new Error('must report no_financial_effects: true on skip/no-action paths');
+  // P0-01T-CORRECTIVE-2: skip_capture is removed entirely — no bypass allowed
+  if (src.includes('skip_capture')) throw new Error('orchestrator must NOT reference skip_capture (bypass removed)');
+  // no_financial_effects is no longer returned — capture is always composed
+  if (src.includes('no_financial_effects')) throw new Error('orchestrator must NOT report no_financial_effects (capture is always composed)');
   return true;
 });
 check('buyer_confirmation_orchestrator_uses_outbox_on_mirror_failure', () => {
@@ -2233,14 +2235,14 @@ check('capture_context_granted_to_executor_only', () => {
   return true;
 });
 check('capture_context_revoked_from_public', () => {
-  if (!roles.includes('REVOKE EXECUTE ON FUNCTION authority_v1.get_active_capture_context(TEXT) FROM PUBLIC')) {
-    throw new Error('EXECUTE not revoked from PUBLIC on get_active_capture_context');
+  if (!roles.includes('REVOKE EXECUTE ON FUNCTION authority_v1.get_active_capture_context(TEXT,TEXT,TEXT,TEXT) FROM PUBLIC')) {
+    throw new Error('EXECUTE not revoked from PUBLIC on get_active_capture_context(4-arg)');
   }
-  if (!roles.includes('REVOKE EXECUTE ON FUNCTION authority_v1.get_active_capture_context(TEXT) FROM authority_stripe_recorder')) {
-    throw new Error('EXECUTE not revoked from recorder on get_active_capture_context');
+  if (!roles.includes('REVOKE EXECUTE ON FUNCTION authority_v1.get_active_capture_context(TEXT,TEXT,TEXT,TEXT) FROM authority_stripe_recorder')) {
+    throw new Error('EXECUTE not revoked from recorder on get_active_capture_context(4-arg)');
   }
-  if (!roles.includes('REVOKE EXECUTE ON FUNCTION authority_v1.get_active_capture_context(TEXT) FROM authority_worker')) {
-    throw new Error('EXECUTE not revoked from worker on get_active_capture_context');
+  if (!roles.includes('REVOKE EXECUTE ON FUNCTION authority_v1.get_active_capture_context(TEXT,TEXT,TEXT,TEXT) FROM authority_worker')) {
+    throw new Error('EXECUTE not revoked from worker on get_active_capture_context(4-arg)');
   }
   return true;
 });
@@ -2256,6 +2258,12 @@ check('capture_context_returns_only_active_actions', () => {
   if (fnBody.includes("'succeeded'") && fnBody.includes('status IN')) {
     throw new Error("must NOT include 'succeeded' (terminal) in active filter");
   }
+  // P0-01T-CORRECTIVE-2: Must validate complete tuple (4 arguments)
+  if (!fnBody.includes('p_purchase_id')) throw new Error('must validate p_purchase_id (4-arg tuple)');
+  if (!fnBody.includes('p_payment_intent_id')) throw new Error('must validate p_payment_intent_id (4-arg tuple)');
+  if (!fnBody.includes('p_buyer_user_id')) throw new Error('must validate p_buyer_user_id (4-arg tuple)');
+  // Must lock the binding to validate the tuple
+  if (!fnBody.includes('FROM reservation_payment_bindings')) throw new Error('must lock reservation_payment_bindings for tuple validation');
   return true;
 });
 check('capture_context_orchestrator_uses_dedicated_function', () => {
@@ -2264,12 +2272,24 @@ check('capture_context_orchestrator_uses_dedicated_function', () => {
   if (!src.includes('getActiveCaptureContext')) {
     throw new Error('orchestrator must use getActiveCaptureContext for capture context');
   }
+  // P0-01T-CORRECTIVE-2: Must pass 4 arguments (listing, purchase, PI, buyer)
+  if (!src.includes('getActiveCaptureContext(')) {
+    throw new Error('orchestrator must call getActiveCaptureContext with 4 args');
+  }
   // Must NOT reference active_capture_action_id or active_capture_stripe_idem_key from get_state
   if (src.includes('active_capture_action_id')) {
     throw new Error('orchestrator must NOT use active_capture_action_id from get_state');
   }
   if (src.includes('active_capture_stripe_idem_key')) {
     throw new Error('orchestrator must NOT use active_capture_stripe_idem_key from get_state');
+  }
+  // P0-01T-CORRECTIVE-2: Must NOT have admin bypass for buyer confirmation
+  if (src.includes('isAdmin') || src.includes("user.role === 'admin'")) {
+    throw new Error('orchestrator must NOT have admin bypass for buyer confirmation');
+  }
+  // P0-01T-CORRECTIVE-2: Must NOT forward skip_capture
+  if (src.includes('skip_capture')) {
+    throw new Error('orchestrator must NOT reference skip_capture');
   }
   return true;
 });

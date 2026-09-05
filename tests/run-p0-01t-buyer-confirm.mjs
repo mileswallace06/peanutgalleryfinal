@@ -1,14 +1,16 @@
 /**
- * Runner for P0-01T buyer-confirmation + composition test suites.
+ * Runner for P0-01T-CORRECTIVE-2 buyer-confirmation + composition test suites.
  *
  * Loads the npm-compat ESM hook (for npm: specifiers), dynamically imports
  * both DI test modules, assembles deps from process.env secrets, and invokes
  * runAllTests for each. Aggregates results and asserts that sensitive
- * operational credentials (capture action_id, stripe_idempotency_key) never
- * appear in any response body, log output, or error message.
+ * operational credentials (capture action_id, stripe_idempotency_key,
+ * buyer_user_id, buyer_email) never appear in any response body, log output,
+ * or error message.
  *
- * Secrets are read from process.env (already set as app secrets). No secret
- * values are ever printed, logged, or returned.
+ * P0-01T-CORRECTIVE-2: The credential scanner now scans successful response
+ * bodies recursively (via the composition suite's built-in recursive scanner)
+ * and aggregates leak violations from both suites.
  */
 import { register } from 'node:module';
 import { pathToFileURL } from 'node:url';
@@ -29,12 +31,16 @@ const { neon } = await import('npm:@neondatabase/serverless@0.10.4');
 const adminSql = neon(adminUrl);
 
 // ── Credential leak detection ──────────────────────────────────────────────
-// Sensitive operational credentials that must never appear in responses, logs,
-// or errors. We scan every saga response body (stringified), all captured log
-// output, and all error messages for these patterns.
+// Sensitive field names that must never appear in response bodies.
+// The composition suite's recursive scanner checks response bodies for these
+// keys AND for known credential values. The runner scans logs and failure
+// descriptions for these field name patterns.
 const SENSITIVE_PATTERNS = [
   /action_id/i,
   /stripe_idempotency_key/i,
+  /idem_key/i,
+  /buyer_user_id/i,
+  /buyer_email/i,
 ];
 
 let leakViolations = [];
@@ -98,7 +104,7 @@ const allResults = { suites: [], totalPassed: 0, totalFailed: 0 };
   // Scan all failures for credential leaks
   if (result.failures) {
     for (const f of result.failures) {
-      scanForLeaks(`buyer-confirm failure: ${f.name}`, f.details);
+      scanForLeaks(`buyer-confirm failure: ${f.name || f}`, f.details || f);
     }
   }
 }
@@ -106,7 +112,7 @@ const allResults = { suites: [], totalPassed: 0, totalFailed: 0 };
 // 2. Composition suite (buyer confirmation + capture)
 {
   originalLog('\n═══════════════════════════════════════════════════════════════════');
-  originalLog('  Suite 2: P0-01T Composition — Buyer Confirmation + Capture');
+  originalLog('  Suite 2: P0-01T-CORRECTIVE-2 Composition — Buyer Confirmation + Capture');
   originalLog('═══════════════════════════════════════════════════════════════════');
 
   await cleanupAll(adminSql);
@@ -122,7 +128,18 @@ const allResults = { suites: [], totalPassed: 0, totalFailed: 0 };
   // Scan all failures for credential leaks
   if (result.failures) {
     for (const f of result.failures) {
-      scanForLeaks(`composition failure: ${f.name}`, typeof f === 'string' ? f : f.details);
+      scanForLeaks(`composition failure: ${typeof f === 'string' ? f : (f.name || f.details || f)}`, typeof f === 'string' ? f : (f.details || f));
+    }
+  }
+
+  // Aggregate recursive leak violations from the composition suite's built-in scanner
+  if (result.leakViolations && result.leakViolations.length > 0) {
+    for (const lv of result.leakViolations) {
+      leakViolations.push({
+        context: `composition response [${lv.test}]`,
+        pattern: lv.violations.map(v => v.type + ':' + (v.key || v.name)).join(','),
+        snippet: JSON.stringify(lv.violations).slice(0, 200),
+      });
     }
   }
 }
@@ -141,7 +158,7 @@ for (const line of capturedErrors) {
 
 // ── Credential leak assertions ─────────────────────────────────────────────
 originalLog('\n═══════════════════════════════════════════════════════════════════');
-originalLog('  Credential Leak Scan');
+originalLog('  Credential Leak Scan (recursive response bodies + logs + errors)');
 originalLog('═══════════════════════════════════════════════════════════════════');
 
 let leakPass = 0, leakFail = 0;
@@ -158,7 +175,7 @@ if (leakViolations.length === 0) {
 
 // ── Final summary ──────────────────────────────────────────────────────────
 originalLog('\n═══════════════════════════════════════════════════════════════════');
-originalLog('  P0-01T Runner — Final Summary');
+originalLog('  P0-01T-CORRECTIVE-2 Runner — Final Summary');
 originalLog('═══════════════════════════════════════════════════════════════════');
 for (const s of allResults.suites) {
   originalLog(`  ${s.name}: ${s.passed} passed, ${s.failed} failed`);
