@@ -30,12 +30,23 @@ function genId() {
 }
 
 function genEmail(prefix = 'user') {
-  return `${prefix}_${genId()}@test.peanutgallery.app`;
+  const email = `${prefix}_${genId()}@test.peanutgallery.app`;
+  if (_recordBuyerId && prefix === 'buyer') _recordBuyerId(email);
+  return email;
 }
 
 let passed = 0;
 let failed = 0;
 const failures = [];
+
+// ── Credential callbacks for leak scanning ──────────────────────────────────
+let _recordActionId, _recordIdemKey, _recordBuyerId, _responseBodies;
+export function setCredentialCallbacks(callbacks) {
+  _recordActionId = callbacks.recordActionId;
+  _recordIdemKey = callbacks.recordIdemKey;
+  _recordBuyerId = callbacks.recordBuyerId;
+  _responseBodies = callbacks.responseBodies;
+}
 
 function assert(name, cond, details) {
   if (cond) {
@@ -741,5 +752,5 @@ export async function runAllTests({ adminSql, executorUrl }) {
     failures.forEach(f => console.log(`    - ${f.name}: ${f.details}`));
   }
 
-  return { passed, failed, failures };
+  return { passed, failed, failures, responseBodies: _responseBodies || [] };
 }

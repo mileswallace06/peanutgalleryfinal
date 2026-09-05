@@ -35,6 +35,15 @@ function sha256Hex(text) {
 function genId() {
   return randomUUID().replace(/-/g, '').slice(0, 16);
 }
+// ── Credential callbacks for leak scanning ──────────────────────────────────
+let _recordActionId, _recordIdemKey, _recordBuyerId, _responseBodies;
+export function setCredentialCallbacks(callbacks) {
+  _recordActionId = callbacks.recordActionId;
+  _recordIdemKey = callbacks.recordIdemKey;
+  _recordBuyerId = callbacks.recordBuyerId;
+  _responseBodies = callbacks.responseBodies;
+}
+
 function genEmail(prefix = 'user') {
   return `${prefix}_${genId()}@test.peanutgallery.app`;
 }
@@ -186,6 +195,11 @@ export async function runAllTests({ adminSql, executorUrl, recorderUrl }) {
     allKnownCredentials['action_id'] = actionId;
     allKnownCredentials['stripe_idem_key'] = stripeIdemKey;
     allKnownCredentials['buyer_email'] = buyerId;
+
+    // P0-01T-CORRECTIVE-4C: Wire credential callbacks for centralized leak scanning
+    if (_recordActionId) _recordActionId(actionId);
+    if (_recordIdemKey) _recordIdemKey(stripeIdemKey);
+    if (_recordBuyerId) _recordBuyerId(buyerId);
 
     // 1. Initialize listing
     const initOpId = `op_init_${listingId}_${genId()}`;
@@ -739,5 +753,5 @@ export async function runAllTests({ adminSql, executorUrl, recorderUrl }) {
     failures.forEach(f => console.log(`    - ${f}`));
   }
 
-  return { passed, failed, failures, leakViolations };
+  return { passed, failed, failures, leakViolations, responseBodies: allResponses.map(r => ({ test: r.test, body: r.result?.body })) };
 }

@@ -32,6 +32,15 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 
+// ── Credential callbacks for leak scanning ──────────────────────────────────
+let _recordActionId, _recordIdemKey, _recordBuyerId, _responseBodies;
+export function setCredentialCallbacks(callbacks) {
+  _recordActionId = callbacks.recordActionId;
+  _recordIdemKey = callbacks.recordIdemKey;
+  _recordBuyerId = callbacks.recordBuyerId;
+  _responseBodies = callbacks.responseBodies;
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function sha256Hex(text) {
   return crypto.createHash('sha-256').update(text).digest('hex');
@@ -119,6 +128,7 @@ export async function runAllTests(deps) {
     const listingId = `abort_${prefix}_${genId()}`;
     const sellerId = `seller_${prefix}`;
     const buyerId = `buyer_${prefix}`;
+    if (_recordBuyerId) _recordBuyerId(buyerId);
     const tokenHash = sha256Hex(`token_${prefix}_${genId()}`);
     const revision = genId();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
@@ -708,5 +718,5 @@ export async function runAllTests(deps) {
   const fc = await countAll();
   assert(Object.values(fc).every(v => v === 0), `T_final: all 0 after cleanup (got ${JSON.stringify(fc)})`);
 
-  return { passed, failed, failures: failures.slice(0, 10), finalCounts: fc, results };
+  return { passed, failed, failures: failures.slice(0, 10), finalCounts: fc, results, responseBodies: _responseBodies || [] };
 }

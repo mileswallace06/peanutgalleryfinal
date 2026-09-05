@@ -58,12 +58,29 @@ async function preflight({ adminUrl, executorUrl, recorderUrl }) {
   checks.push({ name: 'EXECUTOR_ROLE', pass: execInfo.roleOk });
   checks.push({ name: 'RECORDER_ROLE', pass: recInfo.roleOk });
 
-  // Same database (hostname may differ — Neon pooled vs direct endpoints)
-  const sameDb = adminInfo.database === execInfo.database && execInfo.database === recInfo.database;
-  checks.push({ name: 'SAME_DATABASE', pass: sameDb });
+  // P0-01T-CORRECTIVE-4C: Restore endpoint/hostname verification.
+  // Do NOT replace hostname verification with database-name equality.
+  // Normalize only the legitimate pooler hostname variation (Neon -pooler suffix)
+  // and compare all three normalized hostnames against each other.
+  // The admin URL is the owner-verified reference; executor and recorder must
+  // resolve to the same Neon development branch endpoint.
+  function normalizeNeonHostname(hostname) {
+    let h = (hostname || '').toLowerCase().replace(/\.$/, '');
+    // Strip the -pooler suffix (Neon pooled vs direct endpoints on the same branch)
+    h = h.replace(/-pooler\./, '.');
+    return h;
+  }
 
-  if (!sameDb) {
-    return { pass: false, checks, reason: 'DATABASE_MISMATCH' };
+  const adminEndpoint = normalizeNeonHostname(adminInfo.hostname);
+  const execEndpoint = normalizeNeonHostname(execInfo.hostname);
+  const recEndpoint = normalizeNeonHostname(recInfo.hostname);
+  const sameEndpoint = adminEndpoint === execEndpoint && execEndpoint === recEndpoint;
+  checks.push({ name: 'SAME_ENDPOINT', pass: sameEndpoint });
+
+  if (!sameEndpoint) {
+    // Endpoints differ after normalization — require owner action.
+    // Do not assume same branch just because database names match.
+    return { pass: false, checks, reason: 'ENDPOINT_MISMATCH_NEEDS_OWNER_ACTION' };
   }
 
   const { neon } = await import('npm:@neondatabase/serverless@0.10.4');
@@ -113,7 +130,8 @@ async function preflight({ adminUrl, executorUrl, recorderUrl }) {
   checks.push({ name: 'INITIAL_EMPTY', pass: allEmpty });
 
   if (!allEmpty) {
-    return { pass: false, checks, reason: 'TABLES_NOT_EMPTY', initialCounts };
+    // Existing rows present — require owner action. Do NOT cleanup.
+    return { pass: false, checks, reason: 'TABLES_NOT_EMPTY_NEEDS_OWNER_ACTION', initialCounts };
   }
 
   const allPass = checks.every(c => c.pass);
