@@ -71,11 +71,7 @@ export async function runCanaryCaptureSaga(deps) {
   if (!recorderClient) return { status: 500, body: { error: 'Recorder client required' } };
   if (!stripeAdapter) return { status: 500, body: { error: 'Stripe adapter required' } };
 
-  // ── Generate stable IDs (or reuse provided ones for retry) ───────────────
-  const actionId = params.action_id || `act_capture_${purchaseId}_${genId()}`;
-  const stripeIdemKey = params.stripe_idempotency_key || `idem_capture_${actionId}`;
-
-  // ── 1. Read authority state ──────────────────────────────────────────────
+  // ── 1. Read authority state BEFORE generating any credentials ────────────
   let state;
   try {
     state = await executorClient.getState(listingId);
@@ -87,20 +83,19 @@ export async function runCanaryCaptureSaga(deps) {
   }
 
   // ── Branch on authority state ────────────────────────────────────────────
-  //   reserved → first attempt: call begin_capture (reserved → frozen)
-  //   frozen   → retry/reconciliation: skip begin_capture, go to Stripe + record
-  //   sold     → already finalized (succeeded): idempotent replay
-  //   available→ already released (failed): idempotent replay
+  //   reserved → first attempt: generate credentials, call begin_capture
+  //   frozen   → retry/reconciliation: call getActiveCaptureContext, use
+  //              ONLY the returned authoritative action ID + Stripe key
+  //   sold     → already finalized: idempotent replay, ZERO Stripe calls
+  //   available→ already released: idempotent replay, ZERO Stripe calls
   //   other    → conflict
-  let skipBeginCapture = false;
 
-  if (state.lifecycle_state === 'reserved') {
-    // First attempt — call begin_capture
-  } else if (state.lifecycle_state === 'frozen') {
-    // Retry or reconciliation — action already exists, skip begin_capture
-    skipBeginCapture = true;
-  } else if (state.lifecycle_state === 'sold') {
+  let actionId;
+  let stripeIdemKey;
+
+  if (state.lifecycle_state === 'sold') {
     // Already finalized — idempotent replay (safe projection, no internal state)
+    // P0-01T-CORRECTIVE-4B: sold replay makes ZERO Stripe calls.
     return {
       status: 200,
       body: {
@@ -122,6 +117,44 @@ export async function runCanaryCaptureSaga(deps) {
         replay: true,
       },
     };
+  } else if (state.lifecycle_state === 'reserved') {
+    // First attempt — generate server credentials, call begin_capture
+    actionId = `act_capture_${purchaseId}_${genId()}`;
+    stripeIdemKey = `idem_capture_${actionId}`;
+  } else if (state.lifecycle_state === 'frozen') {
+    // P0-01T-CORRECTIVE-4B: Frozen retry — call the exact four-argument
+    // getActiveCaptureContext using listing, purchase, PaymentIntent, and buyer.
+    // Use ONLY the returned authoritative action ID and Stripe idempotency key.
+    // Never accept action IDs or idempotency keys from HTTP input.
+    let captureContext;
+    try {
+      captureContext = await executorClient.getActiveCaptureContext(
+        listingId, purchaseId, paymentIntentId, buyerUserId,
+      );
+    } catch (e) {
+      return { status: 500, body: { ok: false, code: 'CAPTURE_CONTEXT_READ_FAILED' } };
+    }
+
+    if (!captureContext?.ok) {
+      return { status: 409, body: { ok: false, code: 'CAPTURE_CONTEXT_MISMATCH' } };
+    }
+
+    // Binding not found: wrong buyer, wrong purchase, or wrong payment_intent
+    if (!captureContext?.binding_found) {
+      return { status: 403, body: { ok: false, code: 'NOT_BUYER' } };
+    }
+
+    // Invalid context tuple or state pair → stable error, ZERO Stripe calls
+    if (!captureContext?.has_active_capture) {
+      return { status: 409, body: { ok: false, code: 'CAPTURE_CONTEXT_MISMATCH' } };
+    }
+
+    actionId = captureContext.action_id;
+    stripeIdemKey = captureContext.stripe_idempotency_key;
+
+    if (!actionId || !stripeIdemKey) {
+      return { status: 409, body: { ok: false, code: 'CAPTURE_CONTEXT_MISMATCH' } };
+    }
   } else {
     return { status: 409, body: { error: 'Not in capturable state', code: 'NOT_CAPTURABLE' } };
   }
@@ -129,7 +162,7 @@ export async function runCanaryCaptureSaga(deps) {
   let beginResult = null;
   const expectedVersion = state.version;
 
-  if (!skipBeginCapture) {
+  if (state.lifecycle_state === 'reserved') {
     const operationId = `op_begin_${actionId}_${genId()}`;
 
     // ── 2. begin_capture via executor (supplies stable Stripe idempotency key) ─
@@ -280,10 +313,13 @@ export async function runCanaryCaptureSaga(deps) {
   }
 
   if (derived === 'failed') {
-    // P0-01T-CORRECTIVE-3: Only mirror active when the authoritative recorder
-    // result explicitly reports released === true. Never infer release merely
-    // from Stripe's derived 'failed' result. A post-buyer-confirmation failure
-    // keeps the authority frozen and recovery-blocked (no relist).
+    // P0-01T-CORRECTIVE-4B: Fail-closed recorder outcome validation.
+    // For derived=failed, accept ONLY:
+    //   A. released === true  (ordinary pre-delivery failure → release)
+    //   B. released === false AND recovery_blocked === true with an
+    //      authoritative stable reason (post-buyer-confirmation failure)
+    // Anything else returns RECORDER_RESULT_INVALID. Do not invent
+    // recovery_blocked or a fallback reason in JavaScript.
     if (recordResult?.released === true) {
       // Ordinary pre-delivery capture failure → authority available → mirror active
       const mirrorPayload = {
@@ -322,18 +358,48 @@ export async function runCanaryCaptureSaga(deps) {
       };
     }
 
-    // Post-buyer-confirmation capture failure (or other non-release failure):
-    // authority stays frozen + recovery_blocked. Do NOT mirror active.
+    // Post-buyer-confirmation capture failure: authority stays frozen + recovery_blocked.
+    // P0-01T-CORRECTIVE-4B: Only accept when the recorder explicitly reports
+    // released === false AND recovery_blocked === true with a stable reason.
+    if (recordResult?.released === false && recordResult?.recovery_blocked === true) {
+      const stableReason = recordResult?.recovery_blocked_reason;
+      if (!stableReason || typeof stableReason !== 'string') {
+        // No authoritative stable reason → reject
+        return {
+          status: 500,
+          body: {
+            ok: false,
+            error: 'Recorder returned failed without stable recovery_blocked_reason',
+            code: 'RECORDER_RESULT_INVALID',
+            provider_called: true,
+            provider_result: 'failed',
+          },
+        };
+      }
+
+      return {
+        status: 200,
+        body: {
+          ok: true,
+          captured: false,
+          capture_failed: true,
+          released: false,
+          recovery_blocked: true,
+          recovery_blocked_reason: stableReason,
+          code: recordResult?.code || 'CAPTURE_FAILED',
+          provider_called: true,
+          provider_result: 'failed',
+        },
+      };
+    }
+
+    // Neither released=true nor (released=false AND recovery_blocked=true with reason)
     return {
-      status: 200,
+      status: 500,
       body: {
-        ok: true,
-        captured: false,
-        capture_failed: true,
-        released: false,
-        recovery_blocked: true,
-        recovery_blocked_reason: recordResult?.recovery_blocked_reason || 'capture_failed',
-        code: recordResult?.code || 'CAPTURE_FAILED',
+        ok: false,
+        error: 'Recorder returned failed with invalid outcome shape',
+        code: 'RECORDER_RESULT_INVALID',
         provider_called: true,
         provider_result: 'failed',
       },
@@ -447,10 +513,10 @@ export async function maybeRouteCanaryCapture(deps) {
   let stripeAdapter = deps.stripeAdapter;
 
   if (!executorUrl && deps.secrets) {
-    executorUrl = deps.secrets.get('AUTHORITY_V1_DB_URL_DEV_EXECUTOR');
+    executorUrl = await deps.secrets.get('AUTHORITY_V1_DB_URL_DEV_EXECUTOR');
   }
   if (!recorderUrl && deps.secrets) {
-    recorderUrl = deps.secrets.get('AUTHORITY_V1_DB_URL_DEV_STRIPE_RECORDER');
+    recorderUrl = await deps.secrets.get('AUTHORITY_V1_DB_URL_DEV_STRIPE_RECORDER');
   }
   if (!stripeAdapter && deps.secrets) {
     const secretKey = await deps.secrets.get('STRIPE_SECRET_KEY');
@@ -516,7 +582,7 @@ export async function maybeRouteCanaryCapture(deps) {
     user,
     executorClient,
     recorderClient,
-    stripeAdapter: deps.stripeAdapter,
+    stripeAdapter,
     params: {
       listing_id: listing.id,
       purchase_id: purchase.id,

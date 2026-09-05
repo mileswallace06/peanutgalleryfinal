@@ -420,10 +420,10 @@ export async function maybeRouteCanaryBuyerConfirm(deps) {
   let stripeAdapter = deps.stripeAdapter;
 
   if (!executorUrl && deps.secrets) {
-    executorUrl = deps.secrets.get('AUTHORITY_V1_DB_URL_DEV_EXECUTOR');
+    executorUrl = await deps.secrets.get('AUTHORITY_V1_DB_URL_DEV_EXECUTOR');
   }
   if (!recorderUrl && deps.secrets) {
-    recorderUrl = deps.secrets.get('AUTHORITY_V1_DB_URL_DEV_STRIPE_RECORDER');
+    recorderUrl = await deps.secrets.get('AUTHORITY_V1_DB_URL_DEV_STRIPE_RECORDER');
   }
   if (!stripeAdapter && deps.secrets) {
     const secretKey = await deps.secrets.get('STRIPE_SECRET_KEY');

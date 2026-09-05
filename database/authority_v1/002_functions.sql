@@ -697,7 +697,7 @@ BEGIN
   END IF;
 
   -- P0-01T-CORRECTIVE-3: Reconciliation must have recovery_blocked_reason = 'capture_unknown'
-  IF v_is_reconciliation AND v_authority.recovery_blocked_reason <> 'capture_unknown' THEN
+  IF v_is_reconciliation AND v_authority.recovery_blocked_reason IS DISTINCT FROM 'capture_unknown' THEN
     UPDATE reservation_operations SET status = 'rejected', error_code = 'RECOVERY_REASON_MISMATCH',
       result_json = jsonb_build_object('ok', false, 'code', 'RECOVERY_REASON_MISMATCH',
         'reason', 'reconciliation requires recovery_blocked_reason = capture_unknown',
