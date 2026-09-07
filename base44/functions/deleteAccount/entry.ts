@@ -1,6 +1,8 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+import { secrets } from 'base44:runtime';
 import Stripe from 'npm:stripe@14.21.0';
-import { isMaintenanceActive } from '../../shared/maintenance.ts';
+import { createMission1Runtime } from '../../shared/mission1Runtime.js';
+import { assertNoOpenAccountObligations } from '../../shared/purchaseExpiry.js';
 import { getUserPrivate, getUserSecurityProfile } from '../../shared/privateData.ts';
 
 /**
@@ -37,6 +39,13 @@ Deno.serve(async (req) => {
 
     const sr = base44.asServiceRole;
     const results = {};
+    try {
+      const key = Deno.env.get('STRIPELIVESECRETKEY');
+      const stripe = key ? new Stripe(key) : null;
+      const runtime = await createMission1Runtime({ entities: sr.entities, stripe, user, secrets });
+      await assertNoOpenAccountObligations(sr.entities, targetEmail, runtime);
+    }
+    catch (err) { return Response.json({ error: 'Resolve payment and reservation obligations before deleting this account.', code: err.message }, { status: 409 }); }
 
     // Phase 1B: use private records to identify everything owned by the account
     const userPrivate = await getUserPrivate(base44, targetEmail);
@@ -47,26 +56,9 @@ Deno.serve(async (req) => {
     const targetUsers = await sr.entities.User.filter({ email: targetEmail }).catch(() => []);
     const targetUserId = targetUsers[0]?.id || null;
 
-    // ── 1. Cancel active Stripe payment intents (maintenance-gated) ──────
-    if (!isMaintenanceActive()) {
-      const secretKey = Deno.env.get('STRIPELIVESECRETKEY');
-      if (secretKey && (secretKey.startsWith('sk_test_') || secretKey.startsWith('sk_live_'))) {
-        const stripe = new Stripe(secretKey);
-        const [buyerPurchases, sellerPurchases] = await Promise.all([
-          sr.entities.Purchase.filter({ buyer_email: targetEmail }).catch(() => []),
-          sr.entities.Purchase.filter({ seller_email: targetEmail }).catch(() => []),
-        ]);
-        const uncaptured = [...buyerPurchases, ...sellerPurchases].filter(
-          p => p.payment_intent_id && !p.payment_captured
-        );
-        await Promise.all(uncaptured.map(p =>
-          stripe.paymentIntents.cancel(p.payment_intent_id).catch(() => {})
-        ));
-        results.stripe_intents_cancelled = uncaptured.length;
-      }
-    } else {
-      results.stripe_intents_cancelled = 0;
-    }
+    // Payment settlement belongs to the verified purchase workflow. Account
+    // deletion never makes best-effort cancellations or erases pending evidence.
+    results.stripe_intents_cancelled = 0;
 
     // ── 2. Cancel active listings ─────────────────────────────────────────
     const userListings = await sr.entities.Listing.filter({ seller_email: targetEmail }).catch(() => []);

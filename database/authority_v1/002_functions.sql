@@ -219,6 +219,8 @@ BEGIN
       last_operation_at = now(), last_operation_payload_hash = p_request_hash, updated_at = now()
   WHERE listing_id = p_listing_id AND version = p_expected_version
     AND lifecycle_state = 'available' AND checkout_quarantined = false AND recovery_blocked = false
+    AND NOT EXISTS(SELECT 1 FROM reservation_outbox WHERE listing_id=p_listing_id AND event_id LIKE 'm1-%'
+      AND effect_type='mirror_project' AND delivery_status<>'delivered')
   RETURNING version INTO v_new_version;
 
   IF NOT FOUND THEN
@@ -261,6 +263,23 @@ BEGIN
   IF v_replay IS NOT NULL THEN RETURN v_replay; END IF;
   IF NOT v_acquired THEN
     RETURN jsonb_build_object('ok', false, 'code', v_op_status);
+  END IF;
+
+  -- Same row lock as checkout admission and bind_payment_intent. The
+  -- absence check executes AFTER this lock, in a separate statement/snapshot.
+  -- An extra Base44 lookup or mirror CAS cannot substitute for this transaction.
+  PERFORM 1 FROM reservation_authority WHERE listing_id = p_listing_id FOR UPDATE;
+  IF EXISTS (SELECT 1 FROM reservation_authority WHERE listing_id = p_listing_id
+      AND (checkout_operation_id IS NOT NULL OR payment_release_operation_id IS NOT NULL
+           OR recovery_blocked OR checkout_quarantined))
+     OR EXISTS(SELECT 1 FROM reservation_outbox WHERE listing_id=p_listing_id AND event_id LIKE 'm1-%'
+       AND effect_type='mirror_project' AND delivery_status<>'delivered')
+     OR EXISTS (SELECT 1 FROM reservation_payment_bindings WHERE listing_id = p_listing_id
+       AND capture_state NOT IN ('canceled','refunded','aborted','failed')) THEN
+    UPDATE reservation_operations SET status = 'rejected', error_code = 'PAYMENT_OBLIGATION',
+      result_json = '{"ok":false,"code":"PAYMENT_OBLIGATION"}', committed_at = now()
+    WHERE operation_id = p_server_operation_id;
+    RETURN jsonb_build_object('ok', false, 'code', 'PAYMENT_OBLIGATION');
   END IF;
 
   v_revision := gen_random_uuid()::TEXT;
@@ -313,6 +332,23 @@ BEGIN
   IF v_replay IS NOT NULL THEN RETURN v_replay; END IF;
   IF NOT v_acquired THEN
     RETURN jsonb_build_object('ok', false, 'code', v_op_status);
+  END IF;
+
+  -- Same row lock as checkout admission and bind_payment_intent. The
+  -- absence check executes AFTER this lock, in a separate statement/snapshot.
+  -- An extra Base44 lookup or mirror CAS cannot substitute for this transaction.
+  PERFORM 1 FROM reservation_authority WHERE listing_id = p_listing_id FOR UPDATE;
+  IF EXISTS (SELECT 1 FROM reservation_authority WHERE listing_id = p_listing_id
+      AND (checkout_operation_id IS NOT NULL OR payment_release_operation_id IS NOT NULL
+           OR recovery_blocked OR checkout_quarantined))
+     OR EXISTS(SELECT 1 FROM reservation_outbox WHERE listing_id=p_listing_id AND event_id LIKE 'm1-%'
+       AND effect_type='mirror_project' AND delivery_status<>'delivered')
+     OR EXISTS (SELECT 1 FROM reservation_payment_bindings WHERE listing_id = p_listing_id
+       AND capture_state NOT IN ('canceled','refunded','aborted','failed')) THEN
+    UPDATE reservation_operations SET status = 'rejected', error_code = 'PAYMENT_OBLIGATION',
+      result_json = '{"ok":false,"code":"PAYMENT_OBLIGATION"}', committed_at = now()
+    WHERE operation_id = p_server_operation_id;
+    RETURN jsonb_build_object('ok', false, 'code', 'PAYMENT_OBLIGATION');
   END IF;
 
   v_revision := gen_random_uuid()::TEXT;

@@ -21,8 +21,11 @@ import Stripe from 'npm:stripe@14.21.0';
 import { secrets } from 'base44:runtime';
 import { isMaintenanceActive } from '../../shared/maintenance.ts';
 import { sendUserNotification, sendTransactionalEmail } from '../../shared/notifications.ts';
-import { getPurchasePrivate, upsertPurchasePrivate, upsertListingPrivate, getListingPrivate } from '../../shared/privateData.ts';
+import { getPurchasePrivate, upsertPurchasePrivate } from '../../shared/privateData.ts';
 import { isCanaryListing, isCanaryEnabled } from '../../shared/authCanary.js';
+import { expirePurchaseSafely, assertNoPurchaseForReservation, readCleanupRows } from '../../shared/purchaseExpiry.js';
+import { runReleaseReservation } from '../../shared/releaseOrchestrator.js';
+import { createMission1Runtime, authorizeMission1Worker } from '../../shared/mission1Runtime.js';
 import { runCanaryScheduledRelease } from '../../shared/canaryScheduledRelease.js';
 
 const SELLER_REMINDER_1_MS  =  5 * 60 * 1000;  //  5 min
@@ -37,34 +40,45 @@ const STALE_PI_WARN_MS      =  6 * 24 * 60 * 60 * 1000; // 6 days → warn befor
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
 
-  let callerRole = null;
+  let workerUser;
+  try { workerUser = await authorizeMission1Worker(req, base44, secrets); }
+  catch (error) { return Response.json({ code: error.message }, { status: 403 }); }
+  const body = await req.json().catch(() => ({}));
+  const secretKey = Deno.env.get('STRIPELIVESECRETKEY');
+  const stripe = secretKey ? new Stripe(secretKey) : null;
+  let cleanupDeps;
+  try { cleanupDeps = await createMission1Runtime({ entities: base44.asServiceRole.entities, stripe, user: workerUser, secrets }); }
+  catch (error) { return Response.json({ ok: false, code: error.message }, { status: 500 }); }
+  // Recovery always uses stored identity and freshly retrieved provider state.
+  // Alert resolution, status flags and epochs in request JSON are never inputs.
+  let recoveryFailures = [];
   try {
-    const user = await base44.auth.me();
-    callerRole = user?.role;
-    if (callerRole && callerRole !== 'admin') {
-      return Response.json({ error: 'Forbidden' }, { status: 403 });
+    if (body.action === 'recovery_status') return Response.json(await cleanupDeps.recoveryStatus());
+    if (body.action === 'recover_purchase' && typeof body.purchase_id === 'string') {
+      const result = await cleanupDeps.recoverPurchase(body.purchase_id);
+      return Response.json(result.body, { status: result.status });
     }
-  } catch (_) {
-    // No session = called by automation scheduler — allow
-  }
-
-  if (isMaintenanceActive()) return Response.json({ ok: true, skipped: 'maintenance mode' });
-
+    if (body.action === 'recover_admission' && typeof body.operation_id === 'string') {
+      const result = await cleanupDeps.recoverAdmission(body.operation_id, body.payment_intent_id);
+      return Response.json(result);
+    }
+    if (body.action && body.action !== 'drain_recovery') return Response.json({ code: 'INVALID_RECOVERY_ACTION' }, { status: 400 });
+    const recovered = await cleanupDeps.drainRecovery();
+    recoveryFailures = recovered.results.filter(result => !result.ok);
+    if (body.action === 'drain_recovery') return Response.json(recovered, { status: recovered.ok ? 200 : 500 });
+  } catch (error) { return Response.json({ ok: false, code: error.message }, { status: 500 }); }
+  if (isMaintenanceActive()) return Response.json({ ok: recoveryFailures.length === 0, skipped: 'maintenance mode', failures: recoveryFailures }, { status: recoveryFailures.length ? 500 : 200 });
   const now = Date.now();
+  const failures = [...recoveryFailures];
   let sent = 0;
   let expired = 0;
   let reviewed = 0;
   let reservationsCleared = 0;
 
-  const secretKey = Deno.env.get('STRIPELIVESECRETKEY');
-  const stripe = secretKey ? new Stripe(secretKey) : null;
-
-  // ── SCALE-1: Only process purchases from last 72h + higher limit
-  const cutoff = new Date(now - 72 * 60 * 60 * 1000).toISOString();
-  const pending = await base44.asServiceRole.entities.Purchase.filter({
-    transfer_status: 'pending_transfer',
-    created_date: { $gte: cutoff },
-  }, '-created_date', 500);
+  // Failed expiry work must remain retryable beyond the old 72-hour window.
+  let pending;
+  try { pending = await readCleanupRows(cleanupDeps.entities.Purchase, { transfer_status: 'pending_transfer' }); }
+  catch (err) { return Response.json({ ok: false, code: err.message }, { status: 500 }); }
 
   for (const purchase of pending) {
     // Phase 1B: read authoritative identities + reminder flags from PurchasePrivate
@@ -93,7 +107,7 @@ Deno.serve(async (req) => {
           await base44.asServiceRole.entities.Purchase.update(purchase.id, {
             reminder_flags: { ...flags, seller_r1: true },
           });
-          try { await upsertPurchasePrivate(base44, purchase.id, { reminder_flags: { ...flags, seller_r1: true } }); } catch (_) {}
+          try { await upsertPurchasePrivate(base44, purchase.id, { reminder_flags: { ...flags, seller_r1: true } }); } catch {}
           sent++;
         } catch (err) {
           console.error('[reminders] seller_r1 failed for', purchase.id, err?.message);
@@ -112,7 +126,7 @@ Deno.serve(async (req) => {
           await base44.asServiceRole.entities.Purchase.update(purchase.id, {
             reminder_flags: { ...flags, seller_r2: true },
           });
-          try { await upsertPurchasePrivate(base44, purchase.id, { reminder_flags: { ...flags, seller_r2: true } }); } catch (_) {}
+          try { await upsertPurchasePrivate(base44, purchase.id, { reminder_flags: { ...flags, seller_r2: true } }); } catch {}
           sent++;
         } catch (err) {
           console.error('[reminders] seller_r2 failed for', purchase.id, err?.message);
@@ -137,7 +151,7 @@ Deno.serve(async (req) => {
           await base44.asServiceRole.entities.Purchase.update(purchase.id, {
             reminder_flags: { ...flags, buyer_r1: true },
           });
-          try { await upsertPurchasePrivate(base44, purchase.id, { reminder_flags: { ...flags, buyer_r1: true } }); } catch (_) {}
+          try { await upsertPurchasePrivate(base44, purchase.id, { reminder_flags: { ...flags, buyer_r1: true } }); } catch {}
           sent++;
         } catch (err) {
           console.error('[reminders] buyer_r1 failed for', purchase.id, err?.message);
@@ -156,7 +170,7 @@ Deno.serve(async (req) => {
           await base44.asServiceRole.entities.Purchase.update(purchase.id, {
             reminder_flags: { ...flags, buyer_r2: true },
           });
-          try { await upsertPurchasePrivate(base44, purchase.id, { reminder_flags: { ...flags, buyer_r2: true } }); } catch (_) {}
+          try { await upsertPurchasePrivate(base44, purchase.id, { reminder_flags: { ...flags, buyer_r2: true } }); } catch {}
           sent++;
         } catch (err) {
           console.error('[reminders] buyer_r2 failed for', purchase.id, err?.message);
@@ -168,58 +182,23 @@ Deno.serve(async (req) => {
 
     // ── Case A: Seller never confirmed within 48h → expire ───────────────────
     if (!purchase.seller_confirmed && elapsedTotal >= SELLER_EXPIRY_MS) {
-      try {
-        if (stripe) {
-          try {
-            const pi = await stripe.paymentIntents.retrieve(purchase.payment_intent_id);
-            if (pi.status === 'requires_capture') {
-              await stripe.paymentIntents.cancel(purchase.payment_intent_id);
-            }
-          } catch (stripeErr) {
-            console.error('[reminders] stripe cancel failed for', purchase.id, stripeErr?.message);
-          }
+      const result = await expirePurchaseSafely(cleanupDeps, purchase.id, { sellerExpiry: true });
+      if (result.status === 200) {
+        if (!result.body.already_completed) {
+          expired++;
+          await sendUserNotification(base44, {
+            user_email: authoritativeBuyerEmail, title: 'Purchase expired',
+            body: result.body.settlement === 'refunded' ? 'Your payment refund has been verified.' : 'The seller did not transfer your tickets in time. Your payment authorization has been released.',
+            type: 'listing_expired', purchase_id: purchase.id,
+          }).catch(() => {});
+          await sendUserNotification(base44, {
+            user_email: authoritativeSellerEmail, title: 'Your listing expired',
+            body: 'The transfer deadline passed. Payment release was verified and your listing has been restored.',
+            type: 'listing_expired', purchase_id: purchase.id,
+          }).catch(() => {});
         }
-        await base44.asServiceRole.entities.Purchase.update(purchase.id, { transfer_status: 'expired' });
-        try {
-          await base44.asServiceRole.entities.Listing.update(purchase.listing_id, {
-            status: 'active',
-            reservation_token: null,
-            reservation_expires_at: null,
-            reserved_by_email: null,
-            reservation_revision: null,
-          });
-          // Phase 1B: clear ListingPrivate reservation
-          try {
-            await upsertListingPrivate(base44, purchase.listing_id, { reservation_token: null, reservation_expires_at: null, reserved_by_email: null, reservation_revision: null });
-            // Verify LP cleared
-            const verifyLp = await getListingPrivate(base44, purchase.listing_id);
-            if (verifyLp && verifyLp.reservation_token) {
-              console.error('[reminders] LP clear did not persist for listing:', purchase.listing_id);
-            }
-          } catch (lpErr) {
-            console.error('[reminders] LP clear failed for listing:', purchase.listing_id, lpErr?.message);
-          }
-        } catch (listErr) {
-          console.error('[reminders] Listing clear failed for listing:', purchase.listing_id, listErr?.message);
-        }
-        await sendUserNotification(base44, {
-          user_email: authoritativeBuyerEmail,
-          title: 'Purchase expired — refund issued',
-          body: 'The seller did not transfer your tickets in time. Your payment was not captured.',
-          type: 'listing_expired',
-          purchase_id: purchase.id,
-        }).catch(() => {});
-        await sendUserNotification(base44, {
-          user_email: authoritativeSellerEmail,
-          title: 'Your listing expired',
-          body: 'You did not confirm the transfer within 48 hours. The listing has been restored.',
-          type: 'listing_expired',
-          purchase_id: purchase.id,
-        }).catch(() => {});
-        console.log('[reminders] AUTO-EXPIRED purchase (seller no-show):', purchase.id);
-        expired++;
-      } catch (err) {
-        console.error('[reminders] expiry failed for', purchase.id, err?.message);
+      } else {
+        failures.push({ purchase_id: purchase.id, ...result.body });
       }
       continue;
     }
@@ -279,7 +258,7 @@ Deno.serve(async (req) => {
         await base44.asServiceRole.entities.Purchase.update(purchase.id, {
           reminder_flags: { ...flags, stale_pi_warned: true },
         });
-        try { await upsertPurchasePrivate(base44, purchase.id, { reminder_flags: { ...flags, stale_pi_warned: true } }); } catch (_) {}
+        try { await upsertPurchasePrivate(base44, purchase.id, { reminder_flags: { ...flags, stale_pi_warned: true } }); } catch {}
         console.log('[reminders] STALE PI warning sent for:', purchase.id);
       } catch (err) {
         console.error('[reminders] stale PI warn failed:', purchase.id, err?.message);
@@ -291,7 +270,7 @@ Deno.serve(async (req) => {
   try {
     const reservedListings = await base44.asServiceRole.entities.Listing.filter({
       status: 'pending_transfer',
-    }, '-created_date', 500).catch(() => []);
+    }, '-created_date', 500);
 
     for (const l of reservedListings) {
       if (l.reservation_token && l.reservation_expires_at) {
@@ -312,42 +291,32 @@ Deno.serve(async (req) => {
             }
             continue;
           }
-          const activePurchases = await base44.asServiceRole.entities.Purchase.filter({
-            listing_id: l.id,
-            transfer_status: 'pending_transfer',
-          }).catch(() => []);
-          if (activePurchases.length === 0) {
-            try {
-              await base44.asServiceRole.entities.Listing.update(l.id, {
-                status: 'active',
-                reservation_token: null,
-                reservation_expires_at: null,
-                reserved_by_email: null,
-                reservation_revision: null,
-              });
-              try {
-                await upsertListingPrivate(base44, l.id, { reservation_token: null, reservation_expires_at: null, reserved_by_email: null, reservation_revision: null });
-              } catch (lpErr) {
-                console.error('[reminders] LP clear failed for expired reservation:', l.id, lpErr?.message);
-              }
-              reservationsCleared++;
-            } catch (listErr) {
-              console.error('[reminders] Listing clear failed for expired reservation:', l.id, listErr?.message);
-            }
-            console.log('[reminders] Cleared expired reservation for listing:', l.id);
+          try {
+            // An ongoing purchase intentionally keeps this reservation locked.
+            // Only lookup uncertainty or an actual expiry failure is an error.
+            const activePurchases = await readCleanupRows(cleanupDeps.entities.Purchase, {
+              listing_id: l.id, transfer_status: 'pending_transfer',
+            });
+            if (activePurchases.length > 0) continue;
+            await assertNoPurchaseForReservation(cleanupDeps.entities, l);
+            const result = await runReleaseReservation(cleanupDeps, { listing_id: l.id });
+            if (result.status !== 200) throw new Error(result.body.code || 'UNPAID_RELEASE_UNVERIFIED');
+            reservationsCleared++;
+          } catch (err) {
+            failures.push({ listing_id: l.id, code: err.message });
           }
         }
       }
     }
   } catch (err) {
-    console.error('[reminders] reservation cleanup error:', err?.message);
+    failures.push({ code: 'RESERVATION_LOOKUP_FAILED', error: err.message });
   }
 
   // ── Clean up expired reservations on ACTIVE listings ────────────────────
   try {
     const activeListings = await base44.asServiceRole.entities.Listing.filter({
       status: 'active',
-    }, '-created_date', 500).catch(() => []);
+    }, '-created_date', 500);
 
     for (const l of activeListings) {
       if (l.reserved_by_email && l.reservation_expires_at) {
@@ -369,29 +338,20 @@ Deno.serve(async (req) => {
             continue;
           }
           try {
-            await base44.asServiceRole.entities.Listing.update(l.id, {
-              reserved_by_email: null,
-              reservation_token: null,
-              reservation_expires_at: null,
-              reservation_revision: null,
-            });
-            try {
-              await upsertListingPrivate(base44, l.id, { reserved_by_email: null, reservation_token: null, reservation_expires_at: null, reservation_revision: null });
-            } catch (lpErr) {
-              console.error('[reminders] LP clear failed for active listing:', l.id, lpErr?.message);
-            }
+            await assertNoPurchaseForReservation(cleanupDeps.entities, l);
+            const result = await runReleaseReservation(cleanupDeps, { listing_id: l.id });
+            if (result.status !== 200) throw new Error(result.body.code || 'UNPAID_RELEASE_UNVERIFIED');
             reservationsCleared++;
-          } catch (listErr) {
-            console.error('[reminders] Listing clear failed for active listing:', l.id, listErr?.message);
+          } catch (err) {
+            failures.push({ listing_id: l.id, code: err.message });
           }
-          console.log('[reminders] Cleared expired reservation on active listing:', l.id);
         }
       }
     }
   } catch (err) {
-    console.error('[reminders] active reservation cleanup error:', err?.message);
+    failures.push({ code: 'RESERVATION_LOOKUP_FAILED', error: err.message });
   }
 
   console.log(`[processTransferReminders] done. sent=${sent} expired=${expired} reviewed=${reviewed} reservationsCleared=${reservationsCleared} total=${pending.length}`);
-  return Response.json({ sent, expired, reviewed, reservationsCleared, total: pending.length });
+  return Response.json({ ok: failures.length === 0, sent, expired, reviewed, reservationsCleared, total: pending.length, failures }, { status: failures.length ? 500 : 200 });
 });

@@ -16,6 +16,8 @@
  *   H. No test passes because of 429
  */
 import { readFileSync } from 'node:fs';
+import { attachMission1Postgres, closeMission1Databases } from './helpers/mission1Postgres.mjs';
+import { expirePurchaseSafely } from '../base44/shared/purchaseExpiry.js';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import {
@@ -199,6 +201,19 @@ function createMockDeps(config = {}) {
         if (hooks[`after_${name}_update`]) hooks[`after_${name}_update`](updated);
         return updated;
       },
+      // Mirror adapter only; all exclusion in Mission 1 tests uses real SQL.
+      updateMany: async (query, data) => {
+        if (hooks[`before_${name}_updateMany`]) {
+          const result = await hooks[`before_${name}_updateMany`](query, data);
+          if (result?.throw) throw result.throw;
+        }
+        const matches = applyFilter([...store.values()], query);
+        for (const record of matches) {
+          store.set(record.id, { ...record, ...data, updated_date: new Date().toISOString() });
+          writeLog.push({ entity:name, op:'updateMany', id:record.id, data });
+        }
+        return { updated:matches.length };
+      },
       delete: async (id) => {
         if (hooks[`before_${name}_delete`]) await hooks[`before_${name}_delete`](id);
         store.delete(id);
@@ -240,7 +255,7 @@ function createMockDeps(config = {}) {
     _hooks: hooks,
   };
 
-  return deps;
+  return attachMission1Postgres(deps);
 }
 
 // ── Default seed: active listing + seller + buyer ─────────────────────────
@@ -742,6 +757,10 @@ async function testDifferentRevisions() {
   let timeOffset = 0;
   const deps = createMockDeps({ seed, now: () => Date.now() + timeOffset });
   const r1 = await runCreateCheckout(deps, { listing_id: 'listing_1' });
+  // A new revision is eligible only after the previous payment and authority
+  // reservation actually settle. Keep all original success/PI-count assertions.
+  const settled = await expirePurchaseSafely(deps, r1.body.purchase_id);
+  if (settled.status !== 200) throw new Error(`Revision fixture settlement failed: ${settled.body.code}; checkout=${JSON.stringify(r1)}`);
   const listing = deps._state.stores.Listing.get('listing_1');
   listing.status = 'active'; listing.reservation_token = null; listing.reserved_by_email = null;
   listing.reservation_expires_at = null; listing.updated_date = '2026-08-01T11:00:00.000Z';
@@ -2093,10 +2112,12 @@ async function main() {
   console.log(`=== Overall: ${allPassed ? 'PASS' : 'FAIL'} ===`);
   console.log(`Tests run: ${tests.length}, Passed: ${tests.filter(t => t.passed).length}, Failed: ${tests.filter(t => !t.passed).length}`);
 
-  if (!allPassed) process.exit(1);
+  await closeMission1Databases();
+  if (!allPassed) process.exitCode = 1;
 }
 
-main().catch(err => {
+main().catch(async err => {
+  process.exitCode = 1;
   console.error('Test runner error:', err);
-  process.exit(1);
+  await closeMission1Databases();
 });

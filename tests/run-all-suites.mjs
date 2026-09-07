@@ -27,16 +27,20 @@ const ROOT = join(__dirname, '..');
 // ── Suite definitions ────────────────────────────────────────────────────────
 // Each suite: { name, file, required (true = blocks exit code) }
 const SUITES = [
+  { name: 'mission1-audit-reproductions', file: 'tests/mission1-audit-reproductions.test.mjs', localPostgres: true, required: true },
+  { name: 'mission1-authority', file: 'tests/mission1-authority.test.mjs', localPostgres: true, required: true },
+  { name: 'mission1-handler-integration', file: 'tests/mission1-handler-integration.test.mjs', localPostgres: true, required: true },
+  { name: 'seller-expiry-safety', file: 'tests/seller-expiry-safety.test.mjs', localPostgres: true, required: true },
   // Legacy safety suites
   { name: 'freeze-completeness', file: 'tests/freeze-completeness.test.mjs', required: true },
   { name: 'payment-reconciliation', file: 'tests/payment-reconciliation.test.mjs', required: true },
   { name: 'payment-webhook', file: 'tests/payment-webhook.test.mjs', required: true },
-  { name: 'checkout-concurrency', file: 'tests/checkout-concurrency.test.mjs', required: true },
+  { name: 'checkout-concurrency', file: 'tests/checkout-concurrency.test.mjs', localPostgres: true, required: true },
   { name: 'legacy-revision-init', file: 'tests/legacy-revision-init.test.mjs', required: true },
   { name: 'durable-recovery', file: 'tests/durable-recovery.test.mjs', required: true },
   { name: 'partial-finalization-states', file: 'tests/partial-finalization-states.test.mjs', required: true },
   { name: 'post-clear-verification', file: 'tests/post-clear-verification.test.mjs', required: true },
-  { name: 'mutation-paths', file: 'tests/mutation-paths.test.mjs', required: true },
+  { name: 'mutation-paths', file: 'tests/mutation-paths.test.mjs', localPostgres: true, required: true },
   { name: 'post-prefetch-concurrency', file: 'tests/post-prefetch-concurrency.test.mjs', required: true },
   { name: 'tuple-invariant-validation', file: 'tests/tuple-invariant-validation.test.mjs', required: true },
 
@@ -68,7 +72,10 @@ const SUITES = [
 // ── Runner ────────────────────────────────────────────────────────────────────
 function runSuite(suite) {
   return new Promise((resolve) => {
-    const child = spawn('node', [join(ROOT, suite.file)], {
+    const args = suite.localPostgres
+      ? [join(ROOT, 'tests/run-mission1-local.mjs'), join(ROOT, suite.file)]
+      : [...(suite.nodeArgs || []), join(ROOT, suite.file)];
+    const child = spawn('node', args, {
       stdio: ['ignore', 'pipe', 'pipe'],
       cwd: ROOT,
     });

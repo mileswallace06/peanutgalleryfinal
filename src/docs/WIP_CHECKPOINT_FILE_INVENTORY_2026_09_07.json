@@ -1,0 +1,321 @@
+{
+  "purpose": "Preserved Mission 1 input to the WIP checkpoint; paths, sizes and hashes only",
+  "source_branch": "astra/launch-readiness",
+  "baseline": "d7673a973d9d55cd51ce549f71f9488020cb6d93",
+  "modified_count": 23,
+  "untracked_count": 20,
+  "files": [
+    {
+      "path": "base44/entities/ListingPrivate.jsonc",
+      "kind": "modified",
+      "bytes": 9595,
+      "sha256": "4111522a6c749b7259f0d27f2f1817fd3562d61357fd075efd201d93ae4439d1"
+    },
+    {
+      "path": "base44/entities/PurchasePrivate.jsonc",
+      "kind": "modified",
+      "bytes": 7721,
+      "sha256": "dd6de92456fa45a1ef17facc333ee21e9ab20312101bafeee76d64ac5add872e"
+    },
+    {
+      "path": "base44/functions/abortCheckout/entry.ts",
+      "kind": "modified",
+      "bytes": 5839,
+      "sha256": "f7c506de946f83867647b3d0bab368b87ad69074278bfd8e7c89355030d23933"
+    },
+    {
+      "path": "base44/functions/cancelPurchase/entry.ts",
+      "kind": "modified",
+      "bytes": 9467,
+      "sha256": "130b8d99b298c5f51c52c4ac90275e4d2593e4ccbec1d649d54fadf33d2587a5"
+    },
+    {
+      "path": "base44/functions/createCheckout/entry.ts",
+      "kind": "modified",
+      "bytes": 1672,
+      "sha256": "64f1f116b03aa7a60957858016fb099f6221cf086a367d8a8b0f448a6c7bc44e"
+    },
+    {
+      "path": "base44/functions/deleteAccount/entry.ts",
+      "kind": "modified",
+      "bytes": 10183,
+      "sha256": "55fcb82899ed84497743c4498824cfd0d0e6f352ffd9e3425616a8bbd27fcc4b"
+    },
+    {
+      "path": "base44/functions/processTransferReminders/entry.ts",
+      "kind": "modified",
+      "bytes": 18832,
+      "sha256": "d4dab83b7bacbfcb58fb55a907e30c59a04e632319754bd8d6d77be203fe7930"
+    },
+    {
+      "path": "base44/functions/releaseReservation/entry.ts",
+      "kind": "modified",
+      "bytes": 2829,
+      "sha256": "a35679b8a679df6956a75b530e3a744633a330d0c30a66242127712acde82a52"
+    },
+    {
+      "path": "base44/functions/reserveListing/entry.ts",
+      "kind": "modified",
+      "bytes": 2201,
+      "sha256": "7f618f5fb958fcb761a4b280d60d71477da57fd2239ca837fc590948e295759d"
+    },
+    {
+      "path": "base44/functions/syncInventoryOnListingChange/entry.ts",
+      "kind": "modified",
+      "bytes": 1083,
+      "sha256": "2059e0bdb593675eacc4239ec2a53189814053e9633e735ec5a285391464a189"
+    },
+    {
+      "path": "base44/shared/abortOrchestrator.js",
+      "kind": "modified",
+      "bytes": 1969,
+      "sha256": "f092704e1d5d4be72fc9f901cd3efc1358980f57e1b930e20da12047040fbfb7"
+    },
+    {
+      "path": "base44/shared/cancelOrchestrator.js",
+      "kind": "modified",
+      "bytes": 3580,
+      "sha256": "47d8da85bbbdb1a8b8213f2632031b4f3359e8077024fb66ae1a88d2333f509a"
+    },
+    {
+      "path": "base44/shared/checkoutAdmissionRecovery.js",
+      "kind": "untracked",
+      "bytes": 2307,
+      "sha256": "03500e8a7a55296c9e9d09dc2d3d0af0e1eb0ee96f7edb184c276dcb5a95c42f"
+    },
+    {
+      "path": "base44/shared/checkoutOrchestrator.js",
+      "kind": "modified",
+      "bytes": 26946,
+      "sha256": "0e84ed5b480cb70c825f31de465b8fd7614f8499b5a46aee82bbf0f96477abab"
+    },
+    {
+      "path": "base44/shared/mission1Authority.js",
+      "kind": "untracked",
+      "bytes": 4136,
+      "sha256": "be5fca7a03982c2ea20546ef4006f71757e92f10da053e924d0357d8bd4483a9"
+    },
+    {
+      "path": "base44/shared/mission1Projector.js",
+      "kind": "untracked",
+      "bytes": 10644,
+      "sha256": "6e0fab4ebd2530c8b09070d70b4732474618ed6c015000467229290e98c48b7d"
+    },
+    {
+      "path": "base44/shared/mission1Reserve.js",
+      "kind": "untracked",
+      "bytes": 2102,
+      "sha256": "9f4b2be22313e6c0cd558e5bfe97277732198baf2e0d69da6b62efd72714190e"
+    },
+    {
+      "path": "base44/shared/mission1Runtime.js",
+      "kind": "untracked",
+      "bytes": 4773,
+      "sha256": "bfcba928485db70c48981ec9b24de298e5aab638837ac1d2d72153f14fc0cea8"
+    },
+    {
+      "path": "base44/shared/paymentRelease.js",
+      "kind": "untracked",
+      "bytes": 3155,
+      "sha256": "894db5289d151b25df462d90e4f416909c2c9fccc27c3139f75bd0c2e57c3cc9"
+    },
+    {
+      "path": "base44/shared/purchaseExpiry.js",
+      "kind": "untracked",
+      "bytes": 11721,
+      "sha256": "45fa6cf41bd33354a7ff003b90a0a6a4d25629cf9fbd019d59ed83029db8ea45"
+    },
+    {
+      "path": "base44/shared/releaseOrchestrator.js",
+      "kind": "modified",
+      "bytes": 3185,
+      "sha256": "c3f474468d574089e025f038957039565aa9f27589faf65b195c2034c6b6951a"
+    },
+    {
+      "path": "base44/shared/remindersOrchestrator.js",
+      "kind": "modified",
+      "bytes": 5437,
+      "sha256": "75e59d6b0a44420f4f79d5c23547c4857a354d0f2510799aff0991c460a8fa4a"
+    },
+    {
+      "path": "base44/shared/tupleTransition.js",
+      "kind": "modified",
+      "bytes": 41241,
+      "sha256": "212ab1aea11876051bec1e0eded2149f0cb8c33c224089c47022f679dfae42bd"
+    },
+    {
+      "path": "database/authority_v1/001b_mission1_fields.sql",
+      "kind": "untracked",
+      "bytes": 785,
+      "sha256": "29980b93f15dd4e570222ce385157ca2ed91fa915566d77e735172e55698aa18"
+    },
+    {
+      "path": "database/authority_v1/002_functions.sql",
+      "kind": "modified",
+      "bytes": 108538,
+      "sha256": "9a7b93b431910012b311b57464fb7f8038f1c486257c1dba2b695df7d2e369bb"
+    },
+    {
+      "path": "database/authority_v1/003_workers.sql",
+      "kind": "modified",
+      "bytes": 16090,
+      "sha256": "5f5a947938582ecfc7da8042e0fb00ce893f8ab1a5c4b9f7e9020a0b61cde960"
+    },
+    {
+      "path": "database/authority_v1/005_mission1.sql",
+      "kind": "untracked",
+      "bytes": 27673,
+      "sha256": "3fa04abd3e34da2d269498c358b1eecdbeb7d5315bc7510ac102d65389fafa69"
+    },
+    {
+      "path": "database/authority_v1/006_mission1_projection.sql",
+      "kind": "untracked",
+      "bytes": 17510,
+      "sha256": "c80bb2214e1f5b13365f708251256575103ccdfe649583bc1f5dfe87bea6a6e7"
+    },
+    {
+      "path": "package.json",
+      "kind": "modified",
+      "bytes": 6269,
+      "sha256": "9a3b36d53c00a528881f6dba2db0f2941324551bf745c4f6bc9ef9c05c72ed36"
+    },
+    {
+      "path": "src/docs/MISSION_1_AUDIT_REPAIRS.md",
+      "kind": "untracked",
+      "bytes": 22624,
+      "sha256": "833b8621da0662a0a240817bac253ad9f018641810f81eec1763b9ec1e259e12"
+    },
+    {
+      "path": "src/docs/MISSION_1_HANDLER_INTEGRATION.md",
+      "kind": "untracked",
+      "bytes": 22373,
+      "sha256": "889f99c5c9b649611b65f61352e31f208483ce925aaf556ad7d95ffe375cbb4b"
+    },
+    {
+      "path": "src/docs/MISSION_1_PAYMENT_INVENTORY_SAFETY.md",
+      "kind": "untracked",
+      "bytes": 14222,
+      "sha256": "e3cd68c27dd765f513f3c42863bfbbf6146581fe25a50be588e096f31c9f0d1b"
+    },
+    {
+      "path": "tests/checkout-concurrency.test.mjs",
+      "kind": "modified",
+      "bytes": 110186,
+      "sha256": "12e21e6529f9e3f24ef75501df088dfa5701b9e2a41c50f05734fc10d58a5d02"
+    },
+    {
+      "path": "tests/helpers/loadMission1Handler.mjs",
+      "kind": "untracked",
+      "bytes": 4151,
+      "sha256": "70b8f250a311c9ea899347f353c024b2942f1e5ea8c50c0613010cd5c6c33901"
+    },
+    {
+      "path": "tests/helpers/mission1Postgres.mjs",
+      "kind": "untracked",
+      "bytes": 8635,
+      "sha256": "c64480af16f88380b90e708ab00d315db25f06d5b12a244eb73ea0980c1d1c54"
+    },
+    {
+      "path": "tests/helpers/mockDeps.mjs",
+      "kind": "modified",
+      "bytes": 13031,
+      "sha256": "21671b875e2217817f0e809dfbcc655eda6283e382270c7eca9e5bae3e879f1f"
+    },
+    {
+      "path": "tests/mission1-audit-reproductions.test.mjs",
+      "kind": "untracked",
+      "bytes": 5876,
+      "sha256": "6544d791dd6a78cc59d2db8b5319dea6e731d9e9fccc467da26304c99ccef422"
+    },
+    {
+      "path": "tests/mission1-authority.test.mjs",
+      "kind": "untracked",
+      "bytes": 19067,
+      "sha256": "8f499dfd85373f63358e9e0c724738fc053e4c3dd1273cd64025a819ce5c82a2"
+    },
+    {
+      "path": "tests/mission1-handler-integration.test.mjs",
+      "kind": "untracked",
+      "bytes": 21425,
+      "sha256": "2e7f1dac75a1128eedcf0efdc85f1fa9d4265194827d1527caf4c7252cf9f713"
+    },
+    {
+      "path": "tests/mutation-paths.test.mjs",
+      "kind": "modified",
+      "bytes": 30202,
+      "sha256": "d83d40d438e64f4c4b1c3f5c7b1cedcdd581b5584a03499565f3039561505ea8"
+    },
+    {
+      "path": "tests/run-all-suites.mjs",
+      "kind": "modified",
+      "bytes": 8964,
+      "sha256": "7a5487fa9916104e3b3eb4b9f9a778c760a67c344de5f5ac72698bf9fdcb9471"
+    },
+    {
+      "path": "tests/run-mission1-local.mjs",
+      "kind": "untracked",
+      "bytes": 3426,
+      "sha256": "9267ed13c86ba598057616d21f8d10ddfa238cc400b03eee132364e6f8fb224f"
+    },
+    {
+      "path": "tests/seller-expiry-safety.test.mjs",
+      "kind": "untracked",
+      "bytes": 22916,
+      "sha256": "f9b3bdcd0172363e185173eba7308b0c2a6a29eead5d2e6291c0ccb429fbcb6d"
+    }
+  ],
+  "production_entry_sha256": {
+    "base44/functions/releaseReservation/entry.ts": "a35679b8a679df6956a75b530e3a744633a330d0c30a66242127712acde82a52",
+    "base44/functions/cleanupAbandonedCheckouts/entry.ts": "9855e068dd81df737cbd2b990e80f0e92d120d6414acda22a72f95cac202139c",
+    "base44/functions/stripeWebhook/entry.ts": "c3cf08deb9684c2dc8a314f9b9b2e74e7d2310ee228b5691e9136b39298631b7",
+    "base44/functions/rejectListingReview/entry.ts": "4a7a41263c39ccfe988882371ef9c24059275909d08f065275198c696cf87ff9",
+    "base44/functions/getPurchaseParticipantView/entry.ts": "d8b539f5bdf82a131a2fb6e6d6f257a2ae267bd557b263b4bafd3e755604871e",
+    "base44/functions/getMyPrivateAccount/entry.ts": "16246623da59b5519e00090aeb876778b92b0d2a4a9d4689867963ad4a655cbf",
+    "base44/functions/tmSuggest/entry.ts": "20b41e6d7383f3715e221fe759cd2ac16b500d43fd9ca5b309b2ff17857f3903",
+    "base44/functions/updateMyProfile/entry.ts": "5684aa14a3eee521f65dac4056dfce5049d2d39325733b42f9f0b17547a93068",
+    "base44/functions/getMaintenanceStatus/entry.ts": "d381965d52af59598d2b00dc406eecdcefcdabb564b3f63a66c7a64f6249d05c",
+    "base44/functions/updateMyPrivateAccount/entry.ts": "3711df1a2513b35fb249c08c1ad865edccd4ed1abe4f875647f0800440815bd1",
+    "base44/functions/processWebhookEvents/entry.ts": "76a742688a08d624085a39cbc9abe3f6b3ff4a74f9fa0e1fae8b928ba3d2ef52",
+    "base44/functions/cleanupStaleDonations/entry.ts": "8cc5d229ab9cd8b66f2526341a75b5278027d02b6967e3ce90a6cd6140bd0b4a",
+    "base44/functions/sendUserNotification/entry.ts": "46e37f8de5aa5a03b0ced0629ff0cd331db174d7dbd0b0f1d9918a6b61d0ee8e",
+    "base44/functions/seedDemoListings/entry.ts": "4cd0286492f9f16460f1b82b8a4ab2f4bf944fff137ff61f550e7e185d9b7c01",
+    "base44/functions/recordNotification/entry.ts": "4f9a4c266956f5a8462a1603b1478651007840b2a167dbe0594cf7729d04004e",
+    "base44/functions/dispatchSaleNotifications/entry.ts": "24b48e1cb4b22d64b2fd2e3e309fbbb49b9d9fce957443b303ce36534fe61d78",
+    "base44/functions/reconcilePurchaseOutcomes/entry.ts": "0088493f9a83d773bf7c65e18996284007885133da0eea5aba016cca0e0a6571",
+    "base44/functions/sellerConfirmTransfer/entry.ts": "d60a470c3bc647281e1f45a6baba149483583a678d3e232813ae3baf0187db74",
+    "base44/functions/submitListing/entry.ts": "7da973a5dc51bdcde9a74c372d55bb12451637f48652b923ee6beec8f8291ac3",
+    "base44/functions/openDispute/entry.ts": "fc92d8482a54b14d85b949bd53a45ee9cf6f72a4355fec3606b6b02d6a11d6be",
+    "base44/functions/approveListingReview/entry.ts": "389f40dc64364e5f785b49f39d20aa912612b3aca7051c883458773ad98d9002",
+    "base44/functions/checkSellerOnboarding/entry.ts": "fa7d3e54d434c860115494a6073b142ceb91979a68bc998a96986b2be08cbf59",
+    "base44/functions/scanTransferWindows/entry.ts": "8545a7a4f205005a8c14cb3b30275cc194607202e82dfd082543e531798a1dcd",
+    "base44/functions/getPublicProfile/entry.ts": "1e11b4e15700b1ddfbc1c48fe72fa7c71848aa7073b70371dae45f358fe3ebb9",
+    "base44/functions/processTransferReminders/entry.ts": "d4dab83b7bacbfcb58fb55a907e30c59a04e632319754bd8d6d77be203fe7930",
+    "base44/functions/adminOverrideAIVerification/entry.ts": "2223a1752800b37a1bc5152eb2800efb1db66ae89eb665203ddc9c38c9572648",
+    "base44/functions/createCheckout/entry.ts": "64f1f116b03aa7a60957858016fb099f6221cf086a367d8a8b0f448a6c7bc44e",
+    "base44/functions/confirmCheckoutAuthorized/entry.ts": "0c89b4e4d2fbf627e69788adc773932c3fc13a38159848a1511536bebee7eaba",
+    "base44/functions/getStripeKey/entry.ts": "e790269c5d28b9d9d235c6d0d1a85c41b5a0f376a5584763c29aa4a4541c983a",
+    "base44/functions/getTicketmasterEvents/entry.ts": "9dae73b78c726c4e2166dfe06f41d5ff9c05d4c86c4195652dd0e26750e44550",
+    "base44/functions/recordTransferOutcome/entry.ts": "c43b462eac4f65f42cb94b844afcda6ba19594af9ec9d7a5cb9c7672763224c6",
+    "base44/functions/capturePayment/entry.ts": "23ca27808c83fe8f4844e3303d4e1cf23d24eba443410849b393ea24eff53ae9",
+    "base44/functions/submitFeedback/entry.ts": "d6f42f856d6cdd7cc7db3302a1ce791a424ef0d3a108a9ef3b6c1f41ea6df60e",
+    "base44/functions/suggestCities/entry.ts": "913fa6cc422e831e19819d89dae930c45e254469c85b1106353358ea57239738",
+    "base44/functions/syncInventoryOnListingChange/entry.ts": "2059e0bdb593675eacc4239ec2a53189814053e9633e735ec5a285391464a189",
+    "base44/functions/verifyTransferProof/entry.ts": "a91e5bf773e00aa3e47c16c58c73d0ce7d7daae52f90243134351d0295a9567e",
+    "base44/functions/deleteAccount/entry.ts": "55fcb82899ed84497743c4498824cfd0d0e6f352ffd9e3425616a8bbd27fcc4b",
+    "base44/functions/createDemoUpgrade/entry.ts": "0756ea6e04a095e1651cf3f9dbc6a5a596cafc0d5684248824254ad9e6a36b26",
+    "base44/functions/getStripeMode/entry.ts": "c471fc80f32cdcdf8046539ab605388ae5681595d7ed2912f9d91fcc610791e2",
+    "base44/functions/getListingParticipantView/entry.ts": "d100efd726235c59398476586ef38df16431b2f15a5756d59a9dc288593c83d5",
+    "base44/functions/getAuthorizedProofUrl/entry.ts": "707c568b5806ab0593827e1d6aaa4bd4c82ed87e714033d1cd84c41b387d08ad",
+    "base44/functions/abortCheckout/entry.ts": "f7c506de946f83867647b3d0bab368b87ad69074278bfd8e7c89355030d23933",
+    "base44/functions/syncTMEvent/entry.ts": "c976f097408e8104217de15ce8e3c57933e211288bcc4573473775bf38930282",
+    "base44/functions/cancelPurchase/entry.ts": "130b8d99b298c5f51c52c4ac90275e4d2593e4ccbec1d649d54fadf33d2587a5",
+    "base44/functions/calibrateConfidenceWeights/entry.ts": "491d4fbcba1e5c5eb08e8e1462f8f67001e62e446d8affb295c63ad1d9cd5be9",
+    "base44/functions/reserveListing/entry.ts": "7f618f5fb958fcb761a4b280d60d71477da57fd2239ca837fc590948e295759d",
+    "base44/functions/flashDrop/entry.ts": "ee24419f7bb918e867d0ef6fd89e18cd42c6b2781ce0d3173b5000470f556135",
+    "base44/functions/onboardSeller/entry.ts": "c6726947c8a748f787af14d35fac500065d8324b4184e6638eb40e1075ae283c",
+    "base44/functions/uploadListingProof/entry.ts": "cb3ad946ee323705b18d7c6e5f93e22690ceda96b896ca422903230d9e5dff39",
+    "base44/functions/seatDonation/entry.ts": "0a2fbc0694f8bbed95b67d2ab2e650fd3c1f2bb73abdb6e2b1e449e146873cec",
+    "base44/functions/uploadTransferProof/entry.ts": "95ded35b3abe3f9859a8ff182b48b9d995897b9d39dcd7cc74d47d9724df3da8"
+  },
+  "excluded": "No original changed/untracked file excluded. Runtime caches, ignored build outputs and temporary local database/log artifacts are not checkpoint source."
+}

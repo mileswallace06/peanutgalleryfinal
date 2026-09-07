@@ -24,6 +24,10 @@
     }
   },
   "properties": {
+    "cleanup_claim": { "type": "string", "description": "Legacy cleanup claim / operational mirror only. PostgreSQL owns exclusion; clearing this field never authorizes recovery or a financial action." },
+    "cleanup_started_at": { "type": "string" },
+    "cleanup_completed_at": { "type": "string" },
+    "cleanup_evidence": { "type": "string", "description": "Operational mirror of payment-release evidence. Canonical intent, provider verification and recovery ownership persist in PostgreSQL." },
     "purchase_id": {
       "type": "string",
       "description": "FK to Purchase \u2014 primary key. One sidecar per Purchase."

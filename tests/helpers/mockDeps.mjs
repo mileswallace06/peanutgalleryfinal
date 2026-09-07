@@ -10,6 +10,7 @@ import { runAbortCheckout } from '../../base44/shared/abortOrchestrator.js';
 import { runCancelPurchase } from '../../base44/shared/cancelOrchestrator.js';
 import { runProcessTransferReminders } from '../../base44/shared/remindersOrchestrator.js';
 import { applyReservationTuple, generateClearedRevision, validateIntendedTuple } from '../../base44/shared/tupleTransition.js';
+import { attachMission1Postgres, closeMission1Databases } from './mission1Postgres.mjs';
 
 if (typeof globalThis.crypto === 'undefined' || !globalThis.crypto.randomUUID) {
   globalThis.crypto = { randomUUID: () => `uuid_${Date.now()}_${Math.random().toString(36).slice(2, 10)}` };
@@ -116,6 +117,23 @@ export function createMockDeps(config = {}) {
         return stores[name][idx];
       },
       delete: async (id) => { const idx = stores[name].findIndex(r => r.id === id); if (idx !== -1) stores[name].splice(idx, 1); },
+      updateMany: async (query, data) => {
+        if (hooks[`before_${name}_updateMany`]) await hooks[`before_${name}_updateMany`](query, data);
+        let updated = 0;
+        // Evaluate the predicate and apply the write together, without an await.
+        for (let i = 0; i < stores[name].length; i++) {
+          const row = stores[name][i];
+          const match = Object.entries(query).every(([key, value]) =>
+            value && typeof value === 'object' && '$exists' in value
+              ? (row[key] !== undefined) === value.$exists : row[key] === value);
+          if (!match) continue;
+          const fields = { ...data };
+          for (const key of silentDropFields[name] || []) delete fields[key];
+          stores[name][i] = { ...row, ...fields };
+          updated++;
+        }
+        return { updated };
+      },
     };
   }
 
@@ -144,7 +162,7 @@ export function createMockDeps(config = {}) {
     sendUserNotification: config.sendUserNotification || (async () => { providerCalls.push++; providerCalls.email++; return { push: { sent: true }, email: { sent: true } }; }),
     _state: { stores, hooks, providerCalls, silentDropFields, filterHooks },
   };
-  return deps;
+  return attachMission1Postgres(deps);
 }
 
 // ── Seed helpers ──────────────────────────────────────────────────────────
@@ -206,5 +224,6 @@ export async function runTestSuite(suiteName, tests) {
   }
   console.log(`=== Overall: ${allPassed ? 'PASS' : 'FAIL'} ===`);
   console.log(`Tests run: ${tests.length}, Passed: ${tests.filter(t => t.passed).length}, Failed: ${tests.filter(t => !t.passed).length}`);
+  await closeMission1Databases();
   if (!allPassed) process.exit(1);
 }

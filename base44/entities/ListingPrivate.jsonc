@@ -24,6 +24,7 @@
     }
   },
   "properties": {
+    "cleanup_purchase_id": { "type": "string", "description": "Purchase owning a payment-release recovery block; never applied to a newer reservation." },
     "listing_id": {
       "type": "string",
       "description": "FK to Listing \u2014 primary key. One sidecar per Listing."

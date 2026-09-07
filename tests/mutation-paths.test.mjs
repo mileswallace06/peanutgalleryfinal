@@ -64,7 +64,11 @@ async function testReserveListingCreation() {
 // TEST 2: releaseReservation — both records cleared with non-null cleared-state revision
 // ════════════════════════════════════════════════════════════════════════════
 async function testReleaseReservationClear() {
-  const ctx = createDefaultSeed();
+  const ctx = createDefaultSeed({ listing: { status: 'active' } });
+  // This is an unpaid reservation release. Payment-bound releases now require
+  // purchase-scoped provider verification (covered by seller-expiry-safety).
+  ctx.seed.Purchase = [];
+  ctx.seed.PurchasePrivate = [];
   const deps = createMockDeps({ seed: ctx.seed, user: { id: 'user_buyer', email: ctx.buyerEmail, role: 'user', full_name: 'Test Buyer' } });
   const result = await runReleaseReservation(deps, { listing_id: ctx.listingId });
 
@@ -92,7 +96,7 @@ async function testReleaseReservationClear() {
 // TEST 3: abortCheckout — both records cleared with non-null cleared-state revision
 // ════════════════════════════════════════════════════════════════════════════
 async function testAbortCheckoutClear() {
-  const ctx = createDefaultSeed();
+  const ctx = createDefaultSeed({ purchase: { seller_confirmed: false } });
   const deps = createMockDeps({ seed: ctx.seed, user: { id: 'user_buyer', email: ctx.buyerEmail, role: 'user', full_name: 'Test Buyer' } });
   seedStripePI(deps.stripe, ctx.piId, { status: 'requires_payment_method', metadata: { listing_id: ctx.listingId, buyer_email: ctx.buyerEmail, reservation_token: ctx.token, purchase_id: ctx.purchaseId } });
   const result = await runAbortCheckout(deps, { purchase_id: ctx.purchaseId });
@@ -150,6 +154,8 @@ async function testProcessTransferRemindersClear() {
     purchase: { seller_confirmed: false, created_date: new Date(Date.now() - 50 * 60 * 60 * 1000).toISOString() },
   });
   const deps = createMockDeps({ seed: ctx.seed });
+  // A release test must supply a real mock payment to retrieve and cancel.
+  seedStripePI(deps.stripe, ctx.piId, { status: 'requires_capture' });
   const result = await runProcessTransferReminders(deps);
 
   const listing = deps._state.stores.Listing[0];
@@ -379,6 +385,9 @@ async function testSplitBrainPreservation() {
 async function testActiveVsTerminalRevisionSemantics() {
   // Active clear: non-null revision
   const ctxActive = createDefaultSeed();
+  ctxActive.seed.Listing[0].status = 'active';
+  ctxActive.seed.Purchase = [];
+  ctxActive.seed.PurchasePrivate = [];
   const depsActive = createMockDeps({ seed: ctxActive.seed, user: { id: 'user_buyer', email: ctxActive.buyerEmail, role: 'user', full_name: 'Test Buyer' } });
   await runReleaseReservation(depsActive, { listing_id: ctxActive.listingId });
   const listingActive = depsActive._state.stores.Listing[0];

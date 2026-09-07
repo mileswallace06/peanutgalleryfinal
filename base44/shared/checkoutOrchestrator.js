@@ -18,7 +18,6 @@
  */
 import {
   verifyReservation,
-  deriveIdempotencyKey,
   classifyRetryOutcome,
   isStripeIdempotencyError,
   isQuarantined,
@@ -29,7 +28,6 @@ import {
 import {
   getListingPrivate,
   getPurchasePrivate,
-  upsertListingPrivate,
   upsertPurchasePrivate,
   ensureListingPrivate,
   getUserSecurityProfile,
@@ -38,6 +36,7 @@ import {
   quarantineListing,
   cancelPIAndQuarantine,
 } from './orchestratorHelpers.js';
+import { requireMission1Authority, hashReservationToken } from './mission1Authority.js';
 
 const PI_COOLDOWN_MS = 15 * 1000;
 const MAX_ID_LENGTH = 200;
@@ -203,6 +202,12 @@ export async function runCreateCheckout(deps, params) {
         // Reservation is valid — classify retry outcome
         const outcome = classifyRetryOutcome(existingPI.status, pur.transfer_status);
         if (outcome === 'retry') {
+          try {
+            const ready = await requireMission1Authority(deps).checkoutReady(pur.id, existingPI.id, user.id);
+            if (!ready.ready) throw new Error('CHECKOUT_PROJECTION_INCOMPLETE');
+          } catch (error) {
+            return { status: 503, body: { code: error.message, error: 'Checkout requires reconciliation.' } };
+          }
           return { status: 200, body: { purchase_id: pur.id, clientSecret: existingPI.client_secret, subtotal, platformFee, buyerTotal, sellerPayout } };
         }
         if (outcome === 'blocked') {
@@ -357,10 +362,24 @@ export async function runCreateCheckout(deps, params) {
   }
 
   // 13. Derive idempotency key + generate token
-  const idempotencyKey = deriveIdempotencyKey(listing.id, listingRevision);
+  let idempotencyKey;
   const reservationToken = crypto.randomUUID();
   const reservationExpiresAt = new Date(now() + RESERVATION_TTL_MS).toISOString();
-  const reservationRevision = crypto.randomUUID();
+  let paymentAuthority, checkoutOperation;
+  try {
+    paymentAuthority = requireMission1Authority(deps);
+    const state = await paymentAuthority.getState(listing.id);
+    checkoutOperation = `m1-checkout:${reservationToken}`;
+    const admitted = await paymentAuthority.beginCheckout({
+      listingId: listing.id, version: state.version, buyerId: user.id,
+      tokenHash: await hashReservationToken(reservationToken), expiresAt: reservationExpiresAt,
+      operationId: checkoutOperation,
+    });
+    idempotencyKey = admitted.context.stripe_idempotency_key;
+  } catch (error) {
+    return { status: error.message === 'CHECKOUT_AUTHORITY_CONFLICT' ? 409 : 503,
+      body: { code: error.message, error: 'Checkout authority unavailable or reservation changed.' } };
+  }
 
   // 14. Create PI — handle canceled PI from previous compensated attempt
   let paymentIntent;
@@ -371,6 +390,7 @@ export async function runCreateCheckout(deps, params) {
         listing_id: listing.id, event_id: listing.event_id || '',
         buyer_email: buyerEmail, seller_email: authoritativeSellerEmail,
         reservation_token: reservationToken, listing_revision: listingRevision,
+        mission1_checkout_operation_id: checkoutOperation,
         subtotal: subtotal.toString(), platform_fee: platformFee.toString(),
         seller_payout: sellerPayout.toString(), buyer_total: buyerTotal.toString(),
       },
@@ -381,11 +401,10 @@ export async function runCreateCheckout(deps, params) {
       piParams.transfer_data = { destination: sellerStripeAccountId };
     }
     paymentIntent = await stripe.paymentIntents.create(piParams, { idempotencyKey });
-    // If idempotency returned a canceled PI (from a previous compensated attempt),
-    // create a new PI with a unique retry key
+    // Never resurrect a canceled intent under a stale admission. A later user
+    // attempt needs a new authority admission after reconciliation completes.
     if (paymentIntent.status === 'canceled') {
-      const retryKey = `${idempotencyKey}_r${now()}`;
-      paymentIntent = await stripe.paymentIntents.create(piParams, { idempotencyKey: retryKey });
+      throw new Error('CHECKOUT_ADMISSION_REQUIRES_RECONCILIATION');
     }
   } catch (err) {
     if (isStripeIdempotencyError(err)) {
@@ -395,6 +414,11 @@ export async function runCreateCheckout(deps, params) {
   }
 
   // 15. Create Purchase (with PI ID + token) — recoverable record
+  // Record PI identity before creating either Base44 purchase row. Admission
+  // remains durable if this call or a later write is interrupted; release cannot
+  // exploit the gap between Base44 purchase lookup and creation.
+  try { await paymentAuthority.attachIntent(checkoutOperation, paymentIntent.id); }
+  catch (error) { return { status: 500, body: { code: error.message, error: 'Checkout requires reconciliation.' } }; }
   let purchase;
   try {
     purchase = await entities.Purchase.create({
@@ -429,6 +453,8 @@ export async function runCreateCheckout(deps, params) {
   }
 
   // 17. Re-fetch listing, verify state (revision, status, token, owner)
+  try { await paymentAuthority.bindCheckout(checkoutOperation, purchase.id, paymentIntent.id); }
+  catch (error) { return { status: 500, body: { code: error.message, error: 'Checkout requires reconciliation.' } }; }
   const [listingFresh] = await entities.Listing.filter({ id: listing.id });
   const lpFresh = await getListingPrivate(deps, listing.id);
   if (!listingFresh) {
@@ -453,26 +479,18 @@ export async function runCreateCheckout(deps, params) {
     }
   }
 
-  // 18. Write reservation (Listing + LP)
+  // 18. The designated worker projects the committed authority reservation.
+  // A missing/ambiguous receipt keeps checkout incomplete and does not expose
+  // the client secret. The durable outbox supplies the recovery checkpoint.
   try {
-    await entities.Listing.update(listing.id, {
-      status: 'pending_transfer', reservation_token: reservationToken,
-      reservation_expires_at: reservationExpiresAt, reserved_by_email: buyerEmail,
-      reservation_revision: reservationRevision,
-    });
-  } catch (err) {
-    await cancelPIAndQuarantine(deps, paymentIntent.id, listing.id, purchase.id, `Listing reservation write failed: ${err?.message}`);
-    return { status: 500, body: { error: 'Checkout failed during reservation. Your payment was not charged.' } };
-  }
-  try {
-    await upsertListingPrivate(deps, listing.id, {
-      reservation_token: reservationToken, reservation_expires_at: reservationExpiresAt, reserved_by_email: buyerEmail,
-      reservation_revision: reservationRevision,
-    });
-  } catch (err) {
-    await cancelPIAndQuarantine(deps, paymentIntent.id, listing.id, purchase.id, `LP reservation write failed: ${err?.message}`);
-    await alertPrivateWriteFailure(deps, { entity: 'ListingPrivate', reference_id: listing.id, reference_type: 'listing', error: err });
-    return { status: 500, body: { error: 'Checkout failed during private record update. Your payment was not charged.' } };
+    if (!deps.projectCheckout) throw new Error('ORDERED_PROJECTION_REQUIRED');
+    const receipt = await deps.projectCheckout(checkoutOperation);
+    if (receipt?.verified !== true || receipt.operation_id !== checkoutOperation) throw new Error('PROJECTION_UNVERIFIED');
+  } catch (error) {
+    // Preserve checkout's existing compensation policy. This cannot release
+    // the canonical reservation: the unacknowledged outbox remains a barrier.
+    await cancelPIAndQuarantine(deps, paymentIntent.id, listing.id, purchase.id, `Reservation projection failed: ${error.message}`);
+    return { status: 500, body: { code: error.message, error: 'Checkout reservation requires recovery.' } };
   }
 
   // 19. Verify reservation (6-condition)

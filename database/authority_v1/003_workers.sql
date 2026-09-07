@@ -45,6 +45,7 @@ BEGIN
   WHERE outbox_id IN (
     SELECT outbox_id FROM reservation_outbox
     WHERE delivery_status IN ('pending','in_flight')
+      AND event_id NOT LIKE 'm1-%' -- M1 requires fenced, verified projection completion.
       AND (lease_expires_at IS NULL OR lease_expires_at < now())
       AND next_attempt_at <= now()
     ORDER BY outbox_id
@@ -69,14 +70,14 @@ BEGIN
     UPDATE reservation_outbox
     SET delivery_status = 'delivered', delivered_at = now(),
         lease_owner = NULL, lease_expires_at = NULL, claimed_at = NULL, last_error = NULL
-    WHERE outbox_id = p_outbox_id AND delivery_status = 'in_flight';
+    WHERE outbox_id = p_outbox_id AND delivery_status = 'in_flight' AND event_id NOT LIKE 'm1-%';
   ELSE
     UPDATE reservation_outbox
     SET delivery_status = CASE WHEN attempt_count >= max_attempts THEN 'dead_letter' ELSE 'pending' END,
         lease_owner = NULL, lease_expires_at = NULL, claimed_at = NULL,
         last_error = p_error,
         next_attempt_at = now() + (60 || ' seconds')::INTERVAL
-    WHERE outbox_id = p_outbox_id AND delivery_status = 'in_flight';
+    WHERE outbox_id = p_outbox_id AND delivery_status = 'in_flight' AND event_id NOT LIKE 'm1-%';
   END IF;
   GET DIAGNOSTICS v_count = ROW_COUNT;
   IF v_count != 1 THEN RAISE EXCEPTION 'OUTBOX_COMPLETE_COUNT: expected 1, got %', v_count; END IF;
@@ -95,7 +96,7 @@ DECLARE v_count INTEGER;
 BEGIN
   UPDATE reservation_outbox
   SET delivery_status = 'pending', lease_owner = NULL, lease_expires_at = NULL, claimed_at = NULL
-  WHERE delivery_status = 'in_flight' AND lease_expires_at < now();
+  WHERE delivery_status = 'in_flight' AND lease_expires_at < now() AND event_id NOT LIKE 'm1-%';
   GET DIAGNOSTICS v_count = ROW_COUNT;
   RETURN v_count;
 END;

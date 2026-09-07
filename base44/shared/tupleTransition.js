@@ -260,7 +260,7 @@ async function quarantineBothRecords(deps, listingId, reason, operationId) {
   return proof;
 }
 
-export async function applyReservationTuple(deps, listingId, intended, category, operationId) {
+export async function applyReservationTuple(deps, listingId, intended, category, operationId, expectedReservation = null, expectedListingStatus = null) {
   const result = {
     ok: false,
     category,
@@ -337,6 +337,15 @@ export async function applyReservationTuple(deps, listingId, intended, category,
 
   const hooks = deps.hooks || {};
 
+  // Legacy reminder handlers still call this mirror writer directly. They
+  // must be wired to the approved authority release coordinator before they
+  // can clear inventory; a negative purchase lookup is not exclusion.
+  if (['reminder_unpaid', 'reminder_clear_expired', 'reminder_clear_active'].includes(category)) {
+    result.validation_error = 'APPROVED_RELEASE_COORDINATOR_REQUIRED';
+    result.first_write_error = result.validation_error;
+    return result;
+  }
+
   // ── Step 0: Validate intended tuple invariants ───────────────────────────
   const validation = validateIntendedTuple(intended);
   if (!validation.valid) {
@@ -369,6 +378,16 @@ export async function applyReservationTuple(deps, listingId, intended, category,
   }
   if (!preListing || !preLP) {
     return { ...result, ok: false };
+  }
+  if (expectedListingStatus && preListing.status !== expectedListingStatus) {
+    return { ...result, ok: false, stale_prefetch_detected: true };
+  }
+
+  // Payment cleanup must release the reservation it verified, never whichever
+  // reservation happens to be present when this helper starts.
+  if (expectedReservation && Object.entries(expectedReservation).some(([key, value]) =>
+    (preListing[key] ?? null) !== value || (preLP[key] ?? null) !== value)) {
+    return { ...result, ok: false, stale_prefetch_detected: true };
   }
 
   // ── Step 2: Classify pre-write tuple — split-brain detection ─────────────
@@ -545,7 +564,12 @@ export async function applyReservationTuple(deps, listingId, intended, category,
 
   result.first_write_attempted = true;
   try {
-    await deps.entities.ListingPrivate.update(preLP.id, firstFields);
+    if (expectedReservation) {
+      const written = await deps.entities.ListingPrivate.updateMany({ id: preLP.id, ...expectedReservation }, firstFields);
+      if (written?.updated !== 1) throw new Error('Conditional private reservation write conflicted');
+    } else {
+      await deps.entities.ListingPrivate.update(preLP.id, firstFields);
+    }
   } catch (err) {
     result.first_write_error = err?.message || String(err);
     // First-record failure: prove no second write and tuples unchanged
@@ -649,7 +673,12 @@ export async function applyReservationTuple(deps, listingId, intended, category,
 
   result.second_write_attempted = true;
   try {
-    await deps.entities.Listing.update(listingId, secondFields);
+    if (expectedReservation) {
+      const written = await deps.entities.Listing.updateMany({ id: listingId, status: preListing.status, ...expectedReservation }, secondFields);
+      if (written?.updated !== 1) throw new Error('Conditional listing reservation write conflicted');
+    } else {
+      await deps.entities.Listing.update(listingId, secondFields);
+    }
   } catch (err) {
     result.second_write_error = err?.message || String(err);
     return await handleSecondRecordFailure(deps, listingId, result, preListingTuple, preLPTuple, err?.message || String(err));

@@ -6,7 +6,9 @@
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import Stripe from 'npm:stripe@14.21.0';
-import { isMaintenanceActive, maintenance503 } from '../../shared/maintenance.ts';
+import { secrets } from 'base44:runtime';
+import { createMission1Runtime } from '../../shared/mission1Runtime.js';
+import { isMaintenanceActive } from '../../shared/maintenance.ts';
 import { runCreateCheckout } from '../../shared/checkoutOrchestrator.js';
 
 Deno.serve(async (req) => {
@@ -21,7 +23,12 @@ Deno.serve(async (req) => {
   const stripe = new Stripe(secretKey);
   const body = await req.json().catch(() => ({}));
 
+  let runtime;
+  try { runtime = await createMission1Runtime({ entities: base44.asServiceRole.entities, stripe, user, secrets }); }
+  catch (error) { return Response.json({ code: error.message }, { status: 503 }); }
+
   const deps = {
+    ...runtime,
     entities: base44.asServiceRole.entities,
     stripe,
     user,

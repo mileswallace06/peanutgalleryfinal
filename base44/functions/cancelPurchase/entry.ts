@@ -1,3 +1,5 @@
+import { expirePurchaseSafely } from '../../shared/purchaseExpiry.js';
+import { createMission1Runtime } from '../../shared/mission1Runtime.js';
 /**
  * cancelPurchase — Buyer-initiated purchase cancellation.
  *
@@ -23,7 +25,7 @@ import { secrets } from 'base44:runtime';
 import Stripe from 'npm:stripe@14.21.0';
 import { isMaintenanceActive, maintenance503 } from '../../shared/maintenance.ts';
 import { sendUserNotification, sendTransactionalEmail } from '../../shared/notifications.ts';
-import { getPurchasePrivate, upsertPurchasePrivate, upsertListingPrivate, alertPrivateWriteFailure } from '../../shared/privateData.ts';
+import { getPurchasePrivate, upsertPurchasePrivate, alertPrivateWriteFailure } from '../../shared/privateData.ts';
 import { isCanaryEnabled } from '../../shared/authCanary.js';
 import { maybeRouteCanaryCancelPurchase } from '../../shared/cancelPurchaseCanaryOrchestrator.js';
 import { createStripeCancelProvider } from '../../shared/stripeCancelProvider.js';
@@ -45,14 +47,14 @@ Deno.serve(async (req) => {
   try {
     const [p] = await base44.asServiceRole.entities.Purchase.filter({ id: purchase_id });
     purchase = p || null;
-  } catch (_) {}
+  } catch {}
 
   let listing: any = null;
   if (purchase?.listing_id) {
     try {
       const [l] = await base44.asServiceRole.entities.Listing.filter({ id: purchase.listing_id });
       listing = l || null;
-    } catch (_) {}
+    } catch {}
   }
 
   // ── Canary route (synthetic [AUTH_CANARY] listings only) — before maintenance gate ──
@@ -111,7 +113,7 @@ Deno.serve(async (req) => {
   const pp = await getPurchasePrivate(base44, purchase.id);
   const authoritativeBuyerEmail = pp?.buyer_email ?? purchase.buyer_email;
   const authoritativeSellerEmail = pp?.seller_email ?? purchase.seller_email;
-  const authoritativePaymentIntentId = pp?.payment_intent_id ?? purchase.payment_intent_id;
+
   const authoritativePaymentCaptured = pp?.payment_captured ?? purchase.payment_captured;
 
   // Only the buyer can cancel.
@@ -125,7 +127,7 @@ Deno.serve(async (req) => {
     return Response.json({ status: 'cancelled' });
   }
 
-  const terminal = ['completed', 'expired'];
+  const terminal = ['completed'];
   if (terminal.includes(purchase.transfer_status)) {
     return Response.json({ error: `Cannot cancel a ${purchase.transfer_status} purchase` }, { status: 409 });
   }
@@ -167,59 +169,17 @@ Deno.serve(async (req) => {
     return Response.json({ status: 'disputed', message: 'Because the seller already confirmed transfer, your request has been opened as a dispute for admin review instead of an automatic refund.' });
   }
 
-  // ── Safe cancellation (before seller confirmed) ───────────────────────────
-  const pi = await stripe.paymentIntents.retrieve(authoritativePaymentIntentId);
-  if (pi.status === 'requires_capture') {
-    await stripe.paymentIntents.cancel(authoritativePaymentIntentId);
-  } else if (pi.status === 'succeeded') {
-    await stripe.refunds.create({ payment_intent: authoritativePaymentIntentId });
+  let runtime;
+  try { runtime = await createMission1Runtime({ entities: base44.asServiceRole.entities, stripe, user, secrets }); }
+  catch (error) { return Response.json({ code: error.message }, { status: 503 }); }
+  const result = await expirePurchaseSafely(runtime, purchase.id, { allowRefund: true });
+  if (result.status === 200 && !result.body.already_completed) {
+    await sendUserNotification(base44, {
+      user_email: authoritativeSellerEmail, title: 'Purchase cancelled',
+      body: 'The buyer cancelled their purchase. Payment release was verified and your listing has been restored.',
+      type: 'listing_expired', purchase_id: purchase.id,
+    }).catch(() => {});
   }
-
-  try {
-    await base44.asServiceRole.entities.Purchase.update(purchase.id, {
-      transfer_status: 'expired',
-    });
-  } catch (err) {
-    await alertPrivateWriteFailure(base44, { entity: 'Purchase', reference_id: purchase.id, reference_type: 'purchase', error: err });
-  }
-
-  // Only restore the listing if it is currently pending_transfer.
-  const [currentListing] = await base44.asServiceRole.entities.Listing.filter({ id: purchase.listing_id });
-  if (currentListing && currentListing.status === 'pending_transfer') {
-    // Phase 1B: write authoritative ListingPrivate first, then legacy Listing mirror
-    try {
-      await upsertListingPrivate(base44, purchase.listing_id, {
-        reserved_by_email: null, reservation_token: null, reservation_expires_at: null, reservation_revision: null,
-      });
-    } catch (err) {
-      await alertPrivateWriteFailure(base44, { entity: 'ListingPrivate', reference_id: purchase.listing_id, reference_type: 'listing', error: err });
-      return Response.json({ error: 'Failed to restore listing. Please contact support.' }, { status: 500 });
-    }
-    try {
-      await base44.asServiceRole.entities.Listing.update(purchase.listing_id, {
-        status: 'active',
-        reservation_token: null,
-        reservation_expires_at: null,
-        reserved_by_email: null,
-        reservation_revision: null,
-      });
-      // Verify Listing cleared
-      const [verifyListing] = await base44.asServiceRole.entities.Listing.filter({ id: purchase.listing_id });
-      if (verifyListing?.reservation_token || verifyListing?.reserved_by_email) {
-        await alertPrivateWriteFailure(base44, { entity: 'Listing (clear verify)', reference_id: purchase.listing_id, reference_type: 'listing', error: new Error('Listing reservation fields not cleared after cancel') });
-      }
-    } catch (err) {
-      await alertPrivateWriteFailure(base44, { entity: 'Listing (legacy mirror)', reference_id: purchase.listing_id, reference_type: 'listing', error: err });
-    }
-  }
-
-  sendUserNotification(base44, {
-    user_email: authoritativeSellerEmail,
-    title: 'Purchase cancelled',
-    body: 'The buyer cancelled their purchase. Your listing has been restored to active.',
-    type: 'listing_expired',
-    purchase_id: purchase.id,
-  }).catch(() => {});
-
-  return Response.json({ status: 'cancelled' });
+  if (result.status === 200) result.body.status = 'cancelled';
+  return Response.json(result.body, { status: result.status });
 });
