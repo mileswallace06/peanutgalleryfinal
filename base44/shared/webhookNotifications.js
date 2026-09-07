@@ -77,12 +77,15 @@ export async function enqueueWebhookAdminAlert(deps, opts) {
 // Does NOT send external push/email (disabled — see HONEST CONCURRENCY MODEL above).
 // Does NOT swallow dispatch-state writes.
 export async function dispatchWebhookNotifications(deps, opts = {}) {
-  const { keys = null, limit = 500 } = opts;
+  // Preloaded groups include an earlier dispatched canonical, so a late
+  // duplicate cannot become a second canonical in the external worker.
+  // Hosted callers still use the original pending query.
+  const { keys = null, limit = 500, notifications = null } = opts;
 
   // 7C.9C.1: NO catch(() => []) — query failures must propagate
   let all;
   try {
-    all = await deps.entities.Notification.filter({ dispatch_status: 'pending' }, '-created_date', limit);
+    all = notifications ?? await deps.entities.Notification.filter({ dispatch_status: 'pending' }, '-created_date', limit);
   } catch (err) {
     return { dispatched: 0, superseded: 0, skipped: 0, errors: 1, fatal_error: err?.message || 'Notification query failed' };
   }

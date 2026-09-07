@@ -77,12 +77,14 @@ export async function enqueueSaleNotificationDeps(deps, purchase, listing, pp) {
 // ── Dispatch — external push/email DISABLED, in-app only ───────────────────
 // 7C.9C.1: NO catch(() => []) on authoritative reads. Failures propagate as errors.
 export async function dispatchSaleNotificationsDeps(deps, opts = {}) {
-  const { keys = null, limit = 500 } = opts;
+  // External worker may supply a bounded, complete set of logical groups.
+  // Existing hosted callers retain their original query and behavior.
+  const { keys = null, limit = 500, notifications = null } = opts;
 
   // ── Authoritative Notification query — NO catch(() => []) ──────────────────
   let all;
   try {
-    all = await deps.entities.Notification.filter({ type: 'sale_created' }, '-created_date', limit);
+    all = notifications ?? await deps.entities.Notification.filter({ type: 'sale_created' }, '-created_date', limit);
   } catch (err) {
     // Query failure must propagate — do NOT convert to empty success
     return { keys_processed: 0, superseded: 0, dispatched: 0, skipped: 0, push_sends: 0, email_sends: 0, errors: 1, fatal_error: err?.message || 'Notification query failed' };
