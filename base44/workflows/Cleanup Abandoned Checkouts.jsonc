@@ -1,0 +1,44 @@
+{
+  "name": "Cleanup Abandoned Checkouts",
+  "description": "Every 10 minutes, expires server-created Purchases whose PaymentIntents were never successfully authorized past the checkout window, cancels the PaymentIntent when possible, and releases the reserved Listing. Does not affect trust, points, or transfer intelligence.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "interval",
+      "cron_expression": null,
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": 10,
+      "interval_unit": "minutes",
+      "interval_anchor": "2026-07-24T20:21:29.487000",
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "cleanup_abandoned_checkouts",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "cleanupAbandonedCheckouts",
+            "args": {}
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "cleanupAbandonedCheckouts"
+  }
+}

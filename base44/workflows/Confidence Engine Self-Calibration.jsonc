@@ -1,0 +1,44 @@
+{
+  "name": "Confidence Engine Self-Calibration",
+  "description": "Self-tunes Transfer Intelligence evidence source weights based on resolved prediction accuracy. Runs every 6 hours to resolve pending predictions, compute accuracy across venue/platform/category/artist/seller dimensions, and adjust evidence source multipliers to correct systematic bias.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "interval",
+      "cron_expression": null,
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": 6,
+      "interval_unit": "hours",
+      "interval_anchor": "2026-07-03T21:31:15.742000",
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "confidence_engine_self_calibration",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "calibrateConfidenceWeights",
+            "args": {}
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "calibrateConfidenceWeights"
+  }
+}

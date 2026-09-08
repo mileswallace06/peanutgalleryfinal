@@ -1,0 +1,44 @@
+{
+  "name": "Transfer Window Agent",
+  "description": "Continuously scans events for ticket-transfer-window closure. Enriches missing event start times from Ticketmaster, marks windows closed once the close time passes or 90 min after start, auto-hides affected listings, notifies sellers, and creates admin alerts.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "interval",
+      "cron_expression": null,
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": 30,
+      "interval_unit": "minutes",
+      "interval_anchor": "2026-07-03T20:34:57.467000",
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "transfer_window_agent",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "scanTransferWindows",
+            "args": {}
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "scanTransferWindows"
+  }
+}

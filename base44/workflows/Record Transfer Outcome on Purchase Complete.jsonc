@@ -1,0 +1,37 @@
+{
+  "name": "Record Transfer Outcome on Purchase Complete",
+  "description": "When a purchase reaches completed or disputed status, records a TransferOutcome, updates seller reliability score, and creates admin alerts for disputes.",
+  "trigger": {
+    "condition": "${ ((.trigger.changed_fields | index(\"transfer_status\") != null) and (.trigger.data.transfer_status == \"completed\" or .trigger.data.transfer_status == \"disputed\")) }",
+    "config": {
+      "trigger_type": "entity",
+      "events": [
+        "update"
+      ],
+      "entity_name": "Purchase"
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "record_transfer_outcome_on_purchase_complete",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "recordTransferOutcome",
+            "args": {}
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "recordTransferOutcome"
+  }
+}

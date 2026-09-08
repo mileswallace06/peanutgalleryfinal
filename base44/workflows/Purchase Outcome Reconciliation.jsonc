@@ -1,0 +1,48 @@
+{
+  "name": "Purchase Outcome Reconciliation",
+  "description": "Eventual exactly-once repair for the terminal-outcome pipeline. Scans terminal (completed/disputed) non-demo purchases and consolidates duplicate outcomes/intelligence/notifications, reverses duplicate points, recomputes seller trust from authoritative Purchase rows, clears stuck seller_notified markers, retries only failed delivery channels, and emails an admin audit report when repairs are applied. Idempotent \u2014 repeated runs produce zero changes once clean.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "interval",
+      "cron_expression": null,
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": 30,
+      "interval_unit": "minutes",
+      "interval_anchor": "2026-07-24T22:05:16.607000",
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "purchase_outcome_reconciliation",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "reconcilePurchaseOutcomes",
+            "args": {
+              "confirm": true,
+              "limit": 200,
+              "source": "scheduled"
+            }
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "reconcilePurchaseOutcomes"
+  }
+}

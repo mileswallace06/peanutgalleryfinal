@@ -1,0 +1,44 @@
+{
+  "name": "Dispatch Sale Notifications",
+  "description": "The ONLY sender for sale_created notifications. Selects one canonical record per idempotency key, supersedes concurrent duplicates (which never dispatch), and sends only the canonical's unsent channels. Holds provider calls to <=1 push and <=1 email per logical sale notification. Failed channels remain independently retryable. (5 min is the platform minimum scheduled interval.)",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "interval",
+      "cron_expression": null,
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": 5,
+      "interval_unit": "minutes",
+      "interval_anchor": "2026-07-24T22:19:18.077000",
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "dispatch_sale_notifications",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "dispatchSaleNotifications",
+            "args": {}
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "dispatchSaleNotifications"
+  }
+}
