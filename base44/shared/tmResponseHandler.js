@@ -1,3 +1,5 @@
+import { explicitUtcMs } from './eventDiscoveryTiming.js';
+
 /**
  * Shared TM response classification and event normalization.
  *
@@ -76,7 +78,24 @@ export function normalizeTMEvent(e) {
   const image = e.images?.find(i => i.ratio === '16_9' && i.width >= 640) || e.images?.[0];
   const dateInfo = e.dates?.start;
 
+  const endInfo = e.dates?.end;
+  const startMs = explicitUtcMs(dateInfo?.dateTime);
+  const endMs = explicitUtcMs(endInfo?.dateTime);
+  const timedStart = !dateInfo?.dateTBA && !dateInfo?.dateTBD && !dateInfo?.timeTBA && !dateInfo?.noSpecificTime;
+  const validEnd = timedStart && startMs !== null && endMs !== null && endMs > startMs;
+  const segment = e.classifications?.[0]?.segment?.name?.toLowerCase();
+  const genre = e.classifications?.[0]?.genre?.name?.toLowerCase();
+  const discoveryCategory = genre === 'comedy' ? 'comedy' : genre === 'theatre' || genre === 'theater' ? 'theater'
+    : segment === 'music' ? 'concert' : segment === 'sports' ? 'sports' : 'other';
+
   return {
+    // Response-only discovery metadata; sync/purchase policy is unchanged.
+    discovery_time_unconfirmed: !timedStart,
+    event_start_utc: timedStart && startMs !== null ? dateInfo.dateTime : null,
+    event_end_utc: validEnd ? endInfo.dateTime : null,
+    end_estimated: !validEnd || Boolean(endInfo?.approximate || endInfo?.noSpecificTime),
+    discovery_category: discoveryCategory,
+    venue_timezone: e.dates?.timezone || venue?.timezone || null,
     tm_id: e.id,
     title: e.name,
     tm_venue_id: venue?.id || '',

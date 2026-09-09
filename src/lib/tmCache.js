@@ -30,13 +30,13 @@ export async function fetchTMEvents(base44, params) {
   // Return cached result if fresh
   const cached = cache.get(key);
   if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
-    return { events: cached.data, fromCache: true };
+    return { ...cached.data, fromCache: true };
   }
 
   // Deduplicate: if same request is in-flight, wait for it
   if (inFlight.has(key)) {
     const data = await inFlight.get(key);
-    return { events: data, fromCache: false };
+    return { ...data, fromCache: false };
   }
 
   // New request
@@ -55,9 +55,11 @@ export async function fetchTMEvents(base44, params) {
       if (!Array.isArray(events)) {
         throw { status: 502, message: 'malformed_tm_response' };
       }
-      cache.set(key, { data: events, ts: Date.now() });
+      const result = { events, partial: Boolean(res.data.partial) };
+      // Partial windows remain retryable, not a cached complete discovery result.
+      if (!result.partial) cache.set(key, { data: result, ts: Date.now() });
       inFlight.delete(key);
-      return events;
+      return result;
     })
     .catch(err => {
       inFlight.delete(key);
@@ -68,8 +70,8 @@ export async function fetchTMEvents(base44, params) {
     });
 
   inFlight.set(key, promise);
-  const events = await promise;
-  return { events, fromCache: false };
+  const result = await promise;
+  return { ...result, fromCache: false };
 }
 
 /** Manually bust the cache (e.g. on pull-to-refresh) */

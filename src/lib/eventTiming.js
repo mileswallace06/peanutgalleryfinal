@@ -12,17 +12,8 @@
  */
 
 /** Category default durations in hours */
-const CATEGORY_DURATION_HOURS = {
-  concert: 4,
-  sports: 4,
-  theater: 3,
-  comedy: 3,
-  other: 4,
-};
-const DEFAULT_DURATION_HOURS = 4;
-
-/** Minutes before start that the event shows as "Starting Soon" in Upgrades */
-export const SOON_WINDOW_MINUTES = 60;
+import { CATEGORY_DURATION_HOURS, DEFAULT_DURATION_HOURS, SOON_WINDOW_MINUTES } from '../../base44/shared/eventDiscoveryTiming.js';
+export { SOON_WINDOW_MINUTES, getEventDiscoveryStatus } from '../../base44/shared/eventDiscoveryTiming.js';
 
 /**
  * Well-known US state → IANA timezone fallback map.

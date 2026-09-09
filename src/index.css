@@ -436,3 +436,7 @@
   .stub-perf-h::before { left: -5px; }
   .stub-perf-h::after { right: -5px; }
 }
+/* The web hero owns the top inset: artwork extends behind the status bar,
+   while its controls start below the safe area. Layout adds no second inset. */
+:root { --safe-area-top: env(safe-area-inset-top, 0px); }
+.profile-hero { height: calc(10rem + var(--safe-area-top)); }

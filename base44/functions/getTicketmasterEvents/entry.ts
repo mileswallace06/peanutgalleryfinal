@@ -1,5 +1,4 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
-import { classifyTMResponse, normalizeTMEvent } from '../../shared/tmResponseHandler.js';
+import { discoverTMEvents } from '../../shared/tmEventDiscovery.js';
 
 /**
  * getTicketmasterEvents — fetches events from the Ticketmaster Discovery API.
@@ -18,12 +17,9 @@ import { classifyTMResponse, normalizeTMEvent } from '../../shared/tmResponseHan
 const MAX_KEYWORD_LEN = 100;
 const MAX_CITY_LEN = 100;
 const MAX_SIZE = 200;
-const TIMEOUT_MS = 8000;
 
 Deno.serve(async (req) => {
   try {
-    const base44 = createClientFromRequest(req);
-
     const body = await req.json().catch(() => ({}));
 
     // ── Input validation (before provider contact) ────────────────────────
@@ -32,6 +28,8 @@ Deno.serve(async (req) => {
     const latlong = body.latlong ?? '';
     const radius = body.radius ?? '50';
     const size = body.size ?? 20;
+    const includeOngoing = body.includeOngoing ?? false;
+    if (typeof includeOngoing !== 'boolean') return Response.json({ error: 'invalid_include_ongoing' }, { status: 400 });
 
     if (typeof keyword !== 'string' || (keyword && keyword.length > MAX_KEYWORD_LEN)) {
       return Response.json({ error: 'invalid_keyword' }, { status: 400 });
@@ -56,7 +54,7 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'invalid_radius' }, { status: 400 });
     }
     const sizeNum = Number(size);
-    if (isNaN(sizeNum) || sizeNum < 1 || sizeNum > MAX_SIZE) {
+    if (!Number.isInteger(sizeNum) || sizeNum < 1 || sizeNum > MAX_SIZE) {
       return Response.json({ error: 'invalid_size' }, { status: 400 });
     }
 
@@ -65,69 +63,8 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'tm_api_key_missing' }, { status: 500 });
     }
 
-    // Format: 2019-01-01T00:00:00Z
-    const now = new Date().toISOString().split('.')[0] + 'Z';
-
-    const params = new URLSearchParams({
-      apikey: apiKey,
-      size: String(sizeNum),
-      sort: 'date,asc',
-      startDateTime: now,
-      countryCode: 'US',
-    });
-
-    if (keyword) params.set('keyword', keyword);
-    if (latlong) {
-      params.set('latlong', latlong);
-      params.set('radius', String(radiusNum));
-      params.set('unit', 'miles');
-    } else if (city) {
-      params.set('city', city);
-    }
-
-    const url = `https://app.ticketmaster.com/discovery/v2/events.json?${params}`;
-
-    // ── Fetch with AbortController timeout ────────────────────────────────
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
-    let res;
-    try {
-      res = await fetch(url, { signal: controller.signal });
-    } catch (fetchErr) {
-      clearTimeout(timeout);
-      if (fetchErr.name === 'AbortError') {
-        return Response.json({ error: 'tm_timeout', upstream_status: 504 }, { status: 504 });
-      }
-      return Response.json({ error: 'tm_fetch_failed' }, { status: 502 });
-    }
-    clearTimeout(timeout);
-
-    // ── Parse JSON safely (may throw on malformed response) ──────────────
-    let data;
-    try {
-      data = await res.json();
-    } catch (_e) {
-      return Response.json({ error: 'malformed_response', upstream_status: res.status }, { status: 502 });
-    }
-
-    // ── Classify using the SHARED helper ──────────────────────────────────
-    const classified = classifyTMResponse({ ok: res.ok, status: res.status, data });
-
-    if (classified.error) {
-      const status = classified.upstream_status === 429 ? 429 : 502;
-      return Response.json(
-        { error: classified.error, upstream_status: classified.upstream_status },
-        { status }
-      );
-    }
-
-    // 404 with no error = no events found
-    if (classified.upstream_status === 404 || classified.events.length === 0) {
-      return Response.json({ events: [] });
-    }
-
-    const events = classified.events.map(normalizeTMEvent);
-    return Response.json({ events });
+    const result = await discoverTMEvents({ apiKey, keyword, city, latlong, radius: radiusNum, size: sizeNum, includeOngoing });
+    return Response.json(result.body, { status: result.status });
   } catch (_error) {
     // Never return raw internal exception messages
     return Response.json({ error: 'internal_error' }, { status: 500 });

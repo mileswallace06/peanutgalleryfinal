@@ -4,22 +4,23 @@ import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 import { MapPin, Calendar, ChevronRight, LocateFixed, X, Clock, RefreshCw, Zap, HelpCircle } from 'lucide-react';
 import LocationAutocomplete from '@/components/LocationAutocomplete';
-import { getEventLiveStatus, SOON_WINDOW_MINUTES } from '@/lib/eventTiming';
+import { getEventDiscoveryStatus, SOON_WINDOW_MINUTES } from '@/lib/eventTiming';
 import { logNavEvent } from '@/lib/navLogger';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
-import { fetchTMEvents, bustTMCache } from '@/lib/tmCache';
+import { loadUpgradeEvents } from '@/lib/upgradeDiscovery';
+import { subscribeEventClock } from '@/lib/eventClock';
 import { useLocationDetect } from '@/hooks/useLocationDetect';
 import { useAuth } from '@/lib/AuthContext';
 import WhatIsPGOverlay, { shouldShowOverlay } from '@/components/WhatIsPGOverlay';
 import FounderStoryCard from '@/components/founder/FounderStoryCard';
 
-// ── sessionStorage helpers ────────────────────────────────────────────────
+// ── Saved location helpers ────────────────────────────────────────────────
 const SS_KEY = 'pg_upgrades_location';
 function readSS() {
-  try { return JSON.parse(sessionStorage.getItem(SS_KEY) || 'null'); } catch { return null; }
+  try { return JSON.parse(localStorage.getItem(SS_KEY) || sessionStorage.getItem(SS_KEY) || 'null'); } catch { return null; }
 }
 function writeSS(data) {
-  try { sessionStorage.setItem(SS_KEY, JSON.stringify(data)); } catch {}
+  try { localStorage.setItem(SS_KEY, JSON.stringify(data)); } catch {}
 }
 
 export default function Upgrades() {
@@ -33,7 +34,7 @@ export default function Upgrades() {
 
   const [tmError, setTmError] = useState(false);
 
-  const { locationStatus, latlong, latlongRef, locationLabel, locationLabelRef, requestLocation, refreshLocation, setManualCity } = useLocationDetect({
+  const { locationStatus, latlongRef, locationLabel, locationLabelRef, requestLocation, refreshLocation, setManualCity } = useLocationDetect({
     onSuccess: (ll) => fetchEvents(ll, null),
   });
 
@@ -47,7 +48,7 @@ export default function Upgrades() {
   // GPS coords are auto-restored by useLocationDetect.
   useEffect(() => {
     const ss = readSS();
-    if (ss?.city && ss.city !== 'Near me' && !latlong) {
+    if (ss?.city && ss.city !== 'Near me' && !latlongRef.current) {
       setManualCity(ss.city);
       fetchEvents(null, ss.city);
     }
@@ -63,48 +64,15 @@ export default function Upgrades() {
 
     setLoading(true);
     setTmError(false);
-    const tmParams = { size: 40 };
-    if (ll) { tmParams.latlong = ll; tmParams.radius = '50'; }
-    else if (cityOverride) { tmParams.city = cityOverride; }
-
-    if (bust) bustTMCache(tmParams);
-
     try {
-      const [localData, { events: tmEventsRaw }] = await Promise.all([
-        base44.entities.Event.list('date', 200),
-        fetchTMEvents(base44, tmParams),
-      ]);
-
-      let pgEvents = localData.filter(e => e.status !== 'ended');
-
-      if (cityOverride && !ll) {
-        const q = cityOverride.toLowerCase();
-        pgEvents = pgEvents.filter(e =>
-          e.city?.toLowerCase().includes(q) ||
-          e.state?.toLowerCase().includes(q) ||
-          e.venue?.toLowerCase().includes(q)
-        );
-      }
-      if (ll) {
-        const tmCities = new Set(tmEventsRaw.map(e => e.city?.toLowerCase()).filter(Boolean));
-        if (tmCities.size > 0) {
-          pgEvents = pgEvents.filter(e => !e.city || tmCities.has(e.city.toLowerCase()));
-        } else {
-          pgEvents = [];
-        }
-      }
-
-      const pgMapped = pgEvents.map(e => ({ ...e, source: 'pg' }));
-      const tmEvents = tmEventsRaw.map(e => ({ ...e, id: `tm_${e.tm_id}`, source: 'ticketmaster' }));
-      const pgTmIds = new Set(pgMapped.map(e => e.tm_id).filter(Boolean));
-      const uniqueTM = tmEvents.filter(e => !pgTmIds.has(e.tm_id));
-
+      const result = await loadUpgradeEvents(base44, { latlong: ll, city: cityOverride }, bust);
       if (signal.aborted) return;
-      setAllEvents([...pgMapped, ...uniqueTM]);
-    } catch (err) {
+      setAllEvents(result.events);
+      setTmError(result.partial);
+    } catch {
       if (signal.aborted) return;
-      if (err?.response?.status === 429) setTmError(true);
-      else console.error(err);
+      setAllEvents([]);
+      setTmError(true);
     } finally {
       if (!signal.aborted) setLoading(false);
     }
@@ -115,18 +83,22 @@ export default function Upgrades() {
     requestLocation();
   };
 
-  const nowMs = Date.now();
+  const [nowMs, setNowMs] = useState(Date.now);
+  useEffect(() => subscribeEventClock({ document, window, onTick: setNowMs,
+    onForeground: () => fetchEvents(latlongRef.current || null,
+      latlongRef.current ? null : locationLabelRef.current),
+  }), [fetchEvents, latlongRef, locationLabelRef]);
   const liveEvents = allEvents.filter((e) => {
-    const s = getEventLiveStatus(e, nowMs).status;
+    const s = getEventDiscoveryStatus(e, nowMs).status;
     return s === 'live';
   });
   const soonEvents = allEvents.filter((e) => {
-    const s = getEventLiveStatus(e, nowMs).status;
+    const s = getEventDiscoveryStatus(e, nowMs).status;
     return s === 'soon';
   });
   const upcomingEvents = allEvents
     .filter((e) => {
-      const s = getEventLiveStatus(e, nowMs).status;
+      const s = getEventDiscoveryStatus(e, nowMs).status;
       return s === 'upcoming';
     })
     .sort((a, b) => {
@@ -265,7 +237,7 @@ export default function Upgrades() {
       {tmError && (
         <div className="mx-4 mb-3 px-4 py-3 rounded-2xl text-sm font-medium"
           style={{ background: 'rgba(255,140,0,0.1)', border: '1px solid rgba(255,140,0,0.3)', color: '#FF8C00' }}>
-          Too many requests right now. Please wait a moment and try again.
+          Some events could not be loaded. Showing available results. Pull down to retry.
         </div>
       )}
 
@@ -342,7 +314,7 @@ export default function Upgrades() {
               ) : (
                 <div className="space-y-3">
                   {liveEvents.map((event) => (
-                    <EventCard key={event.id} event={event} mode="live" />
+                    <EventCard key={event.id} event={event} mode="live" estimatedEnd={getEventDiscoveryStatus(event, nowMs).end_estimated && !event.is_beta_live} />
                   ))}
                 </div>
               )}
@@ -426,7 +398,7 @@ function SectionHeader({ dot, icon, label, count, meta, variant }) {
   );
 }
 
-function EventCard({ event, mode }) {
+function EventCard({ event, mode, estimatedEnd = false }) {
   const isLive = mode === 'live';
   const isSoon = mode === 'soon';
   const navigate = useNavigate();
@@ -520,6 +492,7 @@ function EventCard({ event, mode }) {
           <Calendar className="w-3 h-3 flex-shrink-0" style={{ color: 'var(--neon-green)' }} />
           <span>{event.date ? format(new Date(event.date), 'EEE, MMM d · h:mm a') : 'TBD'}</span>
         </div>
+        {isLive && estimatedEnd && <p className="text-[10px] text-muted-foreground mt-1">Estimated event window</p>}
         {!isLive && !isTM && (
           <span className="mt-1.5 text-[10px] text-muted-foreground">Tickets available · upgrades open at showtime</span>
         )}

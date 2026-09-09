@@ -1,3 +1,4 @@
+import { submitAcceptedFeedback } from '@/lib/feedbackInbox';
 import { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useLocation } from 'react-router-dom';
@@ -37,7 +38,7 @@ export default function FeedbackWidget({ user }) {
     setSending(true);
     setError(null);
     try {
-      await base44.functions.invoke('submitFeedback', {
+      await submitAcceptedFeedback(base44, {
         feedback_type: selected,
         page: location.pathname,
         message: trimmed || null,
