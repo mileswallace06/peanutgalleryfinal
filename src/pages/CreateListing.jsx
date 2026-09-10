@@ -2,59 +2,26 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { useSearchParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, CheckCircle, Upload, Zap, Search, Star, Shield } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle, Upload, Zap, Shield } from 'lucide-react';
 import InstantTransferAgreement from '@/components/listings/InstantTransferAgreement';
-import LocationAutocomplete from '@/components/LocationAutocomplete';
-import { getEventLiveStatus } from '@/lib/eventTiming';
-import { fetchTMEvents } from '@/lib/tmCache';
 import { isAdmin as checkIsAdmin } from '@/lib/isAdmin';
 import NotificationPermissionPrompt from '@/components/NotificationPermissionPrompt';
 import { MIN_LISTING_PRICE_CONFIG, formatFeeBreakdown, ACTIVE_FEE_MODEL_ID, FEE_MODELS } from '@/lib/feeEngine';
 import SellerTransferAttestation from '@/components/events/SellerTransferAttestation';
+import SellingEventPicker from '@/components/listings/SellingEventPicker';
+import SellingEventSummary from '@/components/listings/SellingEventSummary';
+import { isCanonicalEventId } from '@/lib/resolveSellingEvent';
 
-const STEPS = ['Event', 'Seats', 'Price', 'Done'];
-
+const STEPS = ['Event', 'Seats', 'Price & review'];
 function StepBar({ current }) {
-  return (
-    <div className="flex items-center gap-1 mb-8">
-      {STEPS.slice(0, 3).map((label, i) => {
-        const done = i < current;
-        const active = i === current;
-        return (
-          <div key={i} className="flex items-center gap-1 flex-1">
-            <div className="flex items-center gap-1.5 flex-1">
-              <div
-                className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black flex-shrink-0"
-                style={{
-                  background: done ? '#00FF87' : active ? 'rgba(191,95,255,0.3)' : 'hsl(var(--muted))',
-                  color: done ? '#0D0B14' : active ? '#BF5FFF' : 'hsl(var(--muted-foreground))',
-                  border: active ? '1px solid rgba(191,95,255,0.5)' : done ? 'none' : '1px solid hsl(var(--border))',
-                  boxShadow: active ? '0 0 10px rgba(191,95,255,0.4)' : 'none',
-                }}
-              >
-                {done ? '✓' : i + 1}
-              </div>
-              <span
-                className="text-[11px] font-semibold"
-                style={{ color: active ? 'hsl(var(--foreground))' : done ? '#00FF87' : 'hsl(var(--muted-foreground))' }}
-              >
-                {label}
-              </span>
-            </div>
-            {i < 2 && (
-              <div
-                className="h-px flex-1 mx-1"
-                style={{ background: done ? '#00FF8740' : 'hsl(var(--border))' }}
-              />
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
+  return <ol aria-label="Selling steps" className="grid grid-cols-3 gap-3 mb-6">
+    {STEPS.map((label, index) => <li key={label} aria-current={index === current ? 'step' : undefined} className={`border-t-2 pt-3 ${index <= current ? 'border-primary' : 'border-border'}`}>
+      <span className={`text-xs font-bold ${index === current ? 'text-primary' : 'text-muted-foreground'}`}>{index + 1}. {label}</span>
+    </li>)}
+  </ol>;
 }
 
-const inputClass = `w-full px-4 py-3.5 rounded-2xl text-sm font-medium text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40`;
+const inputClass = `w-full px-4 py-3.5 rounded-2xl text-base font-medium text-foreground scroll-mb-40 placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40`;
 const inputStyle = {
   background: 'hsl(var(--input))',
   border: '1px solid hsl(var(--border))',
@@ -63,36 +30,17 @@ const inputStyle = {
 export default function CreateListing() {
   const [searchParams] = useSearchParams();
   const preselectedEventId = searchParams.get('event_id');
-  const preselectedTab = searchParams.get('tab'); // 'search' when coming from Sell TM event
-  const preselectedQuery = searchParams.get('q') || ''; // pre-filled search query from Sell
-
-  const [step, setStep] = useState(preselectedEventId ? 1 : 0);
-  const [events, setEvents] = useState([]);
-  const [loadingEvents, setLoadingEvents] = useState(true);
+  const preselectedQuery = searchParams.get('tab') === 'search' ? searchParams.get('q') || '' : '';
+  const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const [flagged, setFlagged] = useState(false);
   const [savedAsDraft, setSavedAsDraft] = useState(false);
   const [uploadingProof, setUploadingProof] = useState(false);
   const [user, setUser] = useState(null);
-  const [eventTab, setEventTab] = useState(preselectedTab === 'search' ? 'search' : 'recommended');
-  const [tmQuery, setTmQuery] = useState(preselectedQuery);
-  const [tmResults, setTmResults] = useState([]);
-  const [tmLoading, setTmLoading] = useState(false);
-  const [tmSearched, setTmSearched] = useState(false);
-  const tmLastSearchRef = useRef(0);
-  const [tmRateLimited, setTmRateLimited] = useState(false);
-  // For TM events, store the selected event object (not just id)
-  const [selectedTmEvent, setSelectedTmEvent] = useState(null);
-  const [selectingTmId, setSelectingTmId] = useState(null);
-  // Recommended events (same logic as Upgrades)
-  const [allRecEvents, setAllRecEvents] = useState([]);
-  const [nearbyLoading, setNearbyLoading] = useState(true);
-  const [recLocationDenied, setRecLocationDenied] = useState(false);
-  const _recSS = (() => { try { return JSON.parse(sessionStorage.getItem('pg_upgrades_location') || 'null'); } catch { return null; } })();
-  const [recCityInput, setRecCityInput] = useState(_recSS?.locationInput || '');
-  const [recCitySubmitted, setRecCitySubmitted] = useState(false);
-
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const selectedEventRef = useRef(null);
+  const stepHeading = useRef(null);
   const [attestationDone, setAttestationDone] = useState(false);
   const [attestationData, setAttestationData] = useState(null);
   const [attestationBlocked, setAttestationBlocked] = useState(false);
@@ -103,7 +51,7 @@ export default function CreateListing() {
   const [uploadingPgProof, setUploadingPgProof] = useState(false);
 
   const [form, setForm] = useState({
-    event_id: preselectedEventId || '',
+    event_id: '',
     section: '',
     row: '',
     seats: '',
@@ -117,79 +65,20 @@ export default function CreateListing() {
 
   useEffect(() => {
     base44.auth.me({ fresh: true }).catch(() => base44.auth.me()).then(setUser).catch(() => {});
-    base44.entities.Event.filter({ status: 'upcoming' })
-      .then(res => setEvents(res.filter(e => e.status !== 'ended')))
-      .catch(console.error)
-      .finally(() => setLoadingEvents(false));
-
-    // Fetch recommended events using geo or city
-    setNearbyLoading(true);
-    const loadRecommended = (ll, cityOverride) => {
-      // Require at least one location signal — no national blind fetch
-      const tmParams = { size: 40 };
-      if (ll) {
-        tmParams.latlong = ll;
-        tmParams.radius = '50';
-      } else if (cityOverride) {
-        tmParams.city = cityOverride;
-      } else {
-        // No location available — show empty with prompt
-        setNearbyLoading(false);
-        setRecLocationDenied(true);
-        return;
-      }
-
-      Promise.all([
-        base44.entities.Event.list('date', 200),
-        fetchTMEvents(base44, tmParams).catch(() => ({ events: [] })),
-      ]).then(([localData, { events: tmEventsRaw }]) => {
-        let pgEvents = localData.filter(e => e.status !== 'ended');
-
-        if (cityOverride) {
-          // City mode: filter PG events by city name
-          const q = cityOverride.toLowerCase();
-          pgEvents = pgEvents.filter(e =>
-            e.city?.toLowerCase().includes(q) ||
-            e.venue?.toLowerCase().includes(q)
-          );
-        }
-        // For geo mode: only filter PG events by TM cities if TM returned results
-        if (ll && tmEventsRaw.length > 0) {
-          const tmCities = new Set(tmEventsRaw.map(e => e.city?.toLowerCase()).filter(Boolean));
-          if (tmCities.size > 0) {
-            pgEvents = pgEvents.filter(e => !e.city || tmCities.has(e.city.toLowerCase()));
-          }
-        }
-
-        const pgMapped = pgEvents.map(e => ({ ...e, source: 'pg' }));
-        const tmEvents = tmEventsRaw.map(e => ({ ...e, id: `tm_${e.tm_id}`, source: 'ticketmaster' }));
-        const pgTmIds = new Set(pgMapped.map(e => e.tm_id).filter(Boolean));
-        const uniqueTM = tmEvents.filter(e => !pgTmIds.has(e.tm_id));
-        setAllRecEvents([...pgMapped, ...uniqueTM]);
-      }).catch(console.error).finally(() => setNearbyLoading(false));
-    };
-
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setRecLocationDenied(false);
-        loadRecommended(`${pos.coords.latitude},${pos.coords.longitude}`, null);
-      },
-      () => {
-        // Geo denied — try saved city from sessionStorage before showing prompt
-        const savedCity = _recSS?.city;
-        if (savedCity) {
-          setRecCitySubmitted(true);
-          loadRecommended(null, savedCity);
-        } else {
-          setNearbyLoading(false);
-          setRecLocationDenied(true);
-        }
-      },
-      { timeout: 15000, enableHighAccuracy: false, maximumAge: 300000 }
-    );
-
-    // Store loadRecommended for city fallback
-    window.__pgLoadRecommended = loadRecommended;
+  }, []);
+  useEffect(() => {
+    if (step > 0) { stepHeading.current?.scrollIntoView({ block: 'start' }); stepHeading.current?.focus({ preventScroll: true }); }
+  }, [step]);
+  const acceptEvent = useCallback(event => {
+    if (!isCanonicalEventId(event.id)) return;
+    if (selectedEventRef.current?.id !== event.id) {
+      setForm({ event_id: event.id, section: '', row: '', seats: '', quantity: '1', tier: '', asking_price: '', original_price: '', transfer_method: 'email_transfer', proof_url: '' });
+      setAttestationDone(false); setAttestationData(null); setAttestationBlocked(false);
+      setListingMode('standard'); setItrAgreementDone(false); setPgTransferProofUrl(''); setPgTransferNotes('');
+    } else setForm(previous => ({ ...previous, event_id: event.id }));
+    selectedEventRef.current = event;
+    setSelectedEvent(event);
+    setStep(1);
   }, []);
 
   const set = (field, value) => setForm(f => ({ ...f, [field]: value }));
@@ -305,54 +194,6 @@ export default function CreateListing() {
     setDone(true);
   };
 
-  const handleTmSearch = async () => {
-    if (!tmQuery.trim()) return;
-    // Rate limit: enforce 2s cooldown between searches
-    const now = Date.now();
-    if (now - tmLastSearchRef.current < 2000) return;
-    tmLastSearchRef.current = now;
-    setTmLoading(true);
-    setTmSearched(true);
-    setTmRateLimited(false);
-    try {
-      const { events } = await fetchTMEvents(base44, { keyword: tmQuery });
-      setTmResults(events);
-    } catch (err) {
-      if (err?.response?.status === 429) {
-        setTmRateLimited(true);
-        setTmResults([]);
-      }
-    } finally {
-      setTmLoading(false);
-    }
-  };
-
-  const handleSelectTmEvent = async (tmEvent) => {
-    setSelectingTmId(tmEvent.tm_id);
-    let localEvent;
-    const existing = await base44.entities.Event.filter({ tm_id: tmEvent.tm_id });
-    if (existing.length > 0) {
-      localEvent = existing[0];
-    } else {
-      localEvent = await base44.entities.Event.create({
-        title: tmEvent.title,
-        venue: tmEvent.venue,
-        city: tmEvent.city,
-        date: tmEvent.date,
-        image_url: tmEvent.image_url,
-        tm_id: tmEvent.tm_id,
-        tm_url: tmEvent.tm_url,
-        status: 'upcoming',
-      });
-    }
-    setSelectedTmEvent(localEvent);
-    set('event_id', localEvent.id);
-    setSelectingTmId(null);
-    setStep(1);
-  };
-
-  const selectedEvent = events.find(e => e.id === form.event_id) || selectedTmEvent;
-
   // ── Onboarding state (non-blocking) ──────────────────────────────────────
   const isAdminUser = checkIsAdmin(user);
   const onboardingComplete =
@@ -433,7 +274,7 @@ export default function CreateListing() {
             onClick={() => {
               setDone(false); setSavedAsDraft(false); setStep(0);
               setForm({ event_id: '', section: '', row: '', seats: '', quantity: '1', tier: '', asking_price: '', original_price: '', transfer_method: 'email_transfer', proof_url: '' });
-              setSelectedTmEvent(null); setTmResults([]); setTmQuery(''); setTmSearched(false); setSelectingTmId(null);
+              setSelectedEvent(null); selectedEventRef.current = null;
               setAttestationDone(false); setAttestationData(null); setAttestationBlocked(false);
               setListingMode('standard'); setItrAgreementDone(false); setPgTransferProofUrl(''); setPgTransferNotes('');
             }}
@@ -449,263 +290,60 @@ export default function CreateListing() {
     );
   }
 
-  const canNext0 = !!form.event_id;
-  const canNext1 = !!form.section && !!form.row && attestationDone;
+  const canonicalSelected = isCanonicalEventId(form.event_id) && selectedEvent?.id === form.event_id;
+  const canNext1 = canonicalSelected && !!form.section && !!form.row && attestationDone;
   const priceVal = parseFloat(form.asking_price) || 0;
   const minPrice = MIN_LISTING_PRICE_CONFIG.enabled ? MIN_LISTING_PRICE_CONFIG.threshold : 0;
   const priceTooLow = MIN_LISTING_PRICE_CONFIG.enabled && priceVal > 0 && priceVal < minPrice;
-  const canSubmit = !!form.asking_price && priceVal >= (minPrice || 1)
+  const canSubmit = canonicalSelected && !!form.asking_price && priceVal >= (minPrice || 1)
     && (listingMode === 'standard' || (itrAgreementDone && (pgTransferProofUrl || pgTransferNotes.trim())));
 
   // Fee preview for step 2
   const feePreview = priceVal > 0 ? formatFeeBreakdown(priceVal, parseInt(form.quantity) || 1) : null;
 
   return (
-    <div className="max-w-lg mx-auto px-4 py-8" style={{ paddingTop: 'calc(2rem + env(safe-area-inset-top))', paddingBottom: 'calc(7rem + env(safe-area-inset-bottom))' }}>
-      <Link to="/my-sales" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-6 transition-colors">
-        <ArrowLeft className="w-3.5 h-3.5" /> Back
+    <div className="max-w-lg mx-auto px-4 selling-flow" style={{ paddingTop: 'calc(1rem + var(--app-safe-top))', paddingBottom: 'calc(8rem + env(safe-area-inset-bottom))' }}>
+      <Link to="/my-sales" className="inline-flex min-h-11 items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-4 transition-colors">
+        <ArrowLeft className="w-4 h-4" /> My sales
       </Link>
 
-      <div className="mb-6">
-        <h1 className="font-display text-3xl" style={{ background: 'linear-gradient(135deg, #BF5FFF, #FF2D78)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
-          Sell Tickets
-        </h1>
-        <p className="text-xs text-muted-foreground mt-1">3 quick steps · under a minute</p>
-      </div>
-
+      <header className="mb-6 space-y-2">
+        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-primary">Peanut Gallery · Sell</p>
+        <h1 ref={stepHeading} tabIndex={-1} className="font-display text-4xl leading-tight text-foreground outline-none scroll-mt-20">{step === 0 ? 'Sell your tickets.' : step === 1 ? 'Add your seats.' : 'Price & review.'}</h1>
+        <p className="text-base text-muted-foreground">{step === 0 ? 'Choose your event to get started.' : step === 1 ? 'Tell buyers where they’ll be sitting.' : 'Set your price and check the details.'}</p>
+      </header>
       <StepBar current={step} />
-
-      {/* ── Step 0: Pick Event ── */}
-      {step === 0 && (
-        <div className="space-y-3">
-          {/* Tabs */}
-          <div className="flex rounded-2xl p-1 gap-1" style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}>
-            <button
-              onClick={() => setEventTab('recommended')}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all"
-              style={{
-                background: eventTab === 'recommended' ? 'rgba(191,95,255,0.2)' : 'transparent',
-                color: eventTab === 'recommended' ? '#BF5FFF' : 'hsl(var(--muted-foreground))',
-                border: eventTab === 'recommended' ? '1px solid rgba(191,95,255,0.35)' : '1px solid transparent',
-              }}
-            >
-              <Star className="w-3 h-3" /> Recommended
-            </button>
-            <button
-              onClick={() => setEventTab('search')}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all"
-              style={{
-                background: eventTab === 'search' ? 'rgba(191,95,255,0.2)' : 'transparent',
-                color: eventTab === 'search' ? '#BF5FFF' : 'hsl(var(--muted-foreground))',
-                border: eventTab === 'search' ? '1px solid rgba(191,95,255,0.35)' : '1px solid transparent',
-              }}
-            >
-              <Search className="w-3 h-3" /> Search
-            </button>
-          </div>
-
-          {/* Recommended Tab — same logic as Upgrades */}
-          {eventTab === 'recommended' && (
-            <div className="space-y-4">
-              {/* City fallback when geo is denied */}
-              {recLocationDenied && !recCitySubmitted && (
-                <LocationAutocomplete
-                  value={recCityInput}
-                  onChange={setRecCityInput}
-                  placeholder="Enter your city…"
-                  onSelect={(s) => {
-                    setRecCitySubmitted(true);
-                    setNearbyLoading(true);
-                    setRecLocationDenied(false);
-                    window.__pgLoadRecommended?.(null, s.label);
-                  }}
-                  onSubmit={(val) => {
-                    setRecCitySubmitted(true);
-                    setNearbyLoading(true);
-                    setRecLocationDenied(false);
-                    window.__pgLoadRecommended?.(null, val);
-                  }}
-                />
-              )}
-
-              {nearbyLoading ? (
-                <>{[1,2,3].map(i => <div key={i} className="h-14 rounded-2xl animate-pulse bg-muted" />)}</>
-              ) : recLocationDenied ? (
-                <div className="text-center py-8 space-y-2">
-                  <p className="text-2xl">📍</p>
-                  <p className="text-sm text-muted-foreground">Enter your city above to see nearby events</p>
-                </div>
-              ) : (() => {
-                const nowMs = Date.now();
-                const liveEvs = allRecEvents.filter(e => getEventLiveStatus(e, nowMs).status === 'live');
-                const soonEvs = allRecEvents.filter(e => getEventLiveStatus(e, nowMs).status === 'soon');
-                const upcomingEvs = allRecEvents
-                  .filter(e => getEventLiveStatus(e, nowMs).status === 'upcoming')
-                  .sort((a, b) => new Date(a.event_start_utc || a.date || 0) - new Date(b.event_start_utc || b.date || 0));
-
-                const renderEvent = (ev) => {
-                  const isTM = ev.source === 'ticketmaster' || String(ev.id || '').startsWith('tm_');
-                  const key = ev.tm_id || ev.id;
-                  const isSelected = (isTM ? selectingTmId === ev.tm_id : form.event_id === ev.id);
-                  return (
-                    <button
-                      key={key}
-                      onClick={() => isTM ? handleSelectTmEvent(ev) : (set('event_id', ev.id), setSelectedTmEvent(null))}
-                      disabled={!!selectingTmId}
-                      className="w-full text-left px-4 py-3 rounded-2xl transition-all flex items-center gap-3 disabled:opacity-60"
-                      style={{
-                        background: isSelected ? 'rgba(191,95,255,0.12)' : 'hsl(var(--card))',
-                        border: isSelected ? '1px solid rgba(191,95,255,0.4)' : '1px solid hsl(var(--border))',
-                      }}
-                    >
-                      {ev.image_url && <img src={ev.image_url} alt="" className="w-9 h-9 rounded-lg object-cover flex-shrink-0" />}
-                      <div className="min-w-0 flex-1">
-                        <div className="font-bold text-sm text-foreground truncate">{ev.title}</div>
-                        <div className="text-xs text-muted-foreground mt-0.5 truncate">
-                          {ev.venue}{ev.city ? `, ${ev.city}` : ''}
-                          {ev.date && <> · {new Date(ev.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</>}
-                        </div>
-                      </div>
-                      {isSelected && isTM && <span className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin flex-shrink-0" />}
-                    </button>
-                  );
-                };
-
-                return (
-                  <>
-                    {liveEvs.length > 0 && (
-                      <div>
-                        <p className="text-[10px] font-black tracking-widest uppercase mb-2 flex items-center gap-1.5" style={{ color: '#FF2D78' }}>
-                          <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse inline-block" /> Live Now
-                        </p>
-                        <div className="space-y-2">{liveEvs.map(renderEvent)}</div>
-                      </div>
-                    )}
-                    {soonEvs.length > 0 && (
-                      <div>
-                        <p className="text-[10px] font-black tracking-widest uppercase mb-2 dark:text-[#FFE600] text-[#7a6000]">⚡ Starting Soon</p>
-                        <div className="space-y-2">{soonEvs.map(renderEvent)}</div>
-                      </div>
-                    )}
-                    {upcomingEvs.length > 0 && (
-                      <div>
-                        <p className="text-[10px] font-black tracking-widest uppercase mb-2" style={{ color: '#BF5FFF' }}>Upcoming Near You</p>
-                        <div className="space-y-2">{upcomingEvs.map(renderEvent)}</div>
-                      </div>
-                    )}
-                    {liveEvs.length === 0 && soonEvs.length === 0 && upcomingEvs.length === 0 && (
-                      <div className="text-center py-8 space-y-2">
-                        <p className="text-sm text-muted-foreground">No events found nearby.</p>
-                        <button onClick={() => setEventTab('search')} className="text-xs font-bold" style={{ color: '#BF5FFF' }}>Search for your event →</button>
-                      </div>
-                    )}
-                  </>
-                );
-              })()}
-            </div>
-          )}
-
-          {/* Search Tab */}
-          {eventTab === 'search' && (
-            <div className="space-y-3">
-              <div className="flex gap-2">
-                <div className="flex-1 relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <input
-                    type="text"
-                    value={tmQuery}
-                    onChange={e => setTmQuery(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleTmSearch()}
-                    placeholder="Artist, team, or event name…"
-                    className="w-full pl-9 pr-4 py-3 rounded-2xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
-                    style={{ background: 'hsl(var(--input))', border: '1px solid hsl(var(--border))' }}
-                  />
-                </div>
-                <button
-                  onClick={handleTmSearch}
-                  disabled={tmLoading || !tmQuery.trim()}
-                  className="px-4 py-3 rounded-2xl font-bold text-sm transition-all disabled:opacity-40"
-                  style={{ background: 'linear-gradient(135deg, #BF5FFF, #FF2D78)', color: '#fff' }}
-                >
-                  {tmLoading ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" /> : 'Go'}
-                </button>
-              </div>
-
-              {tmLoading && (
-                <div className="space-y-2">
-                  {[1,2,3].map(i => <div key={i} className="h-14 rounded-2xl animate-pulse bg-muted" />)}
-                </div>
-              )}
-
-              {!tmLoading && tmSearched && tmResults.length === 0 && (
-                <p className="text-sm text-muted-foreground text-center py-6">
-                  {tmRateLimited ? 'Too many requests — please wait a moment and try again.' : 'No events found. Try a different search.'}
-                </p>
-              )}
-
-              {!tmLoading && tmResults.map(ev => (
-                <button
-                  key={ev.tm_id}
-                  onClick={() => handleSelectTmEvent(ev)}
-                  disabled={!!selectingTmId}
-                  className="w-full text-left px-4 py-3.5 rounded-2xl transition-all flex items-center gap-3 disabled:opacity-60"
-                  style={{
-                    background: selectingTmId === ev.tm_id ? 'rgba(191,95,255,0.12)' : 'hsl(var(--card))',
-                    border: selectingTmId === ev.tm_id ? '1px solid rgba(191,95,255,0.4)' : '1px solid hsl(var(--border))',
-                    boxShadow: selectingTmId === ev.tm_id ? '0 0 16px rgba(191,95,255,0.15)' : 'none',
-                  }}
-                >
-                  {ev.image_url && <img src={ev.image_url} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />}
-                  <div className="min-w-0 flex-1">
-                    <div className="font-bold text-sm text-foreground truncate">{ev.title}</div>
-                    <div className="text-xs text-muted-foreground mt-0.5 truncate">
-                      {ev.venue}{ev.city ? `, ${ev.city}` : ''}
-                      {ev.date && <> · {new Date(ev.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</>}
-                    </div>
-                  </div>
-                  {selectingTmId === ev.tm_id && (
-                    <span className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin flex-shrink-0" />
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      <div hidden={step !== 0}>
+        <SellingEventPicker initialKeyword={preselectedQuery} initialEventId={preselectedEventId} onSelect={acceptEvent} />
+      </div>
+      {step > 0 && <div className="mb-6"><SellingEventSummary event={selectedEvent} onChange={() => setStep(0)} disabled={uploadingProof || uploadingPgProof || submitting} /></div>}
 
       {/* ── Step 1: Seat Info ── */}
       {step === 1 && (
         <div className="space-y-4">
-          {selectedEvent && (
-            <div className="px-4 py-2.5 rounded-2xl text-xs text-muted-foreground mb-1"
-              style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}>
-              🎫 {selectedEvent.title}
-            </div>
-          )}
-
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-muted-foreground mb-1.5">Section *</label>
               <input type="text" value={form.section} onChange={e => set('section', e.target.value)}
-                placeholder="118" className={inputClass} style={inputStyle} />
+                aria-label="Section" placeholder="118" className={inputClass} style={inputStyle} />
             </div>
             <div>
               <label className="block text-xs text-muted-foreground mb-1.5">Row *</label>
               <input type="text" value={form.row} onChange={e => set('row', e.target.value)}
-                placeholder="G" className={inputClass} style={inputStyle} />
+                aria-label="Row" placeholder="G" className={inputClass} style={inputStyle} />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-4">
             <div>
-              <label className="block text-xs text-muted-foreground mb-1.5">Seats</label>
-              <div className="flex gap-2">
+              <label className="block text-sm text-muted-foreground mb-2">Ticket quantity</label>
+              <div role="group" aria-label="Ticket quantity" className="grid grid-cols-6 gap-1">
                 {[1,2,3,4,5,6].map(n => (
                   <button
                     key={n}
                     type="button"
                     onClick={() => set('quantity', String(n))}
-                    className="flex-1 py-3 rounded-xl text-xs font-bold transition-all"
+                    aria-pressed={form.quantity === String(n)} className="min-h-11 rounded-xl text-sm font-bold transition-all"
                     style={{
                       background: form.quantity === String(n) ? 'rgba(191,95,255,0.15)' : 'hsl(var(--muted))',
                       border: form.quantity === String(n) ? '1px solid rgba(191,95,255,0.4)' : '1px solid hsl(var(--border))',
@@ -720,7 +358,7 @@ export default function CreateListing() {
             <div>
               <label className="block text-xs text-muted-foreground mb-1.5">Seat #s <span className="opacity-50">(optional)</span></label>
               <input type="text" value={form.seats} onChange={e => set('seats', e.target.value)}
-                placeholder="4, 5" className={inputClass} style={inputStyle} />
+                aria-label="Seat numbers" placeholder="4, 5" className={inputClass} style={inputStyle} />
             </div>
           </div>
 
@@ -747,7 +385,7 @@ export default function CreateListing() {
       {/* ── Attestation gate (shown at bottom of step 1) ── */}
       {step === 1 && !attestationDone && !attestationBlocked && (
         <div className="mt-6">
-          <SellerTransferAttestation
+          <SellerTransferAttestation key={selectedEvent?.id}
             onConfirm={(data) => { setAttestationData(data); setAttestationDone(true); }}
             onBlocked={() => setAttestationBlocked(true)}
             uploadFile={async (file) => {
@@ -790,7 +428,7 @@ export default function CreateListing() {
           {/* Listing mode selector */}
           <div>
             <p className="text-xs text-muted-foreground mb-2 font-semibold uppercase tracking-wide">Listing Type</p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 type="button"
                 onClick={() => { setListingMode('standard'); setItrAgreementDone(false); }}
@@ -822,7 +460,7 @@ export default function CreateListing() {
 
           {/* ITR mode: agreement gate, then proof upload */}
           {listingMode === 'instant_transfer_ready' && !itrAgreementDone && (
-            <InstantTransferAgreement onConfirmed={() => setItrAgreementDone(true)} />
+            <InstantTransferAgreement key={selectedEvent?.id} onConfirmed={() => setItrAgreementDone(true)} />
           )}
 
           {listingMode === 'instant_transfer_ready' && itrAgreementDone && (
@@ -893,7 +531,7 @@ export default function CreateListing() {
             <div className="relative">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-2xl" style={{ color: '#00FF87' }}>$</span>
               <input
-                type="number" min="1" step="1"
+                aria-label="Price per ticket" inputMode="decimal" type="number" min="1" step="1"
                 value={form.asking_price}
                 onChange={e => set('asking_price', e.target.value)}
                 placeholder="0"
@@ -939,7 +577,7 @@ export default function CreateListing() {
             <label className="block text-xs text-muted-foreground mb-1.5">Face value <span className="opacity-50">(optional · shows savings badge)</span></label>
             <div className="relative">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold">$</span>
-              <input type="number" min="1" step="1" value={form.original_price}
+              <input aria-label="Face value" inputMode="decimal" type="number" min="1" step="1" value={form.original_price}
                 onChange={e => set('original_price', e.target.value)}
                 placeholder="0" className={`${inputClass} pl-8`} style={inputStyle} />
             </div>
@@ -993,26 +631,28 @@ export default function CreateListing() {
         </div>
       )}
 
-      {/* Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 px-4 pt-4 flex gap-3 max-w-lg mx-auto"
-        style={{ background: 'linear-gradient(to top, hsl(var(--background)) 60%, transparent)', paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom))' }}>
+      {step === 2 && <p className="mt-6 text-xs leading-relaxed text-muted-foreground">PG upgrades are separately priced add-on purchases.</p>}
+      {/* Navigation remains in flow so the keyboard cannot cover a fixed action bar. */}
+      {step > 0 && <div className="mt-8 pt-5 border-t border-border flex gap-3">
         {step > 0 && (
           <button
             onClick={() => setStep(s => s - 1)}
+            disabled={uploadingProof || uploadingPgProof || submitting}
+            aria-label={step === 1 ? 'Back to events' : 'Back to seats'}
             className="flex items-center gap-1.5 px-5 py-3 rounded-full text-sm font-semibold transition-colors"
             style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--muted-foreground))' }}
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="w-4 h-4" /> Back
           </button>
         )}
-        {step < 2 && (
+        {step === 1 && (
           <button
             onClick={() => setStep(s => s + 1)}
-            disabled={(step === 0 && !canNext0) || (step === 1 && !canNext1)}
+            disabled={!canNext1}
             className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-full font-black text-sm transition-all disabled:opacity-30"
             style={{ background: 'linear-gradient(135deg, #BF5FFF, #FF2D78)', color: '#fff', boxShadow: '0 0 18px rgba(191,95,255,0.25)' }}
           >
-            Continue <ArrowRight className="w-4 h-4" />
+            Price & review <ArrowRight className="w-4 h-4" />
           </button>
         )}
         {step === 2 && (
@@ -1028,7 +668,7 @@ export default function CreateListing() {
             }
           </button>
         )}
-      </div>
+      </div>}
     </div>
   );
 }
