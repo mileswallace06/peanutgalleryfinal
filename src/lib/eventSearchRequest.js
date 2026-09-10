@@ -1,18 +1,20 @@
 import { escapeRegex, normalizeSearch } from './searchNormalize.js';
 
-// Geography is an explicit filter, never inferred from a keyword or a saved GPS fix.
-export function createEventSearchRequest(keyword = '', location = null) {
-  const cityOverride = location?.city?.trim() || null;
-  const ll = cityOverride ? null : location?.ll || null;
+// The selected local area is retained by the caller when nationwide is requested.
+export function createEventSearchRequest(keyword = '', location = null, scope = 'local') {
+  const cityOverride = scope === 'nationwide' ? null : location?.city?.trim() || null;
+  const ll = scope === 'nationwide' || cityOverride ? null : location?.ll || null;
   return {
     keyword: keyword.trim().slice(0, 100),
+    scope,
     cityOverride,
+    stateOverride: cityOverride ? location?.state || null : null,
     ll,
-    locationLabel: cityOverride ? location.label || cityOverride : ll ? 'Near me · 50 miles' : 'All locations',
+    locationLabel: scope === 'nationwide' ? 'Nationwide' : cityOverride ? location.label || cityOverride : ll ? 'your location · 50 miles' : 'Choose location',
   };
 }
 
-export function buildEventSearchParams({ keyword, cityOverride, ll }) {
+export function buildEventSearchParams({ keyword, cityOverride, stateOverride, ll }) {
   const tmParams = { size: 40 };
   const pgQuery = {};
   if (keyword) {
@@ -23,6 +25,7 @@ export function buildEventSearchParams({ keyword, cityOverride, ll }) {
   if (cityOverride) {
     tmParams.city = cityOverride;
     pgQuery.city = { $regex: `^${escapeRegex(cityOverride)}$`, $options: 'i' };
+    if (stateOverride) pgQuery.state = { $regex: `^${escapeRegex(stateOverride)}$`, $options: 'i' };
   } else if (ll) {
     tmParams.latlong = ll;
     tmParams.radius = '50';
