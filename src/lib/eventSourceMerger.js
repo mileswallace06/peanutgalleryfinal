@@ -20,7 +20,7 @@ import { normalizeSearch, eventMatchesKeyword, eventWithinRadius } from './searc
  * @returns {{ events: array, pgError: boolean, tmError: boolean, partialData: boolean, tmFailed: boolean, tmEventsRaw: array }}
  */
 export function mergeEventSources({ localResult, tmResult, filters }) {
-  const { cityOverride, ll, keyword, isAdmin, now, tmKeywordApplied = false } = filters;
+  const { cityOverride, stateOverride, ll, keyword, isAdmin, now, tmKeywordApplied = false } = filters;
 
   // ── PG source ──────────────────────────────────────────────────────────
   const localData = localResult.status === 'fulfilled' ? localResult.value : [];
@@ -64,10 +64,16 @@ export function mergeEventSources({ localResult, tmResult, filters }) {
     pgFiltered = pgFiltered.filter(e => eventMatchesKeyword(e, keyword));
   }
 
+  if (cityOverride && stateOverride) pgFiltered = pgFiltered.filter(e => e.state === stateOverride);
   const pgMapped = pgFiltered.map(e => ({ ...e, source: 'pg' }));
 
   // ── Map TM events ───────────────────────────────────────────────────────
   let tmEvents = tmEventsRaw.map(e => ({ ...e, id: `tm_${e.tm_id}`, source: 'ticketmaster' }));
+  // The existing provider endpoint accepts city but not state. Disambiguate
+  // same-name cities here, without changing that production backend contract.
+  if (cityOverride && stateOverride) {
+    tmEvents = tmEvents.filter(e => normalizeSearch(e.city) === normalizeSearch(cityOverride) && e.state === stateOverride);
+  }
   // A provider keyword search also matches attraction/team metadata that is not
   // present in normalized event titles. Do not discard those valid matches.
   if (keyword && !tmKeywordApplied) {
