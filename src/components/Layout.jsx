@@ -161,7 +161,7 @@ export default function Layout() {
       {/* Sign in — only when auth has definitively resolved as unauthenticated.
           During loading (authChecked=false) render nothing so "Sign in" never flashes. */}
       {authChecked && !isAuthenticated && !user && (
-        <div className="fixed right-4 z-[99]" style={{ top: 'calc(1rem + env(safe-area-inset-top))' }}>
+        <div className="fixed right-4 z-[99]" style={{ top: 'calc(1rem + var(--app-safe-top))' }}>
           <button
             onClick={() => base44.auth.redirectToLogin()}
             aria-label="Sign in to Peanut Gallery"
@@ -176,7 +176,7 @@ export default function Layout() {
       {user && (
         <Link to="/notifications" aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
           className="fixed right-4 z-[99] flex items-center justify-center w-11 h-11 rounded-full transition-all active:scale-95"
-          style={{ top: 'calc(0.75rem + env(safe-area-inset-top))', background: unreadCount > 0 ? 'rgba(var(--neon-pink-rgb), 0.1)' : 'hsl(var(--card))', border: `1px solid ${unreadCount > 0 ? 'rgba(var(--neon-pink-rgb), 0.25)' : 'hsl(var(--border))'}` }}>
+          style={{ top: 'calc(0.75rem + var(--app-safe-top))', background: unreadCount > 0 ? 'rgba(var(--neon-pink-rgb), 0.1)' : 'hsl(var(--card))', border: `1px solid ${unreadCount > 0 ? 'rgba(var(--neon-pink-rgb), 0.25)' : 'hsl(var(--border))'}` }}>
           <Bell className="w-5 h-5" style={{ color: unreadCount > 0 ? 'var(--neon-pink)' : 'hsl(var(--muted-foreground))' }} />
           {unreadCount > 0 && (
             <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black"
