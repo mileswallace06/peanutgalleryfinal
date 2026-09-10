@@ -20,7 +20,7 @@ import { normalizeSearch, eventMatchesKeyword, eventWithinRadius } from './searc
  * @returns {{ events: array, pgError: boolean, tmError: boolean, partialData: boolean, tmFailed: boolean, tmEventsRaw: array }}
  */
 export function mergeEventSources({ localResult, tmResult, filters }) {
-  const { cityOverride, stateOverride, ll, keyword, isAdmin, now, tmKeywordApplied = false } = filters;
+  const { cityOverride, stateOverride, ll, keyword, isAdmin, now, tmKeywordApplied = false, includeStarted = false } = filters;
 
   // ── PG source ──────────────────────────────────────────────────────────
   const localData = localResult.status === 'fulfilled' ? localResult.value : [];
@@ -42,7 +42,7 @@ export function mergeEventSources({ localResult, tmResult, filters }) {
 
   // ── Filter PG events ────────────────────────────────────────────────────
   const eligible = localData.filter(e => e.status !== 'ended');
-  const pgEvents = isAdmin
+  const pgEvents = isAdmin || includeStarted
     ? eligible
     : eligible.filter(e => !e.date || now < new Date(e.date).getTime());
   let pgFiltered = pgEvents.filter(e => !e.is_beta_live);
