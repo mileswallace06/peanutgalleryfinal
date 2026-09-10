@@ -74,8 +74,20 @@ export function mergeEventSources({ localResult, tmResult, filters }) {
     tmEvents = tmEvents.filter(e => eventMatchesKeyword(e, keyword));
   }
 
+  // syncTMEvent persists provider records in PG. Keep their local route and
+  // show each provider identity once, including duplicate persisted copies.
+  // Titles are not identities: separate performances must remain separate.
+  const seen = new Set();
+  const events = [...pgMapped, ...tmEvents].filter(event => {
+    const key = event.tm_id ? `tm:${event.tm_id}` : event.id ? `pg:${event.id}` : null;
+    if (!key) return true;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
   return {
-    events: [...pgMapped, ...tmEvents],
+    events,
     pgError,
     tmError,
     partialData,
