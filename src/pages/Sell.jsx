@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { Plus, Tag, TrendingUp, LogIn, BadgeCheck, ExternalLink, Loader2, AlertCircle, MapPin, Calendar, ChevronRight } from 'lucide-react';
+import { Plus, Tag, TrendingUp, LogIn, BadgeCheck, ExternalLink, Loader2, AlertCircle, MapPin, ChevronRight } from 'lucide-react';
 import { fetchTMEvents } from '@/lib/tmCache';
 import { isAdmin } from '@/lib/isAdmin';
 
@@ -137,7 +137,7 @@ export default function Sell() {
   return (
     <div className="pb-32">
       {/* Hero */}
-      <div className="relative h-56 overflow-hidden" style={{ marginTop: 'env(safe-area-inset-top)' }}>
+      <div className="relative overflow-hidden" data-page-hero="sell" style={{ height: 'calc(14rem + var(--app-safe-top))' }}>
         <img
           src="https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=900&q=80"
           alt="Sell"
