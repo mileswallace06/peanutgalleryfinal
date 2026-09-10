@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { Ticket, TrendingUp, Shield, LogIn, Edit2, Tag, Zap, ChevronRight, Camera, ImagePlus, UserPlus, UserCheck, Settings, Eye, EyeOff } from 'lucide-react';
+import { Ticket, TrendingUp, Shield, LogIn, Edit2, Tag, Zap, ChevronRight, Camera, ImagePlus, UserPlus, UserCheck, Settings, Eye, EyeOff, MessageSquare } from 'lucide-react';
 import PeanutPointsCard from '@/components/points/PeanutPointsCard';
 import RecentPointsActivity from '@/components/points/RecentPointsActivity';
 import CommunityImpactCard from '@/components/donations/CommunityImpactCard';
 import { isAdmin } from '@/lib/isAdmin';
 import { useAuth } from '@/lib/AuthContext';
+import { feedbackAccess } from '@/lib/feedbackInbox';
 
 /** Privacy-first email display — hidden by default, reveal on tap */
 function EmailDisplay({ email }) {
@@ -28,7 +29,8 @@ function EmailDisplay({ email }) {
 
 export default function Me() {
   const navigate = useNavigate();
-  const { user: authUser } = useAuth();
+  const auth = useAuth();
+  const { user: authUser } = auth;
   // Seed with the already-resolved AuthContext user to avoid the sign-in flash,
   // then refresh in the background to pick up any profile updates.
   const [user, setUser] = useState(authUser || null);
@@ -220,6 +222,17 @@ export default function Me() {
             <Settings className="w-3 h-3" /> Account Settings
           </button>
         </div>
+
+        {feedbackAccess(auth) === 'admin' && (
+          <Link to="/beta-dashboard?view=feedback" className="flex items-center gap-4 px-5 py-4 mb-5 rounded-2xl border border-purple-400/30 bg-purple-400/10">
+            <MessageSquare className="w-6 h-6 text-purple-400 flex-shrink-0" />
+            <div className="flex-1">
+              <div className="font-bold text-sm text-foreground">Feedback</div>
+              <div className="text-xs text-muted-foreground">Bugs, confusion, love and ideas · Admin inbox</div>
+            </div>
+            <ChevronRight className="w-4 h-4 text-muted-foreground" />
+          </Link>
+        )}
 
         {/* Bio */}
         {user.bio ? (

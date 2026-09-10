@@ -17,14 +17,16 @@ import { pageVariants, useNavigationDirection } from '@/lib/pageTransitions';
  * AnimatePresence provides iOS-native horizontal slide transitions within each tab.
  */
 function MountedTab({ tabKey, activeKey, direction, pathname }) {
-  const mountedRef = useRef(false);
+  const savedRoute = useRef(null);
   const outlet = useOutlet();
-  if (activeKey === tabKey) mountedRef.current = true;
-  if (!mountedRef.current) return null;
+  // Freeze each inactive tab at its own route. Reading the latest outlet in every
+  // mounted tab duplicates the active page (and its requests) in hidden panels.
+  if (activeKey === tabKey) savedRoute.current = { outlet, pathname };
+  if (!savedRoute.current) return null;
   return (
     <AnimatePresence mode="wait" custom={direction}>
       <motion.div
-        key={pathname}
+        key={savedRoute.current.pathname}
         custom={direction}
         variants={pageVariants}
         initial="initial"
@@ -32,7 +34,7 @@ function MountedTab({ tabKey, activeKey, direction, pathname }) {
         exit="exit"
         style={{ minHeight: '100%' }}
       >
-        {outlet}
+        {savedRoute.current.outlet}
       </motion.div>
     </AnimatePresence>
   );
