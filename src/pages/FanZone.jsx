@@ -337,14 +337,14 @@ export default function FanZone() {
     <div ref={containerRef} className="pb-32">
       <div ref={innerRef} className="transition-transform duration-200">
       {pulling && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-4 py-2 rounded-full"
-          style={{ background: 'rgba(var(--neon-cyan-light-rgb), 0.1)', border: '1px solid rgba(var(--neon-cyan-light-rgb), 0.25)' }}>
+        <div className="fixed left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-4 py-2 rounded-full"
+          style={{ top: 'calc(1rem + var(--app-safe-top))', background: 'rgba(var(--neon-cyan-light-rgb), 0.1)', border: '1px solid rgba(var(--neon-cyan-light-rgb), 0.25)' }}>
           <RefreshCw className="w-3.5 h-3.5 animate-spin" style={{ color: 'var(--neon-cyan-light)' }} />
           <span className="text-xs font-semibold" style={{ color: 'var(--neon-cyan-light)' }}>Refreshing…</span>
         </div>
       )}
       {/* Hero */}
-      <div className="relative h-52 overflow-hidden" style={{ marginTop: 'env(safe-area-inset-top)' }}>
+      <div className="relative overflow-hidden" data-page-hero="fan-zone" style={{ height: 'calc(13rem + var(--app-safe-top))' }}>
         <img
           src="https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=900&q=80"
           alt="Fan Zone"
