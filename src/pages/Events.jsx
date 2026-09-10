@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { MapPin, Calendar, ChevronRight, RefreshCw, ShieldCheck, Search, ArrowUpDown, X } from 'lucide-react';
+import { MapPin, LocateFixed, Calendar, ChevronRight, RefreshCw, ShieldCheck, Search, ArrowUpDown, X } from 'lucide-react';
 import { getEventLiveStatus } from '@/lib/eventTiming';
 import { getEventUrl } from '@/lib/eventUrl';
 import { logNavEvent } from '@/lib/navLogger';
@@ -13,6 +13,7 @@ import { useLocationDetect } from '@/hooks/useLocationDetect';
 import LocationAutocomplete from '@/components/LocationAutocomplete';
 import { createEventSearchRequest, buildEventSearchParams } from '@/lib/eventSearchRequest';
 import EventThumbnail from '@/components/events/EventThumbnail';
+import { restoreEventLocation, saveEventLocation, cityFromSuggestion, validCoordinates } from '@/lib/eventLocation';
 
 export default function Events() {
   const [events, setEvents] = useState([]);
@@ -24,7 +25,10 @@ export default function Events() {
   const [locationInput, setLocationInput] = useState('');
   const [editingLocation, setEditingLocation] = useState(false);
   const [cityError, setCityError] = useState('');
-  const [locationFilter, setLocationFilter] = useState(null);
+  const [localArea, setLocalArea] = useState(null);
+  const localAreaRef = useRef(null);
+  const [restoringLocation, setRestoringLocation] = useState(true);
+  const locationIntent = useRef(0);
   const [activeSearch, setActiveSearch] = useState(() => createEventSearchRequest());
   const activeSearchRef = useRef(activeSearch);
   const pendingNearMe = useRef(null);
@@ -48,8 +52,9 @@ export default function Events() {
   const fetchEvents = useCallback(async (request, bust = false) => {
     activeSearchRef.current = request;
     setActiveSearch(request);
-    const { keyword, cityOverride, ll } = request;
-    setHasSearched(Boolean(keyword || cityOverride || ll));
+    const { keyword, cityOverride, stateOverride, ll, scope } = request;
+    const canSearch = scope === 'nationwide' ? Boolean(keyword) : Boolean(cityOverride || ll);
+    setHasSearched(canSearch);
 
     // Cancel any previous in-flight fetch
     abortRef.current?.abort();
@@ -63,7 +68,7 @@ export default function Events() {
     setPartialData(false);
     const now = Date.now();
     const { tmParams, pgQuery, pgLimit } = buildEventSearchParams(request);
-    if (!keyword && !cityOverride && !ll) {
+    if (!canSearch) {
       setEvents([]);
       setLoading(false);
       return;
@@ -84,7 +89,7 @@ export default function Events() {
       // mismatch (fetchTMEvents returns { events, fromCache }, not an array).
       const merged = mergeEventSources({
         localResult, tmResult,
-        filters: { cityOverride, ll, keyword, isAdmin, now, tmKeywordApplied: true },
+        filters: { cityOverride, stateOverride, ll, keyword, isAdmin, now, tmKeywordApplied: true },
       });
 
       if (merged.pgError && merged.tmFailed) setNetworkError(true);
@@ -133,38 +138,80 @@ export default function Events() {
 
 
 
-  const runSearch = (text, location = locationFilter) => {
+  const runSearch = (text, location = localAreaRef.current, scope = 'local') => {
     // A later submit/filter choice supersedes a pending geolocation request.
+    locationIntent.current++;
     pendingNearMe.current = null;
-    setKeyword(text);
-    setLocationFilter(location);
-    setEditingLocation(false);
+    cancelRequest();
+    setRestoringLocation(false);
+    const request = createEventSearchRequest(text, location, scope);
+    setKeyword(request.keyword);
+    if (scope === 'local' && location) {
+      const saved = saveEventLocation(location);
+      localAreaRef.current = saved;
+      setLocalArea(saved);
+    }
+    setEditingLocation(scope === 'local' && !location);
     setCityError('');
-    fetchEvents(createEventSearchRequest(text, location));
+    fetchEvents(request);
   };
 
-  const { locationStatus, requestLocation } = useLocationDetect({
+  const { locationStatus, requestLocation, cancelRequest } = useLocationDetect({
+    restoreCache: false,
     onSuccess: (ll) => {
-      // Restoring cached GPS must never silently restrict an artist search.
       const pending = pendingNearMe.current;
       if (!pending) return;
-      runSearch(pending.keyword, { ll });
+      const valid = validCoordinates(ll);
+      if (valid) runSearch(pending.keyword, { ll: valid, label: 'your location · 50 miles' });
+      else { pendingNearMe.current = null; setCityError('Location is unavailable. Choose a city below.'); setEditingLocation(true); }
+    },
+    onError: (status) => {
+      if (!pendingNearMe.current) return;
+      pendingNearMe.current = null;
+      setCityError(status === 'denied' ? 'Location permission was denied. Choose a city below.' : 'Location is unavailable. Choose a city below.');
+      setLocationInput('');
+      setEditingLocation(true);
     },
   });
 
-  const handleNearMe = () => {
-    pendingNearMe.current = { keyword: activeSearchRef.current.keyword };
+  useEffect(() => {
+    let cancelled = false;
+    const intent = locationIntent.current;
+    restoreEventLocation(base44).then(location => {
+      if (cancelled || intent !== locationIntent.current) return;
+      setRestoringLocation(false);
+      if (location) {
+        const saved = saveEventLocation(location);
+        localAreaRef.current = saved;
+        setLocalArea(saved);
+        // A saved-area lookup may finish while someone is typing a draft.
+        // Start nearby browsing without replacing that unsubmitted input.
+        fetchEvents(createEventSearchRequest('', saved));
+      }
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  const requestCurrentLocation = (text = activeSearchRef.current.keyword) => {
+    locationIntent.current++;
+    setRestoringLocation(false);
+    pendingNearMe.current = { keyword: text };
     setCityError('');
     requestLocation();
   };
+  const handleNearMe = () => {
+    setShowPast(false);
+    runSearch('');
+    if (!localAreaRef.current) requestCurrentLocation('');
+  };
   const retrySearch = () => fetchEvents(activeSearchRef.current, true);
-  const searchAllLocations = () => runSearch(activeSearchRef.current.keyword, null);
+  const searchNationwide = () => runSearch(activeSearchRef.current.keyword, null, 'nationwide');
   const openLocationPicker = () => {
-    setLocationInput(locationFilter?.city || '');
+    setLocationInput('');
     setCityError('');
     setEditingLocation(true);
   };
-  const locationFailed = ['denied', 'unavailable', 'timeout'].includes(locationStatus);
+  const sourceError = networkError || pgError || tmError || partialData;
 
   // Date-aware sorting & filtering of events.
   // Marketplaces prioritizes future, purchasable events.
@@ -207,15 +254,15 @@ export default function Events() {
   return (
     <div ref={containerRef} className="pb-32 transition-transform duration-200">
       {pulling && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-4 py-2 rounded-full"
-          style={{ background: 'rgba(var(--neon-purple-rgb), 0.1)', border: '1px solid rgba(var(--neon-purple-rgb), 0.25)' }}>
+        <div className="fixed left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-4 py-2 rounded-full"
+          style={{ top: 'calc(1rem + var(--app-safe-top))', background: 'rgba(var(--neon-purple-rgb), 0.1)', border: '1px solid rgba(var(--neon-purple-rgb), 0.25)' }}>
           <RefreshCw className="w-3.5 h-3.5 animate-spin" style={{ color: 'var(--neon-purple)' }} />
           <span className="text-xs font-semibold" style={{ color: 'var(--neon-purple)' }}>Refreshing…</span>
         </div>
       )}
 
       {/* ── Hero ── */}
-      <div className="relative h-56 overflow-hidden" style={{ marginTop: 'env(safe-area-inset-top)' }}>
+      <div className="relative overflow-hidden" data-page-hero="events" style={{ height: 'calc(14rem + var(--app-safe-top))' }}>
         <img
           src="https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=1200&q=85"
           alt="crowd"
@@ -254,7 +301,7 @@ export default function Events() {
         </div>
       </div>
 
-      {/* One event search; geography is a separate, opt-in filter. */}
+      {/* One event search; new submissions always use the retained local area. */}
       <div className="px-4 mt-3 mb-4 space-y-3">
         <form role="search" onSubmit={(e) => { e.preventDefault(); runSearch(keyword); }}>
           <label htmlFor="event-search" className="sr-only">Search events, artists, teams, or venues</label>
@@ -278,38 +325,38 @@ export default function Events() {
           </div>
         </form>
         <div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={openLocationPicker} aria-expanded={editingLocation} aria-controls="event-location-filter"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold border border-primary/30 text-primary bg-primary/10">
-            <MapPin className="w-3.5 h-3.5" />
-            {activeSearch.locationLabel} · change
+          <button type="button" onClick={handleNearMe} disabled={locationStatus === 'requesting'}
+            className="flex items-center gap-2 px-4 py-3 rounded-full text-sm font-bold bg-primary text-primary-foreground disabled:opacity-50">
+            <LocateFixed className="w-4 h-4" />{locationStatus === 'requesting' ? 'Locating…' : 'Near Me'}
           </button>
-          {locationFilter && (
-            <button type="button" onClick={searchAllLocations} className="text-xs text-muted-foreground underline underline-offset-2">Search all locations</button>
-          )}
-          {!locationFilter && <span className="text-xs text-muted-foreground">Search across the U.S.</span>}
+          <button type="button" onClick={openLocationPicker} aria-expanded={editingLocation} aria-controls="event-location-filter"
+            className="flex items-center gap-1.5 px-3 py-3 rounded-full text-xs font-semibold border border-primary/30 text-primary bg-primary/10">
+            <MapPin className="w-3.5 h-3.5" />
+            {localArea ? `${localArea.label} · change` : 'Choose city'}
+          </button>
         </div>
+        {hasSearched && <p data-search-scope={activeSearch.scope} className="text-xs font-semibold text-muted-foreground">
+          {activeSearch.scope === 'nationwide' ? 'Nationwide results · United States' : `Nearby · ${activeSearch.locationLabel}`}
+        </p>}
         {editingLocation && (
           <section id="event-location-filter" aria-label="Location filter" className="p-3 rounded-2xl border border-border space-y-3">
             <div className="flex justify-between items-center">
-              <p className="text-sm font-semibold">Filter by location</p>
-              <button type="button" onClick={() => { pendingNearMe.current = null; setEditingLocation(false); }} aria-label="Close location filter" className="p-2"><X className="w-4 h-4" /></button>
+              <p className="text-sm font-semibold">Choose your local area</p>
+              <button type="button" onClick={() => { pendingNearMe.current = null; cancelRequest(); setEditingLocation(false); }} aria-label="Close location filter" className="p-2"><X className="w-4 h-4" /></button>
             </div>
             <LocationAutocomplete value={locationInput} autoFocus
               onChange={(value) => { setLocationInput(value); setCityError(''); }}
               onSelect={(city) => {
-                if (!city.city) { setCityError('Choose a city from the suggestions.'); return; }
-                runSearch(activeSearchRef.current.keyword, { city: city.city, label: city.label || city.city });
+                const location = cityFromSuggestion(city);
+                if (!location) { setCityError('Choose a city from the suggestions.'); return; }
+                runSearch(activeSearchRef.current.keyword, location);
               }}
-              onSubmit={() => setCityError('Choose a city from the suggestions, or use Near me.')}
+              onSubmit={() => setCityError('Choose a city from the suggestions, or use your location.')}
               placeholder="Find a city" />
             {cityError && <p role="alert" className="text-xs text-muted-foreground">{cityError}</p>}
-            {locationFailed && <p role="status" className="text-xs text-muted-foreground">Location is unavailable. Choose a city or search all locations.</p>}
-            <div className="flex gap-3">
-              <button type="button" onClick={searchAllLocations} className="text-sm font-semibold text-primary">All locations</button>
-              <button type="button" onClick={handleNearMe} disabled={locationStatus === 'requesting'} className="text-sm font-semibold text-primary disabled:opacity-50">
-                {locationStatus === 'requesting' ? 'Locating…' : 'Near me'}
-              </button>
-            </div>
+            <button type="button" onClick={() => requestCurrentLocation()} disabled={locationStatus === 'requesting'} className="text-sm font-semibold text-primary disabled:opacity-50">
+              {locationStatus === 'requesting' ? 'Locating…' : 'Use my location'}
+            </button>
           </section>
         )}
       </div>
@@ -432,25 +479,31 @@ export default function Events() {
             </div>
           ))}
         </div>
+      ) : restoringLocation ? (
+        <p role="status" className="px-4 text-sm text-muted-foreground">Loading your saved location…</p>
       ) : !hasSearched ? (
         <div className="mx-4 p-5 rounded-2xl border border-border bg-card space-y-2">
-          <p className="font-semibold">Find your next event</p>
-          <p className="text-sm text-muted-foreground">Search an artist, event, team or venue across the U.S., or choose a location to browse nearby.</p>
-          <button type="button" onClick={openLocationPicker} className="text-sm font-semibold text-primary">Choose a location</button>
+          <p className="font-semibold">Find events near you</p>
+          <p className="text-sm text-muted-foreground">Choose a local area to browse events and search artists, teams or venues nearby.</p>
+          {!editingLocation && <button type="button" onClick={() => requestCurrentLocation()} disabled={locationStatus === 'requesting'} className="text-sm font-semibold text-primary disabled:opacity-50">
+            {locationStatus === 'requesting' ? 'Locating…' : 'Use my location'}
+          </button>}
         </div>
       ) : filtered.length === 0 ? (
         <div className="mx-4 p-5 rounded-2xl border border-border bg-card space-y-2" role="status">
           <p className="font-semibold">
-            {networkError || pgError || tmError || partialData ? 'Some search results are unavailable' : activeSearch.keyword ? `No matches for “${activeSearch.keyword}”` : 'No events found'}
+            {sourceError ? 'Some search results are unavailable' : activeSearch.keyword
+              ? activeSearch.scope === 'local' ? `No matches for ‘${activeSearch.keyword}’ near ${activeSearch.locationLabel}` : `No matches for ‘${activeSearch.keyword}’ nationwide`
+              : `No nearby events found near ${activeSearch.locationLabel}`}
           </p>
           <p className="text-sm text-muted-foreground">
-            {networkError || pgError || tmError || partialData
+            {sourceError
               ? 'A source could not be loaded. Retry this search before assuming there are no events.'
-              : locationFilter ? `No matches in ${activeSearch.locationLabel}. Try all locations or another search.`
-                : 'Try another artist, event, team or venue. This search includes all locations.'}
+              : activeSearch.scope === 'local' && activeSearch.keyword ? 'Try this search across the United States.'
+                : 'Try another search or choose a different local area.'}
           </p>
-          {locationFilter && <button type="button" onClick={searchAllLocations} className="text-sm font-semibold text-primary">Search all locations</button>}
-          {(networkError || pgError || tmError || partialData) && <button type="button" onClick={retrySearch} className="block text-sm font-semibold text-primary">Retry search</button>}
+          {!sourceError && activeSearch.scope === 'local' && activeSearch.keyword && <button type="button" onClick={searchNationwide} className="px-4 py-3 rounded-full text-sm font-bold bg-primary text-primary-foreground">Search nationwide</button>}
+          {sourceError && <button type="button" onClick={retrySearch} className="block text-sm font-semibold text-primary">Retry search</button>}
         </div>
       ) : (
         <div className="px-4 space-y-3">

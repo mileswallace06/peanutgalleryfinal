@@ -1,6 +1,9 @@
 @import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&family=Instrument+Serif:ital@0;1&display=swap');
 
 @tailwind base;
+
+/* Artwork reaches the viewport edge; foreground controls consume this once. */
+:root { --app-safe-top: env(safe-area-inset-top, 0px); }
 @tailwind components;
 @tailwind utilities;
 

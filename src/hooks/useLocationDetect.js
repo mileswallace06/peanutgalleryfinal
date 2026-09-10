@@ -38,13 +38,17 @@ function clearLocationCache() {
   try { localStorage.removeItem(CACHE_KEY); } catch {}
 }
 
-export function useLocationDetect({ onSuccess } = {}) {
+export function useLocationDetect({ onSuccess, onError, restoreCache = true } = {}) {
   const [locationStatus, setLocationStatus] = useState('idle');
   const [latlong, setLatlong] = useState('');
   const [locationLabel, setLocationLabel] = useState('');
   const latlongRef = useRef('');
   const locationLabelRef = useRef('');
   const didRestoreCache = useRef(false);
+  const requestId = useRef(0);
+  const onErrorRef = useRef(onError);
+  useEffect(() => { onErrorRef.current = onError; }, [onError]);
+  useEffect(() => () => { requestId.current++; }, []);
 
   const onSuccessRef = useRef(onSuccess);
   useEffect(() => { onSuccessRef.current = onSuccess; }, [onSuccess]);
@@ -54,7 +58,7 @@ export function useLocationDetect({ onSuccess } = {}) {
 
   // Restore cached GPS location on mount (once only)
   useEffect(() => {
-    if (didRestoreCache.current) return;
+    if (didRestoreCache.current || !restoreCache) return;
     didRestoreCache.current = true;
 
     const cached = readLocationCache();
@@ -65,11 +69,13 @@ export function useLocationDetect({ onSuccess } = {}) {
       // Fire onSuccess so the page re-fetches with the cached coords
       if (onSuccessRef.current) onSuccessRef.current(cached.latlong);
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   const requestLocation = useCallback(() => {
+    const id = ++requestId.current;
     if (!navigator.geolocation) {
       setLocationStatus('unavailable');
+      onErrorRef.current?.('unavailable');
       return;
     }
 
@@ -77,6 +83,7 @@ export function useLocationDetect({ onSuccess } = {}) {
 
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        if (id !== requestId.current) return;
         const ll = `${pos.coords.latitude},${pos.coords.longitude}`;
         setLatlongSync(ll);
         setLocationLabelSync('Near me');
@@ -85,13 +92,16 @@ export function useLocationDetect({ onSuccess } = {}) {
         if (onSuccessRef.current) onSuccessRef.current(ll);
       },
       (err) => {
+        if (id !== requestId.current) return;
         if (err.code === 1) {
           setLocationStatus('denied');
           clearLocationCache();
+          onErrorRef.current?.('denied');
         } else if (err.code === 3) {
           // Retry with relaxed settings
           navigator.geolocation.getCurrentPosition(
             (pos) => {
+              if (id !== requestId.current) return;
               const ll = `${pos.coords.latitude},${pos.coords.longitude}`;
               setLatlongSync(ll);
               setLocationLabelSync('Near me');
@@ -100,17 +110,25 @@ export function useLocationDetect({ onSuccess } = {}) {
               if (onSuccessRef.current) onSuccessRef.current(ll);
             },
             (err2) => {
+              if (id !== requestId.current) return;
               setLocationStatus(err2.code === 1 ? 'denied' : 'timeout');
               if (err2.code === 1) clearLocationCache();
+              onErrorRef.current?.(err2.code === 1 ? 'denied' : 'timeout');
             },
             { timeout: 20000, enableHighAccuracy: false, maximumAge: 300000 }
           );
         } else {
           setLocationStatus('unavailable');
+          onErrorRef.current?.('unavailable');
         }
       },
       { timeout: 15000, enableHighAccuracy: false, maximumAge: 60000 }
     );
+  }, []);
+
+  const cancelRequest = useCallback(() => {
+    requestId.current++;
+    setLocationStatus(status => status === 'requesting' ? 'idle' : status);
   }, []);
 
   const setManualCity = useCallback((city) => {
@@ -142,6 +160,7 @@ export function useLocationDetect({ onSuccess } = {}) {
     setLocationLabelSync,
     setLatlongSync,
     requestLocation,
+    cancelRequest,
     refreshLocation,
     setManualCity,
     reset,

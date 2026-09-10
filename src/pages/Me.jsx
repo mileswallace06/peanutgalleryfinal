@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { Ticket, TrendingUp, Shield, LogIn, Edit2, Tag, Zap, ChevronRight, Camera, ImagePlus, UserPlus, UserCheck, Settings, Eye, EyeOff, Star } from 'lucide-react';
+import { Ticket, TrendingUp, Shield, LogIn, Edit2, Tag, Zap, ChevronRight, Camera, ImagePlus, UserPlus, UserCheck, Settings, Eye, EyeOff } from 'lucide-react';
 import PeanutPointsCard from '@/components/points/PeanutPointsCard';
 import RecentPointsActivity from '@/components/points/RecentPointsActivity';
 import CommunityImpactCard from '@/components/donations/CommunityImpactCard';
@@ -123,10 +123,10 @@ export default function Me() {
   }
 
   return (
-    <div className="pb-32 dark:rave-bg relative" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+    <div className="pb-32 dark:rave-bg relative">
 
       {/* Hero banner */}
-      <div className="relative h-40 overflow-hidden group/banner">
+      <div className="relative overflow-hidden group/banner" data-page-hero="me" style={{ height: 'calc(10rem + var(--app-safe-top))' }}>
         <img
           src={user.banner_url || 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=900&q=80'}
           alt="banner"
@@ -139,7 +139,7 @@ export default function Me() {
           disabled={uploadingBanner}
           aria-label="Change profile banner"
           className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/banner:opacity-100 transition-opacity"
-          style={{ background: 'rgba(0,0,0,0.4)' }}
+          style={{ paddingTop: 'var(--app-safe-top)', background: 'rgba(0,0,0,0.4)' }}
         >
           {uploadingBanner
             ? <span className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />

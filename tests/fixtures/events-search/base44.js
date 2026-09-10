@@ -1,5 +1,5 @@
 // Test-only SDK boundary. The page, query builder, cache, merger, and hooks are real.
-const fixture = window.searchFixture = { calls: [], pg: [], tm: [], tmError: null, pgError: false, delays: {} };
+const fixture = window.searchFixture = { calls: [], pg: [], tm: [], tmError: null, pgError: false, delays: {}, ...window.initialSearchFixture };
 const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 export const base44 = {
   auth: { me: async () => ({ role: 'user' }) },
@@ -17,7 +17,7 @@ export const base44 = {
       { city: 'Boston', state: 'MA', label: 'Boston, MA' },
     ].filter(city => city.city.toLowerCase().includes(params.keyword.toLowerCase())) } };
     if (name !== 'getTicketmasterEvents') return { data: {} };
-    const response = fixture.tm.filter(event => !params.city || event.city === params.city);
+    const response = fixture.tm.filter(event => (!params.city || event.city === params.city) && (!params.latlong || event.city === 'Phoenix') && (!params.keyword || event.title.toLowerCase().includes(params.keyword.toLowerCase()) || event.attraction === params.keyword));
     const error = fixture.tmError;
     await wait(fixture.delays[params.keyword] || 0);
     if (error) throw { status: error, message: 'fixture provider failure' };
