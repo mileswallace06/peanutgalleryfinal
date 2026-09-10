@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useAuth } from '@/lib/AuthContext';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { ArrowLeft, RefreshCw } from 'lucide-react';
+import FeedbackInbox from '@/components/beta/FeedbackInbox';
+import { feedbackAccess } from '@/lib/feedbackInbox';
 
 function Stat({ label, value, color = '#BF5FFF', sub }) {
   return (
@@ -15,8 +17,29 @@ function Stat({ label, value, color = '#BF5FFF', sub }) {
 }
 
 export default function BetaDashboard() {
-  const { user } = useAuth();
+  const auth = useAuth();
+  const { user } = auth;
+  const access = feedbackAccess(auth);
   const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  if (access !== 'admin') return (
+    <div className="min-h-screen flex flex-col items-center justify-center gap-4 px-6 text-center">
+      <p role="status" className="font-bold text-foreground">{access === 'checking' ? 'Checking admin access…' : 'Admin access required'}</p>
+      <button onClick={() => navigate('/me')} className="text-sm text-muted-foreground underline">Back to Me</button>
+    </div>
+  );
+  const inbox = params.get('view') === 'feedback';
+  return <div className="min-h-screen pb-32 max-w-3xl mx-auto" style={{ paddingTop: 'var(--app-safe-top)' }}>
+    <div className="px-4 pt-16 pb-3"><Link to="/me" className="inline-flex items-center gap-2 min-h-11 text-sm text-muted-foreground"><ArrowLeft className="w-4 h-4" /> Back to Me</Link></div>
+    <nav aria-label="Beta dashboard sections" className="flex gap-3 px-4 pb-2">
+      <button onClick={() => setParams({ view: 'feedback' })} aria-pressed={inbox} className={`rounded-xl px-4 py-2 text-sm font-bold ${inbox ? 'bg-purple-400/20 text-purple-400' : 'text-muted-foreground'}`}>Feedback</button>
+      <button onClick={() => setParams({ view: 'metrics' })} aria-pressed={!inbox} className={`rounded-xl px-4 py-2 text-sm font-bold ${!inbox ? 'bg-purple-400/20 text-purple-400' : 'text-muted-foreground'}`}>Beta metrics</button>
+    </nav>
+    {inbox ? <FeedbackInbox key={user.id} user={user} /> : <BetaMetrics />}
+  </div>;
+}
+
+function BetaMetrics() {
   const [loading, setLoading] = useState(true);
   const [testers, setTesters] = useState([]);
   const [feedback, setFeedback] = useState([]);
@@ -34,16 +57,6 @@ export default function BetaDashboard() {
   };
 
   useEffect(() => { load(); }, []);
-
-  if (user && user.role !== 'admin') {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen gap-4 px-6 text-center">
-        <p className="text-5xl">🔒</p>
-        <p className="font-bold text-foreground">Admin only</p>
-        <button onClick={() => navigate(-1)} className="text-sm text-muted-foreground underline">Go back</button>
-      </div>
-    );
-  }
 
   // Derived metrics
   const active = testers.filter(t => t.status === 'active').length;
@@ -75,10 +88,10 @@ export default function BetaDashboard() {
   const confusedFeedback = feedback.filter(f => f.feedback_type === 'confused').slice(0, 10);
 
   return (
-    <div className="min-h-screen pb-32" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+    <div>
       {/* Header */}
       <div className="sticky top-0 z-20 frosted-bar border-b border-white/5 px-4 py-4"
-        style={{ paddingTop: 'calc(env(safe-area-inset-top) + 16px)' }}>
+        style={{ paddingTop: '16px' }}>
         <div className="flex items-center justify-between max-w-2xl mx-auto">
           <div className="flex items-center gap-3">
             <Link to="/founder" className="text-muted-foreground"><ArrowLeft className="w-5 h-5" /></Link>
