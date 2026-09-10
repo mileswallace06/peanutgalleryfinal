@@ -16,11 +16,11 @@ import { normalizeSearch, eventMatchesKeyword, eventWithinRadius } from './searc
  * @param {object} params
  * @param {PromiseSettledResult} params.localResult - Promise.allSettled result for PG fetch
  * @param {PromiseSettledResult} params.tmResult - Promise.allSettled result for TM fetch
- * @param {object} params.filters - { cityOverride, ll, keyword, isAdmin, now }
+ * @param {object} params.filters - { cityOverride, ll, keyword, isAdmin, now, tmKeywordApplied }
  * @returns {{ events: array, pgError: boolean, tmError: boolean, partialData: boolean, tmFailed: boolean, tmEventsRaw: array }}
  */
 export function mergeEventSources({ localResult, tmResult, filters }) {
-  const { cityOverride, ll, keyword, isAdmin, now } = filters;
+  const { cityOverride, ll, keyword, isAdmin, now, tmKeywordApplied = false } = filters;
 
   // ── PG source ──────────────────────────────────────────────────────────
   const localData = localResult.status === 'fulfilled' ? localResult.value : [];
@@ -68,7 +68,9 @@ export function mergeEventSources({ localResult, tmResult, filters }) {
 
   // ── Map TM events ───────────────────────────────────────────────────────
   let tmEvents = tmEventsRaw.map(e => ({ ...e, id: `tm_${e.tm_id}`, source: 'ticketmaster' }));
-  if (keyword) {
+  // A provider keyword search also matches attraction/team metadata that is not
+  // present in normalized event titles. Do not discard those valid matches.
+  if (keyword && !tmKeywordApplied) {
     tmEvents = tmEvents.filter(e => eventMatchesKeyword(e, keyword));
   }
 
