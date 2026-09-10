@@ -47,3 +47,20 @@ test('provider artist/attraction matches survive missing artist metadata on norm
   // Callers merging an unsearched provider list still get client keyword filtering.
   assert.equal(mergeEventSources({ ...params, filters: { ...params.filters, tmKeywordApplied: false } }).events.length, 0);
 });
+test('synced provider events appear once and retain the local event route', () => {
+  const event = { tm_id: 'billy-boston', title: 'Billy', city: 'Boston', date: '2099-10-01T20:00:00Z' };
+  const merged = mergeEventSources({
+    localResult: settled([{ ...event, id: 'pg-boston' }, { ...event, id: 'pg-boston-copy' }]),
+    tmResult: settled({ events: [event, event] }),
+    filters: { keyword: 'Billy', tmKeywordApplied: true, now: Date.now() },
+  });
+  assert.deepEqual(merged.events.map(e => e.id), ['pg-boston']);
+});
+test('distinct provider IDs and local-only events are not collapsed by matching titles', () => {
+  const merged = mergeEventSources({
+    localResult: settled([{ id: 'local-one', title: 'Billy' }, { id: 'local-two', title: 'Billy' }]),
+    tmResult: settled({ events: [{ tm_id: 'date-one', title: 'Billy' }, { tm_id: 'date-two', title: 'Billy' }] }),
+    filters: { keyword: 'Billy', tmKeywordApplied: true, now: Date.now() },
+  });
+  assert.deepEqual(merged.events.map(e => e.id), ['local-one', 'local-two', 'tm_date-one', 'tm_date-two']);
+});
