@@ -1,7 +1,8 @@
+import { applyProviderTiming } from './sellingEventTiming.js';
 export function isCanonicalEventId(id) { return typeof id === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(id) && !id.startsWith('tm_'); }
 function resolved(candidate, record) {
   if (!record || !isCanonicalEventId(record.id)) throw new Error('Event could not be resolved. Please try again.');
-  return { ...candidate, ...record, id: record.id, source: 'pg' };
+  return { ...applyProviderTiming({ ...candidate, ...record }, candidate._providerTiming), id: record.id, source: 'pg' };
 }
 export async function resolveSellingEvent(base44, candidate) {
   if (typeof candidate === 'string') {
