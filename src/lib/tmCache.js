@@ -14,7 +14,7 @@ function buildKey(params) {
   return Object.entries(params)
     .filter(([, v]) => v !== undefined && v !== null && v !== '')
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([k, v]) => `${k}=${v}`)
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
     .join('&');
 }
 
@@ -30,13 +30,13 @@ export async function fetchTMEvents(base44, params) {
   // Return cached result if fresh
   const cached = cache.get(key);
   if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
-    return { events: cached.data, fromCache: true };
+    return { ...cached.data, fromCache: true };
   }
 
   // Deduplicate: if same request is in-flight, wait for it
   if (inFlight.has(key)) {
     const data = await inFlight.get(key);
-    return { events: data, fromCache: false };
+    return { ...data, fromCache: false };
   }
 
   // New request
@@ -55,9 +55,14 @@ export async function fetchTMEvents(base44, params) {
       if (!Array.isArray(events)) {
         throw { status: 502, message: 'malformed_tm_response' };
       }
-      cache.set(key, { data: events, ts: Date.now() });
+      const coverage = res?.data?.coverage;
+      if (params.discoveryWindow === 'ongoing' && (coverage?.discoveryWindow !== 'ongoing' || coverage.lookbackHours !== 12 || !Number.isInteger(coverage.limit) || coverage.limit < 1 || coverage.limit > 40 || !Number.isFinite(Date.parse(coverage.startDateTime)) || !Number.isFinite(Date.parse(coverage.endDateTime)) || Date.parse(coverage.endDateTime) - Date.parse(coverage.startDateTime) !== 12 * 3600000)) {
+        throw { status: 502, message: 'unsupported_ongoing_response' };
+      }
+      const data = coverage ? { events, coverage } : { events };
+      cache.set(key, { data, ts: Date.now() });
       inFlight.delete(key);
-      return events;
+      return data;
     })
     .catch(err => {
       inFlight.delete(key);
@@ -68,8 +73,8 @@ export async function fetchTMEvents(base44, params) {
     });
 
   inFlight.set(key, promise);
-  const events = await promise;
-  return { events, fromCache: false };
+  const data = await promise;
+  return { ...data, fromCache: false };
 }
 
 /** Manually bust the cache (e.g. on pull-to-refresh) */

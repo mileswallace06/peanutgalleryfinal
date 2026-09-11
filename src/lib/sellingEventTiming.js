@@ -15,8 +15,8 @@ export function sellingEventTiming(event, now = Date.now()) {
   const start = reliableTime(event.event_start_utc || event.date);
   const rawEnd = event.event_end_utc || event.end_date;
   const end = reliableTime(rawEnd);
-  if (event.is_beta_live || event.status === 'ended' || ['cancelled', 'canceled'].includes(event.status)) return { status: 'ended', start, end };
-  if (start === null || event.date_tba || event.time_tba || event.no_specific_time || (rawEnd && (end === null || end <= start))) return { status: 'unknown', start: null, end: null };
+  if (event.is_beta_live || event.status === 'ended' || ['cancelled', 'canceled'].includes(event.status) || ['cancelled', 'canceled'].includes(event.provider_status)) return { status: 'ended', start, end };
+  if (event.end_time_invalid || event.provider_status === 'postponed' || start === null || event.date_tba || event.time_tba || event.no_specific_time || (rawEnd && (end === null || end <= start))) return { status: 'unknown', start: null, end: null };
   if (now < start) return { status: 'upcoming', start, end };
   if (end !== null) return { status: now < end ? 'live' : 'ended', start, end };
   const configured = Number(event.duration_hours);
@@ -36,3 +36,20 @@ export function sellingEventDate(event, now = Date.now()) {
   return formatInVenueTimezone(timing.start, resolveTimezone(event).timezone);
 }
 export const SELLING_STATUS_LABELS = { live: 'Live now', estimated_live: 'Live · estimated window', upcoming: 'Upcoming', unknown: 'Time unconfirmed', ended: 'Ended' };
+
+// Fresh provider timing travels with the selected object, never in the sync payload.
+export function withProviderTiming(event) {
+  const fields = ['event_start_utc', 'event_end_utc', 'date', 'venue_timezone', 'date_tba', 'time_tba', 'no_specific_time', 'end_time_invalid', 'provider_status'];
+  const timing = Object.fromEntries(fields.filter(key => Object.hasOwn(event, key)).map(key => [key, event[key]]));
+  return { ...event, _providerTiming: timing };
+}
+
+export function applyProviderTiming(record, timing) {
+  if (!timing) return record;
+  const sameStart = reliableTime(record.event_start_utc || record.date) === reliableTime(timing.event_start_utc || timing.date);
+  return { ...record, ...timing,
+    event_end_utc: timing.event_end_utc || (sameStart ? record.event_end_utc : null),
+    end_date: sameStart ? record.end_date : null,
+    venue_timezone: timing.venue_timezone || record.venue_timezone,
+  };
+}
