@@ -54,10 +54,10 @@ test('PG partitions preserve future capacity and explicitly query ongoing/canoni
  assert.ok(q.ongoing.$or.some(x=>x.status==='live'));
 });
 test('discovery is read-only, keeps future provider request limits and deduplicates PG/provider copies',async()=>{
- const calls=[];const client={entities:{Event:{filter:async(q,sort,limit)=>{calls.push({q,sort,limit});return sort==='date'?[event('pg',1,{tm_id:'same'})]:[event('live',-1,{event_end_utc:iso(1)})]}}},functions:{invoke:async(name,params)=>{assert.equal(name,'getTicketmasterEvents');calls.push({name,params});return {data:{events:[event('tm',1,{tm_id:'same'})]}}}}};
+ const calls=[];const client={entities:{Event:{filter:async(q,sort,limit)=>{calls.push({q,sort,limit});return sort==='date'?[event('pg',1,{tm_id:'same'})]:[event('live',-1,{event_end_utc:iso(1)})]}}},functions:{invoke:async(name,params)=>{assert.equal(name,'getTicketmasterEvents');calls.push({name,params});return {data:{events:[event('tm',1,{tm_id:'same'})],...(params.discoveryWindow ? {coverage:{discoveryWindow:'ongoing',lookbackHours:12,limit:40,startDateTime:iso(-12),endDateTime:iso(0)}} : {})}}}}};
  const result=await fetchSellingEvents(client,createEventSearchRequest('',area),true,now);
  assert.equal(result.events.length,2);assert.equal(result.pgError,false);assert.equal(result.tmError,false);
- assert.deepEqual(calls[2].params,{size:40,city:'Phoenix'});assert.equal(calls.length,3);
+ assert.deepEqual(calls[2].params,{size:40,city:'Phoenix'});assert.deepEqual(calls[3].params,{size:40,city:'Phoenix',discoveryWindow:'ongoing'});assert.equal(calls.length,4);
 });
 test('partition/provider errors remain incomplete results, not a successful no-match claim',async()=>{
  const client={entities:{Event:{filter:async(_q,sort)=>{if(sort==='-date')throw Error('PG unavailable');return [event('future',1)]}}},functions:{invoke:async()=>{throw {status:429}}}};
