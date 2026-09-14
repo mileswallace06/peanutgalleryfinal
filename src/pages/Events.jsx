@@ -302,7 +302,7 @@ export default function Events() {
       </div>
 
       {/* One event search; new submissions always use the retained local area. */}
-      <div className="px-4 mt-3 mb-4 space-y-3">
+      <div className="px-4 mt-2 mb-3 space-y-2">
         <form role="search" onSubmit={(e) => { e.preventDefault(); runSearch(keyword); }}>
           <label htmlFor="event-search" className="sr-only">Search events, artists, teams, or venues</label>
           <div className="flex items-center gap-2">
@@ -362,7 +362,7 @@ export default function Events() {
       </div>
 
       {/* ── Sort by Date ── */}
-      <div className="px-4 mb-4 flex flex-wrap items-center gap-2">
+      <div className="px-4 mb-3 flex flex-wrap items-center gap-2">
         <ArrowUpDown className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
         <div className="flex gap-1.5 flex-1">
           {[
@@ -429,7 +429,7 @@ export default function Events() {
       )}
 
       {/* ── Event count + aria-live announcement ── */}
-      <div aria-live="polite" aria-atomic="true" className="px-4 mb-4">
+      <div aria-live="polite" aria-atomic="true" className="px-4 mb-3">
         {!loading && hasSearched && filtered.length > 0 && (
           <div className="flex items-center gap-3">
             <div className="h-px flex-1" style={{ background: 'rgba(var(--neon-purple-rgb),0.2)' }} />
