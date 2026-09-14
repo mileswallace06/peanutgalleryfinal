@@ -15,7 +15,7 @@ export default function OurStory() {
 
   return (
     <div
-      className="dark rave-bg grain-overlay"
+      className="dark rave-bg grain-overlay text-foreground"
       style={{ height: '100dvh', overflowY: 'auto', overflowX: 'hidden' }}
     >
       {/* ── Sticky header ── */}

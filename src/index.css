@@ -259,13 +259,14 @@
 
 /* Light mode utility overrides — premium, restrained (Airbnb/Uber/Apple Wallet) */
 @layer utilities {
+  /* Explicit dark pages (Our Story) keep their own background and header. */
   /* Flat background — no radial gradients */
-  :root:not(.dark) .rave-bg {
+  :root:not(.dark) .rave-bg:not(.dark) {
     background: hsl(240 20% 98%);
   }
 
   /* Frosted white nav — clean, no tint */
-  :root:not(.dark) .frosted-bar {
+  :root:not(.dark) .frosted-bar:not(.dark .frosted-bar) {
     background: rgba(255, 255, 255, 0.85);
     backdrop-filter: blur(30px) saturate(180%);
     -webkit-backdrop-filter: blur(30px) saturate(180%);
