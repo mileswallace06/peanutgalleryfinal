@@ -120,9 +120,9 @@ export default function Notifications() {
   }
 
   return (
-    <div className="max-w-lg mx-auto px-4 pb-12" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
+    <div className="max-w-lg mx-auto px-4 pb-20" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 pr-14 mb-6">
         <div className="flex items-center gap-3">
           <Link to="/me" className="p-2 rounded-xl hover:bg-muted transition-colors">
             <ArrowLeft className="w-4 h-4 text-muted-foreground" />
@@ -140,7 +140,7 @@ export default function Notifications() {
             </h1>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <button onClick={load} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
             <RefreshCw className={`w-4 h-4 text-muted-foreground ${loading ? 'animate-spin' : ''}`} />
           </button>
