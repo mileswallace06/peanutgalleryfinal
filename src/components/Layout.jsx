@@ -163,7 +163,7 @@ export default function Layout() {
       {/* Sign in — only when auth has definitively resolved as unauthenticated.
           During loading (authChecked=false) render nothing so "Sign in" never flashes. */}
       {authChecked && !isAuthenticated && !user && (
-        <div className="fixed right-4 z-[99]" style={{ top: 'calc(1rem + var(--app-safe-top))' }}>
+        <div className="fixed right-4 z-[60]" style={{ top: 'calc(1rem + var(--app-safe-top))' }}>
           <button
             onClick={() => base44.auth.redirectToLogin()}
             aria-label="Sign in to Peanut Gallery"
@@ -177,7 +177,7 @@ export default function Layout() {
       {/* Notification bell — top right, only when logged in */}
       {user && (
         <Link to="/notifications" aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
-          className="fixed right-4 z-[99] flex items-center justify-center w-11 h-11 rounded-full transition-all active:scale-95"
+          className="fixed right-4 z-[60] flex items-center justify-center w-11 h-11 rounded-full transition-all active:scale-95"
           style={{ top: 'calc(0.75rem + var(--app-safe-top))', background: unreadCount > 0 ? 'rgba(var(--neon-pink-rgb), 0.1)' : 'hsl(var(--card))', border: `1px solid ${unreadCount > 0 ? 'rgba(var(--neon-pink-rgb), 0.25)' : 'hsl(var(--border))'}` }}>
           <Bell className="w-5 h-5" style={{ color: unreadCount > 0 ? 'var(--neon-pink)' : 'hsl(var(--muted-foreground))' }} />
           {unreadCount > 0 && (
@@ -234,7 +234,7 @@ export default function Layout() {
       </div>
 
       {/* Bottom nav */}
-      <nav aria-label="Main navigation" className="fixed bottom-0 left-0 right-0 z-50 frosted-bar border-t border-border dark:border-white/10" style={{ paddingBottom: 'env(safe-area-inset-bottom)', paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)' }}>
+      <nav aria-label="Main navigation" className="relative shrink-0 z-50 frosted-bar border-t border-border dark:border-white/10" style={{ paddingBottom: 'env(safe-area-inset-bottom)', paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)' }}>
         <div className="max-w-lg mx-auto flex items-stretch">
           {NAV.map(({ to, label, sublabel, icon: NavIcon, color, key }) => {
             const active = currentTab === key;

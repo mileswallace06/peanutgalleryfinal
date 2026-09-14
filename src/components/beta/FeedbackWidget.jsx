@@ -69,7 +69,7 @@ export default function FeedbackWidget({ user }) {
         <button
           onClick={() => { setOpen(true); setError(null); }}
           className="fixed left-4 z-[60] w-11 h-11 rounded-full flex items-center justify-center shadow-xl transition-all active:scale-95"
-          style={{ bottom: 'calc(5.5rem + env(safe-area-inset-bottom))', background: 'rgba(191,95,255,0.15)', border: '1px solid rgba(191,95,255,0.4)', backdropFilter: 'blur(12px)' }}
+          style={{ bottom: 'calc(6.25rem + env(safe-area-inset-bottom))', background: 'rgba(191,95,255,0.15)', border: '1px solid rgba(191,95,255,0.4)', backdropFilter: 'blur(12px)' }}
           aria-label="Send feedback"
         >
           <MessageSquare className="w-4 h-4" style={{ color: '#BF5FFF' }} />
@@ -81,7 +81,7 @@ export default function FeedbackWidget({ user }) {
         <div className="fixed inset-0 z-[70] flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
           onClick={e => { if (e.target === e.currentTarget) setOpen(false); }}>
           <div className="w-full max-w-lg rounded-t-3xl p-5 space-y-4"
-            style={{ background: 'hsl(var(--card))', border: '1px solid rgba(255,255,255,0.1)', paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))' }}>
+            style={{ background: 'hsl(var(--card))', border: '1px solid rgba(255,255,255,0.1)', paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))', maxHeight: 'calc(100dvh - env(safe-area-inset-top) - 0.75rem)', overflowY: 'auto', overscrollBehavior: 'contain' }}>
 
             <div className="flex items-center justify-between">
               <div>

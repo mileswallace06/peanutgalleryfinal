@@ -46,9 +46,9 @@ export default function TermsOfService() {
             width: auto;
             max-width: 100%;
           }
-          /* bdt custom elements should not constrain children */
+          /* Termly uses bdt for inline fields inside sentences. */
           [data-custom-class='body'] bdt {
-            display: block !important;
+            display: inline !important;
           }
           [data-custom-class='title'],
           [data-custom-class='title'] *,
