@@ -178,7 +178,7 @@ export default function MyTickets() {
           event={donatingPurchase.event}
           purchase={donatingPurchase.purchase}
           onClose={() => setDonatingPurchase(null)}
-          onDonated={() => setDonatingPurchase(null)}
+          onDonated={() => fetchPurchases(true)}
         />
       )}
       <div className="mb-8">

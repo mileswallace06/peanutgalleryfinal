@@ -2,18 +2,32 @@ import { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Banknote, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
 
-export default function StripePayoutSection({ user, stripeStatus, loading }) {
+export default function StripePayoutSection({ stripeStatus, loading }) {
   const [open, setOpen] = useState(false);
   const [onboarding, setOnboarding] = useState(false);
+  const [onboardingError, setOnboardingError] = useState('');
 
   const hasStripe = !!stripeStatus?.details_submitted;
   const isReady = stripeStatus?.charges_enabled;
 
   const handleSetupStripe = async () => {
+    setOnboardingError('');
     setOnboarding(true);
-    const res = await base44.functions.invoke('onboardSeller', {});
-    if (res?.data?.url) window.location.href = res.data.url;
-    setOnboarding(false);
+    try {
+      const res = await base44.functions.invoke('onboardSeller', {});
+      if (!res?.data?.url) {
+        throw new Error(res?.data?.error || 'Stripe setup is temporarily unavailable.');
+      }
+      window.location.href = res.data.url;
+    } catch (err) {
+      setOnboardingError(
+        err?.response?.data?.error
+        || err?.message
+        || 'Could not start Stripe setup. Please try again.'
+      );
+    } finally {
+      setOnboarding(false);
+    }
   };
 
   return (
@@ -65,6 +79,15 @@ export default function StripePayoutSection({ user, stripeStatus, loading }) {
                 style={{ background: 'rgba(0,255,135,0.07)', border: '1px solid rgba(0,255,135,0.2)' }}>
                 <p className="font-bold text-foreground">Stripe account connected</p>
                 <p className="text-muted-foreground">Charges enabled · Payouts routed automatically after transfer confirmation.</p>
+              </div>
+            )}
+            {onboardingError && (
+              <div
+                role="alert"
+                className="rounded-xl px-3 py-2 text-xs"
+                style={{ color: '#FF8AAF', background: 'rgba(255,45,120,0.09)', border: '1px solid rgba(255,45,120,0.3)' }}
+              >
+                {onboardingError}
               </div>
             )}
             {/* Trust note */}
