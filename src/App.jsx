@@ -9,6 +9,7 @@ import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import Layout from '@/components/Layout';
 import Landing from '@/pages/Landing';
 import RouteFallback from '@/components/RouteFallback';
+import { PUBLIC_LEGAL_PATHS } from '@/lib/publicLegalRoutes';
 
 // ── Route-based code splitting ────────────────────────────────────────────
 // All authenticated routes are lazily loaded to reduce the initial bundle.
@@ -45,6 +46,17 @@ const BetaDashboard = lazy(() => import('@/pages/BetaDashboard'));
 const Notifications = lazy(() => import('@/pages/Notifications'));
 const EventMode = lazy(() => import('@/pages/EventMode'));
 
+const PUBLIC_LEGAL_PAGES = Object.freeze([
+  { path: PUBLIC_LEGAL_PATHS.terms, Component: TermsOfService },
+  { path: PUBLIC_LEGAL_PATHS.privacy, Component: PrivacyPolicy },
+  { path: PUBLIC_LEGAL_PATHS.cookies, Component: CookiePolicy },
+  { path: PUBLIC_LEGAL_PATHS.ourStory, Component: OurStory },
+]);
+
+const renderPublicLegalRoutes = () => PUBLIC_LEGAL_PAGES.map(({ path, Component }) => (
+  <Route key={path} path={path} element={<Component />} />
+));
+
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, checkAppState, isAuthenticated, user } = useAuth();
 
@@ -59,12 +71,15 @@ const AuthenticatedApp = () => {
     if (authError.type === 'user_not_registered') {
       return <UserNotRegisteredError onRetry={checkAppState} />;
     } else if (authError.type === 'auth_required') {
-      // Not logged in — show the branded landing page instead of redirecting to Base44 login
+      // Keep public/legal pages reachable when React receives Base44's auth-required state.
+      // Other logged-out paths continue to show the branded landing page.
       return (
-        <Routes>
-          <Route path="/" element={<Landing />} />
-          <Route path="*" element={<Landing />} />
-        </Routes>
+        <Suspense fallback={<RouteFallback />}>
+          <Routes>
+            {renderPublicLegalRoutes()}
+            <Route path="*" element={<Landing />} />
+          </Routes>
+        </Suspense>
       );
     }
   }
@@ -75,10 +90,7 @@ const AuthenticatedApp = () => {
           {/* Authenticated root → straight to events */}
           <Route path="/" element={<Navigate to="/events" replace />} />
           {/* Public routes — accessible without authentication (App Store requirement) */}
-          <Route path="/terms" element={<TermsOfService />} />
-          <Route path="/privacy" element={<PrivacyPolicy />} />
-          <Route path="/cookies" element={<CookiePolicy />} />
-          <Route path="/our-story" element={<OurStory />} />
+          {renderPublicLegalRoutes()}
           <Route element={<Layout />}>
             <Route path="/events" element={<Events />} />
             <Route path="/events/:id" element={<EventDetail />} />

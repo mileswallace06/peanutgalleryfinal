@@ -27,6 +27,9 @@ const ROOT = join(__dirname, '..');
 // ── Suite definitions ────────────────────────────────────────────────────────
 // Each suite: { name, file, required (true = blocks exit code) }
 const SUITES = [
+  // Public/legal routing and policy-provider resilience
+  { name: 'public-legal-routes', file: 'tests/public-legal-routes.test.mjs', required: true },
+
   // Legacy safety suites
   { name: 'freeze-completeness', file: 'tests/freeze-completeness.test.mjs', required: true },
   { name: 'payment-reconciliation', file: 'tests/payment-reconciliation.test.mjs', required: true },
