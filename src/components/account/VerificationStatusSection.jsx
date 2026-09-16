@@ -1,13 +1,12 @@
-import { ShieldCheck, CheckCircle2, Circle } from 'lucide-react';
+import { CheckCircle2, Circle } from 'lucide-react';
 
 export default function VerificationStatusSection({ user, stripeStatus }) {
   const hasEmail = !!user?.email;
   const hasStripe = !!stripeStatus?.charges_enabled;
   const hasProfile = !!user?.full_name && !!user?.avatar_url;
-  const hasListed = user?.has_listed === true; // set externally if desired
 
   const checks = [
-    { label: 'Email verified', done: hasEmail, note: 'Required to use the platform' },
+    { label: 'Email added', done: hasEmail, note: 'Required to use the platform' },
     { label: 'Payout account connected', done: hasStripe, note: 'Required to sell tickets' },
     { label: 'Profile complete', done: hasProfile, note: 'Name + avatar added' },
   ];
@@ -17,12 +16,12 @@ export default function VerificationStatusSection({ user, stripeStatus }) {
 
   return (
     <section>
-      <h3 className="text-xs font-black tracking-widest uppercase text-muted-foreground mb-3">Verification Status</h3>
+      <h3 className="text-xs font-black tracking-widest uppercase text-muted-foreground mb-3">Account Setup Status</h3>
       <div className="rounded-2xl overflow-hidden" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
         {/* Progress bar */}
         <div className="px-4 pt-4 pb-3">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-foreground">Account Health</span>
+            <span className="text-xs font-bold text-foreground">Basic setup</span>
             <span className="text-xs font-black" style={{ color: pct === 100 ? '#00FF87' : '#BF5FFF' }}>{pct}%</span>
           </div>
           <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'hsl(var(--muted))' }}>
@@ -62,9 +61,9 @@ export default function VerificationStatusSection({ user, stripeStatus }) {
         {pct === 100 && (
           <div className="mx-4 mb-4 mt-1 flex items-center gap-2 px-3 py-2.5 rounded-xl"
             style={{ background: 'rgba(0,255,135,0.07)', border: '1px solid rgba(0,255,135,0.2)' }}>
-            <ShieldCheck className="w-4 h-4 flex-shrink-0" style={{ color: '#00FF87' }} />
+            <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: '#00FF87' }} />
             <p className="text-xs text-muted-foreground">
-              <span className="font-bold text-foreground">Fully verified.</span> Buyers see a trust badge on your listings.
+              <span className="font-bold text-foreground">Basic account setup complete.</span> Ticket and seller verification are shown only when separately confirmed.
             </p>
           </div>
         )}

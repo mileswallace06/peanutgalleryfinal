@@ -476,7 +476,7 @@ export default function Events() {
       ) : (
         <div className="px-4 space-y-3">
           {filtered.map(event => (
-            <EventRow key={event.id} event={event} isAdmin={isAdmin} />
+            <EventRow key={event.id} event={event} />
           ))}
         </div>
       )}
@@ -484,21 +484,21 @@ export default function Events() {
   );
 }
 
-function EventRow({ event, isAdmin = false }) {
+function EventRow({ event }) {
   const isTM = event.source === 'ticketmaster' || String(event.id || '').startsWith('tm_');
   const timing = !isTM && event.id ? getEventLiveStatus(event) : null;
   const isLive = timing?.status === 'live';
-  const isSoon = timing?.status === 'soon';
   const eventUrl = getEventUrl(event);
+  const cardUrl = isLive ? `/upgrades/${event.id}` : eventUrl;
 
   const handleCardClick = () => {
     logNavEvent({
-      result: eventUrl ? 'success' : 'navigation_error',
+      result: cardUrl ? 'success' : 'navigation_error',
       event,
       sourcePage: 'Events',
-      generatedHref: eventUrl || '',
+      generatedHref: cardUrl || '',
       lookupMethod: 'none',
-      failureReason: eventUrl ? '' : 'getEventUrl returned null',
+      failureReason: cardUrl ? '' : 'getEventUrl returned null',
     });
   };
 
@@ -507,9 +507,23 @@ function EventRow({ event, isAdmin = false }) {
   const minPrice = event.min_price || null;
   const isPGEvent = event.source === 'pg';
 
+  const Card = cardUrl ? Link : 'div';
+  const cardProps = cardUrl
+    ? {
+        to: cardUrl,
+        state: !isLive && isTM ? { tmEvent: event } : undefined,
+        onClick: handleCardClick,
+        'aria-label': `${isLive ? 'Open Live Hub for' : 'View'} ${event.title}`,
+      }
+    : {
+        role: 'group',
+        'aria-label': `${event.title} details unavailable`,
+      };
+
   return (
-    <div
-      className="rounded-2xl overflow-hidden flex items-stretch"
+    <Card
+      {...cardProps}
+      className="rounded-2xl overflow-hidden flex items-stretch transition-transform active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       style={{
         background: 'hsl(var(--card))',
         border: isLive
@@ -581,37 +595,34 @@ function EventRow({ event, isAdmin = false }) {
             )}
           </div>
 
-          {eventUrl && (
+          {cardUrl && (
             isLive ? (
-              <Link
-                to={`/upgrades/${event.id}`}
+              <span
                 className="inline-flex items-center gap-1 text-[11px] font-semibold px-3 py-1.5 rounded-lg flex-shrink-0"
                 style={{
                   background: 'hsl(var(--primary))',
                   color: 'hsl(var(--primary-foreground))',
                 }}
-                onClick={e => e.stopPropagation()}
+                aria-hidden="true"
               >
                 Live Hub <ChevronRight className="w-3 h-3" />
-              </Link>
+              </span>
             ) : (
-              <Link
-                to={eventUrl}
-                state={isTM ? { tmEvent: event } : undefined}
+              <span
                 className="inline-flex items-center gap-1 text-[11px] font-medium px-3 py-1.5 rounded-lg flex-shrink-0 transition-all active:scale-[0.97]"
                 style={{
                   background: 'hsl(var(--secondary))',
                   color: 'hsl(var(--secondary-foreground))',
                   border: '1px solid hsl(var(--border))',
                 }}
-                onClick={handleCardClick}
+                aria-hidden="true"
               >
                 View <ChevronRight className="w-3 h-3" />
-              </Link>
+              </span>
             )
           )}
         </div>
       </div>
-    </div>
+    </Card>
   );
 }
