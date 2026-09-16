@@ -1,5 +1,4 @@
-import { CreditCard, ExternalLink, AlertTriangle, CheckCircle, RefreshCw } from 'lucide-react';
-import { format } from 'date-fns';
+import { CreditCard, ExternalLink } from 'lucide-react';
 
 function StatCard({ label, value, color, sub }) {
   return (
@@ -11,12 +10,12 @@ function StatCard({ label, value, color, sub }) {
   );
 }
 
-export default function StripePanel({ purchases, stripeMode, onRefresh }) {
+export default function StripePanel({ purchases, stripeMode, onRefresh: _onRefresh }) {
   const pending = purchases.filter(p => p.transfer_status === 'pending_transfer' && !p.payment_captured);
   const captured = purchases.filter(p => p.payment_captured);
   const failedCaptures = purchases.filter(p => p.payment_capture_failed);
   const disputed = purchases.filter(p => p.transfer_status === 'disputed');
-  const totalEscrowed = pending.reduce((s, p) => s + (p.amount || 0), 0);
+  const totalAuthorized = pending.reduce((s, p) => s + (p.amount || 0), 0);
   const totalCaptured = captured.reduce((s, p) => s + (p.amount || 0), 0);
 
   return (
@@ -65,7 +64,7 @@ export default function StripePanel({ purchases, stripeMode, onRefresh }) {
 
       {/* Payment metrics */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <StatCard label="In Escrow" value={`$${totalEscrowed.toFixed(0)}`} sub={`${pending.length} pending`} color="#FF8C00" />
+        <StatCard label="Pending Authorization" value={`$${totalAuthorized.toFixed(0)}`} sub={`${pending.length} pending`} color="#FF8C00" />
         <StatCard label="Total Captured" value={`$${totalCaptured.toFixed(0)}`} sub={`${captured.length} captures`} color="#00FF87" />
         <StatCard label="Failed Captures" value={failedCaptures.length} sub="Needs retry" color={failedCaptures.length > 0 ? '#FF2D78' : '#888'} />
         <StatCard label="Disputes" value={disputed.length} sub="Payment frozen" color={disputed.length > 0 ? '#FFE600' : '#888'} />

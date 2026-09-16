@@ -5,7 +5,7 @@ const RISKS = [
   {
     category: 'Seller Risks',
     items: [
-      { id: 'seller_disappears', label: 'Seller disappears after sale', mitigation: 'Escrow holds payment until buyer confirms. Admin can force-refund via Dispute Queue.' },
+      { id: 'seller_disappears', label: 'Seller disappears after sale', mitigation: 'Authorization remains pending until required checks. Admin can use the dispute workflow.' },
       { id: 'seller_delayed', label: 'Seller delays ticket transfer', mitigation: '48hr window before buyer can dispute. Admin can escalate and strike seller.' },
       { id: 'fake_tickets', label: 'Seller uploads fake proof', mitigation: 'Proof review queue — admin approves before listing goes live.' },
       { id: 'seller_no_stripe', label: 'Seller not Stripe-onboarded', mitigation: 'Stripe check gates listing creation. Seller blocked until onboarded.' },
@@ -16,7 +16,7 @@ const RISKS = [
     items: [
       { id: 'tm_lag', label: 'Ticketmaster transfer lag (24-48hr)', mitigation: 'Communicate expected timeline to buyer. Admin can extend window.' },
       { id: 'transfer_proof_missing', label: 'Transfer proof not submitted', mitigation: 'Seller reminder in UI. Admin can mark expired and refund buyer.' },
-      { id: 'wrong_seats', label: 'Wrong seat section transferred', mitigation: 'Buyer confirms exact seats. Dispute triggers escrow freeze.' },
+      { id: 'wrong_seats', label: 'Wrong seat section transferred', mitigation: 'Buyer confirms exact seats. A dispute blocks normal payment completion.' },
     ]
   },
   {

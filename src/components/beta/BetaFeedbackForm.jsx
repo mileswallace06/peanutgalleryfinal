@@ -4,7 +4,7 @@ import { Star, Send, ChevronDown, ChevronUp } from 'lucide-react';
 
 const QUESTIONS = [
   { key: 'confusing',  label: 'What felt confusing or unclear?', placeholder: 'e.g. The transfer confirmation was hard to find…' },
-  { key: 'trust',      label: 'Would you trust this app with real tickets? Why?', placeholder: 'e.g. Yes, because the escrow message made me feel safe…' },
+  { key: 'trust',      label: 'Would you trust this app with real tickets? Why?', placeholder: 'e.g. The authorization and transfer explanation was clear, but…' },
   { key: 'blocker',    label: "What almost stopped you from completing a purchase?", placeholder: "e.g. I wasn't sure if the seat was real…" },
   { key: 'coolest',    label: 'What feature felt the coolest or most exciting?', placeholder: 'e.g. The live upgrade tab during the show was 🔥' },
   { key: 'extra',      label: 'Anything else?', placeholder: 'Other thoughts, bugs, or suggestions…' },
