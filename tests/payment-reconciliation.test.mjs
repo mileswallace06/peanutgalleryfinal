@@ -170,7 +170,7 @@ function createDefaultSeed(o = {}) {
   const revision = o.revision || 'rev_001';
   return {
     seed: {
-      Listing: [{ id: listingId, status: 'pending_transfer', asking_price: 100, quantity: 1, section: 'A', row: '1', event_id: 'event_1', seller_email: sellerEmail, reservation_token: token, reserved_by_email: buyerEmail, reservation_expires_at: expiry, reservation_revision: revision, hidden_reason: null, ...o.listing }],
+      Listing: [{ id: listingId, status: 'pending_transfer', asking_price: 100, quantity: 1, section: 'A', row: '1', event_id: 'event_1', seller_email: sellerEmail, transfer_status: 'transfer_confirmed', transfer_confidence_score: 95, reservation_token: token, reserved_by_email: buyerEmail, reservation_expires_at: expiry, reservation_revision: revision, hidden_reason: null, ...o.listing }],
       ListingPrivate: [{ id: `lp_${listingId}`, listing_id: listingId, seller_email: sellerEmail, reservation_token: token, reserved_by_email: buyerEmail, reservation_expires_at: expiry, reservation_revision: revision, proof_status: 'approved', is_demo_listing: false, checkout_quarantined: false, ...o.lp }],
       Purchase: [{ id: purchaseId, listing_id: listingId, event_id: 'event_1', buyer_email: buyerEmail, seller_email: sellerEmail, payment_intent_id: piId, reservation_token: token, transfer_status: 'pending_transfer', payment_captured: false, is_demo: false, amount: 105, subtotal: 100, seller_confirmed: true, ...o.purchase }],
       PurchasePrivate: [{ id: `pp_${purchaseId}`, purchase_id: purchaseId, listing_id: listingId, event_id: 'event_1', buyer_email: buyerEmail, seller_email: sellerEmail, payment_intent_id: piId, reservation_token: token, payment_captured: false, is_demo: false, ...o.pp }],
