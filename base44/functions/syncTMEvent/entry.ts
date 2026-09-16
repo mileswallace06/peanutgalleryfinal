@@ -5,13 +5,14 @@
  * M0.2: Now generates search_text_normalized for server-side keyword search
  * and preserves venue_lat/venue_lng for near-me geospatial filtering.
  *
- * Body: { tm_id, title, venue, city, state, date, image_url, tm_url, category,
- *         tm_venue_id, venue_lat, venue_lng }
+ * Body includes provider identity, display metadata, coordinates and the
+ * canonical timing fields selected by src/lib/tmEventSyncPayload.js.
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import { resolveEventHero } from '../../shared/eventHero.js';
 import { generateSearchTextNormalized } from '../../shared/searchNormalize.js';
 import { coerceCoordinate } from '../../shared/tmResponseHandler.js';
+import { buildTMEventTimingPatch } from '../../shared/tmEventTiming.js';
 
 const CATEGORY_TO_IDENTITY = {
   concert: 'concert',
@@ -28,7 +29,7 @@ Deno.serve(async (req) => {
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await req.json().catch(() => ({}));
-    const { tm_id, title, venue, city, state, date, image_url, tm_url, category, tm_venue_id } = body;
+    const { tm_id, title, venue, city, state, image_url, tm_url, category, tm_venue_id } = body;
 
     if (!tm_id || !title) {
       return Response.json({ error: 'tm_id and title are required' }, { status: 400 });
@@ -39,6 +40,10 @@ Deno.serve(async (req) => {
     // This is the second validation layer (first is in normalizeTMEvent); defense in depth.
     const venue_lat = coerceCoordinate(body.venue_lat, -90, 90);
     const venue_lng = coerceCoordinate(body.venue_lng, -180, 180);
+    const timingPatch = buildTMEventTimingPatch(body);
+    const createTiming = Object.fromEntries(
+      Object.entries(timingPatch).filter(([, value]) => value !== null)
+    );
 
     // ── Generate normalized search text ──────────────────────────────────
     const searchTextNormalized = generateSearchTextNormalized({
@@ -84,6 +89,7 @@ Deno.serve(async (req) => {
           await base44.asServiceRole.entities.Event.delete(sorted[i].id).catch(() => {});
         }
         const effectiveImage = image_url || canonical.image_url || '';
+        const refreshedTiming = buildTMEventTimingPatch(body, canonical);
         await base44.asServiceRole.entities.Event.update(canonical.id, {
           image_url: effectiveImage,
           tm_url: tm_url || canonical.tm_url,
@@ -92,11 +98,13 @@ Deno.serve(async (req) => {
           venue_lng: venue_lng ?? canonical.venue_lng,
           search_text_normalized: searchTextNormalized,
           hero_image_url: resolveEventHero({ image_url: effectiveImage }, venueRecord) || '',
+          ...refreshedTiming,
         });
         return Response.json({ status: 'deduped', id: canonical.id, duplicates_removed: sorted.length - 1 });
       }
 
       const effectiveImage = image_url || existing[0].image_url || '';
+      const refreshedTiming = buildTMEventTimingPatch(body, existing[0]);
       await base44.asServiceRole.entities.Event.update(existing[0].id, {
         image_url: effectiveImage,
         tm_url: tm_url || existing[0].tm_url,
@@ -105,6 +113,7 @@ Deno.serve(async (req) => {
         venue_lng: venue_lng ?? existing[0].venue_lng,
         search_text_normalized: searchTextNormalized,
         hero_image_url: resolveEventHero({ image_url: effectiveImage }, venueRecord) || '',
+        ...refreshedTiming,
       });
       return Response.json({ status: 'updated', id: existing[0].id });
     }
@@ -117,7 +126,6 @@ Deno.serve(async (req) => {
       city: city || '',
       state: state || '',
       search_text_normalized: searchTextNormalized,
-      date: date || undefined,
       image_url: image_url || '',
       tm_url: tm_url || '',
       category: category || null,
@@ -127,6 +135,7 @@ Deno.serve(async (req) => {
       venue_lat: venue_lat ?? null,
       venue_lng: venue_lng ?? null,
       hero_image_url: resolveEventHero({ image_url: image_url || '' }, venueRecord) || '',
+      ...createTiming,
     });
 
     return Response.json({ status: 'created', id: created.id });

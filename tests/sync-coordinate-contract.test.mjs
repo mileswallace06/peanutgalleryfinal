@@ -245,14 +245,19 @@ test('syncTMEvent source: re-validates venue_lat and venue_lng', async () => {
     'must re-validate venue_lng with coerceCoordinate');
 });
 
-// ── 6. Events.jsx passes tm_venue_id to syncTMEvent ─────────────────────────
-test('Events.jsx: passes tm_venue_id to syncTMEvent', async () => {
+// ── 6. Events.jsx passes the complete provider payload to syncTMEvent ────────
+test('Events.jsx: uses the shared sync payload that includes tm_venue_id', async () => {
   const { readFileSync } = await import('fs');
   const src = readFileSync(
     new URL('../src/pages/Events.jsx', import.meta.url), 'utf8'
   );
-  assert.ok(src.includes('tm_venue_id: e.tm_venue_id'),
-    'Events.jsx must pass tm_venue_id to syncTMEvent');
+  const payload = readFileSync(
+    new URL('../src/lib/tmEventSyncPayload.js', import.meta.url), 'utf8'
+  );
+  assert.ok(src.includes("invoke('syncTMEvent', createTMEventSyncPayload(e))"),
+    'Events.jsx must use the shared provider sync payload');
+  assert.ok(payload.includes("'tm_venue_id'"),
+    'shared provider sync payload must include tm_venue_id');
 });
 
 // ── 7. No-provider-call proof: coordinates and tm_venue_id persist correctly ─

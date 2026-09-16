@@ -82,15 +82,60 @@ const STATE_TZ_FALLBACK = {
   WY: 'America/Denver',
 };
 
+const OFFSET_TIMESTAMP = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,9})?)?(Z|[+-]\d{2}:\d{2})$/;
+
+/** Parse only an offset-bearing ISO timestamp; never apply the device zone. */
+export function parseCanonicalUtcMs(value) {
+  if (typeof value !== 'string') return null;
+  const match = value.match(OFFSET_TIMESTAMP);
+  if (!match) return null;
+  const [, yearText, monthText, dayText, hourText, minuteText, secondText = '0', offset] = match;
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+  const second = Number(secondText);
+  if (month < 1 || month > 12 || day < 1 || day > new Date(Date.UTC(year, month, 0)).getUTCDate()) return null;
+  if (hour > 23 || minute > 59 || second > 59) return null;
+  if (offset !== 'Z') {
+    const [offsetHour, offsetMinute] = offset.slice(1).split(':').map(Number);
+    if (offsetHour > 14 || offsetMinute > 59 || (offsetHour === 14 && offsetMinute !== 0)) return null;
+  }
+  const ms = Date.parse(value);
+  return Number.isFinite(ms) ? ms : null;
+}
+
 /**
- * Resolve the effective UTC start timestamp (ms) for an event.
- * Priority: event_start_utc → event.date (both treated as UTC ISO strings).
+ * Resolve the effective UTC start timestamp without ever interpreting a naive
+ * legacy value in the browser timezone.
  */
-function resolveStartUtcMs(event) {
-  const raw = event.event_start_utc || event.date;
-  if (!raw) return null;
-  const ms = new Date(raw).getTime();
-  return isNaN(ms) ? null : ms;
+export function resolveEventStartUtc(event = {}) {
+  const canonical = event.event_start_utc;
+  if (typeof canonical === 'string' && canonical.trim()) {
+    const utcMs = parseCanonicalUtcMs(canonical);
+    return {
+      utcMs,
+      source: 'event_start_utc',
+      error: utcMs === null ? 'invalid_canonical_timestamp' : null,
+    };
+  }
+
+  const legacy = event.date;
+  if (typeof legacy === 'string' && legacy.trim()) {
+    const utcMs = parseCanonicalUtcMs(legacy);
+    return {
+      utcMs,
+      source: 'date',
+      error: utcMs === null ? 'naive_or_invalid_legacy_timestamp' : null,
+    };
+  }
+
+  return { utcMs: null, source: null, error: 'missing_start_timestamp' };
+}
+
+export function getEventStartUtcMs(event) {
+  return resolveEventStartUtc(event).utcMs;
 }
 
 /**
@@ -107,19 +152,27 @@ function resolveDurationHours(event) {
  */
 export function resolveTimezone(event) {
   if (event.venue_timezone) {
-    return { timezone: event.venue_timezone, warning: null };
+    try {
+      new Intl.DateTimeFormat('en-US', { timeZone: event.venue_timezone }).format(0);
+      return { timezone: event.venue_timezone, warning: null, source: 'venue_timezone' };
+    } catch {
+      // Continue to an explicit fallback instead of silently formatting in the
+      // device timezone or returning an unlabelled ISO value.
+    }
   }
   const state = event.state?.trim().toUpperCase();
   const fallback = STATE_TZ_FALLBACK[state];
   if (fallback) {
     return {
       timezone: fallback,
-      warning: `No venue_timezone set. Using state fallback: ${fallback} (${state}).`,
+      warning: `${event.venue_timezone ? 'Invalid' : 'No'} venue_timezone set. Using state fallback: ${fallback} (${state}).`,
+      source: 'state_fallback',
     };
   }
   return {
     timezone: 'UTC',
-    warning: 'No venue_timezone or state set. Falling back to UTC — times may be wrong!',
+    warning: `${event.venue_timezone ? 'Invalid venue_timezone and no state fallback.' : 'No venue_timezone or state set.'} Falling back to UTC — times may be wrong!`,
+    source: 'utc_fallback',
   };
 }
 
@@ -158,7 +211,7 @@ export function getEventLiveStatus(event, nowMs) {
     };
   }
 
-  const startMs = resolveStartUtcMs(event);
+  const startMs = getEventStartUtcMs(event);
   const { warning } = resolveTimezone(event);
 
   if (startMs === null) {
@@ -246,5 +299,56 @@ export function formatInVenueTimezone(utcMs, timezone, fmt = 'short') {
     }).format(new Date(utcMs));
   } catch {
     return new Date(utcMs).toISOString();
+  }
+}
+
+function venueDateText(utcMs, timezone, style) {
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    weekday: style === 'full' ? 'long' : 'short',
+    month: style === 'full' ? 'long' : 'short',
+    day: 'numeric',
+    year: style === 'full' || style === 'date' ? 'numeric' : undefined,
+  }).format(new Date(utcMs));
+}
+
+/**
+ * Format an event start in the venue's IANA timezone. The timezone suffix is
+ * intentional: users travelling across zones should never have to infer
+ * whether a displayed time is their phone time or the venue time.
+ */
+export function formatEventVenueDateTime(event, options = {}) {
+  const { style = 'compact', fallback = 'TBD' } = options;
+  if (event?.date_tba) return 'Date TBD';
+
+  const { utcMs } = resolveEventStartUtc(event);
+  if (utcMs === null) return fallback;
+
+  const { timezone } = resolveTimezone(event);
+  try {
+    const dateText = venueDateText(utcMs, timezone, style);
+    if (event?.time_tba || event?.no_specific_time) return `${dateText} · Time TBD`;
+    const timeText = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZoneName: 'short',
+    }).format(new Date(utcMs));
+    return `${dateText} · ${timeText}`;
+  } catch {
+    return fallback;
+  }
+}
+
+export function formatEventVenueDate(event, options = {}) {
+  const { fallback = 'TBD' } = options;
+  if (event?.date_tba) return 'Date TBD';
+  const { utcMs } = resolveEventStartUtc(event);
+  if (utcMs === null) return fallback;
+  const { timezone } = resolveTimezone(event);
+  try {
+    return venueDateText(utcMs, timezone, 'date');
+  } catch {
+    return fallback;
   }
 }

@@ -9,6 +9,7 @@
  * source failure (defense in depth — fetchTMEvents also throws on non-array).
  */
 import { normalizeSearch, eventMatchesKeyword, eventWithinRadius } from './searchNormalize.js';
+import { getEventStartUtcMs } from './eventTiming.js';
 
 /**
  * Merge PG and TM event sources with safe contract handling.
@@ -44,7 +45,10 @@ export function mergeEventSources({ localResult, tmResult, filters }) {
   const eligible = localData.filter(e => e.status !== 'ended');
   const pgEvents = isAdmin || includeStarted
     ? eligible
-    : eligible.filter(e => !e.date || now < new Date(e.date).getTime());
+    : eligible.filter(e => {
+      const startMs = getEventStartUtcMs(e);
+      return startMs === null || now < startMs;
+    });
   let pgFiltered = pgEvents.filter(e => !e.is_beta_live);
 
   if (cityOverride) {

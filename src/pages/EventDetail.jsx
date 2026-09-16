@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { format } from 'date-fns';
 import { MapPin, Calendar, ArrowLeft, Ticket, Zap, Plus, Bell, ShieldCheck } from 'lucide-react';
 import ListingCard from '@/components/events/ListingCard';
 import PurchaseDialog from '@/components/events/PurchaseDialog';
-import { getEventLiveStatus } from '@/lib/eventTiming';
+import { formatEventVenueDateTime, getEventLiveStatus } from '@/lib/eventTiming';
 import { logNavEvent } from '@/lib/navLogger';
 import EventLookupDebugPanel from '@/components/debug/EventLookupDebugPanel';
 export default function EventDetail() {
@@ -221,7 +220,7 @@ export default function EventDetail() {
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-1.5 text-xs text-white/70">
               <Calendar className="w-3.5 h-3.5" />
-              {(event.event_start_utc || event.date) ? format(new Date(event.event_start_utc || event.date), 'EEEE, MMMM d, yyyy · h:mm a') : 'TBD'}
+              {formatEventVenueDateTime(event, { style: 'full' })}
             </div>
             <div className="flex items-center gap-1.5 text-xs text-white/70">
               <MapPin className="w-3.5 h-3.5" />

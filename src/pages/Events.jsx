@@ -1,9 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { format } from 'date-fns';
 import { MapPin, LocateFixed, Calendar, ChevronRight, RefreshCw, ShieldCheck, Search, ArrowUpDown, X } from 'lucide-react';
-import { getEventLiveStatus } from '@/lib/eventTiming';
+import { formatEventVenueDateTime, getEventLiveStatus, getEventStartUtcMs } from '@/lib/eventTiming';
 import { getEventUrl } from '@/lib/eventUrl';
 import { logNavEvent } from '@/lib/navLogger';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
@@ -14,6 +13,7 @@ import LocationAutocomplete from '@/components/LocationAutocomplete';
 import { createEventSearchRequest, buildEventSearchParams } from '@/lib/eventSearchRequest';
 import EventThumbnail from '@/components/events/EventThumbnail';
 import { restoreEventLocation, saveEventLocation, cityFromSuggestion, validCoordinates } from '@/lib/eventLocation';
+import { createTMEventSyncPayload } from '@/lib/tmEventSyncPayload';
 
 export default function Events() {
   const [events, setEvents] = useState([]);
@@ -112,13 +112,8 @@ export default function Events() {
       // Serialize syncs to avoid write races — stagger by 200ms per event
       toSync.forEach((e, i) => {
         setTimeout(() => {
-          base44.functions.invoke('syncTMEvent', {
-            tm_id: e.tm_id, title: e.title, venue: e.venue, city: e.city,
-            state: e.state, date: e.date, image_url: e.image_url,
-            tm_url: e.tm_url, category: e.category || null,
-            tm_venue_id: e.tm_venue_id || '',
-            venue_lat: e.venue_lat ?? null, venue_lng: e.venue_lng ?? null,
-          }).catch(syncErr => console.warn('[Events] syncTMEvent failed for', e.tm_id, syncErr?.message));
+          base44.functions.invoke('syncTMEvent', createTMEventSyncPayload(e))
+            .catch(syncErr => console.warn('[Events] syncTMEvent failed for', e.tm_id, syncErr?.message));
         }, i * 200);
       });
     } catch (err) {
@@ -217,8 +212,7 @@ export default function Events() {
   // Marketplaces prioritizes future, purchasable events.
   const getEventDate = (e) => {
     // Prefer canonical UTC start time, fall back to legacy date field
-    const d = e.event_start_utc || e.date;
-    return d ? new Date(d).getTime() : null;
+    return getEventStartUtcMs(e);
   };
 
   const filtered = (() => {
@@ -592,7 +586,7 @@ function EventRow({ event, isAdmin = false }) {
           </div>
           <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
             <Calendar className="w-3 h-3 flex-shrink-0 opacity-40" />
-            <span>{event.date ? format(new Date(event.date), 'EEE, MMM d · h:mm a') : 'TBD'}</span>
+            <span>{formatEventVenueDateTime(event)}</span>
           </div>
         </div>
 

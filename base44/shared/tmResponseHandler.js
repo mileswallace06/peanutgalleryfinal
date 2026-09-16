@@ -99,6 +99,7 @@ export function normalizeTMEvent(e) {
     title: e.name,
     tm_venue_id: venue?.id || '',
     date: start ? dateInfo.dateTime : local,
+    event_start_local: local,
     event_start_utc: start,
     event_end_utc: invalidEnd ? null : end,
     end_time_invalid: !!invalidEnd,

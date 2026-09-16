@@ -1,10 +1,9 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { format } from 'date-fns';
 import { MapPin, Calendar, ChevronRight, LocateFixed, X, Clock, RefreshCw, Zap, HelpCircle } from 'lucide-react';
 import LocationAutocomplete from '@/components/LocationAutocomplete';
-import { getEventLiveStatus, SOON_WINDOW_MINUTES } from '@/lib/eventTiming';
+import { formatEventVenueDateTime, getEventLiveStatus, getEventStartUtcMs, SOON_WINDOW_MINUTES } from '@/lib/eventTiming';
 import { logNavEvent } from '@/lib/navLogger';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { fetchTMEvents, bustTMCache } from '@/lib/tmCache';
@@ -12,6 +11,7 @@ import { useLocationDetect } from '@/hooks/useLocationDetect';
 import { useAuth } from '@/lib/AuthContext';
 import WhatIsPGOverlay, { shouldShowOverlay } from '@/components/WhatIsPGOverlay';
 import FounderStoryCard from '@/components/founder/FounderStoryCard';
+import { createTMEventSyncPayload } from '@/lib/tmEventSyncPayload';
 
 // ── sessionStorage helpers ────────────────────────────────────────────────
 const SS_KEY = 'pg_upgrades_location';
@@ -130,9 +130,7 @@ export default function Upgrades() {
       return s === 'upcoming';
     })
     .sort((a, b) => {
-      const aMs = new Date(a.event_start_utc || a.date || 0).getTime();
-      const bMs = new Date(b.event_start_utc || b.date || 0).getTime();
-      return aMs - bMs;
+      return (getEventStartUtcMs(a) ?? Infinity) - (getEventStartUtcMs(b) ?? Infinity);
     });
 
   const { containerRef, pulling } = usePullToRefresh(() => {
@@ -455,18 +453,7 @@ function EventCard({ event, mode }) {
     e.preventDefault();
     setSyncing(true);
     try {
-      const res = await base44.functions.invoke('syncTMEvent', {
-        tm_id: tmId,
-        title: event.title,
-        venue: event.venue,
-        city: event.city,
-        state: event.state,
-        date: event.date,
-        image_url: event.image_url,
-        tm_url: event.tm_url,
-        category: event.category,
-        tm_venue_id: event.tm_venue_id,
-      });
+      const res = await base44.functions.invoke('syncTMEvent', createTMEventSyncPayload(event));
       const internalId = res?.data?.id;
       if (internalId) {
         logNavEvent({ result: 'success', event, sourcePage: 'Upgrades', generatedHref: `/upgrades/${internalId}`, lookupMethod: 'sync_then_navigate' });
@@ -518,7 +505,7 @@ function EventCard({ event, mode }) {
         </div>
         <div className="flex items-center gap-1 text-[11px] text-muted-foreground mt-0.5">
           <Calendar className="w-3 h-3 flex-shrink-0" style={{ color: 'var(--neon-green)' }} />
-          <span>{event.date ? format(new Date(event.date), 'EEE, MMM d · h:mm a') : 'TBD'}</span>
+          <span>{formatEventVenueDateTime(event)}</span>
         </div>
         {!isLive && !isTM && (
           <span className="mt-1.5 text-[10px] text-muted-foreground">Tickets available · upgrades open at showtime</span>

@@ -52,6 +52,10 @@ const SUITES = [
   // Ownership
   { name: 'listing-status-ownership', file: 'tests/listing-status-ownership.test.mjs', required: true },
 
+  // Nationwide event-time and provider refresh contracts
+  { name: 'tm-event-sync-contract', file: 'tests/tm-event-sync-contract.test.mjs', required: true },
+  { name: 'event-venue-time-contract', file: 'tests/event-venue-time-contract.test.mjs', required: true },
+
   // Round 6B.2 — submitListing test-mode authorization
   { name: 'submitListing-test-mode', file: 'tests/submitListing-test-mode.test.mjs', required: true },
 
