@@ -98,6 +98,7 @@ export default function TransferAcknowledgment({ listing, onAcknowledged }) {
 
       {checked && (
         <button
+          type="button"
           onClick={onAcknowledged}
           className="w-full py-2.5 rounded-xl text-xs font-bold"
           style={{ background: 'rgba(255,140,0,0.15)', color: '#FF8C00', border: '1px solid rgba(255,140,0,0.3)' }}

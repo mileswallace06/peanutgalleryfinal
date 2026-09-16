@@ -87,7 +87,7 @@ export async function runCreateCheckout(deps, params) {
   }
 
   // 3. Input validation
-  const { listing_id, buyer_name, buyer_phone } = params;
+  const { listing_id, buyer_name, buyer_phone, transfer_risk_acknowledged } = params;
   if (typeof listing_id !== 'string' || listing_id.length === 0 || listing_id.length > MAX_ID_LENGTH) {
     return { status: 400, body: { error: 'listing_id must be a bounded nonempty string', code: 'INVALID_INPUT' } };
   }
@@ -133,6 +133,18 @@ export async function runCreateCheckout(deps, params) {
   const authoritativeIsDemo = listingPrivate.is_demo_listing ?? false;
   const authoritativeProofStatus = listingPrivate.proof_status ?? null;
   const authoritativeNotes = listingPrivate.notes ?? null;
+
+  // Transfer safety is enforced again on the server. UI state and disabled
+  // buttons are not authority: direct function calls must fail the same way.
+  if (listing.transfer_status === 'transfer_disabled') {
+    return { status: 409, body: { error: 'Ticket transfer is unavailable for this listing.', code: 'TRANSFER_DISABLED' } };
+  }
+  const transferConfidence = Number(listing.transfer_confidence_score);
+  const requiresTransferRiskAck = Number.isFinite(transferConfidence) &&
+    transferConfidence < 70 && listing.transfer_status !== 'transfer_confirmed';
+  if (requiresTransferRiskAck && transfer_risk_acknowledged !== true) {
+    return { status: 400, body: { error: 'Transfer risk acknowledgment is required.', code: 'TRANSFER_RISK_ACK_REQUIRED' } };
+  }
 
   // 6. Financial validation
   const askingPriceNum = Number(listing.asking_price);

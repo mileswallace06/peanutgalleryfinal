@@ -41,6 +41,14 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onCheckoutCreated }
     e.preventDefault();
     if (!stripe || !elements) return;
     if (isUpgrade && !eligibilityPassed) return;
+    if (listing.transfer_status === 'transfer_disabled') {
+      setError('This ticket can no longer be transferred and is not available for purchase.');
+      return;
+    }
+    if (needsTransferAck && !transferAcknowledged) {
+      setError('Review and acknowledge the transfer warning before continuing.');
+      return;
+    }
     setLoading(true);
     setError('');
 
@@ -53,6 +61,7 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onCheckoutCreated }
         listing_id: listing.id,
         buyer_name: name,
         buyer_phone: phone,
+        transfer_risk_acknowledged: transferAcknowledged,
       });
       const { purchase_id, clientSecret } = res.data;
       purchaseId = purchase_id;
@@ -188,12 +197,10 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onCheckoutCreated }
       </div>
 
       {/* Transfer status acknowledgment */}
-      {listing.transfer_status !== 'transfer_disabled' && (
-        <TransferAcknowledgment
-          listing={listing}
-          onAcknowledged={() => setTransferAcknowledged(true)}
-        />
-      )}
+      <TransferAcknowledgment
+        listing={listing}
+        onAcknowledged={() => setTransferAcknowledged(true)}
+      />
 
       {/* Instant Transfer Ready notice */}
       {listing.listing_transfer_mode === 'instant_transfer_ready' && (
@@ -293,7 +300,7 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onCheckoutCreated }
 
       <button
         type="submit"
-        disabled={loading || !eligibilityPassed || (!isDemoUpgrade && (!stripe || !transferAcknowledged))}
+        disabled={loading || !eligibilityPassed || listing.transfer_status === 'transfer_disabled' || (!isDemoUpgrade && (!stripe || !transferAcknowledged))}
         className="w-full flex items-center justify-center gap-2 py-3.5 rounded-full font-black text-sm transition-all disabled:opacity-40 mt-2"
         style={{
           background: isDemoUpgrade
