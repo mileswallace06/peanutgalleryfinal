@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { base44 } from '@/api/base44Client';
-import { CheckCircle2, XCircle, HelpCircle, AlertTriangle, ChevronDown, ChevronUp, Plus, Trash2, User, RefreshCw } from 'lucide-react';
+import { CheckCircle2, XCircle, HelpCircle, AlertTriangle, ChevronDown, ChevronUp, Plus, Trash2, User } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { adminAccess } from '@/lib/adminAccess';
 
 // ─── Task definitions (10 Real User Validation Tests) ──────────────────────────
 const TASKS = [
@@ -310,20 +310,26 @@ function SessionPanel({ session, onUpdate, onDelete }) {
 
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 export default function FounderBetaChecklist() {
-  const { user } = useAuth();
+  const auth = useAuth();
+  const access = adminAccess(auth);
   const navigate = useNavigate();
   const [sessions, setSessions] = useState(loadSessions);
   const [newName, setNewName] = useState('');
   const [newDevice, setNewDevice] = useState('');
   const [adding, setAdding] = useState(false);
 
-  // Only admins
-  if (user && user.role !== 'admin') {
+  if (access !== 'admin') {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-4 px-6 text-center">
-        <p className="text-5xl">🔒</p>
-        <p className="font-bold text-foreground">Admin only</p>
-        <button onClick={() => navigate(-1)} className="text-sm text-muted-foreground underline">Go back</button>
+        {access === 'checking' ? (
+          <p role="status" className="font-bold text-foreground">Checking admin access…</p>
+        ) : (
+          <>
+            <p className="text-5xl">🔒</p>
+            <p className="font-bold text-foreground">Admin only</p>
+            <button onClick={() => navigate(-1)} className="text-sm text-muted-foreground underline">Go back</button>
+          </>
+        )}
       </div>
     );
   }
@@ -446,7 +452,6 @@ export default function FounderBetaChecklist() {
             <div className="space-y-1.5">
               {taskStats.map(task => {
                 const pct = task.total > 0 ? Math.round((task.completed / task.total) * 100) : null;
-                const worstKey = task.failed > task.confused ? 'failed' : task.confused > 0 ? 'confused' : task.needed_help > 0 ? 'needed_help' : null;
                 return (
                   <div key={task.id} className="flex items-center gap-3">
                     <span className="text-[10px] text-muted-foreground w-4 text-right flex-shrink-0">{task.id}</span>

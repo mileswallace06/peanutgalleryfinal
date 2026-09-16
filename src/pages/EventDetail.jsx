@@ -8,19 +8,22 @@ import { formatEventVenueDateTime, getEventLiveStatus } from '@/lib/eventTiming'
 import { getEmptyTicketCopy, getEventModeCopy } from '@/lib/eventDetailPresentation';
 import { logNavEvent } from '@/lib/navLogger';
 import EventLookupDebugPanel from '@/components/debug/EventLookupDebugPanel';
+import { useAuth } from '@/lib/AuthContext';
+import { adminAccess } from '@/lib/adminAccess';
 export default function EventDetail() {
   const { id } = useParams();
+  const auth = useAuth();
+  const { user } = auth;
+  const isVerifiedAdmin = adminAccess(auth) === 'admin';
   const [event, setEvent] = useState(null);
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedListing, setSelectedListing] = useState(null);
-  const [user, setUser] = useState(null);
   const [lookupError, setLookupError] = useState(false);
   const [lookupTrace, setLookupTrace] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
-    base44.auth.me().then(setUser).catch(() => {});
     setLoading(true);
     setLookupError(false);
     setLookupTrace(null);
@@ -33,19 +36,19 @@ export default function EventDetail() {
         let events = [];
         try {
           events = await base44.entities.Event.filter({ id });
-        } catch (e) { /* ignore */ }
+        } catch { /* ignore */ }
         trace.steps.push({ method: 'direct_id', count: events.length });
 
         // ── Step 2: tm_ prefix strip ─────────────────────────────────────────
         if (events.length === 0 && id && id.startsWith('tm_')) {
           const tmId = id.replace('tm_', '');
-          try { events = await base44.entities.Event.filter({ tm_id: tmId }); } catch (e) { /* ignore */ }
+          try { events = await base44.entities.Event.filter({ tm_id: tmId }); } catch { /* ignore */ }
           trace.steps.push({ method: 'tm_prefix_strip', count: events.length });
         }
 
         // ── Step 3: bare tm_id lookup ────────────────────────────────────────
         if (events.length === 0) {
-          try { events = await base44.entities.Event.filter({ tm_id: id }); } catch (e) { /* ignore */ }
+          try { events = await base44.entities.Event.filter({ tm_id: id }); } catch { /* ignore */ }
           trace.steps.push({ method: 'tm_id_field', count: events.length });
         }
 
@@ -82,7 +85,6 @@ export default function EventDetail() {
         }
 
         const resolvedId = ev.id;
-        const me = await base44.auth.me().catch(() => null);
         // Phase 1B-2: fetch listings through the safe participant view function.
         // No direct Listing entity access — private fields never reach the client.
         let safeListings = [];
@@ -98,8 +100,6 @@ export default function EventDetail() {
         }
         if (cancelled) return;
 
-        const adminUnlocked = me?.role === 'admin' || sessionStorage.getItem('pg_admin_unlocked') === '1';
-        const timing = getEventLiveStatus(ev);
         const real = safeListings.filter(l => !l.is_demo_listing);
         setListings(real.length > 0 ? real : safeListings);
 
@@ -160,12 +160,11 @@ export default function EventDetail() {
             <Link to="/events" className="text-sm text-muted-foreground underline">← Back to Events</Link>
           </div>
         </div>
-        {user?.role === 'admin' && <EventLookupDebugPanel routeId={id} lookupTrace={lookupTrace} />}
+        {isVerifiedAdmin && <EventLookupDebugPanel routeId={id} lookupTrace={lookupTrace} />}
       </div>
     );
   }
 
-  const adminUnlocked = user?.role === 'admin' || sessionStorage.getItem('pg_admin_unlocked') === '1';
   const timing = getEventLiveStatus(event);
   const isLive = timing.status === 'live';
   const isEnded = timing.status === 'ended';
@@ -284,7 +283,7 @@ export default function EventDetail() {
                 {isEnded ? 'This event is over' : 'Buy tickets from other fans'}
               </p>
             </div>
-            {adminUnlocked && (
+            {isVerifiedAdmin && (
               <span className="text-xs bg-amber-500/15 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-full font-medium">
                 🔑 Admin
               </span>
@@ -303,7 +302,7 @@ export default function EventDetail() {
         {/* Listings */}
         {availableListings.length === 0 ? (
           <div className="space-y-4">
-            {emptyTicketCopy && (isEnded || !adminUnlocked) ? (
+            {emptyTicketCopy && (isEnded || !isVerifiedAdmin) ? (
               <div className="text-center py-10 rounded-2xl" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
                 <p className="text-4xl mb-3">{isEnded ? '🎟️' : '⚡'}</p>
                 <p className="font-bold text-foreground">{emptyTicketCopy.title}</p>

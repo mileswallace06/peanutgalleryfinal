@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
-import { isAdmin } from '@/lib/isAdmin';
+import { adminAccess } from '@/lib/adminAccess';
 import { Navigate, Link } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { formatDistanceToNow } from 'date-fns';
-import { Shield, RefreshCw, AlertTriangle, TrendingUp, Clock, CheckCircle, XCircle, Activity, Zap, Bell } from 'lucide-react';
+import { Shield, RefreshCw, CheckCircle } from 'lucide-react';
 import { isVerificationExpired } from '@/lib/transferConfidence';
 import EventNavHealthPanel from '@/components/founder/EventNavHealthPanel';
 
@@ -38,7 +38,8 @@ function SectionHeader({ title, icon }) {
 }
 
 export default function FounderDashboard() {
-  const { user, isLoadingAuth } = useAuth();
+  const auth = useAuth();
+  const access = adminAccess(auth);
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState(null);
 
@@ -67,23 +68,22 @@ export default function FounderDashboard() {
   }, []);
 
   useEffect(() => {
-    if (!isLoadingAuth && user && isAdmin(user)) loadAll();
-  }, [isLoadingAuth, user]);
+    if (access === 'admin') loadAll();
+  }, [access, loadAll]);
 
-  if (isLoadingAuth) return (
+  if (access === 'checking') return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
     </div>
   );
 
-  if (!user || !isAdmin(user)) return <Navigate to="/events" replace />;
+  if (access !== 'admin') return <Navigate to="/events" replace />;
 
   // ── Derived metrics ──────────────────────────────────────────────────
   const activeListings = listings.filter(l => l.status === 'active');
   const hiddenListings = listings.filter(l => l.status === 'hidden');
   const expiredListings = activeListings.filter(l => isVerificationExpired(l));
   const needsReverify = activeListings.filter(l => !l.last_transfer_verification || isVerificationExpired(l));
-  const disabledListings = listings.filter(l => l.transfer_status === 'transfer_disabled');
   const lowConfidence = activeListings.filter(l => (l.transfer_confidence_score ?? 100) < 40);
 
   const pendingTransfers = purchases.filter(p => p.transfer_status === 'pending_transfer');

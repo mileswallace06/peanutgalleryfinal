@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useAuth } from '@/lib/AuthContext';
-import { Shield, Database, CheckCircle, XCircle, RefreshCw, Lock, AlertTriangle, FileText, CreditCard, FlaskConical } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Shield, Database, CheckCircle, XCircle, RefreshCw, AlertTriangle, FileText, CreditCard, FlaskConical } from 'lucide-react';
+import { Link, Navigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import EventTimingDebug from '@/components/admin/EventTimingDebug';
 import InstantFulfillmentCenter from '@/components/admin/InstantFulfillmentCenter';
@@ -10,16 +10,13 @@ import FeeSimulator from '@/components/admin/FeeSimulator';
 import TransactionAnalytics from '@/components/admin/TransactionAnalytics';
 import FeeComparisonReport from '@/components/admin/FeeComparisonReport';
 import MinListingPriceConfig from '@/components/admin/MinListingPriceConfig';
-import { isAdmin } from '@/lib/isAdmin';
+import { adminAccess } from '@/lib/adminAccess';
 import AIVerificationQueue from '@/components/admin/AIVerificationQueue';
 
-const ADMIN_PASSWORD = 'peanut2026';
-
 export default function AdminMode() {
-  const { user, isLoadingAuth } = useAuth();
-  const [unlocked, setUnlocked] = useState(sessionStorage.getItem('pg_admin_unlocked') === '1');
-  const [password, setPassword] = useState('');
-  const [pwError, setPwError] = useState('');
+  const auth = useAuth();
+  const { user } = auth;
+  const access = adminAccess(auth);
 
   const [stripeMode, setStripeMode] = useState(null);
   const [stripeModeLoading, setStripeModeLoading] = useState(false);
@@ -38,17 +35,10 @@ export default function AdminMode() {
   const [actionLoading, setActionLoading] = useState('');
 
   useEffect(() => {
-    if (!unlocked || isLoadingAuth || !user) return;
-    if (!isAdmin(user)) {
-      // Non-admin got the password — lock them back out
-      sessionStorage.removeItem('pg_admin_unlocked');
-      setUnlocked(false);
-      setPwError('Your account does not have admin privileges.');
-      return;
-    }
+    if (access !== 'admin') return;
     loadData();
     loadStripeMode();
-  }, [unlocked, isLoadingAuth, user]);
+  }, [access]);
 
   const loadStripeMode = async () => {
     setStripeModeLoading(true);
@@ -84,16 +74,6 @@ export default function AdminMode() {
     }));
     setEvents(eventMap);
     setDataLoading(false);
-  };
-
-  const handleUnlock = (e) => {
-    e.preventDefault();
-    if (password === ADMIN_PASSWORD) {
-      sessionStorage.setItem('pg_admin_unlocked', '1');
-      setUnlocked(true);
-    } else {
-      setPwError('Incorrect password');
-    }
   };
 
   const handleSeed = async () => {
@@ -157,36 +137,15 @@ export default function AdminMode() {
     setActionLoading('');
   };
 
-  if (!unlocked) {
+  if (access === 'checking') {
     return (
-      <div className="max-w-sm mx-auto px-4 py-20">
-        <div className="text-center mb-8">
-          <div className="text-4xl mb-3">🥜</div>
-          <h1 className="text-2xl font-bold">Admin Mode</h1>
-          <p className="text-muted-foreground text-sm mt-1">Enter the admin password to continue</p>
-        </div>
-        <form onSubmit={handleUnlock} className="space-y-3">
-          <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="Admin password"
-              className="w-full pl-9 pr-4 py-3 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-            />
-          </div>
-          {pwError && <p className="text-destructive text-xs">{pwError}</p>}
-          <button
-            type="submit"
-            className="w-full bg-primary text-primary-foreground py-3 rounded-xl font-semibold hover:bg-primary/90 transition-colors"
-          >
-            Unlock Admin Mode
-          </button>
-        </form>
+      <div className="min-h-full flex items-center justify-center" role="status" aria-label="Checking admin access">
+        <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
+
+  if (access !== 'admin') return <Navigate to="/events" replace />;
 
   const pendingProof = listings.filter(l => l.proof_status === 'pending_review');
   const activePurchases = purchases.filter(p => p.transfer_status === 'pending_transfer');

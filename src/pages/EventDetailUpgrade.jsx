@@ -22,6 +22,8 @@ import CurrentTicketModule from '@/components/eventmode/CurrentTicketModule';
 import MoveCloserRail from '@/components/eventmode/MoveCloserRail';
 import SellSeatsModule from '@/components/eventmode/SellSeatsModule';
 import PurchaseDialog from '@/components/events/PurchaseDialog';
+import { useAuth } from '@/lib/AuthContext';
+import { adminAccess } from '@/lib/adminAccess';
 
 const TABS = [
   { key: 'Upgrades', label: 'Upgrades', sub: 'Better seats' },
@@ -31,10 +33,12 @@ const TABS = [
 
 export default function EventDetailUpgrade() {
   const { id } = useParams();
+  const auth = useAuth();
+  const { user } = auth;
+  const isVerifiedAdmin = adminAccess(auth) === 'admin';
   const [event, setEvent] = useState(null);
   const [listings, setListings] = useState([]);
   const [drops, setDrops] = useState([]);
-  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('Upgrades');
   const [showDropSheet, setShowDropSheet] = useState(false);
@@ -94,10 +98,7 @@ export default function EventDetailUpgrade() {
         }
 
         const resolvedId = resolvedEvent.id;
-        const [dropData, me] = await Promise.all([
-          base44.entities.FlashDrop.filter({ event_id: resolvedId }).catch(() => []),
-          base44.auth.me().catch(() => null),
-        ]);
+        const dropData = await base44.entities.FlashDrop.filter({ event_id: resolvedId }).catch(() => []);
 
         // Phase 1B-2: fetch listings through the safe participant view function.
         let safeListings = [];
@@ -115,7 +116,6 @@ export default function EventDetailUpgrade() {
         setEvent(resolvedEvent);
         setListings(safeListings);
         setDrops(dropData);
-        setUser(me);
 
         logNavEvent({
           result: trace.steps[0]?.count > 0 ? 'success' : 'lookup_fallback_success',
@@ -167,7 +167,7 @@ export default function EventDetailUpgrade() {
             <Link to="/upgrades" className="text-sm underline" style={{ color: 'var(--ev-text-2)' }}>← Back to Upgrades</Link>
           </div>
         </div>
-        {user?.role === 'admin' && <EventLookupDebugPanel routeId={id} lookupTrace={lookupTrace} />}
+        {isVerifiedAdmin && <EventLookupDebugPanel routeId={id} lookupTrace={lookupTrace} />}
       </div>
     );
   }

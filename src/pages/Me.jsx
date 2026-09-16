@@ -5,7 +5,7 @@ import { Ticket, TrendingUp, Shield, LogIn, Edit2, Tag, Zap, ChevronRight, Camer
 import PeanutPointsCard from '@/components/points/PeanutPointsCard';
 import RecentPointsActivity from '@/components/points/RecentPointsActivity';
 import CommunityImpactCard from '@/components/donations/CommunityImpactCard';
-import { isAdmin } from '@/lib/isAdmin';
+import { adminAccess } from '@/lib/adminAccess';
 import { useAuth } from '@/lib/AuthContext';
 import { feedbackAccess } from '@/lib/feedbackInbox';
 
@@ -31,6 +31,7 @@ export default function Me() {
   const navigate = useNavigate();
   const auth = useAuth();
   const { user: authUser } = auth;
+  const isVerifiedAdmin = adminAccess(auth) === 'admin';
   // Seed with the already-resolved AuthContext user to avoid the sign-in flash,
   // then refresh in the background to pick up any profile updates.
   const [user, setUser] = useState(authUser || null);
@@ -208,7 +209,7 @@ export default function Me() {
             style={{ background: 'rgba(var(--neon-cyan-rgb), 0.1)', color: 'var(--neon-cyan)', border: '1px solid rgba(var(--neon-cyan-rgb), 0.2)' }}>
             🥜 Fan
           </span>
-          {isAdmin(user) && (
+          {isVerifiedAdmin && (
             <span className="text-[10px] font-bold px-2.5 py-1 rounded-full dark:bg-[rgba(255,230,0,0.25)] dark:border-[rgba(255,230,0,0.5)] dark:text-[#FFFF00]"
               style={{ background: 'rgba(var(--neon-yellow-rgb), 0.1)', color: 'var(--neon-yellow)', border: '1px solid rgba(var(--neon-yellow-rgb), 0.2)' }}>
               ✦ Admin
@@ -430,7 +431,7 @@ export default function Me() {
             ))}
           </div>
 
-          {isAdmin(user) && (
+          {isVerifiedAdmin && (
             <Link
               to="/admin"
               className="flex items-center gap-4 px-5 py-4 rounded-2xl transition-all active:scale-[0.98]"

@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useAuth } from '@/lib/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
-import { Plus, User, ChevronDown, ChevronUp, Trash2, CheckCircle2, Clock, XCircle, ArrowLeft } from 'lucide-react';
+import { Plus, ChevronDown, ChevronUp, Trash2, ArrowLeft } from 'lucide-react';
+import { adminAccess } from '@/lib/adminAccess';
 
 const PHASE_TARGETS = { phase_1: 10, phase_2: 25, phase_3: 50 };
-const PHASE_LABELS = { phase_1: 'Phase 1 — 10 testers', phase_2: 'Phase 2 — 25 testers', phase_3: 'Phase 3 — 50 testers' };
 const STATUS_COLORS = { invited: '#FFE600', active: '#00FF87', completed: '#00C8FF', dropped: '#FF2D78' };
 const FAN_TYPE_LABELS = { sports: '🏈 Sports fan', concert: '🎵 Concert fan', both: '🎭 Both' };
 
@@ -136,7 +136,8 @@ function TesterCard({ tester, onUpdate, onDelete }) {
 }
 
 export default function BetaRecruitment() {
-  const { user } = useAuth();
+  const auth = useAuth();
+  const access = adminAccess(auth);
   const navigate = useNavigate();
   const [testers, setTesters] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -145,16 +146,26 @@ export default function BetaRecruitment() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    if (access !== 'admin') return;
+    let cancelled = false;
     base44.entities.BetaTester.list('-created_date', 100)
-      .then(setTesters).finally(() => setLoading(false));
-  }, []);
+      .then(rows => { if (!cancelled) setTesters(rows); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [access]);
 
-  if (user && user.role !== 'admin') {
+  if (access !== 'admin') {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-4 px-6 text-center">
-        <p className="text-5xl">🔒</p>
-        <p className="font-bold text-foreground">Admin only</p>
-        <button onClick={() => navigate(-1)} className="text-sm text-muted-foreground underline">Go back</button>
+        {access === 'checking' ? (
+          <p role="status" className="font-bold text-foreground">Checking admin access…</p>
+        ) : (
+          <>
+            <p className="text-5xl">🔒</p>
+            <p className="font-bold text-foreground">Admin only</p>
+            <button onClick={() => navigate(-1)} className="text-sm text-muted-foreground underline">Go back</button>
+          </>
+        )}
       </div>
     );
   }
@@ -178,7 +189,6 @@ export default function BetaRecruitment() {
   // Aggregate stats
   const sports = testers.filter(t => t.fan_type === 'sports' || t.fan_type === 'both');
   const concert = testers.filter(t => t.fan_type === 'concert' || t.fan_type === 'both');
-  const active = testers.filter(t => t.status === 'active');
   const phase1Target = PHASE_TARGETS.phase_1;
   const phase1Pct = Math.min(100, Math.round((testers.length / phase1Target) * 100));
 
