@@ -18,10 +18,14 @@ export default function DeleteAccountModal({ user, isOpen, onClose }) {
     setDeleting(true);
     setError('');
     try {
-      await base44.functions.invoke('deleteAccount', {});
+      const response = await base44.functions.invoke('deleteAccount', {});
+      const result = response?.data ?? response;
+      if (result?.success !== true || result?.status !== 'ACCOUNT_APP_DATA_REMOVED_AND_AUDIT_HISTORY_PRESERVED') {
+        throw new Error('Account-data removal was not verified. You remain signed in; contact support before retrying.');
+      }
       await base44.auth.logout('/');
     } catch (err) {
-      setError(err.response?.data?.error || err.message || 'Something went wrong. Please try again or email experience@peanutgallery.store.');
+      setError(err.response?.data?.error || err.data?.error || err.message || 'Nothing was confirmed removed. Please try again or email experience@peanutgallery.store.');
       setDeleting(false);
     }
   };
@@ -47,7 +51,7 @@ export default function DeleteAccountModal({ user, isOpen, onClose }) {
               <AlertTriangle className="w-5 h-5" style={{ color: '#FF2D78' }} />
             </div>
             <div>
-              <h3 id="delete-account-title" className="font-black text-lg text-foreground">Delete Account</h3>
+              <h3 id="delete-account-title" className="font-black text-lg text-foreground">Remove Account Data</h3>
               <p className="text-xs text-muted-foreground mt-0.5">Step {step} of 3</p>
             </div>
           </div>
@@ -69,17 +73,17 @@ export default function DeleteAccountModal({ user, isOpen, onClose }) {
           <>
             <div className="rounded-2xl p-4 space-y-2"
               style={{ background: 'rgba(255,45,120,0.08)', border: '1px solid rgba(255,45,120,0.2)' }}>
-              <p className="text-sm font-bold text-foreground">What gets deleted:</p>
+              <p className="text-sm font-bold text-foreground">What this process does:</p>
               <ul className="text-xs text-muted-foreground space-y-1.5">
-                <li>• All your active listings will be removed</li>
-                <li>• Your purchase and sales history will be deleted</li>
-                <li>• Your profile, bio, followers and bucket list are gone</li>
-                <li>• Any pending payouts may be forfeited</li>
-                <li>• This action <span className="font-bold text-foreground">cannot be reversed</span></li>
+                <li>• Removes configured profile, notification, fan-post, follow and bucket-list data</li>
+                <li>• Replaces eligible identity fields in retained records with a pseudonymous marker</li>
+                <li>• Keeps transaction, payment, payout, transfer, dispute, security and audit history when required</li>
+                <li>• Refuses to start while an active listing or unresolved obligation is detected</li>
+                <li>• Does not remove the underlying Base44 sign-in identity</li>
               </ul>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Your account and all associated data will be permanently and immediately deleted. You'll receive a confirmation email.
+              Completed removals cannot be reversed. A receipt email is attempted after verified completion but is not guaranteed. Contact experience@peanutgallery.store for help closing the underlying login identity.
             </p>
             <div className="space-y-2">
               <button
@@ -103,7 +107,7 @@ export default function DeleteAccountModal({ user, isOpen, onClose }) {
         {step === 2 && (
           <>
             <p className="text-sm text-muted-foreground">
-              Type your email address to confirm you want to delete your account:
+              Type your email address to confirm you want to remove your configured app data:
             </p>
             <div className="space-y-1">
               <input
@@ -144,7 +148,7 @@ export default function DeleteAccountModal({ user, isOpen, onClose }) {
               style={{ background: 'rgba(255,45,120,0.1)', border: '1px solid rgba(255,45,120,0.25)' }}>
               <p className="text-2xl">☠️</p>
               <p className="text-sm font-black text-foreground">Are you absolutely sure?</p>
-              <p className="text-xs text-muted-foreground">This will permanently delete <span className="font-bold text-foreground">{user?.email}</span> and all associated data.</p>
+              <p className="text-xs text-muted-foreground">Configured app data for <span className="font-bold text-foreground">{user?.email}</span> will be removed or pseudonymized. Required transaction/audit records and the underlying login identity remain.</p>
             </div>
             {error && <p className="text-xs text-center" style={{ color: '#FF2D78' }}>{error}</p>}
             <div className="space-y-2">
@@ -157,9 +161,9 @@ export default function DeleteAccountModal({ user, isOpen, onClose }) {
                 {deleting
                   ? <span className="flex items-center justify-center gap-2">
                       <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Deleting account…
+                      Removing app data…
                     </span>
-                  : 'Yes, delete my account'
+                  : 'Yes, remove my app data'
                 }
               </button>
               <button onClick={() => { setStep(2); setError(''); }}
