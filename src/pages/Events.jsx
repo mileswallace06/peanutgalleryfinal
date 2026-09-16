@@ -196,8 +196,9 @@ export default function Events() {
   };
   const handleNearMe = () => {
     setShowPast(false);
-    runSearch('');
-    if (!localAreaRef.current) requestCurrentLocation('');
+    // "Near Me" means the phone's location now, not a saved city/GPS result.
+    // This matters when someone travels after previously browsing another market.
+    requestCurrentLocation('');
   };
   const retrySearch = () => fetchEvents(activeSearchRef.current, true);
   const searchNationwide = () => runSearch(activeSearchRef.current.keyword, null, 'nationwide');

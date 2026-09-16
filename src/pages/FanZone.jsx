@@ -75,6 +75,7 @@ export default function FanZone() {
   const [bucketList, setBucketList] = useState([]);
   const [showBucketList, setShowBucketList] = useState(false);
   const [userLocation, setUserLocation] = useState(null);
+  const [locationStatus, setLocationStatus] = useState('idle');
   const [followingEmails, setFollowingEmails] = useState([]);
 
   useEffect(() => {
@@ -101,13 +102,41 @@ export default function FanZone() {
   // Request geolocation when Near Me tab is selected
   useEffect(() => {
     if (feedTab !== 'nearby') return;
-    if (userLocation) return;
-    if (!navigator.geolocation) return;
+    setUserLocation(null);
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      setLocationStatus('unsupported');
+      return;
+    }
+    setLocationStatus('requesting');
     navigator.geolocation.getCurrentPosition(
-      pos => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => setUserLocation(null)
+      pos => {
+        setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setLocationStatus('ready');
+      },
+      () => {
+        setUserLocation(null);
+        setLocationStatus('denied');
+      },
+      { timeout: 8000, enableHighAccuracy: false, maximumAge: 0 }
     );
   }, [feedTab]);
+
+  const retryNearbyLocation = () => {
+    setUserLocation(null);
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      setLocationStatus('unsupported');
+      return;
+    }
+    setLocationStatus('requesting');
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setLocationStatus('ready');
+      },
+      () => setLocationStatus('denied'),
+      { timeout: 8000, enableHighAccuracy: false, maximumAge: 0 }
+    );
+  };
 
   const loadPosts = async () => {
     setLoading(true);
@@ -202,7 +231,9 @@ export default function FanZone() {
       });
     } else if (feedTab === 'nearby') {
       if (!userLocation) {
-        base = posts.filter(p => !!p.event_city);
+        // Never describe generic city-tagged posts as nearby without a verified
+        // current location. Permission denial must fail closed, not broaden.
+        base = [];
       } else {
         const RADIUS_KM = 80;
         const deg2rad = d => d * Math.PI / 180;
@@ -396,7 +427,12 @@ export default function FanZone() {
           </p>
         )}
         {feedTab === 'nearby' && !userLocation && (
-          <p className="text-xs text-muted-foreground px-1">Allow location access to see posts near you.</p>
+          <div className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
+            <span>{locationStatus === 'requesting' ? 'Finding your current location…' : locationStatus === 'unsupported' ? 'Location is not available on this device.' : 'Allow location access to see posts near you.'}</span>
+            {locationStatus === 'denied' && (
+              <button type="button" className="min-h-11 underline font-semibold" style={{ color: 'var(--neon-purple)' }} onClick={retryNearbyLocation}>Try again</button>
+            )}
+          </div>
         )}
         {feedTab === 'nearby' && userLocation && (
           <p className="text-xs px-1" style={{ color: 'var(--neon-green)' }}>📍 Showing posts within 80 km of your location</p>

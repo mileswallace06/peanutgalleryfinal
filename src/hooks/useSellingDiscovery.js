@@ -58,7 +58,9 @@ export function useSellingDiscovery(initialKeyword = '') {
   const locate = (text = requestRef.current.keyword) => { intent.current++; setRestoring(false); pendingGPS.current = { keyword: text }; setCityError(''); requestLocation(); };
   return { keyword, setKeyword, area, request, result, loading, restoring, editingLocation, locationInput, cityError, locationStatus,
     submit: () => run(keyword), nationwide: () => run(requestRef.current.keyword, null, 'nationwide'),
-    nearMe: () => { run(''); if (!areaRef.current) locate(''); }, locate,
+    // Always refresh GPS for an explicit Near Me request. A saved area is useful
+    // for restoring a session, but it must not follow a traveler to a new market.
+    nearMe: () => locate(''), locate,
     refresh: () => load(requestRef.current, true),
     openLocation: () => { setLocationInput(''); setCityError(''); setEditingLocation(true); },
     closeLocation: () => { pendingGPS.current = null; cancelRequest(); setEditingLocation(false); },
