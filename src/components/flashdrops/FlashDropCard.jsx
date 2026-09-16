@@ -83,7 +83,7 @@ export default function FlashDropCard({ drop: initialDrop, user, allListings = [
     });
     setPollError('');
     setPhase('result');
-    onWinnerSelected?.(drop.id, data.winner || null);
+    onWinnerSelected?.(drop.id, data.winner);
   };
 
   const startPolling = (flash_drop_id) => {
