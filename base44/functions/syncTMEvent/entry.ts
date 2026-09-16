@@ -61,7 +61,10 @@ Deno.serve(async (req) => {
     if (!providerJson || providerJson.id !== requestedId) return Response.json({ error: 'tm_malformed_response' }, { status: 502 });
 
     const body = normalizeTMEvent(providerJson);
-    const { tm_id, title, venue, city, state, image_url, tm_url, category, tm_venue_id } = body;
+    const {
+      tm_id, title, venue, city, state, image_url, tm_url, category, tm_venue_id,
+      venue_address_line1, venue_postal_code, venue_country_code, venue_timezone,
+    } = body;
     if (!tm_id || !title) return Response.json({ error: 'tm_malformed_response' }, { status: 502 });
 
     // ── M0.3: Re-validate coordinates before writing ──────────────────────
@@ -85,14 +88,21 @@ Deno.serve(async (req) => {
       const existingVenues = await base44.asServiceRole.entities.Venue.filter({ tm_venue_id }).catch(() => []);
       if (existingVenues && existingVenues.length > 0) {
         venueRecord = existingVenues[0];
-        // Backfill lightweight metadata only when missing — never overwrite
-        // admin-owned fields (hero_image, identity_type).
-        const fill = {};
-        if (venue && !venueRecord.name) fill.name = venue;
-        if (city && !venueRecord.city) fill.city = city;
-        if (state && !venueRecord.state) fill.state = state;
-        if (Object.keys(fill).length) {
-          await base44.asServiceRole.entities.Venue.update(venueRecord.id, fill).catch(() => {});
+        // Refresh provider-owned location metadata; never overwrite admin-owned
+        // artwork or identity fields.
+        const providerVenuePatch = {
+          name: venue || venueRecord.name || '',
+          city: city || '',
+          state: state || '',
+          latitude: venue_lat,
+          longitude: venue_lng,
+          timezone: venue_timezone || null,
+          address_line1: venue_address_line1 || '',
+          postal_code: venue_postal_code || '',
+          country_code: venue_country_code || '',
+        };
+        if (Object.keys(providerVenuePatch).length) {
+          await base44.asServiceRole.entities.Venue.update(venueRecord.id, providerVenuePatch).catch(() => {});
         }
       } else {
         venueRecord = await base44.asServiceRole.entities.Venue.create({
@@ -100,6 +110,12 @@ Deno.serve(async (req) => {
           name: venue || '',
           city: city || '',
           state: state || '',
+          latitude: venue_lat,
+          longitude: venue_lng,
+          timezone: venue_timezone || null,
+          address_line1: venue_address_line1 || '',
+          postal_code: venue_postal_code || '',
+          country_code: venue_country_code || '',
           hero_image: '',
           identity_type: CATEGORY_TO_IDENTITY[category] || 'other',
         }).catch(() => null);

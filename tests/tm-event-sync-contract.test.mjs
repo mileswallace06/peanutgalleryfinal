@@ -14,7 +14,7 @@ const rawEvent = (overrides = {}) => ({
     timezone: 'America/New_York',
     status: { code: 'onsale' },
   },
-  _embedded: { venues: [{ id: 'venue-1', name: 'Arena', city: { name: 'New York' }, state: { stateCode: 'NY' } }] },
+  _embedded: { venues: [{ id: 'venue-1', name: 'Arena', city: { name: 'New York' }, state: { stateCode: 'NY' }, country: { countryCode: 'US' }, postalCode: '10001', address: { line1: '1 Arena Way' }, location: { latitude: '40.75', longitude: '-73.99' } }] },
   ...overrides,
 });
 
@@ -25,6 +25,9 @@ test('Ticketmaster normalization retains canonical, local, zone, end and status 
   assert.equal(event.event_end_utc, '2026-07-15T03:30:00.000Z');
   assert.equal(event.venue_timezone, 'America/New_York');
   assert.equal(event.provider_status, 'onsale');
+  assert.equal(event.venue_address_line1, '1 Arena Way');
+  assert.equal(event.venue_postal_code, '10001');
+  assert.equal(event.venue_country_code, 'US');
 });
 
 test('frontend sync request sends only the provider identity', () => {
