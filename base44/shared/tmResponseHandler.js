@@ -93,6 +93,12 @@ export function normalizeTMEvent(e) {
   const end = reliableTMTimestamp(e.dates?.end?.dateTime);
   const invalidEnd = !!e.dates?.end?.dateTime && (!end || (start && Date.parse(end) <= Date.parse(start)));
   const local = dateInfo?.localDate && dateInfo?.localTime ? `${dateInfo.localDate}T${dateInfo.localTime}` : null;
+  const segment = e.classifications?.[0]?.segment?.name?.trim().toLowerCase();
+  const category = segment === 'music' ? 'concert'
+    : segment === 'sports' ? 'sports'
+      : segment === 'arts & theatre' ? 'theater'
+        : segment === 'comedy' ? 'comedy'
+          : 'other';
 
   return {
     tm_id: e.id,
@@ -108,6 +114,7 @@ export function normalizeTMEvent(e) {
     time_tba: dateInfo?.timeTBA === true,
     no_specific_time: dateInfo?.noSpecificTime === true,
     provider_status: e.dates?.status?.code || null,
+    category,
     venue: venue?.name || '',
     city: venue?.city?.name || '',
     state: venue?.state?.stateCode || '',

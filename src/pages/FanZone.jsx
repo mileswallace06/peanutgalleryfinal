@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useLocation } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
+import { getEventStartUtcMs } from '@/lib/eventTiming';
 import { formatDistanceToNow } from 'date-fns';
 import { Plus, X, ImagePlus, Star, MapPin, Users, TrendingUp, Search, ChevronDown, RefreshCw, ArrowUpDown, Check } from 'lucide-react';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
@@ -264,8 +265,7 @@ export default function FanZone() {
       if (!p.event_id) return null;
       const ev = events.find(e => e.id === p.event_id);
       if (!ev) return null;
-      const d = ev.event_start_utc || ev.date;
-      return d ? new Date(d).getTime() : null;
+      return getEventStartUtcMs(ev);
     };
     const getPostDate = (p) => p.created_date ? new Date(p.created_date).getTime() : null;
 

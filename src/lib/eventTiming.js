@@ -213,10 +213,12 @@ export function getEventLiveStatus(event, nowMs) {
 
   const startMs = getEventStartUtcMs(event);
   const { warning } = resolveTimezone(event);
+  const providerStatus = typeof event.provider_status === 'string' ? event.provider_status.trim().toLowerCase() : '';
+  const providerCancelled = ['cancelled', 'canceled', 'ended'].includes(providerStatus);
 
   if (startMs === null) {
     return {
-      status: 'upcoming',
+      status: providerCancelled ? 'ended' : 'upcoming',
       is_beta_live: false,
       start_utc_ms: null,
       end_utc_ms: null,
@@ -228,14 +230,21 @@ export function getEventLiveStatus(event, nowMs) {
     };
   }
 
-  const durationHours = resolveDurationHours(event);
-  const endMs = startMs + durationHours * 60 * 60 * 1000;
+  const suppliedEndMs = parseCanonicalUtcMs(event.event_end_utc);
+  const durationHours = suppliedEndMs !== null && suppliedEndMs > startMs
+    ? (suppliedEndMs - startMs) / (60 * 60 * 1000)
+    : resolveDurationHours(event);
+  const endMs = suppliedEndMs !== null && suppliedEndMs > startMs
+    ? suppliedEndMs
+    : startMs + durationHours * 60 * 60 * 1000;
   const minutesUntilStart = (startMs - now) / 60000;
   const minutesSinceStart = (now - startMs) / 60000;
   const minutesUntilEnd = (endMs - now) / 60000;
 
   let status;
-  if (now < startMs - SOON_WINDOW_MINUTES * 60000) {
+  if (providerCancelled) {
+    status = 'ended';
+  } else if (now < startMs - SOON_WINDOW_MINUTES * 60000) {
     status = 'upcoming';
   } else if (now < startMs) {
     status = 'soon';          // within 60 min of start

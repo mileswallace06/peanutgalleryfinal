@@ -68,8 +68,11 @@ export function buildTMEventTimingPatch(body = {}, existing = {}) {
     patch.event_start_local = reliableLocalTimestamp(body.event_start_local);
   }
 
-  const timezone = validIanaTimezone(body.venue_timezone);
-  if (timezone) patch.venue_timezone = timezone;
+  if (hasOwn(body, 'venue_timezone')) {
+    // Provider refreshes may explicitly remove or correct a timezone. Preserve
+    // that signal so a reschedule cannot combine fresh timing with a stale zone.
+    patch.venue_timezone = validIanaTimezone(body.venue_timezone);
+  }
 
   const effectiveStart = hasOwn(patch, 'event_start_utc')
     ? patch.event_start_utc

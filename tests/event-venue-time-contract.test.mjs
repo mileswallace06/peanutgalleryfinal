@@ -77,3 +77,33 @@ test('event-source filtering does not parse a naive legacy value in the device t
   });
   assert.deepEqual(result.events.map(event => event.id), ['legacy']);
 });
+
+test('provider end time overrides the category-duration estimate', () => {
+  const event = {
+    event_start_utc: '2026-07-15T00:00:00.000Z',
+    event_end_utc: '2026-07-15T01:00:00.000Z',
+    venue_timezone: 'America/New_York',
+    category: 'concert',
+  };
+  assert.equal(getEventLiveStatus(event, Date.parse('2026-07-15T00:30:00Z')).status, 'live');
+  assert.equal(getEventLiveStatus(event, Date.parse('2026-07-15T01:01:00Z')).status, 'ended');
+  assert.equal(getEventLiveStatus(event, 0).end_utc_ms, Date.parse(event.event_end_utc));
+});
+
+test('provider-cancelled events are ended and excluded from merged discovery', () => {
+  const cancelled = {
+    id: 'cancelled',
+    tm_id: 'tm-cancelled',
+    event_start_utc: '2026-12-15T00:00:00.000Z',
+    venue_timezone: 'America/New_York',
+    provider_status: 'cancelled',
+    status: 'upcoming',
+  };
+  assert.equal(getEventLiveStatus(cancelled, Date.parse('2026-07-15T00:00:00Z')).status, 'ended');
+  const result = mergeEventSources({
+    localResult: { status: 'fulfilled', value: [cancelled] },
+    tmResult: { status: 'fulfilled', value: { events: [cancelled] } },
+    filters: { now: Date.parse('2026-07-15T00:00:00Z'), isAdmin: false },
+  });
+  assert.deepEqual(result.events, []);
+});

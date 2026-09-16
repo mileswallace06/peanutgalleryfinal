@@ -9,7 +9,7 @@
  * source failure (defense in depth — fetchTMEvents also throws on non-array).
  */
 import { normalizeSearch, eventMatchesKeyword, eventWithinRadius } from './searchNormalize.js';
-import { getEventStartUtcMs } from './eventTiming.js';
+import { getEventLiveStatus } from './eventTiming.js';
 
 /**
  * Merge PG and TM event sources with safe contract handling.
@@ -42,13 +42,10 @@ export function mergeEventSources({ localResult, tmResult, filters }) {
   const partialData = tmFailed && !tmError && localResult.status === 'fulfilled';
 
   // ── Filter PG events ────────────────────────────────────────────────────
-  const eligible = localData.filter(e => e.status !== 'ended');
+  const eligible = localData.filter(e => e.status !== 'ended' && getEventLiveStatus(e, now).status !== 'ended');
   const pgEvents = isAdmin || includeStarted
     ? eligible
-    : eligible.filter(e => {
-      const startMs = getEventStartUtcMs(e);
-      return startMs === null || now < startMs;
-    });
+    : eligible.filter(e => ['upcoming', 'soon'].includes(getEventLiveStatus(e, now).status));
   let pgFiltered = pgEvents.filter(e => !e.is_beta_live);
 
   if (cityOverride) {
@@ -72,7 +69,9 @@ export function mergeEventSources({ localResult, tmResult, filters }) {
   const pgMapped = pgFiltered.map(e => ({ ...e, source: 'pg' }));
 
   // ── Map TM events ───────────────────────────────────────────────────────
-  let tmEvents = tmEventsRaw.map(e => ({ ...e, id: `tm_${e.tm_id}`, source: 'ticketmaster' }));
+  let tmEvents = tmEventsRaw
+    .filter(e => !['cancelled', 'canceled', 'ended'].includes(String(e.provider_status || '').toLowerCase()))
+    .map(e => ({ ...e, id: `tm_${e.tm_id}`, source: 'ticketmaster' }));
   // The existing provider endpoint accepts city but not state. Disambiguate
   // same-name cities here, without changing that production backend contract.
   if (cityOverride && stateOverride) {
@@ -84,8 +83,8 @@ export function mergeEventSources({ localResult, tmResult, filters }) {
     tmEvents = tmEvents.filter(e => eventMatchesKeyword(e, keyword));
   }
 
-  // syncTMEvent persists provider records in PG. Keep their local route and
-  // show each provider identity once, including duplicate persisted copies.
+  // Keep each provider identity once, including a provider result that also
+  // has a previously persisted PG record.
   // Titles are not identities: separate performances must remain separate.
   const seen = new Set();
   const events = [...pgMapped, ...tmEvents].filter(event => {

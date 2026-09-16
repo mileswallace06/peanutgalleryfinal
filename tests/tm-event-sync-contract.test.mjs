@@ -27,7 +27,7 @@ test('Ticketmaster normalization retains canonical, local, zone, end and status 
   assert.equal(event.provider_status, 'onsale');
 });
 
-test('frontend sync payload preserves explicit null and false provider refresh values', () => {
+test('frontend sync request sends only the provider identity', () => {
   const event = normalizeTMEvent(rawEvent({
     dates: {
       start: { localDate: '2026-10-01', localTime: '19:00:00', timeTBA: false },
@@ -35,13 +35,7 @@ test('frontend sync payload preserves explicit null and false provider refresh v
     },
   }));
   const payload = createTMEventSyncPayload(event);
-  assert.ok(Object.hasOwn(payload, 'event_start_utc'));
-  assert.equal(payload.event_start_utc, null);
-  assert.ok(Object.hasOwn(payload, 'event_end_utc'));
-  assert.equal(payload.event_end_utc, null);
-  assert.ok(Object.hasOwn(payload, 'time_tba'));
-  assert.equal(payload.time_tba, false);
-  assert.equal(payload.provider_status, 'postponed');
+  assert.deepEqual(payload, { tm_id: 'tm-1' });
 });
 
 test('reschedule refresh replaces canonical start/date/end and provider state', () => {
@@ -94,10 +88,23 @@ test('partial legacy callers cannot erase canonical timing or inject a naive dat
 
 test('sync and Event schema include the additive canonical provider contract', () => {
   const syncSource = readFileSync(new URL('../base44/functions/syncTMEvent/entry.ts', import.meta.url), 'utf8');
-  const schema = readFileSync(new URL('../base44/entities/Event.jsonc', import.meta.url), 'utf8');
+  const schemaSource = readFileSync(new URL('../base44/entities/Event.jsonc', import.meta.url), 'utf8');
+  const schema = JSON.parse(schemaSource);
+  assert.match(syncSource, /discovery\/v2\/events\/\$\{encodeURIComponent\(requestedId\)\}/);
+  assert.match(syncSource, /const body = normalizeTMEvent\(providerJson\)/);
+  assert.doesNotMatch(syncSource, /const \{ tm_id, title[^\n]+\} = requestBody/);
   assert.match(syncSource, /buildTMEventTimingPatch\(body, canonical\)/);
   assert.match(syncSource, /buildTMEventTimingPatch\(body, existing\[0\]\)/);
   for (const field of ['event_end_utc', 'date_tba', 'time_tba', 'no_specific_time', 'end_time_invalid', 'provider_status']) {
-    assert.ok(schema.includes(`"${field}"`), `Event schema missing ${field}`);
+    assert.ok(schema.properties[field], `Event schema missing ${field}`);
   }
+  assert.equal(schema.required.includes('date'), false, 'TBA events must not require a manufactured date');
+});
+
+test('provider refresh can clear a stale venue timezone', () => {
+  const patch = buildTMEventTimingPatch(
+    { venue_timezone: null },
+    { venue_timezone: 'America/Phoenix' },
+  );
+  assert.deepEqual(patch, { venue_timezone: null });
 });

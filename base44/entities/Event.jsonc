@@ -269,7 +269,6 @@
   },
   "required": [
     "title",
-    "venue",
-    "date"
+    "venue"
   ]
 }

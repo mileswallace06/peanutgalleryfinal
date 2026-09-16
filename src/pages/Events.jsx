@@ -13,7 +13,6 @@ import LocationAutocomplete from '@/components/LocationAutocomplete';
 import { createEventSearchRequest, buildEventSearchParams } from '@/lib/eventSearchRequest';
 import EventThumbnail from '@/components/events/EventThumbnail';
 import { restoreEventLocation, saveEventLocation, cityFromSuggestion, validCoordinates } from '@/lib/eventLocation';
-import { createTMEventSyncPayload } from '@/lib/tmEventSyncPayload';
 
 export default function Events() {
   const [events, setEvents] = useState([]);
@@ -40,12 +39,7 @@ export default function Events() {
   const [keyword, setKeyword] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
   // Sort: 'soonest' = upcoming soonest (default), 'latest' = latest upcoming
-  // showPast: when false (default) hides past events; when true shows everything
   const [sortMode, setSortMode] = useState('soonest');
-  const [showPast, setShowPast] = useState(false);
-  // Track which TM IDs we've already synced this session to avoid duplicate calls
-  const syncedTmIds = useRef(new Set());
-
   const abortRef = useRef(null);
   useEffect(() => () => { abortRef.current?.abort(); pendingNearMe.current = null; }, []);
 
@@ -105,17 +99,6 @@ export default function Events() {
 
       setEvents(merged.events);
 
-      // Persist TM events locally so they survive past start time.
-      // SESSION DEDUP: only sync each tm_id once per session to prevent duplicate DB records.
-      const toSync = merged.tmEventsRaw.filter(e => e.tm_id && !syncedTmIds.current.has(e.tm_id));
-      toSync.forEach(e => syncedTmIds.current.add(e.tm_id)); // mark BEFORE async call
-      // Serialize syncs to avoid write races — stagger by 200ms per event
-      toSync.forEach((e, i) => {
-        setTimeout(() => {
-          base44.functions.invoke('syncTMEvent', createTMEventSyncPayload(e))
-            .catch(syncErr => console.warn('[Events] syncTMEvent failed for', e.tm_id, syncErr?.message));
-        }, i * 200);
-      });
     } catch (err) {
       if (signal.aborted) return; // stale response — discard silently
       const status = err?.response?.status || err?.status;
@@ -195,7 +178,6 @@ export default function Events() {
     requestLocation();
   };
   const handleNearMe = () => {
-    setShowPast(false);
     // "Near Me" means the phone's location now, not a saved city/GPS result.
     // This matters when someone travels after previously browsing another market.
     requestCurrentLocation('');
@@ -220,15 +202,13 @@ export default function Events() {
     const now = Date.now();
     let list = [...events];
 
-    // Default: hide past events (users buy tickets for upcoming shows)
-    // Toggle exposes past events for browsing
-    if (!showPast) {
-      list = list.filter(e => {
-        const t = getEventDate(e);
-        // Keep events with no parseable date (don't accidentally hide unknowns)
-        return t === null || t >= now;
-      });
-    }
+    // Marketplace discovery shows upcoming/TBA inventory only. The prior
+    // "Past Events" toggle was removed because provider search does not return
+    // a complete historical catalog and the control could not honor its label.
+    list = list.filter(e => {
+      const t = getEventDate(e);
+      return t === null || t >= now;
+    });
 
     list.sort((a, b) => {
       const ta = getEventDate(a);
@@ -373,13 +353,6 @@ export default function Events() {
             </button>
           ))}
         </div>
-        <button onClick={() => setShowPast(v => !v)}
-          className="px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-all"
-          style={showPast
-            ? { background: 'rgba(var(--neon-yellow-rgb),0.12)', color: 'var(--neon-yellow)', border: '1px solid rgba(var(--neon-yellow-rgb),0.3)' }
-            : { background: 'hsl(var(--card))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }}>
-          Past Events
-        </button>
       </div>
 
       {/* ── Rate limit / network error ── */}
