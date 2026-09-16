@@ -37,4 +37,3 @@ test('privacy policy has visible loading, timeout failure, retry, and contact st
   assert.match(source, /mailto:\$\{POLICY_SUPPORT_EMAIL}/);
   assert.match(source, /MutationObserver/);
 });
-

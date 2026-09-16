@@ -25,7 +25,7 @@ Maintenance should remain on until the purchase-protection gates in this report 
 
 This is therefore a full **source/control landscape audit plus live guest audit**, not a claim that every authenticated action has already worked on a physical phone.
 
-### Route inventory (32 explicit paths)
+### Route inventory (32 declared paths plus wildcard fallback)
 
 | Surface | Routes | Audit disposition |
 | --- | --- | --- |

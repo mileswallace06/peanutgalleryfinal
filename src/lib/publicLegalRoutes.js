@@ -4,4 +4,3 @@ export const PUBLIC_LEGAL_PATHS = Object.freeze({
   cookies: '/cookies',
   ourStory: '/our-story',
 });
-
