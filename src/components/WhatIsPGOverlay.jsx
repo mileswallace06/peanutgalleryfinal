@@ -192,7 +192,7 @@ export default function WhatIsPGOverlay({ onDismiss, user }) {
             {[
               { Icon: Ticket, label: 'Upgrade your seats during the event', color: '#FFE600' },
               { Icon: Gift, label: 'Win free upgrades through Fan Drops', color: '#BF5FFF' },
-              { Icon: ShieldCheck, label: 'Money held in escrow until you confirm', color: '#00FF87' },
+              { Icon: ShieldCheck, label: 'Stripe authorization held while transfer is pending', color: '#00FF87' },
             ].map(({ Icon, label, color }) => (
               <div key={label} className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"

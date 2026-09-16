@@ -17,7 +17,7 @@ function TransactionTimeline({ purchase }) {
   const steps = [
     {
       label: 'Payment Authorized',
-      sublabel: 'Funds held in escrow',
+      sublabel: 'Stripe authorization hold active',
       done: true,
       active: false,
       ts: purchase.created_date,

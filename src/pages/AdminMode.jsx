@@ -545,7 +545,7 @@ export default function AdminMode() {
 
                   {/* Amount */}
                   <div className="text-xs text-muted-foreground">
-                    Amount in escrow: <span className="font-bold text-foreground">${p.amount?.toFixed(2)}</span>
+                    Authorized amount: <span className="font-bold text-foreground">${p.amount?.toFixed(2)}</span>
                     {' '}· Qty: {p.quantity}
                   </div>
 
@@ -595,11 +595,11 @@ export default function AdminMode() {
       {/* Event Timing Debug */}
       <EventTimingDebug />
 
-      {/* Escrow Dashboard */}
+      {/* Payment authorization dashboard */}
       <div className="bg-card border border-border rounded-2xl p-5">
-        <h2 className="font-bold text-lg mb-4">Escrow Dashboard ({activePurchases.length} active)</h2>
+        <h2 className="font-bold text-lg mb-4">Payment Authorization Dashboard ({activePurchases.length} active)</h2>
         {activePurchases.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No active purchases in escrow.</p>
+          <p className="text-sm text-muted-foreground">No active payment authorizations.</p>
         ) : (
           <div className="space-y-3">
             {activePurchases.map(p => (

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Shield, CreditCard, Clock, CheckCircle, Banknote, Lock, Eye, EyeOff, User, Building2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Shield, CreditCard, CheckCircle, Banknote, Lock, Eye, EyeOff, User, Building2 } from 'lucide-react';
 import FaqAccordion from '@/components/education/FaqAccordion';
 
 const ORANGE = '#FF8C00';
@@ -104,7 +104,7 @@ const PG_SEES = [
 ];
 
 const PAYOUT_FACTS = [
-  { icon: '⏱️', title: '2–7 Business Days', desc: 'After a sale, your money moves from escrow to your bank within 2–7 business days. This is Stripe\'s standard timeline — not something PG controls.' },
+  { icon: '⏱️', title: 'Bank Timing Varies', desc: 'After delivery and required protection checks, Stripe schedules an eligible payout. Bank arrival time varies by account and is not controlled by PG.' },
   { icon: '🐢', title: 'First Payout Is a Bit Slower', desc: 'Stripe holds your very first payout for up to 7 days. This is normal for ALL new accounts — it\'s their anti-fraud protection. Every seller goes through it.' },
   { icon: '💸', title: 'You Keep 95%', desc: 'Peanut Gallery takes a 5% service fee (minimum $1). The rest goes straight to your bank. No invoices. No paperwork.' },
   { icon: '🔁', title: 'Multiple Sales = One Transfer', desc: 'If you sell multiple tickets, Stripe batches them into one bank deposit — keeping things clean.' },

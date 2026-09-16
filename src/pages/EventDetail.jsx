@@ -349,8 +349,8 @@ export default function EventDetail() {
                 <div className="rounded-2xl px-4 py-4 space-y-3" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
                   <p className="text-xs font-black tracking-widest uppercase text-muted-foreground">How Peanut Gallery Works</p>
                   {[
-                    { icon: <Ticket className="w-4 h-4" />, color: '#BF5FFF', title: 'Fan-to-fan tickets', body: 'Real fans sell tickets they can\'t use — no scalpers, no bots.' },
-                    { icon: <ShieldCheck className="w-4 h-4" />, color: '#00FF87', title: 'Escrow protected', body: 'Your money is held safely until you confirm you got the tickets.' },
+                    { icon: <Ticket className="w-4 h-4" />, color: '#BF5FFF', title: 'Fan-to-fan tickets', body: 'Fans can list eligible tickets they already own and can transfer.' },
+                    { icon: <ShieldCheck className="w-4 h-4" />, color: '#00FF87', title: 'Payment guardrails', body: 'Stripe holds the authorization while transfer and protection checks are pending.' },
                     { icon: <Zap className="w-4 h-4" />, color: '#00C8FF', title: 'Live upgrades at showtime', body: 'Once the event starts, better seats get listed by fans who can\'t use them.' },
                   ].map(({ icon, color, title, body }) => (
                     <div key={title} className="flex items-start gap-3">
