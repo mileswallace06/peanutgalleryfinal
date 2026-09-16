@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Zap, Gift, Clock } from 'lucide-react';
+import { X, Zap } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -10,19 +10,6 @@ const DELIVERY_METHODS = [
   { value: 'manual_release', label: 'Manual Release', desc: "You'll physically hand off at the gate" },
 ];
 
-const SCHEDULE_OPTIONS = [
-  { label: 'Halftime', value: 'halftime' },
-  { label: 'End of 1st Quarter', value: 'q1_end' },
-  { label: 'End of 3rd Quarter', value: 'q3_end' },
-  { label: '2nd Period', value: 'period_2' },
-  { label: '3rd Period', value: 'period_3' },
-  { label: '3rd Inning', value: 'inning_3' },
-  { label: '7th Inning', value: 'inning_7' },
-  { label: 'Opening Act End', value: 'opening_act_end' },
-  { label: 'After 1st Song', value: 'song_1' },
-  { label: 'Mid-show Break', value: 'midshow' },
-];
-
 const WINDOW_OPTIONS = [
   { label: '30 seconds', value: 30 },
   { label: '45 seconds', value: 45 },
@@ -31,15 +18,13 @@ const WINDOW_OPTIONS = [
 ];
 
 export default function CreateFlashDropSheet({ event, user, onClose, onCreated }) {
-  const [step, setStep] = useState('type'); // type | details | schedule | done
-  const [dropType, setDropType] = useState('immediate');
+  const [step, setStep] = useState('type'); // type | details | done
   const [section, setSection] = useState('');
   const [row, setRow] = useState('');
   const [seats, setSeats] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [message, setMessage] = useState('');
   const [isAnonymous, setIsAnonymous] = useState(false);
-  const [scheduledLabel, setScheduledLabel] = useState('');
   const [windowSecs, setWindowSecs] = useState(60);
   const [ownershipListingId, setOwnershipListingId] = useState('');
   const [ownershipProofUrl, setOwnershipProofUrl] = useState('');
@@ -47,7 +32,6 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated }
   const [deliveryMethod, setDeliveryMethod] = useState('ticket_transfer');
   const [userListings, setUserListings] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [createdDrop, setCreatedDrop] = useState(null);
 
   // Load user's existing listings for this event (ownership verification)
   const loadUserListings = async () => {
@@ -80,8 +64,8 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated }
       quantity,
       is_anonymous: isAnonymous,
       donor_message: message || null,
-      drop_type: dropType,
-      scheduled_label: scheduledLabel || null,
+      drop_type: 'immediate',
+      scheduled_label: null,
       entry_window_seconds: windowSecs,
       ownership_listing_id: ownershipListingId || null,
       ownership_proof_url: ownershipProofUrl || null,
@@ -89,7 +73,6 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated }
     });
     setLoading(false);
     if (res?.data?.success) {
-      setCreatedDrop(res.data.drop);
       setStep('done');
       onCreated?.(res.data.drop);
     }
@@ -128,19 +111,19 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated }
               <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
                 <p className="text-sm text-muted-foreground">How do you want to drop these seats?</p>
                 <div className="grid grid-cols-2 gap-3">
-                  <button onClick={() => { setDropType('immediate'); setStep('details'); }}
+                  <button onClick={() => setStep('details')}
                     className="rounded-2xl p-4 text-left space-y-2 transition-all active:scale-95"
                     style={{ background: 'rgba(255,230,0,0.08)', border: '1px solid rgba(255,230,0,0.3)' }}>
                     <span className="text-2xl">⚡</span>
                     <p className="font-black text-sm text-foreground">Immediate Drop</p>
                     <p className="text-xs text-muted-foreground">Seats go live right now. Entry window opens instantly.</p>
                   </button>
-                  <button onClick={() => { setDropType('scheduled'); setStep('details'); }}
-                    className="rounded-2xl p-4 text-left space-y-2 transition-all active:scale-95"
-                    style={{ background: 'rgba(191,95,255,0.08)', border: '1px solid rgba(191,95,255,0.3)' }}>
+                  <button type="button" disabled aria-disabled="true"
+                    className="rounded-2xl p-4 text-left space-y-2 opacity-50 cursor-not-allowed"
+                    style={{ background: 'rgba(191,95,255,0.04)', border: '1px solid rgba(191,95,255,0.15)' }}>
                     <span className="text-2xl">⏰</span>
-                    <p className="font-black text-sm text-foreground">Scheduled Drop</p>
-                    <p className="text-xs text-muted-foreground">Drop at halftime, a quarter, or a specific moment.</p>
+                    <p className="font-black text-sm text-foreground">Scheduled Drop · Coming Later</p>
+                    <p className="text-xs text-muted-foreground">Scheduled activation is not available yet.</p>
                   </button>
                 </div>
               </motion.div>
@@ -269,45 +252,10 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated }
 
                 <div className="flex gap-3 pt-1">
                   <button onClick={() => setStep('type')} className="flex-1 py-3 rounded-2xl text-sm font-bold text-muted-foreground" style={{ background: 'hsl(var(--muted))' }}>Back</button>
-                  {dropType === 'scheduled' ? (
-                    <button onClick={() => setStep('schedule')} disabled={!section}
-                      className="flex-1 py-3 rounded-2xl text-sm font-black disabled:opacity-40"
-                      style={{ background: 'linear-gradient(135deg, #BF5FFF, #FF2D78)', color: '#fff' }}>
-                      Next: Schedule
-                    </button>
-                  ) : (
-                    <button onClick={handleCreate} disabled={!section || loading}
-                      className="flex-1 py-3 rounded-2xl text-sm font-black disabled:opacity-40 flex items-center justify-center gap-2"
-                      style={{ background: 'linear-gradient(135deg, #FFE600, #FF8C00)', color: '#000' }}>
-                      {loading ? <span className="w-4 h-4 border-2 border-black/40 border-t-black rounded-full animate-spin" /> : <><Zap className="w-4 h-4" /> Drop Now</>}
-                    </button>
-                  )}
-                </div>
-              </motion.div>
-            )}
-
-            {/* Step: Schedule */}
-            {step === 'schedule' && (
-              <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-                <p className="text-sm text-muted-foreground">When should this Flash Drop go live?</p>
-                <div className="grid grid-cols-2 gap-2 max-h-56 overflow-y-auto">
-                  {SCHEDULE_OPTIONS.map(o => (
-                    <button key={o.value} onClick={() => setScheduledLabel(o.label)}
-                      className="px-3 py-2.5 rounded-xl text-xs font-semibold text-left transition-all"
-                      style={scheduledLabel === o.label
-                        ? { background: 'rgba(191,95,255,0.15)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.4)' }
-                        : { background: 'rgba(255,255,255,0.04)', color: 'hsl(var(--foreground))', border: '1px solid rgba(255,255,255,0.08)' }}>
-                      <Clock className="w-3 h-3 inline mr-1.5 opacity-60" />{o.label}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-xs text-muted-foreground">You'll manually activate this drop when the moment arrives from your My Tickets page.</p>
-                <div className="flex gap-3">
-                  <button onClick={() => setStep('details')} className="flex-1 py-3 rounded-2xl text-sm font-bold text-muted-foreground" style={{ background: 'hsl(var(--muted))' }}>Back</button>
-                  <button onClick={handleCreate} disabled={!scheduledLabel || loading}
+                  <button onClick={handleCreate} disabled={!section || loading}
                     className="flex-1 py-3 rounded-2xl text-sm font-black disabled:opacity-40 flex items-center justify-center gap-2"
-                    style={{ background: 'linear-gradient(135deg, #BF5FFF, #FF2D78)', color: '#fff' }}>
-                    {loading ? <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <><Clock className="w-4 h-4" /> Schedule Drop</>}
+                    style={{ background: 'linear-gradient(135deg, #FFE600, #FF8C00)', color: '#000' }}>
+                    {loading ? <span className="w-4 h-4 border-2 border-black/40 border-t-black rounded-full animate-spin" /> : <><Zap className="w-4 h-4" /> Drop Now</>}
                   </button>
                 </div>
               </motion.div>
@@ -316,14 +264,10 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated }
             {/* Step: Done */}
             {step === 'done' && (
               <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="text-center py-4 space-y-3">
-                <div className="text-5xl">{dropType === 'immediate' ? '⚡' : '⏰'}</div>
-                <h3 className="font-black text-xl text-foreground">
-                  {dropType === 'immediate' ? 'Flash Drop is Live!' : 'Drop Scheduled!'}
-                </h3>
+                <div className="text-5xl">⚡</div>
+                <h3 className="font-black text-xl text-foreground">Flash Drop is Live!</h3>
                 <p className="text-sm text-muted-foreground">
-                  {dropType === 'immediate'
-                    ? `Fans have ${windowSecs} seconds to enter. Winner selected instantly.`
-                    : `Your drop is queued for ${scheduledLabel}. Activate it manually when the moment arrives.`}
+                  Fans have {windowSecs} seconds to enter. Winner selected instantly.
                 </p>
                 <button onClick={onClose} className="w-full py-3.5 rounded-full font-black text-sm" style={{ background: 'hsl(var(--muted))', color: 'hsl(var(--foreground))' }}>
                   Done

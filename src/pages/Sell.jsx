@@ -12,6 +12,7 @@ export default function Sell() {
   const [loading, setLoading] = useState(true);
   const [onboardingLoading, setOnboardingLoading] = useState(false);
   const [onboardingChecking, setOnboardingChecking] = useState(false);
+  const [onboardingError, setOnboardingError] = useState('');
   const [searchParams] = useSearchParams();
 
   // Nearby events state
@@ -81,11 +82,18 @@ export default function Sell() {
 
         if (needsCheck) {
           setOnboardingChecking(true);
-          const res = await base44.functions.invoke('checkSellerOnboarding', {});
-          if (res.data.complete) {
-            await loadUser();
+          setOnboardingError('');
+          try {
+            const res = await base44.functions.invoke('checkSellerOnboarding', {});
+            if (res?.data?.error) throw new Error(res.data.error);
+            if (res?.data?.complete) {
+              await loadUser();
+            }
+          } catch (err) {
+            setOnboardingError(err?.response?.data?.error || err?.message || 'Could not verify your payout setup. Please try again.');
+          } finally {
+            setOnboardingChecking(false);
           }
-          setOnboardingChecking(false);
         }
       })
       .catch(() => {})
@@ -93,11 +101,18 @@ export default function Sell() {
   }, []);
 
   const handleStartOnboarding = async () => {
+    if (onboardingLoading) return;
     setOnboardingLoading(true);
-    const res = await base44.functions.invoke('onboardSeller', {});
-    if (res.data.url) {
+    setOnboardingError('');
+    try {
+      const res = await base44.functions.invoke('onboardSeller', {});
+      if (!res?.data?.url) {
+        throw new Error(res?.data?.error || 'Stripe did not return a setup link');
+      }
       window.top.location.href = res.data.url;
-    } else {
+    } catch (err) {
+      setOnboardingError(err?.response?.data?.error || err?.message || 'Could not open Stripe payout setup. Please try again.');
+    } finally {
       setOnboardingLoading(false);
     }
   };
@@ -172,6 +187,13 @@ export default function Sell() {
       </div>
 
       <div className="px-4 pt-6 space-y-6">
+
+        {onboardingError && (
+          <div role="alert" className="rounded-xl px-4 py-3 text-sm"
+            style={{ background: 'rgba(var(--neon-pink-rgb),0.08)', border: '1px solid rgba(var(--neon-pink-rgb),0.25)', color: 'var(--neon-pink)' }}>
+            {onboardingError}
+          </div>
+        )}
 
         {/* Stripe Onboarding Gate */}
         {onboardingChecking ? (

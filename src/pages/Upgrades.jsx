@@ -441,6 +441,10 @@ function EventCard({ event, mode }) {
   const [syncing, setSyncing] = useState(false);
 
   const handleClick = async (e) => {
+    // This handler is shared by the card and its nested CTA. Stop the CTA
+    // click from bubbling back to the card and starting the same sync twice.
+    e?.stopPropagation?.();
+    if (syncing) return;
     if (pgId) {
       // Real PG event — for live/soon go to upgrade hub; for upcoming go to event detail where tickets are listed
       const dest = (isLive || isSoon) ? `/upgrades/${pgId}` : `/events/${pgId}`;

@@ -37,6 +37,8 @@ export default function CreateListing() {
   const [flagged, setFlagged] = useState(false);
   const [savedAsDraft, setSavedAsDraft] = useState(false);
   const [uploadingProof, setUploadingProof] = useState(false);
+  const [proofUploadError, setProofUploadError] = useState('');
+  const [submitError, setSubmitError] = useState('');
   const [user, setUser] = useState(null);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const selectedEventRef = useRef(null);
@@ -49,6 +51,7 @@ export default function CreateListing() {
   const [pgTransferProofUrl, setPgTransferProofUrl] = useState('');
   const [pgTransferNotes, setPgTransferNotes] = useState('');
   const [uploadingPgProof, setUploadingPgProof] = useState(false);
+  const [pgProofUploadError, setPgProofUploadError] = useState('');
 
   const [form, setForm] = useState({
     event_id: '',
@@ -84,21 +87,39 @@ export default function CreateListing() {
   const set = (field, value) => setForm(f => ({ ...f, [field]: value }));
 
   const handleProofUpload = async (e) => {
-    const file = e.target.files[0];
+    const input = e.target;
+    const file = input.files[0];
     if (!file) return;
     setUploadingProof(true);
-    const { file_url } = await base44.integrations.Core.UploadFile({ file });
-    set('proof_url', file_url);
-    setUploadingProof(false);
+    setProofUploadError('');
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      if (!file_url) throw new Error('Upload completed without a file URL');
+      set('proof_url', file_url);
+    } catch (err) {
+      setProofUploadError(err?.response?.data?.error || err?.message || 'Ticket proof upload failed. Please try again.');
+    } finally {
+      setUploadingProof(false);
+      input.value = '';
+    }
   };
 
   const handlePgProofUpload = async (e) => {
-    const file = e.target.files[0];
+    const input = e.target;
+    const file = input.files[0];
     if (!file) return;
     setUploadingPgProof(true);
-    const { file_url } = await base44.integrations.Core.UploadFile({ file });
-    setPgTransferProofUrl(file_url);
-    setUploadingPgProof(false);
+    setPgProofUploadError('');
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      if (!file_url) throw new Error('Upload completed without a file URL');
+      setPgTransferProofUrl(file_url);
+    } catch (err) {
+      setPgProofUploadError(err?.response?.data?.error || err?.message || 'Transfer proof upload failed. Please try again.');
+    } finally {
+      setUploadingPgProof(false);
+      input.value = '';
+    }
   };
 
   const handleSubmit = async () => {
@@ -107,91 +128,101 @@ export default function CreateListing() {
       return;
     }
     setSubmitting(true);
-    // Rollout logging — fee model + listing economics
-    base44.analytics.track({
-      eventName: 'listing_submitted',
-      properties: {
-        fee_model: ACTIVE_FEE_MODEL_ID,
-        asking_price: parseFloat(form.asking_price) || 0,
-        quantity: parseInt(form.quantity) || 1,
-        listing_mode: listingMode,
-        buyer_total: feePreview?.total || 0,
-        pg_fee: feePreview?.fee || 0,
-        onboarding_complete: onboardingComplete,
-      },
-    });
+    setSubmitError('');
+    try {
+      // Rollout logging — fee model + listing economics. Analytics must not
+      // strand the submission UI if the optional event cannot be recorded.
+      try {
+        const analyticsResult = base44.analytics.track({
+          eventName: 'listing_submitted',
+          properties: {
+            fee_model: ACTIVE_FEE_MODEL_ID,
+            asking_price: parseFloat(form.asking_price) || 0,
+            quantity: parseInt(form.quantity) || 1,
+            listing_mode: listingMode,
+            buyer_total: feePreview?.total || 0,
+            pg_fee: feePreview?.fee || 0,
+            onboarding_complete: onboardingComplete,
+          },
+        });
+        analyticsResult?.catch?.(() => {});
+      } catch { /* listing submission is authoritative; analytics is not */ }
 
-    // If Stripe onboarding is not complete, save as a non-public draft
-    if (!onboardingComplete) {
-      await base44.entities.Listing.create({
-        event_id: form.event_id,
-        seller_email: user?.email,
-        section: form.section,
-        row: form.row,
-        seats: form.seats || undefined,
-        quantity: parseInt(form.quantity) || 1,
-        tier: form.tier || undefined,
-        asking_price: parseFloat(form.asking_price),
-        original_price: form.original_price ? parseFloat(form.original_price) : undefined,
-        transfer_method: form.transfer_method,
-        proof_url: form.proof_url || undefined,
-        listing_mode: listingMode,
-        status: 'pending_payout_setup',
-        proof_status: 'pending_review',
-      });
-      setSubmitting(false);
-      setSavedAsDraft(true);
+      // If Stripe onboarding is not complete, save as a non-public draft
+      if (!onboardingComplete) {
+        await base44.entities.Listing.create({
+          event_id: form.event_id,
+          seller_email: user?.email,
+          section: form.section,
+          row: form.row,
+          seats: form.seats || undefined,
+          quantity: parseInt(form.quantity) || 1,
+          tier: form.tier || undefined,
+          asking_price: parseFloat(form.asking_price),
+          original_price: form.original_price ? parseFloat(form.original_price) : undefined,
+          transfer_method: form.transfer_method,
+          proof_url: form.proof_url || undefined,
+          listing_mode: listingMode,
+          status: 'pending_payout_setup',
+          proof_status: 'pending_review',
+        });
+        setSavedAsDraft(true);
+        setDone(true);
+        return;
+      }
+
+      if (listingMode === 'instant_transfer_ready') {
+        await base44.entities.Listing.create({
+          event_id: form.event_id,
+          seller_email: user?.email,
+          section: form.section,
+          row: form.row,
+          seats: form.seats || undefined,
+          quantity: parseInt(form.quantity) || 1,
+          tier: form.tier || undefined,
+          asking_price: parseFloat(form.asking_price),
+          original_price: form.original_price ? parseFloat(form.original_price) : undefined,
+          transfer_method: form.transfer_method,
+          proof_url: form.proof_url || undefined,
+          listing_mode: 'instant',
+          listing_transfer_mode: 'instant_transfer_ready',
+          seller_ownership_confirmed: true,
+          limited_transfer_authorization: true,
+          ticket_custody_status: 'pending',
+          custody_status: 'pending_pg_verification',
+          status: 'pending_verification',
+          proof_status: 'pending_review',
+          pg_transfer_proof_url: pgTransferProofUrl || undefined,
+          pg_transfer_notes: pgTransferNotes || undefined,
+          notes: isAdminUser ? '[TEST]' : undefined,
+        });
+        setFlagged(false);
+      } else {
+        const res = await base44.functions.invoke('submitListing', {
+          event_id: form.event_id,
+          section: form.section,
+          row: form.row,
+          seats: form.seats || undefined,
+          quantity: parseInt(form.quantity) || 1,
+          tier: form.tier || undefined,
+          asking_price: parseFloat(form.asking_price),
+          original_price: form.original_price ? parseFloat(form.original_price) : undefined,
+          transfer_method: form.transfer_method,
+          proof_url: form.proof_url || undefined,
+          is_test: isAdminUser,
+          transfer_source: attestationData?.platform || 'seller_confirmed',
+          transfer_attestation_proof_url: attestationData?.proofUrl || undefined,
+        });
+        if (res?.data?.error) throw new Error(res.data.error);
+        setFlagged(Boolean(res?.data?.flagged));
+      }
+
       setDone(true);
-      return;
+    } catch (err) {
+      setSubmitError(err?.response?.data?.error || err?.message || 'Your listing could not be saved. Please try again.');
+    } finally {
+      setSubmitting(false);
     }
-
-    if (listingMode === 'instant_transfer_ready') {
-      await base44.entities.Listing.create({
-        event_id: form.event_id,
-        seller_email: user?.email,
-        section: form.section,
-        row: form.row,
-        seats: form.seats || undefined,
-        quantity: parseInt(form.quantity) || 1,
-        tier: form.tier || undefined,
-        asking_price: parseFloat(form.asking_price),
-        original_price: form.original_price ? parseFloat(form.original_price) : undefined,
-        transfer_method: form.transfer_method,
-        proof_url: form.proof_url || undefined,
-        listing_mode: 'instant',
-        listing_transfer_mode: 'instant_transfer_ready',
-        seller_ownership_confirmed: true,
-        limited_transfer_authorization: true,
-        ticket_custody_status: 'pending',
-        custody_status: 'pending_pg_verification',
-        status: 'pending_verification',
-        proof_status: 'pending_review',
-        pg_transfer_proof_url: pgTransferProofUrl || undefined,
-        pg_transfer_notes: pgTransferNotes || undefined,
-        notes: isAdminUser ? '[TEST]' : undefined,
-      });
-      setFlagged(false);
-    } else {
-      const res = await base44.functions.invoke('submitListing', {
-        event_id: form.event_id,
-        section: form.section,
-        row: form.row,
-        seats: form.seats || undefined,
-        quantity: parseInt(form.quantity) || 1,
-        tier: form.tier || undefined,
-        asking_price: parseFloat(form.asking_price),
-        original_price: form.original_price ? parseFloat(form.original_price) : undefined,
-        transfer_method: form.transfer_method,
-        proof_url: form.proof_url || undefined,
-        is_test: isAdminUser,
-        transfer_source: attestationData?.platform || 'seller_confirmed',
-        transfer_attestation_proof_url: attestationData?.proofUrl || undefined,
-      });
-      setFlagged(res.data.flagged);
-    }
-
-    setSubmitting(false);
-    setDone(true);
   };
 
   // ── Onboarding state (non-blocking) ──────────────────────────────────────
@@ -225,11 +256,11 @@ export default function CreateListing() {
             >
               Complete Payout Setup →
             </Link>
-            <Link to="/my-sales"
+            <Link to="/sell"
               className="inline-flex items-center justify-center gap-2 py-3 rounded-full font-semibold text-sm"
               style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--muted-foreground))' }}
             >
-              View My Listings
+              View Saved Draft
             </Link>
           </div>
         </div>
@@ -507,6 +538,9 @@ export default function CreateListing() {
                     <input type="file" accept="image/*,.pdf" className="hidden" onChange={handlePgProofUpload} disabled={uploadingPgProof} />
                   </label>
                 )}
+                {pgProofUploadError && (
+                  <p role="alert" className="text-xs mt-2" style={{ color: '#FF2D78' }}>{pgProofUploadError}</p>
+                )}
               </div>
 
               <div>
@@ -605,6 +639,9 @@ export default function CreateListing() {
                 <input type="file" accept="image/*,.pdf" className="hidden" onChange={handleProofUpload} disabled={uploadingProof} />
               </label>
             )}
+            {proofUploadError && (
+              <p role="alert" className="text-xs mt-2" style={{ color: '#FF2D78' }}>{proofUploadError}</p>
+            )}
           </div>
 
           {/* Transfer method */}
@@ -632,6 +669,12 @@ export default function CreateListing() {
       )}
 
       {step === 2 && <p className="mt-6 text-xs leading-relaxed text-muted-foreground">PG upgrades are separately priced add-on purchases.</p>}
+      {submitError && (
+        <div role="alert" className="mt-6 rounded-xl px-4 py-3 text-sm"
+          style={{ background: 'rgba(255,45,120,0.08)', border: '1px solid rgba(255,45,120,0.25)', color: '#FF2D78' }}>
+          {submitError}
+        </div>
+      )}
       {/* Navigation remains in flow so the keyboard cannot cover a fixed action bar. */}
       {step > 0 && <div className="mt-8 pt-5 border-t border-border flex gap-3">
         {step > 0 && (
@@ -658,7 +701,7 @@ export default function CreateListing() {
         {step === 2 && (
           <button
             onClick={handleSubmit}
-            disabled={!canSubmit || submitting || uploadingProof}
+            disabled={!canSubmit || submitting || uploadingProof || uploadingPgProof}
             className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-full font-black text-sm transition-all disabled:opacity-30"
             style={{ background: 'linear-gradient(135deg, #00E87A, #00B8E8)', color: '#0D0B14', boxShadow: '0 0 18px rgba(0,232,122,0.22)' }}
           >

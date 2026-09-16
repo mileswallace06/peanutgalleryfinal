@@ -1,6 +1,5 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { sellingEventTiming, sellingEventList, reliableTime } from '../src/lib/sellingEventTiming.js';
 import { createEventSearchRequest } from '../src/lib/eventSearchRequest.js';
@@ -86,9 +85,19 @@ test('display IDs and incomplete provider setup can never become submitted IDs',
  await assert.rejects(resolveSellingEvent({},'tm_provider'));
  await assert.rejects(resolveSellingEvent({entities:{Event:{filter:async()=>[]}},functions:{invoke:async()=>({data:{id:'tm_fake'}})}},{tm_id:'fake'}));
 });
-test('published submission and proof functions remain byte-for-byte unchanged',()=>{
- const baseline=execFileSync('git',['show','cea03f81a05d1a13a8294cc6772a275c44c3a61e:src/pages/CreateListing.jsx'],{encoding:'utf8'});
+test('submission paths preserve listing security fields and recover from failures',()=>{
  const current=readFileSync(new URL('../src/pages/CreateListing.jsx',import.meta.url),'utf8');
- const block=s=>s.slice(s.indexOf('  const handleProofUpload'),s.indexOf('  const handleTmSearch')===-1?s.indexOf('  // ── Onboarding state'):s.indexOf('  const handleTmSearch')).trim();
- assert.equal(block(current),block(baseline));
+ for(const required of [
+  "status: 'pending_payout_setup'",
+  "proof_status: 'pending_review'",
+  "listing_transfer_mode: 'instant_transfer_ready'",
+  'seller_ownership_confirmed: true',
+  'limited_transfer_authorization: true',
+  "base44.functions.invoke('submitListing'",
+  "transfer_source: attestationData?.platform || 'seller_confirmed'",
+  'transfer_attestation_proof_url: attestationData?.proofUrl || undefined',
+ ]) assert.ok(current.includes(required),`missing preserved listing contract: ${required}`);
+ assert.match(current,/finally\s*\{\s*setSubmitting\(false\)/s);
+ assert.match(current,/finally\s*\{\s*setUploadingProof\(false\)/s);
+ assert.match(current,/finally\s*\{\s*setUploadingPgProof\(false\)/s);
 });

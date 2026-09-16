@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Gift, ShieldCheck } from 'lucide-react';
-import { Link } from 'react-router-dom';
 import FlashDropCountdown from './FlashDropCountdown';
 
 /**
@@ -16,7 +15,7 @@ import FlashDropCountdown from './FlashDropCountdown';
  * This eliminates the 500-device race condition entirely.
  */
 export default function FlashDropCard({ drop: initialDrop, user, allListings = [], onEntered, onWinnerSelected }) {
-  const [drop, setDrop] = useState(initialDrop);
+  const drop = initialDrop;
   const [phase, setPhase] = useState(() => {
     if (initialDrop.status === 'winner_selected' || initialDrop.status === 'expired') return 'result';
     return 'active';
@@ -69,7 +68,7 @@ export default function FlashDropCard({ drop: initialDrop, user, allListings = [
           no_entries: data.no_entries || false,
         });
         setPhase('result');
-        onWinnerSelected?.(drop, data.winner);
+        onWinnerSelected?.(drop.id, data.winner);
       }
     }, 1000); // poll every second until result
   };
@@ -222,7 +221,7 @@ export default function FlashDropCard({ drop: initialDrop, user, allListings = [
         {phase === 'result' && result && !result.no_entries && (
           won
             ? <WinnerView drop={drop} />
-            : <LoserView drop={drop} allListings={allListings} userEmail={user?.email} />
+            : <LoserView allListings={allListings} />
         )}
         {phase === 'result' && result?.no_entries && (
           <div className="rounded-xl py-3 text-center" style={{ background: 'rgba(255,255,255,0.04)' }}>
@@ -252,72 +251,21 @@ function WinnerView({ drop }) {
 /**
  * Intelligent loser funnel — ranked by proximity and price match.
  */
-function LoserView({ drop, allListings, userEmail }) {
-  const dropSection = parseInt(drop.section) || 0;
-
-  // Rank listings: same section > adjacent section (±10) > same tier > rest
-  const scored = allListings.map(l => {
-    const listSection = parseInt(l.section) || 0;
-    const sectionDiff = Math.abs(listSection - dropSection);
-    let score = 0;
-    if (l.section === drop.section) score += 100;
-    else if (sectionDiff <= 5) score += 60;
-    else if (sectionDiff <= 15) score += 30;
-    if (l.tier === drop.tier) score += 20;
-    // Price similarity bonus (within $20)
-    const priceDiff = Math.abs((l.asking_price || 0) - 0); // relative — just prefer cheaper
-    score -= priceDiff * 0.1;
-    return { ...l, _score: score };
-  });
-
-  const ranked = scored.sort((a, b) => b._score - a._score).slice(0, 4);
-
-  const handleListingClick = () => {
-    base44.functions.invoke('flashDrop', {
-      action: 'track_loser_action',
-      flash_drop_id: drop.id,
-      loser_action: 'clicked_listing',
-    }).catch(() => {});
-  };
-
+function LoserView({ allListings }) {
   return (
     <div className="space-y-3">
       <div className="text-center py-1">
         <p className="text-sm font-bold text-foreground">Not this time — but upgrades are available 👇</p>
         <p className="text-[10px] text-muted-foreground">Nearby seats available right now</p>
       </div>
-      {ranked.length > 0 ? (
-        <div className="space-y-2">
-          {ranked.map(l => {
-            const isSameSection = l.section === drop.section;
-            return (
-              <Link key={l.id} to={`/upgrades/${l.event_id}`} onClick={handleListingClick}
-                className="flex items-center justify-between px-3 py-2.5 rounded-xl transition-all active:scale-95"
-                style={{
-                  background: isSameSection ? 'rgba(0,255,135,0.06)' : 'rgba(255,255,255,0.05)',
-                  border: isSameSection ? '1px solid rgba(0,255,135,0.2)' : '1px solid rgba(255,255,255,0.1)',
-                }}>
-                <div>
-                  <span className="text-sm text-foreground font-semibold">
-                    Sec {l.section}{l.row ? ` Row ${l.row}` : ''}
-                  </span>
-                  {isSameSection && (
-                    <span className="ml-2 text-[9px] font-black px-1.5 py-0.5 rounded-full"
-                      style={{ background: 'rgba(0,255,135,0.15)', color: '#00FF87' }}>Same section</span>
-                  )}
-                </div>
-                <span className="font-black text-sm" style={{ color: '#00FF87' }}>${l.asking_price}</span>
-              </Link>
-            );
-          })}
-        </div>
-      ) : (
-        <Link to={`/upgrades/${drop.event_id}`}
-          onClick={handleListingClick}
-          className="block text-center text-xs text-primary underline py-2">
-          Browse all available seats →
-        </Link>
-      )}
+      <div className="rounded-xl px-3 py-2.5 text-center"
+        style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+        <p className="text-xs text-muted-foreground">
+          {allListings.length > 0
+            ? 'Upgrade options are available — open the Upgrades tab above.'
+            : 'No upgrade listings are available right now. Check the Upgrades tab again soon.'}
+        </p>
+      </div>
     </div>
   );
 }

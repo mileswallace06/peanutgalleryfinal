@@ -26,8 +26,8 @@ export default function EventDetailTM() {
   const { tmId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  // Full TM event data passed from the Events list — avoids the broken
-  // syncTMEvent(tm_id-only) fallback when the event hasn't synced to DB yet.
+  // Full TM event data passed from the Events list supports immediate display;
+  // any database write still re-fetches provider data server-side by tm_id.
   const passedEvent = location.state?.tmEvent;
   const [event, setEvent] = useState(null); // TM event data
   const [localEventId, setLocalEventId] = useState(null); // local DB Event.id if it exists
@@ -35,6 +35,7 @@ export default function EventDetailTM() {
   const [loading, setLoading] = useState(true);
   const [selectedListing, setSelectedListing] = useState(null);
   const [creatingEvent, setCreatingEvent] = useState(false);
+  const [createEventError, setCreateEventError] = useState('');
   const [user, setUser] = useState(null);
 
   useEffect(() => {
@@ -105,7 +106,9 @@ export default function EventDetailTM() {
 
   // Upsert a local Event record from TM data, then navigate to CreateListing
   const handleListTickets = async () => {
+    if (creatingEvent) return;
     setCreatingEvent(true);
+    setCreateEventError('');
     try {
       let eventId = localEventId;
       if (!eventId) {
@@ -115,6 +118,8 @@ export default function EventDetailTM() {
         setLocalEventId(eventId);
       }
       navigate(`/create-listing?event_id=${eventId}`);
+    } catch (err) {
+      setCreateEventError(err?.response?.data?.error || err?.message || 'Could not start this listing. Please try again.');
     } finally {
       setCreatingEvent(false);
     }
@@ -255,6 +260,13 @@ export default function EventDetailTM() {
               </p>
             </div>
           </div>
+
+          {createEventError && (
+            <div role="alert" className="mb-4 rounded-xl px-4 py-3 text-sm"
+              style={{ background: 'rgba(255,45,120,0.08)', border: '1px solid rgba(255,45,120,0.25)', color: '#FF2D78' }}>
+              {createEventError}
+            </div>
+          )}
 
           {listings.length === 0 ? (
             <div
