@@ -19,6 +19,7 @@ import {
   alertPrivateWriteFailure,
 } from './orchestratorHelpers.js';
 import { enqueueSaleNotificationDeps } from './saleDispatch.js';
+import { requiresTransferRiskAcknowledgment } from './transferRisk.js';
 
 export async function runConfirmCheckoutAuthorized(deps, params) {
   const { entities, stripe, user, now, isMaintenanceActive } = deps;
@@ -88,6 +89,12 @@ export async function runConfirmCheckoutAuthorized(deps, params) {
   //         pending_transfer, and fail-closed state ───────────────────────────
   if (lp.seller_email !== authoritativeSellerEmail) return { status: 500, body: { error: 'Seller mismatch', code: 'INTEGRITY_ERROR' } };
   if (isFailClosed(listing, lp)) return { status: 409, body: { error: 'Listing is under review' } };
+  if (listing.transfer_status === 'transfer_disabled') {
+    return { status: 409, body: { error: 'Ticket transfer is no longer available.', code: 'TRANSFER_DISABLED' } };
+  }
+  if (requiresTransferRiskAcknowledgment(listing) && pp.transfer_risk_acknowledged !== true) {
+    return { status: 409, body: { error: 'Transfer conditions changed. Restart checkout to review the warning.', code: 'TRANSFER_RISK_REVIEW_REQUIRED' } };
+  }
   if (purchase.transfer_status === 'completed') {
     return { status: 200, body: { status: 'already_completed', authorization_confirmed_at: pp.authorization_confirmed_at, seller_notified_at: pp.seller_notified_at } };
   }

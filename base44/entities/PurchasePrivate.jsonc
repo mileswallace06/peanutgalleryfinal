@@ -57,6 +57,20 @@
       "type": "string",
       "description": "Private buyer contact phone."
     },
+    "transfer_risk_acknowledged": {
+      "type": "boolean",
+      "default": false,
+      "description": "Authoritative record that the buyer accepted the transfer-risk warning required at checkout."
+    },
+    "transfer_risk_acknowledged_at": {
+      "type": "string"
+    },
+    "transfer_status_at_checkout": {
+      "type": "string"
+    },
+    "transfer_confidence_at_checkout": {
+      "type": "number"
+    },
     "authorization_confirmed_at": {
       "type": "string"
     },

@@ -2018,7 +2018,7 @@ async function testTransferDisabledBlocksCheckout() {
 // Low-confidence checkout acknowledgment is a server contract, not only a
 // disabled-button convention. The acknowledged request may proceed normally.
 async function testLowConfidenceRequiresServerAcknowledgment() {
-  const listing = { transfer_status: 'seller_confirmed', transfer_confidence_score: 55 };
+  const listing = { transfer_status: 'transfer_confirmed', transfer_confidence_score: 55 };
   const first = createDefaultSeed({ listing });
   const blockedDeps = createMockDeps({ seed: first.seed });
   const blockedPiCount = blockedDeps.stripe.pisById.size;
@@ -2030,11 +2030,16 @@ async function testLowConfidenceRequiresServerAcknowledgment() {
     listing_id: second.listingId,
     transfer_risk_acknowledged: true,
   });
+  const allowedPrivate = [...allowedDeps._state.stores.PurchasePrivate.values()][0];
 
   const blockedWithoutPI = blockedDeps.stripe.pisById.size === blockedPiCount;
   const passed = blocked.status === 400 &&
     blocked.body.code === 'TRANSFER_RISK_ACK_REQUIRED' &&
-    blockedWithoutPI && allowed.status === 200 && !!allowed.body.clientSecret;
+    blockedWithoutPI && allowed.status === 200 && !!allowed.body.clientSecret &&
+    allowedPrivate?.transfer_risk_acknowledged === true &&
+    typeof allowedPrivate?.transfer_risk_acknowledged_at === 'string' &&
+    allowedPrivate?.transfer_status_at_checkout === 'transfer_confirmed' &&
+    allowedPrivate?.transfer_confidence_at_checkout === 55;
   return {
     name: 'low_confidence_requires_server_acknowledgment',
     passed,
@@ -2042,6 +2047,7 @@ async function testLowConfidenceRequiresServerAcknowledgment() {
     blocked_code: blocked.body.code,
     blocked_without_pi: blockedWithoutPI,
     acknowledged_status: allowed.status,
+    acknowledgment_persisted: allowedPrivate?.transfer_risk_acknowledged === true,
   };
 }
 

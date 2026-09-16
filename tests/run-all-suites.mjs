@@ -59,6 +59,7 @@ const SUITES = [
   { name: 'tm-event-sync-contract', file: 'tests/tm-event-sync-contract.test.mjs', required: true },
   { name: 'event-venue-time-contract', file: 'tests/event-venue-time-contract.test.mjs', required: true },
   { name: 'fresh-location-contract', file: 'tests/fresh-location-contract.test.mjs', required: true },
+  { name: 'checkout-recovery-contract', file: 'tests/checkout-recovery-contract.test.mjs', required: true },
 
   // Round 6B.2 — submitListing test-mode authorization
   { name: 'submitListing-test-mode', file: 'tests/submitListing-test-mode.test.mjs', required: true },

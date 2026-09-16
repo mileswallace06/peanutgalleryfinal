@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { AlertTriangle, ShieldCheck } from 'lucide-react';
 import TransferStatusBadge from './TransferStatusBadge';
 import { getTransferStatusBadge, formatVerificationAge } from '@/lib/transferConfidence';
+import { requiresTransferRiskAcknowledgment } from '../../../base44/shared/transferRisk.js';
 
 /**
  * Shown inside PurchaseDialog before checkout.
@@ -12,8 +13,7 @@ import { getTransferStatusBadge, formatVerificationAge } from '@/lib/transferCon
  */
 export default function TransferAcknowledgment({ listing, onAcknowledged }) {
   const score = listing.transfer_confidence_score ?? null;
-  const needsAck = listing.transfer_status !== 'transfer_confirmed' &&
-    (score === null || score < 70);
+  const needsAck = requiresTransferRiskAcknowledgment(listing);
   const badge = getTransferStatusBadge(listing);
   const age = formatVerificationAge(listing.last_transfer_verification);
   const [checked, setChecked] = useState(false);
@@ -78,7 +78,11 @@ export default function TransferAcknowledgment({ listing, onAcknowledged }) {
 
       <button
         type="button"
-        onClick={() => setChecked(v => !v)}
+        onClick={() => setChecked(previous => {
+          const next = !previous;
+          if (!next) onAcknowledged(false);
+          return next;
+        })}
         className="w-full flex items-start gap-3 text-left px-4 py-3.5 rounded-xl transition-all"
         style={{
           background: checked ? 'rgba(255,140,0,0.08)' : 'rgba(255,255,255,0.04)',
