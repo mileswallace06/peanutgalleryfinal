@@ -64,6 +64,9 @@ const SUITES = [
   // Round 6B.2 — submitListing test-mode authorization
   { name: 'submitListing-test-mode', file: 'tests/submitListing-test-mode.test.mjs', required: true },
 
+  // Flash Drop ownership, authorization, and recovery contracts
+  { name: 'flashdrop-hardening', file: 'tests/flashdrop-hardening.test.mjs', required: true },
+
   // 7C.9C.2F.2 — executable authority contract tests
   { name: 'authority-contract', file: 'tests/authority-contract.test.mjs', required: true },
 
