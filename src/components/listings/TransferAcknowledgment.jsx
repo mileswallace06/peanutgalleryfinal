@@ -12,7 +12,8 @@ import { getTransferStatusBadge, formatVerificationAge } from '@/lib/transferCon
  */
 export default function TransferAcknowledgment({ listing, onAcknowledged }) {
   const score = listing.transfer_confidence_score ?? null;
-  const needsAck = score !== null && score < 70;
+  const needsAck = listing.transfer_status !== 'transfer_confirmed' &&
+    (score === null || score < 70);
   const badge = getTransferStatusBadge(listing);
   const age = formatVerificationAge(listing.last_transfer_verification);
   const [checked, setChecked] = useState(false);

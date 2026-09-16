@@ -139,9 +139,13 @@ export async function runCreateCheckout(deps, params) {
   if (listing.transfer_status === 'transfer_disabled') {
     return { status: 409, body: { error: 'Ticket transfer is unavailable for this listing.', code: 'TRANSFER_DISABLED' } };
   }
-  const transferConfidence = Number(listing.transfer_confidence_score);
-  const requiresTransferRiskAck = Number.isFinite(transferConfidence) &&
-    transferConfidence < 70 && listing.transfer_status !== 'transfer_confirmed';
+  const rawTransferConfidence = listing.transfer_confidence_score;
+  const transferConfidence = Number(rawTransferConfidence);
+  const hasTransferConfidence = rawTransferConfidence !== null &&
+    rawTransferConfidence !== undefined && rawTransferConfidence !== '' &&
+    Number.isFinite(transferConfidence);
+  const requiresTransferRiskAck = listing.transfer_status !== 'transfer_confirmed' &&
+    (!hasTransferConfidence || transferConfidence < 70);
   if (requiresTransferRiskAck && transfer_risk_acknowledged !== true) {
     return { status: 400, body: { error: 'Transfer risk acknowledgment is required.', code: 'TRANSFER_RISK_ACK_REQUIRED' } };
   }

@@ -28,7 +28,8 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onCheckoutCreated }
   const [eligibilityPassed, setEligibilityPassed] = useState(!hasEligibilityGate);
   // Transfer acknowledgment: low-confidence listings require explicit buyer ack
   const transferScore = listing.transfer_confidence_score ?? null;
-  const needsTransferAck = transferScore !== null && transferScore < 70 && listing.transfer_status !== 'transfer_confirmed';
+  const needsTransferAck = listing.transfer_status !== 'transfer_confirmed' &&
+    (transferScore === null || transferScore < 70);
   const [transferAcknowledged, setTransferAcknowledged] = useState(!needsTransferAck);
 
   const qty = listing.quantity || 1;

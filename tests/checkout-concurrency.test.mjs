@@ -253,6 +253,7 @@ function createDefaultSeed(overrides = {}) {
     Listing: [{
       id: listingId, status: 'active', asking_price: 100, quantity: 1,
       section: 'A', row: '1', event_id: 'event_1',
+      transfer_status: 'transfer_confirmed', transfer_confidence_score: 100,
       updated_date: '2026-08-01T10:00:00.000Z',
       reservation_token: null, reserved_by_email: null,
       reservation_expires_at: null, hidden_reason: null,
@@ -2044,6 +2045,34 @@ async function testLowConfidenceRequiresServerAcknowledgment() {
   };
 }
 
+async function testUnknownConfidenceRequiresServerAcknowledgment() {
+  const first = createDefaultSeed({
+    listing: { transfer_status: 'transfer_unconfirmed', transfer_confidence_score: null },
+  });
+  const blockedDeps = createMockDeps({ seed: first.seed });
+  const blocked = await runCreateCheckout(blockedDeps, { listing_id: first.listingId });
+
+  const second = createDefaultSeed({
+    listing: { transfer_status: 'transfer_unconfirmed', transfer_confidence_score: null },
+  });
+  const allowedDeps = createMockDeps({ seed: second.seed });
+  const allowed = await runCreateCheckout(allowedDeps, {
+    listing_id: second.listingId,
+    transfer_risk_acknowledged: true,
+  });
+
+  const passed = blocked.status === 400 &&
+    blocked.body.code === 'TRANSFER_RISK_ACK_REQUIRED' &&
+    allowed.status === 200 && !!allowed.body.clientSecret;
+  return {
+    name: 'unknown_confidence_requires_server_acknowledgment',
+    passed,
+    blocked_status: blocked.status,
+    blocked_code: blocked.body.code,
+    acknowledged_status: allowed.status,
+  };
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 // MAIN RUNNER
 // ════════════════════════════════════════════════════════════════════════════
@@ -2115,6 +2144,7 @@ async function main() {
     await testCascadingFailurePauseMarkerBlocks(),
     await testTransferDisabledBlocksCheckout(),
     await testLowConfidenceRequiresServerAcknowledgment(),
+    await testUnknownConfidenceRequiresServerAcknowledgment(),
   ];
 
   console.log('=== Checkout & Cleanup Concurrency Tests (7C.8) ===\n');
