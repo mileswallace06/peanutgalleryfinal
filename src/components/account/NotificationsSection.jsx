@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Bell } from 'lucide-react';
 
@@ -10,10 +10,20 @@ const PREFS = [
   { key: 'notif_fan_zone', label: 'Fan Zone Activity', desc: 'Reactions and new posts from people you follow' },
 ];
 
+const preferencesFor = (account) => ({
+  notif_listing_sold: account?.notif_listing_sold ?? true,
+  notif_transfer_updates: account?.notif_transfer_updates ?? true,
+  notif_upgrade_alerts: account?.notif_upgrade_alerts ?? true,
+  notif_nearby_events: account?.notif_nearby_events ?? false,
+  notif_fan_zone: account?.notif_fan_zone ?? false,
+});
+
 function Toggle({ on, onToggle }) {
   return (
     <button
+      type="button"
       onClick={onToggle}
+      aria-pressed={on}
       className="relative w-11 h-6 rounded-full transition-colors flex-shrink-0"
       style={{ background: on ? '#BF5FFF' : 'hsl(var(--muted))' }}
     >
@@ -26,13 +36,13 @@ function Toggle({ on, onToggle }) {
 }
 
 export default function NotificationsSection({ user, onUpdate }) {
-  const [prefs, setPrefs] = useState({
-    notif_listing_sold: user?.notif_listing_sold ?? true,
-    notif_transfer_updates: user?.notif_transfer_updates ?? true,
-    notif_upgrade_alerts: user?.notif_upgrade_alerts ?? true,
-    notif_nearby_events: user?.notif_nearby_events ?? false,
-    notif_fan_zone: user?.notif_fan_zone ?? false,
-  });
+  const [prefs, setPrefs] = useState(() => preferencesFor(user));
+
+  // The account arrives asynchronously. Replace placeholder defaults with the
+  // saved values once the user prop resolves (and after parent-side updates).
+  useEffect(() => {
+    if (user) setPrefs(preferencesFor(user));
+  }, [user]);
 
   const toggle = async (key) => {
     const next = { ...prefs, [key]: !prefs[key] };

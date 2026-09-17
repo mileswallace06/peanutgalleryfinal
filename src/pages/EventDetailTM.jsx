@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { format } from 'date-fns';
 import { MapPin, Calendar, ArrowLeft, Ticket, ExternalLink, Plus } from 'lucide-react';
+import { formatEventVenueDateTime } from '@/lib/eventTiming';
+import { createTMEventSyncPayload } from '@/lib/tmEventSyncPayload';
 
 /** Infer vendor label + homepage from a ticket URL domain */
 function inferVendor(url) {
@@ -25,8 +26,8 @@ export default function EventDetailTM() {
   const { tmId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  // Full TM event data passed from the Events list — avoids the broken
-  // syncTMEvent(tm_id-only) fallback when the event hasn't synced to DB yet.
+  // Full TM event data passed from the Events list supports immediate display;
+  // any database write still re-fetches provider data server-side by tm_id.
   const passedEvent = location.state?.tmEvent;
   const [event, setEvent] = useState(null); // TM event data
   const [localEventId, setLocalEventId] = useState(null); // local DB Event.id if it exists
@@ -34,6 +35,7 @@ export default function EventDetailTM() {
   const [loading, setLoading] = useState(true);
   const [selectedListing, setSelectedListing] = useState(null);
   const [creatingEvent, setCreatingEvent] = useState(false);
+  const [createEventError, setCreateEventError] = useState('');
   const [user, setUser] = useState(null);
 
   useEffect(() => {
@@ -49,16 +51,7 @@ export default function EventDetailTM() {
         const localEv = localEvents[0];
         eventId = localEv.id;
         console.info('[EventDetailTM] lookup=db_tm_id success | localId:', eventId, logCtx);
-        eventData = {
-          tm_id: localEv.tm_id,
-          title: localEv.title,
-          venue: localEv.venue,
-          city: localEv.city,
-          state: localEv.state,
-          date: localEv.date || localEv.event_start_local,
-          image_url: localEv.image_url,
-          tm_url: localEv.tm_url,
-        };
+        eventData = { ...localEv };
         setLocalEventId(eventId);
         setEvent(eventData);
         
@@ -85,16 +78,7 @@ export default function EventDetailTM() {
           if (synced.length > 0) {
             const localEv = synced[0];
             setLocalEventId(localEv.id);
-            setEvent({
-              tm_id: localEv.tm_id,
-              title: localEv.title,
-              venue: localEv.venue,
-              city: localEv.city,
-              state: localEv.state,
-              date: localEv.date || localEv.event_start_local,
-              image_url: localEv.image_url,
-              tm_url: localEv.tm_url,
-            });
+            setEvent({ ...localEv });
             return base44.functions.invoke('getListingParticipantView', { action: 'list_active_by_event', event_id: localEv.id }).then(res => res?.data?.listings || []).catch(() => []);
           }
         }
@@ -122,26 +106,23 @@ export default function EventDetailTM() {
 
   // Upsert a local Event record from TM data, then navigate to CreateListing
   const handleListTickets = async () => {
+    if (creatingEvent) return;
     setCreatingEvent(true);
-    let eventId = localEventId;
-    if (!eventId) {
-      // Create a local Event record from TM data
-      const created = await base44.entities.Event.create({
-        title: event.title,
-        venue: event.venue,
-        city: event.city,
-        state: event.state,
-        date: event.date,
-        image_url: event.image_url,
-        tm_id: event.tm_id,
-        tm_url: event.tm_url,
-        status: 'upcoming',
-      });
-      eventId = created.id;
-      setLocalEventId(eventId);
+    setCreateEventError('');
+    try {
+      let eventId = localEventId;
+      if (!eventId) {
+        const result = await base44.functions.invoke('syncTMEvent', createTMEventSyncPayload(event));
+        eventId = result?.data?.id;
+        if (!eventId) throw new Error('Event setup did not complete');
+        setLocalEventId(eventId);
+      }
+      navigate(`/create-listing?event_id=${eventId}`);
+    } catch (err) {
+      setCreateEventError(err?.response?.data?.error || err?.message || 'Could not start this listing. Please try again.');
+    } finally {
+      setCreatingEvent(false);
     }
-    setCreatingEvent(false);
-    navigate(`/create-listing?event_id=${eventId}`);
   };
 
   if (loading) {
@@ -215,7 +196,7 @@ export default function EventDetailTM() {
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-1.5 text-xs text-white/70">
               <Calendar className="w-3.5 h-3.5" />
-              {event.date ? format(new Date(event.date), 'EEEE, MMMM d, yyyy · h:mm a') : 'TBD'}
+              {formatEventVenueDateTime(event, { style: 'full' })}
             </div>
             <div className="flex items-center gap-1.5 text-xs text-white/70">
               <MapPin className="w-3.5 h-3.5" />
@@ -279,6 +260,13 @@ export default function EventDetailTM() {
               </p>
             </div>
           </div>
+
+          {createEventError && (
+            <div role="alert" className="mb-4 rounded-xl px-4 py-3 text-sm"
+              style={{ background: 'rgba(255,45,120,0.08)', border: '1px solid rgba(255,45,120,0.25)', color: '#FF2D78' }}>
+              {createEventError}
+            </div>
+          )}
 
           {listings.length === 0 ? (
             <div

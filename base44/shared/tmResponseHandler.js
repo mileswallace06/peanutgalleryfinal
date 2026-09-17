@@ -93,12 +93,19 @@ export function normalizeTMEvent(e) {
   const end = reliableTMTimestamp(e.dates?.end?.dateTime);
   const invalidEnd = !!e.dates?.end?.dateTime && (!end || (start && Date.parse(end) <= Date.parse(start)));
   const local = dateInfo?.localDate && dateInfo?.localTime ? `${dateInfo.localDate}T${dateInfo.localTime}` : null;
+  const segment = e.classifications?.[0]?.segment?.name?.trim().toLowerCase();
+  const category = segment === 'music' ? 'concert'
+    : segment === 'sports' ? 'sports'
+      : segment === 'arts & theatre' ? 'theater'
+        : segment === 'comedy' ? 'comedy'
+          : 'other';
 
   return {
     tm_id: e.id,
     title: e.name,
     tm_venue_id: venue?.id || '',
     date: start ? dateInfo.dateTime : local,
+    event_start_local: local,
     event_start_utc: start,
     event_end_utc: invalidEnd ? null : end,
     end_time_invalid: !!invalidEnd,
@@ -107,11 +114,15 @@ export function normalizeTMEvent(e) {
     time_tba: dateInfo?.timeTBA === true,
     no_specific_time: dateInfo?.noSpecificTime === true,
     provider_status: e.dates?.status?.code || null,
+    category,
     venue: venue?.name || '',
     city: venue?.city?.name || '',
     state: venue?.state?.stateCode || '',
     venue_lat: coerceCoordinate(venue?.location?.latitude, -90, 90),
     venue_lng: coerceCoordinate(venue?.location?.longitude, -180, 180),
+    venue_address_line1: venue?.address?.line1 || '',
+    venue_postal_code: venue?.postalCode || '',
+    venue_country_code: venue?.country?.countryCode || '',
     image_url: image?.url || '',
     tm_url: e.url || '',
     source: 'ticketmaster',

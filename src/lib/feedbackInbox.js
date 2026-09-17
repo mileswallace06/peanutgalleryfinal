@@ -1,11 +1,11 @@
 import { isAdmin } from './isAdmin.js';
+import { adminAccess } from './adminAccess.js';
 
 export const FEEDBACK_CATEGORIES = { bug: 'Bug', confused: 'Confused', love: 'Love', idea: 'Idea' };
 export const FEEDBACK_PAGE_SIZE = 50;
 
-export function feedbackAccess({ user, authChecked, isAuthenticated, isLoadingAuth }) {
-  if (!authChecked || isLoadingAuth) return 'checking';
-  return isAuthenticated && isAdmin(user) ? 'admin' : 'denied';
+export function feedbackAccess(auth) {
+  return adminAccess(auth);
 }
 
 export async function loadFeedbackPage(base44, user, category = 'all', offset = 0) {

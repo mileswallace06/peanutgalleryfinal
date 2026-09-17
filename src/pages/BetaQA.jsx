@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { base44 } from '@/api/base44Client';
-import { isAdmin } from '@/lib/isAdmin';
-import { ChevronLeft, Lock, ClipboardList, Bug, Zap, MessageSquare, AlertTriangle } from 'lucide-react';
+import { useState } from 'react';
+import { Navigate, useNavigate } from 'react-router-dom';
+import { useAuth } from '@/lib/AuthContext';
+import { adminAccess } from '@/lib/adminAccess';
+import { ChevronLeft, ClipboardList, Bug, Zap, MessageSquare, AlertTriangle } from 'lucide-react';
 import QAChecklist from '@/components/beta/QAChecklist';
 import BugTracker from '@/components/beta/BugTracker';
 import LiveEventChecklist from '@/components/beta/LiveEventChecklist';
@@ -17,13 +17,10 @@ const TABS = [
   { key: 'risks',      label: 'Risks',         Icon: AlertTriangle, color: '#FF8C00' },
 ];
 
-const ADMIN_PASSWORD = 'peanut2026';
-
 export default function BetaQA() {
   const navigate = useNavigate();
-  const [unlocked, setUnlocked] = useState(sessionStorage.getItem('pg_admin_unlocked') === '1');
-  const [password, setPassword] = useState('');
-  const [pwError, setPwError] = useState('');
+  const auth = useAuth();
+  const access = adminAccess(auth);
   const [tab, setTab] = useState('checklist');
 
   // Session / tester identity stored locally
@@ -37,64 +34,21 @@ export default function BetaQA() {
     return id;
   });
 
-  useEffect(() => {
-    if (unlocked) {
-      base44.auth.me().then(u => {
-        if (!isAdmin(u)) {
-          sessionStorage.removeItem('pg_admin_unlocked');
-          setUnlocked(false);
-          setPwError('Admin privileges required.');
-        }
-      }).catch(() => {
-        // Network error — revoke access to be safe
-        sessionStorage.removeItem('pg_admin_unlocked');
-        setUnlocked(false);
-        setPwError('Could not verify admin status. Please try again.');
-      });
-    }
-  }, [unlocked]);
-
-  const handleUnlock = (e) => {
-    e.preventDefault();
-    if (password === ADMIN_PASSWORD) {
-      sessionStorage.setItem('pg_admin_unlocked', '1');
-      setUnlocked(true);
-    } else {
-      setPwError('Incorrect password');
-    }
-  };
-
   const saveTesterName = (v) => { setTesterName(v); localStorage.setItem('pg_tester_name', v); };
   const saveDevice = (v) => { setDevice(v); localStorage.setItem('pg_tester_device', v); };
 
-  if (!unlocked) {
+  if (access === 'checking') {
     return (
       <div className="min-h-screen dark:rave-bg flex flex-col items-center justify-center px-6 pb-20">
-        <div className="w-full max-w-sm space-y-6">
-          <div className="text-center">
-            <div className="text-4xl mb-3">🧪</div>
-            <h1 className="font-display text-3xl text-foreground">Beta QA</h1>
-            <p className="text-sm text-muted-foreground mt-1">Admin access required</p>
-          </div>
-          <form onSubmit={handleUnlock} className="space-y-3">
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input type="password" value={password} onChange={e => setPassword(e.target.value)}
-                placeholder="Admin password"
-                className="w-full pl-9 pr-4 py-3 rounded-2xl text-sm focus:outline-none"
-                style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--foreground))' }} />
-            </div>
-            {pwError && <p className="text-destructive text-xs">{pwError}</p>}
-            <button type="submit"
-              className="w-full py-3 rounded-2xl font-black text-sm"
-              style={{ background: 'linear-gradient(135deg, #BF5FFF, #FF2D78)', color: '#fff' }}>
-              Enter Beta QA
-            </button>
-          </form>
+        <div role="status" className="flex items-center gap-3 text-sm text-muted-foreground">
+          <span className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          Checking admin access…
         </div>
       </div>
     );
   }
+
+  if (access !== 'admin') return <Navigate to="/events" replace />;
 
   return (
     <div className="min-h-screen dark:rave-bg" style={{ paddingTop: 'env(safe-area-inset-top)' }}>

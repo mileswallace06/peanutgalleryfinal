@@ -29,7 +29,9 @@ test('removing a city preserves the artist query and removes geography from both
 test('a local GPS keyword search is bounded to 50 miles', () => {
   const { tmParams, pgQuery } = buildEventSearchParams(createEventSearchRequest('Kahan', { ll: '33.45,-112.07' }));
   assert.deepEqual(tmParams, { size: 40, keyword: 'Kahan', latlong: '33.45,-112.07', radius: '50' });
-  assert.deepEqual(pgQuery.venue_lat, { $ne: null });
+  assert.ok(pgQuery.venue_lat.$gte < 33.45 && pgQuery.venue_lat.$lte > 33.45);
+  assert.ok(pgQuery.venue_lng.$gte < -112.07 && pgQuery.venue_lng.$lte > -112.07);
+  assert.equal(buildEventSearchParams(createEventSearchRequest('', { ll: '33.45,-112.07' })).pgLimit, 500);
 });
 
 test('nationwide removes all location restrictions without mutating the retained local area', () => {

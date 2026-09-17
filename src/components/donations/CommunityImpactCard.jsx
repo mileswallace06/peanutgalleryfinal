@@ -56,7 +56,7 @@ export default function CommunityImpactCard({ userEmail }) {
           <Heart className="w-4 h-4" style={{ color: '#FF2D78' }} />
           <span className="text-[10px] font-black tracking-widest uppercase text-muted-foreground">Community Impact</span>
         </div>
-        <Link to="/leaderboard?tab=community" className="text-[10px] font-bold text-muted-foreground hover:text-foreground transition-colors">
+        <Link to="/leaderboard" className="text-[10px] font-bold text-muted-foreground hover:text-foreground transition-colors">
           Leaderboard →
         </Link>
       </div>

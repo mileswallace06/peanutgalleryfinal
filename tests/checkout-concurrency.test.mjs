@@ -253,6 +253,7 @@ function createDefaultSeed(overrides = {}) {
     Listing: [{
       id: listingId, status: 'active', asking_price: 100, quantity: 1,
       section: 'A', row: '1', event_id: 'event_1',
+      transfer_status: 'transfer_confirmed', transfer_confidence_score: 100,
       updated_date: '2026-08-01T10:00:00.000Z',
       reservation_token: null, reserved_by_email: null,
       reservation_expires_at: null, hidden_reason: null,
@@ -1998,6 +1999,86 @@ async function testCascadingFailurePauseMarkerBlocks() {
   return { name: 'cascading_failure_pause_marker_blocks', passed, resume_returned_500: resumeReturned500, pause_marker_present: pauseMarkerPresent, recovery_blocked_not_set: recoveryBlockedNotSet, fail_closed: failClosed, checkout_returned_409: checkoutReturned409, no_client_secret: noClientSecret, no_new_pi: noNewPI };
 }
 
+// A transfer-disabled listing must fail closed before Stripe receives a PI.
+async function testTransferDisabledBlocksCheckout() {
+  const { seed, listingId } = createDefaultSeed({
+    listing: { transfer_status: 'transfer_disabled', transfer_confidence_score: 100 },
+  });
+  const deps = createMockDeps({ seed });
+  const piCountBefore = deps.stripe.pisById.size;
+  const result = await runCreateCheckout(deps, {
+    listing_id: listingId,
+    transfer_risk_acknowledged: true,
+  });
+  const noNewPI = deps.stripe.pisById.size === piCountBefore;
+  const passed = result.status === 409 && result.body.code === 'TRANSFER_DISABLED' && noNewPI;
+  return { name: 'transfer_disabled_blocks_checkout', passed, status: result.status, code: result.body.code, no_new_pi: noNewPI };
+}
+
+// Low-confidence checkout acknowledgment is a server contract, not only a
+// disabled-button convention. The acknowledged request may proceed normally.
+async function testLowConfidenceRequiresServerAcknowledgment() {
+  const listing = { transfer_status: 'transfer_confirmed', transfer_confidence_score: 55 };
+  const first = createDefaultSeed({ listing });
+  const blockedDeps = createMockDeps({ seed: first.seed });
+  const blockedPiCount = blockedDeps.stripe.pisById.size;
+  const blocked = await runCreateCheckout(blockedDeps, { listing_id: first.listingId });
+
+  const second = createDefaultSeed({ listing });
+  const allowedDeps = createMockDeps({ seed: second.seed });
+  const allowed = await runCreateCheckout(allowedDeps, {
+    listing_id: second.listingId,
+    transfer_risk_acknowledged: true,
+  });
+  const allowedPrivate = [...allowedDeps._state.stores.PurchasePrivate.values()][0];
+
+  const blockedWithoutPI = blockedDeps.stripe.pisById.size === blockedPiCount;
+  const passed = blocked.status === 400 &&
+    blocked.body.code === 'TRANSFER_RISK_ACK_REQUIRED' &&
+    blockedWithoutPI && allowed.status === 200 && !!allowed.body.clientSecret &&
+    allowedPrivate?.transfer_risk_acknowledged === true &&
+    typeof allowedPrivate?.transfer_risk_acknowledged_at === 'string' &&
+    allowedPrivate?.transfer_status_at_checkout === 'transfer_confirmed' &&
+    allowedPrivate?.transfer_confidence_at_checkout === 55;
+  return {
+    name: 'low_confidence_requires_server_acknowledgment',
+    passed,
+    blocked_status: blocked.status,
+    blocked_code: blocked.body.code,
+    blocked_without_pi: blockedWithoutPI,
+    acknowledged_status: allowed.status,
+    acknowledgment_persisted: allowedPrivate?.transfer_risk_acknowledged === true,
+  };
+}
+
+async function testUnknownConfidenceRequiresServerAcknowledgment() {
+  const first = createDefaultSeed({
+    listing: { transfer_status: 'transfer_unconfirmed', transfer_confidence_score: null },
+  });
+  const blockedDeps = createMockDeps({ seed: first.seed });
+  const blocked = await runCreateCheckout(blockedDeps, { listing_id: first.listingId });
+
+  const second = createDefaultSeed({
+    listing: { transfer_status: 'transfer_unconfirmed', transfer_confidence_score: null },
+  });
+  const allowedDeps = createMockDeps({ seed: second.seed });
+  const allowed = await runCreateCheckout(allowedDeps, {
+    listing_id: second.listingId,
+    transfer_risk_acknowledged: true,
+  });
+
+  const passed = blocked.status === 400 &&
+    blocked.body.code === 'TRANSFER_RISK_ACK_REQUIRED' &&
+    allowed.status === 200 && !!allowed.body.clientSecret;
+  return {
+    name: 'unknown_confidence_requires_server_acknowledgment',
+    passed,
+    blocked_status: blocked.status,
+    blocked_code: blocked.body.code,
+    acknowledged_status: allowed.status,
+  };
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 // MAIN RUNNER
 // ════════════════════════════════════════════════════════════════════════════
@@ -2067,6 +2148,9 @@ async function main() {
     await testRecoveryBlockedRetryReturns409(),
     await testPauseMarkerBlocksCheckout(),
     await testCascadingFailurePauseMarkerBlocks(),
+    await testTransferDisabledBlocksCheckout(),
+    await testLowConfidenceRequiresServerAcknowledgment(),
+    await testUnknownConfidenceRequiresServerAcknowledgment(),
   ];
 
   console.log('=== Checkout & Cleanup Concurrency Tests (7C.8) ===\n');

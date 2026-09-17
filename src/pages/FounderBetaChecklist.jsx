@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { base44 } from '@/api/base44Client';
-import { CheckCircle2, XCircle, HelpCircle, AlertTriangle, ChevronDown, ChevronUp, Plus, Trash2, User, RefreshCw } from 'lucide-react';
+import { CheckCircle2, XCircle, HelpCircle, AlertTriangle, ChevronDown, ChevronUp, Plus, Trash2, User } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { adminAccess } from '@/lib/adminAccess';
 
 // ─── Task definitions (10 Real User Validation Tests) ──────────────────────────
 const TASKS = [
@@ -310,20 +310,26 @@ function SessionPanel({ session, onUpdate, onDelete }) {
 
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 export default function FounderBetaChecklist() {
-  const { user } = useAuth();
+  const auth = useAuth();
+  const access = adminAccess(auth);
   const navigate = useNavigate();
   const [sessions, setSessions] = useState(loadSessions);
   const [newName, setNewName] = useState('');
   const [newDevice, setNewDevice] = useState('');
   const [adding, setAdding] = useState(false);
 
-  // Only admins
-  if (user && user.role !== 'admin') {
+  if (access !== 'admin') {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-4 px-6 text-center">
-        <p className="text-5xl">🔒</p>
-        <p className="font-bold text-foreground">Admin only</p>
-        <button onClick={() => navigate(-1)} className="text-sm text-muted-foreground underline">Go back</button>
+        {access === 'checking' ? (
+          <p role="status" className="font-bold text-foreground">Checking admin access…</p>
+        ) : (
+          <>
+            <p className="text-5xl">🔒</p>
+            <p className="font-bold text-foreground">Admin only</p>
+            <button onClick={() => navigate(-1)} className="text-sm text-muted-foreground underline">Go back</button>
+          </>
+        )}
       </div>
     );
   }
@@ -446,7 +452,6 @@ export default function FounderBetaChecklist() {
             <div className="space-y-1.5">
               {taskStats.map(task => {
                 const pct = task.total > 0 ? Math.round((task.completed / task.total) * 100) : null;
-                const worstKey = task.failed > task.confused ? 'failed' : task.confused > 0 ? 'confused' : task.needed_help > 0 ? 'needed_help' : null;
                 return (
                   <div key={task.id} className="flex items-center gap-3">
                     <span className="text-[10px] text-muted-foreground w-4 text-right flex-shrink-0">{task.id}</span>
@@ -544,8 +549,8 @@ const AUDIT_DATA = {
     { title: 'Fan Karma tab in Live Hub — users don\'t know what it\'s for or why it matters', fix: 'Add a one-line hook at the top: "Top donors get VIP perks at future events"' },
     { title: 'Upgrades page asks for location immediately — no context on why', fix: 'Add one sentence before the location prompt: "We show upgrades for events happening near you tonight"' },
     { title: 'Bottom nav: "Sell" tab takes you to a separate Sell page — not intuitive', fix: 'Consider merging into "Me" tab or adding "Sell Tickets" as a FAB on the Events page' },
-    { title: '"Escrow protection" — legal-sounding, confusing to average fan', fix: 'Rephrase to: "Your money is held safely — released to seller only after you confirm you got the tickets"' },
-    { title: '"Instant Transfer" badge on listings — what\'s different?', fix: 'Add: "PG already holds these tickets — guaranteed immediate delivery"' },
+    { title: 'Payment-protection language can sound legalistic or absolute', fix: 'Explain the Stripe authorization hold, delivery checks, dispute path, and limits in plain language' },
+    { title: '"Instant Transfer" badge on listings — what\'s different?', fix: 'Add: "PG has recorded custody, so delivery can begin without waiting for the original seller"' },
     { title: 'No visible price breakdown before checkout — fee surprise', fix: 'Show "Ticket $X + Platform fee $Y = Total $Z" on the listing card, not just in checkout' },
     { title: 'Notifications bell with no notifications — empty state has no explanation', fix: 'Add: "You\'ll get alerts when Flash Drops open for events you\'ve watched"' },
     { title: '"Peanut Points" — what are they? What do they unlock?', fix: 'Add a "Points unlock early Flash Drop access" line near the points balance' },
@@ -558,8 +563,8 @@ const AUDIT_DATA = {
     { title: 'Creating a listing requires Stripe onboarding — blocked at the last step', fix: 'Surface Stripe setup requirement BEFORE user fills in all listing details' },
   ],
   trust: [
-    { title: 'No visible "money-back guarantee" statement anywhere in the buying flow', fix: 'Add: "100% refund if tickets don\'t transfer" as a persistent badge on listing cards' },
-    { title: 'Platform fee charged but no explanation of what it covers', fix: 'Add: "Platform fee covers buyer protection, escrow, and support"' },
+    { title: 'Payment remedies are not explained clearly in the buying flow', fix: 'Show the actual authorization, cancellation, refund, and dispute rules without an absolute guarantee' },
+    { title: 'Platform fee charged but no explanation of what it covers', fix: 'Explain the fee with precise Stripe authorization and payout language' },
     { title: 'Seller\'s identity is just an email — no trust signals', fix: 'Show: verified seller badge, completed transaction count, and response time average' },
     { title: '"AI Verified" badge with no explanation of what AI checked', fix: 'Add tap-to-expand: "AI compared seller\'s screenshot against event details and confirmed it looks valid"' },
     { title: 'No explanation of dispute process upfront', fix: 'Add: "If anything goes wrong, open a dispute within 24h and we investigate within 2 hours"' },
@@ -671,8 +676,8 @@ function AuditReport() {
               { q: 'What do I do first?', a: 'Unclear. The Events tab feels like Ticketmaster — not different enough.' },
               { q: 'How do I get better seats?', a: 'The Upgrades tab makes sense once found, but the path there is non-obvious.' },
               { q: 'How do Flash Drops work?', a: 'Zero context on first open. Requires going to a Live Hub to even see them.' },
-              { q: 'How do I trust it?', a: 'Escrow is mentioned but not explained. No reviews. No completed transaction counts.' },
-              { q: 'How do I know I\'m protected?', a: '"Transfer Verified" and "Escrow" badges are present but unexplained. Needs 1-tap education.' },
+              { q: 'How do I trust it?', a: 'The authorization hold and transfer checks need concise, verifiable evidence. No reviews or completed transaction counts are shown.' },
+              { q: 'How do I know I\'m protected?', a: 'Transfer and payment-status labels need one-tap explanations of what was checked and what remains unverified.' },
             ].map(({ q, a }) => (
               <div key={q} className="space-y-0.5">
                 <p className="text-xs font-black text-foreground">{q}</p>

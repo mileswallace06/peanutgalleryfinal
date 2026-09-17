@@ -17,7 +17,7 @@ function TransactionTimeline({ purchase }) {
   const steps = [
     {
       label: 'Payment Authorized',
-      sublabel: 'Funds held in escrow',
+      sublabel: 'Stripe authorization hold active',
       done: true,
       active: false,
       ts: purchase.created_date,
@@ -403,29 +403,48 @@ export default function PurchaseSuccess() {
     if (!confirm('Cancel this purchase? The payment will be refunded.')) return;
     setActionLoading(true);
     setError('');
-    const res = await base44.functions.invoke('cancelPurchase', { purchase_id: purchase.id });
-    if (res.data.error) setError(res.data.error);
-    else await load();
-    setActionLoading(false);
+    try {
+      const res = await base44.functions.invoke('cancelPurchase', { purchase_id: purchase.id });
+      if (res?.data?.error) {
+        setError(res.data.error);
+        return;
+      }
+      try {
+        await load();
+      } catch {
+        setError('Cancellation was submitted, but the latest status could not be refreshed. Please use Refresh.');
+      }
+    } catch (err) {
+      setError(err?.response?.data?.error || err?.message || 'Cancellation failed. Please try again.');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const handleDispute = async ({ category, details }) => {
     setActionLoading(true);
+    setError('');
     const reason = details ? `${category}: ${details}` : category;
     try {
       const res = await base44.functions.invoke('openDispute', {
         purchase_id: purchase.id,
         reason,
       });
-      if (res.data.error) {
+      if (res?.data?.error) {
         setError(res.data.error);
+        return;
+      }
+      try {
+        await load();
+      } catch {
+        setError('Your dispute was submitted, but the latest status could not be refreshed. Please use Refresh.');
       }
     } catch (err) {
       setError(err.response?.data?.error || err.message || 'Dispute failed');
+    } finally {
+      setShowDisputeModal(false);
+      setActionLoading(false);
     }
-    setShowDisputeModal(false);
-    await load();
-    setActionLoading(false);
   };
 
   if (loading) {
@@ -509,6 +528,13 @@ export default function PurchaseSuccess() {
             <div className="font-bold text-foreground">Dispute Open</div>
             <div className="text-sm text-muted-foreground">Payment frozen. Our team will review and resolve.</div>
           </div>
+        </div>
+      )}
+
+      {error && (
+        <div role="alert" className="mb-5 text-sm rounded-xl px-4 py-3"
+          style={{ background: 'rgba(255,45,120,0.08)', border: '1px solid rgba(255,45,120,0.25)', color: '#FF2D78' }}>
+          {error}
         </div>
       )}
 
@@ -653,11 +679,6 @@ export default function PurchaseSuccess() {
       {/* Prompt for push notifications — shown once after landing on this page */}
       <NotificationPermissionPrompt trigger="purchase" />
 
-      {!isPending && error && (
-        <div className="mt-4 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
-          {error}
-        </div>
-      )}
     </div>
   );
 }

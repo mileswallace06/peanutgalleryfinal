@@ -230,7 +230,7 @@ test('syncTMEvent source: imports coerceCoordinate', async () => {
   const src = readFileSync(
     new URL('../base44/functions/syncTMEvent/entry.ts', import.meta.url), 'utf8'
   );
-  assert.ok(src.includes("import { coerceCoordinate }"),
+  assert.match(src, /import \{[^}]*coerceCoordinate[^}]*\} from '\.\.\/\.\.\/shared\/tmResponseHandler\.js'/,
     'syncTMEvent must import coerceCoordinate');
 });
 
@@ -245,14 +245,14 @@ test('syncTMEvent source: re-validates venue_lat and venue_lng', async () => {
     'must re-validate venue_lng with coerceCoordinate');
 });
 
-// ── 6. Events.jsx passes tm_venue_id to syncTMEvent ─────────────────────────
-test('Events.jsx: passes tm_venue_id to syncTMEvent', async () => {
+// ── 6. Browsing never promotes phone-supplied provider metadata ─────────────
+test('Events.jsx does not background-write Ticketmaster records from the phone', async () => {
   const { readFileSync } = await import('fs');
   const src = readFileSync(
     new URL('../src/pages/Events.jsx', import.meta.url), 'utf8'
   );
-  assert.ok(src.includes('tm_venue_id: e.tm_venue_id'),
-    'Events.jsx must pass tm_venue_id to syncTMEvent');
+  assert.ok(!src.includes("invoke('syncTMEvent'"),
+    'event browsing must not persist client-provided provider metadata');
 });
 
 // ── 7. No-provider-call proof: coordinates and tm_venue_id persist correctly ─

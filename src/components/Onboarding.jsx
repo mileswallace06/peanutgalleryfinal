@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence, useMotionValue, useSpring } from 'framer-motion';
 
 const SLIDES = [
@@ -11,7 +11,7 @@ const SLIDES = [
       { text: 'Upgrade.', color: '#BF5FFF', glow: '#BF5FFF' },
       { text: 'Experience.', color: '#FFE600', glow: '#FFE600' },
     ],
-    body: 'The only app that lets fans inside the venue buy and sell seat upgrades after the event starts. Better seats, fair prices, no scalpers.',
+    body: 'A fan-to-fan marketplace for finding tickets and eligible seat upgrades before and during supported events.',
     visual: 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=1200&q=90',
     btnGradient: 'linear-gradient(135deg, #00FF87, #BF5FFF, #FFE600)',
     btnColor: '#0D0B14',
@@ -27,7 +27,7 @@ const SLIDES = [
       { text: 'The Back', color: '#fff', glow: null },
       { text: 'Row?', color: '#FF2D78', glow: '#FF2D78' },
     ],
-    body: "Fans who couldn't sell their seats before the event list them cheap on Peanut Gallery — the only place to buy upgrades live at the venue. Location-locked so only people actually there can buy. No scalpers, ever.",
+    body: "Fans who cannot use their seats can list them for other fans. Venue-only upgrade features may require a current location check, and availability varies by event.",
     visual: 'https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?w=1200&q=90',
     btnGradient: 'linear-gradient(135deg, #FF2D78, #BF5FFF)',
     btnColor: '#fff',
@@ -35,16 +35,16 @@ const SLIDES = [
     overlayAccent: 'radial-gradient(ellipse 80% 60% at 50% 110%, rgba(255,45,120,0.25), transparent 60%)',
   },
   {
-    tag: 'ZERO RISK',
+    tag: 'BUYER PROTECTION',
     tagColor: '#00C8FF',
     tagStyle: { background: 'rgba(0,200,255,0.12)', color: '#00C8FF', border: '1px solid rgba(0,200,255,0.35)' },
     headlineWords: [
       { text: 'Your', color: '#fff', glow: null },
-      { text: 'Money', color: '#fff', glow: null },
-      { text: 'Is Safe.', color: '#00FF87', glow: '#00FF87' },
-      { text: 'Period.', color: '#fff', glow: null },
+      { text: 'Payment', color: '#fff', glow: null },
+      { text: 'Has', color: '#00FF87', glow: '#00FF87' },
+      { text: 'Guardrails.', color: '#fff', glow: null },
     ],
-    body: "We hold your payment in escrow. The seller doesn't get a single cent until you physically receive the tickets and tap confirm. Scammers can't win here.",
+    body: 'Stripe places an authorization hold while the transfer is pending. Seller payout waits for delivery confirmation and required protection checks, and buyers can report a problem before completion.',
     visual: 'https://images.unsplash.com/photo-1505236858219-8359eb29e329?w=1200&q=90',
     btnGradient: 'linear-gradient(135deg, #00FF87, #00C8FF)',
     btnColor: '#0D0B14',
@@ -52,7 +52,7 @@ const SLIDES = [
     overlayAccent: 'radial-gradient(ellipse 80% 60% at 50% 110%, rgba(0,200,255,0.25), transparent 60%)',
   },
   {
-    tag: 'SELL INSTANTLY',
+    tag: 'SELL YOUR SEAT',
     tagColor: '#FFE600',
     tagStyle: { background: 'rgba(255,230,0,0.12)', color: '#FFE600', border: '1px solid rgba(255,230,0,0.35)' },
     headlineWords: [
@@ -60,7 +60,7 @@ const SLIDES = [
       { text: "You Can't", color: '#fff', glow: null },
       { text: 'Use?', color: '#FFE600', glow: '#FFE600' },
     ],
-    body: 'List your tickets from anywhere in the world in 60 seconds. Buyers at the venue see them instantly. Get paid the moment they confirm receipt. Fast transfers. Instant confirmation.',
+    body: 'List eligible tickets for supported U.S. events. Payout begins only after transfer confirmation and required protection checks; Stripe and bank timing can vary.',
     visual: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=1200&q=90',
     btnGradient: 'linear-gradient(135deg, #FF8C00, #FFE600)',
     btnColor: '#0D0B14',
@@ -148,7 +148,7 @@ function LightStreak({ color, delay, startX }) {
 export default function Onboarding({ onDone }) {
   const [index, setIndex] = useState(0);
   const [touchStart, setTouchStart] = useState(null);
-  const [btnHovered, setBtnHovered] = useState(false);
+  const [, setBtnHovered] = useState(false);
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
   const springX = useSpring(mouseX, { stiffness: 60, damping: 20 });

@@ -4,7 +4,7 @@
  */
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Heart, Zap, ChevronRight } from 'lucide-react';
+import { X, Heart, Zap } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 
 export default function DonateSeatSheet({ event, purchase, onClose, onDonated }) {
@@ -15,25 +15,46 @@ export default function DonateSeatSheet({ event, purchase, onClose, onDonated })
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleDonate = async () => {
-    if (!section) return;
+    if (!section.trim()) {
+      setError('Enter the seat section before donating.');
+      return;
+    }
+
+    setError('');
     setLoading(true);
-    const res = await base44.functions.invoke('seatDonation', {
-      action: 'create_donation',
-      event_id: event?.id,
-      section,
-      row,
-      seats,
-      quantity: purchase?.quantity || 1,
-      is_anonymous: isAnonymous,
-      donor_message: message || null,
-      source_purchase_id: purchase?.id || null,
-    });
-    setLoading(false);
-    if (res?.data?.success) {
+    try {
+      const res = await base44.functions.invoke('seatDonation', {
+        action: 'create_donation',
+        event_id: event?.id,
+        section: section.trim(),
+        row: row.trim(),
+        seats: seats.trim(),
+        quantity: purchase?.quantity || 1,
+        is_anonymous: isAnonymous,
+        donor_message: message.trim() || null,
+        source_purchase_id: purchase?.id || null,
+      });
+
+      if (!res?.data?.success) {
+        throw new Error(res?.data?.error || 'We could not donate these seats. Please try again.');
+      }
+
       setStep('done');
-      onDonated?.();
+      // Notify the parent without letting refresh work hide the success receipt.
+      Promise.resolve()
+        .then(() => onDonated?.(res.data))
+        .catch(() => {});
+    } catch (err) {
+      setError(
+        err?.response?.data?.error
+        || err?.message
+        || 'We could not donate these seats. Please try again.'
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -180,7 +201,7 @@ export default function DonateSeatSheet({ event, purchase, onClose, onDonated })
 
                 <button
                   onClick={handleDonate}
-                  disabled={loading || !section}
+                  disabled={loading || !section.trim()}
                   className="w-full py-4 rounded-full font-black text-sm flex items-center justify-center gap-2 disabled:opacity-60"
                   style={{
                     background: 'linear-gradient(135deg, #BF5FFF, #FF2D78)',
@@ -192,6 +213,15 @@ export default function DonateSeatSheet({ event, purchase, onClose, onDonated })
                     : <><Heart className="w-4 h-4" /> Confirm Donation</>
                   }
                 </button>
+                {error && (
+                  <div
+                    role="alert"
+                    className="mt-3 rounded-xl px-3 py-2 text-xs text-center"
+                    style={{ color: '#FF8AAF', background: 'rgba(255,45,120,0.09)', border: '1px solid rgba(255,45,120,0.3)' }}
+                  >
+                    {error}
+                  </div>
+                )}
               </motion.div>
             )}
 

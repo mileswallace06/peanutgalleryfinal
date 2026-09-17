@@ -4,6 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 import { Ticket, Clock, CheckCircle, AlertTriangle, RefreshCw, Heart, Zap } from 'lucide-react';
 import DonateSeatSheet from '@/components/donations/DonateSeatSheet';
+import { formatEventVenueDateTime } from '@/lib/eventTiming';
 
 export default function MyTickets() {
   const [user, setUser] = useState(null);
@@ -130,7 +131,7 @@ export default function MyTickets() {
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-foreground truncate">{event?.title || 'Event'}</div>
           <div className="text-xs text-muted-foreground mt-0.5">
-            {(event?.event_start_utc || event?.date) ? format(new Date(event.event_start_utc || event.date), 'EEE, MMM d · h:mm a') : ''}
+            {event ? formatEventVenueDateTime(event, { fallback: '' }) : ''}
             {event?.venue ? ` · ${event.venue}` : ''}
           </div>
           <div className="text-xs text-muted-foreground mt-0.5">
@@ -177,7 +178,7 @@ export default function MyTickets() {
           event={donatingPurchase.event}
           purchase={donatingPurchase.purchase}
           onClose={() => setDonatingPurchase(null)}
-          onDonated={() => setDonatingPurchase(null)}
+          onDonated={() => fetchPurchases(true)}
         />
       )}
       <div className="mb-8">

@@ -18,10 +18,10 @@ function SectionLabel({ children, color = PURPLE }) {
 
 const COMPARE = [
   {
-    feature: 'Payment held in escrow',
+    feature: 'Payment authorization controls',
     pg: true,
     them: false,
-    detail: 'Buyers pay before the event — but the seller doesn\'t get paid until delivery is confirmed.',
+    detail: 'Eligible purchases use a Stripe authorization hold while ticket transfer is pending.',
   },
   {
     feature: 'Verified ticket proof',
@@ -39,7 +39,7 @@ const COMPARE = [
     feature: 'No last-minute seller ghosting',
     pg: true,
     them: false,
-    detail: 'Escrow + Instant Transfer removes seller incentive to back out after listing.',
+    detail: 'Custody review and delayed payout reduce seller dependency after listing.',
   },
   {
     feature: 'Anti-scalper focused',
@@ -65,8 +65,8 @@ const FEATURES = [
   {
     icon: <Lock className="w-5 h-5" />,
     color: GREEN,
-    title: 'Escrow Protection',
-    desc: 'Every transaction is held in escrow. Buyers don\'t release funds until they confirm receipt. Sellers don\'t get paid until delivery. Simple.',
+    title: 'Payment Guardrails',
+    desc: 'Eligible purchases use a Stripe authorization hold while transfer is pending. Charge and payout decisions follow delivery, dispute, and protection checks.',
   },
   {
     icon: <Shield className="w-5 h-5" />,
@@ -96,17 +96,17 @@ const FEATURES = [
     icon: <Heart className="w-5 h-5" />,
     color: GREEN,
     title: 'Anti-Ghosting Design',
-    desc: 'Seller behavior is tracked. Buyers can leave feedback. Escrow + Instant Transfer remove the main incentives to ghost after listing.',
+    desc: 'Seller behavior is tracked. Custody review and delayed payout reduce the opportunity to disappear after listing.',
   },
 ];
 
 
 const FAQS = [
-  { q: 'What happens if the ticket turns out to be fake?', a: 'All listings go through a verification process. For Instant listings, we physically hold the ticket. If a ticket is ever found to be fraudulent, the buyer receives a full refund and the seller\'s account is permanently suspended. Escrow means nobody gets paid until delivery is confirmed.' },
-  { q: 'Can I trust a seller I\'ve never heard of?', a: 'You don\'t have to. Our escrow system means you pay upfront but the seller doesn\'t receive a cent until you confirm the ticket was delivered. If anything goes wrong, you can dispute — and we hold the funds until it\'s resolved.' },
+  { q: 'What happens if the ticket turns out to be fake?', a: 'The buyer can open a dispute. PG reviews available ownership and transfer evidence and can block completion while the payment state and remedy are determined.' },
+  { q: 'Can I trust a seller I\'ve never heard of?', a: 'Payment authorization, transfer evidence, and a dispute path reduce risk but do not make any marketplace risk-free. Check the listing\'s transfer status before buying.' },
   { q: 'Is Peanut Gallery for season ticket holders?', a: 'Yes — and it\'s ideal. Season ticket holders often have games or shows they can\'t attend. Peanut Gallery gives them a safe, fan-friendly way to sell individual games without worrying about getting ghosted by buyers or not getting paid.' },
   { q: 'How does Peanut Gallery prevent scalping?', a: 'We can\'t prevent all resale, but we\'re not built for scalpers. There are no bulk-listing tools, no bot-friendly APIs, and the verification process creates friction for anyone trying to list fake or duplicate inventory.' },
-  { q: 'What if the seller cancels after I pay?', a: 'Funds are in escrow — the seller can\'t take them. If a seller backs out after a purchase, the buyer receives a full refund and the seller is penalized or removed from the platform.' },
+  { q: 'What if the seller cancels after I authorize payment?', a: 'PG can block completion and cancel the authorization or issue the applicable refund based on the Stripe payment state. The incident can also affect the seller\'s account.' },
   { q: 'Does Peanut Gallery take a big cut?', a: 'Just 5% (minimum $1). That\'s it. No listing fee, no withdrawal fee, no payment processing fee on top. Compare that to StubHub\'s 15–25% combined buyer/seller fees.' },
   { q: 'Is my payment info secure?', a: 'Yes. All payments are processed by Stripe, which is PCI DSS Level 1 certified — the highest level of card security. Peanut Gallery never stores your card number or banking details.' },
   { q: 'What\'s the Fan Zone?', a: 'The Fan Zone is a social feed for fans — share seat upgrades, show off your row, and connect with other fans at the same events. It\'s the community layer on top of the marketplace.' },
@@ -215,7 +215,7 @@ export default function WhyPeanutGallery() {
         style={{ background: 'rgba(0,200,255,0.06)', border: '1px solid rgba(0,200,255,0.2)' }}>
         <SectionLabel color={CYAN}>Perfect for Season Ticket Holders</SectionLabel>
         <p className="text-sm text-muted-foreground leading-relaxed mb-3">
-          Got a handful of games you can't make this season? Peanut Gallery is built for you. List your seats, set your price, and walk away. Escrow handles everything — you don't need to be online when the ticket sells.
+          Got a handful of games you can't make this season? List eligible seats, set your price, and choose a supported transfer workflow. Custody-reviewed listings can reduce the need to be online when a ticket sells.
         </p>
         <div className="space-y-2">
           {[

@@ -5,7 +5,7 @@
  */
 import FlashDropCard from '@/components/flashdrops/FlashDropCard';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, Gift, Clock, CheckCircle2 } from 'lucide-react';
+import { Gift, Clock, CheckCircle2 } from 'lucide-react';
 
 export default function FlashDropCenter({ drops, user, listings, loading, onDropSeats, onWinnerSelected }) {
   const activeDrops = drops.filter(d => d.status === 'active');
@@ -56,12 +56,6 @@ export default function FlashDropCenter({ drops, user, listings, loading, onDrop
             </p>
           </div>
           <div className="flex flex-col gap-2 items-center">
-            <button
-              className="flex items-center gap-2 px-5 py-2.5 rounded-full font-medium text-sm transition-all active:scale-95"
-              style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.55)', border: '1px solid rgba(255,255,255,0.1)' }}>
-              <Bell className="w-3.5 h-3.5" />
-              Notify me
-            </button>
             <button onClick={onDropSeats}
               className="text-xs px-4 py-2 rounded-full font-medium transition-all active:scale-95"
               style={{ background: 'transparent', color: 'rgba(255,255,255,0.3)', border: '1px solid rgba(255,255,255,0.08)' }}>
@@ -100,10 +94,10 @@ export default function FlashDropCenter({ drops, user, listings, loading, onDrop
               <Clock className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-bold text-foreground">Sec {d.section}{d.row ? ` · Row ${d.row}` : ''}</p>
-                <p className="text-xs text-muted-foreground">{d.scheduled_label || 'Scheduled'}</p>
+                <p className="text-xs text-muted-foreground">Scheduled activation is not available in the app yet.</p>
               </div>
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ color: '#BF5FFF', background: 'rgba(191,95,255,0.1)', border: '1px solid rgba(191,95,255,0.3)' }}>
-                Queued
+                Needs review
               </span>
             </div>
           ))}

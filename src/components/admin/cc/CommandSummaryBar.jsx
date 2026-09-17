@@ -49,7 +49,7 @@ export default function CommandSummaryBar({ purchases, listings, donations, stri
     {
       label: 'Pending Transfers',
       value: pendingTransfers,
-      detail: `${pendingTransfers} purchase${pendingTransfers !== 1 ? 's' : ''} in escrow`,
+      detail: `${pendingTransfers} purchase authorization${pendingTransfers !== 1 ? 's' : ''} pending`,
       color: pendingTransfers > 0 ? '#00C8FF' : '#888',
       bg: 'rgba(0,200,255,0.08)',
       border: 'rgba(0,200,255,0.2)',

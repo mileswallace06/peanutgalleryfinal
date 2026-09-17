@@ -1,9 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { format } from 'date-fns';
 import { MapPin, LocateFixed, Calendar, ChevronRight, RefreshCw, ShieldCheck, Search, ArrowUpDown, X } from 'lucide-react';
-import { getEventLiveStatus } from '@/lib/eventTiming';
+import { formatEventVenueDateTime, getEventLiveStatus, getEventStartUtcMs } from '@/lib/eventTiming';
 import { getEventUrl } from '@/lib/eventUrl';
 import { logNavEvent } from '@/lib/navLogger';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
@@ -40,12 +39,7 @@ export default function Events() {
   const [keyword, setKeyword] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
   // Sort: 'soonest' = upcoming soonest (default), 'latest' = latest upcoming
-  // showPast: when false (default) hides past events; when true shows everything
   const [sortMode, setSortMode] = useState('soonest');
-  const [showPast, setShowPast] = useState(false);
-  // Track which TM IDs we've already synced this session to avoid duplicate calls
-  const syncedTmIds = useRef(new Set());
-
   const abortRef = useRef(null);
   useEffect(() => () => { abortRef.current?.abort(); pendingNearMe.current = null; }, []);
 
@@ -105,22 +99,6 @@ export default function Events() {
 
       setEvents(merged.events);
 
-      // Persist TM events locally so they survive past start time.
-      // SESSION DEDUP: only sync each tm_id once per session to prevent duplicate DB records.
-      const toSync = merged.tmEventsRaw.filter(e => e.tm_id && !syncedTmIds.current.has(e.tm_id));
-      toSync.forEach(e => syncedTmIds.current.add(e.tm_id)); // mark BEFORE async call
-      // Serialize syncs to avoid write races — stagger by 200ms per event
-      toSync.forEach((e, i) => {
-        setTimeout(() => {
-          base44.functions.invoke('syncTMEvent', {
-            tm_id: e.tm_id, title: e.title, venue: e.venue, city: e.city,
-            state: e.state, date: e.date, image_url: e.image_url,
-            tm_url: e.tm_url, category: e.category || null,
-            tm_venue_id: e.tm_venue_id || '',
-            venue_lat: e.venue_lat ?? null, venue_lng: e.venue_lng ?? null,
-          }).catch(syncErr => console.warn('[Events] syncTMEvent failed for', e.tm_id, syncErr?.message));
-        }, i * 200);
-      });
     } catch (err) {
       if (signal.aborted) return; // stale response — discard silently
       const status = err?.response?.status || err?.status;
@@ -200,9 +178,9 @@ export default function Events() {
     requestLocation();
   };
   const handleNearMe = () => {
-    setShowPast(false);
-    runSearch('');
-    if (!localAreaRef.current) requestCurrentLocation('');
+    // "Near Me" means the phone's location now, not a saved city/GPS result.
+    // This matters when someone travels after previously browsing another market.
+    requestCurrentLocation('');
   };
   const retrySearch = () => fetchEvents(activeSearchRef.current, true);
   const searchNationwide = () => runSearch(activeSearchRef.current.keyword, null, 'nationwide');
@@ -217,23 +195,20 @@ export default function Events() {
   // Marketplaces prioritizes future, purchasable events.
   const getEventDate = (e) => {
     // Prefer canonical UTC start time, fall back to legacy date field
-    const d = e.event_start_utc || e.date;
-    return d ? new Date(d).getTime() : null;
+    return getEventStartUtcMs(e);
   };
 
   const filtered = (() => {
     const now = Date.now();
     let list = [...events];
 
-    // Default: hide past events (users buy tickets for upcoming shows)
-    // Toggle exposes past events for browsing
-    if (!showPast) {
-      list = list.filter(e => {
-        const t = getEventDate(e);
-        // Keep events with no parseable date (don't accidentally hide unknowns)
-        return t === null || t >= now;
-      });
-    }
+    // Marketplace discovery shows upcoming/TBA inventory only. The prior
+    // "Past Events" toggle was removed because provider search does not return
+    // a complete historical catalog and the control could not honor its label.
+    list = list.filter(e => {
+      const t = getEventDate(e);
+      return t === null || t >= now;
+    });
 
     list.sort((a, b) => {
       const ta = getEventDate(a);
@@ -378,13 +353,6 @@ export default function Events() {
             </button>
           ))}
         </div>
-        <button onClick={() => setShowPast(v => !v)}
-          className="px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-all"
-          style={showPast
-            ? { background: 'rgba(var(--neon-yellow-rgb),0.12)', color: 'var(--neon-yellow)', border: '1px solid rgba(var(--neon-yellow-rgb),0.3)' }
-            : { background: 'hsl(var(--card))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }}>
-          Past Events
-        </button>
       </div>
 
       {/* ── Rate limit / network error ── */}
@@ -508,7 +476,7 @@ export default function Events() {
       ) : (
         <div className="px-4 space-y-3">
           {filtered.map(event => (
-            <EventRow key={event.id} event={event} isAdmin={isAdmin} />
+            <EventRow key={event.id} event={event} />
           ))}
         </div>
       )}
@@ -516,21 +484,21 @@ export default function Events() {
   );
 }
 
-function EventRow({ event, isAdmin = false }) {
+function EventRow({ event }) {
   const isTM = event.source === 'ticketmaster' || String(event.id || '').startsWith('tm_');
   const timing = !isTM && event.id ? getEventLiveStatus(event) : null;
   const isLive = timing?.status === 'live';
-  const isSoon = timing?.status === 'soon';
   const eventUrl = getEventUrl(event);
+  const cardUrl = isLive ? `/upgrades/${event.id}` : eventUrl;
 
   const handleCardClick = () => {
     logNavEvent({
-      result: eventUrl ? 'success' : 'navigation_error',
+      result: cardUrl ? 'success' : 'navigation_error',
       event,
       sourcePage: 'Events',
-      generatedHref: eventUrl || '',
+      generatedHref: cardUrl || '',
       lookupMethod: 'none',
-      failureReason: eventUrl ? '' : 'getEventUrl returned null',
+      failureReason: cardUrl ? '' : 'getEventUrl returned null',
     });
   };
 
@@ -539,9 +507,23 @@ function EventRow({ event, isAdmin = false }) {
   const minPrice = event.min_price || null;
   const isPGEvent = event.source === 'pg';
 
+  const Card = cardUrl ? Link : 'div';
+  const cardProps = cardUrl
+    ? {
+        to: cardUrl,
+        state: !isLive && isTM ? { tmEvent: event } : undefined,
+        onClick: handleCardClick,
+        'aria-label': `${isLive ? 'Open Live Hub for' : 'View'} ${event.title}`,
+      }
+    : {
+        role: 'group',
+        'aria-label': `${event.title} details unavailable`,
+      };
+
   return (
-    <div
-      className="rounded-2xl overflow-hidden flex items-stretch"
+    <Card
+      {...cardProps}
+      className="rounded-2xl overflow-hidden flex items-stretch transition-transform active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       style={{
         background: 'hsl(var(--card))',
         border: isLive
@@ -592,7 +574,7 @@ function EventRow({ event, isAdmin = false }) {
           </div>
           <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
             <Calendar className="w-3 h-3 flex-shrink-0 opacity-40" />
-            <span>{event.date ? format(new Date(event.date), 'EEE, MMM d · h:mm a') : 'TBD'}</span>
+            <span>{formatEventVenueDateTime(event)}</span>
           </div>
         </div>
 
@@ -613,37 +595,34 @@ function EventRow({ event, isAdmin = false }) {
             )}
           </div>
 
-          {eventUrl && (
+          {cardUrl && (
             isLive ? (
-              <Link
-                to={`/upgrades/${event.id}`}
+              <span
                 className="inline-flex items-center gap-1 text-[11px] font-semibold px-3 py-1.5 rounded-lg flex-shrink-0"
                 style={{
                   background: 'hsl(var(--primary))',
                   color: 'hsl(var(--primary-foreground))',
                 }}
-                onClick={e => e.stopPropagation()}
+                aria-hidden="true"
               >
                 Live Hub <ChevronRight className="w-3 h-3" />
-              </Link>
+              </span>
             ) : (
-              <Link
-                to={eventUrl}
-                state={isTM ? { tmEvent: event } : undefined}
+              <span
                 className="inline-flex items-center gap-1 text-[11px] font-medium px-3 py-1.5 rounded-lg flex-shrink-0 transition-all active:scale-[0.97]"
                 style={{
                   background: 'hsl(var(--secondary))',
                   color: 'hsl(var(--secondary-foreground))',
                   border: '1px solid hsl(var(--border))',
                 }}
-                onClick={handleCardClick}
+                aria-hidden="true"
               >
                 View <ChevronRight className="w-3 h-3" />
-              </Link>
+              </span>
             )
           )}
         </div>
       </div>
-    </div>
+    </Card>
   );
 }

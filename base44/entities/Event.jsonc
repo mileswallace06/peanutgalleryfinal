@@ -39,9 +39,38 @@
       "format": "date-time",
       "description": "Canonical UTC start time as ISO string."
     },
+    "event_end_utc": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Provider-reported canonical UTC end time. Optional; never inferred at sync time."
+    },
     "venue_timezone": {
       "type": "string",
       "description": "IANA timezone of the venue, e.g. America/Phoenix."
+    },
+    "date_tba": {
+      "type": "boolean",
+      "default": false,
+      "description": "Provider says the event date is to be announced."
+    },
+    "time_tba": {
+      "type": "boolean",
+      "default": false,
+      "description": "Provider says the event time is to be announced."
+    },
+    "no_specific_time": {
+      "type": "boolean",
+      "default": false,
+      "description": "Provider explicitly supplies no specific event time."
+    },
+    "end_time_invalid": {
+      "type": "boolean",
+      "default": false,
+      "description": "Provider end timestamp was missing or invalid relative to the start."
+    },
+    "provider_status": {
+      "type": "string",
+      "description": "Provider lifecycle status such as onsale, postponed, rescheduled or cancelled."
     },
     "duration_hours": {
       "type": "number",
@@ -240,7 +269,6 @@
   },
   "required": [
     "title",
-    "venue",
-    "date"
+    "venue"
   ]
 }

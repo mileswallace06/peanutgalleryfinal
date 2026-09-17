@@ -8,7 +8,7 @@ const CHECKLIST = [
   { category: 'Listing Creation', items: ['Event search returns results', 'City autocomplete works', 'Seat/price form validates', 'Photo upload succeeds', 'Listing appears in My Sales after submit'] },
   { category: 'Ticket Purchase', items: ['Listing card shows correct price', 'Purchase dialog opens', 'Stripe payment form renders', 'Payment succeeds end-to-end', 'Purchase appears in My Tickets'] },
   { category: 'Stripe Payments', items: ['Test card 4242 4242 accepted', 'Declined card shows error', 'Live key mode confirmed in Admin', 'PaymentIntent created in Stripe dashboard'] },
-  { category: 'Escrow & Confirmation', items: ['Seller confirmation prompt works', 'Buyer confirmation prompt works', 'Payment captured after both confirm', 'Payout reflected in seller account'] },
+  { category: 'Authorization & Confirmation', items: ['Seller confirmation prompt works', 'Buyer confirmation prompt works', 'Payment captured only after required checks', 'Payout reflected in seller account'] },
   { category: 'Transfers', items: ['Platform transfer flow clear', 'Email transfer instructions shown', 'In-person transfer flow clear', 'Transfer proof upload works'] },
   { category: 'Location Services', items: ['Near Me button requests permission', 'GPS coordinates return correctly', 'Events load after location granted', 'Denied state shows fallback UI'] },
   { category: 'Search & Autocomplete', items: ['City autocomplete shows suggestions', 'Arrow key navigation works', 'Enter key selects result', 'Recent cities shown on focus'] },

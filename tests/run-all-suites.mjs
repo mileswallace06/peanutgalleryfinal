@@ -27,6 +27,9 @@ const ROOT = join(__dirname, '..');
 // ── Suite definitions ────────────────────────────────────────────────────────
 // Each suite: { name, file, required (true = blocks exit code) }
 const SUITES = [
+  // Public/legal routing and policy-provider resilience
+  { name: 'public-legal-routes', file: 'tests/public-legal-routes.test.mjs', required: true },
+
   // Legacy safety suites
   { name: 'freeze-completeness', file: 'tests/freeze-completeness.test.mjs', required: true },
   { name: 'payment-reconciliation', file: 'tests/payment-reconciliation.test.mjs', required: true },
@@ -52,8 +55,17 @@ const SUITES = [
   // Ownership
   { name: 'listing-status-ownership', file: 'tests/listing-status-ownership.test.mjs', required: true },
 
+  // Nationwide event-time and provider refresh contracts
+  { name: 'tm-event-sync-contract', file: 'tests/tm-event-sync-contract.test.mjs', required: true },
+  { name: 'event-venue-time-contract', file: 'tests/event-venue-time-contract.test.mjs', required: true },
+  { name: 'fresh-location-contract', file: 'tests/fresh-location-contract.test.mjs', required: true },
+  { name: 'checkout-recovery-contract', file: 'tests/checkout-recovery-contract.test.mjs', required: true },
+
   // Round 6B.2 — submitListing test-mode authorization
   { name: 'submitListing-test-mode', file: 'tests/submitListing-test-mode.test.mjs', required: true },
+
+  // Flash Drop ownership, authorization, and recovery contracts
+  { name: 'flashdrop-hardening', file: 'tests/flashdrop-hardening.test.mjs', required: true },
 
   // 7C.9C.2F.2 — executable authority contract tests
   { name: 'authority-contract', file: 'tests/authority-contract.test.mjs', required: true },

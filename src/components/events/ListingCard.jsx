@@ -227,7 +227,7 @@ export default function ListingCard({ listing, onUpgrade, isCheapest, mode = 'up
             <p className="text-[10px] text-muted-foreground">
               {isUpgrade
                 ? 'Upgrade access only · existing admission required · disputes supported'
-                : 'Money held in escrow · seller paid only after you confirm · disputes supported'
+                : 'Stripe authorization hold · payout follows delivery checks · disputes supported'
               }
             </p>
           </div>

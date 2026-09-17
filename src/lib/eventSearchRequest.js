@@ -29,8 +29,21 @@ export function buildEventSearchParams({ keyword, cityOverride, stateOverride, l
   } else if (ll) {
     tmParams.latlong = ll;
     tmParams.radius = '50';
-    pgQuery.venue_lat = { $ne: null };
-    pgQuery.venue_lng = { $ne: null };
+    const [lat, lng] = ll.split(',').map(Number);
+    if (Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+      const radiusKm = 50 * 1.609344;
+      const latDelta = radiusKm / 111.32;
+      const cosLat = Math.max(0.01, Math.cos((lat * Math.PI) / 180));
+      const lngDelta = radiusKm / (111.32 * cosLat);
+      pgQuery.venue_lat = { $gte: Math.max(-90, lat - latDelta), $lte: Math.min(90, lat + latDelta) };
+      if (lng - lngDelta >= -180 && lng + lngDelta <= 180) {
+        pgQuery.venue_lng = { $gte: lng - lngDelta, $lte: lng + lngDelta };
+      } else {
+        // Dateline-crossing searches still narrow latitude and use the exact
+        // client-side haversine check rather than excluding valid longitudes.
+        pgQuery.venue_lng = { $ne: null };
+      }
+    }
   }
-  return { tmParams, pgQuery, pgLimit: keyword ? 100 : 200 };
+  return { tmParams, pgQuery, pgLimit: ll ? 500 : keyword ? 100 : 200 };
 }
