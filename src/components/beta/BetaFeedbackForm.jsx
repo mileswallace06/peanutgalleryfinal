@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Star, Send, ChevronDown, ChevronUp } from 'lucide-react';
 
@@ -68,18 +68,28 @@ export default function BetaFeedbackForm() {
   const [allFeedback, setAllFeedback] = useState([]);
   const [expandedId, setExpandedId] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const saveInFlight = useRef(false);
 
   useEffect(() => {
     base44.entities.BetaFeedback.list('-created_date', 50).then(setAllFeedback).catch(() => {});
   }, []);
 
   const handleSubmit = async () => {
-    if (!form.tester_name.trim()) return;
+    if (saveInFlight.current || !form.tester_name.trim()) return;
+    saveInFlight.current = true;
     setSaving(true);
-    await base44.entities.BetaFeedback.create(form);
-    setSubmitted(true);
-    base44.entities.BetaFeedback.list('-created_date', 50).then(setAllFeedback).catch(() => {});
-    setSaving(false);
+    setSaveError('');
+    try {
+      await base44.entities.BetaFeedback.create(form);
+      setSubmitted(true);
+      base44.entities.BetaFeedback.list('-created_date', 50).then(setAllFeedback).catch(() => {});
+    } catch {
+      setSaveError('Couldn’t save feedback. Your answers are still here. Try again.');
+    } finally {
+      saveInFlight.current = false;
+      setSaving(false);
+    }
   };
 
   if (submitted) {
@@ -137,6 +147,7 @@ export default function BetaFeedbackForm() {
           </div>
         ))}
 
+        {saveError && <p role="alert" className="text-sm text-destructive">{saveError}</p>}
         <button onClick={handleSubmit} disabled={saving || !form.tester_name.trim()}
           className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-black disabled:opacity-60"
           style={{ background: 'linear-gradient(135deg, #BF5FFF, #FF2D78)', color: '#fff' }}>
