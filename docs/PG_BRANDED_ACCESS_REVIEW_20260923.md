@@ -69,6 +69,13 @@ Current live status: no merge, Base44 visibility/authentication change, publish,
 build generation, email/reset request, credential change or account creation.
 Google domain ownership is complete; Google brand approval remains pending.
 
+Delivery attempt: local commit completed. Direct Git push could not authenticate;
+the connected GitHub integration also rejected tree creation with HTTP 403,
+Resource not accessible by integration. No remote branch or pull request was
+created. A Git bundle handoff preserves this branch for the owner's existing
+authenticated Mac repository. This is a preparation branch, not approved for
+merge/publication before the activation checks above.
+
 Sources:
 - https://docs.base44.com/Setting-up-your-app/Managing-login-and-registration
 - https://docs.base44.com/Community-and-support/Troubleshooting
