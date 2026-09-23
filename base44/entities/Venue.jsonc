@@ -35,6 +35,26 @@
       "type": "string",
       "description": "e.g. AZ"
     },
+    "country_code": {
+      "type": "string",
+      "description": "ISO 3166-1 alpha-2 country code from the provider."
+    },
+    "address_line1": {
+      "type": "string"
+    },
+    "postal_code": {
+      "type": "string"
+    },
+    "latitude": {
+      "type": "number"
+    },
+    "longitude": {
+      "type": "number"
+    },
+    "timezone": {
+      "type": "string",
+      "description": "IANA venue timezone used for local event display."
+    },
     "hero_image": {
       "type": "string",
       "description": "Optional PG-hosted venue hero image URL. When present and an event has no Ticketmaster artwork, this is used as the event hero."

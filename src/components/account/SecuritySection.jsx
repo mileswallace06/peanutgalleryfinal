@@ -13,8 +13,8 @@ export default function SecuritySection({ user }) {
             <p className="text-sm font-medium text-foreground truncate">{user?.email || '—'}</p>
           </div>
           <span className="text-[10px] font-bold px-2 py-1 rounded-full"
-            style={{ background: 'rgba(0,255,135,0.12)', color: '#00FF87', border: '1px solid rgba(0,255,135,0.3)' }}>
-            Verified
+            style={{ background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }}>
+            On file
           </span>
         </div>
 
@@ -30,7 +30,7 @@ export default function SecuritySection({ user }) {
             className="text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1"
             style={{ background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' }}
           >
-            Change <ExternalLink className="w-3 h-3" />
+            Email support <ExternalLink className="w-3 h-3" />
           </a>
         </div>
 

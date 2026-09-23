@@ -83,13 +83,24 @@ export default function TransferAssistant({ purchase, listing, onConfirm, action
 
   const handleConfirm = async () => {
     setError('');
-    setUploading(true);
     let proofUrl = null;
-    if (proofFile) {
-      const uploadRes = await base44.integrations.Core.UploadFile({ file: proofFile });
-      proofUrl = uploadRes.file_url;
+    try {
+      if (proofFile) {
+        setUploading(true);
+        const uploadRes = await base44.integrations.Core.UploadFile({ file: proofFile });
+        proofUrl = uploadRes?.file_url;
+        if (!proofUrl) throw new Error('The proof file upload did not return a file.');
+      }
+    } catch (err) {
+      setError(
+        err?.response?.data?.error
+        || err?.message
+        || 'Could not upload the proof file. Please try again.'
+      );
+      return;
+    } finally {
+      setUploading(false);
     }
-    setUploading(false);
 
     // Auto-generate transfer note — no manual typing required
     const autoNote = [

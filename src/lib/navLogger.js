@@ -131,7 +131,10 @@ export async function logNavEvent({
   const dedupeKey = `${routeId}-${result}-${sourcePage}`;
   if (isDuplicate(dedupeKey)) return;
 
-  const isAdmin = sessionStorage.getItem('pg_admin_unlocked') === '1';
+  // Never trust a client-set storage flag for authorization or alert routing.
+  // A failed identity check is deliberately treated as non-admin.
+  const currentUser = await base44.auth.me({ fresh: true }).catch(() => null);
+  const isVerifiedAdmin = currentUser?.role === 'admin';
 
   // Classify failure if trace is present
   let failureCategory = null;
@@ -159,7 +162,7 @@ export async function logNavEvent({
       ? `[${failureCategory}] ${failureCategoryLabel}: ${failureReason}`
       : failureReason,
     user_agent: navigator.userAgent.slice(0, 200),
-    is_admin: isAdmin,
+    is_admin: isVerifiedAdmin,
     session_id: getSessionId(),
   };
 
@@ -180,7 +183,7 @@ export async function logNavEvent({
   }
 
   // AdminAlert for non-admin failures only
-  if (!isAdmin && (result === 'lookup_fallback_failed' || result === 'event_not_found' || result === 'navigation_error')) {
+  if (!isVerifiedAdmin && (result === 'lookup_fallback_failed' || result === 'event_not_found' || result === 'navigation_error')) {
     base44.entities.AdminAlert.create({
       alert_type: 'admin_action_required',
       priority: 'high',

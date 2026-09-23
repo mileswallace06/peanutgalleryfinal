@@ -9,6 +9,7 @@ import TransferAcknowledgment from '@/components/listings/TransferAcknowledgment
 import UpgradeEligibilityGate from '@/components/upgrades/UpgradeEligibilityGate.jsx';
 import { UPGRADE_LISTING_TYPES } from '@/lib/listingTypes';
 import { formatCountdown } from '@/lib/listingVisibility';
+import { requiresTransferRiskAcknowledgment } from '../../../base44/shared/transferRisk.js';
 
 function CheckoutForm({ event, listing, buyerEmail, onClose, onCheckoutCreated }) {
   const stripe = useStripe();
@@ -27,8 +28,7 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onCheckoutCreated }
   const [error, setError] = useState('');
   const [eligibilityPassed, setEligibilityPassed] = useState(!hasEligibilityGate);
   // Transfer acknowledgment: low-confidence listings require explicit buyer ack
-  const transferScore = listing.transfer_confidence_score ?? null;
-  const needsTransferAck = transferScore !== null && transferScore < 70 && listing.transfer_status !== 'transfer_confirmed';
+  const needsTransferAck = requiresTransferRiskAcknowledgment(listing);
   const [transferAcknowledged, setTransferAcknowledged] = useState(!needsTransferAck);
 
   const qty = listing.quantity || 1;
@@ -41,6 +41,14 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onCheckoutCreated }
     e.preventDefault();
     if (!stripe || !elements) return;
     if (isUpgrade && !eligibilityPassed) return;
+    if (listing.transfer_status === 'transfer_disabled') {
+      setError('This ticket can no longer be transferred and is not available for purchase.');
+      return;
+    }
+    if (needsTransferAck && !transferAcknowledged) {
+      setError('Review and acknowledge the transfer warning before continuing.');
+      return;
+    }
     setLoading(true);
     setError('');
 
@@ -53,6 +61,7 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onCheckoutCreated }
         listing_id: listing.id,
         buyer_name: name,
         buyer_phone: phone,
+        transfer_risk_acknowledged: transferAcknowledged,
       });
       const { purchase_id, clientSecret } = res.data;
       purchaseId = purchase_id;
@@ -84,7 +93,8 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onCheckoutCreated }
       //    buyer, verifies the Stripe PaymentIntent is authorized, stamps an
       //    idempotency field, and sends the predefined seller notification. The
       //    buyer never supplies the seller's notification content.
-      base44.functions.invoke('confirmCheckoutAuthorized', { purchase_id }).catch(() => {});
+      const confirmation = await base44.functions.invoke('confirmCheckoutAuthorized', { purchase_id });
+      if (confirmation?.data?.error) throw new Error(confirmation.data.error);
 
       // 4. Navigate to the purchase page (do NOT release — authorization succeeded)
       navigate(`/purchase/${purchase_id}`);
@@ -106,7 +116,21 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onCheckoutCreated }
   // trust, or transfer intelligence.
   const handleDemoUpgradeSubmit = async (e) => {
     e.preventDefault();
+    if (loading) return;
+    if (isUpgrade && !eligibilityPassed) {
+      setError('Complete the upgrade eligibility check before continuing.');
+      return;
+    }
+    if (listing.transfer_status === 'transfer_disabled') {
+      setError('This ticket can no longer be transferred and is not available.');
+      return;
+    }
+    if (needsTransferAck && !transferAcknowledged) {
+      setError('Review and acknowledge the transfer warning before continuing.');
+      return;
+    }
     setLoading(true);
+    setError('');
     await new Promise(r => setTimeout(r, 1200));
     try {
       const res = await base44.functions.invoke('createDemoUpgrade', { listing_id: listing.id });
@@ -183,17 +207,15 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onCheckoutCreated }
           <span style={{ color: '#00FF87' }}>${total.toFixed(2)}</span>
         </div>
         <p className="text-[10px] text-muted-foreground mt-1.5 leading-relaxed">
-          Payment held in escrow until you confirm ticket receipt.
+          Your card is authorized first. The seller is not paid until delivery is confirmed.
         </p>
       </div>
 
       {/* Transfer status acknowledgment */}
-      {listing.transfer_status !== 'transfer_disabled' && (
-        <TransferAcknowledgment
-          listing={listing}
-          onAcknowledged={() => setTransferAcknowledged(true)}
-        />
-      )}
+      <TransferAcknowledgment
+        listing={listing}
+        onAcknowledged={() => setTransferAcknowledged(true)}
+      />
 
       {/* Instant Transfer Ready notice */}
       {listing.listing_transfer_mode === 'instant_transfer_ready' && (
@@ -216,14 +238,14 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onCheckoutCreated }
         </div>
       )}
 
-      {/* Escrow notice — skip for demo upgrades */}
+      {/* Authorization-hold notice — skip for demo upgrades */}
       {!isDemoUpgrade && (
         <div className="flex items-start gap-3 rounded-2xl p-3" style={{ background: 'rgba(0,255,135,0.08)', border: '1px solid rgba(0,255,135,0.25)' }}>
           <Shield className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: '#00FF87' }} />
           <div className="text-xs" style={{ color: 'rgba(200,255,230,0.85)' }}>
             {isUpgrade
-              ? 'Your payment is held in escrow. The seller is paid only after you confirm access to the upgraded seats.'
-              : 'Your payment is held safely until the ticket transfer is confirmed. The seller does not get paid until you confirm you received the seats.'
+              ? 'Your card is authorized first. The seller is paid only after you confirm access to the upgraded seats.'
+              : 'Your card is authorized first. The seller is not paid until you confirm you received the seats.'
             }
           </div>
         </div>
@@ -293,7 +315,7 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onCheckoutCreated }
 
       <button
         type="submit"
-        disabled={loading || !eligibilityPassed || (!isDemoUpgrade && (!stripe || !transferAcknowledged))}
+        disabled={loading || !eligibilityPassed || listing.transfer_status === 'transfer_disabled' || (!isDemoUpgrade && (!stripe || !transferAcknowledged))}
         className="w-full flex items-center justify-center gap-2 py-3.5 rounded-full font-black text-sm transition-all disabled:opacity-40 mt-2"
         style={{
           background: isDemoUpgrade
@@ -310,9 +332,9 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onCheckoutCreated }
         ) : isDemoUpgrade ? (
           <><Ticket className="w-4 h-4" /> Simulate Upgrade Purchase <ArrowRight className="w-4 h-4" /></>
         ) : isUpgrade ? (
-          <><ArrowRight className="w-4 h-4" /> Upgrade Live — ${total.toFixed(2)} Escrow Protected <ArrowRight className="w-4 h-4" /></>
+          <><ArrowRight className="w-4 h-4" /> Upgrade Live — ${total.toFixed(2)} Buyer Protected <ArrowRight className="w-4 h-4" /></>
         ) : (
-          <><Lock className="w-4 h-4" /> Pay ${total.toFixed(2)} Securely — Escrow Protected <ArrowRight className="w-4 h-4" /></>
+          <><Lock className="w-4 h-4" /> Authorize ${total.toFixed(2)} Securely <ArrowRight className="w-4 h-4" /></>
         )}
       </button>
       <div style={{ paddingBottom: 'env(safe-area-inset-bottom)' }} />
@@ -323,6 +345,9 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onCheckoutCreated }
 export default function PurchaseDialog({ event, listing, onClose, mode = 'ticket' }) {
   const [stripePromise, setStripePromise] = useState(null);
   const [user, setUser] = useState(null);
+  const [initializationLoading, setInitializationLoading] = useState(true);
+  const [initializationError, setInitializationError] = useState('');
+  const [initializationAttempt, setInitializationAttempt] = useState(0);
   const [activePurchaseId, setActivePurchaseId] = useState(null);
   const [reservation, setReservation] = useState(null);
   const [reservationLoading, setReservationLoading] = useState(false);
@@ -333,11 +358,29 @@ export default function PurchaseDialog({ event, listing, onClose, mode = 'ticket
   const isDemoUpgrade = isUpgrade && isDemo;
 
   useEffect(() => {
-    base44.auth.me().then(setUser).catch(() => {});
-    base44.functions.invoke('getStripeKey', {}).then(res => {
-      setStripePromise(loadStripe(res.data.publishableKey));
-    }).catch(console.error);
-  }, []);
+    let cancelled = false;
+    setInitializationLoading(true);
+    setInitializationError('');
+    Promise.all([
+      base44.auth.me(),
+      isDemoUpgrade
+        ? Promise.resolve(null)
+        : base44.functions.invoke('getStripeKey', {}).then(res => {
+          if (!res?.data?.publishableKey) throw new Error('Secure payment setup is unavailable.');
+          return loadStripe(res.data.publishableKey);
+        }),
+    ]).then(([authenticatedUser, stripe]) => {
+      if (cancelled) return;
+      if (!authenticatedUser?.email) throw new Error('Sign in again to continue.');
+      setUser(authenticatedUser);
+      if (!isDemoUpgrade) setStripePromise(stripe);
+    }).catch(err => {
+      if (!cancelled) setInitializationError(err?.response?.data?.error || err?.message || 'Checkout could not be prepared.');
+    }).finally(() => {
+      if (!cancelled) setInitializationLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [initializationAttempt, isDemoUpgrade]);
 
   // Reserve listing when dialog opens (skip if seller viewing own listing)
   useEffect(() => {
@@ -424,7 +467,7 @@ export default function PurchaseDialog({ event, listing, onClose, mode = 'ticket
             <div className="grid grid-cols-2 gap-1.5">
               {[
                 { icon: '🎟️', text: 'Existing admission required' },
-                { icon: '🔒', text: 'Payment held in escrow' },
+                { icon: '🔒', text: 'Card authorized before capture' },
                 { icon: '✅', text: 'You confirm before seller is paid' },
                 { icon: '🛡️', text: 'Disputes supported' },
               ].map(({ icon, text }) => (
@@ -438,7 +481,7 @@ export default function PurchaseDialog({ event, listing, onClose, mode = 'ticket
           ) : (
             <div className="grid grid-cols-2 gap-1.5">
               {[
-                { icon: '🔒', text: 'Money held safely in escrow' },
+                { icon: '🔒', text: 'Card authorized before capture' },
                 { icon: '✅', text: 'You confirm before seller is paid' },
                 { icon: '🎫', text: 'Seller notified to transfer immediately' },
                 { icon: '🛡️', text: 'Disputes supported if something goes wrong' },
@@ -454,9 +497,18 @@ export default function PurchaseDialog({ event, listing, onClose, mode = 'ticket
         </div>
         {/* UX-8: Scrollable body — submit button is sticky-footed outside scroll to prevent iOS keyboard overlap */}
         <div className="flex-1 overflow-y-auto p-5 pb-2">
-          {!stripePromise || !user ? (
+          {initializationLoading ? (
             <div className="flex justify-center py-8">
               <span className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : initializationError ? (
+            <div className="text-center py-8 space-y-3 px-4">
+              <p className="text-4xl">⚠️</p>
+              <p role="alert" className="font-bold text-foreground text-sm">{initializationError}</p>
+              <div className="flex justify-center gap-2">
+                <button type="button" onClick={() => setInitializationAttempt(attempt => attempt + 1)} className="px-5 py-2.5 rounded-full font-bold text-sm" style={{ background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}>Try again</button>
+                <button type="button" onClick={handleClose} className="px-5 py-2.5 rounded-full font-bold text-sm" style={{ background: 'hsl(var(--muted))', color: 'hsl(var(--foreground))' }}>Close</button>
+              </div>
             </div>
           ) : listing.viewer_is_seller ? (
             <div className="text-center py-8 space-y-3 px-4">
@@ -509,7 +561,7 @@ export default function PurchaseDialog({ event, listing, onClose, mode = 'ticket
                   <span className="text-xs text-muted-foreground">Securing your listing...</span>
                 </div>
               )}
-              <Elements stripe={stripePromise}>
+              <Elements stripe={isDemoUpgrade ? null : stripePromise}>
                 <CheckoutForm event={event} listing={listing} buyerEmail={user.email} onClose={handleClose} onCheckoutCreated={setActivePurchaseId} />
               </Elements>
             </>

@@ -4,7 +4,7 @@
  */
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Zap } from 'lucide-react';
+import { X, Zap } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 
 export default function DonationWinNotification({ userEmail }) {
@@ -22,7 +22,10 @@ export default function DonationWinNotification({ userEmail }) {
       winner_email: userEmail,
       donation_status: 'drawn',
     }).then(donations => {
-      if (donations.length > 0) setDonation(donations[0]);
+      if (donations.length > 0) {
+        setAccepted(null);
+        setDonation(donations[0]);
+      }
     }).catch(() => {});
 
     // Real-time subscription — fires on any SeatDonation change
@@ -30,6 +33,7 @@ export default function DonationWinNotification({ userEmail }) {
       const d = event.data;
       if (!d) return;
       if (d.winner_email === userEmail && d.donation_status === 'drawn') {
+        setAccepted(null);
         setDonation(d);
         // UX-2: Haptic feedback on donation win (mobile)
         if (navigator?.vibrate) navigator.vibrate([300, 100, 300, 100, 500]);
@@ -44,7 +48,7 @@ export default function DonationWinNotification({ userEmail }) {
 
   // Countdown timer
   useEffect(() => {
-    if (!donation) return;
+    if (!donation || accepted !== null) return;
     setCountdown(120);
     const t = setInterval(() => {
       setCountdown(c => {
@@ -57,7 +61,7 @@ export default function DonationWinNotification({ userEmail }) {
       });
     }, 1000);
     return () => clearInterval(t);
-  }, [donation?.id]);
+  }, [donation?.id, accepted]);
 
   const handleRespond = async (accept) => {
     if (!donation || responding) return;
@@ -80,6 +84,11 @@ export default function DonationWinNotification({ userEmail }) {
     }
   };
 
+  const handleClose = () => {
+    setDonation(null);
+    setAccepted(null);
+  };
+
   if (!donation) return null;
 
   const donorName = donation.is_anonymous ? 'A fan' : (donation.donor_name || 'A fan');
@@ -91,6 +100,10 @@ export default function DonationWinNotification({ userEmail }) {
     <AnimatePresence>
       <motion.div
         className="fixed inset-0 z-[100] flex flex-col items-center justify-end"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Donation result"
+        style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
@@ -119,6 +132,9 @@ export default function DonationWinNotification({ userEmail }) {
             background: 'linear-gradient(180deg, rgba(191,95,255,0.15) 0%, hsl(var(--card)) 30%)',
             border: '1px solid rgba(191,95,255,0.4)',
             paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))',
+            maxHeight: 'calc(100dvh - env(safe-area-inset-top) - 0.75rem)',
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
           }}
           initial={{ y: '100%' }}
           animate={{ y: 0 }}
@@ -127,6 +143,15 @@ export default function DonationWinNotification({ userEmail }) {
         >
           {accepted === true ? (
             <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
+              <button
+                type="button"
+                onClick={handleClose}
+                aria-label="Close donation result"
+                className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center text-muted-foreground"
+                style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}
+              >
+                <X className="w-4 h-4" />
+              </button>
               <div className="text-6xl mb-3">🎉</div>
               <h2 className="font-display text-3xl mb-2" style={{ color: '#BF5FFF' }}>Enjoy Your Upgrade!</h2>
               <p className="text-sm text-muted-foreground mb-4 leading-relaxed">
@@ -144,6 +169,14 @@ export default function DonationWinNotification({ userEmail }) {
                 {donation.seats && <p className="text-sm text-muted-foreground mt-0.5">Seats: {donation.seats}</p>}
               </div>
               <p className="text-xs text-muted-foreground">+10 🥜 Peanut Points added to your balance</p>
+              <button
+                type="button"
+                onClick={handleClose}
+                className="w-full mt-5 py-3.5 rounded-full font-black text-sm"
+                style={{ background: 'hsl(var(--muted))', color: 'hsl(var(--foreground))', border: '1px solid hsl(var(--border))' }}
+              >
+                Done
+              </button>
             </motion.div>
           ) : accepted === false ? (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>

@@ -54,7 +54,7 @@ const REGISTRY = {
   'base44/functions/verifyTransferProof/entry.ts': ['status'],
   'base44/functions/adminOverrideAIVerification/entry.ts': ['status'],
   'base44/functions/recordTransferOutcome/entry.ts': ['status'],
-  'base44/functions/flashDrop/entry.ts': ['status'],
+  'base44/functions/flashDrop/entry.ts': ['status', 'hidden_reason'],
   'base44/functions/seatDonation/entry.ts': ['status'],
   'base44/functions/openDispute/entry.ts': ['status'],
   'base44/functions/sellerConfirmTransfer/entry.ts': ['status'],

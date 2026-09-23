@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { AlertTriangle, CheckCircle, XCircle, ExternalLink, FileText, Flag, Eye, ChevronDown, ChevronUp, MessageSquare } from 'lucide-react';
+import { ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
 
 // Build the issue list from raw data
 function buildIssues(purchases, listings, donations, events) {
@@ -95,7 +95,7 @@ function buildIssues(purchases, listings, donations, events) {
       type: 'BUYER_INACTIVE_24H',
       severity: 'high',
       title: 'Buyer Inactive 24h',
-      description: `Buyer ${p.buyer_email} hasn't confirmed after seller sent tickets. $${p.amount?.toFixed(2)} in escrow.`,
+      description: `Buyer ${p.buyer_email} hasn't confirmed after seller sent tickets. $${p.amount?.toFixed(2)} authorization pending.`,
       purchase: p,
       event: events[p.event_id],
       timestamp: p.auto_review_flagged_at || p.updated_date,

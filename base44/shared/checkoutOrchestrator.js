@@ -38,6 +38,7 @@ import {
   quarantineListing,
   cancelPIAndQuarantine,
 } from './orchestratorHelpers.js';
+import { requiresTransferRiskAcknowledgment, transferConfidence } from './transferRisk.js';
 
 const PI_COOLDOWN_MS = 15 * 1000;
 const MAX_ID_LENGTH = 200;
@@ -87,7 +88,7 @@ export async function runCreateCheckout(deps, params) {
   }
 
   // 3. Input validation
-  const { listing_id, buyer_name, buyer_phone } = params;
+  const { listing_id, buyer_name, buyer_phone, transfer_risk_acknowledged } = params;
   if (typeof listing_id !== 'string' || listing_id.length === 0 || listing_id.length > MAX_ID_LENGTH) {
     return { status: 400, body: { error: 'listing_id must be a bounded nonempty string', code: 'INVALID_INPUT' } };
   }
@@ -133,6 +134,16 @@ export async function runCreateCheckout(deps, params) {
   const authoritativeIsDemo = listingPrivate.is_demo_listing ?? false;
   const authoritativeProofStatus = listingPrivate.proof_status ?? null;
   const authoritativeNotes = listingPrivate.notes ?? null;
+
+  // Transfer safety is enforced again on the server. UI state and disabled
+  // buttons are not authority: direct function calls must fail the same way.
+  if (listing.transfer_status === 'transfer_disabled') {
+    return { status: 409, body: { error: 'Ticket transfer is unavailable for this listing.', code: 'TRANSFER_DISABLED' } };
+  }
+  const requiresTransferRiskAck = requiresTransferRiskAcknowledgment(listing);
+  if (requiresTransferRiskAck && transfer_risk_acknowledged !== true) {
+    return { status: 400, body: { error: 'Transfer risk acknowledgment is required.', code: 'TRANSFER_RISK_ACK_REQUIRED' } };
+  }
 
   // 6. Financial validation
   const askingPriceNum = Number(listing.asking_price);
@@ -373,6 +384,9 @@ export async function runCreateCheckout(deps, params) {
         reservation_token: reservationToken, listing_revision: listingRevision,
         subtotal: subtotal.toString(), platform_fee: platformFee.toString(),
         seller_payout: sellerPayout.toString(), buyer_total: buyerTotal.toString(),
+        transfer_risk_acknowledged: String(requiresTransferRiskAck && transfer_risk_acknowledged === true),
+        transfer_status_at_checkout: listing.transfer_status || 'unknown',
+        transfer_confidence_at_checkout: String(transferConfidence(listing) ?? 'unknown'),
       },
       description: `Peanut Gallery: Section ${listing.section} Row ${listing.row}`,
     };
@@ -420,6 +434,12 @@ export async function runCreateCheckout(deps, params) {
       payment_intent_id: paymentIntent.id, reservation_token: reservationToken,
       buyer_phone: validatedBuyerPhone, buyer_name: validatedBuyerName,
       payment_captured: false, is_demo: false,
+      transfer_risk_acknowledged: requiresTransferRiskAck && transfer_risk_acknowledged === true,
+      transfer_risk_acknowledged_at: requiresTransferRiskAck && transfer_risk_acknowledged === true
+        ? new Date(now()).toISOString()
+        : null,
+      transfer_status_at_checkout: listing.transfer_status || null,
+      transfer_confidence_at_checkout: transferConfidence(listing),
     });
   } catch (err) {
     const result = await cancelPIAndQuarantine(deps, paymentIntent.id, listing.id, purchase.id, `PurchasePrivate creation failed: ${err?.message}`);

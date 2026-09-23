@@ -27,13 +27,24 @@ export default function SellerTransferAttestation({ onConfirm, onBlocked, upload
   const [error, setError] = useState('');
 
   const handleFileChange = async (e) => {
-    const file = e.target.files[0];
+    const input = e.target;
+    const file = input.files[0];
     if (!file) return;
     setProofFile(file);
     setUploading(true);
-    const url = await uploadFile(file);
-    setProofUrl(url);
-    setUploading(false);
+    setError('');
+    try {
+      const url = await uploadFile(file);
+      if (!url) throw new Error('Upload completed without a file URL');
+      setProofUrl(url);
+    } catch (err) {
+      setProofFile(null);
+      setProofUrl('');
+      setError(err?.message || 'Screenshot upload failed. Please try again.');
+    } finally {
+      setUploading(false);
+      input.value = '';
+    }
   };
 
   const handleConfirm = () => {
@@ -193,7 +204,7 @@ export default function SellerTransferAttestation({ onConfirm, onBlocked, upload
             </div>
 
             {error && (
-              <div className="text-xs px-3 py-2 rounded-lg" style={{ color: '#FF2D78', background: 'rgba(255,45,120,0.08)', border: '1px solid rgba(255,45,120,0.25)' }}>
+              <div role="alert" className="text-xs px-3 py-2 rounded-lg" style={{ color: '#FF2D78', background: 'rgba(255,45,120,0.08)', border: '1px solid rgba(255,45,120,0.25)' }}>
                 {error}
               </div>
             )}

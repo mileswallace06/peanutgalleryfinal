@@ -10,8 +10,8 @@ const FEATURES = [
   },
   {
     icon: Shield,
-    title: 'Pay safely with escrow',
-    desc: 'Your money is held until you confirm receipt.',
+    title: 'Pay with transfer safeguards',
+    desc: 'Stripe holds the authorization while ticket transfer is pending.',
     color: '#00FF87',
   },
   {

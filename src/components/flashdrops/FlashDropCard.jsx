@@ -1,22 +1,28 @@
 import { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Gift, ShieldCheck } from 'lucide-react';
-import { Link } from 'react-router-dom';
 import FlashDropCountdown from './FlashDropCountdown';
+
+const POLL_INTERVAL_MS = 1000;
+const POLL_TIMEOUT_MS = 30000;
+
+function actionError(error, fallback) {
+  return error?.response?.data?.error || error?.data?.error || error?.message || fallback;
+}
 
 /**
  * FlashDropCard — Race-safe, server-authority winner selection.
  *
  * Winner selection flow:
  * 1. Client countdown hits 0 → setPhase('expired') only (no close_and_pick call)
- * 2. ONE designated caller (the donor's device OR any single device via timeout) calls close_and_pick ONCE
+ * 2. Only the donor's device calls close_and_pick; entrants never select winners
  * 3. ALL devices poll `poll_result` until ready=true
  * 4. Result shown to all — won/lost based on winner.email === user.email
  *
  * This eliminates the 500-device race condition entirely.
  */
 export default function FlashDropCard({ drop: initialDrop, user, allListings = [], onEntered, onWinnerSelected }) {
-  const [drop, setDrop] = useState(initialDrop);
+  const drop = initialDrop;
   const [phase, setPhase] = useState(() => {
     if (initialDrop.status === 'winner_selected' || initialDrop.status === 'expired') return 'result';
     return 'active';
@@ -30,8 +36,13 @@ export default function FlashDropCard({ drop: initialDrop, user, allListings = [
     return null;
   });
   const [loading, setLoading] = useState(false);
+  const [selectionLoading, setSelectionLoading] = useState(false);
   const [error, setError] = useState('');
+  const [pollError, setPollError] = useState('');
   const pollIntervalRef = useRef(null);
+  const pollTimeoutRef = useRef(null);
+  const pollInFlightRef = useRef(false);
+  const pollFailuresRef = useRef(0);
   const selectionFiredRef = useRef(false);
 
   // Check existing entry on mount
@@ -39,7 +50,7 @@ export default function FlashDropCard({ drop: initialDrop, user, allListings = [
     if (!user?.email || !drop?.id) return;
     base44.entities.FlashDropEntry.filter({ flash_drop_id: drop.id, entrant_email: user.email })
       .then(rows => { if (rows.length > 0) setEntered(true); })
-      .catch(() => {});
+      .catch(() => setError('Could not confirm your entry status. You can retry entering safely.'));
   }, [drop?.id, user?.email]);
 
   // Track view
@@ -49,86 +60,137 @@ export default function FlashDropCard({ drop: initialDrop, user, allListings = [
     }
   }, [drop?.id]);
 
+  const clearPolling = () => {
+    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
+    pollIntervalRef.current = null;
+    pollTimeoutRef.current = null;
+    pollInFlightRef.current = false;
+  };
+
   // Cleanup poll on unmount
   useEffect(() => () => {
     if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
   }, []);
 
-  const startPolling = (flash_drop_id) => {
-    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+  const applyResult = (data) => {
+    clearPolling();
+    setResult({
+      winner_email: data.winner?.email || null,
+      winner_name: data.winner?.name || null,
+      no_entries: data.no_entries || false,
+    });
+    setPollError('');
+    setPhase('result');
+    onWinnerSelected?.(drop.id, data.winner);
+  };
 
-    pollIntervalRef.current = setInterval(async () => {
-      const res = await base44.functions.invoke('flashDrop', { action: 'poll_result', flash_drop_id });
-      const data = res?.data;
-      if (data?.ready) {
-        clearInterval(pollIntervalRef.current);
-        pollIntervalRef.current = null;
-        setResult({
-          winner_email: data.winner?.email || null,
-          winner_name: data.winner?.name || null,
-          no_entries: data.no_entries || false,
-        });
-        setPhase('result');
-        onWinnerSelected?.(drop, data.winner);
+  const startPolling = (flash_drop_id) => {
+    clearPolling();
+    setPollError('');
+    pollFailuresRef.current = 0;
+
+    const pollOnce = async () => {
+      if (pollInFlightRef.current) return;
+      pollInFlightRef.current = true;
+      try {
+        const res = await base44.functions.invoke('flashDrop', { action: 'poll_result', flash_drop_id });
+        const data = res?.data;
+        if (data?.error) throw new Error(data.error);
+        pollFailuresRef.current = 0;
+        if (data?.ready) applyResult(data);
+      } catch (pollFailure) {
+        pollFailuresRef.current += 1;
+        if (pollFailuresRef.current >= 3) {
+          clearPolling();
+          setPollError(actionError(pollFailure, 'Could not check the winner. Tap Retry result check.'));
+        }
+      } finally {
+        pollInFlightRef.current = false;
       }
-    }, 1000); // poll every second until result
+    };
+
+    pollIntervalRef.current = setInterval(pollOnce, POLL_INTERVAL_MS);
+    pollTimeoutRef.current = setTimeout(() => {
+      clearPolling();
+      setPollError(drop.donor_email === user?.email
+        ? 'Winner selection is taking longer than expected. Tap Retry winner selection.'
+        : 'The donor has not finalized the result yet. Tap Retry result check in a moment.');
+    }, POLL_TIMEOUT_MS);
+    void pollOnce();
+  };
+
+  const requestWinnerSelection = async () => {
+    setSelectionLoading(true);
+    setPollError('');
+    try {
+      const res = await base44.functions.invoke('flashDrop', {
+        action: 'close_and_pick',
+        flash_drop_id: drop.id,
+        request_id: `${drop.id}-${Date.now()}`,
+      });
+      const data = res?.data;
+      if (data?.success && (Object.prototype.hasOwnProperty.call(data, 'winner') || data.no_entries)) {
+        applyResult(data);
+        return;
+      }
+      if (!data?.pending) throw new Error(data?.error || 'Winner selection could not start.');
+      startPolling(drop.id);
+    } catch (selectionError) {
+      startPolling(drop.id);
+      setPollError(actionError(selectionError, 'Winner selection failed. Tap Retry winner selection.'));
+    } finally {
+      setSelectionLoading(false);
+    }
   };
 
   /**
    * handleExpired — called by FlashDropCountdown when timer hits 0.
-   * ONLY the donor's device fires close_and_pick. All others just poll.
-   * This is a best-effort optimization — the server handles idempotency regardless.
+   * ONLY the donor's device fires close_and_pick. Entrants only poll.
    */
   const handleExpired = async () => {
     setPhase('expired');
+    setPollError('');
 
     const isDonor = drop.donor_email === user?.email;
-    const flash_drop_id = drop.id;
-
     if (isDonor && !selectionFiredRef.current) {
       selectionFiredRef.current = true;
-      // Donor triggers selection once
-      base44.functions.invoke('flashDrop', {
-        action: 'close_and_pick',
-        flash_drop_id,
-        request_id: `${flash_drop_id}-${Date.now()}`,
-      }).catch(() => {});
-    } else if (!isDonor) {
-      // Non-donors: small random delay then fire close_and_pick as fallback
-      // Server is idempotent — only the first one wins
-      const delay = 500 + Math.random() * 3000;
-      setTimeout(() => {
-        if (!selectionFiredRef.current) {
-          selectionFiredRef.current = true;
-          base44.functions.invoke('flashDrop', {
-            action: 'close_and_pick',
-            flash_drop_id,
-            request_id: `${flash_drop_id}-${user?.email}-${Date.now()}`,
-          }).catch(() => {});
-        }
-      }, delay);
+      await requestWinnerSelection();
+      return;
     }
+    if (entered) startPolling(drop.id);
+    else setPhase('closed');
+  };
 
-    // All devices poll for the result
-    startPolling(flash_drop_id);
+  const retryResult = async () => {
+    setPollError('');
+    setPhase('expired');
+    if (drop.donor_email === user?.email) await requestWinnerSelection();
+    else startPolling(drop.id);
   };
 
   const handleEntry = async () => {
     if (!user) { base44.auth.redirectToLogin(); return; }
     setLoading(true);
     setError('');
-    const res = await base44.functions.invoke('flashDrop', { action: 'enter', flash_drop_id: drop.id });
-    setLoading(false);
-    const data = res?.data;
-    if (data?.success) {
-      setEntered(true);
-      setPhase('entered');
-      onEntered?.(data.entry);
-    } else if (data?.error === 'Already entered') {
-      setEntered(true);
-      setPhase('entered');
-    } else {
-      setError(data?.error || 'Could not enter. Try again.');
+    try {
+      const res = await base44.functions.invoke('flashDrop', { action: 'enter', flash_drop_id: drop.id });
+      const data = res?.data;
+      if (data?.success) {
+        setEntered(true);
+        setPhase('entered');
+        onEntered?.(data.entry);
+      } else if (data?.error === 'Already entered') {
+        setEntered(true);
+        setPhase('entered');
+      } else {
+        setError(data?.error || 'Could not enter. Check your connection and try again.');
+      }
+    } catch (entryError) {
+      setError(actionError(entryError, 'Could not enter. Check your connection and try again.'));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -182,8 +244,8 @@ export default function FlashDropCard({ drop: initialDrop, user, allListings = [
             <div className="rounded-xl py-3 flex justify-center" style={{ background: 'rgba(0,0,0,0.3)' }}>
               <FlashDropCountdown closesAt={drop.entry_closes_at} onExpired={handleExpired} />
             </div>
-            {error && <p className="text-xs text-center" style={{ color: '#FF2D78' }}>{error}</p>}
-            <button onClick={handleEntry} disabled={loading}
+            {error && <p role="alert" className="text-xs text-center" style={{ color: '#FF2D78' }}>{error}</p>}
+            <button type="button" onClick={handleEntry} disabled={loading}
               className="w-full py-4 rounded-2xl font-black text-base flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95 transition-transform"
               style={{ background: 'linear-gradient(135deg, #BF5FFF, #FF2D78)', color: '#fff', boxShadow: '0 0 24px rgba(191,95,255,0.5)' }}>
               {loading
@@ -212,9 +274,25 @@ export default function FlashDropCard({ drop: initialDrop, user, allListings = [
 
         {/* Expired — waiting for server result */}
         {phase === 'expired' && !result && (
-          <div className="rounded-xl py-3 text-center" style={{ background: 'rgba(0,0,0,0.3)' }}>
-            <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin inline-block mb-2" />
-            <p className="text-xs text-muted-foreground">Selecting winner…</p>
+          <div className="rounded-xl px-3 py-3 text-center space-y-2" style={{ background: 'rgba(0,0,0,0.3)' }}>
+            {!pollError && <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin inline-block" />}
+            <p className="text-xs text-muted-foreground">
+              {selectionLoading ? 'Starting winner selection…' : pollError ? 'Result check paused' : 'Selecting winner…'}
+            </p>
+            {pollError && <p role="alert" className="text-xs" style={{ color: '#FF7AA8' }}>{pollError}</p>}
+            {pollError && (
+              <button type="button" onClick={retryResult} disabled={selectionLoading}
+                className="px-3 py-2 rounded-full text-xs font-bold disabled:opacity-50"
+                style={{ background: 'rgba(191,95,255,0.16)', border: '1px solid rgba(191,95,255,0.35)', color: '#E2BEFF' }}>
+                {drop.donor_email === user?.email ? 'Retry winner selection' : 'Retry result check'}
+              </button>
+            )}
+          </div>
+        )}
+
+        {phase === 'closed' && (
+          <div className="rounded-xl py-3 text-center" style={{ background: 'rgba(255,255,255,0.04)' }}>
+            <p className="text-sm text-muted-foreground">Entry is closed.</p>
           </div>
         )}
 
@@ -222,7 +300,7 @@ export default function FlashDropCard({ drop: initialDrop, user, allListings = [
         {phase === 'result' && result && !result.no_entries && (
           won
             ? <WinnerView drop={drop} />
-            : <LoserView drop={drop} allListings={allListings} userEmail={user?.email} />
+            : <LoserView allListings={allListings} />
         )}
         {phase === 'result' && result?.no_entries && (
           <div className="rounded-xl py-3 text-center" style={{ background: 'rgba(255,255,255,0.04)' }}>
@@ -252,72 +330,21 @@ function WinnerView({ drop }) {
 /**
  * Intelligent loser funnel — ranked by proximity and price match.
  */
-function LoserView({ drop, allListings, userEmail }) {
-  const dropSection = parseInt(drop.section) || 0;
-
-  // Rank listings: same section > adjacent section (±10) > same tier > rest
-  const scored = allListings.map(l => {
-    const listSection = parseInt(l.section) || 0;
-    const sectionDiff = Math.abs(listSection - dropSection);
-    let score = 0;
-    if (l.section === drop.section) score += 100;
-    else if (sectionDiff <= 5) score += 60;
-    else if (sectionDiff <= 15) score += 30;
-    if (l.tier === drop.tier) score += 20;
-    // Price similarity bonus (within $20)
-    const priceDiff = Math.abs((l.asking_price || 0) - 0); // relative — just prefer cheaper
-    score -= priceDiff * 0.1;
-    return { ...l, _score: score };
-  });
-
-  const ranked = scored.sort((a, b) => b._score - a._score).slice(0, 4);
-
-  const handleListingClick = () => {
-    base44.functions.invoke('flashDrop', {
-      action: 'track_loser_action',
-      flash_drop_id: drop.id,
-      loser_action: 'clicked_listing',
-    }).catch(() => {});
-  };
-
+function LoserView({ allListings }) {
   return (
     <div className="space-y-3">
       <div className="text-center py-1">
         <p className="text-sm font-bold text-foreground">Not this time — but upgrades are available 👇</p>
         <p className="text-[10px] text-muted-foreground">Nearby seats available right now</p>
       </div>
-      {ranked.length > 0 ? (
-        <div className="space-y-2">
-          {ranked.map(l => {
-            const isSameSection = l.section === drop.section;
-            return (
-              <Link key={l.id} to={`/upgrades/${l.event_id}`} onClick={handleListingClick}
-                className="flex items-center justify-between px-3 py-2.5 rounded-xl transition-all active:scale-95"
-                style={{
-                  background: isSameSection ? 'rgba(0,255,135,0.06)' : 'rgba(255,255,255,0.05)',
-                  border: isSameSection ? '1px solid rgba(0,255,135,0.2)' : '1px solid rgba(255,255,255,0.1)',
-                }}>
-                <div>
-                  <span className="text-sm text-foreground font-semibold">
-                    Sec {l.section}{l.row ? ` Row ${l.row}` : ''}
-                  </span>
-                  {isSameSection && (
-                    <span className="ml-2 text-[9px] font-black px-1.5 py-0.5 rounded-full"
-                      style={{ background: 'rgba(0,255,135,0.15)', color: '#00FF87' }}>Same section</span>
-                  )}
-                </div>
-                <span className="font-black text-sm" style={{ color: '#00FF87' }}>${l.asking_price}</span>
-              </Link>
-            );
-          })}
-        </div>
-      ) : (
-        <Link to={`/upgrades/${drop.event_id}`}
-          onClick={handleListingClick}
-          className="block text-center text-xs text-primary underline py-2">
-          Browse all available seats →
-        </Link>
-      )}
+      <div className="rounded-xl px-3 py-2.5 text-center"
+        style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+        <p className="text-xs text-muted-foreground">
+          {allListings.length > 0
+            ? 'Upgrade options are available — open the Upgrades tab above.'
+            : 'No upgrade listings are available right now. Check the Upgrades tab again soon.'}
+        </p>
+      </div>
     </div>
   );
 }

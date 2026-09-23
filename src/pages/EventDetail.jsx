@@ -1,26 +1,29 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { format } from 'date-fns';
 import { MapPin, Calendar, ArrowLeft, Ticket, Zap, Plus, Bell, ShieldCheck } from 'lucide-react';
 import ListingCard from '@/components/events/ListingCard';
 import PurchaseDialog from '@/components/events/PurchaseDialog';
-import { getEventLiveStatus } from '@/lib/eventTiming';
+import { formatEventVenueDateTime, getEventLiveStatus } from '@/lib/eventTiming';
+import { getEmptyTicketCopy, getEventModeCopy } from '@/lib/eventDetailPresentation';
 import { logNavEvent } from '@/lib/navLogger';
 import EventLookupDebugPanel from '@/components/debug/EventLookupDebugPanel';
+import { useAuth } from '@/lib/AuthContext';
+import { adminAccess } from '@/lib/adminAccess';
 export default function EventDetail() {
   const { id } = useParams();
+  const auth = useAuth();
+  const { user } = auth;
+  const isVerifiedAdmin = adminAccess(auth) === 'admin';
   const [event, setEvent] = useState(null);
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedListing, setSelectedListing] = useState(null);
-  const [user, setUser] = useState(null);
   const [lookupError, setLookupError] = useState(false);
   const [lookupTrace, setLookupTrace] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
-    base44.auth.me().then(setUser).catch(() => {});
     setLoading(true);
     setLookupError(false);
     setLookupTrace(null);
@@ -33,19 +36,19 @@ export default function EventDetail() {
         let events = [];
         try {
           events = await base44.entities.Event.filter({ id });
-        } catch (e) { /* ignore */ }
+        } catch { /* ignore */ }
         trace.steps.push({ method: 'direct_id', count: events.length });
 
         // ── Step 2: tm_ prefix strip ─────────────────────────────────────────
         if (events.length === 0 && id && id.startsWith('tm_')) {
           const tmId = id.replace('tm_', '');
-          try { events = await base44.entities.Event.filter({ tm_id: tmId }); } catch (e) { /* ignore */ }
+          try { events = await base44.entities.Event.filter({ tm_id: tmId }); } catch { /* ignore */ }
           trace.steps.push({ method: 'tm_prefix_strip', count: events.length });
         }
 
         // ── Step 3: bare tm_id lookup ────────────────────────────────────────
         if (events.length === 0) {
-          try { events = await base44.entities.Event.filter({ tm_id: id }); } catch (e) { /* ignore */ }
+          try { events = await base44.entities.Event.filter({ tm_id: id }); } catch { /* ignore */ }
           trace.steps.push({ method: 'tm_id_field', count: events.length });
         }
 
@@ -82,7 +85,6 @@ export default function EventDetail() {
         }
 
         const resolvedId = ev.id;
-        const me = await base44.auth.me().catch(() => null);
         // Phase 1B-2: fetch listings through the safe participant view function.
         // No direct Listing entity access — private fields never reach the client.
         let safeListings = [];
@@ -98,8 +100,6 @@ export default function EventDetail() {
         }
         if (cancelled) return;
 
-        const adminUnlocked = me?.role === 'admin' || sessionStorage.getItem('pg_admin_unlocked') === '1';
-        const timing = getEventLiveStatus(ev);
         const real = safeListings.filter(l => !l.is_demo_listing);
         setListings(real.length > 0 ? real : safeListings);
 
@@ -160,17 +160,19 @@ export default function EventDetail() {
             <Link to="/events" className="text-sm text-muted-foreground underline">← Back to Events</Link>
           </div>
         </div>
-        {user?.role === 'admin' && <EventLookupDebugPanel routeId={id} lookupTrace={lookupTrace} />}
+        {isVerifiedAdmin && <EventLookupDebugPanel routeId={id} lookupTrace={lookupTrace} />}
       </div>
     );
   }
 
-  const adminUnlocked = user?.role === 'admin' || sessionStorage.getItem('pg_admin_unlocked') === '1';
   const timing = getEventLiveStatus(event);
   const isLive = timing.status === 'live';
-  const isLiveMode = timing.status === 'live' || timing.status === 'ended';
-  const isDemoOnly = listings.length > 0 && listings.some(l => l.is_demo_listing);
-  const sorted = [...listings].sort((a, b) => a.asking_price - b.asking_price);
+  const isEnded = timing.status === 'ended';
+  const eventModeCopy = getEventModeCopy(timing.status);
+  const emptyTicketCopy = getEmptyTicketCopy(timing.status);
+  const availableListings = isEnded ? [] : listings;
+  const isDemoOnly = availableListings.length > 0 && availableListings.some(l => l.is_demo_listing);
+  const sorted = [...availableListings].sort((a, b) => a.asking_price - b.asking_price);
   const cheapest = sorted[0]?.asking_price;
 
   return (
@@ -221,7 +223,7 @@ export default function EventDetail() {
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-1.5 text-xs text-white/70">
               <Calendar className="w-3.5 h-3.5" />
-              {(event.event_start_utc || event.date) ? format(new Date(event.event_start_utc || event.date), 'EEEE, MMMM d, yyyy · h:mm a') : 'TBD'}
+              {formatEventVenueDateTime(event, { style: 'full' })}
             </div>
             <div className="flex items-center gap-1.5 text-xs text-white/70">
               <MapPin className="w-3.5 h-3.5" />
@@ -251,21 +253,17 @@ export default function EventDetail() {
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-black text-sm text-foreground leading-none">
-            {isLive ? 'Live Hub — Open Now!' : timing.status === 'soon' ? 'Live Hub — Starting Soon' : 'Upgrades & Live Hub'}
+            {eventModeCopy.title}
           </p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {isLive
-              ? 'Flash Drops, seat upgrades & live fan activity'
-              : timing.status === 'soon'
-              ? 'Flash Drops & upgrades open when the event starts'
-              : 'Flash Drops & upgrades unlock at showtime'}
+            {eventModeCopy.description}
           </p>
         </div>
         <span className="text-xs font-black px-3 py-1.5 rounded-full flex-shrink-0"
           style={isLive
             ? { background: 'rgba(255,230,0,0.25)', color: '#FFE600', border: '1px solid rgba(255,230,0,0.4)' }
             : { background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' }}>
-          {isLive ? 'Open →' : timing.status === 'soon' ? 'Get Ready' : 'Preview'}
+          {eventModeCopy.action}
         </span>
       </Link>
 
@@ -278,12 +276,14 @@ export default function EventDetail() {
             <div>
               <h2 className="font-display text-2xl text-foreground flex items-center gap-2">
                 <Ticket className="w-5 h-5 text-primary" />
-                Available Tickets
-                <span className="font-sans text-base font-normal text-muted-foreground">({listings.length})</span>
+                {isEnded ? 'Ticket Sales Closed' : 'Available Tickets'}
+                <span className="font-sans text-base font-normal text-muted-foreground">({availableListings.length})</span>
               </h2>
-              <p className="text-sm text-muted-foreground mt-1">Buy tickets from other fans</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                {isEnded ? 'This event is over' : 'Buy tickets from other fans'}
+              </p>
             </div>
-            {adminUnlocked && (
+            {isVerifiedAdmin && (
               <span className="text-xs bg-amber-500/15 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-full font-medium">
                 🔑 Admin
               </span>
@@ -300,19 +300,21 @@ export default function EventDetail() {
         </div>
 
         {/* Listings */}
-        {listings.length === 0 ? (
+        {availableListings.length === 0 ? (
           <div className="space-y-4">
-            {isLiveMode && !adminUnlocked ? (
+            {emptyTicketCopy && (isEnded || !isVerifiedAdmin) ? (
               <div className="text-center py-10 rounded-2xl" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
-                <p className="text-4xl mb-3">⚡</p>
-                <p className="font-bold text-foreground">Event is live — check Upgrades</p>
+                <p className="text-4xl mb-3">{isEnded ? '🎟️' : '⚡'}</p>
+                <p className="font-bold text-foreground">{emptyTicketCopy.title}</p>
                 <p className="text-sm text-muted-foreground mt-1 max-w-[240px] mx-auto leading-relaxed">
-                  Pre-event ticket sales have closed. Fans inside are listing seat upgrades right now.
+                  {emptyTicketCopy.description}
                 </p>
-                <Link to={`/upgrades/${event.id}`}
+                <Link to={emptyTicketCopy.destination || `/upgrades/${event.id}`}
                   className="inline-flex items-center gap-2 mt-4 px-6 py-3 rounded-full font-black text-sm"
-                  style={{ background: 'linear-gradient(135deg, #FFE600, #FF8C00)', color: '#0D0B14' }}>
-                  <Zap className="w-4 h-4" /> Find Seat Upgrades
+                  style={isEnded
+                    ? { background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }
+                    : { background: 'linear-gradient(135deg, #FFE600, #FF8C00)', color: '#0D0B14' }}>
+                  {isEnded ? <Ticket className="w-4 h-4" /> : <Zap className="w-4 h-4" />} {emptyTicketCopy.action}
                 </Link>
               </div>
             ) : (
@@ -346,8 +348,8 @@ export default function EventDetail() {
                 <div className="rounded-2xl px-4 py-4 space-y-3" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
                   <p className="text-xs font-black tracking-widest uppercase text-muted-foreground">How Peanut Gallery Works</p>
                   {[
-                    { icon: <Ticket className="w-4 h-4" />, color: '#BF5FFF', title: 'Fan-to-fan tickets', body: 'Real fans sell tickets they can\'t use — no scalpers, no bots.' },
-                    { icon: <ShieldCheck className="w-4 h-4" />, color: '#00FF87', title: 'Escrow protected', body: 'Your money is held safely until you confirm you got the tickets.' },
+                    { icon: <Ticket className="w-4 h-4" />, color: '#BF5FFF', title: 'Fan-to-fan tickets', body: 'Fans can list eligible tickets they already own and can transfer.' },
+                    { icon: <ShieldCheck className="w-4 h-4" />, color: '#00FF87', title: 'Payment guardrails', body: 'Stripe holds the authorization while transfer and protection checks are pending.' },
                     { icon: <Zap className="w-4 h-4" />, color: '#00C8FF', title: 'Live upgrades at showtime', body: 'Once the event starts, better seats get listed by fans who can\'t use them.' },
                   ].map(({ icon, color, title, body }) => (
                     <div key={title} className="flex items-start gap-3">
@@ -363,17 +365,17 @@ export default function EventDetail() {
                   ))}
                 </div>
 
-                {/* Notify me when tickets arrive */}
+                {/* This opens general preferences; it does not subscribe to this event. */}
                 <div className="rounded-2xl px-4 py-4 flex items-center justify-between gap-3"
                   style={{ background: 'rgba(191,95,255,0.06)', border: '1px solid rgba(191,95,255,0.2)' }}>
                   <div>
-                    <p className="text-sm font-bold text-foreground">Get notified when tickets drop</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">We'll alert you the moment a listing goes live.</p>
+                    <p className="text-sm font-bold text-foreground">Manage notification preferences</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Choose which app and email alerts you receive.</p>
                   </div>
                   <Link to="/account-settings"
                     className="flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-xs flex-shrink-0"
                     style={{ background: 'rgba(191,95,255,0.15)', border: '1px solid rgba(191,95,255,0.35)', color: '#BF5FFF' }}>
-                    <Bell className="w-3.5 h-3.5" /> Alerts
+                    <Bell className="w-3.5 h-3.5" /> Settings
                   </Link>
                 </div>
               </div>

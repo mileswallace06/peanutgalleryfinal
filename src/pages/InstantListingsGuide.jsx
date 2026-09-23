@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Zap, Shield, Clock, CheckCircle, ArrowRight, Lock, Star, Users, Truck } from 'lucide-react';
+import { ArrowLeft, Zap, Shield, Clock, ArrowRight, Lock, Star } from 'lucide-react';
 import FaqAccordion from '@/components/education/FaqAccordion';
 
 const CYAN = '#00C8FF';
@@ -29,25 +29,25 @@ const SELLER_STEPS = [
   { icon: '📸', title: 'Upload Transfer Proof', desc: 'Screenshot the confirmation and upload it. Takes 30 seconds.' },
   { icon: '✅', title: 'PG Verifies Custody', desc: 'Our team reviews your transfer proof, usually within a few hours. You\'ll be notified once approved.' },
   { icon: '⚡', title: 'Your Listing Goes Live', desc: 'Your listing appears with the ⚡ Instant Transfer badge. You don\'t need to be online or available again.' },
-  { icon: '💰', title: 'Get Paid After Sale', desc: 'Once a buyer confirms receipt, payment is released from escrow directly to your bank. Automatic.' },
+  { icon: '💰', title: 'Payout After Checks', desc: 'After delivery confirmation and required protection checks, Stripe can schedule the eligible payout to your bank.' },
 ];
 
 const BUYER_STEPS = [
   { icon: '🔍', title: 'Find a Listing', desc: 'Look for listings with the ⚡ Instant Transfer badge — these are PG-verified tickets already in our custody.' },
-  { icon: '🛒', title: 'Buy with Escrow Protection', desc: 'Your payment is held safely in escrow. The seller never gets paid until you confirm receipt.' },
+  { icon: '🛒', title: 'Authorize with Guardrails', desc: 'Stripe places an authorization hold while transfer and required protection checks are pending.' },
   { icon: '📬', title: 'PG Transfers the Ticket', desc: 'We forward the ticket directly to your email or transfer account — no waiting on the original seller.' },
   { icon: '✅', title: 'Confirm + Enjoy', desc: 'Confirm receipt in the app and your payment is released. That\'s it. No last-minute anxiety.' },
 ];
 
 const FAQS = [
   { q: 'What does "PG custody" actually mean?', a: 'It means the ticket has been physically transferred from the seller to Peanut Gallery\'s verified account before the listing is published. We hold it until a buyer purchases — then we forward it to the buyer directly.' },
-  { q: 'Does the seller still get paid?', a: 'Yes. After the buyer confirms ticket receipt, the escrowed payment is released to the seller\'s bank account via Stripe. Sellers keep 95% of the sale price.' },
+  { q: 'Does the seller still get paid?', a: 'Yes. After delivery confirmation and required protection checks, Stripe can schedule the eligible seller payout. Bank timing varies.' },
   { q: 'What if my transfer proof gets rejected?', a: 'Our team will let you know the reason. Common issues: screenshot not showing both accounts clearly, incomplete transfer, or the ticket was already transferred elsewhere. You can resubmit with a clearer screenshot.' },
   { q: 'Can I cancel my Instant Listing?', a: 'Before verification, yes — contact support and we\'ll return the ticket to you. After a buyer has purchased, cancellation is not possible as the transfer process begins immediately.' },
   { q: 'What ticket platforms can I transfer from?', a: 'We accept transfers from Ticketmaster, AXS, SeatGeek, and email-transferable tickets. The transfer email is experience@peanutgallery.store.' },
-  { q: 'What if the buyer says they didn\'t receive the ticket?', a: 'All transfers are logged and verified. Our team can audit the delivery chain and resolve disputes. Buyer funds stay in escrow until the issue is resolved.' },
-  { q: 'How long does PG verification take?', a: 'Typically a few hours during business hours. We aim to verify within 24 hours in all cases.' },
-  { q: 'Is this available for all events?', a: 'Instant Transfer listings are available for all events on Peanut Gallery. The listing type is optional — you can always choose Standard mode instead.' },
+  { q: 'What if the buyer says they didn\'t receive the ticket?', a: 'The buyer can open a dispute. PG reviews available transfer evidence before the authorization, charge, or payout is completed.' },
+  { q: 'How long does PG verification take?', a: 'Timing varies. The listing remains unavailable until the custody evidence has been reviewed and approved.' },
+  { q: 'Is this available for all events?', a: 'No. Instant Transfer is available only for eligible events, ticket formats, and custody workflows.' },
 ];
 
 export default function InstantListingsGuide() {
@@ -72,16 +72,16 @@ export default function InstantListingsGuide() {
           Transfer Once.<br />Sell Instantly.
         </h1>
         <p className="text-sm text-muted-foreground leading-relaxed max-w-sm">
-          PG-verified inventory means tickets are already in our hands before your listing goes live. Buyers get instant, guaranteed delivery. Sellers don't need to be online.
+          Custody-reviewed inventory means PG has recorded and approved the ticket handoff before a listing goes live. Delivery can begin without waiting for the original seller.
         </p>
       </div>
 
       {/* Trust badges */}
       <div className="grid grid-cols-2 gap-2 mb-10">
-        <TrustBadge icon="🔒" label="Escrow Protected" />
-        <TrustBadge icon="⚡" label="Instant Delivery" />
-        <TrustBadge icon="✅" label="PG Verified Inventory" />
-        <TrustBadge icon="🚫" label="No Seller Ghosting" />
+        <TrustBadge icon="🔒" label="Payment Guardrails" />
+        <TrustBadge icon="⚡" label="Faster Handoff" />
+        <TrustBadge icon="✅" label="Custody Reviewed" />
+        <TrustBadge icon="🚫" label="Seller Handoff Reduced" />
       </div>
 
       {/* What is Instant Transfer */}
@@ -103,8 +103,8 @@ export default function InstantListingsGuide() {
           {[
             { icon: <Shield className="w-4 h-4" style={{ color: GREEN }} />, title: 'No Seller Dependency', desc: 'The seller doesn\'t need to be online, awake, or responsive after listing. We handle delivery.' },
             { icon: <Clock className="w-4 h-4" style={{ color: CYAN }} />, title: 'Instant Delivery', desc: 'Buyers receive their ticket within minutes of purchase — not hours or days.' },
-            { icon: <Lock className="w-4 h-4" style={{ color: '#BF5FFF' }} />, title: 'Verified Ownership', desc: 'We physically confirm the ticket before listing it. No duplicates, no fakes.' },
-            { icon: <Star className="w-4 h-4" style={{ color: '#FFE600' }} />, title: 'Event-Day Confidence', desc: 'Know your ticket is real and waiting for you. Zero last-minute stress.' },
+            { icon: <Lock className="w-4 h-4" style={{ color: '#BF5FFF' }} />, title: 'Reviewed Custody', desc: 'PG reviews recorded custody evidence before making this listing type available.' },
+            { icon: <Star className="w-4 h-4" style={{ color: '#FFE600' }} />, title: 'Less Event-Day Dependency', desc: 'The handoff does not depend on the original seller responding after purchase.' },
           ].map((item, i) => (
             <div key={i} className="flex items-start gap-4 px-4 py-4 rounded-2xl"
               style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
@@ -161,15 +161,15 @@ export default function InstantListingsGuide() {
         </div>
       </div>
 
-      {/* Escrow callout */}
+      {/* Payment-controls callout */}
       <div className="mb-10 rounded-2xl p-5"
         style={{ background: 'rgba(0,255,135,0.06)', border: '1px solid rgba(0,255,135,0.2)' }}>
         <div className="flex items-center gap-3 mb-3">
           <Lock className="w-5 h-5 flex-shrink-0" style={{ color: GREEN }} />
-          <p className="font-black text-base text-foreground">Escrow + Payout Protection</p>
+          <p className="font-black text-base text-foreground">Payment + Payout Controls</p>
         </div>
         <p className="text-sm text-muted-foreground leading-relaxed">
-          Every Peanut Gallery purchase — Instant or Standard — is escrow-protected. Your payment is held securely until you confirm you received the ticket. The seller never receives funds until delivery is confirmed. Powered by Stripe.
+          Eligible purchases use a Stripe authorization hold while transfer is pending. Charge and seller-payout decisions depend on delivery confirmation, disputes, and required protection checks. This is not a bank escrow account.
         </p>
       </div>
 

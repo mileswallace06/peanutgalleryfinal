@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
+import { getSafeNotificationRoute } from '@/lib/notificationRoute';
 import { formatDistanceToNow } from 'date-fns';
 import { Bell, CheckCheck, ArrowLeft, RefreshCw } from 'lucide-react';
 
@@ -30,15 +31,18 @@ const TYPE_COLORS = {
 function NotifCard({ notif, onMarkRead }) {
   const color = TYPE_COLORS[notif.type] || '#BF5FFF';
   const isUnread = !notif.read;
+  const safeActionUrl = getSafeNotificationRoute(notif.action_url);
+  const handleOpen = () => {
+    if (isUnread) void onMarkRead(notif.id);
+  };
 
   const inner = (
     <div
-      onClick={() => !notif.read && onMarkRead(notif.id)}
       className="flex items-start gap-3 p-4 rounded-2xl transition-all"
       style={{
         background: isUnread ? `${color}0D` : 'hsl(var(--card))',
         border: `1px solid ${isUnread ? color + '35' : 'hsl(var(--border))'}`,
-        cursor: isUnread ? 'pointer' : 'default',
+        cursor: safeActionUrl || isUnread ? 'pointer' : 'default',
       }}
     >
       {/* Icon */}
@@ -65,8 +69,16 @@ function NotifCard({ notif, onMarkRead }) {
     </div>
   );
 
-  if (notif.action_url) {
-    return <Link to={notif.action_url} onClick={() => !notif.read && onMarkRead(notif.id)}>{inner}</Link>;
+  if (safeActionUrl) {
+    return <Link to={safeActionUrl} onClick={handleOpen}>{inner}</Link>;
+  }
+  if (isUnread) {
+    return (
+      <button type="button" className="block w-full text-left" onClick={handleOpen}
+        aria-label={`Mark ${notif.title || 'notification'} as read`}>
+        {inner}
+      </button>
+    );
   }
   return inner;
 }
@@ -76,6 +88,8 @@ export default function Notifications() {
   const [notifs, setNotifs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // 'all' | 'unread'
+  const markReadInFlight = useRef(new Set());
+  const markedReadIds = useRef(new Set());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -85,22 +99,34 @@ export default function Notifications() {
       const data = await base44.entities.Notification.filter({ user_email: me.email },  '-created_date', 80).catch(() => []);
       // Superseded concurrent-duplicate records are hidden from the inbox
       // (they never dispatched); they remain in the DB for audit.
-      setNotifs(data.filter((n) => n.dispatch_status !== 'superseded'));
+      const visible = data.filter((n) => n.dispatch_status !== 'superseded');
+      visible.filter((n) => n.read).forEach((n) => markedReadIds.current.add(n.id));
+      setNotifs(visible);
     }
     setLoading(false);
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
-  const markRead = async (id) => {
-    await base44.entities.Notification.update(id, { read: true }).catch(() => {});
-    setNotifs(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-  };
+  const markRead = useCallback(async (id) => {
+    if (!id || markedReadIds.current.has(id) || markReadInFlight.current.has(id)) return false;
+    markReadInFlight.current.add(id);
+    try {
+      await base44.entities.Notification.update(id, { read: true });
+      markedReadIds.current.add(id);
+      setNotifs(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+      return true;
+    } catch {
+      // Keep the notification unread so a failed update can be retried.
+      return false;
+    } finally {
+      markReadInFlight.current.delete(id);
+    }
+  }, []);
 
   const markAllRead = async () => {
     const unread = notifs.filter(n => !n.read);
-    await Promise.all(unread.map(n => base44.entities.Notification.update(n.id, { read: true }).catch(() => {})));
-    setNotifs(prev => prev.map(n => ({ ...n, read: true })));
+    await Promise.all(unread.map(n => markRead(n.id)));
   };
 
   const unreadCount = notifs.filter(n => !n.read).length;

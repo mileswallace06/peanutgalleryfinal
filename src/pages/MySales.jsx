@@ -6,6 +6,7 @@ import { Ticket, Clock, CheckCircle, Package, ArrowRight, Plus, RefreshCw } from
 import SellerMetrics from '@/components/sales/SellerMetrics';
 import ListingStatusBanner from '@/components/listings/ListingStatusBanner';
 import { isVerificationExpired } from '@/lib/transferConfidence';
+import { formatEventVenueDate } from '@/lib/eventTiming';
 
 export default function MySales() {
   const [user, setUser] = useState(null);
@@ -427,7 +428,7 @@ export default function MySales() {
           <div className="space-y-2">
             {completedSales.map(p => {
               const ev = events[p.event_id];
-              const eventDate = ev?.event_start_local || ev?.date;
+              const eventDate = ev ? formatEventVenueDate(ev, { fallback: '' }) : '';
               const payoutState = p.payment_captured ? 'paid out' : 'pending payout';
               const payoutColor = p.payment_captured ? 'var(--neon-green)' : '#FF8C00';
               return (
@@ -436,7 +437,7 @@ export default function MySales() {
                     <div className="font-semibold text-foreground truncate">{ev?.title || 'Event'}</div>
                     {eventDate && (
                       <div className="text-xs text-muted-foreground mt-0.5">
-                        {format(new Date(eventDate), 'EEE, MMM d, yyyy')}
+                        {eventDate}
                       </div>
                     )}
                     <div className="flex items-center gap-2 mt-1 flex-wrap">

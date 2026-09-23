@@ -5,15 +5,15 @@ import { useNavigate } from 'react-router-dom';
 const EXTERNAL_LINKS = [
   {
     icon: HelpCircle,
-    label: 'Help Center',
-    desc: 'FAQs, guides, and how-tos',
+    label: 'Email a Help Request',
+    desc: 'Opens your email app to contact support',
     href: 'mailto:experience@peanutgallery.store?subject=Help Request',
     color: '#00C8FF',
   },
   {
     icon: Mail,
-    label: 'Contact Support',
-    desc: 'Email us about any issue',
+    label: 'Email Support',
+    desc: 'Opens your email app for any issue',
     href: 'mailto:experience@peanutgallery.store',
     color: '#BF5FFF',
   },

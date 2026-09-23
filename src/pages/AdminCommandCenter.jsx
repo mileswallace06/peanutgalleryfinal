@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
-import { isAdmin } from '@/lib/isAdmin';
+import { adminAccess } from '@/lib/adminAccess';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
-import { format, formatDistanceToNow } from 'date-fns';
-import { Shield, RefreshCw, AlertTriangle, CreditCard, Zap, Users, Activity, Brain, Radio, Database, Bell, ClipboardList, ArrowUpRight, Gauge } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
+import { Shield, RefreshCw, AlertTriangle, CreditCard, Zap, Users, Activity, Brain, Radio, Database, Bell, ClipboardList, Gauge } from 'lucide-react';
 import TransferWindowAdminPanel from '@/components/admin/TransferWindowAdminPanel';
 import TransferIntelligencePanel from '@/components/admin/cc/TransferIntelligencePanel';
 import AdminAlertCenter from '@/components/admin/cc/AdminAlertCenter';
@@ -63,7 +63,8 @@ const SECTIONS = [
 ];
 
 export default function AdminCommandCenter() {
-  const { user, isLoadingAuth } = useAuth();
+  const auth = useAuth();
+  const access = adminAccess(auth);
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState(null);
   const [activeSection, setActiveSection] = useState('issues');
@@ -101,13 +102,13 @@ export default function AdminCommandCenter() {
   }, []);
 
   useEffect(() => {
-    if (!isLoadingAuth && user && isAdmin(user)) {
+    if (access === 'admin') {
       loadAll();
     }
-  }, [isLoadingAuth, user]);
+  }, [access, loadAll]);
 
   // Still loading auth
-  if (isLoadingAuth) {
+  if (access === 'checking') {
     return (
       <div className="min-h-full flex items-center justify-center">
         <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -116,7 +117,7 @@ export default function AdminCommandCenter() {
   }
 
   // Not admin → redirect
-  if (!user || !isAdmin(user)) {
+  if (access !== 'admin') {
     return <Navigate to="/events" replace />;
   }
 

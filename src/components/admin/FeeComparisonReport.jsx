@@ -7,7 +7,7 @@
 import { useMemo, useState } from 'react';
 import {
   buildComparison, analyzeUXRisk, analyzeMinListingPriceImpact,
-  findBreakeven, FEE_MODELS, calculateFees,
+  findBreakeven,
 } from '@/lib/feeEngine';
 
 const RISK_COLORS = {
@@ -31,12 +31,6 @@ export default function FeeComparisonReport() {
   const minImpact  = useMemo(() => analyzeMinListingPriceImpact(minThreshold), [minThreshold]);
   const breakevenCurrent  = findBreakeven('current_5pct');
   const breakevenCandidate = findBreakeven('pct5_min1');
-
-  // Buyer fee increase at the $1 minimum crossover
-  const crossoverPrice = 20; // 5% of $20 = $1.00 exactly
-  const sampleLow  = calculateFees(5, 1, 'pct5_min1');
-  const sampleMid  = calculateFees(20, 1, 'pct5_min1');
-  const sampleHigh = calculateFees(100, 1, 'pct5_min1');
 
   return (
     <div className="bg-card border border-border rounded-2xl p-5 mb-6 space-y-6">
@@ -169,7 +163,7 @@ export default function FeeComparisonReport() {
             { icon: '✅', type: 'ok', text: `Above $20, the $1 minimum has no buyer impact — 5% of $20 already equals $1.00. Zero UX risk.` },
             { icon: '🚫', type: 'warning', text: `Listings under $5 lose money on BOTH models. These should be blocked regardless of fee model chosen.` },
             { icon: '💡', type: 'tip', text: `Recommended rollout: enforce $10 minimum listing price + switch to 5% + $1 min simultaneously.` },
-            { icon: '✅', type: 'ok', text: `Live Stripe Connect architecture, capturePayment, escrow, and seller payout logic are fully untouched.` },
+            { icon: '✅', type: 'ok', text: `This fee calculator does not change the existing Stripe authorization, capture, or seller-payout code paths.` },
           ].map((r, i) => {
             const color = r.type === 'warning' ? '#FFE600' : r.type === 'ok' ? '#00FF87' : '#00C8FF';
             return (

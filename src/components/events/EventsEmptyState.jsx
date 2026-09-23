@@ -59,7 +59,7 @@ export default function EventsEmptyState({ locationStatus, onNearMe, onEnterCity
             {[
             { icon: <Ticket className="w-3 h-3" />, text: 'Real fan-listed seats for concerts & sports near you' },
             { icon: <ArrowUpRight className="w-3 h-3" />, text: 'Seat upgrades available at showtime — often below face value' },
-            { icon: <ShieldCheck className="w-3 h-3" />, text: 'Money held in escrow — you confirm before seller is paid' }].
+            { icon: <ShieldCheck className="w-3 h-3" />, text: 'Stripe authorization held while transfer is pending' }].
             map(({ icon, text }) =>
             <div key={text} className="flex items-center gap-2">
                 <span style={{ color: '#BF5FFF' }}>{icon}</span>

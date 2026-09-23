@@ -1,28 +1,87 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, LoaderCircle, RefreshCw } from 'lucide-react';
+
+const POLICY_SCRIPT_ID = 'usercentrics-ppg';
+const POLICY_LOAD_TIMEOUT_MS = 12000;
+const POLICY_SUPPORT_EMAIL = 'experience@peanutgallery.store';
 
 export default function PrivacyPolicy() {
   const navigate = useNavigate();
+  const policyContainerRef = useRef(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const [loadState, setLoadState] = useState('loading');
 
   // Inject the Usercentrics Privacy Policy script into the page head.
   // The script renders the policy into any <div class="uc-privacy-policy"></div>.
   useEffect(() => {
-    const existing = document.getElementById('usercentrics-ppg');
-    if (existing) return;
+    const policyContainer = policyContainerRef.current;
+    if (!policyContainer) return undefined;
+
+    setLoadState('loading');
+    policyContainer.replaceChildren();
+
+    // A script left by an earlier visit has already run and will not populate a
+    // newly mounted container. Recreate it for each load attempt.
+    document.getElementById(POLICY_SCRIPT_ID)?.remove();
 
     const script = document.createElement('script');
-    script.id = 'usercentrics-ppg';
+    script.id = POLICY_SCRIPT_ID;
     script.setAttribute('privacy-policy-id', '9bec4d64-fe73-478c-861b-cba483ffd1a0');
     script.setAttribute('data-language', 'en');
     script.src = 'https://policygenerator.usercentrics.eu/api/privacy-policy';
+    script.async = true;
+
+    let finished = false;
+    let timeoutId;
+
+    const hasPolicyContent = () => (
+      policyContainer.childElementCount > 0
+      || Boolean(policyContainer.textContent?.trim())
+    );
+
+    const observer = new MutationObserver(() => {
+      if (!finished && hasPolicyContent()) {
+        finished = true;
+        window.clearTimeout(timeoutId);
+        observer.disconnect();
+        setLoadState('ready');
+      }
+    });
+
+    const handleLoad = () => {
+      if (!finished && hasPolicyContent()) {
+        finished = true;
+        window.clearTimeout(timeoutId);
+        observer.disconnect();
+        setLoadState('ready');
+      }
+    };
+
+    const handleError = () => {
+      if (finished) return;
+      finished = true;
+      window.clearTimeout(timeoutId);
+      observer.disconnect();
+      setLoadState('error');
+    };
+
+    observer.observe(policyContainer, { childList: true, subtree: true, characterData: true });
+    script.addEventListener('load', handleLoad);
+    script.addEventListener('error', handleError);
     document.head.appendChild(script);
 
+    timeoutId = window.setTimeout(handleError, POLICY_LOAD_TIMEOUT_MS);
+
     return () => {
-      const node = document.getElementById('usercentrics-ppg');
-      if (node) node.remove();
+      finished = true;
+      window.clearTimeout(timeoutId);
+      observer.disconnect();
+      script.removeEventListener('load', handleLoad);
+      script.removeEventListener('error', handleError);
+      script.remove();
     };
-  }, []);
+  }, [loadAttempt]);
 
   return (
     <div style={{ height: '100dvh', overflowY: 'auto' }}>
@@ -40,8 +99,45 @@ export default function PrivacyPolicy() {
       </div>
 
       <div className="px-5 py-6 pb-32 max-w-2xl mx-auto">
+        {loadState === 'loading' && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="rounded-2xl border border-border bg-card p-5 flex items-center gap-3 text-muted-foreground"
+          >
+            <LoaderCircle className="w-5 h-5 animate-spin shrink-0" aria-hidden="true" />
+            <span>Loading the privacy policy…</span>
+          </div>
+        )}
+
+        {loadState === 'error' && (
+          <div role="alert" className="rounded-2xl border border-border bg-card p-5">
+            <h2 className="font-display text-lg text-foreground">Privacy policy temporarily unavailable</h2>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              The policy could not load from our policy provider. Try again, or contact us for a copy.
+            </p>
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setLoadAttempt(attempt => attempt + 1)}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 py-2 text-sm font-semibold text-foreground"
+              >
+                <RefreshCw className="w-4 h-4" aria-hidden="true" />
+                Try again
+              </button>
+              <a
+                href={`mailto:${POLICY_SUPPORT_EMAIL}?subject=Privacy%20Policy%20Request`}
+                className="inline-flex min-h-11 items-center justify-center px-2 py-2 text-sm font-semibold underline"
+                style={{ color: 'var(--neon-cyan)' }}
+              >
+                Contact {POLICY_SUPPORT_EMAIL}
+              </a>
+            </div>
+          </div>
+        )}
+
         {/* Usercentrics renders the policy here */}
-        <div className="uc-privacy-policy" />
+        <div ref={policyContainerRef} className="uc-privacy-policy" />
 
         {/* Scoped styles to make Usercentrics-injected content readable in both light & dark mode */}
         <style>{`

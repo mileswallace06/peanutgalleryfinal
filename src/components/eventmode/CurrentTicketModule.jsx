@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Ticket } from 'lucide-react';
+import { selectCurrentPurchase, selectCurrentSeatInventory } from '@/lib/currentTicketState';
 
 /**
  * CurrentTicketModule — resolves the logged-in user's current seat for this
@@ -36,9 +37,7 @@ export default function CurrentTicketModule({ event, user }) {
         });
         if (cancelled) return;
         const purchases = purchaseRes?.data?.purchases || [];
-        const sorted = [...purchases].sort((a, b) => new Date(b.created_date || 0) - new Date(a.created_date || 0));
-        const completed = sorted.find(p => p.transfer_status === 'completed')
-          || sorted.find(p => p.transfer_status !== 'disputed');
+        const completed = selectCurrentPurchase(purchases);
 
         if (completed?.listing_id) {
           const lres = await base44.functions.invoke('getListingParticipantView', {
@@ -64,7 +63,7 @@ export default function CurrentTicketModule({ event, user }) {
         // Fallback: SeatInventory ownership record
         const inv = await base44.entities.SeatInventory.filter({ event_id: event.id, owner_email: user.email });
         if (cancelled) return;
-        const si = (inv || [])[0];
+        const si = selectCurrentSeatInventory(inv || []);
         if (si?.section) {
           setSeat({
             section: si.section,
