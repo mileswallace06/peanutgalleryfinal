@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Ticket } from 'lucide-react';
+import EventThumbnail from '@/components/events/EventThumbnail';
 
 /**
  * CurrentTicketModule — resolves the logged-in user's current seat for this
@@ -86,34 +86,15 @@ export default function CurrentTicketModule({ event, user }) {
   if (loading || !seat) return null;
 
   return (
-    <section className="px-4 mt-5" style={{ marginBottom: 'var(--ev-gap)' }}>
-      <div className="flex items-center gap-2 mb-2.5">
-        <span className="h-3.5 w-1 rounded-full" style={{ background: 'var(--ev-teal)' }} />
-        <h2 className="font-display uppercase tracking-wide" style={{ color: 'var(--ev-text)', fontSize: '1.05rem' }}>
-          Your Ticket
-        </h2>
-      </div>
-
-      <div className="rounded-2xl p-4 flex items-center gap-4"
-        style={{ background: 'var(--ev-surface)', border: '1px solid var(--ev-border)' }}>
-        <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
-          style={{ background: 'var(--ev-teal-soft)', border: '1px solid var(--ev-teal-border)' }}>
-          <Ticket className="w-5 h-5" style={{ color: 'var(--ev-teal)' }} />
+    <section className="pg-current-seat" aria-label="Your ticket">
+      <div className="pg-ticket pg-current-seat-ticket">
+        <div className="pg-current-seat-copy">
+          <p className="pg-ticket-label">Your seat</p>
+          <h2>Sec {seat.section}{seat.row ? ` · Row ${seat.row}` : ''}</h2>
+          <p>{seat.seats ? `Seats ${seat.seats} · ` : ''}{seat.quantity > 1 ? `${seat.quantity} tickets` : '1 ticket'}</p>
+          {seat.status && <p className={`pg-current-seat-status pg-current-seat-status-${seat.status.tone}`}>{seat.status.label}</p>}
         </div>
-        <div className="flex-1 min-w-0">
-          <div className="font-bold leading-tight" style={{ color: 'var(--ev-text)', fontSize: '1.1rem' }}>
-            Section {seat.section}{seat.row ? ` · Row ${seat.row}` : ''}
-          </div>
-          <div className="text-xs mt-0.5" style={{ color: 'var(--ev-text-2)' }}>
-            {seat.seats ? `Seats ${seat.seats} · ` : ''}{seat.quantity > 1 ? `${seat.quantity} tickets` : '1 ticket'}
-          </div>
-          {seat.status && (
-            <div className="text-[11px] font-semibold mt-1.5"
-              style={{ color: seat.status.tone === 'verified' ? 'var(--ev-teal)' : 'var(--ev-text-muted)' }}>
-              {seat.status.label}
-            </div>
-          )}
-        </div>
+        <EventThumbnail event={event} className="pg-current-seat-art" />
       </div>
     </section>
   );

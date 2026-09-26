@@ -40,51 +40,23 @@ export default function FanKarmaCard({ eventId, user }) {
     return () => { cancelled = true; };
   }, [eventId, user?.email, reload]);
 
-  if (loading) return <div className="h-24 rounded-2xl animate-pulse bg-muted" />;
+  if (loading) return <div className="pg-seat-offer-skeleton animate-pulse" aria-label="Loading Fan Karma" />;
 
   return (
-    <div className="rounded-2xl overflow-hidden"
-      style={{ background: 'rgba(255,230,0,0.05)', border: '1px solid rgba(255,230,0,0.2)' }}>
-      <div className="h-0.5" style={{ background: 'linear-gradient(90deg, #FFE600, #FF8C00, #BF5FFF)' }} />
-      <div className="px-4 py-3">
-        <div className="flex items-center gap-2 mb-3">
-          <Trophy className="w-4 h-4" style={{ color: '#FFE600' }} />
-          <h3 className="font-black text-sm text-foreground uppercase tracking-wide">Fan Karma</h3>
-          {myPoints !== null && myPoints > 0 && (
-            <span className="ml-auto text-xs font-black px-2 py-0.5 rounded-full" style={{ background: 'rgba(255,230,0,0.15)', color: '#FFE600' }}>
-              +{myPoints} pts tonight
-            </span>
-          )}
-        </div>
-
-        {loadError ? (
-          <div role="alert" className="text-xs text-muted-foreground space-y-2">
-            <p>Fan Karma couldn’t load.</p>
-            <button onClick={() => setReload(value => value + 1)} className="font-semibold underline">Try again</button>
-          </div>
-        ) : leaders.length === 0 ? (
-          <p className="text-xs text-muted-foreground">No Flash Drops yet tonight. Be the first to donate! 🎁</p>
-        ) : (
-          <div className="space-y-1.5">
-            {leaders.map((donor, i) => (
-              <div key={i} className="flex items-center gap-3">
-                <span className="text-base w-5 text-center">
-                  {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`}
-                </span>
-                <span className="flex-1 text-xs font-semibold text-foreground truncate">{donor.name}</span>
-                <span className="text-xs text-muted-foreground">{donor.drops} drop{donor.drops !== 1 ? 's' : ''}</span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div className="mt-3 pt-2 border-t grid grid-cols-3 gap-1 text-center text-[10px]"
-          style={{ borderColor: 'rgba(255,230,0,0.15)' }}>
-          <div><p className="font-black text-sm" style={{ color: '#FFE600' }}>+100</p><p className="text-muted-foreground">Flash Drop</p></div>
-          <div><p className="font-black text-sm" style={{ color: '#FF8C00' }}>+250</p><p className="text-muted-foreground">Lower Bowl</p></div>
-          <div><p className="font-black text-sm" style={{ color: '#BF5FFF' }}>+500</p><p className="text-muted-foreground">Premium</p></div>
-        </div>
+    <section className="pg-karma-panel">
+      <header className="pg-karma-heading"><Trophy size={22} /><h2 className="pg-section-title">Fan Karma</h2>
+        {myPoints !== null && myPoints > 0 && <span>+{myPoints} pts tonight</span>}
+      </header>
+      {loadError ? <div role="alert" className="pg-state"><p>Fan Karma couldn’t load.</p><button onClick={() => setReload(value => value + 1)} className="pg-action">Try again</button></div>
+        : leaders.length === 0 ? <div className="pg-state"><p>No Flash Drops yet tonight. Be the first to donate.</p></div>
+        : <div className="pg-ticket pg-karma-ticket">{leaders.map((donor, i) => <div key={i} className="pg-karma-leader">
+          <span className="pg-karma-rank">{String(i + 1).padStart(2, '0')}</span><strong>{donor.name}</strong><span>{donor.drops} drop{donor.drops !== 1 ? 's' : ''}</span>
+        </div>)}</div>}
+      <div className="pg-karma-points">
+        <div><strong>+100</strong><span>Flash Drop</span></div>
+        <div><strong>+250</strong><span>Lower Bowl</span></div>
+        <div><strong>+500</strong><span>Premium</span></div>
       </div>
-    </div>
+    </section>
   );
 }

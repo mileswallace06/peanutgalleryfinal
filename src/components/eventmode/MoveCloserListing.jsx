@@ -1,4 +1,5 @@
-import { ArrowUpRight, Clock } from 'lucide-react';
+import { ArrowRight, Clock } from 'lucide-react';
+import EventThumbnail from '@/components/events/EventThumbnail';
 import { isSold, isReservedByOther, isReservedByMe } from '@/lib/listingVisibility';
 
 const TIER_LABELS = {
@@ -14,7 +15,7 @@ const TIER_LABELS = {
  * and transfer-disabled states are handled identically to the marketplace.
  * No invented quality claims — only the existing tier label is shown.
  */
-export default function MoveCloserListing({ listing, currentUserEmail, onView }) {
+export default function MoveCloserListing({ listing, event, accent = 'mint', currentUserEmail, onView }) {
   if (!listing) return null;
 
   const tierLabel = TIER_LABELS[listing.tier] || 'Available upgrade';
@@ -24,63 +25,24 @@ export default function MoveCloserListing({ listing, currentUserEmail, onView })
   const transferDisabled = listing.transfer_status === 'transfer_disabled';
 
   return (
-    <div className="flex-shrink-0 w-64 rounded-2xl p-4 flex flex-col gap-3"
-      style={{ background: 'var(--ev-surface)', border: '1px solid var(--ev-border)' }}>
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--ev-teal)' }}>
-          {tierLabel}
-        </span>
-        {listing.is_instant_ready && (
-          <span className="text-[10px] font-semibold" style={{ color: 'var(--ev-text-2)' }}>Instant</span>
-        )}
+    <article className={`pg-ticket pg-seat-offer pg-seat-offer-${accent}`}>
+      <EventThumbnail event={event || {}} className="pg-seat-offer-art" />
+      <div className="pg-seat-offer-copy">
+        <p className="pg-ticket-label">{tierLabel}{listing.is_instant_ready ? ' · Instant' : ''}</p>
+        <h3>Section {listing.section}</h3>
+        <p>Row {listing.row}{listing.seats ? ` · Seats ${listing.seats}` : ''}</p>
+        {listing.quantity > 1 && <p>{listing.quantity} tickets</p>}
       </div>
-
-      <div>
-        <div className="font-bold leading-tight" style={{ color: 'var(--ev-text)', fontSize: '1.15rem' }}>
-          Section {listing.section}
+      <div className="pg-ticket-end pg-seat-offer-action">
+        <div className="pg-seat-offer-price"><strong>${listing.asking_price}</strong><span>/ seat</span>
+          {listing.original_price && listing.original_price > listing.asking_price ? <del>${listing.original_price}</del> : null}
         </div>
-        <div className="text-xs mt-1" style={{ color: 'var(--ev-text-2)' }}>
-          Row {listing.row}
-          {listing.seats ? ` · Seats ${listing.seats}` : ''}
-          {listing.quantity > 1 ? ` · ${listing.quantity} tickets` : ''}
-        </div>
+        {sold ? <span className="pg-seat-offer-status">Sold</span>
+          : reservedByOther ? <span className="pg-seat-offer-status"><Clock size={14} />Reserved</span>
+          : transferDisabled ? <span className="pg-seat-offer-status">Unavailable</span>
+          : reservedByMe ? <button onClick={() => onView?.(listing)} className="pg-seat-offer-view pg-seat-offer-reserved"><Clock size={14} /><span>Reserved for you</span></button>
+          : <button onClick={() => onView?.(listing)} className="pg-seat-offer-view">View<ArrowRight size={16} /></button>}
       </div>
-
-      <div className="flex items-end gap-2">
-        <span className="font-bold text-lg" style={{ color: 'var(--ev-text)' }}>${listing.asking_price}</span>
-        {listing.original_price && listing.original_price > listing.asking_price && (
-          <span className="text-xs line-through" style={{ color: 'var(--ev-text-muted)' }}>${listing.original_price}</span>
-        )}
-      </div>
-
-      {sold ? (
-        <div className="text-xs font-semibold py-2 text-center rounded-xl"
-          style={{ color: 'var(--ev-text-muted)', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--ev-border)' }}>
-          Sold
-        </div>
-      ) : reservedByOther ? (
-        <div className="flex items-center justify-center gap-1.5 text-xs font-semibold py-2 rounded-xl"
-          style={{ color: 'var(--ev-text-muted)', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--ev-border)' }}>
-          <Clock className="w-3.5 h-3.5" /> Reserved
-        </div>
-      ) : transferDisabled ? (
-        <div className="text-xs font-semibold py-2 text-center rounded-xl"
-          style={{ color: 'var(--ev-text-muted)', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--ev-border)' }}>
-          Unavailable
-        </div>
-      ) : reservedByMe ? (
-        <button onClick={() => onView?.(listing)}
-          className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-95"
-          style={{ background: 'var(--ev-teal-soft)', color: 'var(--ev-teal)', border: '1px solid var(--ev-teal-border)' }}>
-          <Clock className="w-3.5 h-3.5" /> Reserved for you
-        </button>
-      ) : (
-        <button onClick={() => onView?.(listing)}
-          className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-95"
-          style={{ background: 'transparent', color: 'var(--ev-teal)', border: '1px solid var(--ev-teal-border)' }}>
-          View <ArrowUpRight className="w-3.5 h-3.5" />
-        </button>
-      )}
-    </div>
+    </article>
   );
 }
