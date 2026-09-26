@@ -11,7 +11,7 @@ import FlashDropCountdown from './FlashDropCountdown';
  * 1. Client countdown hits 0 → setPhase('expired') only (no close_and_pick call)
  * 2. ONE designated caller (the donor's device OR any single device via timeout) calls close_and_pick ONCE
  * 3. ALL devices poll `poll_result` until ready=true
- * 4. Result shown to all — won/lost based on winner.email === user.email
+ * 4. Result shown to all — won/lost uses the server's viewer-specific flag.
  *
  * This eliminates the 500-device race condition entirely.
  */
@@ -24,7 +24,7 @@ export default function FlashDropCard({ drop: initialDrop, user, allListings = [
   const [entered, setEntered] = useState(false);
   const [result, setResult] = useState(() => {
     if (initialDrop.status === 'winner_selected') {
-      return { winner_email: initialDrop.winner_email, winner_name: initialDrop.winner_name, no_entries: false };
+      return { is_winner: initialDrop.is_winner === true, winner_name: initialDrop.winner_name, no_entries: false };
     }
     if (initialDrop.status === 'expired') return { no_entries: true };
     return null;
@@ -64,7 +64,7 @@ export default function FlashDropCard({ drop: initialDrop, user, allListings = [
         clearInterval(pollIntervalRef.current);
         pollIntervalRef.current = null;
         setResult({
-          winner_email: data.winner?.email || null,
+          is_winner: data.winner?.is_you === true,
           winner_name: data.winner?.name || null,
           no_entries: data.no_entries || false,
         });
@@ -82,7 +82,7 @@ export default function FlashDropCard({ drop: initialDrop, user, allListings = [
   const handleExpired = async () => {
     setPhase('expired');
 
-    const isDonor = drop.donor_email === user?.email;
+    const isDonor = drop.is_donor === true;
     const flash_drop_id = drop.id;
 
     if (isDonor && !selectionFiredRef.current) {
@@ -103,7 +103,7 @@ export default function FlashDropCard({ drop: initialDrop, user, allListings = [
           base44.functions.invoke('flashDrop', {
             action: 'close_and_pick',
             flash_drop_id,
-            request_id: `${flash_drop_id}-${user?.email}-${Date.now()}`,
+            request_id: `${flash_drop_id}-${Date.now()}`,
           }).catch(() => {});
         }
       }, delay);
@@ -132,9 +132,9 @@ export default function FlashDropCard({ drop: initialDrop, user, allListings = [
     }
   };
 
-  const isDonorOwnDrop = drop.donor_email === user?.email;
+  const isDonorOwnDrop = drop.is_donor === true;
   const isVerified = (drop.trust_score || 0) >= 80;
-  const won = result?.winner_email === user?.email;
+  const won = result?.is_winner === true;
 
   return (
     <div className="rounded-2xl overflow-hidden relative"

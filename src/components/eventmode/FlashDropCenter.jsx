@@ -7,7 +7,7 @@ import FlashDropCard from '@/components/flashdrops/FlashDropCard';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, Gift, Clock, CheckCircle2 } from 'lucide-react';
 
-export default function FlashDropCenter({ drops, user, listings, loading, onDropSeats, onWinnerSelected }) {
+export default function FlashDropCenter({ drops, user, listings, loading, loadError, onRetry, onDropSeats, onWinnerSelected }) {
   const activeDrops = drops.filter(d => d.status === 'active');
   const pendingDrops = drops.filter(d => d.status === 'pending');
   const recentDrops = drops.filter(d =>
@@ -45,6 +45,11 @@ export default function FlashDropCenter({ drops, user, listings, loading, onDrop
       {/* Active Drops */}
       {loading ? (
         <div className="h-48 rounded-2xl animate-pulse bg-muted" />
+      ) : loadError ? (
+        <div role="alert" className="rounded-2xl px-5 py-6 text-center space-y-3 bg-muted">
+          <p className="text-sm text-foreground">Fan Gifts couldn’t load. Please try again.</p>
+          <button onClick={onRetry} className="text-sm font-semibold underline">Try again</button>
+        </div>
       ) : activeDrops.length === 0 ? (
         <div className="rounded-2xl px-5 py-6 text-center space-y-3"
           style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}>
@@ -88,7 +93,7 @@ export default function FlashDropCenter({ drops, user, listings, loading, onDrop
       )}
 
       {/* Scheduled/Upcoming drops */}
-      {pendingDrops.length > 0 && (
+      {!loadError && pendingDrops.length > 0 && (
         <div className="mt-3 space-y-2">
           <div className="flex items-center gap-1.5">
             <Clock className="w-3 h-3 text-muted-foreground" />
@@ -111,7 +116,7 @@ export default function FlashDropCenter({ drops, user, listings, loading, onDrop
       )}
 
       {/* Recently completed */}
-      {recentDrops.length > 0 && (
+      {!loadError && recentDrops.length > 0 && (
         <div className="mt-3 space-y-2">
           <div className="flex items-center gap-1.5">
             <CheckCircle2 className="w-3 h-3 text-muted-foreground" />

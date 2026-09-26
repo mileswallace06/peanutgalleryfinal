@@ -1,14 +1,15 @@
-import { Suspense, lazy } from 'react'
+import { Suspense, lazy, useLayoutEffect, useState } from 'react'
 import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
-import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes, Navigate, Outlet, useLocation } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import Layout from '@/components/Layout';
 import Landing from '@/pages/Landing';
 import RouteFallback from '@/components/RouteFallback';
+import { memberAccess } from '@/lib/memberAccess';
 
 // ── Route-based code splitting ────────────────────────────────────────────
 // All authenticated routes are lazily loaded to reduce the initial bundle.
@@ -44,42 +45,71 @@ const BetaRecruitment = lazy(() => import('@/pages/BetaRecruitment'));
 const BetaDashboard = lazy(() => import('@/pages/BetaDashboard'));
 const Notifications = lazy(() => import('@/pages/Notifications'));
 const EventMode = lazy(() => import('@/pages/EventMode'));
+const BrandedAuth = lazy(() => import('@/pages/BrandedAuth'));
+
+const MemberRoute = () => {
+  const auth = useAuth();
+  const location = useLocation();
+  const access = memberAccess(auth);
+  if (access === 'loading') return <RouteFallback />;
+  if (access === 'unregistered') return <UserNotRegisteredError onRetry={auth.checkAppState} />;
+  if (access === 'unavailable') return (
+    <main className="min-h-dvh bg-background text-foreground flex items-center justify-center p-6">
+      <div className="max-w-sm text-center space-y-4">
+        <h1 className="font-display text-2xl">We couldn’t check your sign-in</h1>
+        <p>Please try again. Your account has not been changed.</p>
+        <button onClick={auth.checkAppState} className="min-h-11 px-5 py-3 rounded-xl border border-border">Try again</button>
+        <a href="/" className="block underline">Back to Peanut Gallery</a>
+      </div>
+    </main>
+  );
+  if (access !== 'member') {
+    const next = location.pathname + location.search;
+    return <Navigate to={`/login?from_url=${encodeURIComponent(next)}`} replace />;
+  }
+  return <Outlet />;
+};
+
+const Home = () => {
+  const auth = useAuth();
+  return memberAccess(auth) === 'member' ? <Navigate to="/events" replace /> : <Landing />;
+};
+
+const ResetPasswordRoute = () => {
+  const location = useLocation();
+  // Base44's current public ResetPassword component reads the `token` query
+  // parameter. Keep it in memory and remove it from the address before effects.
+  const [resetToken] = useState(() => {
+    const tokens = new URLSearchParams(location.search).getAll('token');
+    return tokens.length === 1 ? tokens[0] : '';
+  });
+  useLayoutEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has('token')) return;
+    params.delete('token');
+    const query = params.toString();
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`);
+  }, []);
+  return <BrandedAuth key="reset" mode="reset" resetToken={resetToken} />;
+};
 
 const AuthenticatedApp = () => {
-  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, checkAppState, isAuthenticated, user } = useAuth();
-
-  // Branded loading spinner
-  if (isLoadingPublicSettings || isLoadingAuth) {
-    return <RouteFallback />;
-  }
-
-  // Only show auth error screens if the user is genuinely not authenticated.
-  // If we already have a user session, ignore transient auth errors (network blips, rate limits, etc.)
-  if (authError && !isAuthenticated && !user) {
-    if (authError.type === 'user_not_registered') {
-      return <UserNotRegisteredError onRetry={checkAppState} />;
-    } else if (authError.type === 'auth_required') {
-      // Not logged in — show the branded landing page instead of redirecting to Base44 login
-      return (
-        <Routes>
-          <Route path="/" element={<Landing />} />
-          <Route path="*" element={<Landing />} />
-        </Routes>
-      );
-    }
-  }
-
   return (
         <Suspense fallback={<RouteFallback />}>
         <Routes>
-          {/* Authenticated root → straight to events */}
-          <Route path="/" element={<Navigate to="/events" replace />} />
+          {/* Public content renders even while authentication is unavailable. */}
+          <Route path="/" element={<Home />} />
+          <Route path="/login" element={<BrandedAuth key="login" mode="login" />} />
+          <Route path="/register" element={<BrandedAuth key="register" mode="register" />} />
+          <Route path="/forgot-password" element={<BrandedAuth key="forgot" mode="forgot" />} />
+          <Route path="/reset-password" element={<ResetPasswordRoute />} />
           {/* Public routes — accessible without authentication (App Store requirement) */}
           <Route path="/terms" element={<TermsOfService />} />
           <Route path="/privacy" element={<PrivacyPolicy />} />
           <Route path="/cookies" element={<CookiePolicy />} />
           <Route path="/our-story" element={<OurStory />} />
-          <Route element={<Layout />}>
+          <Route element={<MemberRoute />}>
+           <Route element={<Layout />}>
             <Route path="/events" element={<Events />} />
             <Route path="/events/:id" element={<EventDetail />} />
             <Route path="/purchase/:id" element={<PurchaseSuccess />} />
@@ -107,6 +137,7 @@ const AuthenticatedApp = () => {
             <Route path="/beta-dashboard" element={<BetaDashboard />} />
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/event-mode/:id" element={<EventMode />} />
+           </Route>
           </Route>
           <Route path="*" element={<PageNotFound />} />
         </Routes>

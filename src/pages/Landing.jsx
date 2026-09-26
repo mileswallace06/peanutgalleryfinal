@@ -1,28 +1,19 @@
-import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { base44 } from '@/api/base44Client';
 import { motion } from 'framer-motion';
 
 export default function Landing() {
   const navigate = useNavigate();
 
-  // If already authenticated + approved, skip landing and go straight to app
-  useEffect(() => {
-    base44.auth.isAuthenticated().then(authed => {
-      if (authed) navigate('/events', { replace: true });
-    }).catch(() => {});
-  }, []);
-
   const handleCreateAccount = () => {
-    base44.auth.redirectToLogin(window.location.origin + '/events');
+    navigate('/register');
   };
 
   const handleLogIn = () => {
-    base44.auth.redirectToLogin(window.location.origin + '/events');
+    navigate('/login');
   };
 
   return (
-    <div className="fixed inset-0 flex flex-col overflow-hidden" style={{ background: 'hsl(255 10% 5%)' }}>
+    <div className="relative h-[100dvh] flex flex-col overflow-y-auto overflow-x-hidden" style={{ background: 'hsl(255 10% 5%)' }}>
       {/* Background image */}
       <div
         className="absolute inset-0"
@@ -65,7 +56,7 @@ export default function Landing() {
 
       {/* Main content — full height flex column with proper top padding */}
       <div
-        className="relative z-10 flex flex-col flex-1 px-6"
+        className="relative z-10 flex flex-col flex-1 px-6 min-h-dvh w-full max-w-xl mx-auto"
         style={{
           paddingTop: 'calc(1.5rem + env(safe-area-inset-top))',
           paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))',
@@ -186,11 +177,11 @@ export default function Landing() {
           </button>
         </motion.div>
 
-        <p className="text-[11px] text-center mt-4" style={{ color: 'rgba(255,255,255,0.28)' }}>
+        <p className="text-xs text-center mt-4" style={{ color: 'rgba(255,255,255,0.75)' }}>
           By continuing you agree to our{' '}
-          <a href="/terms" className="underline underline-offset-2" style={{ color: 'rgba(255,255,255,0.45)' }}>Terms of Service</a>
+          <a href="/terms" className="underline underline-offset-2" style={{ color: 'rgba(255,255,255,0.9)' }}>Terms of Service</a>
           {' '}and{' '}
-          <a href="/privacy" className="underline underline-offset-2" style={{ color: 'rgba(255,255,255,0.45)' }}>Privacy Policy</a>.
+          <a href="/privacy" className="underline underline-offset-2" style={{ color: 'rgba(255,255,255,0.9)' }}>Privacy Policy</a>.
         </p>
       </div>
     </div>

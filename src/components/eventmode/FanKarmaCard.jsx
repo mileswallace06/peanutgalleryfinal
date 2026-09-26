@@ -5,37 +5,40 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Trophy } from 'lucide-react';
+import { loadFanGifts } from '@/lib/fanGiftRead';
 
 export default function FanKarmaCard({ eventId, user }) {
   const [myPoints, setMyPoints] = useState(null);
   const [leaders, setLeaders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     if (!eventId) return;
+    let cancelled = false;
+    setLoading(true);
+    setLoadError(false);
     Promise.all([
       user?.email
         ? base44.entities.PointsActivity.filter({ user_email: user.email, reference_id: eventId }).catch(() => [])
         : Promise.resolve([]),
-      base44.entities.FlashDrop.filter({ event_id: eventId }).catch(() => []),
-    ]).then(([points, drops]) => {
+      loadFanGifts(eventId),
+    ]).then(([points, view]) => {
+      if (cancelled) return;
       const earned = points.reduce((s, p) => s + (p.points || 0), 0);
       setMyPoints(earned);
 
-      // Build donor leaderboard from drops
-      const donorMap = {};
-      drops.forEach(d => {
-        if (!d.donor_email) return;
-        const name = d.is_anonymous ? 'Anonymous Fan' : (d.donor_name || d.donor_email.split('@')[0]);
-        if (!donorMap[d.donor_email]) donorMap[d.donor_email] = { name, drops: 0, wins: 0 };
-        donorMap[d.donor_email].drops++;
-        if (d.status === 'winner_selected') donorMap[d.donor_email].wins++;
-      });
-      const sorted = Object.values(donorMap).sort((a, b) => b.drops - a.drops).slice(0, 5);
-      setLeaders(sorted);
+      // Grouping happens on the server; member responses contain no donor keys.
+      setLeaders(view.leaders);
       setLoading(false);
-    }).catch(() => setLoading(false));
-  }, [eventId, user?.email]);
+    }).catch(() => {
+      if (cancelled) return;
+      setLoadError(true);
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [eventId, user?.email, reload]);
 
   if (loading) return <div className="h-24 rounded-2xl animate-pulse bg-muted" />;
 
@@ -54,7 +57,12 @@ export default function FanKarmaCard({ eventId, user }) {
           )}
         </div>
 
-        {leaders.length === 0 ? (
+        {loadError ? (
+          <div role="alert" className="text-xs text-muted-foreground space-y-2">
+            <p>Fan Karma couldn’t load.</p>
+            <button onClick={() => setReload(value => value + 1)} className="font-semibold underline">Try again</button>
+          </div>
+        ) : leaders.length === 0 ? (
           <p className="text-xs text-muted-foreground">No Flash Drops yet tonight. Be the first to donate! 🎁</p>
         ) : (
           <div className="space-y-1.5">
