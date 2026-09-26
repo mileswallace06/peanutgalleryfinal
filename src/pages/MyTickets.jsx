@@ -2,8 +2,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { Ticket, Clock, CheckCircle, AlertTriangle, RefreshCw, Heart, Zap } from 'lucide-react';
+import { Ticket, AlertTriangle, RefreshCw, LockKeyhole, ArrowRight, Info } from 'lucide-react';
 import DonateSeatSheet from '@/components/donations/DonateSeatSheet';
+import EventThumbnail from '@/components/events/EventThumbnail';
+import './community-ticket.css';
 
 export default function MyTickets() {
   const [user, setUser] = useState(null);
@@ -65,113 +67,18 @@ export default function MyTickets() {
     return () => clearInterval(interval);
   }, [purchases, fetchPurchases]);
 
-  if (loading) {
-    return (
-      <div className="max-w-3xl mx-auto px-4 py-12 text-center">
-        <span className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin inline-block" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="max-w-3xl mx-auto px-4 py-12 text-center space-y-4">
-        <p className="text-4xl">⚠️</p>
-        <p className="text-foreground font-semibold">Failed to load tickets</p>
-        <p className="text-sm text-muted-foreground">{error}</p>
-        <button onClick={load} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm">
-          <RefreshCw className="w-4 h-4" /> Try Again
-        </button>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div className="max-w-3xl mx-auto px-4 py-12 text-center text-muted-foreground space-y-3">
-        <p className="text-4xl">🔒</p>
-        <p className="font-medium text-foreground">Sign in to view your tickets</p>
-        <button onClick={() => base44.auth.redirectToLogin()}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm">
-          Sign In
-        </button>
-      </div>
-    );
-  }
-
-  const pending = purchases.filter(p => p.transfer_status === 'pending_transfer');
-  const completed = purchases.filter(p => p.transfer_status === 'completed');
-  const disputed = purchases.filter(p => p.transfer_status === 'disputed');
-
-  const cardStyle = { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' };
-
-  const StatusBadge = ({ p }) => {
-    if (p.transfer_status === 'completed')
-      return <span className="text-xs font-bold px-2.5 py-1 rounded-full"
-        style={{ background: 'rgba(0,255,135,0.12)', color: 'var(--neon-green)', border: '1px solid rgba(0,255,135,0.25)' }}>Received ✓</span>;
-    if (p.transfer_status === 'disputed')
-      return <span className="text-xs font-bold px-2.5 py-1 rounded-full"
-        style={{ background: 'rgba(255,200,0,0.12)', color: 'var(--neon-yellow)', border: '1px solid rgba(255,200,0,0.25)' }}>Disputed</span>;
-    if (!p.seller_confirmed)
-      return <span className="text-xs font-bold px-2.5 py-1 rounded-full"
-        style={{ background: 'rgba(0,200,255,0.12)', color: 'var(--neon-cyan)', border: '1px solid rgba(0,200,255,0.25)' }}>Waiting on seller</span>;
-    return <span className="text-xs font-bold px-2.5 py-1 rounded-full"
-      style={{ background: 'rgba(255,140,0,0.12)', color: 'var(--neon-orange)', border: '1px solid rgba(255,140,0,0.25)' }}>Confirm receipt</span>;
+  // Preserve the wallet's action-first order while presenting one compact list.
+  const purchasePriority = (p) => {
+    if (p.transfer_status === 'pending_transfer' && p.seller_confirmed && !p.buyer_confirmed) return 0;
+    if (p.transfer_status === 'pending_transfer') return 1;
+    if (p.transfer_status === 'disputed') return 2;
+    if (p.transfer_status === 'completed') return 3;
+    return 4;
   };
-
-  const PurchaseRow = ({ p }) => {
-    const event = events[p.event_id];
-    const needsConfirm = p.transfer_status === 'pending_transfer' && p.seller_confirmed && !p.buyer_confirmed;
-    return (
-      <div className="rounded-2xl p-4 flex items-center justify-between gap-3 flex-wrap text-sm"
-        style={needsConfirm
-          ? { background: 'rgba(255,140,0,0.07)', border: '1px solid rgba(255,140,0,0.3)' }
-          : cardStyle}>
-        <div className="flex-1 min-w-0">
-          <div className="font-semibold text-foreground truncate">{event?.title || 'Event'}</div>
-          <div className="text-xs text-muted-foreground mt-0.5">
-            {(event?.event_start_utc || event?.date) ? format(new Date(event.event_start_utc || event.date), 'EEE, MMM d · h:mm a') : ''}
-            {event?.venue ? ` · ${event.venue}` : ''}
-          </div>
-          <div className="text-xs text-muted-foreground mt-0.5">
-            <span className="font-semibold text-foreground">${p.amount?.toFixed(2)}</span> · Qty: {p.quantity}
-            {p.created_date && <> · Purchased {format(new Date(p.created_date), 'MMM d')}</>}
-          </div>
-          <div className="mt-1.5"><StatusBadge p={p} /></div>
-        </div>
-        <div className="flex flex-col gap-1.5 flex-shrink-0">
-          <Link
-            to={`/purchase/${p.id}`}
-            className="text-sm font-bold px-4 py-2 rounded-xl transition-colors text-center"
-            style={needsConfirm
-              ? { background: 'linear-gradient(135deg, #00E87A, #00B8E8)', color: '#0D0B14' }
-              : { background: 'hsl(var(--muted))', color: 'hsl(var(--foreground))' }}
-          >
-            {needsConfirm ? 'Confirm →' : 'View →'}
-          </Link>
-          {p.transfer_status === 'completed' && event && (
-            <div className="flex gap-1.5">
-              <Link
-                to={`/upgrades/${p.event_id}`}
-                className="flex items-center justify-center gap-1 text-xs font-bold px-3 py-1.5 rounded-xl transition-colors"
-                style={{ background: 'rgba(0,200,255,0.1)', border: '1px solid rgba(0,200,255,0.3)', color: '#00C8FF' }}>
-                <Zap className="w-3 h-3" /> Upgrade
-              </Link>
-              <button
-                onClick={() => setDonatingPurchase({ purchase: p, event })}
-                className="flex items-center justify-center gap-1 text-xs font-bold px-3 py-1.5 rounded-xl transition-colors"
-                style={{ background: 'rgba(191,95,255,0.1)', border: '1px solid rgba(191,95,255,0.3)', color: '#BF5FFF' }}>
-                <Heart className="w-3 h-3" /> Donate
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
+  const orderedPurchases = [...purchases].sort((a, b) => purchasePriority(a) - purchasePriority(b));
 
   return (
-    <div className="max-w-3xl mx-auto px-4 pb-12" style={{ paddingTop: 'calc(2rem + env(safe-area-inset-top))' }}>
+    <div className="pg-design-page pg-wallet-page">
       {donatingPurchase && (
         <DonateSeatSheet
           event={donatingPurchase.event}
@@ -180,80 +87,99 @@ export default function MyTickets() {
           onDonated={() => setDonatingPurchase(null)}
         />
       )}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold flex items-center gap-2 text-foreground">
-          <Ticket className="w-6 h-6 text-primary" /> My Tickets
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">{user.email}</p>
-        <p className="text-xs text-muted-foreground mt-2">Your purchased tickets and upgrades appear here.</p>
-      </div>
+      <header className="pg-wallet-heading">
+        <h1 className="pg-page-title">My tickets</h1>
+        <p className="pg-community-subtitle">Your tickets and upgrades.</p>
+      </header>
 
-      {purchases.length === 0 ? (
-        <div className="text-center py-20 text-muted-foreground">
-          <p className="text-4xl mb-3">🎫</p>
-          <p className="font-medium text-foreground">No tickets yet</p>
-          <p className="text-sm mt-1">Browse events and buy tickets — they'll appear here.</p>
-          <Link to="/events" className="text-primary text-sm mt-3 inline-block hover:underline">Browse events →</Link>
+      {loading ? (
+        <div className="pg-state pg-community-state" role="status">
+          <RefreshCw size={30} className="animate-spin" aria-hidden="true" />
+          <p>Loading your tickets…</p>
+        </div>
+      ) : error ? (
+        <div className="pg-state pg-community-state">
+          <AlertTriangle size={32} aria-hidden="true" />
+          <h2>Failed to load tickets</h2>
+          <p>{error}</p>
+          <button onClick={load} className="pg-action pg-wallet-primary"><RefreshCw size={17} aria-hidden="true" /> Try again</button>
+        </div>
+      ) : !user ? (
+        <div className="pg-state pg-community-state">
+          <LockKeyhole size={32} aria-hidden="true" />
+          <h2>Sign in to view your tickets</h2>
+          <button onClick={() => base44.auth.redirectToLogin()} className="pg-action pg-wallet-primary">Sign in <ArrowRight size={18} aria-hidden="true" /></button>
+        </div>
+      ) : purchases.length === 0 ? (
+        <div className="pg-state pg-community-state">
+          <Ticket size={36} aria-hidden="true" />
+          <h2>No tickets yet</h2>
+          <p>Browse events and buy tickets — they’ll appear here.</p>
+          <Link to="/events" className="pg-action pg-wallet-primary">Browse events <ArrowRight size={18} aria-hidden="true" /></Link>
         </div>
       ) : (
         <>
-          {/* Needs action — confirm receipt */}
-          {pending.filter(p => p.seller_confirmed && !p.buyer_confirmed).length > 0 && (
-            <section className="mb-8">
-              <h2 className="font-semibold text-base mb-3 flex items-center gap-2 text-foreground">
-                <Clock className="w-5 h-5" style={{ color: '#FF8C00' }} />
-                Action Required
-                <span className="text-xs font-bold px-2 py-0.5 rounded-full"
-                  style={{ background: 'rgba(255,140,0,0.15)', color: '#FF8C00', border: '1px solid rgba(255,140,0,0.3)' }}>
-                  {pending.filter(p => p.seller_confirmed && !p.buyer_confirmed).length}
-                </span>
-              </h2>
-              <div className="space-y-3">
-                {pending.filter(p => p.seller_confirmed && !p.buyer_confirmed).map(p => <PurchaseRow key={p.id} p={p} />)}
-              </div>
-            </section>
-          )}
-
-          {/* Waiting on seller */}
-          {pending.filter(p => !p.seller_confirmed).length > 0 && (
-            <section className="mb-8">
-              <h2 className="font-semibold text-base mb-3 flex items-center gap-2 text-foreground">
-                <Clock className="w-5 h-5" style={{ color: 'var(--neon-cyan)' }} />
-                Awaiting Transfer ({pending.filter(p => !p.seller_confirmed).length})
-              </h2>
-              <div className="space-y-3">
-                {pending.filter(p => !p.seller_confirmed).map(p => <PurchaseRow key={p.id} p={p} />)}
-              </div>
-            </section>
-          )}
-
-          {/* Disputed */}
-          {disputed.length > 0 && (
-            <section className="mb-8">
-              <h2 className="font-semibold text-base mb-3 flex items-center gap-2 text-foreground">
-                <AlertTriangle className="w-5 h-5" style={{ color: 'var(--neon-yellow)' }} />
-                Disputed ({disputed.length})
-              </h2>
-              <div className="space-y-3">
-                {disputed.map(p => <PurchaseRow key={p.id} p={p} />)}
-              </div>
-            </section>
-          )}
-
-          {/* Completed */}
-          {completed.length > 0 && (
-            <section>
-              <h2 className="font-semibold text-base mb-3 flex items-center gap-2 text-foreground">
-                <CheckCircle className="w-5 h-5" style={{ color: 'var(--neon-green)' }} />
-                Completed ({completed.length})
-              </h2>
-              <div className="space-y-3">
-                {completed.map(p => <PurchaseRow key={p.id} p={p} />)}
-              </div>
-            </section>
-          )}
+          <div className="pg-wallet-tickets">
+            {orderedPurchases.map(p => (
+              <PurchaseRow key={p.id} purchase={p} event={events[p.event_id]}
+                onDonate={() => setDonatingPurchase({ purchase: p, event: events[p.event_id] })} />
+            ))}
+          </div>
+          <p className="pg-wallet-note"><Info size={19} aria-hidden="true" /><span>Manage your orders here.</span></p>
         </>
       )}
     </div>
+  );
+}
+
+function getTransferState(purchase) {
+  if (purchase.transfer_status === 'completed') return { label: 'Received', tone: 'received' };
+  if (purchase.transfer_status === 'disputed') return { label: 'Disputed', tone: 'disputed' };
+  if (purchase.transfer_status === 'pending_transfer') {
+    if (!purchase.seller_confirmed) return { label: 'Waiting on seller', tone: 'waiting' };
+    if (!purchase.buyer_confirmed) return { label: 'Confirm receipt', tone: 'confirm' };
+    return { label: 'Awaiting completion', tone: 'waiting' };
+  }
+  return { label: purchase.transfer_status?.replaceAll('_', ' ') || 'Status unavailable', tone: 'other' };
+}
+
+function PurchaseRow({ purchase: p, event, onDonate }) {
+  const needsConfirm = p.transfer_status === 'pending_transfer' && p.seller_confirmed && !p.buyer_confirmed;
+  const canUpgradeOrDonate = p.transfer_status === 'completed' && event;
+  const status = getTransferState(p);
+  const eventDate = event?.event_start_utc || event?.date;
+  const date = eventDate ? new Date(eventDate) : null;
+  const dateLabel = date && !Number.isNaN(date.getTime()) ? format(date, 'MMM d · h:mm a') : '';
+  const amount = p.amount != null && Number.isFinite(Number(p.amount)) ? `$${Number(p.amount).toFixed(2)}` : null;
+
+  return (
+    <article className="pg-ticket pg-wallet-ticket" aria-label={`${event?.title || 'Event'}, ${status.label}`}>
+      <div className="pg-wallet-ticket-summary">
+        {event ? <EventThumbnail event={event} className="pg-wallet-event-image" /> : (
+          <div className="pg-wallet-event-image pg-wallet-image-fallback"><Ticket size={28} aria-hidden="true" /></div>
+        )}
+        <div className="pg-wallet-ticket-info">
+          <h2>{event?.title || 'Event'}</h2>
+          {dateLabel && <p className="pg-wallet-date">{dateLabel}</p>}
+          {event?.venue && <p className="pg-wallet-venue">{event.venue}</p>}
+          <div className="pg-wallet-ticket-meta">
+            <p>{amount}{amount && p.quantity != null ? ' · ' : ''}{p.quantity != null ? `${p.quantity} ${Number(p.quantity) === 1 ? 'ticket' : 'tickets'}` : ''}</p>
+            <span className={`pg-transfer-status pg-transfer-${status.tone}`}>{status.label}</span>
+          </div>
+        </div>
+      </div>
+      <div className={`pg-wallet-ticket-actions${canUpgradeOrDonate ? ' pg-wallet-three-actions' : ''}`}>
+        <Link to={`/purchase/${p.id}`} className={`pg-action pg-wallet-view${needsConfirm ? ' pg-wallet-confirm' : ''}`}>
+          <span>{needsConfirm ? 'Confirm' : 'View'}</span>
+          {!canUpgradeOrDonate && <ArrowRight size={23} aria-hidden="true" />}
+        </Link>
+        {canUpgradeOrDonate && (
+          <>
+            <Link to={`/upgrades/${p.event_id}`} className="pg-action pg-wallet-upgrade">Upgrade</Link>
+            <button onClick={onDonate} className="pg-action pg-wallet-donate">Donate</button>
+          </>
+        )}
+      </div>
+    </article>
   );
 }

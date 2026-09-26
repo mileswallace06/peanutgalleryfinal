@@ -3,10 +3,11 @@ import { createPortal } from 'react-dom';
 import { Link, useLocation } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { formatDistanceToNow } from 'date-fns';
-import { Plus, X, ImagePlus, Star, MapPin, Users, TrendingUp, Search, ChevronDown, RefreshCw, ArrowUpDown, Check } from 'lucide-react';
+import { Plus, X, ImagePlus, Star, MapPin, Users, Search, ChevronDown, RefreshCw, ArrowUpDown, Check, Pencil, Armchair, Ticket, ArrowRight, MessageCircle, AlertCircle } from 'lucide-react';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import SeatFlexSheet from '@/components/fanzone/SeatFlexSheet';
 import BucketListSheet from '@/components/fanzone/BucketListSheet';
+import './community-ticket.css';
 
 const REACTIONS = [
   { key: 'fire', emoji: '🔥' },
@@ -334,7 +335,7 @@ export default function FanZone() {
 
   return (
     <>
-    <div ref={containerRef} className="pb-32">
+    <div ref={containerRef} className="pg-design-page pg-fanzone-page">
       <div ref={innerRef} className="transition-transform duration-200">
       {pulling && (
         <div className="fixed left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-4 py-2 rounded-full"
@@ -343,103 +344,69 @@ export default function FanZone() {
           <span className="text-xs font-semibold" style={{ color: 'var(--neon-cyan-light)' }}>Refreshing…</span>
         </div>
       )}
-      {/* Hero */}
-      <div className="relative overflow-hidden" data-page-hero="fan-zone" style={{ height: 'calc(13rem + var(--app-safe-top))' }}>
-        <img
-          src="https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=900&q=80"
-          alt="Fan Zone"
-          className="w-full h-full object-cover object-top"
-        />
-        <div className="absolute inset-0"
-          style={{ background: 'linear-gradient(to bottom, var(--hero-bg-top) 0%, var(--hero-bg-mid) 40%, var(--hero-bg-end) 100%)' }} />
-        <div className="absolute bottom-5 left-4 right-4">
-          <h1
-            className="font-display leading-[0.95]"
-            style={{
-              fontSize: 'clamp(3rem, 14vw, 5rem)',
-              letterSpacing: '-0.02em',
-              filter: 'drop-shadow(var(--hero-shadow))',
-              background: 'linear-gradient(90deg, var(--neon-cyan) 0%, var(--hero-text-fade) 60%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-            }}
-          >
-            Fan Zone
-          </h1>
-          <p className="text-sm text-white/60 mt-1">Share the moment with fellow fans.</p>
+      <header className="pg-fan-heading" data-page-hero="fan-zone">
+        <div>
+          <h1 className="pg-page-title">Fan Zone</h1>
+          <p className="pg-community-subtitle">Share the moment.</p>
         </div>
-      </div>
+        <button
+          onClick={() => user ? setFab(fab === 'menu' ? null : 'menu') : base44.auth.redirectToLogin()}
+          aria-label={fab === 'menu' ? 'Close post menu' : 'Create post'}
+          aria-expanded={fab === 'menu'}
+          className={`pg-compose-button${fab === 'menu' ? ' is-open' : ''}`}
+        >
+          {fab === 'menu' ? <X aria-hidden="true" /> : <Pencil aria-hidden="true" />}
+        </button>
+      </header>
 
-      {/* Feed tabs — 2×2 grid, no scroll */}
-      <div className="px-4 mt-4 mb-4 space-y-2">
-        <div className="grid grid-cols-2 gap-2">
-          <FeedTab id="trending" active={feedTab} label="Trending" icon={<TrendingUp className="w-4 h-4" />} onClick={setFeedTab} />
-          <FeedTab
-            id="bucket"
-            active={feedTab}
-            label="Bucket List"
-            icon={<Star className="w-4 h-4" />}
-            badge={bucketList.length > 0 ? bucketList.length : null}
-            onClick={setFeedTab}
-            onEditClick={() => setShowBucketList(true)}
-          />
-          <FeedTab id="nearby" active={feedTab} label="Near Me" icon={<MapPin className="w-4 h-4" />} onClick={setFeedTab} />
-          <FeedTab id="friends" active={feedTab} label="Friends" icon={<Users className="w-4 h-4" />} onClick={setFeedTab} />
+      <div className="pg-feed-navigation">
+        <div className="pg-feed-tabs" aria-label="Post filters">
+          <FeedTab id="trending" active={feedTab} label="Trending" onClick={setFeedTab} />
+          <FeedTab id="nearby" active={feedTab} label="Near Me" onClick={setFeedTab} />
+          <FeedTab id="friends" active={feedTab} label="Friends" onClick={setFeedTab} />
+          <FeedTab id="bucket" active={feedTab} label="Bucket List" badge={bucketList.length || null} onClick={setFeedTab} />
         </div>
-
-        {/* Contextual sub-label */}
-        {feedTab === 'bucket' && bucketList.length === 0 && !loading && (
-          <p className="text-xs text-muted-foreground px-1">
-            Add artists & venues to your Bucket List to filter posts here.{' '}
-            <button className="underline" style={{ color: 'var(--neon-yellow)' }} onClick={() => setShowBucketList(true)}>Add now</button>
-          </p>
+        {feedTab === 'bucket' && (
+          <div className="pg-feed-context">
+            <p>{bucketList.length === 0 && !loading ? 'Add artists and venues to filter your feed.' : `${bucketList.length} saved to your bucket list`}</p>
+            <button onClick={() => setShowBucketList(true)}>Edit list <Pencil size={14} aria-hidden="true" /></button>
+          </div>
         )}
-        {feedTab === 'nearby' && !userLocation && (
-          <p className="text-xs text-muted-foreground px-1">Allow location access to see posts near you.</p>
-        )}
-        {feedTab === 'nearby' && userLocation && (
-          <p className="text-xs px-1" style={{ color: 'var(--neon-green)' }}>📍 Showing posts within 80 km of your location</p>
+        {feedTab === 'nearby' && (
+          <p className="pg-feed-hint"><MapPin size={14} aria-hidden="true" />{userLocation ? 'Showing posts within 80 km of your location' : 'Allow location access to see posts near you.'}</p>
         )}
         {feedTab === 'friends' && followingEmails.length === 0 && (
-          <p className="text-xs text-muted-foreground px-1">Follow people from your <Link to="/me" className="underline" style={{ color: 'var(--neon-purple)' }}>profile</Link> to see their posts here.</p>
+          <p className="pg-feed-hint">Follow people from your <Link to="/me">profile</Link> to see their posts here.</p>
         )}
       </div>
 
-      {/* ── Event filter + Sort (compact, one row) ── */}
-      <div className="px-4 mb-3">
-        <div className="flex items-center gap-1.5">
-          {/* Event filter pills */}
+      <div className="pg-feed-tools">
+        <div className="pg-date-filters" aria-label="Event date filters">
           {[
             { id: 'all', label: 'All' },
             { id: 'upcoming', label: 'Upcoming' },
             { id: 'past', label: 'Past' },
           ].map(opt => (
             <button key={opt.id} onClick={() => setDateFilter(opt.id)}
-              className="px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap flex-shrink-0 transition-all"
-              style={dateFilter === opt.id
-                ? { background: 'rgba(var(--neon-cyan-rgb), 0.15)', color: 'var(--neon-cyan)', border: '1px solid rgba(var(--neon-cyan-rgb), 0.35)' }
-                : { background: 'hsl(var(--card))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }}>
+              aria-pressed={dateFilter === opt.id}
+              className={dateFilter === opt.id ? 'is-active' : ''}>
               {opt.label}
             </button>
           ))}
-          {/* Sort — single compact control showing the active sort; opens a sheet */}
-          <button onClick={() => setSortSheetOpen(true)}
-            className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap flex-shrink-0 transition-all"
-            style={{ background: 'hsl(var(--card))', color: 'hsl(var(--foreground))', border: '1px solid hsl(var(--border))' }}
-            aria-label={`Sort posts. Current: ${currentSortLabel}`}>
-            <ArrowUpDown className="w-3.5 h-3.5" />
-            <span>{currentSortLabel}</span>
-            <ChevronDown className="w-3 h-3 opacity-50" />
-          </button>
         </div>
+        <button onClick={() => setSortSheetOpen(true)} className="pg-sort-control"
+          aria-label={`Sort posts. Current: ${currentSortLabel}`}>
+          <ArrowUpDown size={16} aria-hidden="true" />
+          <span>{currentSortLabel}</span>
+          <ChevronDown size={14} aria-hidden="true" />
+        </button>
       </div>
 
       {/* Feed */}
-      <div className="px-4 space-y-3">
+      <div className="pg-feed">
         {loadError && !authLoading ? (
-          <div className="text-center py-16 space-y-3">
-            <p className="text-3xl">😵</p>
+          <div className="pg-state pg-community-state">
+            <AlertCircle size={32} aria-hidden="true" />
             <p className="font-bold text-foreground">Couldn't load posts</p>
             <p className="text-sm text-muted-foreground">Check your connection and try again.</p>
             <button
@@ -452,11 +419,11 @@ export default function FanZone() {
           </div>
         ) : (loading || authLoading) ? (
           [...Array(3)].map((_, i) => (
-            <div key={i} className="rounded-2xl h-40 animate-pulse bg-muted" />
+            <div key={i} className="pg-post-skeleton animate-pulse" aria-label="Loading posts" />
           ))
         ) : filtered.length === 0 ? (
-          <div className="text-center py-24 space-y-3">
-            <p className="text-4xl">{feedTab === 'bucket' ? '⭐' : feedTab === 'nearby' ? '📍' : feedTab === 'friends' ? '👥' : '🎤'}</p>
+          <div className="pg-state pg-community-state">
+            {feedTab === 'bucket' ? <Star size={32} aria-hidden="true" /> : feedTab === 'nearby' ? <MapPin size={32} aria-hidden="true" /> : feedTab === 'friends' ? <Users size={32} aria-hidden="true" /> : <MessageCircle size={32} aria-hidden="true" />}
             <p className="font-bold text-foreground">
               {feedTab === 'bucket' ? 'No bucket list posts yet' :
                feedTab === 'nearby' ? 'No nearby posts yet' :
@@ -490,33 +457,15 @@ export default function FanZone() {
       </div>
     </div>
 
-      {createPortal(<>
-      {/* FAB — only shown to authenticated users when FanZone tab is active */}
-      {isTabActive && <button
-          onClick={() => user ? setFab(fab === 'menu' ? null : 'menu') : base44.auth.redirectToLogin()}
-         aria-label={fab === 'menu' ? 'Close post menu' : 'Create post'}
-         aria-expanded={fab === 'menu'}
-         className="fixed right-5 z-40 w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-transform active:scale-95"
-         style={{
-           background: 'linear-gradient(135deg, var(--neon-pink-light), var(--neon-cyan-light))',
-           boxShadow: 'var(--fab-shadow)',
-           bottom: 'calc(6rem + env(safe-area-inset-bottom))',
-         }}
-       >
-        <Plus
-        className="w-7 h-7 transition-transform duration-200"
-        style={{ color: 'var(--gradient-btn-text)', transform: fab === 'menu' ? 'rotate(45deg)' : 'rotate(0deg)' }}
-        />
-        </button>}
-
+      {createPortal(<div className="pg-community-overlays">
       {/* FAB mini-menu */}
-      {fab === 'menu' && (
+      {isTabActive && fab === 'menu' && (
         <>
           <div className="fixed inset-0 z-30" onClick={closeAll} />
           <div className="fixed right-5 z-40 flex flex-col items-end gap-3"
             style={{ bottom: 'calc(10rem + env(safe-area-inset-bottom))', animation: 'fabMenuIn 0.18s cubic-bezier(0.34,1.56,0.64,1) both' }}>
-            <FabOption label="Seat Flex" emoji="💺" color="var(--neon-cyan-light)" delay="0s" onClick={() => setFab('flex')} />
-            <FabOption label="Create a post" emoji="🎤" color="var(--neon-pink-light)" delay="0.05s" onClick={() => setFab('post')} />
+            <FabOption label="Seat Flex" icon={<Armchair size={19} aria-hidden="true" />} color="var(--pg-cyan)" delay="0s" onClick={() => setFab('flex')} />
+            <FabOption label="Create a post" icon={<Pencil size={19} aria-hidden="true" />} color="var(--pg-violet)" delay="0.05s" onClick={() => setFab('post')} />
           </div>
           <style>{`
             @keyframes fabMenuIn { from { opacity:0; transform:translateY(16px) scale(0.92); } to { opacity:1; transform:translateY(0) scale(1); } }
@@ -534,7 +483,7 @@ export default function FanZone() {
             <div className="w-10 h-1 rounded-full mx-auto mb-5" style={{ background: 'hsl(var(--border))' }} />
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-bold text-base text-foreground">Create a post</h2>
-              <button onClick={closeAll}><X className="w-5 h-5 text-muted-foreground" /></button>
+              <button onClick={closeAll} aria-label="Close post composer"><X className="w-5 h-5 text-muted-foreground" /></button>
             </div>
             <form onSubmit={handleSubmit} className="space-y-4">
               <textarea
@@ -551,7 +500,7 @@ export default function FanZone() {
               {photoUrl ? (
                 <div className="relative rounded-xl overflow-hidden">
                   <img src={photoUrl} alt="post" className="w-full max-h-48 object-cover rounded-xl" />
-                  <button type="button" onClick={() => setPhotoUrl('')}
+                  <button type="button" onClick={() => setPhotoUrl('')} aria-label="Remove photo"
                     className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center"
                     style={{ background: 'rgba(0,0,0,0.7)' }}>
                     <X className="w-4 h-4 text-white" />
@@ -573,21 +522,26 @@ export default function FanZone() {
 
               {/* Searchable event picker */}
               <div className="relative" ref={eventPickerRef}>
+                <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setShowEventPicker(v => !v)}
-                  className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs text-left"
+                  className="min-w-0 flex-1 flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs text-left"
                   style={{ background: 'var(--search-bg)', border: '1px solid hsl(var(--border))', color: selectedEventId ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))' }}
                 >
-                  <span className="flex-shrink-0">🎫</span>
+                  <Ticket className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
                   <span className="flex-1 truncate">
                     {selectedEventId ? events.find(e => e.id === selectedEventId)?.title : 'Tag an event (optional)'}
                   </span>
-                  {selectedEventId
-                    ? <X className="w-3.5 h-3.5 flex-shrink-0" onClick={e => { e.stopPropagation(); setSelectedEventId(''); setEventQuery(''); setShowEventPicker(false); }} />
-                    : <ChevronDown className="w-3.5 h-3.5 flex-shrink-0 opacity-50" />
-                  }
+                  <ChevronDown className="w-3.5 h-3.5 flex-shrink-0 opacity-50" />
                 </button>
+                {selectedEventId && (
+                  <button type="button" aria-label="Clear tagged event"
+                    onClick={() => { setSelectedEventId(''); setEventQuery(''); setShowEventPicker(false); }}>
+                    <X className="w-4 h-4 text-muted-foreground" />
+                  </button>
+                )}
+                </div>
 
                 {showEventPicker && (
                   <div className="absolute bottom-full left-0 right-0 mb-1 rounded-2xl overflow-hidden z-10"
@@ -619,7 +573,7 @@ export default function FanZone() {
                           >
                             {ev.image_url
                               ? <img src={ev.image_url} alt="" className="w-7 h-7 rounded-lg object-cover flex-shrink-0" />
-                              : <span className="w-7 h-7 flex items-center justify-center text-sm flex-shrink-0 rounded-lg" style={{ background: 'rgba(255,255,255,0.06)' }}>🎫</span>
+                              : <span className="w-7 h-7 flex items-center justify-center text-sm flex-shrink-0 rounded-lg" style={{ background: 'rgba(255,255,255,0.06)' }}><Ticket size={16} aria-hidden="true" /></span>
                             }
                             <div className="min-w-0 flex-1">
                               <p className="text-xs font-semibold text-foreground truncate">{ev.title}</p>
@@ -707,64 +661,30 @@ export default function FanZone() {
           />
         </div>
       )}
-      </>, document.body)}
+      </div>, document.body)}
     </>
   );
 }
 
-const TAB_STYLES = {
-  trending: { active: 'rgba(var(--neon-pink-light-rgb), 0.1)', border: 'rgba(var(--neon-pink-light-rgb), 0.25)', color: 'var(--neon-pink-light)' },
-  bucket:   { active: 'rgba(var(--neon-yellow-rgb), 0.1)',     border: 'rgba(var(--neon-yellow-rgb), 0.25)',     color: 'var(--neon-yellow)' },
-  nearby:   { active: 'rgba(var(--neon-green-rgb), 0.08)',    border: 'rgba(var(--neon-green-rgb), 0.25)',      color: 'var(--neon-green)' },
-  friends:  { active: 'rgba(var(--neon-purple-rgb), 0.1)',    border: 'rgba(var(--neon-purple-rgb), 0.25)',      color: 'var(--neon-purple)' },
-};
-
-function FeedTab({ id, active, label, icon, badge, onClick, onEditClick }) {
-  const isActive = active === id;
-  const s = TAB_STYLES[id];
+function FeedTab({ id, active, label, badge, onClick }) {
   return (
     <button
       onClick={() => onClick(id)}
-      className="relative flex items-center gap-2 px-4 py-3 rounded-2xl text-sm font-bold transition-all w-full"
-      style={isActive
-        ? { background: s.active, border: `1px solid ${s.border}`, color: s.color }
-        : { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--foreground))' }
-      }
+      className={`pg-feed-tab${active === id ? ' is-active' : ''}${id === 'bucket' ? ' pg-bucket-tab' : ''}`}
+      aria-pressed={active === id}
+      aria-label={badge ? `${label}, ${badge} saved` : label}
     >
-      <span style={{ color: isActive ? s.color : 'hsl(var(--foreground))' }}>{icon}</span>
       <span>{label}</span>
-      {badge && (
-        <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full ml-auto"
-          style={{ background: isActive ? s.border : 'hsl(var(--muted))', color: isActive ? '#000' : 'hsl(var(--muted-foreground))' }}>
-          {badge}
-        </span>
-      )}
-      {onEditClick && isActive && (
-        <span
-          onClick={e => { e.stopPropagation(); onEditClick(); }}
-          className="ml-auto text-[10px] font-black px-2 py-0.5 rounded-full cursor-pointer"
-          style={{ background: 'rgba(var(--neon-yellow-rgb), 0.12)', color: 'var(--neon-yellow)' }}
-        >
-          Edit
-        </span>
-      )}
+      {badge && <span className="pg-feed-count">{badge}</span>}
     </button>
   );
 }
 
-function FabOption({ label, emoji, color, delay = '0s', onClick }) {
+function FabOption({ label, icon, color, delay = '0s', onClick }) {
   return (
-    <button
-      onClick={onClick}
-      className="flex items-center gap-2.5 pl-3.5 pr-4 py-2.5 rounded-2xl"
-      style={{
-        background: color,
-        boxShadow: 'var(--fab-shadow)',
-        animation: `fabItemIn 0.22s cubic-bezier(0.34,1.56,0.64,1) ${delay} both`,
-      }}
-    >
-      <span className="text-lg leading-none">{emoji}</span>
-      <span className="text-sm font-black tracking-tight" style={{ color: 'var(--gradient-btn-text)' }}>{label}</span>
+    <button onClick={onClick} className="pg-compose-option"
+      style={{ background: color, animation: `fabItemIn 0.22s cubic-bezier(0.34,1.56,0.64,1) ${delay} both` }}>
+      {icon}<span>{label}</span>
     </button>
   );
 }
@@ -790,128 +710,75 @@ function PostCard({ post, user, onReact, reactingId }) {
   const hasSeatMove = post.from_section || post.to_section;
 
   return (
-    <div className="rounded-2xl overflow-hidden"
-      style={{
-        background: 'hsl(var(--card))',
-        border: isSeatFlex ? '1px solid rgba(var(--neon-cyan-light-rgb),0.2)' : '1px solid hsl(var(--border))',
-        boxShadow: isSeatFlex ? '0 0 20px rgba(var(--neon-cyan-light-rgb),0.06)' : 'none',
-      }}>
+    <article className={`pg-fan-post${isSeatFlex ? ' pg-seat-flex-post' : ''}`}>
+      <div className="pg-post-author-row">
+        <div className="pg-post-avatar" style={{ background: avatarGradient(authorKey) }} aria-hidden="true">{initials}</div>
+        <div className="pg-post-author">
+          <p>{post.author_name || post.author_email}</p>
+          <div>
+            {post.created_date && <time dateTime={post.created_date}>{formatDistanceToNow(new Date(post.created_date), { addSuffix: true })}</time>}
+            {post.event_city && <span>{post.created_date ? ' · ' : ''}{post.event_city}</span>}
+          </div>
+        </div>
+        {isSeatFlex && <span className="pg-seat-flex-label">Seat Flex</span>}
+      </div>
 
-      {/* Seat Flex accent bar */}
-      {isSeatFlex && (
-        <div className="h-0.5 w-full" style={{ background: 'linear-gradient(90deg, var(--neon-cyan-light), var(--neon-purple))' }} />
+      {post.event_title && (
+        <p className="pg-post-event"><Ticket size={14} aria-hidden="true" /><span>{post.event_title}</span></p>
       )}
 
-      <div className="px-4 py-4 space-y-3">
-        {/* Author row */}
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 font-black text-sm"
-              style={{ background: avatarGradient(authorKey), color: 'var(--gradient-btn-text)', boxShadow: '0 0 10px rgba(0,0,0,0.4)' }}>
-              {initials}
-            </div>
-            <div>
-              <p className="text-sm font-bold text-foreground leading-none">{post.author_name || post.author_email}</p>
-              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                {isSeatFlex && (
-                  <span className="text-[9px] font-black tracking-widest px-1.5 py-0.5 rounded-full"
-                    style={{ background: 'rgba(var(--neon-cyan-light-rgb),0.15)', color: 'var(--neon-cyan-light)', border: '1px solid rgba(var(--neon-cyan-light-rgb),0.3)' }}>
-                    💺 SEAT FLEX
-                  </span>
-                )}
-              </div>
-            </div>
+      {isSeatFlex && hasSeatMove && (
+        <div className="pg-ticket pg-seat-move">
+          <div className="pg-seat-origin">
+            <span className="pg-seat-direction">From</span>
+            <strong>{post.from_section ? `Section ${post.from_section}` : 'Section not shared'}</strong>
+            {post.from_row && <span>Row {post.from_row}</span>}
           </div>
-          <span className="text-[10px] text-muted-foreground flex-shrink-0 mt-0.5 whitespace-nowrap">
-            {post.created_date ? formatDistanceToNow(new Date(post.created_date), { addSuffix: true }) : ''}
-          </span>
+          <ArrowRight className="pg-seat-arrow" size={24} aria-label="to" />
+          <div className="pg-ticket-end pg-seat-destination">
+            <span className="pg-seat-direction">To</span>
+            <strong>{post.to_section ? `Section ${post.to_section}` : 'Section not shared'}</strong>
+            {post.to_row && <span>Row {post.to_row}</span>}
+          </div>
         </div>
+      )}
 
-        {/* Event tag — always show if present */}
-        {post.event_title && (
-          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl w-fit"
-            style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}>
-            <span className="text-[10px]">🎫</span>
-            <span className="text-[11px] font-semibold text-muted-foreground">{post.event_title}</span>
-            {post.event_city && <span className="text-[10px] text-muted-foreground opacity-60">· {post.event_city}</span>}
-          </div>
-        )}
-
-        {/* Seat move badge */}
-        {isSeatFlex && hasSeatMove && (
-          <div className="flex items-center gap-2 px-3 py-2 rounded-xl"
-            style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-black" style={{ color: 'var(--neon-pink-light)' }}>
-                Sec {post.from_section || '?'}{post.from_row ? ` Row ${post.from_row}` : ''}
-              </span>
-              <span className="text-xs text-muted-foreground">→</span>
-              <span className="text-[10px] font-black" style={{ color: 'var(--neon-cyan-light)' }}>
-                Sec {post.to_section || '?'}{post.to_row ? ` Row ${post.to_row}` : ''}
-              </span>
-            </div>
-            <span className="text-sm ml-auto">🚀</span>
-          </div>
-        )}
-
-        {/* Seat Flex before/after photos */}
-        {isSeatFlex && (post.before_photo_url || post.after_photo_url) && (
-          <div className="grid grid-cols-2 gap-2">
-            {post.before_photo_url && (
-              <div className="relative rounded-xl overflow-hidden aspect-[4/3]">
-                <img src={post.before_photo_url} alt="Before" className="w-full h-full object-cover" />
-                <span className="absolute bottom-1.5 left-1.5 text-[9px] font-black px-1.5 py-0.5 rounded-full"
-                  style={{ background: 'rgba(0,0,0,0.75)', color: 'var(--neon-pink-light)' }}>BEFORE</span>
-              </div>
-            )}
-            {post.after_photo_url && (
-              <div className="relative rounded-xl overflow-hidden aspect-[4/3]">
-                <img src={post.after_photo_url} alt="After" className="w-full h-full object-cover" />
-                <span className="absolute bottom-1.5 left-1.5 text-[9px] font-black px-1.5 py-0.5 rounded-full"
-                  style={{ background: 'rgba(0,0,0,0.75)', color: 'var(--neon-cyan-light)' }}>AFTER</span>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Regular post photo */}
-        {!isSeatFlex && post.photo_url && (
-          <div className="rounded-xl overflow-hidden">
-            <img src={post.photo_url} alt="post" className="w-full max-h-72 object-cover" />
-          </div>
-        )}
-
-        {/* Post text */}
-        <p className="text-sm text-foreground leading-relaxed">{post.text}</p>
-
-        {/* Divider */}
-        <div className="h-px" style={{ background: 'hsl(var(--border))' }} />
-
-        {/* Reactions */}
-        <div className="flex items-center gap-2">
-          {REACTIONS.map(({ key, emoji }) => {
-            const arr = reactions[key] || [];
-            const reacted = user && arr.includes(user.email);
-            return (
-              <button
-                key={key}
-                onClick={() => onReact(post, key)}
-                disabled={!user || !!reactingId}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all active:scale-95 disabled:opacity-50"
-                style={{
-                  background: reacted ? 'rgba(var(--neon-pink-light-rgb), 0.12)' : 'hsl(var(--muted))',
-                  border: reacted ? '1px solid rgba(var(--neon-pink-light-rgb), 0.3)' : '1px solid hsl(var(--border))',
-                  color: reacted ? 'var(--neon-pink-light)' : 'hsl(var(--muted-foreground))',
-                  boxShadow: reacted ? 'none' : 'none',
-                }}
-              >
-                <span className="text-sm">{emoji}</span>
-                {arr.length > 0 && <span>{arr.length}</span>}
-              </button>
-            );
-          })}
+      {isSeatFlex && (post.before_photo_url || post.after_photo_url) && (
+        <div className={`pg-seat-photos${!(post.before_photo_url && post.after_photo_url) ? ' pg-single-photo' : ''}`}>
+          {post.before_photo_url && (
+            <figure>
+              <img src={post.before_photo_url} alt="View before the seat upgrade" loading="lazy" />
+              <figcaption>Before</figcaption>
+            </figure>
+          )}
+          {post.after_photo_url && (
+            <figure>
+              <img src={post.after_photo_url} alt="View after the seat upgrade" loading="lazy" />
+              <figcaption>After</figcaption>
+            </figure>
+          )}
         </div>
+      )}
+
+      <p className="pg-post-text">{post.text}</p>
+
+      {!isSeatFlex && post.photo_url && (
+        <div className="pg-post-photo"><img src={post.photo_url} alt="Photo shared by the fan" loading="lazy" /></div>
+      )}
+
+      <div className="pg-post-reactions" aria-label="Reactions">
+        {REACTIONS.map(({ key, emoji }) => {
+          const arr = reactions[key] || [];
+          const reacted = !!user && arr.includes(user.email);
+          return (
+            <button key={key} onClick={() => onReact(post, key)} disabled={!user || !!reactingId}
+              className={reacted ? 'is-reacted' : ''} aria-pressed={reacted}
+              aria-label={`${key} reaction, ${arr.length}${reacted ? ', selected' : ''}`}>
+              <span aria-hidden="true">{emoji}</span><span>{arr.length}</span>
+            </button>
+          );
+        })}
       </div>
-    </div>
+    </article>
   );
 }

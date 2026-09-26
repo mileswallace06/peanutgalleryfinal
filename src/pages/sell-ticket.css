@@ -1,0 +1,118 @@
+.pg-sell-page {
+  --pg-sell-link: var(--pg-cyan, #00c8ff);
+  --pg-sell-accent-text: #ffad42;
+  padding: 17px 16px 124px;
+  color: var(--pg-text, #f8f7fb);
+  background: var(--pg-canvas, #0d0b14);
+}
+.pg-sell-page .pg-sell-intro { margin-bottom: 18px; }
+.pg-sell-page .pg-sell-eyebrow {
+  margin: 0 0 8px;
+  color: var(--pg-sell-accent-text);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .17em;
+}
+.pg-sell-page .pg-page-title { margin: 0; font-size: clamp(32px, 9.6vw, 43px); line-height: 1.03; letter-spacing: -.045em; }
+.pg-sell-page .pg-sell-subtitle { margin: 9px 0 0; font-size: 15px; line-height: 1.45; color: var(--pg-text, #f8f7fb); }
+.pg-sell-page .pg-sell-content { display: flex; flex-direction: column; gap: 15px; }
+.pg-sell-page .pg-sell-primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 53px;
+  width: 100%;
+  padding: 13px 16px;
+  border: 1px solid #ffa124;
+  border-radius: 12px;
+  color: #140c00;
+  background: var(--pg-orange, #ff8c00);
+  font-size: 16px;
+  font-weight: 800;
+  text-decoration: none;
+}
+.pg-sell-page .pg-sell-primary span { flex: 1; text-align: center; }
+.pg-sell-page .pg-sell-primary:hover { background: #ffa124; }
+.pg-sell-page .pg-sell-payout { border: 1px solid var(--pg-line, #383341); border-radius: 12px; background: var(--pg-surface, #19171f); overflow: hidden; }
+.pg-sell-page .pg-sell-payout-heading { display: flex; gap: 11px; padding: 14px 14px 5px; align-items: flex-start; }
+.pg-sell-page .pg-sell-payout-icon { flex: 0 0 27px; display: grid; place-items: center; min-height: 27px; border-radius: 50%; background: var(--pg-orange, #ff8c00); color: #211303; }
+.pg-sell-page .pg-sell-payout-heading h2 { margin: 1px 0 4px; font-size: 14px; font-weight: 750; line-height: 1.3; }
+.pg-sell-page .pg-sell-payout-heading p { margin: 0; color: var(--pg-muted, #b7b1c3); font-size: 13px; line-height: 1.5; }
+.pg-sell-page .pg-sell-payout-action { display: flex; justify-content: center; align-items: center; gap: 8px; min-height: 44px; width: calc(100% - 28px); margin: 10px 14px 9px; padding: 9px 10px; border-radius: 8px; border: 1px solid var(--pg-line, #383341); color: var(--pg-sell-link); background: var(--pg-surface-raised, #24212d); font-size: 13px; font-weight: 700; }
+.pg-sell-page .pg-sell-payout-action:disabled { opacity: .65; cursor: wait; }
+.pg-sell-page .pg-sell-payout-note { margin: 0 14px; color: var(--pg-muted, #b7b1c3); font-size: 11px; line-height: 1.5; text-align: center; }
+.pg-sell-page .pg-sell-guide { display: flex; align-items: center; justify-content: center; gap: 3px; min-height: 44px; padding: 8px 12px; background: transparent; color: var(--pg-sell-link); text-decoration: none; font-size: 12px; font-weight: 650; }
+.pg-sell-page .pg-sell-verifying { min-height: 65px; display: flex; justify-content: center; align-items: center; gap: 10px; padding: 14px; font-size: 14px; color: var(--pg-muted, #b7b1c3); }
+.pg-sell-page .pg-sell-verifying svg { color: var(--pg-orange, #ff8c00); }
+.pg-sell-page .pg-sell-draft-note { margin: -5px 0 0; font-size: 12px; line-height: 1.5; color: var(--pg-muted, #b7b1c3); }
+.pg-sell-page .pg-sell-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 13px 0; border: 1px solid var(--pg-line, #383341); border-radius: 12px; background: var(--pg-surface, #19171f); }
+.pg-sell-page .pg-sell-stats > div { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.pg-sell-page .pg-sell-stats > div + div { border-left: 1px solid var(--pg-line, #383341); }
+.pg-sell-page .pg-sell-stats strong { font-size: 25px; font-weight: 850; line-height: 1.1; letter-spacing: -.035em; }
+.pg-sell-page .pg-sell-stats span { color: var(--pg-text, #f8f7fb); font-size: 13px; }
+.pg-sell-page .pg-sell-listing-section { margin-top: 2px; }
+.pg-sell-page .pg-section-title { display: flex; align-items: center; gap: 8px; margin: 0 0 11px; font-size: 25px; line-height: 1.15; font-weight: 850; letter-spacing: -.035em; }
+.pg-sell-page .pg-section-title > span { margin-left: auto; padding: 3px 8px; border: 1px solid var(--pg-line, #383341); border-radius: 6px; color: var(--pg-muted, #b7b1c3); font-size: 12px; letter-spacing: 0; font-weight: 600; }
+.pg-sell-page .pg-sell-listings { display: flex; flex-direction: column; gap: 10px; }
+.pg-sell-page .pg-sell-listing { display: grid; grid-template-columns: 61px minmax(0, 1fr) 64px; gap: 0; border-radius: 10px; background: var(--pg-paper, #f6f2e8); color: var(--pg-ink, #111217); padding: 5px; isolation: isolate; }
+.pg-sell-page .pg-sell-listing-image { display: grid; place-items: center; position: relative; min-height: 106px; border-radius: 6px 0 0 6px; color: var(--pg-orange, #ff8c00); background: #252131; overflow: hidden; }
+.pg-sell-page .pg-sell-listing-image img { width: 100%; height: 100%; position: absolute; inset: 0; object-fit: cover; }
+.pg-sell-page .pg-sell-listing-details { min-width: 0; padding: 8px 10px; }
+.pg-sell-page .pg-sell-listing h3 { margin: 0 0 5px; font-size: 16px; line-height: 1.15; font-weight: 850; letter-spacing: -.035em; overflow-wrap: anywhere; }
+.pg-sell-page .pg-sell-seat-details { margin: 0; font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+.pg-sell-page .pg-sell-listing-date { margin: 0 0 3px; font-size: 11px; line-height: 1.4; color: #514d58; }
+.pg-sell-page .pg-sell-listing-quantity { margin: 2px 0 0; color: #514d58; font-size: 12px; line-height: 1.4; }
+.pg-sell-page .pg-sell-listing-price { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; align-self: stretch; padding: 11px 3px 7px; margin: 6px 0; border-left: 1px dashed #b7afa2; background: transparent; }
+.pg-sell-page .pg-sell-listing-price strong { max-width: 100%; font-size: 22px; line-height: 1.15; font-weight: 850; letter-spacing: -.04em; overflow-wrap: anywhere; }
+.pg-sell-page .pg-sell-listing-price span { font-size: 12px; line-height: 1.5; }
+.pg-sell-page .pg-sell-status { display: inline-flex; margin-top: 7px; padding: 4px 6px; border-radius: 5px; background: #66636e; color: #fff; font-size: 10px; line-height: 1.3; font-weight: 750; }
+.pg-sell-page .pg-sell-listing-active .pg-sell-status { color: #075d35; background: #c4efd7; }
+.pg-sell-page .pg-sell-listing-pending_transfer .pg-sell-status { color: #6b4700; background: #ffe698; }
+.pg-sell-page .pg-sell-listing-sold .pg-sell-status { color: #075365; background: #bce7ed; }
+.pg-sell-page .pg-sell-listing-note { grid-column: 2 / 4; margin: -1px 9px 6px 10px; font-size: 10px; line-height: 1.45; color: #57515d; }
+.pg-sell-page .pg-sell-empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 24px 18px 9px; border-radius: 12px; background: var(--pg-surface, #19171f); border: 1px solid var(--pg-line, #383341); }
+.pg-sell-page .pg-sell-empty h2 { margin: 4px 0 0; font-size: 21px; letter-spacing: -.03em; font-weight: 800; }
+.pg-sell-page .pg-sell-empty p { max-width: 280px; margin: 0; color: var(--pg-muted, #b7b1c3); font-size: 14px; line-height: 1.5; }
+.pg-sell-page .pg-sell-state-icon { width: 33px; height: 33px; color: var(--pg-orange, #ff8c00); }
+.pg-sell-page .pg-sell-empty-action { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; margin-top: 9px; padding: 10px 16px; border: 1px solid var(--pg-line, #383341); border-radius: 8px; background: transparent; color: var(--pg-sell-accent-text); font-size: 14px; font-weight: 750; }
+.pg-sell-page .pg-sell-nearby { margin-top: 8px; }
+.pg-sell-page .pg-sell-nearby .pg-section-title { font-size: 20px; }
+.pg-sell-page .pg-sell-nearby .pg-section-title svg { color: var(--pg-sell-link); }
+.pg-sell-page .pg-sell-nearby-list { display: flex; flex-direction: column; gap: 8px; }
+.pg-sell-page .pg-sell-nearby-event { display: flex; align-items: center; gap: 10px; padding: 9px; min-height: 66px; border: 1px solid var(--pg-line, #383341); border-radius: 10px; color: var(--pg-text, #f8f7fb); background: var(--pg-surface, #19171f); text-decoration: none; }
+.pg-sell-page .pg-sell-nearby-event > img, .pg-sell-page .pg-sell-nearby-placeholder { flex: 0 0 44px; width: 44px; height: 44px; border-radius: 5px; object-fit: cover; }
+.pg-sell-page .pg-sell-nearby-placeholder { display: grid; place-items: center; background: #302837; color: var(--pg-orange, #ff8c00); }
+.pg-sell-page .pg-sell-nearby-details { min-width: 0; flex: 1; }
+.pg-sell-page .pg-sell-nearby-details h3 { margin: 0; font-size: 13px; line-height: 1.4; font-weight: 750; overflow-wrap: anywhere; }
+.pg-sell-page .pg-sell-nearby-details p { margin: 3px 0 0; color: var(--pg-muted, #b7b1c3); font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
+.pg-sell-page .pg-sell-nearby-event > svg { flex-shrink: 0; color: var(--pg-muted, #b7b1c3); }
+.pg-sell-page .pg-sell-search-label { display: flex; align-items: center; flex-shrink: 0; color: var(--pg-sell-accent-text); font-size: 11px; font-weight: 700; }
+.pg-sell-page .pg-sell-nearby-skeleton { min-height: 66px; border-radius: 10px; background: var(--pg-surface-raised, #24212d); animation: pg-sell-pulse 1.5s ease-in-out infinite; }
+.pg-sell-page .pg-sell-location-state { display: flex; align-items: center; gap: 10px; padding: 18px 14px; border: 1px solid var(--pg-line, #383341); border-radius: 10px; color: var(--pg-muted, #b7b1c3); background: var(--pg-surface, #19171f); }
+.pg-sell-page .pg-sell-location-state svg { flex-shrink: 0; }
+.pg-sell-page .pg-sell-location-state p { margin: 0; font-size: 13px; line-height: 1.5; }
+.pg-sell-page .pg-sell-signin { display: flex; min-height: 55vh; flex-direction: column; align-items: center; justify-content: center; gap: 17px; text-align: center; }
+.pg-sell-page .pg-sell-signin p { margin: 0; color: var(--pg-muted, #b7b1c3); font-size: 15px; }
+.pg-sell-page .pg-sell-signin .pg-sell-primary { max-width: 260px; }
+.pg-sell-page .pg-sell-loading { display: flex; min-height: 50vh; justify-content: center; align-items: center; gap: 12px; color: var(--pg-muted, #b7b1c3); font-size: 14px; }
+.pg-sell-page .pg-sell-spinner { animation: pg-sell-spin 1s linear infinite; }
+.pg-sell-page a:focus-visible, .pg-sell-page button:focus-visible { outline: 3px solid var(--pg-cyan, #00c8ff); outline-offset: 3px; }
+@keyframes pg-sell-spin { to { transform: rotate(360deg); } }
+@keyframes pg-sell-pulse { 50% { opacity: .5; } }
+@media (max-width: 359px) {
+  .pg-sell-page { padding-left: 12px; padding-right: 12px; }
+  .pg-sell-page .pg-sell-listing { grid-template-columns: 44px minmax(0, 1fr) 59px; }
+  .pg-sell-page .pg-sell-listing-details { padding-left: 8px; padding-right: 7px; }
+  .pg-sell-page .pg-sell-listing h3 { font-size: 15px; }
+  .pg-sell-page .pg-sell-payout-action { font-size: 12px; gap: 6px; }
+  .pg-sell-page .pg-sell-search-label { font-size: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pg-sell-page .pg-sell-spinner, .pg-sell-page .pg-sell-nearby-skeleton { animation: none; }
+}
+
+:root:not(.dark) .pg-sell-page {
+  --pg-sell-link: #00677e;
+  --pg-sell-accent-text: #925000;
+}

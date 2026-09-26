@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { Plus, Tag, TrendingUp, LogIn, BadgeCheck, ExternalLink, Loader2, AlertCircle, MapPin, ChevronRight } from 'lucide-react';
+import { Plus, Ticket, LogIn, ExternalLink, Loader2, AlertCircle, MapPin, ChevronRight, ArrowRight } from 'lucide-react';
 import { fetchTMEvents } from '@/lib/tmCache';
 import { isAdmin } from '@/lib/isAdmin';
+import './sell-ticket.css';
 
 export default function Sell() {
   const [user, setUser] = useState(null);
@@ -104,27 +105,26 @@ export default function Sell() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-32">
-        <span className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      <div className="pg-design-page pg-sell-page">
+        <div className="pg-state pg-sell-loading" role="status">
+          <Loader2 className="pg-sell-spinner" aria-hidden="true" />
+          <span>Loading your listings…</span>
+        </div>
       </div>
     );
   }
 
   if (!user) {
     return (
-      <div className="flex flex-col items-center justify-center gap-6 px-5 py-32 text-center">
-        <div className="text-5xl">🥜</div>
-        <h2 className="font-display text-3xl text-foreground">Sign In to Sell</h2>
-        <p className="text-sm text-muted-foreground max-w-[240px]">
-          List your seats and start earning.
-        </p>
-        <button
-          onClick={() => base44.auth.redirectToLogin()}
-          className="flex items-center gap-2 font-bold px-8 py-3.5 rounded-full neon-glow-green"
-          style={{ background: 'linear-gradient(135deg, var(--neon-green), var(--neon-cyan))', color: 'var(--gradient-btn-text)' }}
-        >
-          <LogIn className="w-4 h-4" /> Sign In
-        </button>
+      <div className="pg-design-page pg-sell-page">
+        <div className="pg-state pg-sell-signin">
+          <Ticket className="pg-sell-state-icon" aria-hidden="true" />
+          <h1 className="pg-page-title">Sign in to sell</h1>
+          <p>List your seats and start earning.</p>
+          <button onClick={() => base44.auth.redirectToLogin()} className="pg-action pg-sell-primary">
+            <LogIn size={18} aria-hidden="true" /> Sign In
+          </button>
+        </div>
       </div>
     );
   }
@@ -135,308 +135,178 @@ export default function Sell() {
   const other = listings.filter(l => l.status === 'cancelled' || l.status === 'expired');
 
   return (
-    <div className="pb-32">
-      {/* Hero */}
-      <div className="relative overflow-hidden" data-page-hero="sell" style={{ height: 'calc(14rem + var(--app-safe-top))' }}>
-        <img
-          src="https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=900&q=80"
-          alt="Sell"
-          className="w-full h-full object-cover object-top"
-        />
-        <div
-          className="absolute inset-0"
-          style={{ background: 'linear-gradient(to bottom, var(--hero-bg-top) 0%, var(--hero-bg-mid) 40%, var(--hero-bg-end) 100%)' }}
-        />
-        <div
-          className="absolute bottom-0 left-0 right-0 h-36"
-          style={{ background: 'linear-gradient(to top, var(--hero-bg-extra), transparent)' }}
-        />
+    <div className="pg-design-page pg-sell-page">
+      <header className="pg-sell-intro" data-page-hero="sell">
+        <p className="pg-sell-eyebrow">SELL TICKETS</p>
+        <h1 className="pg-page-title">Sell your seats</h1>
+        <p className="pg-sell-subtitle">Pass a better view to another fan.</p>
+      </header>
 
-        <div className="absolute bottom-5 left-4 right-4">
-          <h1
-            className="font-display leading-[0.95]"
-            style={{
-              fontSize: 'clamp(3rem, 14vw, 5rem)',
-              letterSpacing: '-0.02em',
-              filter: 'drop-shadow(var(--hero-shadow))',
-              background: 'linear-gradient(90deg, var(--neon-orange) 0%, var(--hero-text-fade) 60%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-            }}
-          >
-            Sell Tickets
-          </h1>
-          <p className="text-sm text-white/60 mt-1">List your seats. Keep 95% of every sale.</p>
-        </div>
-      </div>
-
-      <div className="px-4 pt-6 space-y-6">
-
-        {/* Stripe Onboarding Gate */}
-        {onboardingChecking ? (
-          <div className="flex items-center justify-center gap-3 py-5 rounded-2xl"
-            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
-            <Loader2 className="w-4 h-4 animate-spin text-primary" />
-            <span className="text-sm font-medium text-muted-foreground">Verifying payout account…</span>
-          </div>
-        ) : isAdmin(user) || user.stripe_onboarding_complete === true || user.stripe_onboarding_complete === 'true' ? (
-          /* Primary CTA — onboarding done or admin bypass */
-          <Link
-            to="/create-listing"
-            className="flex items-center justify-center gap-2 w-full py-4 rounded-full font-black text-sm"
-            style={{ background: 'linear-gradient(135deg, var(--neon-orange), var(--neon-pink))', color: 'var(--gradient-btn-text)', boxShadow: 'var(--fab-shadow)' }}
-          >
-            <Plus className="w-4 h-4" /> List My Tickets
+      <div className="pg-sell-content">
+        {/* Listing creation remains available while payout setup is incomplete. */}
+        {!isAdmin(user) && user.stripe_onboarding_complete !== true && user.stripe_onboarding_complete !== 'true' && (
+          <Link to="/create-listing" className="pg-action pg-sell-primary">
+            <Plus size={19} aria-hidden="true" />
+            <span>List my tickets</span>
+            <ArrowRight size={21} aria-hidden="true" />
           </Link>
-        ) : (
-          /* Onboarding CTA — required before listing */
-          <div className="rounded-2xl overflow-hidden"
-            style={{ border: '1px solid rgba(var(--neon-orange-rgb),0.35)', background: 'rgba(var(--neon-orange-rgb),0.06)' }}>
-            <div className="px-5 py-4" style={{ borderBottom: '1px solid rgba(var(--neon-orange-rgb),0.2)' }}>
-              <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5"
-                  style={{ background: 'rgba(var(--neon-orange-rgb),0.15)', border: '1px solid rgba(var(--neon-orange-rgb),0.3)' }}>
-                  <AlertCircle className="w-4 h-4" style={{ color: 'var(--neon-orange)' }} />
-                </div>
-                <div>
-                  <p className="font-black text-sm text-foreground">
-                    {user.stripe_account_id ? 'Finish Your Payout Setup' : 'Connect Your Payout Account'}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-                    {user.stripe_account_id
-                      ? 'Your Stripe account was started but not completed. Finish setup to activate payouts and start listing.'
-                      : 'To list tickets and receive payouts, you need to connect a bank account via Stripe. Takes under 2 minutes.'}
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="px-5 py-4 space-y-3">
-              <div className="grid grid-cols-3 gap-2 text-center text-[11px] text-muted-foreground">
-                {['Secure & encrypted', 'Instant payouts', 'Industry standard'].map(t => (
-                  <div key={t} className="flex flex-col items-center gap-1">
-                    <BadgeCheck className="w-3.5 h-3.5 text-primary" />
-                    {t}
-                  </div>
-                ))}
-              </div>
-              <button
-                onClick={handleStartOnboarding}
-                disabled={onboardingLoading}
-                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-full font-black text-sm transition-all disabled:opacity-60"
-                style={{ background: 'linear-gradient(135deg, var(--neon-orange), var(--neon-pink))', color: 'var(--gradient-btn-text)', boxShadow: 'var(--fab-shadow)' }}
-              >
-                {onboardingLoading
-                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Redirecting to Stripe…</>
-                  : <><ExternalLink className="w-4 h-4" /> {user.stripe_account_id ? 'Finish Payout Setup' : 'Set Up Payouts with Stripe'}</>
-                }
-              </button>
-              <p className="text-[10px] text-center text-muted-foreground">
-                Powered by Stripe Connect. Your bank details are never stored by Peanut Gallery.
-              </p>
-              <Link to="/seller-payout-guide"
-                className="block text-center text-xs font-semibold transition-colors"
-                style={{ color: 'var(--neon-orange)' }}>
-                📖 How does payout setup work? →
-              </Link>
-            </div>
-          </div>
         )}
 
-        {/* Secondary CTA — allow listing creation even without onboarding */}
-        {!isAdmin(user) && user.stripe_onboarding_complete !== true && user.stripe_onboarding_complete !== 'true' && (
-          <div className="flex items-center gap-3 px-4 py-3 rounded-2xl"
-            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-foreground">Have tickets to list?</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Save your listing now — it'll go live once payout setup is complete.</p>
+        {/* Stripe onboarding gate and existing payout actions. */}
+        {onboardingChecking ? (
+          <div className="pg-sell-payout pg-sell-verifying" role="status">
+            <Loader2 className="pg-sell-spinner" size={18} aria-hidden="true" />
+            <span>Verifying payout account…</span>
+          </div>
+        ) : isAdmin(user) || user.stripe_onboarding_complete === true || user.stripe_onboarding_complete === 'true' ? (
+          <Link to="/create-listing" className="pg-action pg-sell-primary">
+            <Plus size={19} aria-hidden="true" />
+            <span>List my tickets</span>
+            <ArrowRight size={21} aria-hidden="true" />
+          </Link>
+        ) : (
+          <div className="pg-sell-payout">
+            <div className="pg-sell-payout-heading">
+              <span className="pg-sell-payout-icon"><AlertCircle size={19} aria-hidden="true" /></span>
+              <div>
+                <h2>{user.stripe_account_id ? 'Finish your payout setup' : 'Payout setup needed'}</h2>
+                <p>{user.stripe_account_id
+                  ? 'Finish your Stripe setup to activate payouts and start listing.'
+                  : 'Connect a bank account via Stripe to list tickets and receive payouts.'}</p>
+              </div>
             </div>
-            <Link
-              to="/create-listing"
-              className="flex items-center gap-1.5 px-4 py-2.5 rounded-full font-bold text-xs flex-shrink-0 transition-all active:scale-95"
-              style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--foreground))' }}
-            >
-              <Plus className="w-3.5 h-3.5" /> Create Listing
+            <button onClick={handleStartOnboarding} disabled={onboardingLoading} className="pg-action pg-sell-payout-action">
+              {onboardingLoading
+                ? <><Loader2 className="pg-sell-spinner" size={17} aria-hidden="true" /> Redirecting to Stripe…</>
+                : <><ExternalLink size={17} aria-hidden="true" /> {user.stripe_account_id ? 'Finish Payout Setup' : 'Set Up Payouts with Stripe'} <ChevronRight size={17} aria-hidden="true" /></>}
+            </button>
+            <p className="pg-sell-payout-note">Powered by Stripe Connect. Your bank details are never stored by Peanut Gallery.</p>
+            <Link to="/seller-payout-guide" className="pg-action pg-sell-guide">
+              How does payout setup work? <ChevronRight size={16} aria-hidden="true" />
             </Link>
           </div>
         )}
 
-        {/* Stats row */}
-        <div className="grid grid-cols-3 gap-3">
+        {!isAdmin(user) && user.stripe_onboarding_complete !== true && user.stripe_onboarding_complete !== 'true' && (
+          <p className="pg-sell-draft-note">Save your listing now. It will go live once payout setup is complete.</p>
+        )}
+
+        <div className="pg-sell-stats" aria-label="Your listing totals">
           {[
-            { label: 'Active', value: active.length, color: 'var(--neon-green)', bg: 'rgba(var(--neon-green-rgb), 0.06)', border: 'rgba(var(--neon-green-rgb), 0.15)' },
-            { label: 'Sold', value: sold.length, color: 'var(--neon-cyan)', bg: 'rgba(var(--neon-cyan-rgb), 0.06)', border: 'rgba(var(--neon-cyan-rgb), 0.15)' },
-            { label: 'Total', value: listings.length, color: 'var(--neon-purple)', bg: 'rgba(var(--neon-purple-rgb), 0.06)', border: 'rgba(var(--neon-purple-rgb), 0.15)' },
-          ].map(({ label, value, color, bg, border }) => (
-            <div key={label} className="rounded-2xl px-4 py-3 text-center"
-              style={{ background: bg, border: `1px solid ${border}` }}>
-              <div className="font-display text-2xl" style={{ color }}>{value}</div>
-              <div className="text-[11px] text-muted-foreground font-medium mt-0.5">{label}</div>
+            { label: 'Active', value: active.length },
+            { label: 'Sold', value: sold.length },
+            { label: 'Total', value: listings.length },
+          ].map(({ label, value }) => (
+            <div key={label}>
+              <strong>{value}</strong>
+              <span>{label}</span>
             </div>
           ))}
         </div>
 
-        {/* Recommended Events Near You */}
-        <section>
-          <h2 className="font-bold text-sm text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
-            <MapPin className="w-3.5 h-3.5" style={{ color: 'var(--neon-cyan)' }} /> Events Near You
-          </h2>
+        {drafts.length > 0 && (
+          <section className="pg-sell-listing-section">
+            <h2 className="pg-section-title">Your drafts <span>{drafts.length}</span></h2>
+            <div className="pg-sell-listings">
+              {drafts.map(l => <ListingRow key={l.id} listing={l} event={nearbyEvents.find(ev => ev.id === l.event_id)} />)}
+            </div>
+          </section>
+        )}
+
+        {active.length > 0 && (
+          <section className="pg-sell-listing-section">
+            <h2 className="pg-section-title">Active <span>{active.length}</span></h2>
+            <div className="pg-sell-listings">
+              {active.map(l => <ListingRow key={l.id} listing={l} event={nearbyEvents.find(ev => ev.id === l.event_id)} />)}
+            </div>
+          </section>
+        )}
+
+        {sold.length > 0 && (
+          <section className="pg-sell-listing-section">
+            <h2 className="pg-section-title">Sold <span>{sold.length}</span></h2>
+            <div className="pg-sell-listings">
+              {sold.map(l => <ListingRow key={l.id} listing={l} event={nearbyEvents.find(ev => ev.id === l.event_id)} />)}
+            </div>
+          </section>
+        )}
+
+        {listings.length === 0 && (
+          <div className="pg-state pg-sell-empty">
+            <Ticket className="pg-sell-state-icon" aria-hidden="true" />
+            <h2>Got seats you can’t use?</h2>
+            <p>Create your first listing and give another fan a better view.</p>
+            <Link to="/create-listing" className="pg-action pg-sell-empty-action"><Plus size={17} aria-hidden="true" /> Create Listing</Link>
+            <Link to="/why-peanut-gallery" className="pg-action pg-sell-guide">How we protect fans <ChevronRight size={16} aria-hidden="true" /></Link>
+          </div>
+        )}
+
+        {/* Nearby event links retain their existing search and event destinations. */}
+        <section className="pg-sell-nearby">
+          <h2 className="pg-section-title"><MapPin size={19} aria-hidden="true" /> Events near you</h2>
           {nearbyLoading ? (
-            <div className="space-y-2">
-              {[1, 2, 3].map(i => <div key={i} className="h-14 rounded-2xl animate-pulse" style={{ background: 'hsl(var(--muted))' }} />)}
+            <div className="pg-sell-nearby-list" aria-label="Loading nearby events" role="status">
+              {[1, 2, 3].map(i => <div key={i} className="pg-sell-nearby-skeleton" />)}
             </div>
           ) : nearbyEvents.length === 0 ? (
-            <div className="rounded-2xl px-4 py-5 text-center text-sm text-muted-foreground"
-              style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
-              📍 Allow location access to see events near you
-            </div>
+            <div className="pg-state pg-sell-location-state"><MapPin size={20} aria-hidden="true" /><p>Allow location access to see events near you.</p></div>
           ) : (
-            <div className="space-y-2">
+            <div className="pg-sell-nearby-list">
               {nearbyEvents.map(ev => {
                 const isTM = ev.source === 'ticketmaster';
                 const linkTo = isTM
                   ? `/create-listing?tab=search&q=${encodeURIComponent(ev.title)}`
                   : `/create-listing?event_id=${ev.id}`;
                 return (
-                  <Link
-                    key={ev.id}
-                    to={linkTo}
-                    className="flex items-center gap-3 px-4 py-3 rounded-2xl transition-all active:scale-[0.98]"
-                    style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
-                  >
+                  <Link key={ev.id} to={linkTo} className="pg-sell-nearby-event">
                     {ev.image_url
-                      ? <img src={ev.image_url} alt="" className="w-9 h-9 rounded-lg object-cover flex-shrink-0" />
-                      : <div className="w-9 h-9 rounded-lg flex items-center justify-center text-lg flex-shrink-0" style={{ background: 'hsl(var(--muted))' }}>🎫</div>
-                    }
-                    <div className="flex-1 min-w-0">
-                      <div className="font-bold text-sm text-foreground truncate">{ev.title}</div>
-                      <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
-                        <span className="truncate">{ev.venue}{ev.city ? `, ${ev.city}` : ''}</span>
-                        {ev.date && <span className="flex-shrink-0">· {format(new Date(ev.date), 'MMM d')}</span>}
-                      </div>
+                      ? <img src={ev.image_url} alt="" />
+                      : <span className="pg-sell-nearby-placeholder"><Ticket size={22} aria-hidden="true" /></span>}
+                    <div className="pg-sell-nearby-details">
+                      <h3>{ev.title}</h3>
+                      <p>{ev.venue}{ev.city ? `, ${ev.city}` : ''}{ev.date ? ` · ${format(new Date(ev.date), 'MMM d')}` : ''}</p>
                     </div>
-                    {isTM
-                      ? <span className="text-[9px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
-                          style={{ background: 'rgba(var(--neon-orange-rgb),0.12)', color: 'var(--neon-orange)', border: '1px solid rgba(var(--neon-orange-rgb),0.3)' }}>Search →</span>
-                      : <ChevronRight className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
-                    }
+                    {isTM ? <span className="pg-sell-search-label">Search <ChevronRight size={14} aria-hidden="true" /></span> : <ChevronRight size={19} aria-hidden="true" />}
                   </Link>
                 );
               })}
             </div>
           )}
         </section>
-
-        {/* Draft listings awaiting payout setup */}
-        {drafts.length > 0 && (
-          <section>
-            <h2 className="font-bold text-sm text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
-              <AlertCircle className="w-3.5 h-3.5" style={{ color: 'var(--neon-orange)' }} /> Awaiting Payout Setup ({drafts.length})
-            </h2>
-            <div className="space-y-3">
-              {drafts.map(l => <ListingRow key={l.id} listing={l} />)}
-            </div>
-          </section>
-        )}
-
-        {/* Active listings */}
-        {active.length > 0 && (
-          <section>
-            <h2 className="font-bold text-sm text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
-              <Tag className="w-3.5 h-3.5" style={{ color: 'var(--neon-green)' }} /> Active ({active.length})
-            </h2>
-            <div className="space-y-3">
-              {active.map(l => <ListingRow key={l.id} listing={l} />)}
-            </div>
-          </section>
-        )}
-
-        {/* Sold */}
-        {sold.length > 0 && (
-          <section>
-            <h2 className="font-bold text-sm text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
-              <TrendingUp className="w-3.5 h-3.5" style={{ color: 'var(--neon-cyan)' }} /> Sold ({sold.length})
-            </h2>
-            <div className="space-y-3">
-              {sold.map(l => <ListingRow key={l.id} listing={l} />)}
-            </div>
-          </section>
-        )}
-
-        {/* Empty state */}
-        {listings.length === 0 && (
-          <div className="relative rounded-2xl overflow-hidden text-center">
-            <img
-              src="https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=900&q=80"
-              alt=""
-              className="absolute inset-0 w-full h-full object-cover object-center"
-            />
-            <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, var(--hero-bg-top) 0%, var(--hero-bg-end) 100%)' }} />
-            <div className="relative z-10 py-12 px-6">
-              <p className="text-4xl mb-3">🎟️</p>
-              <p className="font-bold text-white text-lg">Got seats you can't use?</p>
-              <p className="text-sm text-white/60 mt-1 mb-5">List them now and keep 95% of every sale.</p>
-              <Link to="/create-listing"
-                className="inline-flex items-center gap-2 font-bold px-6 py-3 rounded-full"
-                style={{ background: 'var(--neon-pink)', color: 'var(--gradient-btn-text)' }}>
-                <Plus className="w-4 h-4" /> Create Listing
-              </Link>
-              <Link to="/why-peanut-gallery"
-                className="block mt-4 text-xs font-semibold text-white/50 hover:text-white/80 transition-colors">
-                🥜 Why Peanut Gallery? How we protect fans →
-              </Link>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
 }
 
-function ListingRow({ listing }) {
-  const STATUS_COLOR = {
-    active: 'var(--neon-green)',
-    pending_transfer: 'var(--neon-yellow)',
-    sold: 'var(--neon-cyan)',
-    cancelled: 'var(--neon-pink)',
-    expired: 'hsl(var(--muted-foreground))',
-    pending_payout_setup: 'var(--neon-orange)',
-  };
+function ListingRow({ listing, event }) {
   const STATUS_LABEL = {
     active: 'Active',
-    pending_transfer: 'Pending Transfer',
+    pending_transfer: 'Pending transfer',
     sold: 'Sold',
     cancelled: 'Cancelled',
     expired: 'Expired',
-    pending_payout_setup: 'Draft · Payout Pending',
+    pending_payout_setup: 'Draft · Payout pending',
   };
-  const color = STATUS_COLOR[listing.status] || 'hsl(var(--muted-foreground))';
   const isDraft = listing.status === 'pending_payout_setup';
 
   return (
-    <div className="rounded-2xl px-4 py-4 flex items-center justify-between gap-3"
-      style={{
-        background: isDraft ? 'rgba(var(--neon-orange-rgb),0.04)' : 'hsl(var(--card))',
-        border: isDraft ? '1px solid rgba(var(--neon-orange-rgb),0.25)' : '1px solid hsl(var(--border))',
-      }}>
-      <div className="flex-1 min-w-0">
-        <div className="font-bold text-sm text-foreground truncate">
-          Sec {listing.section}{listing.row ? ` · Row ${listing.row}` : ''}
-          {listing.seats ? ` · Seats ${listing.seats}` : ''}
-        </div>
-        <div className="text-xs text-muted-foreground mt-0.5">
-          {listing.quantity} ticket{listing.quantity !== 1 ? 's' : ''} · ${listing.asking_price}/ea
-        </div>
-        {isDraft && (
-          <p className="text-[10px] mt-1" style={{ color: 'var(--neon-orange)' }}>
-            Not visible to buyers until payout setup is complete.
-          </p>
-        )}
+    <article className={`pg-ticket pg-sell-listing pg-sell-listing-${listing.status}`}>
+      <div className="pg-sell-listing-image">
+        {event?.image_url ? <img src={event.image_url} alt="" /> : <Ticket size={27} strokeWidth={1.6} aria-hidden="true" />}
       </div>
-      <span className="text-[10px] font-black px-2.5 py-1 rounded-full flex-shrink-0 text-center"
-        style={{ background: `${color}18`, color, border: `1px solid ${color}30` }}>
-        {STATUS_LABEL[listing.status] || listing.status.replace(/_/g, ' ')}
-      </span>
-    </div>
+      <div className="pg-sell-listing-details">
+        <h3>{event?.title || `Section ${listing.section}`}</h3>
+        {event?.date && <p className="pg-sell-listing-date">{format(new Date(event.date), 'MMM d · h:mm a')}</p>}
+        <p className="pg-sell-seat-details">
+          {event?.title ? `Sec ${listing.section}` : ''}
+          {listing.row ? `${event?.title ? ' · ' : ''}Row ${listing.row}` : ''}
+          {listing.seats ? `${event?.title || listing.row ? ' · ' : ''}Seats ${listing.seats}` : ''}
+        </p>
+        <p className="pg-sell-listing-quantity">{listing.quantity} ticket{listing.quantity !== 1 ? 's' : ''}</p>
+        <span className="pg-sell-status">{STATUS_LABEL[listing.status] || listing.status.replace(/_/g, ' ')}</span>
+      </div>
+      <div className="pg-ticket-end pg-sell-listing-price"><strong>${listing.asking_price}</strong><span>each</span></div>
+      {isDraft && <p className="pg-sell-listing-note">Not visible to buyers until payout setup is complete.</p>}
+    </article>
   );
 }

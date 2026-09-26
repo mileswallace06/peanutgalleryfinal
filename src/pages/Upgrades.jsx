@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { MapPin, Calendar, ChevronRight, LocateFixed, X, Clock, RefreshCw, Zap, HelpCircle } from 'lucide-react';
+import { MapPin, ChevronRight, LocateFixed, X, RefreshCw, Zap, HelpCircle, ArrowRight } from 'lucide-react';
 import LocationAutocomplete from '@/components/LocationAutocomplete';
 import { getEventLiveStatus, SOON_WINDOW_MINUTES } from '@/lib/eventTiming';
 import { logNavEvent } from '@/lib/navLogger';
@@ -12,6 +12,8 @@ import { useLocationDetect } from '@/hooks/useLocationDetect';
 import { useAuth } from '@/lib/AuthContext';
 import WhatIsPGOverlay, { shouldShowOverlay } from '@/components/WhatIsPGOverlay';
 import FounderStoryCard from '@/components/founder/FounderStoryCard';
+import EventThumbnail from '@/components/events/EventThumbnail';
+import '@/components/eventmode/ticket-upgrades.css';
 
 // ── sessionStorage helpers ────────────────────────────────────────────────
 const SS_KEY = 'pg_upgrades_location';
@@ -142,288 +144,86 @@ export default function Upgrades() {
   });
 
   return (
-    <div ref={containerRef} className="pb-32 transition-transform duration-200">
+    <div ref={containerRef} className="pg-design-page pg-upgrades-page">
       {showOverlay && <WhatIsPGOverlay onDismiss={() => setShowOverlay(false)} user={user} />}
-      {pulling && (
-        <div className="fixed left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-4 py-2 rounded-full"
-          style={{ top: 'calc(1rem + var(--app-safe-top))', background: 'rgba(var(--neon-green-rgb), 0.1)', border: '1px solid rgba(var(--neon-green-rgb), 0.25)' }}>
-          <RefreshCw className="w-3.5 h-3.5 animate-spin" style={{ color: 'var(--neon-green)' }} />
-          <span className="text-xs font-semibold" style={{ color: 'var(--neon-green)' }}>Refreshing…</span>
-        </div>
-      )}
-      {/* Hero */}
-      <div className="relative overflow-hidden" data-page-hero="upgrades" style={{ height: 'calc(13rem + var(--app-safe-top))' }}>
-        <img
-          src="https://images.unsplash.com/photo-1459865264687-595d652de67e?w=900&q=80"
-          alt="Upgrades"
-          className="w-full h-full object-cover object-top"
-        />
-        <div className="absolute inset-0"
-          style={{ background: 'linear-gradient(to bottom, var(--hero-bg-top) 0%, var(--hero-bg-mid) 40%, var(--hero-bg-end) 100%)' }} />
+      {pulling && <div className="pg-upgrades-refresh" role="status"><RefreshCw size={16} className="animate-spin" /> Refreshing…</div>}
 
-        <div className="absolute bottom-5 left-4 right-4">
-          <h1
-            className="font-display leading-[0.95]"
-            style={{
-              fontSize: 'clamp(3rem, 14vw, 5rem)',
-              letterSpacing: '-0.02em',
-              filter: 'drop-shadow(var(--hero-shadow))',
-              background: 'linear-gradient(90deg, var(--neon-green) 0%, var(--hero-text-fade) 60%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-            }}
-          >
-            Upgrades
-          </h1>
-          <p className="text-sm text-white/60 mt-1">Better seats from fans already inside.</p>
-          <p className="text-xs text-white/40 mt-2 flex items-center gap-1">
-            <LocateFixed className="w-3 h-3" />
-            Tap Near Me or Enter City to find upgrade opportunities.
-          </p>
-        </div>
-      </div>
-
-      {/* Help — reopen "What is PG?" onboarding */}
-      <div className="px-4 mt-3 mb-1">
-        <button
-          onClick={() => setShowOverlay(true)}
-          className="text-xs text-muted-foreground flex items-center gap-1.5 active:opacity-70"
-        >
-          <HelpCircle className="w-3.5 h-3.5" />
-          What is Peanut Gallery?
+      <header className="pg-upgrades-heading">
+        <button className="pg-upgrades-location" onClick={() => { setLocationInput(locationLabel === 'Near me' ? '' : locationLabel || ''); setEditingLocation(!editingLocation); }}>
+          <MapPin size={18} aria-hidden="true" /><span>{locationLabel || 'Choose your location'}</span><ChevronRight size={15} aria-hidden="true" />
         </button>
-      </div>
+        <h1 className="pg-page-title">Upgrades</h1>
+        <p>Better seats from fans already inside.</p>
+      </header>
 
-      {/* Location bar — compact, secondary */}
-      <div className="px-4 mt-2 mb-4">
+      <div className="pg-upgrades-location-panel">
         {editingLocation ? (
-          <div className="space-y-2">
-            <div className="flex gap-2">
-              <LocationAutocomplete
-                value={locationInput}
-                onChange={setLocationInput}
+          <div className="pg-upgrades-city-edit">
+            <div className="pg-upgrades-city-input">
+              <LocationAutocomplete value={locationInput} onChange={setLocationInput}
                 onSelect={(s) => { setManualCity(s.label); setEditingLocation(false); writeSS({ city: s.label, locationInput: s.label }); fetchEvents(null, s.label); }}
                 onSubmit={(val) => { setManualCity(val); setEditingLocation(false); writeSS({ city: val, locationInput: val }); fetchEvents(null, val); }}
-                onNearMe={handleNearMe}
-                nearMeLoading={locationStatus === 'requesting'}
-                autoFocus
-              />
-              <button type="button" onClick={() => setEditingLocation(false)}
-                className="flex items-center justify-center w-10 h-10 rounded-xl flex-shrink-0 transition-all active:scale-95"
-                style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}>
-                <X className="w-4 h-4 text-muted-foreground" />
-              </button>
+                onNearMe={handleNearMe} nearMeLoading={locationStatus === 'requesting'} autoFocus />
+              <button type="button" className="pg-upgrades-close" aria-label="Close location editor" onClick={() => setEditingLocation(false)}><X size={20} /></button>
             </div>
-            {(locationStatus === 'denied' || locationStatus === 'unavailable' || locationStatus === 'timeout') && (
-              <p className="text-[11px] px-1 text-muted-foreground">
-                {locationStatus === 'denied'
-                  ? 'Location blocked — enter your city above.'
-                  : locationStatus === 'timeout'
-                  ? 'Location timed out — enter your city above.'
-                  : "Couldn't detect location — enter your city above."}
-              </p>
-            )}
-          </div>
-        ) : !locationLabel ? (
-          /* idle — intentional branded buttons */
-          <div className="flex gap-2">
-            <button onClick={requestLocation} disabled={locationStatus === 'requesting'}
-              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-sm transition-all active:scale-[0.98] disabled:opacity-60"
-              style={{ background: 'rgba(var(--neon-green-rgb),0.12)', border: '1px solid rgba(var(--neon-green-rgb),0.35)', color: 'var(--neon-green)' }}>
-              {locationStatus === 'requesting'
-                ? <span className="w-3.5 h-3.5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#BF5FFF', borderTopColor: 'transparent' }} />
-                : <LocateFixed className="w-3.5 h-3.5" />
-              }
-              Near Me
-            </button>
-            <button onClick={() => { setLocationInput(''); setEditingLocation(true); }}
-              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-semibold text-sm transition-all active:scale-[0.98]"
-              style={{ background: 'hsl(var(--card))', border: '1px solid rgba(var(--neon-green-rgb),0.2)' }}>
-              <MapPin className="w-3.5 h-3.5" style={{ color: 'var(--neon-green)', opacity: 0.7 }} />
-              <span className="text-foreground">Enter city</span>
-            </button>
+            {(locationStatus === 'denied' || locationStatus === 'unavailable' || locationStatus === 'timeout') && <p className="pg-upgrades-note">
+              {locationStatus === 'denied' ? 'Location blocked — enter your city above.' : locationStatus === 'timeout' ? 'Location timed out — enter your city above.' : "Couldn't detect location — enter your city above."}
+            </p>}
           </div>
         ) : (
-          /* location set — green accent chip */
-          <button
-            onClick={() => { setLocationInput(locationLabel === 'Near me' ? '' : locationLabel); setEditingLocation(true); }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all active:scale-[0.98]"
-            style={{ background: 'rgba(var(--neon-green-rgb),0.1)', border: '1px solid rgba(var(--neon-green-rgb),0.3)' }}
-          >
-            {locationStatus === 'requesting'
-              ? <span className="w-3 h-3 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--neon-green)', borderTopColor: 'transparent' }} />
-              : <MapPin className="w-3 h-3" style={{ color: 'var(--neon-green)' }} />
-            }
-            <span className="text-xs font-semibold truncate max-w-[130px]" style={{ color: 'var(--neon-green)' }}>{locationLabel}</span>
-            <span className="text-[10px] opacity-60" style={{ color: 'var(--neon-green)' }}>· change</span>
-          </button>
+          <div className="pg-upgrades-location-actions">
+            <button className="pg-action pg-upgrades-near" onClick={handleNearMe} disabled={locationStatus === 'requesting'}>
+              <LocateFixed size={18} />{locationStatus === 'requesting' ? 'Locating…' : 'Near me'}
+            </button>
+            <button className="pg-action pg-upgrades-city" onClick={() => { setLocationInput(locationLabel === 'Near me' ? '' : locationLabel || ''); setEditingLocation(true); }}>
+              <MapPin size={18} />{locationLabel ? 'Change city' : 'Enter city'}
+            </button>
+          </div>
         )}
       </div>
 
-      {/* Rate limit error */}
-      {tmError && (
-        <div className="mx-4 mb-3 px-4 py-3 rounded-2xl text-sm font-medium"
-          style={{ background: 'rgba(255,140,0,0.1)', border: '1px solid rgba(255,140,0,0.3)', color: '#FF8C00' }}>
-          Too many requests right now. Please wait a moment and try again.
-        </div>
-      )}
-
-      {/* Screen-reader result count announcement */}
+      {tmError && <div className="pg-state pg-upgrades-notice" role="alert">Too many requests right now. Please wait a moment and try again.</div>}
       <div aria-live="polite" aria-atomic="true" className="sr-only">
-        {!loading && locationLabel && (
-          allEvents.length === 0
-            ? `No upgrades found near ${locationLabel}`
-            : `${allEvents.length} upgrade${allEvents.length !== 1 ? 's' : ''} found near ${locationLabel}`
-        )}
+        {!loading && locationLabel && (allEvents.length === 0 ? `No upgrades found near ${locationLabel}` : `${allEvents.length} upgrade${allEvents.length !== 1 ? 's' : ''} found near ${locationLabel}`)}
       </div>
 
-      {/* Content */}
-      <div className="px-4 space-y-8">
-        {!loading && locationStatus === 'idle' && !locationLabel && (
-          <div className="rounded-2xl overflow-hidden relative" style={{ background: 'hsl(var(--card))', border: '1px solid rgba(var(--neon-green-rgb),0.2)' }}>
-            <div className="relative z-10 px-5 py-5">
-              <p className="font-bold text-foreground text-sm leading-tight flex items-center gap-1.5">
-                <Zap className="w-3.5 h-3.5" style={{ color: 'var(--neon-green)' }} />
-                Better seats in 3 taps
-              </p>
-              <div className="mt-3 space-y-2">
-                <div className="flex items-center gap-2.5">
-                  <span className="text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0"
-                    style={{ background: 'rgba(var(--neon-green-rgb),0.12)', color: 'var(--neon-green)' }}>1</span>
-                  <p className="text-xs text-muted-foreground">Choose your location</p>
-                </div>
-                <div className="flex items-center gap-2.5">
-                  <span className="text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0"
-                    style={{ background: 'rgba(var(--neon-green-rgb),0.12)', color: 'var(--neon-green)' }}>2</span>
-                  <p className="text-xs text-muted-foreground">Browse available upgrades</p>
-                </div>
-                <div className="flex items-center gap-2.5">
-                  <span className="text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0"
-                    style={{ background: 'rgba(var(--neon-green-rgb),0.12)', color: 'var(--neon-green)' }}>3</span>
-                  <p className="text-xs text-muted-foreground">Upgrade your seat instantly</p>
-                </div>
-              </div>
-              <button onClick={requestLocation}
-                className="mt-4 w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-bold text-xs transition-all active:scale-[0.98]"
-                style={{ background: 'rgba(var(--neon-green-rgb),0.12)', border: '1px solid rgba(var(--neon-green-rgb),0.35)', color: 'var(--neon-green)' }}>
-                <LocateFixed className="w-3.5 h-3.5" />
-                Tap Near Me above to get started →
-              </button>
-            </div>
-          </div>
-        )}
-        {loading ? (
-          <div className="space-y-3">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="rounded-2xl overflow-hidden flex animate-pulse" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
-                <div className="w-20 flex-shrink-0" style={{ minHeight: 80, background: 'hsl(var(--muted))' }} />
-                <div className="flex-1 px-4 py-4 space-y-2">
-                  <div className="h-3 rounded-full bg-muted w-3/4" />
-                  <div className="h-2.5 rounded-full bg-muted w-1/2" />
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (locationStatus === 'granted' || locationLabel) && (
-          <>
-            {/* LIVE NOW */}
+      <div className="pg-upgrades-feed">
+        {!loading && locationStatus === 'idle' && !locationLabel && <div className="pg-state pg-upgrades-intro">
+          <Zap size={24} /><h2>Move closer to the moment.</h2>
+          <ol><li>Choose your location</li><li>Browse available upgrades</li><li>Choose a better seat</li></ol>
+          <button className="pg-action" onClick={requestLocation}><LocateFixed size={18} />Find upgrades near me</button>
+        </div>}
+        {loading ? <div className="pg-upgrades-stack" role="status" aria-label="Loading nearby upgrades">{[1, 2, 3].map(i => <div key={i} className="pg-upgrades-skeleton animate-pulse" />)}</div>
+          : (locationStatus === 'granted' || locationLabel) && <>
             <section>
-              <SectionHeader
-                variant="live"
-                label="Live Now"
-                count={liveEvents.length > 0 ? liveEvents.length : null}
-              />
-              {liveEvents.length === 0 ? (
-                <div className="rounded-xl px-4 py-3 flex items-center gap-3" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
-                  <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground opacity-30 flex-shrink-0" />
-                  <p className="text-xs text-muted-foreground">No events live right now — upgrades open at showtime.</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {liveEvents.map((event) => (
-                    <EventCard key={event.id} event={event} mode="live" />
-                  ))}
-                </div>
-              )}
+              <SectionHeader variant="live" label="Live now" count={liveEvents.length > 0 ? liveEvents.length : null} />
+              {liveEvents.length === 0 ? <div className="pg-state">No events live right now — upgrades open at showtime.</div>
+                : <div className="pg-upgrades-stack">{liveEvents.map(event => <EventCard key={event.id} event={event} mode="live" />)}</div>}
             </section>
-
-            {/* STARTING SOON */}
-            {soonEvents.length > 0 && (
-              <section>
-                <SectionHeader
-                  variant="soon"
-                  icon={<Clock className="w-3.5 h-3.5" />}
-                  label="Starting Soon"
-                  count={soonEvents.length}
-                  meta={`within ${SOON_WINDOW_MINUTES} min`}
-                />
-                <div className="space-y-3">
-                  {soonEvents.map((event) => (
-                    <EventCard key={event.id} event={event} mode="soon" />
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {/* UPCOMING */}
+            {soonEvents.length > 0 && <section>
+              <SectionHeader variant="soon" label="Starting soon" count={soonEvents.length} meta={`within ${SOON_WINDOW_MINUTES} min`} />
+              <div className="pg-upgrades-stack">{soonEvents.map(event => <EventCard key={event.id} event={event} mode="soon" />)}</div>
+            </section>}
             <section>
-              <SectionHeader
-                variant="upcoming"
-                icon={<Calendar className="w-3.5 h-3.5" />}
-                label="Upcoming Near You"
-                count={upcomingEvents.length > 0 ? upcomingEvents.length : null}
-              />
-              {upcomingEvents.length === 0 ? (
-                <div className="rounded-xl px-4 py-3 flex items-center gap-3" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
-                  <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground opacity-30 flex-shrink-0" />
-                  <p className="text-xs text-muted-foreground">No upcoming events in this area — check back soon.</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {upcomingEvents.map((event) => (
-                    <EventCard key={event.id} event={event} mode="upcoming" />
-                  ))}
-                </div>
-              )}
+              <SectionHeader variant="upcoming" label="Upcoming near you" count={upcomingEvents.length > 0 ? upcomingEvents.length : null} />
+              {upcomingEvents.length === 0 ? <div className="pg-state">No upcoming events in this area — check back soon.</div>
+                : <div className="pg-upgrades-stack">{upcomingEvents.map(event => <EventCard key={event.id} event={event} mode="upcoming" />)}</div>}
             </section>
-          </>
-        )}
-
-        {/* Founder story card — near the bottom */}
-        <div className="mt-8">
-          <FounderStoryCard />
-        </div>
+          </>}
+        <button className="pg-upgrades-explainer" onClick={() => setShowOverlay(true)}><HelpCircle size={19} />How seat upgrades work<ChevronRight size={17} /></button>
+        <div className="pg-upgrades-founder"><FounderStoryCard /></div>
       </div>
     </div>
   );
 }
 
-function SectionHeader({ dot, icon, label, count, meta, variant }) {
-  // variant: 'live' | 'soon' | 'upcoming' (default green)
-  const isLive = variant === 'live';
-  const isSoon = variant === 'soon';
-  const accentColor = isLive ? 'var(--neon-pink)' : isSoon ? 'var(--neon-yellow)' : 'var(--neon-green)';
-  const accentBg = isLive ? 'rgba(var(--neon-pink-rgb),0.12)' : isSoon ? 'rgba(var(--neon-yellow-rgb),0.12)' : 'rgba(var(--neon-green-rgb),0.1)';
-  const accentBorder = isLive ? 'rgba(var(--neon-pink-rgb),0.3)' : isSoon ? 'rgba(var(--neon-yellow-rgb),0.3)' : 'rgba(var(--neon-green-rgb),0.25)';
-  const accentLine = isLive ? 'rgba(var(--neon-pink-rgb),0.4)' : isSoon ? 'rgba(var(--neon-yellow-rgb),0.3)' : 'rgba(var(--neon-green-rgb),0.15)';
-
-  return (
-    <div className="flex items-center gap-2 mb-3">
-      <div className="w-0.5 h-4 rounded-full flex-shrink-0" style={{ background: accentColor }} />
-      {isLive && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-red-500" />}
-      {icon && <span className="flex-shrink-0" style={{ color: accentColor, opacity: 0.9 }}>{icon}</span>}
-      <h2 className="text-xs font-bold tracking-widest uppercase" style={{ color: accentColor }}>{label}</h2>
-      {count != null && (
-        <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold tabular-nums"
-          style={{ background: accentBg, color: accentColor, border: `1px solid ${accentBorder}` }}>
-          {count}
-        </span>
-      )}
-      {meta && <span className="text-[10px] opacity-60" style={{ color: accentColor }}>{meta}</span>}
-      <div className="h-px flex-1" style={{ background: accentLine }} />
-    </div>
-  );
+function SectionHeader({ label, count, meta, variant }) {
+  return <div className={`pg-upgrades-section-heading pg-upgrades-section-${variant}`}>
+    <span className="pg-upgrades-status-dot" aria-hidden="true" />
+    <h2 className="pg-section-title">{label}</h2>
+    {count != null && <span className="pg-upgrades-count">{count}</span>}
+    {meta && <span className="pg-upgrades-meta">{meta}</span>}
+  </div>;
 }
 
 function EventCard({ event, mode }) {
@@ -485,79 +285,24 @@ function EventCard({ event, mode }) {
   const linkLabel = syncing ? 'Loading…' : isLive ? 'Open Live Hub' : isSoon ? 'Get Ready' : 'View Tickets';
 
   return (
-    <div
-      onClick={handleClick}
-      className="flex items-center gap-3 rounded-2xl overflow-hidden relative cursor-pointer active:scale-[0.98] transition-transform"
-      style={{
-        background: 'var(--card)',
-        border: isLive ? '1px solid rgba(var(--neon-green-rgb),0.3)' : isSoon ? '1px solid rgba(var(--neon-yellow-rgb),0.3)' : '1px solid var(--border)',
-        boxShadow: isLive ? '0 0 20px rgba(var(--neon-green-rgb),0.08)' : isSoon ? '0 0 20px rgba(var(--neon-yellow-rgb),0.06)' : 'none',
-      }}
-    >
-      <div className="w-20 h-20 flex-shrink-0 relative overflow-hidden">
-        {event.image_url ? (
-          <img src={event.image_url} alt={event.title} className="w-full h-full object-cover absolute inset-0" />
-        ) : (
-          <div className="w-full h-full absolute inset-0 flex items-center justify-center bg-muted">
-            <Calendar className="w-6 h-6 text-muted-foreground opacity-40" />
-          </div>
-        )}
-        {isLive && (
-          <span className="absolute top-1.5 left-1.5 text-[8px] font-black px-1.5 py-0.5 rounded-full"
-            style={{ background: 'var(--neon-pink)', color: '#fff' }}>
-            LIVE
-          </span>
-        )}
-      </div>
-
-      <div className="flex-1 py-3 min-w-0">
-        <h3 className="font-bold text-foreground text-sm leading-tight line-clamp-1">{event.title}</h3>
-        <div className="flex items-center gap-1 text-[11px] text-muted-foreground mt-1">
-          <MapPin className="w-3 h-3 flex-shrink-0" style={{ color: 'var(--neon-cyan)' }} />
-          <span className="truncate">{event.venue}{event.city ? `, ${event.city}` : ''}</span>
+    <button type="button" onClick={handleClick} disabled={syncing || !hasValidLink}
+      className={`pg-ticket pg-upgrade-ticket pg-upgrade-ticket-${mode}`}>
+      <div className="pg-upgrade-art"><EventThumbnail event={event} className="pg-upgrade-image" /></div>
+      <div className="pg-upgrade-ticket-bottom">
+        <div className="pg-upgrade-ticket-copy">
+          <div className="pg-upgrade-eyebrow"><span>{event.category || 'Live events'}</span>{isLive && <b>LIVE</b>}{isSoon && <b className="pg-upgrade-soon">SOON</b>}</div>
+          <h3>{event.title}</h3>
+          <p>{event.venue}{event.city ? ` · ${event.city}` : ''}</p>
+          <p className="pg-upgrade-date">{event.date ? format(new Date(event.date), 'MMM d · h:mm a') : 'Date to be announced'}</p>
+          {!isLive && !isTM && <p className="pg-upgrade-availability">Upgrades open at showtime</p>}
         </div>
-        <div className="flex items-center gap-1 text-[11px] text-muted-foreground mt-0.5">
-          <Calendar className="w-3 h-3 flex-shrink-0" style={{ color: 'var(--neon-green)' }} />
-          <span>{event.date ? format(new Date(event.date), 'EEE, MMM d · h:mm a') : 'TBD'}</span>
-        </div>
-        {!isLive && !isTM && (
-          <span className="mt-1.5 text-[10px] text-muted-foreground">Tickets available · upgrades open at showtime</span>
-        )}
+        <span className="pg-ticket-end pg-upgrade-ticket-action">
+          {syncing ? <RefreshCw size={18} className="animate-spin" /> : null}
+          <span>{hasValidLink ? linkLabel : 'Unavailable'}</span>
+          {!syncing && hasValidLink && <ArrowRight size={22} aria-hidden="true" />}
+        </span>
       </div>
-
-      <div className="pr-3 flex-shrink-0">
-        {hasValidLink ? (
-          <button
-            onClick={handleClick}
-            disabled={syncing}
-            className="flex items-center gap-1 px-3 py-2 rounded-xl font-bold text-xs whitespace-nowrap disabled:opacity-60 transition-all active:scale-95"
-            style={isLive
-              ? { background: 'rgba(var(--neon-green-rgb),0.15)', border: '1px solid rgba(var(--neon-green-rgb),0.45)', color: 'var(--neon-green)' }
-              : isSoon
-              ? { background: 'rgba(var(--neon-yellow-rgb),0.15)', border: '1px solid rgba(var(--neon-yellow-rgb),0.45)', color: 'var(--neon-yellow)' }
-              : { background: 'rgba(var(--neon-green-rgb),0.08)', border: '1px solid rgba(var(--neon-green-rgb),0.25)', color: 'var(--neon-green)' }
-            }
-          >
-            {syncing
-              ? <span className="w-3 h-3 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: isSoon ? 'var(--neon-yellow)' : 'var(--neon-green)', borderTopColor: 'transparent' }} />
-              : null
-            }
-            {linkLabel} {!syncing && <ChevronRight className="w-3.5 h-3.5" />}
-          </button>
-        ) : (
-          <span className="px-3 py-2 rounded-xl text-xs text-muted-foreground opacity-60 whitespace-nowrap">
-            Unavailable
-          </span>
-        )}
-      </div>
-
-      {/* Admin debug overlay */}
-      {adminUnlocked && (
-        <div className="absolute bottom-1 left-[84px] right-20 text-[8px] font-mono leading-tight pointer-events-none"
-          style={{ color: 'rgba(var(--neon-yellow-rgb),0.6)' }}>
-          id:{String(event.id||'').slice(0,12)} tm:{String(event.tm_id||'-').slice(0,12)} src:{event.source||'?'} pgId:{pgId||'–'} tmId:{tmId||'–'}
-        </div>
-      )}
-    </div>
+      {adminUnlocked && <span className="sr-only">id:{String(event.id || '').slice(0, 12)} tm:{String(event.tm_id || '-').slice(0, 12)} src:{event.source || '?'}</span>}
+    </button>
   );
 }

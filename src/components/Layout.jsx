@@ -2,7 +2,7 @@ import { Link, useLocation, useOutlet } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { MapPin, Zap, Tag, Flame, User, Bell } from 'lucide-react';
+import { Ticket, TrendingUp, Tag, Users, User, Bell } from 'lucide-react';
 import { getEventLiveStatus } from '@/lib/eventTiming';
 import { useTheme } from '@/hooks/useTheme';
 import Onboarding from '@/components/Onboarding';
@@ -10,6 +10,7 @@ import { useAuth } from '@/lib/AuthContext';
 import DonationWinNotification from '@/components/donations/DonationWinNotification';
 import FeedbackWidget from '@/components/beta/FeedbackWidget';
 import { pageVariants, useNavigationDirection } from '@/lib/pageTransitions';
+import '@/components/ticket-design.css';
 
 /**
  * Once a tab has been activated, keep its Outlet mounted permanently.
@@ -41,11 +42,11 @@ function MountedTab({ tabKey, activeKey, direction, pathname }) {
 }
 
 const NAV = [
-  { to: '/events', label: 'Tickets', icon: MapPin, color: '#00C8FF', key: 'events' },
-  { to: '/upgrades', label: 'Upgrades', sublabel: 'Better seats', icon: Zap, color: '#00C8FF', key: 'upgrades' },
-  { to: '/sell', label: 'Sell', icon: Tag, color: '#00C8FF', key: 'sell' },
-  { to: '/fan-zone', label: 'Fan Zone', icon: Flame, color: '#00C8FF', key: 'fanzone' },
-  { to: '/me', label: 'Me', icon: User, color: '#00C8FF', key: 'me' }
+  { to: '/events', label: 'Tickets', icon: Ticket, color: '#00C8FF', key: 'events' },
+  { to: '/upgrades', label: 'Upgrades', icon: TrendingUp, color: '#00FF87', key: 'upgrades' },
+  { to: '/sell', label: 'Sell', icon: Tag, color: '#FF8C00', key: 'sell' },
+  { to: '/fan-zone', label: 'Fan Zone', icon: Users, color: '#BF5FFF', key: 'fanzone' },
+  { to: '/me', label: 'Me', icon: User, color: '#00FF87', key: 'me' }
 ];
 
 export default function Layout() {
@@ -58,8 +59,7 @@ export default function Layout() {
   const scrollPositions = useRef({});
   const containerRefs = useRef({});
 
-  const { theme } = useTheme();
-  const isLight = theme === 'light';
+  useTheme();
 
   const getCurrentTab = () => {
     const path = location.pathname;
@@ -67,6 +67,9 @@ export default function Layout() {
   };
 
   const currentTab = getCurrentTab();
+  const usesTicketDesign = ['/events', '/upgrades', '/sell', '/fan-zone', '/my-tickets'].includes(location.pathname)
+    || location.pathname.startsWith('/upgrades/');
+  const selectedNavKey = location.pathname === '/my-tickets' ? 'me' : currentTab;
 
   // Per-pathname scroll memory — saved continuously by onScroll, restored on
   // every route change. Detail pages have no saved entry → start at top.
@@ -157,9 +160,19 @@ export default function Layout() {
   }
 
   return (
-    <div className="bg-background font-sans dark:rave-bg" style={{ height: '100dvh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+    <div className={`pg-ticket-app bg-background font-sans ${usesTicketDesign ? 'pg-ticket-app--designed' : 'dark:rave-bg'}`} style={{ height: '100dvh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       {user?.email && <DonationWinNotification userEmail={user.email} />}
       {user && <FeedbackWidget user={user} />}
+      {usesTicketDesign && (
+        <header className="pg-brandbar">
+          <div className="pg-brandbar-inner">
+            <Link to="/events" className="pg-brand" aria-label="Peanut Gallery — Events">
+              <img src="https://media.base44.com/images/public/69ef9900cf3862dc0ea39734/9022a5431_ChatGPTImageMay1202601_29_27PM.png" alt="" width="34" height="34" />
+              <span>Peanut Gallery</span>
+            </Link>
+          </div>
+        </header>
+      )}
       {/* Sign in — only when auth has definitively resolved as unauthenticated.
           During loading (authChecked=false) render nothing so "Sign in" never flashes. */}
       {authChecked && !isAuthenticated && !user && (
@@ -234,10 +247,10 @@ export default function Layout() {
       </div>
 
       {/* Bottom nav */}
-      <nav aria-label="Main navigation" className="relative shrink-0 z-50 frosted-bar border-t border-border dark:border-white/10" style={{ paddingBottom: 'env(safe-area-inset-bottom)', paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)' }}>
-        <div className="max-w-lg mx-auto flex items-stretch">
-          {NAV.map(({ to, label, sublabel, icon: NavIcon, color, key }) => {
-            const active = currentTab === key;
+      <nav aria-label="Main navigation" className="pg-bottom-nav relative shrink-0 z-50" style={{ paddingBottom: 'env(safe-area-inset-bottom)', paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)' }}>
+        <div className="pg-bottom-nav-inner max-w-lg mx-auto">
+          {NAV.map(({ to, label, icon: NavIcon, color, key }) => {
+            const active = selectedNavKey === key;
             const hasLivePulse = key === 'upgrades' && !!liveEventId && !active;
             return (
               <Link
@@ -252,32 +265,17 @@ export default function Layout() {
                     if (container) container.scrollTo({ top: 0, behavior: 'smooth' });
                   }
                 }}
-                className="flex-1 flex flex-col items-center justify-center gap-0.5 py-3 relative transition-all active:scale-95"
-                style={{ color: active ? color : 'hsl(var(--muted-foreground))' }}>
-                {active && (
-                  <span
-                    className="absolute top-0 left-1/2 -translate-x-1/2 h-0.5 w-8 rounded-b"
-                    style={{
-                      background: `linear-gradient(90deg, ${color}00, ${color}, ${color}00)`,
-                      boxShadow: isLight ? 'none' : `0 0 8px ${color}88`
-                    }} />
-                )}
-                <div
-                  className="w-11 h-9 flex items-center justify-center transition-all relative">
+                className={`pg-nav-item ${active ? 'is-active' : ''}`}
+                style={{ '--nav-accent': color }}>
+                <div className="pg-nav-icon">
                   <NavIcon
                     className="w-5 h-5"
-                    style={active ? { filter: isLight ? 'none' : `drop-shadow(0 0 6px ${color}bb)`, strokeWidth: 2.5 } : { strokeWidth: 1.8 }} />
+                    strokeWidth={active ? 2.5 : 1.8} />
                   {hasLivePulse && (
-                    <span className="absolute top-0.5 right-0.5 w-2.5 h-2.5 rounded-full animate-pulse"
-                      style={{ background: 'var(--neon-yellow)', boxShadow: isLight ? 'none' : '0 0 6px var(--neon-yellow)' }} />
+                    <span className="pg-nav-live" aria-label="Events live now" />
                   )}
                 </div>
-                <span className="text-xs font-bold leading-none">
-                  {hasLivePulse ? <span style={{ color: 'var(--neon-yellow)' }}>Live!</span> : label}
-                </span>
-                {sublabel && active && (
-                  <span className="text-[8px] leading-none mt-0.5 opacity-60">{sublabel}</span>
-                )}
+                <span className="pg-nav-label">{label}</span>
               </Link>
             );
           })}

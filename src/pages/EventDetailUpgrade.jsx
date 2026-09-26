@@ -23,6 +23,7 @@ import MoveCloserRail from '@/components/eventmode/MoveCloserRail';
 import SellSeatsModule from '@/components/eventmode/SellSeatsModule';
 import PurchaseDialog from '@/components/events/PurchaseDialog';
 import { loadFanGifts } from '@/lib/fanGiftRead';
+import '@/components/eventmode/ticket-upgrades.css';
 
 const TABS = [
   { key: 'Upgrades', label: 'Upgrades', sub: 'Better seats' },
@@ -168,7 +169,7 @@ export default function EventDetailUpgrade() {
 
   if (!loading && (!event || lookupError)) {
     return (
-      <div className="min-h-screen" style={{ background: 'var(--ev-bg)', paddingBottom: 'calc(6rem + env(safe-area-inset-bottom))' }}>
+      <div className="pg-design-page pg-live-page">
         <div className="px-4 py-20 text-center space-y-4">
           <Zap className="w-8 h-8 mx-auto opacity-20" />
           <div>
@@ -192,29 +193,22 @@ export default function EventDetailUpgrade() {
   }
 
   return (
-    <div className="min-h-screen" style={{ background: 'var(--ev-bg)', paddingBottom: 'calc(6rem + env(safe-area-inset-bottom))' }}>
+    <div className="pg-design-page pg-live-page">
       <EventHero event={event} />
       <CurrentTicketModule event={event} user={user} />
 
       {/* Tab bar */}
-      <div className="sticky top-0 z-20 flex border-b"
-        style={{ background: 'var(--ev-bg)', borderColor: 'var(--ev-border)' }}>
+      <div className="pg-live-tabs" role="group" aria-label="Live hub">
         {TABS.map(tab => (
-          <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-            className="flex-1 py-2.5 transition-colors relative flex flex-col items-center gap-0"
-            style={{ color: activeTab === tab.key ? 'var(--ev-teal)' : 'var(--ev-text-muted)' }}>
-            <span className="text-[11px] font-black tracking-wide uppercase leading-none">{tab.label}</span>
-            <span className="text-[9px] leading-none mt-0.5 opacity-60">{tab.sub}</span>
-            {activeTab === tab.key && (
-              <span className="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 w-8 rounded-b"
-                style={{ background: 'var(--ev-teal)' }} />
-            )}
+          <button key={tab.key} onClick={() => setActiveTab(tab.key)} aria-pressed={activeTab === tab.key}
+            className={activeTab === tab.key ? 'is-active' : ''}>
+            <span>{tab.label}</span>
           </button>
         ))}
       </div>
 
       {/* Tab content */}
-      <div className="px-4 py-5 space-y-6">
+      <div className="pg-live-content">
         {activeTab === 'Upgrades' && (
           <>
             {/* Hub-level eligibility gate — preserved as-is */}
@@ -227,8 +221,8 @@ export default function EventDetailUpgrade() {
                 || upgradeListings.find(l => l.requires_location)
                 || upgradeListings.find(l => l.requires_existing_ticket);
               return (
-                <div className="mb-2">
-                  <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--ev-text-muted)' }}>
+                <div className="pg-live-eligibility">
+                  <p className="pg-live-eligibility-title">
                     Upgrade Eligibility
                   </p>
                   <UpgradeEligibilityGate listing={strictest} isDemo={isDemo} onEligible={() => setHubEligibilityPassed(true)} />

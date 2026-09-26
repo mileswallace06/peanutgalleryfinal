@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { MapPin, LocateFixed, Calendar, ChevronRight, RefreshCw, ShieldCheck, Search, ArrowUpDown, X } from 'lucide-react';
+import { MapPin, LocateFixed, ChevronDown, ArrowRight, RefreshCw, ShieldCheck, Search, ArrowUpDown, X } from 'lucide-react';
 import { getEventLiveStatus } from '@/lib/eventTiming';
 import { getEventUrl } from '@/lib/eventUrl';
 import { logNavEvent } from '@/lib/navLogger';
@@ -14,6 +14,7 @@ import LocationAutocomplete from '@/components/LocationAutocomplete';
 import { createEventSearchRequest, buildEventSearchParams } from '@/lib/eventSearchRequest';
 import EventThumbnail from '@/components/events/EventThumbnail';
 import { restoreEventLocation, saveEventLocation, cityFromSuggestion, validCoordinates } from '@/lib/eventLocation';
+import './events-ticket.css';
 
 export default function Events() {
   const [events, setEvents] = useState([]);
@@ -252,7 +253,7 @@ export default function Events() {
   const { containerRef, pulling } = usePullToRefresh(retrySearch);
 
   return (
-    <div ref={containerRef} className="pb-32 transition-transform duration-200">
+    <div ref={containerRef} className="pg-design-page pg-events-page transition-transform duration-200">
       {pulling && (
         <div className="fixed left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-4 py-2 rounded-full"
           style={{ top: 'calc(1rem + var(--app-safe-top))', background: 'rgba(var(--neon-purple-rgb), 0.1)', border: '1px solid rgba(var(--neon-purple-rgb), 0.25)' }}>
@@ -261,88 +262,56 @@ export default function Events() {
         </div>
       )}
 
-      {/* ── Hero ── */}
-      <div className="relative overflow-hidden" data-page-hero="events" style={{ height: 'calc(14rem + var(--app-safe-top))' }}>
-        <img
-          src="https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=1200&q=85"
-          alt="crowd"
-          className="w-full h-full object-cover object-center"
-        />
-        {/* Dark overlay — heavy at bottom */}
-        <div
-          className="absolute inset-0"
-          style={{ background: 'linear-gradient(to bottom, var(--hero-bg-top) 0%, var(--hero-bg-mid) 40%, var(--hero-bg-end) 100%)' }}
-        />
-        {/* Extra text-area darkening */}
-        <div
-          className="absolute bottom-0 left-0 right-0 h-36"
-          style={{ background: 'linear-gradient(to top, var(--hero-bg-extra), transparent)' }}
-        />
-
-
-
-        {/* Headline */}
-        <div className="absolute bottom-5 left-4 right-4">
-          <h1
-            className="font-display leading-[0.95]"
-            style={{
-              fontSize: 'clamp(3rem, 14vw, 5rem)',
-              letterSpacing: '-0.02em',
-              filter: 'drop-shadow(var(--hero-shadow))',
-              background: 'linear-gradient(90deg, var(--neon-purple) 0%, var(--hero-text-fade) 60%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-            }}
-          >
-            Events
-          </h1>
-          <p className="text-sm text-white/60 mt-1">Fan-listed tickets, buyer-protected.</p>
+      <div className="pg-events-heading" data-page-hero="events">
+        <div className="pg-events-location-row">
+          <button type="button" onClick={openLocationPicker} aria-expanded={editingLocation} aria-controls="event-location-filter"
+            className="pg-events-location pg-action">
+            <MapPin aria-hidden="true" className="w-4 h-4" />
+            <span>{localArea ? localArea.label : 'Choose city'}</span>
+            <ChevronDown aria-hidden="true" className="w-3.5 h-3.5" />
+          </button>
+          <button type="button" onClick={handleNearMe} disabled={locationStatus === 'requesting'}
+            className="pg-events-nearby pg-action">
+            <LocateFixed aria-hidden="true" className="w-3.5 h-3.5" />
+            {locationStatus === 'requesting' ? 'Locating…' : 'Near Me'}
+          </button>
         </div>
+        <h1 className="pg-page-title font-display">Events</h1>
+        <p className="pg-events-intro">Discover amazing live events.</p>
       </div>
 
       {/* One event search; new submissions always use the retained local area. */}
-      <div className="px-4 mt-2 mb-3 space-y-2">
+      <div className="pg-events-search-area">
         <form role="search" onSubmit={(e) => { e.preventDefault(); runSearch(keyword); }}>
           <label htmlFor="event-search" className="sr-only">Search events, artists, teams, or venues</label>
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1 min-w-0">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+          <div className="pg-events-search-row">
+            <div className="pg-events-search-field">
+              <Search aria-hidden="true" className="pg-events-search-icon" />
               <input id="event-search" type="search" value={keyword} maxLength={100}
                 onChange={e => setKeyword(e.target.value)}
-                placeholder="Artist, event, team or venue"
+                placeholder="Artist, team or venue"
                 enterKeyHint="search" autoComplete="off"
-                className="w-full pl-9 pr-9 py-3 rounded-full text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 [&::-webkit-search-cancel-button]:appearance-none"
-                style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
+                className="pg-events-search-input" />
               {keyword && (
                 <button type="button" onClick={() => runSearch('')} aria-label="Clear event search"
-                  className="absolute right-1 top-1/2 -translate-y-1/2 p-2 text-muted-foreground">
-                  <X className="w-4 h-4" />
+                  className="pg-events-search-clear pg-action">
+                  <X aria-hidden="true" className="w-4 h-4" />
                 </button>
               )}
             </div>
-            <button type="submit" className="px-4 py-3 rounded-full text-sm font-bold bg-primary text-primary-foreground">Search</button>
+            <button type="submit" aria-label="Search events" className="pg-events-search-submit pg-action">
+              <ArrowRight aria-hidden="true" className="w-5 h-5" />
+            </button>
           </div>
         </form>
-        <div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={handleNearMe} disabled={locationStatus === 'requesting'}
-            className="flex items-center gap-2 px-4 py-3 rounded-full text-sm font-bold bg-primary text-primary-foreground disabled:opacity-50">
-            <LocateFixed className="w-4 h-4" />{locationStatus === 'requesting' ? 'Locating…' : 'Near Me'}
-          </button>
-          <button type="button" onClick={openLocationPicker} aria-expanded={editingLocation} aria-controls="event-location-filter"
-            className="flex items-center gap-1.5 px-3 py-3 rounded-full text-xs font-semibold border border-primary/30 text-primary bg-primary/10">
-            <MapPin className="w-3.5 h-3.5" />
-            {localArea ? `${localArea.label} · change` : 'Choose city'}
-          </button>
-        </div>
-        {hasSearched && <p data-search-scope={activeSearch.scope} className="text-xs font-semibold text-muted-foreground">
+        {hasSearched && <p data-search-scope={activeSearch.scope} className="pg-events-search-scope">
           {activeSearch.scope === 'nationwide' ? 'Nationwide results · United States' : `Nearby · ${activeSearch.locationLabel}`}
         </p>}
         {editingLocation && (
-          <section id="event-location-filter" aria-label="Location filter" className="p-3 rounded-2xl border border-border space-y-3">
+          <section id="event-location-filter" aria-label="Location filter" className="pg-events-location-panel p-3 space-y-3">
             <div className="flex justify-between items-center">
               <p className="text-sm font-semibold">Choose your local area</p>
-              <button type="button" onClick={() => { pendingNearMe.current = null; cancelRequest(); setEditingLocation(false); }} aria-label="Close location filter" className="p-2"><X className="w-4 h-4" /></button>
+              <button type="button" onClick={() => { pendingNearMe.current = null; cancelRequest(); setEditingLocation(false); }} aria-label="Close location filter" className="pg-action p-2"><X className="w-4 h-4" /></button>
             </div>
             <LocationAutocomplete value={locationInput} autoFocus
               onChange={(value) => { setLocationInput(value); setCityError(''); }}
@@ -354,7 +323,7 @@ export default function Events() {
               onSubmit={() => setCityError('Choose a city from the suggestions, or use your location.')}
               placeholder="Find a city" />
             {cityError && <p role="alert" className="text-xs text-muted-foreground">{cityError}</p>}
-            <button type="button" onClick={() => requestCurrentLocation()} disabled={locationStatus === 'requesting'} className="text-sm font-semibold text-primary disabled:opacity-50">
+            <button type="button" onClick={() => requestCurrentLocation()} disabled={locationStatus === 'requesting'} className="pg-events-text-action pg-action text-sm font-semibold disabled:opacity-50">
               {locationStatus === 'requesting' ? 'Locating…' : 'Use my location'}
             </button>
           </section>
@@ -362,66 +331,59 @@ export default function Events() {
       </div>
 
       {/* ── Sort by Date ── */}
-      <div className="px-4 mb-3 flex flex-wrap items-center gap-2">
-        <ArrowUpDown className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-        <div className="flex gap-1.5 flex-1">
-          {[
-            { id: 'soonest', label: 'Upcoming Soonest' },
-            { id: 'latest', label: 'Latest Upcoming' },
-          ].map(opt => (
-            <button key={opt.id} onClick={() => setSortMode(opt.id)}
-              className="px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-all"
-              style={sortMode === opt.id
-                ? { background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }
-                : { background: 'hsl(var(--card))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }}>
-              {opt.label}
-            </button>
-          ))}
-        </div>
-        <button onClick={() => setShowPast(v => !v)}
-          className="px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-all"
-          style={showPast
-            ? { background: 'rgba(var(--neon-yellow-rgb),0.12)', color: 'var(--neon-yellow)', border: '1px solid rgba(var(--neon-yellow-rgb),0.3)' }
-            : { background: 'hsl(var(--card))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }}>
+      <div className="pg-events-sort" aria-label="Event date filters">
+        <ArrowUpDown aria-hidden="true" className="pg-events-sort-icon" />
+        {[
+          { id: 'soonest', label: 'Soonest', accessibleLabel: 'Upcoming soonest' },
+          { id: 'latest', label: 'Latest', accessibleLabel: 'Latest upcoming' },
+        ].map(opt => (
+          <button key={opt.id} onClick={() => setSortMode(opt.id)}
+            aria-label={opt.accessibleLabel} aria-pressed={sortMode === opt.id}
+            className={`pg-events-sort-tab pg-action ${sortMode === opt.id ? 'is-active' : ''}`}>
+            {opt.label}
+          </button>
+        ))}
+        <button onClick={() => setShowPast(v => !v)} aria-pressed={showPast}
+          className={`pg-events-sort-tab pg-events-past pg-action ${showPast ? 'is-active' : ''}`}>
           Past Events
         </button>
       </div>
 
       {/* ── Rate limit / network error ── */}
       {tmError && (
-        <div className="mx-4 mb-3 px-4 py-3 rounded-2xl text-sm font-medium flex items-center justify-between gap-3"
+        <div className="pg-events-notice mx-4 mb-3 px-4 py-3 text-sm font-medium flex items-center justify-between gap-3"
           style={{ background: 'rgba(var(--neon-orange-rgb), 0.08)', border: '1px solid rgba(var(--neon-orange-rgb), 0.2)', color: 'var(--neon-orange)' }}>
           <span>Too many requests right now. Please wait a moment.</span>
           <button onClick={retrySearch}
-            className="flex items-center gap-1 text-xs font-bold underline underline-offset-2 flex-shrink-0">
+            className="pg-action flex items-center gap-1 text-xs font-bold underline underline-offset-2 flex-shrink-0">
             <RefreshCw className="w-3 h-3" /> Retry
           </button>
         </div>
       )}
       {networkError && !tmError && (
-        <div className="mx-4 mb-3 px-4 py-3 rounded-2xl text-sm font-medium flex items-center justify-between gap-3"
+        <div className="pg-events-notice mx-4 mb-3 px-4 py-3 text-sm font-medium flex items-center justify-between gap-3"
           style={{ background: 'rgba(var(--neon-pink-rgb), 0.08)', border: '1px solid rgba(var(--neon-pink-rgb), 0.2)', color: 'var(--neon-pink)' }}>
           <span>Failed to load events. Check your connection.</span>
           <button onClick={retrySearch}
-            className="flex items-center gap-1 text-xs font-bold underline underline-offset-2 flex-shrink-0">
+            className="pg-action flex items-center gap-1 text-xs font-bold underline underline-offset-2 flex-shrink-0">
             <RefreshCw className="w-3 h-3" /> Retry
           </button>
         </div>
       )}
       {/* M0.1: PG-source failure (distinct from TM failure) */}
       {pgError && !networkError && (
-        <div className="mx-4 mb-3 px-4 py-3 rounded-2xl text-sm font-medium flex items-center justify-between gap-3"
+        <div className="pg-events-notice mx-4 mb-3 px-4 py-3 text-sm font-medium flex items-center justify-between gap-3"
           style={{ background: 'rgba(var(--neon-pink-rgb), 0.08)', border: '1px solid rgba(var(--neon-pink-rgb), 0.2)', color: 'var(--neon-pink)' }}>
           <span>Could not load Peanut Gallery events. Results may be incomplete.</span>
           <button onClick={retrySearch}
-            className="flex items-center gap-1 text-xs font-bold underline underline-offset-2 flex-shrink-0">
+            className="pg-action flex items-center gap-1 text-xs font-bold underline underline-offset-2 flex-shrink-0">
             <RefreshCw className="w-3 h-3" /> Retry
           </button>
         </div>
       )}
       {/* M0.1: Partial data — TM failed, PG partial results shown */}
       {partialData && !tmError && (
-        <div className="mx-4 mb-3 px-4 py-3 rounded-2xl text-xs font-medium flex items-center gap-2"
+        <div className="pg-events-notice mx-4 mb-3 px-4 py-3 text-xs font-medium flex items-center gap-2"
           style={{ background: 'rgba(var(--neon-yellow-rgb), 0.06)', border: '1px solid rgba(var(--neon-yellow-rgb), 0.2)', color: 'var(--neon-yellow)' }}>
           <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0" />
           <span>Showing Peanut Gallery events only — Ticketmaster is temporarily unavailable.</span>
@@ -429,15 +391,9 @@ export default function Events() {
       )}
 
       {/* ── Event count + aria-live announcement ── */}
-      <div aria-live="polite" aria-atomic="true" className="px-4 mb-3">
+      <div aria-live="polite" aria-atomic="true" className="pg-events-count">
         {!loading && hasSearched && filtered.length > 0 && (
-          <div className="flex items-center gap-3">
-            <div className="h-px flex-1" style={{ background: 'rgba(var(--neon-purple-rgb),0.2)' }} />
-            <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: 'var(--neon-purple)' }}>
-              {filtered.length} event{filtered.length !== 1 ? 's' : ''}
-            </p>
-            <div className="h-px flex-1" style={{ background: 'rgba(var(--neon-purple-rgb),0.2)' }} />
-          </div>
+          <p>{filtered.length} event{filtered.length !== 1 ? 's' : ''}</p>
         )}
       </div>
 
@@ -448,7 +404,7 @@ export default function Events() {
             <Link
               key={e.id}
               to={`/upgrades/${e.id}`}
-              className="flex items-center gap-3 px-4 py-3 rounded-2xl mb-2"
+              className="pg-events-live-link pg-action flex items-center gap-3 px-4 py-3 mb-2"
               style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
             >
               <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
@@ -467,14 +423,15 @@ export default function Events() {
 
       {/* ── List ── */}
       {loading ? (
-        <div className="px-4 space-y-3">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="rounded-2xl overflow-hidden flex animate-pulse" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
-              <div className="w-28 flex-shrink-0" style={{ minHeight: 110, background: 'hsl(var(--muted))' }} />
-              <div className="flex-1 px-4 py-4 space-y-2">
-                <div className="h-3.5 rounded-full bg-muted w-3/4" />
-                <div className="h-2.5 rounded-full bg-muted w-1/2" />
-                <div className="h-2.5 rounded-full bg-muted w-2/5" />
+        <div className="pg-events-list" role="status" aria-label="Loading events">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="pg-events-skeleton pg-ticket animate-pulse" aria-hidden="true">
+              <div className="pg-events-skeleton-photo" />
+              <div className="pg-events-skeleton-bottom">
+                <div className="pg-events-skeleton-copy">
+                  <div /><div /><div />
+                </div>
+                <div className="pg-events-skeleton-stub pg-ticket-end" />
               </div>
             </div>
           ))}
@@ -482,15 +439,15 @@ export default function Events() {
       ) : restoringLocation ? (
         <p role="status" className="px-4 text-sm text-muted-foreground">Loading your saved location…</p>
       ) : !hasSearched ? (
-        <div className="mx-4 p-5 rounded-2xl border border-border bg-card space-y-2">
+        <div className="pg-events-state pg-state mx-4 p-5 space-y-2">
           <p className="font-semibold">Find events near you</p>
           <p className="text-sm text-muted-foreground">Choose a local area to browse events and search artists, teams or venues nearby.</p>
-          {!editingLocation && <button type="button" onClick={() => requestCurrentLocation()} disabled={locationStatus === 'requesting'} className="text-sm font-semibold text-primary disabled:opacity-50">
+          {!editingLocation && <button type="button" onClick={() => requestCurrentLocation()} disabled={locationStatus === 'requesting'} className="pg-events-text-action pg-action text-sm font-semibold disabled:opacity-50">
             {locationStatus === 'requesting' ? 'Locating…' : 'Use my location'}
           </button>}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="mx-4 p-5 rounded-2xl border border-border bg-card space-y-2" role="status">
+        <div className="pg-events-state pg-state mx-4 p-5 space-y-2" role="status">
           <p className="font-semibold">
             {sourceError ? 'Some search results are unavailable' : activeSearch.keyword
               ? activeSearch.scope === 'local' ? `No matches for ‘${activeSearch.keyword}’ near ${activeSearch.locationLabel}` : `No matches for ‘${activeSearch.keyword}’ nationwide`
@@ -506,9 +463,9 @@ export default function Events() {
           {sourceError && <button type="button" onClick={retrySearch} className="block text-sm font-semibold text-primary">Retry search</button>}
         </div>
       ) : (
-        <div className="px-4 space-y-3">
+        <div className="pg-events-list">
           {filtered.map(event => (
-            <EventRow key={event.id} event={event} isAdmin={isAdmin} />
+            <EventRow key={event.id} event={event} />
           ))}
         </div>
       )}
@@ -516,11 +473,10 @@ export default function Events() {
   );
 }
 
-function EventRow({ event, isAdmin = false }) {
+function EventRow({ event }) {
   const isTM = event.source === 'ticketmaster' || String(event.id || '').startsWith('tm_');
   const timing = !isTM && event.id ? getEventLiveStatus(event) : null;
   const isLive = timing?.status === 'live';
-  const isSoon = timing?.status === 'soon';
   const eventUrl = getEventUrl(event);
 
   const handleCardClick = () => {
@@ -539,111 +495,61 @@ function EventRow({ event, isAdmin = false }) {
   const minPrice = event.min_price || null;
   const isPGEvent = event.source === 'pg';
 
+  const date = event.date ? new Date(event.date) : null;
+  const hasDate = date && !Number.isNaN(date.getTime());
+  const dateLabel = hasDate ? format(date, 'EEE, MMM d · h:mm a') : 'Date to be announced';
+
+  const dateStub = (
+    <>
+      <span className="pg-event-date-day">{hasDate ? format(date, 'd') : '—'}</span>
+      <span className="pg-event-date-month">{hasDate ? format(date, 'MMM') : 'TBD'}</span>
+      <span className="pg-event-stub-action">
+        {isLive ? <span>Live Hub</span> : <span className="sr-only">View event</span>}
+        {eventUrl && <ArrowRight aria-hidden="true" className="w-5 h-5" />}
+      </span>
+    </>
+  );
+
   return (
-    <div
-      className="rounded-2xl overflow-hidden flex items-stretch"
-      style={{
-        background: 'hsl(var(--card))',
-        border: isLive
-          ? '1px solid rgba(var(--neon-purple-rgb),0.35)'
-          : '1px solid hsl(var(--border))',
-        boxShadow: isLive
-          ? '0 2px 16px rgba(var(--neon-purple-rgb),0.08), 0 1px 3px rgba(0,0,0,0.12)'
-          : '0 1px 3px rgba(0,0,0,0.08)',
-      }}
-    >
-      {/* Thumbnail */}
-      <div className="w-28 flex-shrink-0 relative" style={{ minHeight: 116 }}>
-        <EventThumbnail
-          event={event}
-          className="absolute inset-0 w-full h-full"
-        />
-        {/* Subtle gradient overlay for readability */}
-        <div
-          className="absolute inset-0"
-          style={{ background: 'linear-gradient(to right, transparent 60%, rgba(0,0,0,0.18) 100%)' }}
-        />
-        {isLive && (
-          <div className="absolute top-2 left-2">
-            <span
-              className="text-[9px] font-bold px-1.5 py-0.5 rounded"
-              style={{ background: 'rgba(220,38,38,0.92)', color: '#fff', letterSpacing: '0.08em' }}
-            >
-              LIVE
-            </span>
-          </div>
-        )}
+    <article className={`pg-event-ticket pg-ticket ${isLive ? 'is-live' : ''}`}>
+      <div className="pg-event-photo">
+        <EventThumbnail event={event} className="absolute inset-0 w-full h-full" />
+        {isLive && <span className="pg-event-live-badge">LIVE</span>}
       </div>
-
-      {/* Info */}
-      <div className="flex-1 px-3.5 py-3.5 flex flex-col justify-between min-w-0 gap-2">
-        <div className="space-y-1">
-          <h3
-            className="font-semibold text-foreground leading-tight line-clamp-2"
-            style={{ fontSize: '0.875rem' }}
-          >
-            {event.title}
-          </h3>
-          <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-            <MapPin className="w-3 h-3 flex-shrink-0 opacity-50" />
-            <span className="truncate">
-              {event.venue}{event.city ? `, ${event.city}` : ''}{event.state ? `, ${event.state}` : ''}
-            </span>
-          </div>
-          <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-            <Calendar className="w-3 h-3 flex-shrink-0 opacity-40" />
-            <span>{event.date ? format(new Date(event.date), 'EEE, MMM d · h:mm a') : 'TBD'}</span>
-          </div>
-        </div>
-
-        {/* Marketplace signals */}
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            {isPGEvent && listingCount > 0 && (
-              <span className="text-[11px] text-muted-foreground">
-                {listingCount} listing{listingCount !== 1 ? 's' : ''}
-                {minPrice ? ` · from $${minPrice}` : ''}
-              </span>
-            )}
-            {isPGEvent && !listingCount && (
-              <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                <ShieldCheck className="w-3 h-3 opacity-50" />
-                Buyer protected
-              </span>
-            )}
-          </div>
-
-          {eventUrl && (
-            isLive ? (
-              <Link
-                to={`/upgrades/${event.id}`}
-                className="inline-flex items-center gap-1 text-[11px] font-semibold px-3 py-1.5 rounded-lg flex-shrink-0"
-                style={{
-                  background: 'hsl(var(--primary))',
-                  color: 'hsl(var(--primary-foreground))',
-                }}
-                onClick={e => e.stopPropagation()}
-              >
-                Live Hub <ChevronRight className="w-3 h-3" />
-              </Link>
-            ) : (
-              <Link
-                to={eventUrl}
-                state={isTM ? { tmEvent: event } : undefined}
-                className="inline-flex items-center gap-1 text-[11px] font-medium px-3 py-1.5 rounded-lg flex-shrink-0 transition-all active:scale-[0.97]"
-                style={{
-                  background: 'hsl(var(--secondary))',
-                  color: 'hsl(var(--secondary-foreground))',
-                  border: '1px solid hsl(var(--border))',
-                }}
-                onClick={handleCardClick}
-              >
-                View <ChevronRight className="w-3 h-3" />
-              </Link>
-            )
+      <div className="pg-event-ticket-body">
+        <div className="pg-event-ticket-copy">
+          {event.category && <p className="pg-event-category">{event.category}</p>}
+          <h3 className="pg-event-title font-display">{event.title}</h3>
+          <p className="pg-event-location" title={[event.venue, event.city, event.state].filter(Boolean).join(', ')}>
+            {event.venue}{event.city ? `, ${event.city}` : ''}{event.state ? `, ${event.state}` : ''}
+          </p>
+          <p className="pg-event-time">{dateLabel}</p>
+          {isPGEvent && listingCount > 0 && (
+            <p className="pg-event-listings">
+              {minPrice ? <>From <strong>${minPrice}</strong><span> · </span></> : null}
+              {listingCount} listing{listingCount !== 1 ? 's' : ''}
+            </p>
+          )}
+          {isPGEvent && !listingCount && (
+            <p className="pg-event-protection"><ShieldCheck aria-hidden="true" className="w-3 h-3" /> Buyer protected</p>
           )}
         </div>
+        {eventUrl ? (
+          isLive ? (
+            <Link to={`/upgrades/${event.id}`} className="pg-event-date-stub pg-ticket-end pg-action"
+              aria-label={`Open live hub for ${event.title}, ${dateLabel}`}
+              onClick={e => e.stopPropagation()}>
+              {dateStub}
+            </Link>
+          ) : (
+            <Link to={eventUrl} state={isTM ? { tmEvent: event } : undefined}
+              className="pg-event-date-stub pg-ticket-end pg-action"
+              aria-label={`View ${event.title}, ${dateLabel}`} onClick={handleCardClick}>
+              {dateStub}
+            </Link>
+          )
+        ) : <div className="pg-event-date-stub pg-ticket-end">{dateStub}</div>}
       </div>
-    </div>
+    </article>
   );
 }

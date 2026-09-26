@@ -1,0 +1,78 @@
+/* PG's physical-ticket system. Scope page styling to the six redesigned routes. */
+.pg-ticket-app {
+  --pg-canvas: #0d0b14;
+  --pg-surface: #1a1822;
+  --pg-surface-raised: #24212d;
+  --pg-text: #f9f7f1;
+  --pg-muted: #b8b4c3;
+  --pg-line: #383341;
+  --pg-paper: #f6f2e8;
+  --pg-ink: #111217;
+  --pg-paper-muted: #57545b;
+  --pg-mint: #00ff87;
+  --pg-cyan: #00c8ff;
+  --pg-violet: #bf5fff;
+  --pg-pink: #ff2d78;
+  --pg-yellow: #ffe600;
+  --pg-orange: #ff8c00;
+}
+:root:not(.dark) .pg-ticket-app {
+  --pg-canvas: #efede7;
+  --pg-surface: #fffdf8;
+  --pg-surface-raised: #e6e2da;
+  --pg-text: #17141c;
+  --pg-muted: #605966;
+  --pg-line: #d4cfc6;
+}
+.pg-ticket-app--designed { background: var(--pg-canvas); color: var(--pg-text); }
+.pg-brandbar { flex-shrink: 0; background: var(--pg-canvas); padding-top: var(--app-safe-top); }
+.pg-brandbar-inner { max-width: 32rem; margin: auto; min-height: 62px; display: flex; align-items: center; padding: 6px 68px 6px 16px; }
+.pg-brand { display: inline-flex; align-items: center; min-height: 44px; gap: 10px; color: var(--pg-text); text-decoration: none; }
+.pg-brand img { width: 34px; height: 34px; flex-shrink: 0; object-fit: contain; }
+.pg-brand span { font-family: var(--font-display); font-size: 16px; line-height: 1.2; }
+.pg-ticket-app--designed > a[aria-label^="Notifications"] { right: max(16px, calc(50% - 16rem + 16px)); background: transparent !important; border: 0 !important; border-radius: 8px; }
+.pg-ticket-app--designed > a[aria-label^="Notifications"] svg { color: var(--pg-text) !important; }
+.pg-design-page { padding: 8px 16px 24px; width: 100%; min-width: 0; color: var(--pg-text); }
+.pg-page-title { font-family: var(--font-display); font-size: clamp(1.9rem, 8.8vw, 2.55rem); letter-spacing: -0.035em; line-height: 1.08; margin: 0; font-weight: 400; }
+.pg-section-title { font-family: var(--font-editorial); font-size: 1.15rem; line-height: 1.2; font-weight: 800; letter-spacing: -.025em; }
+.pg-design-page :is(button, a, input, select, textarea):focus-visible,
+.pg-brand:focus-visible, .pg-nav-item:focus-visible { outline: 3px solid var(--pg-cyan); outline-offset: 3px; }
+.pg-design-page :is(input, select, textarea) { font-size: max(16px, 1em); }
+.pg-design-page :is(button, a) { -webkit-tap-highlight-color: transparent; }
+.pg-ticket {
+  --ticket-notch: 8px;
+  position: relative; isolation: isolate; min-width: 0; overflow: hidden;
+  background: var(--pg-paper); color: var(--pg-ink); border-radius: 10px;
+  /* Two masks make true cutouts over imagery, mixed surfaces and both themes. */
+  -webkit-mask-image: radial-gradient(circle at 0 50%, transparent var(--ticket-notch), #000 calc(var(--ticket-notch) + .7px)), radial-gradient(circle at 100% 50%, transparent var(--ticket-notch), #000 calc(var(--ticket-notch) + .7px));
+  -webkit-mask-composite: source-in;
+  mask-image: radial-gradient(circle at 0 50%, transparent var(--ticket-notch), #000 calc(var(--ticket-notch) + .7px)), radial-gradient(circle at 100% 50%, transparent var(--ticket-notch), #000 calc(var(--ticket-notch) + .7px));
+  mask-composite: intersect;
+}
+.pg-ticket .text-muted-foreground { color: var(--pg-paper-muted); }
+.pg-ticket .text-foreground { color: var(--pg-ink); }
+.pg-design-page .pg-ticket:focus-visible,
+.pg-design-page .pg-ticket :is(a, button):focus-visible { outline: 3px solid var(--pg-ink); outline-offset: -4px; }
+.pg-ticket-end { border-left: 1px dashed #11121740; color: var(--pg-ink); flex-shrink: 0; }
+.pg-action { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 16px; border-radius: 8px; font-weight: 800; font-size: 14px; line-height: 1.25; background: var(--pg-mint); color: var(--pg-ink); text-align: center; text-decoration: none; transition: transform .12s, background-color .12s; }
+.pg-action:active { transform: translateY(1px); }
+.pg-action:disabled { opacity: .55; cursor: not-allowed; }
+.pg-state { display: grid; justify-items: center; gap: 12px; margin-block: 20px; padding: 28px 20px; border: 1px solid var(--pg-line); border-radius: 12px; background: var(--pg-surface); text-align: center; color: var(--pg-text); }
+.pg-state p { max-width: 32ch; }
+.pg-bottom-nav { background: var(--pg-canvas); color: var(--pg-text); border-top: 1px solid var(--pg-line); }
+.pg-bottom-nav-inner { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 4px; padding: 6px 10px 8px; }
+.pg-nav-item { display: flex; position: relative; flex-direction: column; align-items: center; justify-content: center; gap: 5px; min-width: 0; min-height: 58px; padding: 7px 2px; border-radius: 9px; color: var(--pg-text); text-decoration: none; transition: background-color .15s; }
+.pg-nav-item.is-active { color: var(--pg-ink); background: var(--nav-accent); }
+.pg-nav-icon { position: relative; display: flex; align-items: center; justify-content: center; width: 30px; height: 23px; }
+.pg-nav-label { font-size: 11px; line-height: 1.2; font-weight: 700; white-space: nowrap; }
+.pg-nav-live { position: absolute; top: -2px; right: -3px; width: 7px; height: 7px; border-radius: 50%; background: var(--pg-pink); }
+/* Neon stays bright in printed fills; small text uses darker inks on light surfaces. */
+:root:not(.dark) .pg-ticket-app :is(.pg-events-nearby, .pg-events-text-action, .pg-events-search-submit, .pg-upgrades-explainer, .pg-live-admission, .pg-feed-tab.pg-bucket-tab, .pg-feed-context button) { color: #00677e; }
+:root:not(.dark) .pg-ticket-app :is(.pg-upgrades-refresh, .pg-upgrades-intro > svg) { color: #00713b; }
+:root:not(.dark) .pg-ticket-app :is(.pg-karma-heading > span, .pg-karma-points strong) { color: #766000; }
+:root:not(.dark) .pg-ticket-app .pg-karma-points div:nth-child(2) strong { color: #925000; }
+:root:not(.dark) .pg-ticket-app .pg-karma-points div:nth-child(3) strong { color: #762b9f; }
+:root:not(.dark) .pg-ticket-app .pg-feed-hint a { color: #762b9f; }
+:root:not(.dark) .pg-ticket-app :is(.pg-live-tabs, .pg-live-sell, .pg-upgrades-city, .pg-upgrades-close) { border-color: var(--pg-line); }
+@media (min-width: 600px) { .pg-page-title { font-size: 2.4rem; } }
+@media (prefers-reduced-motion: reduce) { .pg-action, .pg-nav-item { transition: none; } }
