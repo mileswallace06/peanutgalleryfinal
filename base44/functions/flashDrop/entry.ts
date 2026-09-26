@@ -1,6 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import { recordNotification } from '../../shared/notifications.ts';
 import { isMaintenanceActive, maintenance503 } from '../../shared/maintenance.ts';
+import { isFlashDropViewer, projectFlashDrop, projectFlashDropWinner } from '../../shared/flashDropReadView.js';
 
 // ── Config ──────────────────────────────────────────────────────────────────
 const MAX_DROPS_PER_USER_PER_EVENT = 2;
@@ -64,11 +65,20 @@ function checkInventoryConflict(inv) {
 }
 
 Deno.serve(async (req) => {
-  const base44 = createClientFromRequest(req);
-  const user = await base44.auth.me();
-  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  let base44;
+  let user;
+  try {
+    base44 = createClientFromRequest(req);
+    user = await base44.auth.me();
+  } catch {
+    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  if (!isFlashDropViewer(user)) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const body = await req.json().catch(() => ({}));
+  const body = await req.json().catch(() => null);
+  if (!body || Array.isArray(body) || typeof body !== 'object') {
+    return Response.json({ error: 'Valid request required' }, { status: 400 });
+  }
   const { action } = body;
 
   // Phase 0 maintenance gate — fail-closed. During maintenance EVERY mutating
@@ -264,7 +274,7 @@ Deno.serve(async (req) => {
     // Link back from SeatInventory
     await base44.asServiceRole.entities.SeatInventory.update(seatInventoryId, { linked_flash_drop_id: drop.id });
 
-    return Response.json({ success: true, drop, ownership_verified: ownershipVerified, trust_score: trustScore, abuse_flags: abuseFlags });
+    return Response.json({ success: true, drop: projectFlashDrop(drop, user), ownership_verified: ownershipVerified, trust_score: trustScore });
   }
 
   // ── ENTER A FLASH DROP ────────────────────────────────────────────────────
@@ -312,7 +322,7 @@ Deno.serve(async (req) => {
 
     // Already done — return existing result
     if (drop.status === 'winner_selected' && drop.winner_email) {
-      return Response.json({ success: true, already_selected: true, winner: { email: drop.winner_email, name: drop.winner_name }, entry_count: drop.entry_count });
+      return Response.json({ success: true, already_selected: true, winner: projectFlashDropWinner(drop, user), entry_count: drop.entry_count });
     }
     if (drop.status === 'expired') {
       return Response.json({ success: true, already_selected: true, winner: null, no_entries: true });
@@ -356,7 +366,7 @@ Deno.serve(async (req) => {
     const confirmDrops = await base44.asServiceRole.entities.FlashDrop.filter({ id: flash_drop_id });
     const confirmDrop = confirmDrops[0];
     if (confirmDrop?.status === 'winner_selected' && confirmDrop.winner_email) {
-      return Response.json({ success: true, already_selected: true, winner: { email: confirmDrop.winner_email, name: confirmDrop.winner_name }, entry_count: confirmDrop.entry_count });
+      return Response.json({ success: true, already_selected: true, winner: projectFlashDropWinner(confirmDrop, user), entry_count: confirmDrop.entry_count });
     }
 
     await Promise.all([
@@ -386,7 +396,7 @@ Deno.serve(async (req) => {
       action_url: `/upgrades/${drop.event_id}`,
     }).catch(() => {});
 
-    return Response.json({ success: true, winner: { email: winner.entrant_email, name: winner.entrant_name }, entry_count: entries.length });
+    return Response.json({ success: true, winner: projectFlashDropWinner({ winner_email: winner.entrant_email, winner_name: winner.entrant_name }, user), entry_count: entries.length });
   }
 
   // ── POLL FOR RESULT ───────────────────────────────────────────────────────
@@ -399,7 +409,7 @@ Deno.serve(async (req) => {
     if (!drop) return Response.json({ error: 'Not found' }, { status: 404 });
 
     if (drop.status === 'winner_selected') {
-      return Response.json({ ready: true, winner: { email: drop.winner_email, name: drop.winner_name }, entry_count: drop.entry_count, no_entries: false });
+      return Response.json({ ready: true, winner: projectFlashDropWinner(drop, user), entry_count: drop.entry_count, no_entries: false });
     }
     if (drop.status === 'expired') {
       return Response.json({ ready: true, winner: null, no_entries: true });

@@ -22,6 +22,7 @@ import CurrentTicketModule from '@/components/eventmode/CurrentTicketModule';
 import MoveCloserRail from '@/components/eventmode/MoveCloserRail';
 import SellSeatsModule from '@/components/eventmode/SellSeatsModule';
 import PurchaseDialog from '@/components/events/PurchaseDialog';
+import { loadFanGifts } from '@/lib/fanGiftRead';
 
 const TABS = [
   { key: 'Upgrades', label: 'Upgrades', sub: 'Better seats' },
@@ -34,6 +35,8 @@ export default function EventDetailUpgrade() {
   const [event, setEvent] = useState(null);
   const [listings, setListings] = useState([]);
   const [drops, setDrops] = useState([]);
+  const [dropLoadError, setDropLoadError] = useState(false);
+  const [dropsLoading, setDropsLoading] = useState(false);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('Upgrades');
@@ -43,10 +46,25 @@ export default function EventDetailUpgrade() {
   const [hubEligibilityPassed, setHubEligibilityPassed] = useState(false);
   const [selectedListing, setSelectedListing] = useState(null);
 
+  const refreshDrops = async (eventId) => {
+    setDropsLoading(true);
+    setDropLoadError(false);
+    try {
+      const view = await loadFanGifts(eventId);
+      setDrops(view.drops);
+    } catch {
+      setDropLoadError(true);
+    } finally {
+      setDropsLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!id) return;
     setLookupError(false);
     setLookupTrace(null);
+    setDrops([]);
+    setDropLoadError(false);
 
     (async () => {
       const trace = { steps: [], finalCount: 0, finalId: null };
@@ -95,7 +113,7 @@ export default function EventDetailUpgrade() {
 
         const resolvedId = resolvedEvent.id;
         const [dropData, me] = await Promise.all([
-          base44.entities.FlashDrop.filter({ event_id: resolvedId }).catch(() => []),
+          loadFanGifts(resolvedId).catch(() => null),
           base44.auth.me().catch(() => null),
         ]);
 
@@ -114,7 +132,8 @@ export default function EventDetailUpgrade() {
 
         setEvent(resolvedEvent);
         setListings(safeListings);
-        setDrops(dropData);
+        setDrops(dropData?.drops || []);
+        setDropLoadError(dropData === null);
         setUser(me);
 
         logNavEvent({
@@ -238,14 +257,16 @@ export default function EventDetailUpgrade() {
             drops={drops}
             user={user}
             listings={listings}
-            loading={loading}
+            loading={loading || dropsLoading}
+            loadError={dropLoadError}
+            onRetry={() => refreshDrops(event.id)}
             onDropSeats={() => setShowDropSheet(true)}
             onWinnerSelected={handleWinnerSelected}
           />
         )}
 
         {activeTab === 'Fan Karma' && (
-          <FanKarmaCard eventId={id} user={user} />
+          <FanKarmaCard eventId={event.id} user={user} />
         )}
       </div>
 
