@@ -1,0 +1,22 @@
+.pg-secondary-page { width: 100%; max-width: 512px; min-width: 0; margin: 0 auto; padding: 4px 16px 32px; color: var(--pg-text); }
+.pg-page-intro { min-width: 0; margin-bottom: 20px; }
+.pg-page-intro-tools { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+.pg-back-link { min-height: 44px; display: inline-flex; align-items: center; gap: 7px; color: var(--pg-muted); font-size: 13px; font-weight: 700; text-decoration: none; }
+.pg-page-eyebrow { margin: 0 0 5px; font-size: 11px; line-height: 1.4; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--pg-muted); }
+.pg-page-intro .pg-page-title { margin: 0; overflow-wrap: anywhere; }
+.pg-page-description { color: var(--pg-muted); font-size: 14px; line-height: 1.5; margin: 8px 0 0; max-width: 40ch; }
+.pg-disclosure { min-width: 0; border: 1px solid var(--pg-line); border-radius: 12px; background: var(--pg-surface); }
+.pg-disclosure > summary { min-height: 58px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; color: var(--pg-text); cursor: pointer; list-style: none; }
+.pg-disclosure > summary::-webkit-details-marker { display: none; }
+.pg-disclosure > summary > svg { flex: none; color: var(--pg-muted); transition: transform 150ms ease; }
+.pg-disclosure[open] > summary > svg { transform: rotate(180deg); }
+.pg-disclosure-label { display: grid; gap: 3px; min-width: 0; }
+.pg-disclosure-title { font-family: var(--font-editorial, sans-serif); font-size: 16px; line-height: 1.25; font-weight: 800; }
+.pg-disclosure-description { font-size: 12px; line-height: 1.4; font-weight: 400; color: var(--pg-muted); }
+.pg-disclosure-content { padding: 0 16px 16px; min-width: 0; }
+.pg-disclosure-content > :first-child { margin-top: 0; }
+.pg-disclosure-content > :last-child { margin-bottom: 0; }
+.pg-secondary-page :is(a, button, summary, input, select, textarea):focus-visible { outline: 2px solid var(--pg-cyan); outline-offset: 3px; }
+.pg-secondary-page :is(input, select, textarea) { font-size: 16px; }
+.pg-secondary-page :is(p, h1, h2, h3) { overflow-wrap: anywhere; }
+@media (prefers-reduced-motion: reduce) { .pg-disclosure > summary > svg { transition: none; } }

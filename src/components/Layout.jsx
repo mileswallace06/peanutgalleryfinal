@@ -67,9 +67,11 @@ export default function Layout() {
   };
 
   const currentTab = getCurrentTab();
-  const usesTicketDesign = ['/events', '/upgrades', '/sell', '/fan-zone', '/my-tickets'].includes(location.pathname)
-    || location.pathname.startsWith('/upgrades/');
-  const selectedNavKey = location.pathname === '/my-tickets' ? 'me' : currentTab;
+  const accountRoutes = ['/my-tickets', '/my-sales', '/me', '/account-settings', '/edit-persona', '/notifications'];
+  const usesTicketDesign = ['/events', '/upgrades', '/sell', '/fan-zone', '/create-listing', ...accountRoutes].includes(location.pathname)
+    || ['/events/', '/upgrades/', '/purchase/'].some(prefix => location.pathname.startsWith(prefix));
+  const selectedNavKey = accountRoutes.includes(location.pathname) || location.pathname.startsWith('/purchase/')
+    ? 'me' : location.pathname === '/create-listing' ? 'sell' : currentTab;
 
   // Per-pathname scroll memory — saved continuously by onScroll, restored on
   // every route change. Detail pages have no saved entry → start at top.

@@ -149,7 +149,7 @@ export default function Upgrades() {
       {pulling && <div className="pg-upgrades-refresh" role="status"><RefreshCw size={16} className="animate-spin" /> Refreshing…</div>}
 
       <header className="pg-upgrades-heading">
-        <button className="pg-upgrades-location" onClick={() => { setLocationInput(locationLabel === 'Near me' ? '' : locationLabel || ''); setEditingLocation(!editingLocation); }}>
+        <button className="pg-upgrades-location" aria-expanded={editingLocation} aria-controls="upgrade-location-filter" onClick={() => { setLocationInput(locationLabel === 'Near me' ? '' : locationLabel || ''); setEditingLocation(!editingLocation); }}>
           <MapPin size={18} aria-hidden="true" /><span>{locationLabel || 'Choose your location'}</span><ChevronRight size={15} aria-hidden="true" />
         </button>
         <h1 className="pg-page-title">Upgrades</h1>
@@ -158,7 +158,7 @@ export default function Upgrades() {
 
       <div className="pg-upgrades-location-panel">
         {editingLocation ? (
-          <div className="pg-upgrades-city-edit">
+          <div id="upgrade-location-filter" className="pg-upgrades-city-edit">
             <div className="pg-upgrades-city-input">
               <LocationAutocomplete value={locationInput} onChange={setLocationInput}
                 onSelect={(s) => { setManualCity(s.label); setEditingLocation(false); writeSS({ city: s.label, locationInput: s.label }); fetchEvents(null, s.label); }}
@@ -170,7 +170,7 @@ export default function Upgrades() {
               {locationStatus === 'denied' ? 'Location blocked — enter your city above.' : locationStatus === 'timeout' ? 'Location timed out — enter your city above.' : "Couldn't detect location — enter your city above."}
             </p>}
           </div>
-        ) : (
+        ) : !locationLabel ? (
           <div className="pg-upgrades-location-actions">
             <button className="pg-action pg-upgrades-near" onClick={handleNearMe} disabled={locationStatus === 'requesting'}>
               <LocateFixed size={18} />{locationStatus === 'requesting' ? 'Locating…' : 'Near me'}
@@ -179,19 +179,20 @@ export default function Upgrades() {
               <MapPin size={18} />{locationLabel ? 'Change city' : 'Enter city'}
             </button>
           </div>
-        )}
+        ) : null}
+        {!editingLocation && locationLabel && locationStatus === 'requesting' && <p className="pg-upgrades-note" role="status">Finding your location…</p>}
+        {!editingLocation && ['denied', 'unavailable', 'timeout'].includes(locationStatus) && <p className="pg-upgrades-note" role="status">We couldn’t get your location. Tap the location above to choose a city.</p>}
       </div>
 
       {tmError && <div className="pg-state pg-upgrades-notice" role="alert">Too many requests right now. Please wait a moment and try again.</div>}
       <div aria-live="polite" aria-atomic="true" className="sr-only">
-        {!loading && locationLabel && (allEvents.length === 0 ? `No upgrades found near ${locationLabel}` : `${allEvents.length} upgrade${allEvents.length !== 1 ? 's' : ''} found near ${locationLabel}`)}
+        {!loading && locationLabel && (allEvents.length === 0 ? `No events found near ${locationLabel}` : `${allEvents.length} event${allEvents.length !== 1 ? 's' : ''} found near ${locationLabel}`)}
       </div>
 
       <div className="pg-upgrades-feed">
         {!loading && locationStatus === 'idle' && !locationLabel && <div className="pg-state pg-upgrades-intro">
           <Zap size={24} /><h2>Move closer to the moment.</h2>
           <ol><li>Choose your location</li><li>Browse available upgrades</li><li>Choose a better seat</li></ol>
-          <button className="pg-action" onClick={requestLocation}><LocateFixed size={18} />Find upgrades near me</button>
         </div>}
         {loading ? <div className="pg-upgrades-stack" role="status" aria-label="Loading nearby upgrades">{[1, 2, 3].map(i => <div key={i} className="pg-upgrades-skeleton animate-pulse" />)}</div>
           : (locationStatus === 'granted' || locationLabel) && <>

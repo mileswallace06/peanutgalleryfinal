@@ -8,6 +8,8 @@
 .pg-upgrades-location svg { flex: none; }
 .pg-upgrades-location svg:last-child { transform: rotate(90deg); }
 .pg-upgrades-location-panel { margin-bottom: 18px; }
+.pg-upgrades-location-panel:empty { display: none; }
+.pg-upgrades-feed > section > .pg-state { margin: 0; padding: 14px 16px; font-size: 13px; line-height: 1.4; }
 .pg-upgrades-location-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .pg-upgrades-location-actions .pg-action { border-radius: 8px; font-size: 14px; gap: 8px; }
 .pg-upgrades-near { background: var(--pg-mint); color: var(--pg-ink); }
@@ -19,7 +21,7 @@
 .pg-upgrades-note { font-size: 13px; line-height: 1.4; color: var(--pg-muted); margin-top: 9px; }
 .pg-upgrades-refresh { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; color: var(--pg-mint); font-size: 13px; }
 .pg-upgrades-feed { display: flex; flex-direction: column; gap: 20px; }
-.pg-upgrades-stack { display: flex; flex-direction: column; gap: 11px; }
+.pg-upgrades-stack { display: flex; flex-direction: column; gap: 16px; }
 .pg-upgrades-section-heading { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; min-width: 0; }
 .pg-upgrades-section-heading .pg-section-title { margin: 0; font-family: var(--font-display); font-size: 19px; letter-spacing: -.02em; line-height: 1.15; }
 .pg-upgrades-status-dot { width: 13px; height: 13px; border-radius: 50%; background: var(--pg-mint); flex: none; }
@@ -30,7 +32,7 @@
 .pg-upgrade-ticket { width: 100%; display: block; padding: 0; text-align: left; border: 0; color: var(--pg-ink); border-radius: 10px; overflow: hidden; cursor: pointer; background: var(--pg-paper); }
 .pg-upgrade-ticket:disabled { cursor: default; }
 .pg-upgrade-ticket:focus-visible { outline: 3px solid var(--pg-cyan); outline-offset: 4px; }
-.pg-upgrade-art { height: 64px; position: relative; overflow: hidden; }
+.pg-upgrade-art { height: clamp(112px, 35vw, 160px); position: relative; overflow: hidden; }
 .pg-upgrade-image { height: 100%; width: 100%; }
 .pg-upgrade-ticket-bottom { display: grid; grid-template-columns: minmax(0, 1fr) 92px; min-height: 98px; }
 .pg-upgrade-ticket-copy { padding: 10px 13px 12px 18px; min-width: 0; }
@@ -45,7 +47,7 @@
 .pg-upgrade-ticket-action { align-self: stretch; display: flex; flex-direction: column; gap: 8px; align-items: center; justify-content: center; background: var(--pg-mint); color: var(--pg-ink); padding: 12px 8px; font-size: 14px; font-weight: 850; text-align: center; line-height: 1.18; border-left: 1px dashed #11121755; }
 .pg-upgrade-ticket-soon .pg-upgrade-ticket-action { background: var(--pg-yellow); }
 .pg-upgrade-ticket-upcoming .pg-upgrade-ticket-action { background: var(--pg-cyan); }
-.pg-upgrades-skeleton { height: 176px; border-radius: 10px; background: var(--pg-surface); border: 1px solid #ffffff1c; }
+.pg-upgrades-skeleton { height: clamp(210px, calc(35vw + 98px), 258px); border-radius: 10px; background: var(--pg-surface); border: 1px solid #ffffff1c; }
 .pg-upgrades-intro { display: flex; flex-direction: column; gap: 12px; padding: 24px 18px; }
 .pg-upgrades-intro > svg { color: var(--pg-mint); }
 .pg-upgrades-intro h2 { font-family: var(--font-display); font-size: 23px; line-height: 1.15; color: var(--pg-text); }

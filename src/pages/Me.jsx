@@ -1,38 +1,48 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { Ticket, TrendingUp, Shield, LogIn, Edit2, Tag, Zap, ChevronRight, Camera, ImagePlus, UserPlus, UserCheck, Settings, Eye, EyeOff, MessageSquare } from 'lucide-react';
+import { Ticket, TrendingUp, Shield, LogIn, Edit2, ChevronRight, Camera, ImagePlus, UserPlus, UserCheck, Settings, Eye, EyeOff, MessageSquare, ArrowUpRight } from 'lucide-react';
 import PeanutPointsCard from '@/components/points/PeanutPointsCard';
 import RecentPointsActivity from '@/components/points/RecentPointsActivity';
 import CommunityImpactCard from '@/components/donations/CommunityImpactCard';
+import { Disclosure, PageIntro } from '@/components/ClarityUI';
 import { isAdmin } from '@/lib/isAdmin';
 import { useAuth } from '@/lib/AuthContext';
 import { feedbackAccess } from '@/lib/feedbackInbox';
+import './account-clarity.css';
 
-/** Privacy-first email display — hidden by default, reveal on tap */
+/** Email stays private until the member chooses to reveal it. */
 function EmailDisplay({ email }) {
   const [shown, setShown] = useState(false);
   if (!email) return null;
   return (
     <button
+      type="button"
       onClick={() => setShown(v => !v)}
       aria-label={shown ? 'Hide email address' : 'Show email address'}
-      className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5 hover:text-foreground transition-colors group"
+      aria-pressed={shown}
+      className="pg-member-email"
     >
-      {shown
-        ? <><Eye className="w-3 h-3 opacity-60" /><span>{email}</span></>
-        : <><EyeOff className="w-3 h-3 opacity-40" /><span className="opacity-60">Show email</span></>
-      }
+      {shown ? <Eye size={14} /> : <EyeOff size={14} />}
+      <span>{shown ? email : 'Show email'}</span>
     </button>
   );
 }
 
+function AccountLink({ to, icon: Icon, title, description }) {
+  return (
+    <Link to={to} className="pg-account-link">
+      {Icon && <Icon size={19} aria-hidden="true" />}
+      <span><strong>{title}</strong>{description && <small>{description}</small>}</span>
+      <ChevronRight size={17} aria-hidden="true" />
+    </Link>
+  );
+}
+
 export default function Me() {
-  const navigate = useNavigate();
   const auth = useAuth();
   const { user: authUser } = auth;
-  // Seed with the already-resolved AuthContext user to avoid the sign-in flash,
-  // then refresh in the background to pick up any profile updates.
+  // Keep the resolved session visible while refreshing profile changes.
   const [user, setUser] = useState(authUser || null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
@@ -41,11 +51,9 @@ export default function Me() {
   const [followers, setFollowers] = useState([]);
   const [following, setFollowing] = useState([]);
   const [socialTab, setSocialTab] = useState('following');
-  const [activeTab, setActiveTab] = useState('main');
 
-  // Keep local user in sync if AuthContext resolves after initial render
   useEffect(() => {
-    if (authUser && !user) setUser(authUser);
+    if (authUser) setUser(current => current || authUser);
   }, [authUser]);
 
   useEffect(() => {
@@ -94,361 +102,123 @@ export default function Me() {
 
   if (!user) {
     return (
-      <div className="min-h-full pb-28 flex flex-col items-center justify-center gap-6 px-5 dark:rave-bg">
-        <div
-          className="w-20 h-20 rounded-full flex items-center justify-center text-4xl"
-          style={{ background: 'rgba(191,95,255,0.15)', border: '1px solid rgba(191,95,255,0.3)' }}
-        >
-          🥜
+      <div className="pg-secondary-page pg-account-page">
+        <PageIntro eyebrow="YOUR ACCOUNT" title="Me" description="Your tickets, sales and fan profile in one place." />
+        <div className="pg-state pg-account-signin">
+          <Ticket size={32} aria-hidden="true" />
+          <h2>Make yourself at home.</h2>
+          <p>Sign in to see your tickets and manage your account.</p>
+          <button onClick={() => base44.auth.redirectToLogin()} className="pg-action"><LogIn size={18} /> Sign in</button>
+          <Link to="/our-story" className="pg-account-text-link">Read our story <ArrowUpRight size={16} /></Link>
         </div>
-        <div className="text-center">
-          <h2 className="font-display text-3xl text-foreground mb-2">Welcome Back</h2>
-          <p className="text-sm text-muted-foreground max-w-[220px] mx-auto">
-            Sign in to view your profile, tickets, and sales.
-          </p>
-        </div>
-        <button
-          onClick={() => base44.auth.redirectToLogin()}
-          className="flex items-center gap-2 font-black px-8 py-3.5 rounded-full"
-          style={{ background: 'linear-gradient(135deg, var(--neon-green), var(--neon-cyan))', color: 'var(--gradient-btn-text)', boxShadow: 'var(--fab-shadow)' }}
-        >
-          <LogIn className="w-4 h-4" /> Sign In
-        </button>
-        <Link
-          to="/our-story"
-          className="text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors"
-        >
-          Read our story →
-        </Link>
       </div>
     );
   }
 
   return (
-    <div className="pb-32 dark:rave-bg relative">
+    <div className="pg-secondary-page pg-account-page pg-me-page">
+      <PageIntro eyebrow="YOUR ACCOUNT" title="Me" description="Find your tickets. Keep track of your sales." />
 
-      {/* Hero banner */}
-      <div className="relative overflow-hidden group/banner" data-page-hero="me" style={{ height: 'calc(10rem + var(--app-safe-top))' }}>
-        <img
-          src={user.banner_url || 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=900&q=80'}
-          alt="banner"
-          className="w-full h-full object-cover object-center"
-        />
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, var(--hero-bg-top) 0%, var(--hero-bg-end) 100%)' }} />
-        {/* Banner edit overlay */}
-        <button
-          onClick={() => bannerInputRef.current?.click()}
-          disabled={uploadingBanner}
-          aria-label="Change profile banner"
-          className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/banner:opacity-100 transition-opacity"
-          style={{ paddingTop: 'var(--app-safe-top)', background: 'rgba(0,0,0,0.4)' }}
-        >
-          {uploadingBanner
-            ? <span className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            : <div className="flex items-center gap-2 px-4 py-2 rounded-full font-bold text-sm text-white" style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', backdropFilter: 'blur(8px)' }}>
-                <ImagePlus className="w-4 h-4" /> Change Banner
-              </div>
-          }
-        </button>
-        <input ref={bannerInputRef} type="file" accept="image/*" className="hidden" onChange={handleBannerUpload} />
+      <section className="pg-member-ticket" aria-label="Your fan profile">
+        <div className="pg-member-banner" data-page-hero="me">
+          <img src={user.banner_url || 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=900&q=80'} alt="Your profile banner" />
+          <button type="button" onClick={() => bannerInputRef.current?.click()} disabled={uploadingBanner} className="pg-photo-action" aria-label="Change profile banner">
+            <ImagePlus size={15} aria-hidden="true" /> {uploadingBanner ? 'Uploading…' : 'Change banner'}
+          </button>
+          <input ref={bannerInputRef} type="file" accept="image/*" className="hidden" aria-label="Upload profile banner" onChange={handleBannerUpload} />
+        </div>
+        <div className="pg-member-content">
+          <div className="pg-member-topline">
+            <div className="pg-member-avatar-wrap">
+              <div className="pg-member-avatar">{user.avatar_url ? <img src={user.avatar_url} alt="Your profile photo" /> : initials}</div>
+              <button type="button" onClick={() => avatarInputRef.current?.click()} disabled={uploadingAvatar} aria-label={uploadingAvatar ? 'Uploading profile photo' : 'Change profile photo'} className="pg-avatar-action">
+                {uploadingAvatar ? <span className="pg-account-spinner" /> : <Camera size={16} aria-hidden="true" />}
+              </button>
+              <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" aria-label="Upload profile photo" onChange={handleAvatarUpload} />
+            </div>
+            <Link to="/edit-persona" className="pg-member-edit"><Edit2 size={14} aria-hidden="true" /> Edit persona</Link>
+          </div>
+          <div className="pg-member-identity">
+            <p className="pg-member-eyebrow">Peanut Gallery member</p>
+            <h2>{user.full_name || 'Fan'}</h2>
+            <EmailDisplay email={user.email} />
+            {user.bio && <p className="pg-member-bio">{user.bio}</p>}
+          </div>
+        </div>
+        <div className="pg-member-stub"><span>ALL FANS WELCOME</span><span>FAN{isAdmin(user) ? ' / ADMIN' : ''}</span></div>
+      </section>
+
+      <nav className="pg-account-primary" aria-label="Tickets and sales">
+        <Link to="/my-tickets" className="pg-account-primary-card pg-account-tickets">
+          <Ticket size={22} aria-hidden="true" /><strong>My Tickets</strong><span>View your purchases</span><ChevronRight size={18} aria-hidden="true" />
+        </Link>
+        <Link to="/my-sales" className="pg-account-primary-card pg-account-sales">
+          <TrendingUp size={22} aria-hidden="true" /><strong>My Sales</strong><span>Manage your listings</span><ChevronRight size={18} aria-hidden="true" />
+        </Link>
+      </nav>
+      <div className="pg-account-sell-prompt"><span>Have a ticket to pass on?</span><Link to="/create-listing">Sell tickets <ArrowUpRight size={15} /></Link></div>
+
+      <div className="pg-account-settings-link">
+        <AccountLink to="/account-settings" icon={Settings} title="Account Settings" description="Profile, payouts, security and support" />
       </div>
 
-      {/* Avatar floats over banner */}
-      <div className="px-5 -mt-12 relative z-10">
-        <div className="flex items-end justify-between mb-4">
-          {/* Avatar */}
-          <div className="relative group/avatar flex-shrink-0">
-            <div
-              className="w-24 h-24 rounded-full flex items-center justify-center font-display text-3xl text-white overflow-hidden"
-              style={{
-                background: 'linear-gradient(135deg, #BF5FFF, #FF2D78)',
-                boxShadow: '0 0 32px rgba(191,95,255,0.5)',
-                border: '3px solid hsl(var(--background))',
-              }}
-            >
-              {user.avatar_url
-                ? <img src={user.avatar_url} alt="avatar" className="w-full h-full object-cover" />
-                : initials
-              }
-            </div>
-            <button
-              onClick={() => avatarInputRef.current?.click()}
-              disabled={uploadingAvatar}
-              aria-label="Change profile photo"
-              className="absolute inset-0 rounded-full flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity"
-              style={{ background: 'rgba(0,0,0,0.55)' }}
-            >
-              {uploadingAvatar
-                ? <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                : <Camera className="w-5 h-5 text-white" />
-              }
-            </button>
-            <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
-          </div>
-
-          {/* Edit Persona button */}
-          <button
-            onClick={() => navigate('/edit-persona')}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all active:scale-95 dark:text-[rgba(255,255,255,0.7)] dark:bg-[rgba(255,255,255,0.07)] dark:border-[rgba(255,255,255,0.12)]"
-            style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--foreground))' }}
-          >
-            <Edit2 className="w-3.5 h-3.5" /> Edit Persona
-          </button>
-        </div>
-
-        {/* Name + badges */}
-        <div className="mb-1">
-          <h2 className="font-display text-2xl text-foreground">{user.full_name || 'Fan'}</h2>
-          <EmailDisplay email={user.email} />
-        </div>
-
-        {/* Role badges + Account Settings button */}
-        <div className="flex items-center gap-2 mb-5 flex-wrap">
-          <span className="text-[10px] font-bold px-2.5 py-1 rounded-full dark:bg-[rgba(0,200,255,0.25)] dark:border-[rgba(0,200,255,0.5)] dark:text-[#00FFFF]"
-            style={{ background: 'rgba(var(--neon-cyan-rgb), 0.1)', color: 'var(--neon-cyan)', border: '1px solid rgba(var(--neon-cyan-rgb), 0.2)' }}>
-            🥜 Fan
-          </span>
-          {isAdmin(user) && (
-            <span className="text-[10px] font-bold px-2.5 py-1 rounded-full dark:bg-[rgba(255,230,0,0.25)] dark:border-[rgba(255,230,0,0.5)] dark:text-[#FFFF00]"
-              style={{ background: 'rgba(var(--neon-yellow-rgb), 0.1)', color: 'var(--neon-yellow)', border: '1px solid rgba(var(--neon-yellow-rgb), 0.2)' }}>
-              ✦ Admin
-            </span>
-          )}
-          <button
-            onClick={() => navigate('/account-settings')}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold transition-all active:scale-95"
-            style={{ background: 'rgba(var(--neon-purple-rgb), 0.08)', border: '1px solid rgba(var(--neon-purple-rgb), 0.25)', color: 'var(--neon-purple)' }}
-          >
-            <Settings className="w-3 h-3" /> Account Settings
-          </button>
-        </div>
-
-        {feedbackAccess(auth) === 'admin' && (
-          <Link to="/beta-dashboard?view=feedback" className="flex items-center gap-4 px-5 py-4 mb-5 rounded-2xl border border-purple-400/30 bg-purple-400/10">
-            <MessageSquare className="w-6 h-6 text-purple-400 flex-shrink-0" />
-            <div className="flex-1">
-              <div className="font-bold text-sm text-foreground">Feedback</div>
-              <div className="text-xs text-muted-foreground">Bugs, confusion, love and ideas · Admin inbox</div>
-            </div>
-            <ChevronRight className="w-4 h-4 text-muted-foreground" />
-          </Link>
-        )}
-
-        {/* Bio */}
-        {user.bio ? (
-          <p className="text-sm text-muted-foreground mb-6 leading-relaxed">{user.bio}</p>
-        ) : (
-          <button
-            onClick={() => navigate('/edit-persona')}
-            className="text-xs text-muted-foreground mb-6 italic flex items-center gap-1 hover:text-foreground transition-colors"
-          >
-            <Tag className="w-3 h-3" /> Add a bio…
-          </button>
-        )}
-
-        {/* Tab switcher */}
-        <div className="flex gap-2 mb-6 p-1 rounded-2xl" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
-          {[
-            { id: 'main', label: 'My Account' },
-            { id: 'stats', label: '⚡ Fan Stats' },
-          ].map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className="flex-1 py-2 rounded-xl text-sm font-bold transition-all"
-              style={activeTab === tab.id
-                ? { background: 'hsl(var(--background))', color: 'hsl(var(--foreground))', boxShadow: '0 1px 4px rgba(0,0,0,0.15)' }
-                : { color: 'hsl(var(--muted-foreground))' }
-              }
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {/* FAN STATS TAB */}
-        {activeTab === 'stats' && (
-          <>
+      <div className="pg-account-disclosures">
+        <Disclosure title="Fan activity" description="Your points, community impact and recent activity">
+          <div className="pg-account-fan-cards">
             <PeanutPointsCard user={user} />
             <CommunityImpactCard userEmail={user.email} />
-            <div className="mb-5">
-              <p className="text-[10px] font-black tracking-widest uppercase text-muted-foreground mb-3 flex items-center gap-1.5">
-                <span className="w-4 h-px inline-block bg-current opacity-50" />
-                Recent Activity
-              </p>
-              <RecentPointsActivity userEmail={user.email} />
-            </div>
-            <div className="h-px mb-5" style={{ background: 'var(--border)' }} />
-            {/* Followers / Following */}
-            <div className="mb-5">
-              <div className="flex gap-4 mb-3">
-                <button onClick={() => setSocialTab('following')} className="flex flex-col items-center px-4 py-2.5 rounded-2xl transition-all"
-                  style={socialTab === 'following'
-                    ? { background: 'rgba(191,95,255,0.12)', border: '1px solid rgba(191,95,255,0.3)', color: '#BF5FFF' }
-                    : { background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--foreground)' }}>
-                  <span className="font-black text-lg leading-none text-foreground">{following.length}</span>
-                  <span className="text-[10px] font-semibold mt-0.5">Following</span>
-                </button>
-                <button onClick={() => setSocialTab('followers')} className="flex flex-col items-center px-4 py-2.5 rounded-2xl transition-all"
-                  style={socialTab === 'followers'
-                    ? { background: 'rgba(191,95,255,0.12)', border: '1px solid rgba(191,95,255,0.3)', color: '#BF5FFF' }
-                    : { background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--foreground)' }}>
-                  <span className="font-black text-lg leading-none text-foreground">{followers.length}</span>
-                  <span className="text-[10px] font-semibold mt-0.5">Followers</span>
-                </button>
-              </div>
-              {socialTab === 'following' && (
-                following.length === 0
-                  ? <p className="text-xs text-muted-foreground px-1">You're not following anyone yet.</p>
-                  : <div className="space-y-2">
-                      {following.map(f => (
-                        <div key={f.id} className="flex items-center gap-3 px-3 py-2.5 rounded-2xl"
-                          style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
-                          <div className="w-9 h-9 rounded-full flex items-center justify-center font-black text-sm flex-shrink-0"
-                            style={{ background: 'linear-gradient(135deg, #BF5FFF, #FF2D78)', color: '#fff' }}>
-                            {f.following_avatar_url
-                              ? <img src={f.following_avatar_url} alt="" className="w-full h-full object-cover rounded-full" />
-                              : (f.following_name || f.following_email || '?')[0].toUpperCase()}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-bold text-foreground truncate">{f.following_name || f.following_email}</p>
-                            <p className="text-[10px] text-muted-foreground truncate">{f.following_email}</p>
-                          </div>
-                          <button onClick={() => handleUnfollow(f)}
-                            className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold"
-                            style={{ background: 'rgba(255,45,120,0.1)', color: '#FF2D78', border: '1px solid rgba(255,45,120,0.2)' }}>
-                            <UserCheck className="w-3 h-3" /> Unfollow
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-              )}
-              {socialTab === 'followers' && (
-                followers.length === 0
-                  ? <p className="text-xs text-muted-foreground px-1">No followers yet.</p>
-                  : <div className="space-y-2">
-                      {followers.map(f => {
-                        const alreadyFollowing = following.some(fw => fw.following_email === f.follower_email);
-                        return (
-                          <div key={f.id} className="flex items-center gap-3 px-3 py-2.5 rounded-2xl"
-                            style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
-                            <div className="w-9 h-9 rounded-full flex items-center justify-center font-black text-sm flex-shrink-0"
-                              style={{ background: 'linear-gradient(135deg, #00C8FF, #00FF87)', color: '#0a0510' }}>
-                              {(f.follower_email || '?')[0].toUpperCase()}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-bold text-foreground truncate">{f.follower_email}</p>
-                            </div>
-                            {!alreadyFollowing && (
-                              <button
-                                onClick={async () => {
-                                  const created = await base44.entities.Follow.create({ follower_email: user.email, following_email: f.follower_email, following_name: null, following_avatar_url: null });
-                                  setFollowing(prev => [...prev, created]);
-                                }}
-                                className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold"
-                                style={{ background: 'rgba(191,95,255,0.12)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.3)' }}>
-                                <UserPlus className="w-3 h-3" /> Follow Back
-                              </button>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-              )}
-            </div>
-          </>
-        )}
-
-        {/* MAIN TAB */}
-        {activeTab === 'main' && <div className="space-y-3">
-
-          <Link
-            to="/my-tickets"
-            className="flex items-center gap-4 px-5 py-4 rounded-2xl transition-all active:scale-[0.98]"
-            style={{ background: 'rgba(var(--neon-cyan-rgb), 0.08)', border: '1px solid rgba(var(--neon-cyan-rgb), 0.2)' }}
-          >
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ background: 'rgba(var(--neon-cyan-rgb), 0.12)' }}>
-              <Ticket className="w-5 h-5 dark:!text-[#00C8FF] dark:drop-shadow-[0_0_8px_rgba(0,200,255,0.8)]" style={{ color: 'var(--neon-cyan)' }} />
-            </div>
-            <div className="flex-1">
-              <div className="font-bold text-sm dark:!text-[#00FFFF]" style={{ color: 'var(--neon-cyan)' }}>My Tickets</div>
-              <div className="text-[9px] dark:!text-[#00FFFF]" style={{ color: 'var(--neon-cyan)' }}>View your purchases</div>
-            </div>
-            <ChevronRight className="w-4 h-4 text-muted-foreground" />
-          </Link>
-
-          <Link
-            to="/my-sales"
-            className="flex items-center gap-4 px-5 py-4 rounded-2xl transition-all active:scale-[0.98]"
-            style={{ background: 'rgba(var(--neon-purple-rgb), 0.08)', border: '1px solid rgba(var(--neon-purple-rgb), 0.2)' }}
-          >
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ background: 'rgba(var(--neon-purple-rgb), 0.12)' }}>
-              <TrendingUp className="w-5 h-5 dark:!text-[#BF5FFF] dark:drop-shadow-[0_0_8px_rgba(191,95,255,0.8)]" style={{ color: 'var(--neon-purple)' }} />
-            </div>
-            <div className="flex-1">
-              <div className="font-bold text-sm dark:!text-[#FF00FF]" style={{ color: 'var(--neon-purple)' }}>My Sales</div>
-              <div className="text-[9px] dark:!text-[#FF99FF]" style={{ color: 'var(--neon-purple)' }}>Track your listings</div>
-            </div>
-            <ChevronRight className="w-4 h-4 text-muted-foreground" />
-          </Link>
-
-          <Link
-            to="/create-listing"
-            className="flex items-center gap-4 px-5 py-4 rounded-2xl transition-all active:scale-[0.98]"
-            style={{ background: 'rgba(var(--neon-green-rgb), 0.08)', border: '1px solid rgba(var(--neon-green-rgb), 0.2)' }}
-          >
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ background: 'rgba(var(--neon-green-rgb), 0.12)' }}>
-              <Zap className="w-5 h-5 dark:!text-[#00FF87] dark:drop-shadow-[0_0_8px_rgba(0,255,135,0.8)]" style={{ color: 'var(--neon-green)' }} />
-            </div>
-            <div className="flex-1">
-              <div className="font-bold text-sm dark:!text-[#00FF99]" style={{ color: 'var(--neon-green)' }}>Sell Tickets</div>
-              <div className="text-[9px] dark:!text-[#00FF99]" style={{ color: 'var(--neon-green)' }}>List seats you want to move</div>
-            </div>
-            <ChevronRight className="w-4 h-4 text-muted-foreground" />
-          </Link>
-
-          {/* Trust & Education links */}
-          <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid hsl(var(--border))' }}>
-            {[
-              { to: '/why-peanut-gallery', label: 'Why Peanut Gallery?', sub: 'How Peanut Gallery protects fans', emoji: '🥜' },
-              { to: '/seller-payout-guide', label: 'Seller Payout Guide', sub: 'Stripe setup & payouts', emoji: '🏦' },
-              { to: '/our-story', label: 'Our Story', sub: 'Built by a fan, for fans', emoji: '✨' },
-            ].map((item, i, arr) => (
-              <Link key={item.to} to={item.to}
-                className="flex items-center gap-3 px-4 py-3.5 transition-all active:scale-[0.98]"
-                style={{ borderBottom: i < arr.length - 1 ? '1px solid hsl(var(--border))' : 'none', background: 'hsl(var(--card))' }}>
-                <span className="text-lg w-7 text-center flex-shrink-0">{item.emoji}</span>
-                <div className="flex-1">
-                  <div className="text-sm font-bold text-foreground">{item.label}</div>
-                  <div className="text-[10px] text-muted-foreground">{item.sub}</div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-              </Link>
-            ))}
+            <h3 className="pg-account-section-label">Recent activity</h3>
+            <RecentPointsActivity userEmail={user.email} />
           </div>
+        </Disclosure>
 
-          {isAdmin(user) && (
-            <Link
-              to="/admin"
-              className="flex items-center gap-4 px-5 py-4 rounded-2xl transition-all active:scale-[0.98]"
-              style={{ background: 'rgba(var(--neon-yellow-rgb), 0.08)', border: '1px solid rgba(var(--neon-yellow-rgb), 0.2)' }}
-            >
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{ background: 'rgba(var(--neon-yellow-rgb), 0.12)' }}>
-                <Shield className="w-5 h-5 dark:!text-[#FFE600] dark:drop-shadow-[0_0_8px_rgba(255,230,0,0.8)]" style={{ color: 'var(--neon-yellow)' }} />
-              </div>
-              <div className="flex-1">
-                <div className="font-bold text-sm dark:!text-[#FFFF00]" style={{ color: 'var(--neon-yellow)' }}>Admin Panel</div>
-                <div className="text-[9px] dark:!text-[#FFFF99]" style={{ color: 'var(--neon-yellow)' }}>Manage events and listings</div>
-              </div>
-              <ChevronRight className="w-4 h-4 text-muted-foreground" />
-            </Link>
+        <Disclosure title="Following" description={`${following.length} following · ${followers.length} followers`}>
+          <div className="pg-account-social-tabs" aria-label="People you follow and your followers">
+            <button type="button" onClick={() => setSocialTab('following')} aria-pressed={socialTab === 'following'}>Following <span>{following.length}</span></button>
+            <button type="button" onClick={() => setSocialTab('followers')} aria-pressed={socialTab === 'followers'}>Followers <span>{followers.length}</span></button>
+          </div>
+          {socialTab === 'following' && (
+            following.length === 0 ? <p className="pg-account-empty">You’re not following anyone yet.</p> : <div className="pg-account-people">
+              {following.map(f => (
+                <div key={f.id} className="pg-account-person">
+                  <div className="pg-account-person-avatar">{f.following_avatar_url ? <img src={f.following_avatar_url} alt="" /> : (f.following_name || f.following_email || '?')[0].toUpperCase()}</div>
+                  <div className="pg-account-person-name"><strong>{f.following_name || f.following_email}</strong><small>{f.following_email}</small></div>
+                  <button type="button" onClick={() => handleUnfollow(f)} className="pg-account-small-action"><UserCheck size={14} aria-hidden="true" /> Unfollow</button>
+                </div>
+              ))}
+            </div>
           )}
-        </div>}
+          {socialTab === 'followers' && (
+            followers.length === 0 ? <p className="pg-account-empty">No followers yet.</p> : <div className="pg-account-people">
+              {followers.map(f => {
+                const alreadyFollowing = following.some(fw => fw.following_email === f.follower_email);
+                return (
+                  <div key={f.id} className="pg-account-person">
+                    <div className="pg-account-person-avatar">{(f.follower_email || '?')[0].toUpperCase()}</div>
+                    <div className="pg-account-person-name"><strong>{f.follower_email}</strong></div>
+                    {!alreadyFollowing && <button type="button" onClick={async () => {
+                      const created = await base44.entities.Follow.create({ follower_email: user.email, following_email: f.follower_email, following_name: null, following_avatar_url: null });
+                      setFollowing(prev => [...prev, created]);
+                    }} className="pg-account-small-action"><UserPlus size={14} aria-hidden="true" /> Follow back</button>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Disclosure>
 
+        <Disclosure title="About PG" description="How it works, seller payouts and our story">
+          <nav aria-label="About Peanut Gallery">
+            <AccountLink to="/why-peanut-gallery" title="Why Peanut Gallery?" description="How PG protects fans" />
+            <AccountLink to="/seller-payout-guide" title="Seller payout guide" description="Stripe setup and payouts" />
+            <AccountLink to="/our-story" title="Our story" description="Built by a fan, for fans" />
+          </nav>
+        </Disclosure>
+
+        {(isAdmin(user) || feedbackAccess(auth) === 'admin') && <Disclosure title="Admin tools" description="Manage the platform and review feedback">
+          {isAdmin(user) && <AccountLink to="/admin" icon={Shield} title="Admin panel" description="Manage events and listings" />}
+          {feedbackAccess(auth) === 'admin' && <AccountLink to="/beta-dashboard?view=feedback" icon={MessageSquare} title="Feedback inbox" description="Bugs, confusion, love and ideas" />}
+        </Disclosure>}
       </div>
     </div>
   );

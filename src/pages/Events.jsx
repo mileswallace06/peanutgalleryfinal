@@ -270,14 +270,14 @@ export default function Events() {
             <span>{localArea ? localArea.label : 'Choose city'}</span>
             <ChevronDown aria-hidden="true" className="w-3.5 h-3.5" />
           </button>
-          <button type="button" onClick={handleNearMe} disabled={locationStatus === 'requesting'}
+          {(!localArea || keyword || activeSearch.scope === 'nationwide' || locationStatus === 'requesting') && <button type="button" onClick={handleNearMe} disabled={locationStatus === 'requesting'}
             className="pg-events-nearby pg-action">
             <LocateFixed aria-hidden="true" className="w-3.5 h-3.5" />
             {locationStatus === 'requesting' ? 'Locating…' : 'Near Me'}
-          </button>
+          </button>}
         </div>
         <h1 className="pg-page-title font-display">Events</h1>
-        <p className="pg-events-intro">Discover amazing live events.</p>
+        <p className="pg-events-intro">Find your event. Make it a night.</p>
       </div>
 
       {/* One event search; new submissions always use the retained local area. */}
@@ -330,23 +330,20 @@ export default function Events() {
         )}
       </div>
 
-      {/* ── Sort by Date ── */}
+      {/* Compact native controls keep all existing date-filter behavior. */}
       <div className="pg-events-sort" aria-label="Event date filters">
-        <ArrowUpDown aria-hidden="true" className="pg-events-sort-icon" />
-        {[
-          { id: 'soonest', label: 'Soonest', accessibleLabel: 'Upcoming soonest' },
-          { id: 'latest', label: 'Latest', accessibleLabel: 'Latest upcoming' },
-        ].map(opt => (
-          <button key={opt.id} onClick={() => setSortMode(opt.id)}
-            aria-label={opt.accessibleLabel} aria-pressed={sortMode === opt.id}
-            className={`pg-events-sort-tab pg-action ${sortMode === opt.id ? 'is-active' : ''}`}>
-            {opt.label}
-          </button>
-        ))}
-        <button onClick={() => setShowPast(v => !v)} aria-pressed={showPast}
-          className={`pg-events-sort-tab pg-events-past pg-action ${showPast ? 'is-active' : ''}`}>
-          Past Events
-        </button>
+        <label className="pg-events-sort-control">
+          <ArrowUpDown aria-hidden="true" className="pg-events-sort-icon" />
+          <span className="sr-only">Sort events by date</span>
+          <select value={sortMode} onChange={e => setSortMode(e.target.value)}>
+            <option value="soonest">Soonest first</option>
+            <option value="latest">Latest first</option>
+          </select>
+        </label>
+        <label className="pg-events-past-control">
+          <input type="checkbox" checked={showPast} onChange={e => setShowPast(e.target.checked)} />
+          Include past
+        </label>
       </div>
 
       {/* ── Rate limit / network error ── */}
@@ -515,6 +512,10 @@ function EventRow({ event }) {
       <div className="pg-event-photo">
         <EventThumbnail event={event} className="absolute inset-0 w-full h-full" />
         {isLive && <span className="pg-event-live-badge">LIVE</span>}
+        {eventUrl && <Link to={isLive ? `/upgrades/${event.id}` : eventUrl}
+          state={!isLive && isTM ? { tmEvent: event } : undefined}
+          className="pg-event-photo-link" aria-label={`${isLive ? 'Open live hub for' : 'View'} ${event.title}`}
+          onClick={isLive ? e => e.stopPropagation() : handleCardClick} />}
       </div>
       <div className="pg-event-ticket-body">
         <div className="pg-event-ticket-copy">
