@@ -518,7 +518,7 @@ function EventRow({ event }) {
       </span>
     </>
   );
-  const cardClass = `pg-ticket pg-browse-ticket pg-event-ticket ${isLive ? 'is-live' : ''}`;
+  const cardClass = `pg-ticket pg-browse-ticket pg-printed-ticket pg-event-ticket ${isLive ? 'is-live' : ''}`;
 
   return (
     <article className="pg-event-row">

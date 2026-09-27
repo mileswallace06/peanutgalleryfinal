@@ -1,0 +1,89 @@
+/* Shared dyed-stock material. Color identifies the page, not event availability. */
+.pg-design-page:is(.pg-events-page, .pg-upgrades-page, .pg-sell-page) {
+  --pg-page-accent: #bf5fff;
+  --pg-page-accent-soft: #d5a3ff;
+  --pg-stock: #aa8ac1;
+  --pg-stock-light: #b592c9;
+  --pg-stock-dark: #a184ba;
+  --pg-stock-ink: #291438;
+  --pg-stock-muted: #291438;
+  --pg-stock-line: #65318350;
+  --pg-stock-highlight: #e4b8f06b;
+  --pg-stock-edge: #704486;
+  --pg-stock-grain-light: #f0baff80;
+  --pg-stock-grain-dark: #44205f80;
+  --pg-stock-fiber: #67216e14;
+  --pg-stock-art-tint: #542c741a;
+  --pg-stock-art-border: #522c693d;
+  --pg-tear-line: #b282d7b3;
+  --pg-stub-ink: #e8c9f1;
+  --pg-stub-start: #4a2d66;
+  --pg-stub-end: #56376f;
+  --pg-stub-grain: #b383d044;
+}
+.pg-design-page.pg-upgrades-page {
+  --pg-page-accent: #00ff87;
+  --pg-page-accent-soft: #73efac;
+  --pg-stock: #84b398;
+  --pg-stock-light: #9ac5aa;
+  --pg-stock-dark: #78ac8e;
+  --pg-stock-ink: #153726;
+  --pg-stock-muted: #153726;
+  --pg-stock-line: #275f454f;
+  --pg-stock-highlight: #bcecd06b;
+  --pg-stock-edge: #477d5c;
+  --pg-stock-grain-light: #c0f0cd80;
+  --pg-stock-grain-dark: #28563b80;
+  --pg-stock-fiber: #1b704114;
+  --pg-stock-art-tint: #28543d1a;
+  --pg-stock-art-border: #27543e3d;
+  --pg-tear-line: #7fb795b3;
+  --pg-stub-ink: #c7edce;
+  --pg-stub-start: #204631;
+  --pg-stub-end: #2c543c;
+  --pg-stub-grain: #7caf8a44;
+}
+.pg-design-page.pg-sell-page {
+  --pg-page-accent: #ff8c00;
+  --pg-page-accent-soft: #ffb565;
+  --pg-stock: #cf946e;
+  --pg-stock-light: #dca782;
+  --pg-stock-dark: #c68d67;
+  --pg-stock-ink: #462719;
+  --pg-stock-muted: #462719;
+  --pg-stock-line: #7c46284f;
+  --pg-stock-highlight: #efc4a26b;
+  --pg-stock-edge: #8a5837;
+  --pg-stock-grain-light: #ffcc9f80;
+  --pg-stock-grain-dark: #743c2380;
+  --pg-stock-fiber: #8f471d14;
+  --pg-stock-art-tint: #7844271a;
+  --pg-stock-art-border: #7946293d;
+  --pg-tear-line: #cd9269b3;
+  --pg-stub-ink: #f2d5b9;
+  --pg-stub-start: #60341e;
+  --pg-stub-end: #704128;
+  --pg-stub-grain: #d0956444;
+}
+.pg-design-page .pg-ticket.pg-printed-ticket {
+  background: linear-gradient(108deg, var(--pg-stock-light), var(--pg-stock) 46%, var(--pg-stock-dark));
+  color: var(--pg-stock-ink);
+  border-color: var(--pg-stock-edge);
+  box-shadow: inset 0 1px var(--pg-stock-highlight), inset 0 -1px var(--pg-stock-edge);
+}
+.pg-printed-ticket::before {
+  content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background-image: radial-gradient(var(--pg-stock-grain-light) .5px, transparent .8px), radial-gradient(var(--pg-stock-grain-dark) .5px, transparent .8px), repeating-linear-gradient(4deg, transparent 0 6px, var(--pg-stock-fiber) 6px 7px);
+  background-size: 3px 4px, 5px 3px, 100% 100%;
+  background-position: 0 0, 2px 1px, 0 0;
+  opacity: .4;
+}
+.pg-printed-ticket::after {
+  content: ''; position: absolute; inset: 6px; pointer-events: none;
+  border: 1px solid var(--pg-stock-line); border-radius: 2px;
+  border-top-color: var(--pg-stock-highlight); border-bottom-color: var(--pg-stock-edge);
+}
+.pg-ticket-app {
+  --font-ticket-title: 'Barlow Semi Condensed', var(--font-editorial);
+  --font-ticket-date: 'IBM Plex Mono', var(--font-mono-label);
+}

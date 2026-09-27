@@ -1,12 +1,12 @@
-/* Printed tickets with a neon tear-off stub. Source artwork stays uncropped. */
+/* Compact page-colored paper tickets. Source artwork stays uncropped. */
 .pg-design-page .pg-ticket.pg-browse-ticket {
   --ticket-notch: 7px;
   --browse-stub-width: 44px;
   --browse-tear-x: calc(100% - var(--browse-stub-width) - .5px);
-  --browse-accent: var(--pg-cyan);
-  --browse-paper: #f4f0fa;
-  --browse-ink: #251b32;
-  --browse-muted: #62566f;
+  --browse-accent: var(--pg-page-accent-soft);
+  --browse-paper: var(--pg-stock);
+  --browse-ink: var(--pg-stock-ink);
+  --browse-muted: var(--pg-stock-muted);
   display: grid;
   grid-template-columns: minmax(88px, 32%) minmax(0, 1fr) var(--browse-stub-width);
   align-items: stretch;
@@ -14,8 +14,8 @@
   min-height: var(--pg-browse-row-height, 122px);
   height: auto;
   padding: 0;
-  border: 1px solid #cfc4dd;
-  border-radius: 8px;
+  border: 1px solid var(--pg-stock-edge);
+  border-radius: 5px;
   background: var(--browse-paper);
   color: var(--browse-ink);
   box-shadow: none;
@@ -28,9 +28,6 @@
   mask-image: radial-gradient(circle at var(--browse-tear-x) 0, transparent var(--ticket-notch), #000 calc(var(--ticket-notch) + .7px)), radial-gradient(circle at var(--browse-tear-x) 100%, transparent var(--ticket-notch), #000 calc(var(--ticket-notch) + .7px));
   mask-composite: intersect;
 }
-.pg-design-page .pg-browse-ticket.is-live { --browse-accent: var(--pg-mint); }
-.pg-design-page .pg-browse-ticket.pg-upgrade-ticket-live { --browse-accent: var(--pg-mint); }
-.pg-design-page .pg-browse-ticket.pg-upgrade-ticket-soon { --browse-accent: var(--pg-violet); }
 .pg-design-page .pg-browse-ticket[aria-disabled="true"],
 .pg-design-page .pg-browse-ticket:disabled { cursor: default; }
 .pg-ticket-app .pg-design-page .pg-ticket.pg-browse-ticket:focus-visible {
@@ -43,17 +40,17 @@
   min-width: 0;
   height: calc(var(--pg-browse-row-height, 122px) - 18px);
   margin: 8px 0 8px 8px;
-  border-radius: 6px;
-  background: #e5dced;
-  box-shadow: inset 0 0 0 1px #251b3212;
+  border-radius: 2px;
+  background: var(--pg-stock-art-tint);
+  box-shadow: inset 0 0 0 1px var(--pg-stock-art-border);
   overflow: hidden;
 }
 .pg-browse-ticket .pg-browse-ticket-art img { object-fit: contain; object-position: center; }
 .pg-browse-ticket .pg-browse-ticket-copy { min-width: 0; padding: 4px 10px; align-self: center; }
 .pg-browse-ticket .pg-browse-ticket-title {
-  font-family: var(--font-sans);
-  font-size: 16px;
-  font-weight: 650;
+  font-family: var(--font-ticket-title);
+  font-size: 17px;
+  font-weight: 700;
   line-height: 20px;
   letter-spacing: -.015em;
   color: var(--browse-ink);
@@ -85,15 +82,16 @@
   gap: 3px;
   padding: 8px 3px;
   min-width: 0;
-  border-left: 1px dashed #251b3270;
-  color: var(--browse-ink);
-  background: var(--browse-accent);
+  border-left: 1px dashed var(--pg-tear-line);
+  color: var(--pg-stub-ink);
+  background-image: radial-gradient(var(--pg-stub-grain) .5px, transparent .8px), linear-gradient(96deg, var(--pg-stub-start), var(--pg-stub-end));
+  background-size: 3px 4px, 100% 100%;
   box-shadow: none;
 }
-.pg-browse-ticket .pg-browse-ticket-month { font-size: 10px; line-height: 12px; text-transform: uppercase; font-weight: 650; color: var(--browse-ink); }
-.pg-browse-ticket .pg-browse-ticket-day { font-family: var(--font-sans); font-size: 21px; font-weight: 650; line-height: 24px; font-variant-numeric: tabular-nums; }
-.pg-browse-ticket .pg-browse-ticket-arrow { width: 16px; height: 16px; color: var(--browse-ink); margin-top: 5px; flex: none; }
-.pg-browse-ticket .pg-browse-ticket-status { max-width: 100%; font-size: 10px; line-height: 12px; font-weight: 700; color: var(--browse-ink); text-transform: uppercase; text-align: center; overflow-wrap: anywhere; }
+.pg-browse-ticket .pg-browse-ticket-month { font-family: var(--font-ticket-date); font-size: 11px; line-height: 12px; text-transform: uppercase; font-weight: 500; color: var(--pg-stub-ink); }
+.pg-browse-ticket .pg-browse-ticket-day { font-family: var(--font-ticket-date); font-size: 21px; font-weight: 500; line-height: 24px; font-variant-numeric: tabular-nums; color: var(--browse-accent); }
+.pg-browse-ticket .pg-browse-ticket-arrow { width: 16px; height: 16px; color: var(--browse-accent); margin-top: 5px; flex: none; }
+.pg-browse-ticket .pg-browse-ticket-status { max-width: 100%; font-size: 10px; line-height: 12px; font-weight: 700; color: var(--pg-stub-ink); text-transform: uppercase; text-align: center; overflow-wrap: anywhere; }
 @media (max-width: 350px) {
   .pg-design-page .pg-ticket.pg-browse-ticket { --browse-stub-width: 40px; grid-template-columns: 88px minmax(0, 1fr) var(--browse-stub-width); }
   .pg-browse-ticket .pg-browse-ticket-copy { padding-left: 8px; padding-right: 8px; }

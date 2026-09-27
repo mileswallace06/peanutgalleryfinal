@@ -12,6 +12,7 @@ import FeedbackWidget from '@/components/beta/FeedbackWidget';
 import { pageVariants, useNavigationDirection } from '@/lib/pageTransitions';
 import '@/components/ticket-design.css';
 import '@/components/browse-ticket.css';
+import '@/components/printed-ticket.css';
 
 /**
  * Once a tab has been activated, keep its Outlet mounted permanently.
@@ -43,7 +44,7 @@ function MountedTab({ tabKey, activeKey, direction, pathname }) {
 }
 
 const NAV = [
-  { to: '/events', label: 'Tickets', icon: Ticket, color: '#00C8FF', key: 'events' },
+  { to: '/events', label: 'Tickets', icon: Ticket, color: '#BF5FFF', key: 'events' },
   { to: '/upgrades', label: 'Upgrades', icon: TrendingUp, color: '#00FF87', key: 'upgrades' },
   { to: '/sell', label: 'Sell', icon: Tag, color: '#FF8C00', key: 'sell' },
   { to: '/fan-zone', label: 'Fan Zone', icon: Users, color: '#BF5FFF', key: 'fanzone' },

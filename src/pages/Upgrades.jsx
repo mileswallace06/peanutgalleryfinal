@@ -299,7 +299,7 @@ function EventCard({ event, mode }) {
 
   return (
     <button type="button" onClick={handleClick} disabled={syncing || !hasValidLink}
-      className={`pg-ticket pg-browse-ticket pg-upgrade-ticket pg-upgrade-ticket-${mode}`}>
+      className={`pg-ticket pg-browse-ticket pg-printed-ticket pg-upgrade-ticket pg-upgrade-ticket-${mode}`}>
       <EventThumbnail event={event} className="pg-browse-ticket-art" />
       <div className="pg-browse-ticket-copy">
         {event.category && <span className="sr-only">{event.category}</span>}

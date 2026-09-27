@@ -1,7 +1,7 @@
 /* The Events marketplace keeps its existing search and date controls in a
    compact ticket layout. All event photography and prices come from the event. */
 .pg-design-page.pg-events-page {
-  --pg-events-accent: var(--pg-cyan, #00c8ff);
+  --pg-events-accent: var(--pg-violet, #bf5fff);
   --pg-browse-row-height: clamp(96px, calc((100dvh - var(--app-safe-top, 0px) - env(safe-area-inset-bottom, 0px) - var(--pg-browse-header-height) - 113px) / 3), 140px);
   padding: 0 0 108px;
   color: var(--pg-text, #f7f5f9);
@@ -74,7 +74,7 @@
 .pg-events-page .pg-events-search-area {
   padding: 0 16px;
 }
-.pg-events-filter-active { position: absolute; top: 8px; right: 8px; width: 6px; height: 6px; flex: none; border-radius: 50%; background: var(--pg-cyan); }
+.pg-events-filter-active { position: absolute; top: 8px; right: 8px; width: 6px; height: 6px; flex: none; border-radius: 50%; background: var(--pg-ink); }
 
 .pg-events-page .pg-events-search-row {
   display: flex;
@@ -192,8 +192,8 @@
 .pg-events-sort-icon { width: 14px; height: 14px; flex: none; color: var(--pg-muted); }
 .pg-events-sort-control select { width: 100%; min-width: 0; min-height: 44px; padding: 6px 2px; background: var(--pg-surface); color: var(--pg-text); border: 0; border-radius: 4px; font-size: 16px; font-weight: 600; }
 .pg-events-past-control { display: flex; align-items: center; width: 100%; gap: 7px; min-height: 44px; font-size: 12px; color: var(--pg-muted); cursor: pointer; }
-.pg-events-past-control input { width: 17px; height: 17px; accent-color: var(--pg-cyan); flex: none; }
-.pg-events-sort :is(select, input):focus-visible { outline: 2px solid var(--pg-cyan); outline-offset: 3px; }
+.pg-events-past-control input { width: 17px; height: 17px; accent-color: var(--pg-violet); flex: none; }
+.pg-events-sort :is(select, input):focus-visible { outline: 2px solid var(--pg-violet); outline-offset: 3px; }
 
 .pg-events-page .pg-events-count {
   display: flex;
