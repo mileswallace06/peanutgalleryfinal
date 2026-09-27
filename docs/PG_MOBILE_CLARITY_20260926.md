@@ -4,8 +4,22 @@ Owner direction: keep the accepted neon ticket-stub design, make individual even
 
 Base: published main `e3c77b08ea585ecc9743163473807c5028b2b6f8` (PR12).
 Remote destination: `codex/pg-mobile-clarity-20260926`.
-Current refinement branch: `codex/pg-three-events-20260926`.
-Status: `318d17f0` was pushed and independently confirmed to fit two full cards on both feeds. The owner then requested at least three events and marked remaining blank footer space. The three-card refinement below is prepared locally; it has not yet reached the remote preview or TestFlight.
+Current refinement branch: `codex/pg-header-hitfix-20260926`.
+Status: Three-card head `e2804f28b3dcd1ddb9265b3b4510656155b9f304` was independently verified identical to the remote clarity branch and reviewed in Final's actual Base44 branch preview. Three complete card bounds fit above navigation on both feeds at 373×665. A header hit-target correction is now prepared locally; neither this refinement nor that correction is published.
+
+## Actual three-card review and header correction — September 26, 19:19–19:30 Arizona
+
+| Screen | First / second / third card bottom | Bottom navigation starts |
+| --- | --- | --- |
+| Events | 233.36 / 404.72 / 576.08px | 592px |
+| Upgrades | 234.36 / 403.72 / 573.08px | 592px |
+
+These measurements use the populated Phoenix catalog, normal text size and closed controls. Photos remain about119px high. Upgrades' first three events are in the same timing group. Native safe areas, enlarged text, alerts and mixed groups remain physical-device coverage limits. Existing floating feedback control overlaps part of the third title strip; the three card bounds are otherwise visible. Provider event catalog is not evidence of PG resale inventory. Browser UTC date display remains a separate existing issue.
+
+Fresh preview load and tab changes render route-specific header controls. Events Search and filters opens and closes using keyboard activation; city entry and suggestion selection loaded40 events. Pointer activation of header buttons was blocked by two pre-existing empty, padded notification wrappers covering the top32px. Added `pointer-events-none` to both ToastProvider and ToastViewport; individual Toast already restores `pointer-events-auto`. This changes only hit testing, retaining actual toast pointer targets. Existing toast dismissal wiring was not changed or verified.
+
+Correction verification: production build exited0 and whitespace check passed. The repository ESLint configuration excludes this UI component, so it supplied no lint coverage. Browser pointer retest remains pending the owner's push. No broad tests repeated. Me loaded with52px header and no horizontal overflow at373px. Screenshots and fuller review are saved in the separate coordination repository. No merge, publication, backend or purchase-security changes.
+
 
 ## Three-card refinement — September 26, 19:07 onward
 
