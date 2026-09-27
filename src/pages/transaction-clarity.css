@@ -1,0 +1,76 @@
+.pg-transaction-page { padding-bottom: 40px; }
+.pg-transaction-page :is(button, input, select, textarea, label[style*="dashed"]) { min-height: 44px; }
+.pg-transaction-page :is(button, a, select, input, textarea) { touch-action: manipulation; }
+.pg-transaction-page :is(button, input, select, textarea) { border-radius: 9px; }
+.pg-transaction-page button { line-height: 1.4; }
+.pg-transaction-page :is(input, select, textarea) { color-scheme: dark; }
+.pg-transaction-page .pg-transaction-primary { min-height: 50px; background: var(--pg-mint); color: var(--pg-ink); }
+.pg-transaction-page .pg-transaction-secondary { min-height: 46px; background: transparent; border: 1px solid var(--pg-line); color: var(--pg-text); }
+.pg-transaction-card { padding: 18px; border: 1px solid var(--pg-line); border-radius: 12px; background: var(--pg-surface); }
+.pg-transaction-page .pg-transaction-kicker { display: flex; align-items: center; gap: 7px; margin: 0 0 10px; color: var(--pg-cyan); font-size: 11px; line-height: 1.4; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.pg-transaction-card h2, .pg-transaction-status h2 { margin: 0 0 8px; font-family: var(--font-display); font-size: 26px; line-height: 1.12; color: var(--pg-text); }
+.pg-transaction-card > p:not(.pg-transaction-kicker), .pg-transaction-status p:not(.pg-transaction-kicker) { font-size: 14px; line-height: 1.55; color: var(--pg-muted); }
+.pg-transaction-page .pg-transaction-note { margin: 14px 0 0; font-size: 12px; line-height: 1.55; color: var(--pg-muted); }
+.pg-transaction-alert { padding: 14px; margin-top: 16px; border: 1px solid var(--pg-pink); border-radius: 9px; color: var(--pg-text); background: var(--pg-surface); font-size: 14px; line-height: 1.5; }
+.pg-transaction-alert .pg-action { width: 100%; margin-top: 12px; }
+.pg-transaction-empty { padding-top: 40px; padding-bottom: 48px; text-align: center; color: var(--pg-muted); }
+.pg-transaction-empty > a { display: inline-flex; align-items: center; min-height: 44px; }
+.pg-transaction-status { display: flex; align-items: flex-start; gap: 13px; padding: 18px; border: 1px solid var(--pg-cyan); border-radius: 12px; background: var(--pg-surface); }
+.pg-transaction-status > svg { color: var(--pg-cyan); flex: none; margin-top: 3px; }
+.pg-transaction-actions { display: flex; gap: 12px; margin-top: 26px; padding-top: 20px; border-top: 1px dashed var(--pg-line); }
+.pg-transaction-actions .pg-transaction-primary { flex: 1; }
+.pg-listing-page .pg-transaction-primary { background: var(--pg-orange); }
+.pg-listing-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0 0 24px; padding: 0; list-style: none; }
+.pg-listing-steps li { border-top: 2px solid var(--pg-line); padding-top: 10px; display: flex; align-items: center; gap: 7px; color: var(--pg-muted); font-size: 11px; font-weight: 700; line-height: 1.35; }
+.pg-listing-steps .is-reached { border-color: var(--pg-orange); }
+.pg-listing-steps li[aria-current="step"] { color: var(--pg-text); }
+.pg-listing-step-number { display: flex; align-items: center; justify-content: center; flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--pg-surface); color: var(--pg-muted); }
+.pg-listing-steps li[aria-current="step"] .pg-listing-step-number { background: var(--pg-orange); color: var(--pg-ink); }
+.pg-listing-steps .is-reached svg { color: var(--pg-orange); }
+.pg-listing-page .pg-transaction-card > .pg-disclosure { margin-top: 18px; }
+.pg-listing-page label { font-size: 13px; line-height: 1.45; }
+.pg-listing-page .pg-listing-attestation .text-xs { font-size: 13px; line-height: 1.5; }
+.pg-listing-page .pg-listing-attestation .grid-cols-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.pg-listing-page .pg-listing-attestation button { font-size: 13px; }
+.pg-listing-submit-note { margin-top: 22px; color: var(--pg-muted); font-size: 13px; line-height: 1.5; }
+.pg-listing-submit-note p + p { margin-top: 8px; }
+.pg-transaction-result { padding: 24px 20px; border-radius: 12px; background: var(--pg-paper); color: var(--pg-ink); border-top: 8px solid var(--pg-orange); }
+.pg-transaction-result-icon { display: flex; align-items: center; justify-content: center; width: 48px; height: 48px; margin-bottom: 20px; border: 1px solid #19171f33; border-radius: 50%; }
+.pg-transaction-result h2 { font-family: var(--font-display); font-size: 30px; line-height: 1.1; margin: 0 0 10px; }
+.pg-transaction-result p { font-size: 14px; line-height: 1.55; }
+.pg-transaction-result .pg-transaction-kicker, .pg-transaction-result .pg-transaction-note { color: var(--pg-paper-muted); }
+.pg-transaction-result-actions { border-top: 1px dashed #19171f55; padding-top: 20px; margin-top: 22px; display: grid; gap: 8px; }
+.pg-transaction-result .pg-transaction-secondary { color: var(--pg-ink); border-color: #19171f55; }
+.pg-purchase-page > .pg-transaction-card, .pg-purchase-page > .pg-transaction-status { margin-bottom: 20px; }
+.pg-purchase-next { border-top: 4px solid var(--pg-cyan); }
+.pg-purchase-complete { border-top: 4px solid var(--pg-mint); }
+.pg-purchase-complete .pg-transaction-kicker { color: var(--pg-mint); }
+.pg-purchase-complete .pg-transaction-primary { width: 100%; margin-top: 20px; }
+.pg-purchase-page .pg-purchase-cancel { width: 100%; margin-top: 20px; }
+.pg-purchase-page .pg-purchase-confirm { width: 100%; margin-top: 10px; }
+.pg-purchase-page .pg-purchase-confirm-note { padding-top: 16px; margin-top: 18px; border-top: 1px dashed var(--pg-line); color: var(--pg-text); font-size: 13px; }
+.pg-purchase-proof { border: 1px solid var(--pg-line); padding: 14px; border-radius: 9px; margin-top: 16px; font-size: 14px; line-height: 1.5; }
+.pg-purchase-proof-link { display: inline-flex; align-items: center; min-height: 44px; gap: 8px; color: var(--pg-cyan); font-weight: 700; }
+.pg-purchase-ticket { position: relative; overflow: hidden; border-radius: 11px; background: var(--pg-paper); color: var(--pg-ink); margin: 22px 0; border-top: 7px solid var(--pg-violet); }
+.pg-purchase-ticket-heading { padding: 18px 18px 14px; }
+.pg-purchase-ticket-heading > p { display: flex; align-items: center; gap: 7px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .09em; margin-bottom: 9px; }
+.pg-purchase-ticket h2 { margin: 0; color: var(--pg-ink); font-family: var(--font-display); font-size: 25px; line-height: 1.15; }
+.pg-purchase-seats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 0 18px 17px; }
+.pg-purchase-seats dt { color: var(--pg-paper-muted); font-size: 11px; line-height: 1.5; }
+.pg-purchase-seats dd { font-family: var(--font-display); font-size: 23px; line-height: 1.35; overflow-wrap: anywhere; }
+.pg-purchase-total { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 15px 18px; border-top: 1px dashed #19171f66; font-size: 14px; }
+.pg-purchase-total strong { font-family: var(--font-display); font-size: 24px; }
+.pg-purchase-ticket-note { margin: 0; padding: 0 18px 17px; color: var(--pg-paper-muted); font-size: 12px; line-height: 1.5; }
+.pg-purchase-timeline { list-style: none; padding: 3px 0 0; margin: 0; }
+.pg-purchase-timeline li { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; }
+.pg-purchase-timeline li > span { width: 28px; height: 28px; border: 1px solid var(--pg-line); border-radius: 50%; display: flex; align-items: center; justify-content: center; flex: none; font-size: 12px; color: var(--pg-muted); }
+.pg-purchase-timeline li > .is-done { color: var(--pg-mint); border-color: var(--pg-mint); }
+.pg-purchase-timeline p { font-size: 14px; font-weight: 700; margin: 0; }
+.pg-purchase-timeline :is(small, time) { display: block; color: var(--pg-muted); font-size: 12px; line-height: 1.5; }
+.pg-purchase-page .pg-purchase-refresh { width: 100%; margin-top: 8px; }
+@media (max-width: 360px) {
+  .pg-listing-steps { gap: 8px; }
+  .pg-listing-steps li { align-items: flex-start; gap: 5px; }
+  .pg-transaction-actions { gap: 8px; }
+  .pg-transaction-actions .pg-action { padding-inline: 11px; }
+}

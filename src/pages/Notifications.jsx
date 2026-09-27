@@ -2,7 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { formatDistanceToNow } from 'date-fns';
-import { Bell, CheckCheck, ArrowLeft, RefreshCw } from 'lucide-react';
+import { Bell, CheckCheck, ArrowRight, RefreshCw } from 'lucide-react';
+import { PageIntro } from '@/components/ClarityUI';
+import './activity-clarity.css';
 
 const TYPE_COLORS = {
   purchase_confirmed: '#00FF87',
@@ -30,45 +32,36 @@ const TYPE_COLORS = {
 function NotifCard({ notif, onMarkRead }) {
   const color = TYPE_COLORS[notif.type] || '#BF5FFF';
   const isUnread = !notif.read;
-
-  const inner = (
-    <div
-      onClick={() => !notif.read && onMarkRead(notif.id)}
-      className="flex items-start gap-3 p-4 rounded-2xl transition-all"
-      style={{
-        background: isUnread ? `${color}0D` : 'hsl(var(--card))',
-        border: `1px solid ${isUnread ? color + '35' : 'hsl(var(--border))'}`,
-        cursor: isUnread ? 'pointer' : 'default',
-      }}
-    >
-      {/* Icon */}
-      <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-lg"
-        style={{ background: `${color}18`, border: `1px solid ${color}30` }}>
+  const className = `pg-notification-row ${isUnread ? 'is-unread' : 'is-read'}`;
+  const content = (
+    <>
+      <span className="pg-notification-icon" style={{ '--notification-color': color }} aria-hidden="true">
         {notif.icon || '🔔'}
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-start justify-between gap-2">
-          <p className="font-bold text-sm text-foreground leading-tight">{notif.title}</p>
-          {isUnread && (
-            <div className="w-2 h-2 rounded-full flex-shrink-0 mt-1.5" style={{ background: color }} />
+      </span>
+      <span className="pg-notification-copy">
+        <span className="pg-notification-meta">
+          <span className={`pg-notification-state ${isUnread ? 'is-unread' : ''}`}>{isUnread ? 'Unread' : 'Read'}</span>
+          {notif.created_date && (
+            <time dateTime={notif.created_date} title={new Date(notif.created_date).toLocaleString()}>
+              {formatDistanceToNow(new Date(notif.created_date), { addSuffix: true })}
+            </time>
           )}
-        </div>
-        {notif.body && (
-          <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{notif.body}</p>
-        )}
-        <p className="text-[10px] text-muted-foreground mt-1.5">
-          {notif.created_date ? formatDistanceToNow(new Date(notif.created_date), { addSuffix: true }) : ''}
-        </p>
-      </div>
-    </div>
+        </span>
+        <span className="pg-notification-title">{notif.title}</span>
+        {notif.body && <span className="pg-notification-body">{notif.body}</span>}
+        {notif.action_url && <span className="pg-notification-open">View update <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" /></span>}
+        {!notif.action_url && isUnread && <span className="pg-notification-open">Mark as read</span>}
+      </span>
+    </>
   );
 
   if (notif.action_url) {
-    return <Link to={notif.action_url} onClick={() => !notif.read && onMarkRead(notif.id)}>{inner}</Link>;
+    return <Link to={notif.action_url} onClick={() => !notif.read && onMarkRead(notif.id)} className={className}>{content}</Link>;
   }
-  return inner;
+  if (isUnread) {
+    return <button type="button" onClick={() => onMarkRead(notif.id)} className={className}>{content}</button>;
+  }
+  return <div className={className}>{content}</div>;
 }
 
 export default function Notifications() {
@@ -106,87 +99,77 @@ export default function Notifications() {
   const unreadCount = notifs.filter(n => !n.read).length;
   const displayed = filter === 'unread' ? notifs.filter(n => !n.read) : notifs;
 
+  if (loading && !user) {
+    return (
+      <div className="pg-secondary-page pg-activity-page pg-notifications-page">
+        <PageIntro eyebrow="Your activity" title="Notifications" description="Updates on purchases, transfers, and listings." backTo="/me" backLabel="Your account" />
+        <div className="pg-state pg-activity-state" role="status">
+          <RefreshCw className="w-6 h-6 animate-spin" aria-hidden="true" />
+          <p>Loading notifications…</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!user) {
     return (
-      <div className="max-w-lg mx-auto px-4 py-16 text-center space-y-4">
-        <Bell className="w-12 h-12 text-muted-foreground mx-auto" />
-        <p className="font-semibold text-foreground">Sign in to see your notifications</p>
-        <button onClick={() => base44.auth.redirectToLogin()}
-          className="px-6 py-2.5 rounded-full bg-primary text-primary-foreground font-bold text-sm">
-          Sign In
-        </button>
+      <div className="pg-secondary-page pg-activity-page pg-notifications-page">
+        <PageIntro eyebrow="Your activity" title="Notifications" description="Updates on purchases, transfers, and listings." backTo="/me" backLabel="Your account" />
+        <div className="pg-state pg-activity-state">
+          <Bell className="w-8 h-8" aria-hidden="true" />
+          <h2>Sign in to see your notifications</h2>
+          <button onClick={() => base44.auth.redirectToLogin()} className="pg-action">Sign In</button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-lg mx-auto px-4 pb-20" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pr-14 mb-6">
-        <div className="flex items-center gap-3">
-          <Link to="/me" className="p-2 rounded-xl hover:bg-muted transition-colors">
-            <ArrowLeft className="w-4 h-4 text-muted-foreground" />
-          </Link>
-          <div>
-            <h1 className="font-bold text-xl text-foreground flex items-center gap-2">
-              <Bell className="w-5 h-5 text-primary" />
-              Notifications
-              {unreadCount > 0 && (
-                <span className="text-xs font-black px-2 py-0.5 rounded-full"
-                  style={{ background: '#FF2D78', color: '#fff' }}>
-                  {unreadCount}
-                </span>
-              )}
-            </h1>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <button onClick={load} className="p-1.5 rounded-lg hover:bg-muted transition-colors">
-            <RefreshCw className={`w-4 h-4 text-muted-foreground ${loading ? 'animate-spin' : ''}`} />
+    <div className="pg-secondary-page pg-activity-page pg-notifications-page">
+      <PageIntro eyebrow="Your activity" title="Notifications" description="Updates on purchases, transfers, and listings." backTo="/me" backLabel="Your account" />
+
+      <div className="pg-notification-toolbar">
+        <p className="pg-notification-count" aria-live="polite">
+          <strong>{unreadCount}</strong> unread {unreadCount === 1 ? 'update' : 'updates'}
+        </p>
+        <div className="pg-activity-controls">
+          <button onClick={load} className="pg-action pg-activity-secondary" aria-label="Refresh notifications">
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" /> Refresh
           </button>
           {unreadCount > 0 && (
-            <button onClick={markAllRead}
-              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-colors"
-              style={{ background: 'rgba(191,95,255,0.12)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.3)' }}>
-              <CheckCheck className="w-3.5 h-3.5" /> Mark all read
+            <button onClick={markAllRead} className="pg-action pg-activity-secondary">
+              <CheckCheck className="w-4 h-4" aria-hidden="true" /> Mark all read
             </button>
           )}
         </div>
       </div>
 
-      {/* Filter tabs */}
-      <div className="flex gap-2 mb-5">
-        {[['all', 'All'], ['unread', `Unread (${unreadCount})`]].map(([key, label]) => (
-          <button key={key} onClick={() => setFilter(key)}
-            className="px-4 py-1.5 rounded-full text-xs font-bold transition-all"
-            style={filter === key
-              ? { background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }
-              : { background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }}>
+      <div className="pg-notification-filters" role="group" aria-label="Filter notifications">
+        {[['all', 'All updates'], ['unread', `Unread (${unreadCount})`]].map(([key, label]) => (
+          <button key={key} onClick={() => setFilter(key)} aria-pressed={filter === key}
+            className={filter === key ? 'is-active' : ''}>
             {label}
           </button>
         ))}
       </div>
 
       {loading ? (
-        <div className="space-y-3">
-          {[1, 2, 3, 4].map(i => <div key={i} className="h-20 rounded-2xl bg-muted animate-pulse" />)}
+        <div className="pg-notification-loading" role="status">
+          <span className="sr-only">Loading notifications…</span>
+          {[1, 2, 3, 4].map(i => <div key={i} className="pg-notification-skeleton animate-pulse" aria-hidden="true" />)}
         </div>
       ) : displayed.length === 0 ? (
-        <div className="text-center py-20">
-          <p className="text-4xl mb-3">🔔</p>
-          <p className="font-semibold text-foreground">
-            {filter === 'unread' ? 'No unread notifications' : 'No notifications yet'}
-          </p>
-          <p className="text-sm text-muted-foreground mt-1">
-            Important events — purchases, transfers, disputes — will appear here.
-          </p>
+        <div className="pg-state pg-activity-state">
+          <Bell className="w-8 h-8" aria-hidden="true" />
+          <h2>{filter === 'unread' ? 'No unread notifications' : 'No notifications yet'}</h2>
+          <p>Important events — purchases, transfers, disputes — will appear here.</p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <ul className="pg-notification-list" aria-label={filter === 'unread' ? 'Unread notifications' : 'All notifications'}>
           {displayed.map(n => (
-            <NotifCard key={n.id} notif={n} onMarkRead={markRead} />
+            <li key={n.id}><NotifCard notif={n} onMarkRead={markRead} /></li>
           ))}
-        </div>
+        </ul>
       )}
     </div>
   );

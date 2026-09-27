@@ -21,6 +21,8 @@ function inferVendor(url) {
 }
 import ListingCard from '@/components/events/ListingCard';
 import PurchaseDialog from '@/components/events/PurchaseDialog';
+import { Disclosure } from '@/components/ClarityUI';
+import './event-detail-clarity.css';
 export default function EventDetailTM() {
   const { tmId } = useParams();
   const navigate = useNavigate();
@@ -146,195 +148,103 @@ export default function EventDetailTM() {
 
   if (loading) {
     return (
-      <div className="px-4 py-8 space-y-4">
-        <div className="h-64 bg-white/5 rounded-3xl animate-pulse" />
-        <div className="h-5 w-48 bg-white/5 rounded animate-pulse mt-6" />
-        <div className="space-y-4 mt-4">
-          {[...Array(3)].map((_, i) => <div key={i} className="h-40 bg-white/5 rounded-2xl animate-pulse" />)}
-        </div>
+      <div className="pg-secondary-page pg-event-detail pg-event-loading" role="status" aria-label="Loading event">
+        <div className="pg-event-loading-photo animate-pulse" />
+        <div className="h-8 w-3/4 bg-white/5 rounded animate-pulse" />
+        <div className="h-20 bg-white/5 rounded animate-pulse" />
       </div>
     );
   }
 
   if (!event) {
     return (
-      <div className="px-4 py-20 text-center">
-        <p className="text-muted-foreground">Event not found.</p>
-        <Link to="/events" className="text-primary text-sm mt-3 inline-block">← Back to events</Link>
+      <div className="pg-secondary-page pg-event-detail">
+        <div className="pg-event-empty">
+          <Ticket aria-hidden="true" className="pg-event-empty-icon" />
+          <h1 className="font-display">Event not found</h1>
+          <p>Return to events to choose another show.</p>
+          <Link to="/events" className="pg-event-text-link"><ArrowLeft aria-hidden="true" /> Back to events</Link>
+        </div>
       </div>
     );
   }
 
   const sorted = [...listings].sort((a, b) => a.asking_price - b.asking_price);
   const cheapest = sorted[0]?.asking_price;
+  const vendor = inferVendor(event.tm_url);
 
   return (
-    <div className="pb-32">
-
-      {/* ── Hero ── */}
-      <div className="relative h-72 sm:h-80 overflow-hidden">
-        {event.image_url ? (
-          <img src={event.image_url} alt={event.title} className="w-full h-full object-cover" />
-        ) : (
-          <div className="w-full h-full bg-white/5 flex items-center justify-center text-7xl">🎫</div>
-        )}
-        <div className="absolute inset-0"
-          style={{ background: 'linear-gradient(to bottom, rgba(5,3,12,0.25) 0%, rgba(5,3,12,0.5) 50%, rgba(5,3,12,0.97) 100%)' }}
-        />
-
-        <Link
-          to="/events"
-          className="absolute top-4 left-4 flex items-center gap-1.5 text-sm font-semibold text-white/80 hover:text-white transition-colors px-3 py-1.5 rounded-full"
-          style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(12px)' }}
-        >
-          <ArrowLeft className="w-4 h-4" /> Events
-        </Link>
-
-        {/* Vendor badge + external link — label always matches URL domain */}
-        {event.tm_url && (() => {
-          const { label } = inferVendor(event.tm_url);
-          return (
-            <a
-              href={event.tm_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label={`View on ${label} (opens in new tab)`}
-              className="absolute top-4 right-4 flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full"
-              style={{ background: 'rgba(0,0,0,0.5)', color: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.15)' }}
-            >
-              {label} <ExternalLink className="w-3 h-3" />
-            </a>
-          );
-        })()}
-
-        <div className="absolute bottom-0 left-0 right-0 px-5 pb-5">
-          <h1 className="font-display text-foreground leading-tight mb-2"
-            style={{ fontSize: 'clamp(1.8rem, 7vw, 2.8rem)' }}>
-            {event.title}
-          </h1>
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-1.5 text-xs text-white/70">
-              <Calendar className="w-3.5 h-3.5" />
-              {event.date ? format(new Date(event.date), 'EEEE, MMMM d, yyyy · h:mm a') : 'TBD'}
-            </div>
-            <div className="flex items-center gap-1.5 text-xs text-white/70">
-              <MapPin className="w-3.5 h-3.5" />
-              {event.venue}{event.city ? `, ${event.city}` : ''}{event.state ? `, ${event.state}` : ''}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Content ── */}
-      <div className="px-4 pt-8 space-y-8">
-
-        {/* ── Section 1: Official Tickets ── */}
-        <div
-          className="rounded-2xl p-5"
-          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
-        >
-          <div className="flex items-center gap-2 mb-1">
-            <ExternalLink className="w-4 h-4" style={{ color: '#00C8FF' }} />
-            <h2 className="font-bold text-foreground text-base">Official Tickets</h2>
-          </div>
-          {event.tm_url ? (() => {
-            const { label, homepage } = inferVendor(event.tm_url);
-            return (
-              <>
-                <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
-                  Primary marketplace tickets via {label}. Opens externally.
-                </p>
-                <a
-                  href={event.tm_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={`View on ${label} (opens in new tab)`}
-                  className="inline-flex items-center gap-2 font-bold text-sm px-5 py-2.5 rounded-full transition-opacity hover:opacity-80"
-                  style={{ background: 'rgba(0,200,255,0.15)', color: '#00C8FF', border: '1px solid rgba(0,200,255,0.3)' }}
-                >
-                  View on {label} <ExternalLink className="w-3.5 h-3.5" />
-                </a>
-              </>
-            );
-          })() : (
-            <p className="text-xs text-muted-foreground italic">No official link available.</p>
+    <div className="pg-secondary-page pg-event-detail">
+      <header className="pg-event-hero">
+        <div className="pg-event-hero-photo">
+          {event.image_url ? (
+            <img src={event.image_url} alt={event.title} />
+          ) : (
+            <div className="pg-event-photo-fallback"><Ticket aria-hidden="true" /><span>Peanut Gallery</span></div>
           )}
+          <Link to="/events" className="pg-event-back"><ArrowLeft aria-hidden="true" /> Events</Link>
         </div>
-
-        {/* ── Section 2: Peanut Gallery Listings ── */}
-        <div>
-          <div className="flex items-start justify-between gap-3 mb-4">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <Ticket className="w-4 h-4" style={{ color: '#BF5FFF' }} />
-                <h2 className="font-bold text-foreground text-base">
-                  Peanut Gallery Listings
-                  {listings.length > 0 && (
-                    <span className="ml-2 font-sans font-normal text-sm text-muted-foreground">({listings.length})</span>
-                  )}
-                </h2>
-              </div>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Fan-to-fan tickets listed directly inside Peanut Gallery.
-              </p>
-            </div>
+        <div className="pg-event-summary">
+          <p className="pg-event-eyebrow">Peanut Gallery / Event</p>
+          <h1 className="font-display">{event.title}</h1>
+          <div className="pg-event-facts">
+            <p><Calendar aria-hidden="true" /><span>{event.date ? format(new Date(event.date), 'EEEE, MMMM d, yyyy · h:mm a') : 'Date to be confirmed'}</span></p>
+            <p><MapPin aria-hidden="true" /><span>{event.venue}{event.city ? `, ${event.city}` : ''}{event.state ? `, ${event.state}` : ''}</span></p>
           </div>
+          <div className="pg-event-primary">
+            {event.tm_url ? (
+              <>
+                <a href={event.tm_url} target="_blank" rel="noopener noreferrer" aria-label={`View on ${vendor.label} (opens in new tab)`} className="pg-event-button">
+                  View on {vendor.label} <ExternalLink aria-hidden="true" />
+                </a>
+                <p>Official tickets. Primary marketplace tickets via {vendor.label}. Opens externally.</p>
+              </>
+            ) : (
+              <>
+                <a href="#event-tickets" className="pg-event-button"><Ticket aria-hidden="true" /> View Peanut Gallery listings</a>
+                <p>No official link available.</p>
+              </>
+            )}
+          </div>
+        </div>
+      </header>
 
+      <div className="pg-event-content">
+        <section id="event-tickets" className="pg-event-listing-section" aria-labelledby="event-tickets-heading">
+          <div className="pg-event-section-heading">
+            <h2 id="event-tickets-heading" className="font-display">Peanut Gallery listings <span>({listings.length})</span></h2>
+            <p>Fan-to-fan tickets listed directly inside Peanut Gallery.</p>
+          </div>
           {listings.length === 0 ? (
-            <div
-              className="text-center py-12 rounded-2xl"
-              style={{ background: 'rgba(191,95,255,0.04)', border: '1px solid rgba(191,95,255,0.12)' }}
-            >
-              <p className="text-3xl mb-3">🥜</p>
-              <p className="font-bold text-foreground text-sm">No Peanut Gallery listings yet</p>
-              <p className="text-xs text-muted-foreground mt-1 mb-4 max-w-[220px] mx-auto leading-relaxed">
-                Be the first to list your tickets for this event inside Peanut Gallery.
-              </p>
-              <button
-                onClick={handleListTickets}
-                disabled={creatingEvent}
-                className="inline-flex items-center gap-2 font-bold text-sm px-5 py-2.5 rounded-full"
-                style={{ background: 'rgba(191,95,255,0.15)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.3)' }}
-              >
-                {creatingEvent
-                  ? <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  : <Plus className="w-4 h-4" />
-                }
-                List tickets for this event
-              </button>
+            <div className="pg-event-empty">
+              <h3>No Peanut Gallery listings yet</h3>
+              <p>Be the first to list your tickets for this event inside Peanut Gallery.</p>
             </div>
           ) : (
-            <>
-              <div className="space-y-4">
-                {sorted.map(listing => (
-                  <ListingCard
-                    key={listing.id}
-                    listing={listing}
-                    isCheapest={listing.asking_price === cheapest}
-                    onUpgrade={setSelectedListing}
-                    mode="ticket"
-                    currentUserEmail={user?.email}
-                  />
-                ))}
-              </div>
-              <div className="mt-4 text-center">
-                <button
-                  onClick={handleListTickets}
-                  disabled={creatingEvent}
-                  className="inline-flex items-center gap-1.5 font-bold text-xs px-4 py-2 rounded-full"
-                  style={{ background: 'rgba(191,95,255,0.1)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.2)' }}
-                >
-                  {creatingEvent
-                    ? <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                    : <Plus className="w-3 h-3" />
-                  }
-                  List tickets for this event
-                </button>
-              </div>
-            </>
+            <div className="pg-event-listings">
+              {sorted.map(listing => (
+                <ListingCard
+                  key={listing.id}
+                  listing={listing}
+                  isCheapest={listing.asking_price === cheapest}
+                  onUpgrade={setSelectedListing}
+                  mode="ticket"
+                  currentUserEmail={user?.email}
+                />
+              ))}
+            </div>
           )}
-        </div>
+        </section>
 
+        <Disclosure title="Sell tickets for this event" description="Create a Peanut Gallery listing">
+          <p>List your tickets for this event inside Peanut Gallery.</p>
+          <button onClick={handleListTickets} disabled={creatingEvent} className="pg-event-button pg-event-button-secondary">
+            {creatingEvent
+              ? <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" aria-hidden="true" />
+              : <Plus aria-hidden="true" />}
+            {creatingEvent ? 'Preparing your listing…' : 'List tickets for this event'}
+          </button>
+        </Disclosure>
       </div>
 
       {selectedListing && (

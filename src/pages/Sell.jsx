@@ -137,9 +137,7 @@ export default function Sell() {
   return (
     <div className="pg-design-page pg-sell-page">
       <header className="pg-sell-intro" data-page-hero="sell">
-        <p className="pg-sell-eyebrow">SELL TICKETS</p>
         <h1 className="pg-page-title">Sell your seats</h1>
-        <p className="pg-sell-subtitle">Pass a better view to another fan.</p>
       </header>
 
       <div className="pg-sell-content">
@@ -258,7 +256,7 @@ export default function Sell() {
                   ? `/create-listing?tab=search&q=${encodeURIComponent(ev.title)}`
                   : `/create-listing?event_id=${ev.id}`;
                 return (
-                  <Link key={ev.id} to={linkTo} className="pg-sell-nearby-event">
+                  <Link key={ev.id} to={linkTo} className="pg-ticket pg-printed-ticket pg-sell-nearby-event">
                     {ev.image_url
                       ? <img src={ev.image_url} alt="" />
                       : <span className="pg-sell-nearby-placeholder"><Ticket size={22} aria-hidden="true" /></span>}
@@ -290,7 +288,7 @@ function ListingRow({ listing, event }) {
   const isDraft = listing.status === 'pending_payout_setup';
 
   return (
-    <article className={`pg-ticket pg-sell-listing pg-sell-listing-${listing.status}`}>
+    <article className={`pg-ticket pg-printed-ticket pg-sell-listing pg-sell-listing-${listing.status}`}>
       <div className="pg-sell-listing-image">
         {event?.image_url ? <img src={event.image_url} alt="" /> : <Ticket size={27} strokeWidth={1.6} aria-hidden="true" />}
       </div>

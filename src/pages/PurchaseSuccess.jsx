@@ -1,291 +1,87 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { CheckCircle, Clock, XCircle, AlertTriangle, ArrowLeft, Ticket, FileText, RefreshCw, Sparkles } from 'lucide-react';
+import { CheckCircle, Clock, XCircle, AlertTriangle, Ticket, FileText, RefreshCw } from 'lucide-react';
 import DisputeModal from '@/components/purchase/DisputeModal';
 import AIVerificationStatus from '@/components/purchase/AIVerificationStatus';
 import TransferAssistant from '@/components/purchase/TransferAssistant';
 import { createOptimisticPurchaseUpdate } from '@/lib/optimisticUI';
 import NotificationPermissionPrompt from '@/components/NotificationPermissionPrompt';
 import { UPGRADE_LISTING_TYPES } from '@/lib/listingTypes';
+import { PageIntro, Disclosure } from '@/components/ClarityUI';
+import './transaction-clarity.css';
 
-// ── Transaction Timeline ─────────────────────────────────────────────────────
+// Status history is secondary to the action needed to finish the transfer.
 function TransactionTimeline({ purchase }) {
   const isCompleted = purchase.transfer_status === 'completed';
-  const isDisputed = purchase.transfer_status === 'disputed';
-
   const steps = [
-    {
-      label: 'Payment Authorized',
-      sublabel: 'Funds held in escrow',
-      done: true,
-      active: false,
-      ts: purchase.created_date,
-    },
-    {
-      label: 'Seller Transferring Tickets',
-      sublabel: purchase.seller_confirmed ? 'Seller has sent tickets' : 'Waiting on seller',
-      done: !!purchase.seller_confirmed,
-      active: !purchase.seller_confirmed && !isDisputed,
-      ts: purchase.seller_confirmed_at,
-    },
-    {
-      label: 'Buyer Confirms Receipt',
-      sublabel: purchase.buyer_confirmed ? 'You confirmed receipt' : 'Check your email & confirm here',
-      done: !!purchase.buyer_confirmed,
-      active: purchase.seller_confirmed && !purchase.buyer_confirmed && !isDisputed,
-      ts: null,
-    },
-    {
-      label: 'Funds Released',
-      sublabel: isCompleted ? 'Payout sent to seller' : 'After you confirm receipt',
-      done: isCompleted,
-      active: false,
-      ts: null,
-    },
+    { label: 'Order created', detail: 'Transfer requested', done: true, ts: purchase.created_date },
+    { label: 'Tickets sent', detail: purchase.seller_confirmed ? 'Sender confirmed transfer' : 'Waiting for transfer', done: !!purchase.seller_confirmed, ts: purchase.seller_confirmed_at },
+    { label: 'Receipt confirmed', detail: purchase.buyer_confirmed ? 'Buyer confirmed receipt' : 'Buyer accepts the transfer', done: !!purchase.buyer_confirmed && !purchase._updating },
+    { label: 'Transfer complete', detail: isCompleted ? 'Transfer marked complete' : 'Waiting for completion', done: isCompleted },
   ];
-
-  return (
-    <div className="rounded-2xl px-4 py-4 mb-5 space-y-3" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
-      <p className="text-xs font-black tracking-widest uppercase text-muted-foreground">Transaction Status</p>
-      {steps.map((s, i) => (
-        <div key={i} className="flex items-start gap-3">
-          <div className="flex flex-col items-center">
-            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 transition-all ${
-              s.done ? 'text-black' : s.active ? 'border-2 border-primary text-primary' : 'border-2 border-border text-muted-foreground'
-            }`} style={s.done ? { background: 'linear-gradient(135deg, #00FF87, #00C8FF)' } : s.active ? { borderColor: '#BF5FFF', color: '#BF5FFF' } : {}}>
-              {s.done ? '✓' : i + 1}
-            </div>
-            {i < steps.length - 1 && (
-              <div className="w-px flex-1 mt-1" style={{ minHeight: 12, background: s.done ? '#00FF8740' : 'hsl(var(--border))' }} />
-            )}
-          </div>
-          <div className="pb-3 min-w-0 flex-1">
-            <p className={`text-sm font-bold ${s.done ? '' : s.active ? '' : 'text-muted-foreground'}`}
-              style={{ color: s.done ? '#00FF87' : s.active ? 'hsl(var(--foreground))' : undefined }}>
-              {s.label}
-            </p>
-            <p className="text-xs text-muted-foreground mt-0.5">{s.sublabel}</p>
-            {s.ts && <p className="text-[10px] text-muted-foreground opacity-60 mt-0.5">{new Date(s.ts).toLocaleString()}</p>}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
+  return <ol className="pg-purchase-timeline" aria-label="Transfer history">
+    {steps.map((step, index) => <li key={step.label}>
+      <span className={step.done ? 'is-done' : ''}>{step.done ? <CheckCircle size={16} aria-hidden="true" /> : index + 1}</span>
+      <div><p>{step.label}</p><small>{step.detail}</small>{step.ts && <time dateTime={step.ts}>{new Date(step.ts).toLocaleString()}</time>}</div>
+    </li>)}
+  </ol>;
 }
 
-// SellerPanel removed — replaced by TransferAssistant component
-
-// ── Buyer View ───────────────────────────────────────────────────────────────
 function BuyerPanel({ purchase, onConfirm, onDispute, onCancel, actionLoading, isUpgrade }) {
-  // Buyer confirmed — complete
   if (purchase.buyer_confirmed) {
-    return (
-      <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(0,255,135,0.35)', background: 'rgba(0,255,135,0.07)' }}>
-        <div className="px-5 pt-6 pb-5 text-center">
-          <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3"
-            style={{ background: 'linear-gradient(135deg, #00FF8733, #00C8FF33)', border: '2px solid rgba(0,255,135,0.5)' }}>
-            <CheckCircle className="w-6 h-6" style={{ color: '#00FF87' }} />
-          </div>
-          <h2 className="font-display text-2xl text-foreground mb-1">{isUpgrade ? 'Upgrade Confirmed 🎟️' : 'Ticket Confirmed 🎟️'}</h2>
-          <p className="text-sm text-muted-foreground">{isUpgrade ? 'Your seat upgrade is confirmed. Payment has been released to the seller.' : 'Your tickets are confirmed. Payment has been released to the seller.'}</p>
-          <div className="flex flex-col gap-2 mt-4 text-xs text-center">
-            <span className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full font-semibold mx-auto"
-              style={{ background: 'rgba(0,255,135,0.15)', color: '#00FF87', border: '1px solid rgba(0,255,135,0.3)' }}>
-              ✓ Transfer complete
-            </span>
-            <span className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full font-semibold mx-auto"
-              style={{ background: 'rgba(0,200,255,0.12)', color: '#00C8FF', border: '1px solid rgba(0,200,255,0.3)' }}>
-              ✓ Payment captured
-            </span>
-            <span className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full font-semibold mx-auto"
-              style={{ background: 'rgba(191,95,255,0.12)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.3)' }}>
-              ✓ Payout processing to seller
-            </span>
-          </div>
-        </div>
+    return <section className="pg-transaction-status pg-transaction-status-pending" aria-live="polite">
+      <Clock size={24} aria-hidden="true" />
+      <div><p className="pg-transaction-kicker">Receipt confirmation</p><h2>{purchase._updating ? 'Confirming your receipt…' : 'Receipt recorded'}</h2>
+        <p>{purchase._updating ? 'Keep this page open while your confirmation is processed.' : 'Your receipt is recorded. We’re waiting for the transaction to finish processing.'}</p>
       </div>
-    );
+    </section>;
   }
 
-  // Waiting on seller to send
   if (!purchase.seller_confirmed) {
-    return (
-      <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(0,200,255,0.25)', background: 'rgba(0,200,255,0.05)' }}>
-        {/* Hero */}
-        <div className="px-5 pt-6 pb-5 text-center" style={{ borderBottom: '1px solid rgba(0,200,255,0.15)' }}>
-          <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3"
-            style={{ background: 'linear-gradient(135deg, #00FF8733, #00C8FF33)', border: '2px solid rgba(0,200,255,0.4)' }}>
-            <Sparkles className="w-6 h-6" style={{ color: '#00C8FF' }} />
-          </div>
-          <h2 className="font-display text-2xl text-foreground mb-1">You're In 🎉</h2>
-          <p className="text-sm text-muted-foreground">Your payment is protected. The seller is sending your tickets now.</p>
+    return <section className="pg-transaction-card pg-purchase-next">
+      <p className="pg-transaction-kicker"><Clock size={15} aria-hidden="true" /> Transfer pending</p>
+      <h2>Watch for your transfer email.</h2>
+      <p>The seller has not confirmed sending your {isUpgrade ? 'upgrade' : 'tickets'} yet. Check your email and ticket app for an invitation.</p>
+      <p className="pg-transaction-note">This page updates every 15 seconds. Confirm here after you accept the transfer.</p>
+      <button onClick={onCancel} disabled={actionLoading} className="pg-action pg-transaction-secondary pg-purchase-cancel">Cancel purchase & refund</button>
+      {purchase.created_date && (Date.now() - new Date(purchase.created_date).getTime()) > 4 * 60 * 60 * 1000 && (
+        <div className="pg-transaction-alert">
+          <p><strong>No seller response for over 4 hours.</strong> Open a dispute or contact support for help.</p>
+          <button onClick={onDispute} disabled={actionLoading} className="pg-action pg-transaction-secondary">Open a dispute</button>
         </div>
-
-        {/* Status */}
-        <div className="px-5 py-4 space-y-4">
-          <div className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold"
-            style={{ background: 'rgba(0,200,255,0.12)', border: '1px solid rgba(0,200,255,0.3)', color: '#00C8FF' }}>
-            <Clock className="w-4 h-4 animate-pulse" /> Waiting on seller transfer
-          </div>
-
-          <div className="space-y-2 text-sm">
-            {[
-              'Average transfer time is under 5 minutes',
-              'You won\'t be charged until the transfer is confirmed.',
-              'This page refreshes automatically every 15 seconds',
-            ].map(t => (
-              <div key={t} className="flex items-start gap-2 text-muted-foreground">
-                <div className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ background: '#00FF87' }} />
-                <span>{t}</span>
-              </div>
-            ))}
-          </div>
-
-          <div className="rounded-xl p-3 text-xs text-muted-foreground text-center"
-            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
-            Check your email — the ticket transfer invite may arrive before this page updates.
-          </div>
-
-          <button
-            onClick={onCancel}
-            disabled={actionLoading}
-            className="w-full py-2.5 rounded-xl text-sm text-muted-foreground transition-colors disabled:opacity-60"
-            style={{ border: '1px solid rgba(255,255,255,0.12)' }}
-          >
-            Cancel Purchase & Refund
-          </button>
-
-          {/* Escalation CTA — visible after 4h if seller still hasn't confirmed */}
-          {purchase.created_date && (Date.now() - new Date(purchase.created_date).getTime()) > 4 * 60 * 60 * 1000 && (
-            <div className="rounded-xl p-3 text-center space-y-2"
-              style={{ background: 'rgba(255,45,120,0.07)', border: '1px solid rgba(255,45,120,0.2)' }}>
-              <p className="text-xs font-bold" style={{ color: '#FF2D78' }}>⚠️ Seller hasn't responded in 4+ hours</p>
-              <p className="text-[11px] text-muted-foreground">You can open a dispute or contact support for help.</p>
-              <button
-                onClick={onDispute}
-                disabled={actionLoading}
-                className="w-full py-2 rounded-xl text-xs font-bold transition-colors disabled:opacity-60"
-                style={{ background: 'rgba(255,45,120,0.12)', border: '1px solid rgba(255,45,120,0.35)', color: '#FF2D78' }}>
-                Seller Unresponsive — Open Dispute
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-    );
+      )}
+    </section>;
   }
 
-  // Seller confirmed — buyer needs to verify
-  return (
-    <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(0,255,135,0.3)', background: 'rgba(0,255,135,0.05)' }}>
-      <div className="px-5 py-4" style={{ borderBottom: '1px solid rgba(0,255,135,0.15)' }}>
-        <div className="font-bold text-foreground text-base mb-0.5">🎟 Seller has sent your tickets!</div>
-        <div className="text-xs text-muted-foreground">Check your email and the ticket platform for the transfer invite.</div>
+  return <section className="pg-transaction-card pg-purchase-next">
+    <p className="pg-transaction-kicker">Your next step</p>
+    <h2>Accept the transfer, then confirm.</h2>
+    <p>The seller says your {isUpgrade ? 'upgrade was' : 'tickets were'} sent. Open the invitation in your email or ticket app and accept it before confirming below.</p>
+    <AIVerificationStatus purchase={purchase} role="buyer" />
+    {(purchase.transfer_notes || purchase.transfer_proof_url) && (
+      <div className="pg-purchase-proof">
+        <p className="pg-transaction-kicker">Seller’s transfer proof</p>
+        {purchase.transfer_notes && <p>{purchase.transfer_notes}</p>}
+        {purchase.transfer_proof_url && <a href={purchase.transfer_proof_url} target="_blank" rel="noopener noreferrer" className="pg-purchase-proof-link"><FileText size={16} aria-hidden="true" /> View screenshot</a>}
       </div>
-
-      <div className="p-5 space-y-4">
-        {/* AI verification status for buyer */}
-        <AIVerificationStatus purchase={purchase} role="buyer" />
-
-        {/* Seller's proof */}
-        {(purchase.transfer_notes || purchase.transfer_proof_url) && (
-          <div className="rounded-xl p-3 text-sm space-y-2"
-            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
-            <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Seller's Transfer Proof</div>
-            {purchase.transfer_notes && <p className="text-foreground text-xs">{purchase.transfer_notes}</p>}
-            {purchase.transfer_proof_url && (
-              <a href={purchase.transfer_proof_url} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-primary hover:underline text-xs font-medium">
-                <FileText className="w-3.5 h-3.5" /> View screenshot
-              </a>
-            )}
-          </div>
-        )}
-
-        <button
-          onClick={() => onConfirm('buyer')}
-          disabled={actionLoading}
-          className="w-full py-3.5 rounded-full font-black text-sm transition-all disabled:opacity-40 flex items-center justify-center gap-2"
-          style={{ background: 'linear-gradient(135deg, #00E87A, #00B8E8)', color: '#0D0B14' }}
-        >
-          {actionLoading
-            ? <><span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> Processing…</>
-            : <><CheckCircle className="w-4 h-4" /> I Received My Tickets</>
-          }
-        </button>
-
-        <div className="flex gap-2">
-          <button onClick={onDispute} disabled={actionLoading}
-            className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors disabled:opacity-60"
-            style={{ background: 'rgba(255,200,0,0.1)', border: '1px solid rgba(255,200,0,0.3)', color: '#FFE600' }}>
-            I Haven't Received Tickets
-          </button>
-        </div>
-        <p className="text-xs text-center text-muted-foreground">
-          Seller has confirmed transfer — to dispute, use the button above.
-        </p>
-
-        <p className="text-xs text-center text-muted-foreground">
-          Only confirm once you've accepted the ticket transfer.
-        </p>
-      </div>
-    </div>
-  );
+    )}
+    <p className="pg-purchase-confirm-note">Only confirm once you’ve accepted the transfer. Confirmation allows payment to be released to the seller.</p>
+    <button onClick={() => onConfirm('buyer')} disabled={actionLoading} className="pg-action pg-transaction-primary pg-purchase-confirm">
+      {actionLoading ? <><span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> Processing…</> : <><CheckCircle size={18} aria-hidden="true" /> I received my tickets</>}
+    </button>
+    <button onClick={onDispute} disabled={actionLoading} className="pg-action pg-transaction-secondary pg-purchase-confirm">I haven’t received tickets</button>
+  </section>;
 }
 
-// ── Completed state (role-specific) ─────────────────────────────────────────
 function CompletedBanner({ isSeller, isUpgrade }) {
-  return (
-    <div className="rounded-2xl overflow-hidden mb-5" style={{
-      border: '1px solid rgba(0,255,135,0.35)',
-      background: 'linear-gradient(135deg, rgba(0,255,135,0.08), rgba(0,200,255,0.06))'
-    }}>
-      <div className="px-5 pt-6 pb-5 text-center">
-        <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3"
-          style={{ background: 'linear-gradient(135deg, #00FF8733, #00C8FF33)', border: '2px solid rgba(0,255,135,0.5)' }}>
-          <CheckCircle className="w-6 h-6" style={{ color: '#00FF87' }} />
-        </div>
-        <h2 className="font-display text-2xl text-foreground mb-1">
-          {isSeller ? 'Sale Complete 💸' : isUpgrade ? 'Upgrade Confirmed 🎟️' : 'Ticket Confirmed 🎟️'}
-        </h2>
-        <p className="text-sm text-muted-foreground mb-4">
-          {isSeller
-            ? 'Great work. Your payout is being processed by Stripe.'
-            : isUpgrade
-            ? 'Enjoy your upgraded seats! Payment has been released to the seller.'
-            : 'Enjoy the show! Payment has been released to the seller.'}
-        </p>
-        {isSeller && (
-          <div className="text-xs text-muted-foreground px-3 py-2 rounded-xl mb-2"
-            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
-            💳 Stripe typically deposits in <strong className="text-foreground">2–7 business days</strong>. First-time payouts may take up to <strong className="text-foreground">14 days</strong> while Stripe verifies your account.
-          </div>
-        )}
-        <div className="flex flex-col gap-2 items-center text-xs">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full font-semibold"
-            style={{ background: 'rgba(0,255,135,0.15)', color: '#00FF87', border: '1px solid rgba(0,255,135,0.3)' }}>
-            ✓ Transfer complete
-          </span>
-          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full font-semibold"
-            style={{ background: 'rgba(0,200,255,0.12)', color: '#00C8FF', border: '1px solid rgba(0,200,255,0.3)' }}>
-            ✓ Payment captured
-          </span>
-          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full font-semibold"
-            style={{ background: 'rgba(191,95,255,0.12)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.3)' }}>
-            ✓ {isSeller ? 'Payout processing' : 'Payout released to seller'}
-          </span>
-        </div>
-        {!isSeller && (
-          <Link to="/my-tickets"
-            className="inline-flex items-center gap-2 mt-4 px-5 py-2.5 rounded-full font-bold text-sm transition-all"
-            style={{ background: 'linear-gradient(135deg, #00E87A, #00B8E8)', color: '#0D0B14' }}>
-            {isUpgrade ? 'View My Upgrade →' : 'View My Tickets →'}
-          </Link>
-        )}
-      </div>
-    </div>
-  );
+  return <section className="pg-transaction-card pg-purchase-complete">
+    <p className="pg-transaction-kicker"><CheckCircle size={16} aria-hidden="true" /> Transfer complete</p>
+    <h2>{isSeller ? 'Your sale is complete.' : 'Receipt confirmed.'}</h2>
+    <p>{isSeller ? 'The buyer has confirmed receipt of the tickets. Check My sales for your payout details.' : isUpgrade ? 'Your upgrade transfer is complete. You still need valid event admission.' : 'Your transfer is complete. Open your ticket provider’s app to access your tickets.'}</p>
+    {isSeller ? <Link to="/my-sales" className="pg-action pg-transaction-primary">View my sales</Link> : <Link to="/my-tickets" className="pg-action pg-transaction-primary">{isUpgrade ? 'View my upgrade' : 'View my tickets'}</Link>}
+    {isSeller && <p className="pg-transaction-note">Stripe typically deposits in 2–7 business days. First payouts may take up to 14 days while Stripe verifies your account.</p>}
+  </section>;
 }
 
 // ── Main Page ────────────────────────────────────────────────────────────────
@@ -430,7 +226,7 @@ export default function PurchaseSuccess() {
 
   if (loading) {
     return (
-      <div className="max-w-lg mx-auto px-4 py-16 text-center">
+      <div className="pg-secondary-page pg-transaction-page pg-transaction-empty">
         <span className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin inline-block" />
         <p className="text-sm text-muted-foreground mt-3">Loading transfer details…</p>
       </div>
@@ -439,7 +235,7 @@ export default function PurchaseSuccess() {
 
   if (!purchase) {
     return (
-      <div className="max-w-lg mx-auto px-4 py-16 text-center text-muted-foreground">
+      <div className="pg-secondary-page pg-transaction-page pg-transaction-empty">
         <p>Purchase not found.</p>
         <Link to="/events" className="text-primary text-sm mt-3 inline-block">← Browse events</Link>
       </div>
@@ -449,11 +245,11 @@ export default function PurchaseSuccess() {
   // Access control — only buyer, seller, or admin may view purchase details
   if (!user) {
     return (
-      <div className="max-w-lg mx-auto px-4 py-16 text-center space-y-4">
+      <div className="pg-secondary-page pg-transaction-page pg-transaction-empty space-y-4">
         <p className="text-4xl">🔒</p>
         <p className="font-semibold text-foreground">Sign in to view this purchase</p>
         <button onClick={() => base44.auth.redirectToLogin()}
-          className="px-6 py-2.5 rounded-full bg-primary text-primary-foreground font-bold text-sm">
+          className="pg-action pg-transaction-primary">
           Sign In
         </button>
       </div>
@@ -467,7 +263,7 @@ export default function PurchaseSuccess() {
 
   if (!isSeller && !isBuyer && !isAdminViewer) {
     return (
-      <div className="max-w-lg mx-auto px-4 py-16 text-center text-muted-foreground">
+      <div className="pg-secondary-page pg-transaction-page pg-transaction-empty">
         <p>You don't have access to this purchase.</p>
         <Link to="/events" className="text-primary text-sm mt-3 inline-block">← Browse events</Link>
       </div>
@@ -479,13 +275,14 @@ export default function PurchaseSuccess() {
   const isPending = purchase.transfer_status === 'pending_transfer';
 
   return (
-    <div className="max-w-lg mx-auto px-4 py-6 pb-12">
-      <Link
-        to={isSeller ? '/my-sales' : isAdminViewer ? '/admin' : '/my-tickets'}
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-5 transition-colors"
-      >
-        <ArrowLeft className="w-4 h-4" /> {isSeller ? 'My Sales' : isAdminViewer ? 'Admin' : 'My Tickets'}
-      </Link>
+    <div className="pg-secondary-page pg-transaction-page pg-purchase-page">
+      <PageIntro
+        eyebrow="Your order"
+        title={isSeller ? 'Sale details.' : 'Purchase details.'}
+        description={isCompleted ? 'The transfer is complete.' : isExpired ? 'This purchase has been cancelled.' : isDisputed ? 'Your dispute is under review.' : isPending ? 'Follow your transfer and see what to do next.' : 'Review the current details of your order.'}
+        backTo={isSeller ? '/my-sales' : isAdminViewer ? '/admin' : '/my-tickets'}
+        backLabel={isSeller ? 'My sales' : isAdminViewer ? 'Admin' : 'My tickets'}
+      />
 
       {/* Terminal status banners */}
       {isCompleted && <CompletedBanner isSeller={isSeller} isUpgrade={isUpgrade} />}
@@ -512,39 +309,6 @@ export default function PurchaseSuccess() {
         </div>
       )}
 
-      {/* Order summary card */}
-      <div className="rounded-2xl overflow-hidden mb-5"
-        style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
-        <div className="px-5 py-3.5 flex items-center justify-between"
-          style={{ background: 'rgba(255,255,255,0.05)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-          <div className="flex items-center gap-2">
-            <Ticket className="w-4 h-4 text-primary" />
-            <span className="font-bold text-sm text-foreground">{event?.title || 'Your Upgrade'}</span>
-          </div>
-          {isBuyer && isPending && (
-            <button onClick={() => load().catch(console.error)}
-              className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors">
-              <RefreshCw className="w-3 h-3" /> Refresh
-            </button>
-          )}
-        </div>
-        {listing && (
-          <div className="px-5 py-4 grid grid-cols-3 gap-3 text-sm">
-            <div><div className="text-xs text-muted-foreground">Section</div><div className="font-bold text-foreground">{listing.section}</div></div>
-            <div><div className="text-xs text-muted-foreground">Row</div><div className="font-bold text-foreground">{listing.row}</div></div>
-            <div><div className="text-xs text-muted-foreground">Qty</div><div className="font-bold text-foreground">{purchase.quantity}</div></div>
-          </div>
-        )}
-        <div className="px-5 py-3 flex justify-between font-bold text-sm text-foreground"
-          style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-          <span>Total Paid</span>
-          <span style={{ color: '#00FF87' }}>${purchase.amount?.toFixed(2)}</span>
-        </div>
-      </div>
-
-      {/* Transaction timeline */}
-      {(isPending || isCompleted) && !isExpired && <TransactionTimeline purchase={purchase} />}
-
       {/* Role-specific panels */}
       {isPending && isSeller && listing?.listing_mode !== 'instant' && (
         <TransferAssistant
@@ -558,78 +322,25 @@ export default function PurchaseSuccess() {
         />
       )}
       {isPending && isSeller && listing?.listing_mode === 'instant' && (
-        <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(0,200,255,0.3)', background: 'rgba(0,200,255,0.06)' }}>
-          <div className="px-5 pt-6 pb-5 text-center">
-            <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3"
-              style={{ background: 'linear-gradient(135deg, #00C8FF33, #BF5FFF33)', border: '2px solid rgba(0,200,255,0.4)' }}>
-              <span className="text-2xl">⚡</span>
-            </div>
-            <h2 className="font-display text-2xl text-foreground mb-1">Instant Listing Sold</h2>
-            <p className="text-sm text-muted-foreground">
-              Peanut Gallery is managing the ticket transfer to the buyer. You don't need to do anything — we'll handle it.
-            </p>
-          </div>
-          <div className="px-5 pb-5 space-y-3 text-xs text-muted-foreground">
-            <div className="flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold justify-center"
-              style={{ background: 'rgba(0,200,255,0.12)', border: '1px solid rgba(0,200,255,0.3)', color: '#00C8FF' }}>
-              🎟 PG-managed transfer in progress
-            </div>
-            <p className="text-center text-xs">Your payout will be released once the buyer confirms receipt.</p>
-          </div>
-        </div>
+        <section className="pg-transaction-card pg-purchase-next">
+          <p className="pg-transaction-kicker"><Clock size={15} aria-hidden="true" /> PG-managed transfer</p>
+          <h2>We’re handling delivery.</h2>
+          <p>Peanut Gallery is managing the transfer to the buyer. No transfer action is needed from you.</p>
+          <p className="pg-transaction-note">Your payout will be released once the buyer confirms receipt.</p>
+        </section>
       )}
       {isPending && isBuyer && listing?.listing_mode === 'instant' && !purchase.seller_confirmed && (
-        <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(0,200,255,0.25)', background: 'rgba(0,200,255,0.05)' }}>
-          <div className="px-5 pt-6 pb-5 text-center" style={{ borderBottom: '1px solid rgba(0,200,255,0.15)' }}>
-            <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3"
-              style={{ background: 'linear-gradient(135deg, #00FF8733, #00C8FF33)', border: '2px solid rgba(0,200,255,0.4)' }}>
-              <span className="text-2xl">⚡</span>
-            </div>
-            <h2 className="font-display text-2xl text-foreground mb-1">You're In 🎉</h2>
-            <p className="text-sm text-muted-foreground">
-              {purchase.fulfillment_status === 'transfer_in_progress'
-                ? 'Peanut Gallery is actively transferring your ticket right now. Check your email for the invite.'
-                : purchase.fulfillment_status === 'fulfilled'
-                ? 'Your ticket has been sent! Check your email or ticket app to accept the transfer.'
-                : 'Peanut Gallery already has this ticket in custody and is preparing your transfer.'}
-            </p>
-          </div>
-          <div className="px-5 py-4 space-y-3">
-            {/* Dynamic fulfillment status steps */}
-            <div className="space-y-1.5">
-              {[
-                { key: null, label: 'PG preparing your transfer', done: !!purchase.fulfillment_status },
-                { key: 'transfer_in_progress', label: 'Transfer in progress', done: purchase.fulfillment_status === 'transfer_in_progress' || purchase.fulfillment_status === 'fulfilled' },
-                { key: 'fulfilled', label: 'Ticket delivered — check your email', done: purchase.fulfillment_status === 'fulfilled' },
-              ].map(({ label, done }, i) => (
-                <div key={i} className="flex items-center gap-2.5 text-xs">
-                  <div className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 text-[9px] font-black ${done ? '' : 'opacity-30'}`}
-                    style={{ background: done ? '#00C8FF' : 'rgba(255,255,255,0.1)' }}>
-                    {done ? '✓' : i + 1}
-                  </div>
-                  <span className={done ? 'text-foreground font-medium' : 'text-muted-foreground'}>{label}</span>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold"
-              style={{ background: 'rgba(0,200,255,0.12)', border: '1px solid rgba(0,200,255,0.3)', color: '#00C8FF' }}>
-              <Clock className="w-4 h-4 animate-pulse" />
-              {purchase.fulfillment_status === 'transfer_in_progress' ? 'Transfer in progress'
-                : purchase.fulfillment_status === 'fulfilled' ? 'Ticket delivered — confirm receipt below'
-                : 'PG preparing transfer'}
-            </div>
-            <div className="rounded-xl p-3 text-xs text-muted-foreground text-center"
-              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
-              Check your email — the ticket transfer invite will arrive from Peanut Gallery.
-            </div>
-            <button onClick={handleCancel} disabled={actionLoading}
-              className="w-full py-2.5 rounded-xl text-sm text-muted-foreground transition-colors disabled:opacity-60"
-              style={{ border: '1px solid rgba(255,255,255,0.12)' }}>
-              Cancel Purchase & Refund
-            </button>
-          </div>
-        </div>
+        <section className="pg-transaction-card pg-purchase-next">
+          <p className="pg-transaction-kicker"><Clock size={15} aria-hidden="true" /> PG-managed transfer</p>
+          <h2>{purchase.fulfillment_status === 'fulfilled' ? 'Check for your transfer invite.' : purchase.fulfillment_status === 'transfer_in_progress' ? 'Your transfer is in progress.' : 'We’re preparing your transfer.'}</h2>
+          <p>{purchase.fulfillment_status === 'transfer_in_progress'
+            ? 'Peanut Gallery is transferring your ticket. Check your email for the invitation.'
+            : purchase.fulfillment_status === 'fulfilled'
+            ? 'Your ticket has been sent. Open the invitation in your email or ticket app and accept the transfer.'
+            : 'Peanut Gallery has this ticket in custody and is preparing your transfer.'}</p>
+          <p className="pg-transaction-note">This page updates every 15 seconds. Receipt confirmation will appear here once the transfer is marked sent.</p>
+          <button onClick={handleCancel} disabled={actionLoading} className="pg-action pg-transaction-secondary pg-purchase-cancel">Cancel purchase & refund</button>
+        </section>
       )}
       {isPending && isBuyer && !(listing?.listing_mode === 'instant' && !purchase.seller_confirmed) && (
         <BuyerPanel
@@ -642,6 +353,25 @@ export default function PurchaseSuccess() {
         />
       )}
 
+      <section className="pg-purchase-ticket" aria-label="Order summary">
+        <div className="pg-purchase-ticket-heading">
+          <p><Ticket size={16} aria-hidden="true" /> Order summary</p>
+          <h2>{event?.title || (isUpgrade ? 'Your upgrade' : 'Your purchase')}</h2>
+        </div>
+        {listing && <dl className="pg-purchase-seats">
+          <div><dt>Section</dt><dd>{listing.section}</dd></div>
+          <div><dt>Row</dt><dd>{listing.row}</dd></div>
+          <div><dt>Quantity</dt><dd>{purchase.quantity}</dd></div>
+        </dl>}
+        <div className="pg-purchase-total"><span>Order total</span><strong>${purchase.amount?.toFixed(2)}</strong></div>
+        <p className="pg-purchase-ticket-note">{isUpgrade ? 'Seat upgrade only. Valid event admission is required.' : 'Purchase record. Use your ticket provider’s app for entry.'}</p>
+      </section>
+
+      {(isPending || isCompleted) && !isExpired && <Disclosure title="Transfer history" description="See each step of your transfer.">
+        <TransactionTimeline purchase={purchase} />
+        {isBuyer && isPending && <button onClick={() => load().catch(console.error)} className="pg-action pg-transaction-secondary pg-purchase-refresh"><RefreshCw size={16} aria-hidden="true" /> Refresh status</button>}
+      </Disclosure>}
+
       {showDisputeModal && (
         <DisputeModal
           onSubmit={handleDispute}
@@ -653,8 +383,8 @@ export default function PurchaseSuccess() {
       {/* Prompt for push notifications — shown once after landing on this page */}
       <NotificationPermissionPrompt trigger="purchase" />
 
-      {!isPending && error && (
-        <div className="mt-4 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
+      {error && !(isPending && isSeller && listing?.listing_mode !== 'instant') && (
+        <div role="alert" className="pg-transaction-alert">
           {error}
         </div>
       )}

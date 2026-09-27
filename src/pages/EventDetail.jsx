@@ -8,6 +8,8 @@ import PurchaseDialog from '@/components/events/PurchaseDialog';
 import { getEventLiveStatus } from '@/lib/eventTiming';
 import { logNavEvent } from '@/lib/navLogger';
 import EventLookupDebugPanel from '@/components/debug/EventLookupDebugPanel';
+import { Disclosure } from '@/components/ClarityUI';
+import './event-detail-clarity.css';
 export default function EventDetail() {
   const { id } = useParams();
   const [event, setEvent] = useState(null);
@@ -128,37 +130,23 @@ export default function EventDetail() {
 
   if (loading) {
     return (
-      <div className="px-4 py-8 space-y-4">
-        <div className="h-64 bg-white/5 rounded-3xl animate-pulse" />
-        <div className="h-5 w-48 bg-white/5 rounded animate-pulse mt-6" />
-        <div className="space-y-4 mt-4">
-          {[...Array(3)].map((_, i) => <div key={i} className="h-40 bg-white/5 rounded-2xl animate-pulse" />)}
-        </div>
+      <div className="pg-secondary-page pg-event-detail pg-event-loading" role="status" aria-label="Loading event">
+        <div className="pg-event-loading-photo animate-pulse" />
+        <div className="h-8 w-3/4 bg-white/5 rounded animate-pulse" />
+        <div className="h-20 bg-white/5 rounded animate-pulse" />
       </div>
     );
   }
 
-  if (!loading && (!event || lookupError)) {
+  if (!event || lookupError) {
     return (
-      <div className="pb-32">
-        <div className="px-4 py-20 text-center space-y-4">
-          <p className="text-5xl">🎟️</p>
-          <div>
-            <p className="font-bold text-foreground text-lg">Event not found</p>
-            <p className="text-sm text-muted-foreground mt-1 max-w-xs mx-auto">
-              This event may still be syncing. Try refreshing or go back to find it.
-            </p>
-          </div>
-          <div className="flex flex-col gap-2 items-center">
-            <button
-              onClick={() => window.location.reload()}
-              className="px-5 py-2.5 rounded-full font-bold text-sm"
-              style={{ background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }}
-            >
-              Retry
-            </button>
-            <Link to="/events" className="text-sm text-muted-foreground underline">← Back to Events</Link>
-          </div>
+      <div className="pg-secondary-page pg-event-detail">
+        <div className="pg-event-empty">
+          <Ticket aria-hidden="true" className="pg-event-empty-icon" />
+          <h1 className="font-display">Event not found</h1>
+          <p>This event may still be syncing. Try refreshing or go back to find it.</p>
+          <button onClick={() => window.location.reload()} className="pg-event-button">Retry</button>
+          <Link to="/events" className="pg-event-text-link"><ArrowLeft aria-hidden="true" /> Back to events</Link>
         </div>
         {user?.role === 'admin' && <EventLookupDebugPanel routeId={id} lookupTrace={lookupTrace} />}
       </div>
@@ -174,225 +162,118 @@ export default function EventDetail() {
   const cheapest = sorted[0]?.asking_price;
 
   return (
-    <div className="pb-32">
-
-      {/* ── Hero ── */}
-      <div className="relative h-72 sm:h-80 overflow-hidden" style={{ marginTop: 'env(safe-area-inset-top)' }}>
-        {event.image_url ? (
-          <img src={event.image_url} alt={event.title} className="w-full h-full object-cover" />
-        ) : (
-          <div className="w-full h-full bg-white/5 flex items-center justify-center text-7xl">🎫</div>
-        )}
-        {/* Heavy bottom gradient */}
-        <div className="absolute inset-0"
-          style={{ background: 'linear-gradient(to bottom, rgba(5,3,12,0.25) 0%, rgba(5,3,12,0.5) 50%, rgba(5,3,12,0.97) 100%)' }}
-        />
-
-        {/* Back button */}
-        <Link
-          to="/events"
-          className="absolute top-4 left-4 flex items-center gap-1.5 text-sm font-semibold text-white/80 hover:text-white transition-colors px-3 py-1.5 rounded-full"
-          style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(12px)' }}
-        >
-          <ArrowLeft className="w-4 h-4" /> Events
-        </Link>
-
-        {/* Live badge + Event Mode button */}
-        {isLive && (
-          <div className="absolute top-4 right-4 flex items-center gap-2">
-            <span className="text-xs font-black px-3 py-1 rounded-full animate-pulse"
-              style={{ background: '#FF2D7820', color: '#FF2D78', border: '1px solid #FF2D7860' }}>
-              🔴 LIVE NOW
-            </span>
-            <Link to={`/upgrades/${id}`}
-              className="text-xs font-black px-3 py-1.5 rounded-full flex items-center gap-1"
-              style={{ background: 'rgba(255,230,0,0.2)', color: '#FFE600', border: '1px solid rgba(255,230,0,0.5)', backdropFilter: 'blur(12px)' }}>
-              ⚡ Live Hub
-            </Link>
+    <div className="pg-secondary-page pg-event-detail">
+      <header className="pg-event-hero">
+        <div className="pg-event-hero-photo">
+          {event.image_url ? (
+            <img src={event.image_url} alt={event.title} />
+          ) : (
+            <div className="pg-event-photo-fallback"><Ticket aria-hidden="true" /><span>Peanut Gallery</span></div>
+          )}
+          <Link to="/events" className="pg-event-back"><ArrowLeft aria-hidden="true" /> Events</Link>
+          {isLive && <span className="pg-event-status">Live now</span>}
+          {timing.status === 'soon' && <span className="pg-event-status">Starting soon</span>}
+          {timing.status === 'ended' && <span className="pg-event-status">Event ended</span>}
+        </div>
+        <div className="pg-event-summary">
+          <p className="pg-event-eyebrow">Peanut Gallery / Event</p>
+          <h1 className="font-display">{event.title}</h1>
+          <div className="pg-event-facts">
+            <p><Calendar aria-hidden="true" /><span>{(event.event_start_utc || event.date) ? format(new Date(event.event_start_utc || event.date), 'EEEE, MMMM d, yyyy · h:mm a') : 'Date to be confirmed'}</span></p>
+            <p><MapPin aria-hidden="true" /><span>{event.venue}{event.city ? `, ${event.city}` : ''}</span></p>
           </div>
-        )}
-
-        {/* Event info overlaid on bottom of hero */}
-        <div className="absolute bottom-0 left-0 right-0 px-5 pb-5">
-          <h1 className="font-display text-foreground leading-tight mb-2"
-            style={{ fontSize: 'clamp(1.8rem, 7vw, 2.8rem)' }}>
-            {event.title}
-          </h1>
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-1.5 text-xs text-white/70">
-              <Calendar className="w-3.5 h-3.5" />
-              {(event.event_start_utc || event.date) ? format(new Date(event.event_start_utc || event.date), 'EEEE, MMMM d, yyyy · h:mm a') : 'TBD'}
-            </div>
-            <div className="flex items-center gap-1.5 text-xs text-white/70">
-              <MapPin className="w-3.5 h-3.5" />
-              {event.venue}{event.city ? `, ${event.city}` : ''}
-            </div>
+          <div className="pg-event-primary">
+            {listings.length > 0 ? (
+              <a href="#event-tickets" className="pg-event-button"><Ticket aria-hidden="true" /> View ticket listings</a>
+            ) : isLiveMode && !adminUnlocked ? (
+              <Link to={`/upgrades/${event.id}`} className="pg-event-button"><Zap aria-hidden="true" /> {timing.status === 'ended' ? 'Open Live Hub' : 'Find seat upgrades'}</Link>
+            ) : (
+              <a href="#event-tickets" className="pg-event-button"><Ticket aria-hidden="true" /> Check ticket availability</a>
+            )}
+            <p>Fan-to-fan tickets inside Peanut Gallery.</p>
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* ── Event Mode CTA — always visible ── */}
-      <Link to={`/upgrades/${event.id}`}
-        className="mx-4 mt-4 flex items-center gap-3 px-4 py-4 rounded-2xl transition-all active:scale-[0.98]"
-        style={isLive ? {
-          background: 'linear-gradient(135deg, rgba(255,230,0,0.18), rgba(255,45,120,0.12))',
-          border: '2px solid rgba(255,230,0,0.5)',
-          boxShadow: '0 0 24px rgba(255,230,0,0.12)',
-        } : timing.status === 'soon' ? {
-          background: 'linear-gradient(135deg, rgba(191,95,255,0.12), rgba(0,200,255,0.08))',
-          border: '1px solid rgba(191,95,255,0.4)',
-        } : {
-          background: 'hsl(var(--card))',
-          border: '1px solid hsl(var(--border))',
-        }}>
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-xl"
-          style={{ background: isLive ? 'rgba(255,230,0,0.2)' : 'rgba(191,95,255,0.15)' }}>
-          ⚡
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-black text-sm text-foreground leading-none">
-            {isLive ? 'Live Hub — Open Now!' : timing.status === 'soon' ? 'Live Hub — Starting Soon' : 'Upgrades & Live Hub'}
-          </p>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {isLive
+      <div className="pg-event-content">
+        <section id="event-tickets" className="pg-event-listing-section" aria-labelledby="event-tickets-heading">
+          <div className="pg-event-section-heading">
+            <h2 id="event-tickets-heading" className="font-display">Ticket listings <span>({listings.length})</span></h2>
+            <p>Choose a listing to see its seats and purchase details.</p>
+            <div className="pg-event-badges">
+              {adminUnlocked && <span className="pg-event-notice">Admin</span>}
+              {isDemoOnly && <span className="pg-event-notice">Demo upgrades for testing</span>}
+            </div>
+          </div>
+
+          {listings.length === 0 ? (
+            isLiveMode && !adminUnlocked ? (
+              <div className="pg-event-empty">
+                <h3>{timing.status === 'ended' ? 'Pre-event ticket sales have closed' : 'Event is live — check Upgrades'}</h3>
+                <p>{timing.status === 'ended'
+                  ? 'This event has ended. Visit the Live Hub for this event.'
+                  : 'Pre-event ticket sales have closed. Fans inside are listing seat upgrades right now.'}</p>
+                <Link to={`/upgrades/${event.id}`} className="pg-event-text-link"><Zap aria-hidden="true" /> Open Live Hub</Link>
+              </div>
+            ) : (
+              <div className="pg-event-empty">
+                <h3>No tickets listed yet</h3>
+                <p>Be the first to sell for this event and set the price.</p>
+                <Link to={`/create-listing?event_id=${event.id}`} className="pg-event-button pg-event-button-secondary"><Plus aria-hidden="true" /> List tickets for this event</Link>
+              </div>
+            )
+          ) : (
+            <div className="pg-event-listings">
+              {sorted.map(listing => (
+                <ListingCard
+                  key={listing.id}
+                  listing={listing}
+                  isCheapest={listing.asking_price === cheapest}
+                  onUpgrade={setSelectedListing}
+                  mode="ticket"
+                  currentUserEmail={user?.email}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+
+        <div className="pg-event-secondary">
+          <Disclosure
+            title={isLive ? 'Live Hub — open now' : timing.status === 'soon' ? 'Live Hub — starting soon' : 'Upgrades & Live Hub'}
+            description="Seat upgrades and live fan activity"
+            defaultOpen={isLive || timing.status === 'soon'}
+          >
+            <p>{isLive
               ? 'Flash Drops, seat upgrades & live fan activity'
               : timing.status === 'soon'
               ? 'Flash Drops & upgrades open when the event starts'
-              : 'Flash Drops & upgrades unlock at showtime'}
-          </p>
-        </div>
-        <span className="text-xs font-black px-3 py-1.5 rounded-full flex-shrink-0"
-          style={isLive
-            ? { background: 'rgba(255,230,0,0.25)', color: '#FFE600', border: '1px solid rgba(255,230,0,0.4)' }
-            : { background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' }}>
-          {isLive ? 'Open →' : timing.status === 'soon' ? 'Get Ready' : 'Preview'}
-        </span>
-      </Link>
+              : timing.status === 'ended'
+              ? 'This event has ended.'
+              : 'Flash Drops & upgrades unlock at showtime'}</p>
+            <Link to={`/upgrades/${event.id}`} className="pg-event-text-link"><Zap aria-hidden="true" /> {isLive ? 'Open Live Hub' : timing.status === 'soon' ? 'Get ready in Live Hub' : 'View Live Hub'}</Link>
+          </Disclosure>
 
-      {/* ── Content ── */}
-      <div className="px-4 pt-8">
-
-        {/* Section header */}
-        <div className="mb-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="font-display text-2xl text-foreground flex items-center gap-2">
-                <Ticket className="w-5 h-5 text-primary" />
-                Available Tickets
-                <span className="font-sans text-base font-normal text-muted-foreground">({listings.length})</span>
-              </h2>
-              <p className="text-sm text-muted-foreground mt-1">Buy tickets from other fans</p>
-            </div>
-            {adminUnlocked && (
-              <span className="text-xs bg-amber-500/15 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-full font-medium">
-                🔑 Admin
-              </span>
-            )}
-          </div>
-
-          {isDemoOnly && (
-            <div className="mt-3">
-              <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30">
-                🧪 Demo upgrades for testing
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* Listings */}
-        {listings.length === 0 ? (
-          <div className="space-y-4">
-            {isLiveMode && !adminUnlocked ? (
-              <div className="text-center py-10 rounded-2xl" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
-                <p className="text-4xl mb-3">⚡</p>
-                <p className="font-bold text-foreground">Event is live — check Upgrades</p>
-                <p className="text-sm text-muted-foreground mt-1 max-w-[240px] mx-auto leading-relaxed">
-                  Pre-event ticket sales have closed. Fans inside are listing seat upgrades right now.
-                </p>
-                <Link to={`/upgrades/${event.id}`}
-                  className="inline-flex items-center gap-2 mt-4 px-6 py-3 rounded-full font-black text-sm"
-                  style={{ background: 'linear-gradient(135deg, #FFE600, #FF8C00)', color: '#0D0B14' }}>
-                  <Zap className="w-4 h-4" /> Find Seat Upgrades
-                </Link>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {/* Empty state — value prop + seller CTA */}
-                <div className="rounded-2xl overflow-hidden relative" style={{ border: '1px solid hsl(var(--border))' }}>
-                  <img
-                    src="https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=900&q=80"
-                    alt=""
-                    className="absolute inset-0 w-full h-full object-cover"
-                    style={{ opacity: 0.35 }}
-                  />
-                  <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.85) 100%)' }} />
-                  <div className="relative z-10 px-5 py-8 text-center">
-                    <p className="text-3xl mb-3">🎟️</p>
-                    <p className="font-bold text-white text-lg">No tickets listed yet</p>
-                    <p className="text-sm text-white/60 mt-1 max-w-[240px] mx-auto leading-relaxed">
-                      Be the first to sell for this event and set the price.
-                    </p>
-                    <Link
-                      to={`/create-listing?event_id=${event.id}`}
-                      className="inline-flex items-center gap-2 mt-4 px-6 py-3 rounded-full font-black text-sm"
-                      style={{ background: 'linear-gradient(135deg, #FF8C00, #FF2D78)', color: '#fff' }}
-                    >
-                      <Plus className="w-4 h-4" /> List Tickets for This Event
-                    </Link>
-                  </div>
-                </div>
-
-                {/* How it works for buyers */}
-                <div className="rounded-2xl px-4 py-4 space-y-3" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
-                  <p className="text-xs font-black tracking-widest uppercase text-muted-foreground">How Peanut Gallery Works</p>
+          {listings.length === 0 && !(isLiveMode && !adminUnlocked) && (
+            <>
+              <Disclosure title="How Peanut Gallery works" description="Fan tickets, payment protection, and live upgrades">
+                <div className="pg-event-explainer">
                   {[
-                    { icon: <Ticket className="w-4 h-4" />, color: '#BF5FFF', title: 'Fan-to-fan tickets', body: 'Real fans sell tickets they can\'t use — no scalpers, no bots.' },
-                    { icon: <ShieldCheck className="w-4 h-4" />, color: '#00FF87', title: 'Escrow protected', body: 'Your money is held safely until you confirm you got the tickets.' },
-                    { icon: <Zap className="w-4 h-4" />, color: '#00C8FF', title: 'Live upgrades at showtime', body: 'Once the event starts, better seats get listed by fans who can\'t use them.' },
-                  ].map(({ icon, color, title, body }) => (
-                    <div key={title} className="flex items-start gap-3">
-                      <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                        style={{ background: `${color}18`, color }}>
-                        {icon}
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-foreground">{title}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">{body}</p>
-                      </div>
-                    </div>
+                    { icon: Ticket, title: 'Fan-to-fan tickets', body: "Real fans sell tickets they can't use — no scalpers, no bots." },
+                    { icon: ShieldCheck, title: 'Escrow protected', body: 'Your money is held safely until you confirm you got the tickets.' },
+                    { icon: Zap, title: 'Live upgrades at showtime', body: "Once the event starts, better seats get listed by fans who can't use them." },
+                  ].map(({ icon: Icon, title, body }) => (
+                    <div key={title}><Icon aria-hidden="true" /><div><h3>{title}</h3><p>{body}</p></div></div>
                   ))}
                 </div>
-
-                {/* Notify me when tickets arrive */}
-                <div className="rounded-2xl px-4 py-4 flex items-center justify-between gap-3"
-                  style={{ background: 'rgba(191,95,255,0.06)', border: '1px solid rgba(191,95,255,0.2)' }}>
-                  <div>
-                    <p className="text-sm font-bold text-foreground">Get notified when tickets drop</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">We'll alert you the moment a listing goes live.</p>
-                  </div>
-                  <Link to="/account-settings"
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-xs flex-shrink-0"
-                    style={{ background: 'rgba(191,95,255,0.15)', border: '1px solid rgba(191,95,255,0.35)', color: '#BF5FFF' }}>
-                    <Bell className="w-3.5 h-3.5" /> Alerts
-                  </Link>
-                </div>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {sorted.map(listing => (
-              <ListingCard
-                key={listing.id}
-                listing={listing}
-                isCheapest={listing.asking_price === cheapest}
-                onUpgrade={setSelectedListing}
-                mode="ticket"
-                currentUserEmail={user?.email}
-              />
-            ))}
-          </div>
-        )}
+              </Disclosure>
+              <Disclosure title="Ticket alerts" description="Get notified when tickets drop">
+                <p>We'll alert you the moment a listing goes live.</p>
+                <Link to="/account-settings" className="pg-event-text-link"><Bell aria-hidden="true" /> Manage alerts</Link>
+              </Disclosure>
+            </>
+          )}
+        </div>
       </div>
 
       {selectedListing && (

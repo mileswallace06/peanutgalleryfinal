@@ -13,6 +13,7 @@ import { useLocationDetect } from '@/hooks/useLocationDetect';
 import LocationAutocomplete from '@/components/LocationAutocomplete';
 import { createEventSearchRequest, buildEventSearchParams } from '@/lib/eventSearchRequest';
 import EventThumbnail from '@/components/events/EventThumbnail';
+import BrowseHeaderTools from '@/components/BrowseHeaderTools';
 import { restoreEventLocation, saveEventLocation, cityFromSuggestion, validCoordinates } from '@/lib/eventLocation';
 import './events-ticket.css';
 
@@ -44,6 +45,7 @@ export default function Events() {
   // showPast: when false (default) hides past events; when true shows everything
   const [sortMode, setSortMode] = useState('soonest');
   const [showPast, setShowPast] = useState(false);
+  const [showSearchTools, setShowSearchTools] = useState(false);
   // Track which TM IDs we've already synced this session to avoid duplicate calls
   const syncedTmIds = useRef(new Set());
 
@@ -262,51 +264,64 @@ export default function Events() {
         </div>
       )}
 
-      <div className="pg-events-heading" data-page-hero="events">
-        <div className="pg-events-location-row">
+      <BrowseHeaderTools path="/events">
           <button type="button" onClick={openLocationPicker} aria-expanded={editingLocation} aria-controls="event-location-filter"
             className="pg-events-location pg-action">
             <MapPin aria-hidden="true" className="w-4 h-4" />
             <span>{localArea ? localArea.label : 'Choose city'}</span>
             <ChevronDown aria-hidden="true" className="w-3.5 h-3.5" />
           </button>
-          <button type="button" onClick={handleNearMe} disabled={locationStatus === 'requesting'}
-            className="pg-events-nearby pg-action">
+          <button type="button" className="pg-events-tools-toggle" aria-label="Search and filters" aria-expanded={showSearchTools} aria-controls="event-search-tools" onClick={() => setShowSearchTools(open => !open)}>
+            {showSearchTools ? <X aria-hidden="true" size={20} /> : <Search aria-hidden="true" size={20} />}
+            <span>Search</span>
+            {(sortMode !== 'soonest' || showPast || activeSearch.keyword) && <span className="pg-events-filter-active"><span className="sr-only">Active search or filters</span></span>}
+          </button>
+      </BrowseHeaderTools>
+
+      {/* Search and sorting are available on demand; browsing starts at the list. */}
+      <div className="pg-events-search-area">
+        {showSearchTools && <section id="event-search-tools" aria-label="Search and filters" className="pg-events-tool-panel">
+          {(!localArea || keyword || activeSearch.scope === 'nationwide' || locationStatus === 'requesting') && <button type="button" onClick={handleNearMe} disabled={locationStatus === 'requesting'} className="pg-events-nearby pg-action">
             <LocateFixed aria-hidden="true" className="w-3.5 h-3.5" />
             {locationStatus === 'requesting' ? 'Locating…' : 'Near Me'}
-          </button>
-        </div>
-        <h1 className="pg-page-title font-display">Events</h1>
-        <p className="pg-events-intro">Discover amazing live events.</p>
-      </div>
-
-      {/* One event search; new submissions always use the retained local area. */}
-      <div className="pg-events-search-area">
-        <form role="search" onSubmit={(e) => { e.preventDefault(); runSearch(keyword); }}>
-          <label htmlFor="event-search" className="sr-only">Search events, artists, teams, or venues</label>
-          <div className="pg-events-search-row">
-            <div className="pg-events-search-field">
-              <Search aria-hidden="true" className="pg-events-search-icon" />
-              <input id="event-search" type="search" value={keyword} maxLength={100}
-                onChange={e => setKeyword(e.target.value)}
-                placeholder="Artist, team or venue"
-                enterKeyHint="search" autoComplete="off"
-                className="pg-events-search-input" />
-              {keyword && (
-                <button type="button" onClick={() => runSearch('')} aria-label="Clear event search"
-                  className="pg-events-search-clear pg-action">
-                  <X aria-hidden="true" className="w-4 h-4" />
-                </button>
-              )}
+          </button>}
+          <form role="search" onSubmit={(e) => { e.preventDefault(); runSearch(keyword); }}>
+            <label htmlFor="event-search" className="sr-only">Search events, artists, teams, or venues</label>
+            <div className="pg-events-search-row">
+              <div className="pg-events-search-field">
+                <Search aria-hidden="true" className="pg-events-search-icon" />
+                <input id="event-search" type="search" value={keyword} maxLength={100}
+                  onChange={e => setKeyword(e.target.value)}
+                  placeholder="Artist, team or venue"
+                  enterKeyHint="search" autoComplete="off"
+                  className="pg-events-search-input" />
+                {keyword && (
+                  <button type="button" onClick={() => runSearch('')} aria-label="Clear event search"
+                    className="pg-events-search-clear pg-action">
+                    <X aria-hidden="true" className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+              <button type="submit" aria-label="Search events" className="pg-events-search-submit pg-action">
+                <ArrowRight aria-hidden="true" className="w-5 h-5" />
+              </button>
             </div>
-            <button type="submit" aria-label="Search events" className="pg-events-search-submit pg-action">
-              <ArrowRight aria-hidden="true" className="w-5 h-5" />
-            </button>
-          </div>
-        </form>
-        {hasSearched && <p data-search-scope={activeSearch.scope} className="pg-events-search-scope">
-          {activeSearch.scope === 'nationwide' ? 'Nationwide results · United States' : `Nearby · ${activeSearch.locationLabel}`}
-        </p>}
+          </form>
+            <div className="pg-events-sort" aria-label="Event date filters">
+              <label className="pg-events-sort-control">
+                <ArrowUpDown aria-hidden="true" className="pg-events-sort-icon" />
+                <span className="sr-only">Sort events by date</span>
+                <select value={sortMode} onChange={e => setSortMode(e.target.value)}>
+                  <option value="soonest">Soonest first</option>
+                  <option value="latest">Latest first</option>
+                </select>
+              </label>
+              <label className="pg-events-past-control">
+                <input type="checkbox" checked={showPast} onChange={e => setShowPast(e.target.checked)} />
+                Include past
+              </label>
+            </div>
+        </section>}
         {editingLocation && (
           <section id="event-location-filter" aria-label="Location filter" className="pg-events-location-panel p-3 space-y-3">
             <div className="flex justify-between items-center">
@@ -328,25 +343,6 @@ export default function Events() {
             </button>
           </section>
         )}
-      </div>
-
-      {/* ── Sort by Date ── */}
-      <div className="pg-events-sort" aria-label="Event date filters">
-        <ArrowUpDown aria-hidden="true" className="pg-events-sort-icon" />
-        {[
-          { id: 'soonest', label: 'Soonest', accessibleLabel: 'Upcoming soonest' },
-          { id: 'latest', label: 'Latest', accessibleLabel: 'Latest upcoming' },
-        ].map(opt => (
-          <button key={opt.id} onClick={() => setSortMode(opt.id)}
-            aria-label={opt.accessibleLabel} aria-pressed={sortMode === opt.id}
-            className={`pg-events-sort-tab pg-action ${sortMode === opt.id ? 'is-active' : ''}`}>
-            {opt.label}
-          </button>
-        ))}
-        <button onClick={() => setShowPast(v => !v)} aria-pressed={showPast}
-          className={`pg-events-sort-tab pg-events-past pg-action ${showPast ? 'is-active' : ''}`}>
-          Past Events
-        </button>
       </div>
 
       {/* ── Rate limit / network error ── */}
@@ -392,6 +388,9 @@ export default function Events() {
 
       {/* ── Event count + aria-live announcement ── */}
       <div aria-live="polite" aria-atomic="true" className="pg-events-count">
+        {hasSearched && <p data-search-scope={activeSearch.scope} className="pg-events-search-scope">
+          {activeSearch.scope === 'nationwide' ? 'Nationwide · United States' : `Nearby · ${activeSearch.locationLabel}`}
+        </p>}
         {!loading && hasSearched && filtered.length > 0 && (
           <p>{filtered.length} event{filtered.length !== 1 ? 's' : ''}</p>
         )}
@@ -425,15 +424,7 @@ export default function Events() {
       {loading ? (
         <div className="pg-events-list" role="status" aria-label="Loading events">
           {[...Array(3)].map((_, i) => (
-            <div key={i} className="pg-events-skeleton pg-ticket animate-pulse" aria-hidden="true">
-              <div className="pg-events-skeleton-photo" />
-              <div className="pg-events-skeleton-bottom">
-                <div className="pg-events-skeleton-copy">
-                  <div /><div /><div />
-                </div>
-                <div className="pg-events-skeleton-stub pg-ticket-end" />
-              </div>
-            </div>
+            <div key={i} className="pg-events-skeleton pg-ticket animate-pulse" aria-hidden="true" />
           ))}
         </div>
       ) : restoringLocation ? (
@@ -499,57 +490,47 @@ function EventRow({ event }) {
   const hasDate = date && !Number.isNaN(date.getTime());
   const dateLabel = hasDate ? format(date, 'EEE, MMM d · h:mm a') : 'Date to be announced';
 
-  const dateStub = (
+  const content = (
     <>
-      <span className="pg-event-date-day">{hasDate ? format(date, 'd') : '—'}</span>
-      <span className="pg-event-date-month">{hasDate ? format(date, 'MMM') : 'TBD'}</span>
-      <span className="pg-event-stub-action">
-        {isLive ? <span>Live Hub</span> : <span className="sr-only">View event</span>}
-        {eventUrl && <ArrowRight aria-hidden="true" className="w-5 h-5" />}
+      <EventThumbnail event={event} className="pg-browse-ticket-art" />
+      <div className="pg-browse-ticket-copy">
+        <h3 className="pg-browse-ticket-title" title={event.title}>{event.title}</h3>
+        <p className="pg-browse-ticket-venue" title={[event.venue, event.city, event.state].filter(Boolean).join(', ')}>
+          {event.venue}{event.city ? `, ${event.city}` : ''}{event.state ? `, ${event.state}` : ''}
+        </p>
+        <p className="pg-browse-ticket-detail" title={dateLabel}>{hasDate ? format(date, 'h:mm a') : 'Time TBA'}</p>
+        {isPGEvent && listingCount > 0 && (
+          <p className="pg-browse-ticket-detail">
+            {minPrice ? <>From <strong>${minPrice}</strong><span> · </span></> : null}
+            {listingCount} listing{listingCount !== 1 ? 's' : ''}
+          </p>
+        )}
+        {isPGEvent && !listingCount && (
+          <p className="pg-browse-ticket-detail pg-event-protection"><ShieldCheck aria-hidden="true" className="w-3 h-3" /> Buyer protected</p>
+        )}
+        {event.category && <span className="sr-only">{event.category}</span>}
+      </div>
+      <span className="pg-browse-ticket-stub">
+        <span className="pg-browse-ticket-month">{hasDate ? format(date, 'MMM') : 'TBD'}</span>
+        <span className="pg-browse-ticket-day">{hasDate ? format(date, 'd') : '—'}</span>
+        {isLive && <span className="pg-browse-ticket-status">LIVE</span>}
+        {eventUrl ? <ArrowRight aria-hidden="true" className="pg-browse-ticket-arrow" /> : <span className="pg-browse-ticket-status">Unavailable</span>}
       </span>
     </>
   );
+  const cardClass = `pg-ticket pg-browse-ticket pg-printed-ticket pg-event-ticket ${isLive ? 'is-live' : ''}`;
 
   return (
-    <article className={`pg-event-ticket pg-ticket ${isLive ? 'is-live' : ''}`}>
-      <div className="pg-event-photo">
-        <EventThumbnail event={event} className="absolute inset-0 w-full h-full" />
-        {isLive && <span className="pg-event-live-badge">LIVE</span>}
-      </div>
-      <div className="pg-event-ticket-body">
-        <div className="pg-event-ticket-copy">
-          {event.category && <p className="pg-event-category">{event.category}</p>}
-          <h3 className="pg-event-title font-display">{event.title}</h3>
-          <p className="pg-event-location" title={[event.venue, event.city, event.state].filter(Boolean).join(', ')}>
-            {event.venue}{event.city ? `, ${event.city}` : ''}{event.state ? `, ${event.state}` : ''}
-          </p>
-          <p className="pg-event-time">{dateLabel}</p>
-          {isPGEvent && listingCount > 0 && (
-            <p className="pg-event-listings">
-              {minPrice ? <>From <strong>${minPrice}</strong><span> · </span></> : null}
-              {listingCount} listing{listingCount !== 1 ? 's' : ''}
-            </p>
-          )}
-          {isPGEvent && !listingCount && (
-            <p className="pg-event-protection"><ShieldCheck aria-hidden="true" className="w-3 h-3" /> Buyer protected</p>
-          )}
-        </div>
-        {eventUrl ? (
-          isLive ? (
-            <Link to={`/upgrades/${event.id}`} className="pg-event-date-stub pg-ticket-end pg-action"
-              aria-label={`Open live hub for ${event.title}, ${dateLabel}`}
-              onClick={e => e.stopPropagation()}>
-              {dateStub}
-            </Link>
-          ) : (
-            <Link to={eventUrl} state={isTM ? { tmEvent: event } : undefined}
-              className="pg-event-date-stub pg-ticket-end pg-action"
-              aria-label={`View ${event.title}, ${dateLabel}`} onClick={handleCardClick}>
-              {dateStub}
-            </Link>
-          )
-        ) : <div className="pg-event-date-stub pg-ticket-end">{dateStub}</div>}
-      </div>
+    <article className="pg-event-row">
+      {eventUrl ? (
+        <Link to={isLive ? `/upgrades/${event.id}` : eventUrl}
+          state={!isLive && isTM ? { tmEvent: event } : undefined}
+          className={cardClass}
+          aria-label={`${isLive ? 'Open live hub for' : 'View'} ${event.title}, ${dateLabel}`}
+          onClick={isLive ? e => e.stopPropagation() : handleCardClick}>
+          {content}
+        </Link>
+      ) : <div className={cardClass} role="group" aria-disabled="true" aria-label={`${event.title}, event details unavailable`}>{content}</div>}
     </article>
   );
 }

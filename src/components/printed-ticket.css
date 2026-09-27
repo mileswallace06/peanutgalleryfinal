@@ -1,0 +1,92 @@
+/* Quiet dyed stock keeps artwork prominent; page accents stay vivid in the shell. */
+.pg-design-page:is(.pg-events-page, .pg-upgrades-page, .pg-sell-page) {
+  --pg-page-accent: #bf5fff;
+  --pg-page-accent-soft: #d5a3ff;
+  --pg-ticket-accent: #dbc1ee;
+  --pg-stock: #aa98b9;
+  --pg-stock-light: #b29fc2;
+  --pg-stock-dark: #9f8eaf;
+  --pg-stock-ink: #291c35;
+  --pg-stock-muted: #291c35;
+  --pg-stock-line: #69547550;
+  --pg-stock-highlight: #e1d0ec6b;
+  --pg-stock-edge: #766183;
+  --pg-stock-grain-light: #decde680;
+  --pg-stock-grain-dark: #51415e80;
+  --pg-stock-fiber: #69547514;
+  --pg-stock-art-tint: #4c3e5a1a;
+  --pg-stock-art-border: #5b486b3d;
+  --pg-tear-line: #af95c0b3;
+  --pg-stub-ink: #e5d7ee;
+  --pg-stub-start: #41334e;
+  --pg-stub-end: #4c3b5d;
+  --pg-stub-grain: #ad8dc144;
+}
+.pg-design-page.pg-upgrades-page {
+  --pg-page-accent: #00ff87;
+  --pg-page-accent-soft: #73efac;
+  --pg-ticket-accent: #bddbc8;
+  --pg-stock: #99a69d;
+  --pg-stock-light: #a3b0a6;
+  --pg-stock-dark: #8f9c93;
+  --pg-stock-ink: #1d3024;
+  --pg-stock-muted: #1d3024;
+  --pg-stock-line: #5063574f;
+  --pg-stock-highlight: #d0ddd36b;
+  --pg-stock-edge: #607568;
+  --pg-stock-grain-light: #cddbd080;
+  --pg-stock-grain-dark: #42544980;
+  --pg-stock-fiber: #52695814;
+  --pg-stock-art-tint: #3a453e1a;
+  --pg-stock-art-border: #475c4e3d;
+  --pg-tear-line: #8fa397b3;
+  --pg-stub-ink: #d6e4da;
+  --pg-stub-start: #2d3c32;
+  --pg-stub-end: #37463b;
+  --pg-stub-grain: #8fa79544;
+}
+.pg-design-page.pg-sell-page {
+  --pg-page-accent: #ff8c00;
+  --pg-page-accent-soft: #ffb565;
+  --pg-ticket-accent: #e4c4a8;
+  --pg-stock: #afa196;
+  --pg-stock-light: #b9aba0;
+  --pg-stock-dark: #a5988d;
+  --pg-stock-ink: #38271d;
+  --pg-stock-muted: #38271d;
+  --pg-stock-line: #6d594c4f;
+  --pg-stock-highlight: #e2d5c86b;
+  --pg-stock-edge: #806a5a;
+  --pg-stock-grain-light: #dfd1c680;
+  --pg-stock-grain-dark: #5d4a3d80;
+  --pg-stock-fiber: #715e4e14;
+  --pg-stock-art-tint: #4d433b1a;
+  --pg-stock-art-border: #6753463d;
+  --pg-tear-line: #b39d89b3;
+  --pg-stub-ink: #e8dccf;
+  --pg-stub-start: #44372e;
+  --pg-stub-end: #4e4137;
+  --pg-stub-grain: #b09a8544;
+}
+.pg-design-page .pg-ticket.pg-printed-ticket {
+  background: linear-gradient(108deg, var(--pg-stock-light), var(--pg-stock) 46%, var(--pg-stock-dark));
+  color: var(--pg-stock-ink);
+  border-color: var(--pg-stock-edge);
+  box-shadow: inset 0 1px var(--pg-stock-highlight), inset 0 -1px var(--pg-stock-edge);
+}
+.pg-printed-ticket::before {
+  content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background-image: radial-gradient(var(--pg-stock-grain-light) .5px, transparent .8px), radial-gradient(var(--pg-stock-grain-dark) .5px, transparent .8px), repeating-linear-gradient(4deg, transparent 0 6px, var(--pg-stock-fiber) 6px 7px);
+  background-size: 3px 4px, 5px 3px, 100% 100%;
+  background-position: 0 0, 2px 1px, 0 0;
+  opacity: .4;
+}
+.pg-printed-ticket::after {
+  content: ''; position: absolute; inset: 6px; pointer-events: none;
+  border: 1px solid var(--pg-stock-line); border-radius: 2px;
+  border-top-color: var(--pg-stock-highlight); border-bottom-color: var(--pg-stock-edge);
+}
+.pg-ticket-app {
+  --font-ticket-title: 'Barlow Semi Condensed', var(--font-editorial);
+  --font-ticket-date: 'IBM Plex Mono', var(--font-mono-label);
+}

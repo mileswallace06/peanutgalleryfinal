@@ -11,6 +11,8 @@ import DonationWinNotification from '@/components/donations/DonationWinNotificat
 import FeedbackWidget from '@/components/beta/FeedbackWidget';
 import { pageVariants, useNavigationDirection } from '@/lib/pageTransitions';
 import '@/components/ticket-design.css';
+import '@/components/browse-ticket.css';
+import '@/components/printed-ticket.css';
 
 /**
  * Once a tab has been activated, keep its Outlet mounted permanently.
@@ -42,12 +44,24 @@ function MountedTab({ tabKey, activeKey, direction, pathname }) {
 }
 
 const NAV = [
-  { to: '/events', label: 'Tickets', icon: Ticket, color: '#00C8FF', key: 'events' },
+  { to: '/events', label: 'Tickets', icon: Ticket, color: '#BF5FFF', key: 'events' },
   { to: '/upgrades', label: 'Upgrades', icon: TrendingUp, color: '#00FF87', key: 'upgrades' },
   { to: '/sell', label: 'Sell', icon: Tag, color: '#FF8C00', key: 'sell' },
   { to: '/fan-zone', label: 'Fan Zone', icon: Users, color: '#BF5FFF', key: 'fanzone' },
   { to: '/me', label: 'Me', icon: User, color: '#00FF87', key: 'me' }
 ];
+
+// Reuse the concert photography already featured in PG's onboarding.
+const BROWSE_HERO = {
+  Events: {
+    image: 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=1200&q=90',
+    description: 'Concerts, games & nights worth going out for.',
+  },
+  Upgrades: {
+    image: 'https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?w=1200&q=90',
+    description: 'Already going? Find a better seat for your night.',
+  },
+};
 
 export default function Layout() {
   const { user, authChecked, isAuthenticated } = useAuth();
@@ -67,9 +81,12 @@ export default function Layout() {
   };
 
   const currentTab = getCurrentTab();
-  const usesTicketDesign = ['/events', '/upgrades', '/sell', '/fan-zone', '/my-tickets'].includes(location.pathname)
-    || location.pathname.startsWith('/upgrades/');
-  const selectedNavKey = location.pathname === '/my-tickets' ? 'me' : currentTab;
+  const browseTitle = { '/events': 'Events', '/upgrades': 'Upgrades' }[location.pathname];
+  const accountRoutes = ['/my-tickets', '/my-sales', '/me', '/account-settings', '/edit-persona', '/notifications'];
+  const usesTicketDesign = ['/events', '/upgrades', '/sell', '/fan-zone', '/create-listing', ...accountRoutes].includes(location.pathname)
+    || ['/events/', '/upgrades/', '/purchase/'].some(prefix => location.pathname.startsWith(prefix));
+  const selectedNavKey = accountRoutes.includes(location.pathname) || location.pathname.startsWith('/purchase/')
+    ? 'me' : location.pathname === '/create-listing' ? 'sell' : currentTab;
 
   // Per-pathname scroll memory — saved continuously by onScroll, restored on
   // every route change. Detail pages have no saved entry → start at top.
@@ -160,27 +177,39 @@ export default function Layout() {
   }
 
   return (
-    <div className={`pg-ticket-app bg-background font-sans ${usesTicketDesign ? 'pg-ticket-app--designed' : 'dark:rave-bg'}`} style={{ height: '100dvh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+    <div className={`pg-ticket-app bg-background font-sans ${usesTicketDesign ? 'pg-ticket-app--designed' : 'dark:rave-bg'} ${browseTitle ? 'pg-ticket-app--browse' : ''}`} style={{ height: '100dvh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       {user?.email && <DonationWinNotification userEmail={user.email} />}
       {user && <FeedbackWidget user={user} />}
       {usesTicketDesign && (
-        <header className="pg-brandbar">
+        <header data-browse-page={browseTitle?.toLowerCase()} className={`pg-brandbar ${browseTitle ? 'pg-brandbar--browse' : ''} ${browseTitle && !user ? 'pg-brandbar--guest' : ''}`}>
           <div className="pg-brandbar-inner">
+            {browseTitle && (
+              <div className="pg-browse-photo" aria-hidden="true">
+                <img src={BROWSE_HERO[browseTitle].image} alt="" />
+              </div>
+            )}
             <Link to="/events" className="pg-brand" aria-label="Peanut Gallery — Events">
               <img src="https://media.base44.com/images/public/69ef9900cf3862dc0ea39734/9022a5431_ChatGPTImageMay1202601_29_27PM.png" alt="" width="34" height="34" />
-              <span>Peanut Gallery</span>
+              <span className={browseTitle ? 'sr-only' : undefined}>Peanut Gallery</span>
             </Link>
+            {browseTitle && <>
+              <div className="pg-browse-heading">
+                <h1 className="pg-browse-title">{browseTitle}</h1>
+                <p className="pg-browse-description">{BROWSE_HERO[browseTitle].description}</p>
+              </div>
+              <div id="pg-browse-header-tools" className="pg-browse-header-tools" />
+            </>}
           </div>
         </header>
       )}
       {/* Sign in — only when auth has definitively resolved as unauthenticated.
           During loading (authChecked=false) render nothing so "Sign in" never flashes. */}
       {authChecked && !isAuthenticated && !user && (
-        <div className="fixed right-4 z-[60]" style={{ top: 'calc(1rem + var(--app-safe-top))' }}>
+        <div className="fixed right-4 z-[60]" style={{ top: `calc(${browseTitle ? '16px' : '1rem'} + var(--app-safe-top))` }}>
           <button
             onClick={() => base44.auth.redirectToLogin()}
             aria-label="Sign in to Peanut Gallery"
-            className="text-sm font-bold px-5 py-2.5 rounded-full"
+            className={`text-sm font-bold py-2.5 rounded-full ${browseTitle ? 'px-3 min-h-11' : 'px-5'}`}
             style={{ background: 'var(--neon-purple)', color: '#fff' }}>
             Sign in
           </button>
@@ -191,7 +220,7 @@ export default function Layout() {
       {user && (
         <Link to="/notifications" aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
           className="fixed right-4 z-[60] flex items-center justify-center w-11 h-11 rounded-full transition-all active:scale-95"
-          style={{ top: 'calc(0.75rem + var(--app-safe-top))', background: unreadCount > 0 ? 'rgba(var(--neon-pink-rgb), 0.1)' : 'hsl(var(--card))', border: `1px solid ${unreadCount > 0 ? 'rgba(var(--neon-pink-rgb), 0.25)' : 'hsl(var(--border))'}` }}>
+          style={{ top: `calc(${browseTitle ? '16px' : usesTicketDesign ? '4px' : '0.75rem'} + var(--app-safe-top))`, background: unreadCount > 0 ? 'rgba(var(--neon-pink-rgb), 0.1)' : 'hsl(var(--card))', border: `1px solid ${unreadCount > 0 ? 'rgba(var(--neon-pink-rgb), 0.25)' : 'hsl(var(--border))'}` }}>
           <Bell className="w-5 h-5" style={{ color: unreadCount > 0 ? 'var(--neon-pink)' : 'hsl(var(--muted-foreground))' }} />
           {unreadCount > 0 && (
             <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black"

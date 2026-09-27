@@ -2,10 +2,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { Ticket, Clock, CheckCircle, Package, ArrowRight, Plus, RefreshCw } from 'lucide-react';
+import { Ticket, Clock, CheckCircle, AlertTriangle, ArrowRight, Plus, RefreshCw, Zap } from 'lucide-react';
 import SellerMetrics from '@/components/sales/SellerMetrics';
 import ListingStatusBanner from '@/components/listings/ListingStatusBanner';
 import { isVerificationExpired } from '@/lib/transferConfidence';
+import { PageIntro, Disclosure } from '@/components/ClarityUI';
+import './activity-clarity.css';
 
 export default function MySales() {
   const [user, setUser] = useState(null);
@@ -88,34 +90,41 @@ export default function MySales() {
 
   if (loading) {
     return (
-      <div className="max-w-3xl mx-auto px-4 py-12 text-center">
-        <span className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin inline-block" />
+      <div className="pg-secondary-page pg-activity-page pg-sales-page">
+        <PageIntro eyebrow="Seller desk" title="My Sales" description="Manage listings and ticket transfers." />
+        <div className="pg-state pg-activity-state" role="status">
+          <RefreshCw className="w-6 h-6 animate-spin" aria-hidden="true" />
+          <p>Loading your sales…</p>
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="max-w-3xl mx-auto px-4 py-12 text-center space-y-4">
-        <p className="text-4xl">⚠️</p>
-        <p className="text-foreground font-semibold">Failed to load sales</p>
-        <p className="text-sm text-muted-foreground">{error}</p>
-        <button onClick={load} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm">
-          <RefreshCw className="w-4 h-4" /> Try Again
-        </button>
+      <div className="pg-secondary-page pg-activity-page pg-sales-page">
+        <PageIntro eyebrow="Seller desk" title="My Sales" description="Manage listings and ticket transfers." />
+        <div className="pg-state pg-activity-state" role="alert">
+          <AlertTriangle className="w-7 h-7" aria-hidden="true" />
+          <h2>Failed to load sales</h2>
+          <p>{error}</p>
+          <button onClick={load} className="pg-action">
+            <RefreshCw className="w-4 h-4" aria-hidden="true" /> Try Again
+          </button>
+        </div>
       </div>
     );
   }
 
   if (!user) {
     return (
-      <div className="max-w-3xl mx-auto px-4 py-12 text-center space-y-3">
-        <p className="text-4xl">🔒</p>
-        <p className="font-medium text-foreground">Sign in to view your sales</p>
-        <button onClick={() => base44.auth.redirectToLogin()}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm">
-          Sign In
-        </button>
+      <div className="pg-secondary-page pg-activity-page pg-sales-page">
+        <PageIntro eyebrow="Seller desk" title="My Sales" description="Manage listings and ticket transfers." />
+        <div className="pg-state pg-activity-state">
+          <Ticket className="w-7 h-7" aria-hidden="true" />
+          <h2>Sign in to view your sales</h2>
+          <button onClick={() => base44.auth.redirectToLogin()} className="pg-action">Sign In</button>
+        </div>
       </div>
     );
   }
@@ -127,220 +136,170 @@ export default function MySales() {
   const hiddenOrRejectedListings = listings.filter(l =>
     l.status === 'hidden' || l.proof_status === 'rejected'
   );
-
-  const cardStyle = { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' };
+  const pendingPayouts = completedSales.filter(p => !p.payment_captured).length;
+  const failedCaptures = completedSales.filter(p => p.payment_capture_failed).length;
 
   return (
-    <div className="max-w-3xl mx-auto px-4 pb-12" style={{ paddingTop: 'calc(2rem + env(safe-area-inset-top))' }}>
-      <div className="flex items-start justify-between gap-4 mb-8">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2 text-foreground">
-            <Package className="w-6 h-6 text-primary" /> My Sales
-          </h1>
-        </div>
-        <Link
-          to="/create-listing"
-          className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-primary/90 transition-colors flex-shrink-0"
-        >
-          <Plus className="w-4 h-4" /> List Tickets
-        </Link>
-      </div>
+    <div className="pg-secondary-page pg-activity-page pg-sales-page">
+      <PageIntro
+        eyebrow="Seller desk"
+        title="My Sales"
+        description="Your listings, next steps, and completed sales."
+        action={
+          <Link to="/create-listing" className="pg-action">
+            <Plus className="w-4 h-4" aria-hidden="true" /> List Tickets
+          </Link>
+        }
+      />
 
-      {actionError && (
-        <div className="mb-4 rounded-xl px-4 py-3 text-sm" style={{ background: 'rgba(255,45,120,0.08)', border: '1px solid rgba(255,45,120,0.25)', color: '#FF2D78' }}>
-          {actionError}
-        </div>
+      {actionError && <div className="pg-activity-alert" role="alert">{actionError}</div>}
+
+      {purchases.length > 0 && (
+        <Disclosure title="Seller performance" description="Transfer times, completed sales, and seller tier." className="pg-sales-performance">
+          <SellerMetrics purchases={purchases} />
+        </Disclosure>
       )}
 
-      <SellerMetrics purchases={purchases} />
-
-      {/* Action Required — send tickets */}
       {pendingTransfers.length > 0 && (
-        <section className="mb-8">
-          <h2 className="font-semibold text-base mb-3 flex items-center gap-2 text-foreground">
-            <Clock className="w-5 h-5" style={{ color: '#FF8C00' }} />
-            <span>Action Required</span>
-            <span className="text-xs font-bold px-2 py-0.5 rounded-full"
-              style={{ background: 'rgba(255,140,0,0.15)', color: '#FF8C00', border: '1px solid rgba(255,140,0,0.3)' }}>
-              {pendingTransfers.length}
-            </span>
-          </h2>
-          <div className="space-y-3">
+        <section className="pg-sales-section" aria-labelledby="sales-action-heading">
+          <div className="pg-activity-section-heading">
+            <Clock className="pg-activity-icon-warning" aria-hidden="true" />
+            <h2 id="sales-action-heading">Action required</h2>
+            <span className="pg-activity-count">{pendingTransfers.length}</span>
+          </div>
+          <p className="pg-activity-section-description">Open each sale to send the buyer their tickets.</p>
+          <div className="pg-activity-list">
             {pendingTransfers.map(p => {
               const ev = events[p.event_id];
               return (
-                <div key={p.id} className="rounded-2xl p-5"
-                  style={{ background: 'rgba(255,140,0,0.07)', border: '1px solid rgba(255,140,0,0.25)' }}>
-                  <div className="flex items-start justify-between gap-3 flex-wrap">
-                    <div className="min-w-0">
-                      <div className="font-semibold text-sm text-foreground truncate">{ev?.title || 'Event'}</div>
-                      <div className="text-xs text-muted-foreground mt-0.5">
-                        Buyer ready for transfer — open the secure transfer page to continue.
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-0.5">
-                        Amount: <span className="font-medium text-foreground">${p.amount?.toFixed(2)}</span>
-                        {' '}· Qty: {p.quantity}
-                      </div>
+                <article key={p.id} className="pg-sale-ticket pg-sale-ticket-action">
+                  <div className="pg-sale-ticket-summary">
+                    <div className="pg-sale-copy">
+                      <span className="pg-sale-kicker">Ready for transfer</span>
+                      <h3>{ev?.title || 'Event'}</h3>
+                      <p>Amount: <strong>${p.amount?.toFixed(2)}</strong> · Qty: {p.quantity}</p>
                     </div>
-                    <Link
-                      to={`/purchase/${p.id}`}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold flex-shrink-0"
-                      style={{ background: 'linear-gradient(135deg, #FF8C00, #FF2D78)', color: '#fff' }}
-                    >
-                      Send Tickets <ArrowRight className="w-3.5 h-3.5" />
+                    <span className="pg-sale-status pg-sale-status-warning">Send tickets</span>
+                  </div>
+                  <div className="pg-sale-ticket-footer">
+                    <p>Buyer ready for transfer — open the transfer page to continue.</p>
+                    <Link to={`/purchase/${p.id}`} className="pg-action pg-sales-send">
+                      Send Tickets <ArrowRight className="w-4 h-4" aria-hidden="true" />
                     </Link>
                   </div>
-                </div>
+                </article>
               );
             })}
           </div>
         </section>
       )}
 
-      {/* Awaiting Buyer Confirmation */}
       {awaitingBuyer.length > 0 && (
-        <section className="mb-8">
-          <h2 className="font-semibold text-base mb-3 flex items-center gap-2 text-foreground">
-            <Clock className="w-5 h-5" style={{ color: '#00C8FF' }} />
-            <span>Awaiting Buyer Confirmation</span>
-            <span className="text-xs font-bold px-2 py-0.5 rounded-full"
-              style={{ background: 'rgba(0,200,255,0.12)', color: '#00C8FF', border: '1px solid rgba(0,200,255,0.3)' }}>
-              {awaitingBuyer.length}
-            </span>
-          </h2>
-          <div className="space-y-3">
+        <section className="pg-sales-section" aria-labelledby="sales-awaiting-heading">
+          <div className="pg-activity-section-heading">
+            <Clock aria-hidden="true" />
+            <h2 id="sales-awaiting-heading">Awaiting buyer confirmation</h2>
+            <span className="pg-activity-count">{awaitingBuyer.length}</span>
+          </div>
+          <div className="pg-activity-list">
             {awaitingBuyer.map(p => {
               const ev = events[p.event_id];
               return (
-                <div key={p.id} className="rounded-2xl p-4 flex items-center justify-between gap-3 flex-wrap text-sm"
-                  style={{ background: 'rgba(0,200,255,0.06)', border: '1px solid rgba(0,200,255,0.2)' }}>
-                  <div className="min-w-0">
-                    <div className="font-semibold text-foreground truncate">{ev?.title || 'Event'}</div>
-                    <div className="text-xs text-muted-foreground mt-0.5">
-                      ${p.amount?.toFixed(2)} · Qty: {p.quantity}
+                <article key={p.id} className="pg-sale-ticket">
+                  <div className="pg-sale-ticket-summary">
+                    <div className="pg-sale-copy">
+                      <h3>{ev?.title || 'Event'}</h3>
+                      <p>${p.amount?.toFixed(2)} · Qty: {p.quantity}</p>
                     </div>
+                    <Link to={`/purchase/${p.id}`} className="pg-action pg-sales-view">
+                      View transfer <ArrowRight className="w-4 h-4" aria-hidden="true" />
+                    </Link>
                   </div>
-                  <Link to={`/purchase/${p.id}`}
-                    className="text-xs font-bold px-3 py-1.5 rounded-xl flex-shrink-0"
-                    style={{ background: 'rgba(0,200,255,0.12)', color: '#00C8FF', border: '1px solid rgba(0,200,255,0.25)' }}>
-                    View →
-                  </Link>
-                </div>
+                </article>
               );
             })}
           </div>
         </section>
       )}
 
-      {/* Active Listings */}
-      <section className="mb-8">
-        <h2 className="font-semibold text-base mb-3 flex items-center gap-2 text-foreground">
-          <Ticket className="w-5 h-5 text-primary" /> Active Listings ({activeListings.length})
-        </h2>
+      <section className="pg-sales-section" aria-labelledby="sales-active-heading">
+        <div className="pg-activity-section-heading">
+          <Ticket aria-hidden="true" />
+          <h2 id="sales-active-heading">Active listings</h2>
+          <span className="pg-activity-count">{activeListings.length}</span>
+        </div>
         {activeListings.length === 0 ? (
-          <div className="rounded-2xl p-8 text-center" style={cardStyle}>
-            <p className="text-2xl mb-2">🥜</p>
-            <p className="text-sm font-semibold text-foreground">No active listings</p>
-            <p className="text-xs text-muted-foreground mt-1">List tickets to start selling.</p>
+          <div className="pg-state pg-activity-state">
+            <Ticket className="w-7 h-7" aria-hidden="true" />
+            <h3>No active listings</h3>
+            <p>List tickets to start selling.</p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="pg-activity-list">
             {activeListings.map(l => {
               const ev = events[l.event_id];
               const expired = isVerificationExpired(l);
               return (
-                <div key={l.id} className="rounded-2xl p-4 space-y-3 text-sm" style={{
-                  ...cardStyle,
-                  border: expired ? '1px solid rgba(255,140,0,0.3)' : cardStyle.border,
-                }}>
-                  <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <div className="min-w-0">
-                      <div className="font-medium text-foreground truncate">{ev?.title || 'Event'}</div>
-                      <div className="text-xs text-muted-foreground mt-0.5">
-                        Section {l.section} · Row {l.row} · {l.quantity} seat{l.quantity !== 1 ? 's' : ''} · ${l.asking_price}/ea
-                      </div>
+                <article key={l.id} className={`pg-sale-ticket ${expired ? 'pg-sale-ticket-action' : ''}`}>
+                  <div className="pg-sale-ticket-summary">
+                    <div className="pg-sale-copy">
+                      <h3>{ev?.title || 'Event'}</h3>
+                      <p>Section {l.section} · Row {l.row}</p>
+                      <p>{l.quantity} seat{l.quantity !== 1 ? 's' : ''} · <strong>${l.asking_price}/ea</strong></p>
                     </div>
-                    <span className="text-xs font-bold px-2.5 py-1 rounded-full flex-shrink-0"
-                      style={{ background: 'rgba(0,255,135,0.12)', color: 'var(--neon-green)', border: '1px solid rgba(0,255,135,0.25)' }}>
-                      Active
-                    </span>
+                    <span className="pg-sale-status pg-sale-status-active">Active</span>
                   </div>
-                  <ListingStatusBanner listing={l} event={ev} onRefresh={load} />
-                  <div className="flex gap-2 pt-1">
-                    <button
-                      onClick={() => handlePauseListing(l.id)}
-                      className="text-xs font-bold px-3 py-1.5 rounded-xl transition-colors"
-                      style={{ background: 'rgba(255,200,0,0.1)', border: '1px solid rgba(255,200,0,0.25)', color: 'var(--neon-yellow)' }}
-                    >
-                      Pause
-                    </button>
-                    <button
-                      onClick={() => handleCancelListing(l)}
-                      className="text-xs font-bold px-3 py-1.5 rounded-xl transition-colors"
-                      style={{ background: 'rgba(255,45,120,0.08)', border: '1px solid rgba(255,45,120,0.2)', color: '#FF2D78' }}
-                    >
-                      Cancel Listing
-                    </button>
+                  <div className="pg-sale-ticket-body">
+                    <ListingStatusBanner listing={l} event={ev} onRefresh={load} />
+                    <Disclosure title="Manage listing" description="Pause or cancel this listing." className="pg-sale-management">
+                      <div className="pg-activity-controls">
+                        <button onClick={() => handlePauseListing(l.id)} className="pg-action pg-activity-secondary">Pause</button>
+                        <button onClick={() => handleCancelListing(l)} className="pg-action pg-activity-danger">Cancel Listing</button>
+                      </div>
+                    </Disclosure>
                   </div>
-                </div>
+                </article>
               );
             })}
           </div>
         )}
       </section>
 
-      {/* Hidden / Rejected Listings */}
       {hiddenOrRejectedListings.length > 0 && (
-        <section className="mb-8">
-          <h2 className="font-semibold text-base mb-3 flex items-center gap-2 text-foreground">
-            <span style={{ color: '#FF2D78' }}>🚫</span>
-            <span>Needs Attention</span>
-            <span className="text-xs font-bold px-2 py-0.5 rounded-full"
-              style={{ background: 'rgba(255,45,120,0.12)', color: '#FF2D78', border: '1px solid rgba(255,45,120,0.3)' }}>
-              {hiddenOrRejectedListings.length}
-            </span>
-          </h2>
-          <div className="space-y-3">
+        <section className="pg-sales-section" aria-labelledby="sales-attention-heading">
+          <div className="pg-activity-section-heading">
+            <AlertTriangle className="pg-activity-icon-danger" aria-hidden="true" />
+            <h2 id="sales-attention-heading">Needs attention</h2>
+            <span className="pg-activity-count">{hiddenOrRejectedListings.length}</span>
+          </div>
+          <div className="pg-activity-list">
             {hiddenOrRejectedListings.map(l => {
               const ev = events[l.event_id];
               return (
-                <div key={l.id} className="rounded-2xl p-4 space-y-3 text-sm"
-                  style={{ background: 'rgba(255,45,120,0.05)', border: '1px solid rgba(255,45,120,0.2)' }}>
-                  <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <div className="min-w-0">
-                      <div className="font-medium text-foreground truncate">{ev?.title || 'Event'}</div>
-                      <div className="text-xs text-muted-foreground mt-0.5">
-                        Section {l.section} · Row {l.row} · {l.quantity} seat{l.quantity !== 1 ? 's' : ''} · ${l.asking_price}/ea
-                      </div>
+                <article key={l.id} className="pg-sale-ticket pg-sale-ticket-attention">
+                  <div className="pg-sale-ticket-summary">
+                    <div className="pg-sale-copy">
+                      <h3>{ev?.title || 'Event'}</h3>
+                      <p>Section {l.section} · Row {l.row}</p>
+                      <p>{l.quantity} seat{l.quantity !== 1 ? 's' : ''} · <strong>${l.asking_price}/ea</strong></p>
                     </div>
                   </div>
-                  <ListingStatusBanner listing={l} event={ev} onRefresh={load} />
-                  <div className="flex gap-2 pt-1">
+                  <div className="pg-sale-ticket-body">
+                    <ListingStatusBanner listing={l} event={ev} onRefresh={load} />
                     {l.status === 'hidden' && (
-                      <button
-                        onClick={() => handleResumeListing(l.id)}
-                        className="text-xs font-bold px-3 py-1.5 rounded-xl transition-colors"
-                        style={{ background: 'rgba(0,255,135,0.1)', border: '1px solid rgba(0,255,135,0.25)', color: 'var(--neon-green)' }}
-                      >
-                        Resume
-                      </button>
+                      <button onClick={() => handleResumeListing(l.id)} className="pg-action pg-sale-resume">Resume listing</button>
                     )}
-                    <button
-                      onClick={() => handleCancelListing(l)}
-                      className="text-xs font-bold px-3 py-1.5 rounded-xl transition-colors"
-                      style={{ background: 'rgba(255,45,120,0.08)', border: '1px solid rgba(255,45,120,0.2)', color: '#FF2D78' }}
-                    >
-                      Cancel Listing
-                    </button>
+                    <Disclosure title="Listing options" description="Cancel this listing." className="pg-sale-management">
+                      <button onClick={() => handleCancelListing(l)} className="pg-action pg-activity-danger">Cancel Listing</button>
+                    </Disclosure>
                   </div>
-                </div>
+                </article>
               );
             })}
           </div>
         </section>
       )}
 
-      {/* Instant Listings — pending verification */}
       {(() => {
         const instantPending = listings.filter(l => l.listing_mode === 'instant' && l.status === 'pending_verification');
         const instantActive = listings.filter(l => l.listing_mode === 'instant' && l.status === 'active' && l.is_instant_ready);
@@ -350,42 +309,38 @@ export default function MySales() {
         });
         if (instantPending.length === 0 && instantActive.length === 0 && instantSold.length === 0) return null;
         return (
-          <section className="mb-8">
-            <h2 className="font-semibold text-base mb-3 flex items-center gap-2 text-foreground">
-              <span style={{ color: '#00C8FF' }}>⚡</span>
-              <span>Instant Listings</span>
-            </h2>
-            <div className="space-y-2">
+          <section className="pg-sales-section" aria-labelledby="sales-instant-heading">
+            <div className="pg-activity-section-heading">
+              <Zap aria-hidden="true" />
+              <h2 id="sales-instant-heading">Instant listings</h2>
+            </div>
+            <div className="pg-activity-list">
               {instantPending.map(l => {
                 const ev = events[l.event_id];
                 return (
-                  <div key={l.id} className="rounded-2xl p-4 flex items-center justify-between gap-3 flex-wrap text-sm"
-                    style={{ background: 'rgba(255,140,0,0.07)', border: '1px solid rgba(255,140,0,0.25)' }}>
-                    <div className="min-w-0">
-                      <div className="font-semibold text-foreground truncate">{ev?.title || 'Event'}</div>
-                      <div className="text-xs text-muted-foreground mt-0.5">Sec {l.section} · Row {l.row} · ${l.asking_price}/ea</div>
+                  <article key={l.id} className="pg-sale-ticket">
+                    <div className="pg-sale-ticket-summary">
+                      <div className="pg-sale-copy">
+                        <h3>{ev?.title || 'Event'}</h3>
+                        <p>Sec {l.section} · Row {l.row} · ${l.asking_price}/ea</p>
+                      </div>
+                      <span className="pg-sale-status pg-sale-status-warning">Pending verification</span>
                     </div>
-                    <span className="text-xs font-bold px-2.5 py-1 rounded-full flex-shrink-0"
-                      style={{ background: 'rgba(255,140,0,0.12)', color: '#FF8C00', border: '1px solid rgba(255,140,0,0.3)' }}>
-                      ⏳ Pending Verification
-                    </span>
-                  </div>
+                  </article>
                 );
               })}
               {instantActive.map(l => {
                 const ev = events[l.event_id];
                 return (
-                  <div key={l.id} className="rounded-2xl p-4 flex items-center justify-between gap-3 flex-wrap text-sm"
-                    style={{ background: 'rgba(0,200,255,0.06)', border: '1px solid rgba(0,200,255,0.2)' }}>
-                    <div className="min-w-0">
-                      <div className="font-semibold text-foreground truncate">{ev?.title || 'Event'}</div>
-                      <div className="text-xs text-muted-foreground mt-0.5">Sec {l.section} · Row {l.row} · ${l.asking_price}/ea</div>
+                  <article key={l.id} className="pg-sale-ticket">
+                    <div className="pg-sale-ticket-summary">
+                      <div className="pg-sale-copy">
+                        <h3>{ev?.title || 'Event'}</h3>
+                        <p>Sec {l.section} · Row {l.row} · ${l.asking_price}/ea</p>
+                      </div>
+                      <span className="pg-sale-status pg-sale-status-info">Live — Instant</span>
                     </div>
-                    <span className="text-xs font-bold px-2.5 py-1 rounded-full flex-shrink-0"
-                      style={{ background: 'rgba(0,200,255,0.12)', color: '#00C8FF', border: '1px solid rgba(0,200,255,0.3)' }}>
-                      ⚡ Live — Instant
-                    </span>
-                  </div>
+                  </article>
                 );
               })}
               {instantSold.map(p => {
@@ -394,17 +349,15 @@ export default function MySales() {
                   : p.fulfillment_status === 'fulfilled' ? 'Ticket Delivered'
                   : 'Sold — PG Handling Fulfillment';
                 return (
-                  <div key={p.id} className="rounded-2xl p-4 flex items-center justify-between gap-3 flex-wrap text-sm"
-                    style={{ background: 'rgba(0,255,135,0.06)', border: '1px solid rgba(0,255,135,0.2)' }}>
-                    <div className="min-w-0">
-                      <div className="font-semibold text-foreground truncate">{ev?.title || 'Event'}</div>
-                      <div className="text-xs text-muted-foreground mt-0.5">${p.amount?.toFixed(2)} · Qty: {p.quantity}</div>
+                  <article key={p.id} className="pg-sale-ticket">
+                    <div className="pg-sale-ticket-summary">
+                      <div className="pg-sale-copy">
+                        <h3>{ev?.title || 'Event'}</h3>
+                        <p>${p.amount?.toFixed(2)} · Qty: {p.quantity}</p>
+                      </div>
+                      <span className="pg-sale-status pg-sale-status-active">{fsLabel}</span>
                     </div>
-                    <span className="text-xs font-bold px-2.5 py-1 rounded-full flex-shrink-0"
-                      style={{ background: 'rgba(0,255,135,0.1)', color: '#00FF87', border: '1px solid rgba(0,255,135,0.25)' }}>
-                      {fsLabel}
-                    </span>
-                  </div>
+                  </article>
                 );
               })}
             </div>
@@ -412,63 +365,54 @@ export default function MySales() {
         );
       })()}
 
-      {/* Completed Sales */}
-      <section>
-        <h2 className="font-semibold text-base mb-3 flex items-center gap-2 text-foreground">
-          <CheckCircle className="w-5 h-5" style={{ color: 'var(--neon-green)' }} /> Completed Sales ({completedSales.length})
-        </h2>
+      <Disclosure
+        title={`Completed sales (${completedSales.length})`}
+        description={failedCaptures > 0
+          ? `${failedCaptures} capture failed — contact support. View sale and payout details.`
+          : pendingPayouts > 0
+            ? `${pendingPayouts} pending payout. View sale and payout details.`
+            : 'Sale history, payout status, and transaction details.'}
+        defaultOpen={pendingPayouts > 0 || failedCaptures > 0}
+        className="pg-sales-history"
+      >
         {completedSales.length === 0 ? (
-          <div className="rounded-2xl p-8 text-center" style={cardStyle}>
-            <p className="text-2xl mb-2">🎟️</p>
-            <p className="text-sm font-semibold text-foreground">No completed sales yet</p>
-            <p className="text-xs text-muted-foreground mt-1">When a buyer confirms receipt, your sale appears here.</p>
+          <div className="pg-state pg-activity-state">
+            <CheckCircle className="w-7 h-7" aria-hidden="true" />
+            <h3>No completed sales yet</h3>
+            <p>When a buyer confirms receipt, your sale appears here.</p>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="pg-activity-list">
             {completedSales.map(p => {
               const ev = events[p.event_id];
               const eventDate = ev?.event_start_local || ev?.date;
               const payoutState = p.payment_captured ? 'paid out' : 'pending payout';
-              const payoutColor = p.payment_captured ? 'var(--neon-green)' : '#FF8C00';
               return (
-                <div key={p.id} className="rounded-2xl p-4 flex items-start justify-between gap-3 flex-wrap text-sm" style={cardStyle}>
-                  <div className="min-w-0 flex-1">
-                    <div className="font-semibold text-foreground truncate">{ev?.title || 'Event'}</div>
-                    {eventDate && (
-                      <div className="text-xs text-muted-foreground mt-0.5">
-                        {format(new Date(eventDate), 'EEE, MMM d, yyyy')}
-                      </div>
-                    )}
-                    <div className="flex items-center gap-2 mt-1 flex-wrap">
-                      <span className="text-xs font-bold" style={{ color: 'var(--neon-green)' }}>
-                        ${p.seller_payout != null ? p.seller_payout.toFixed(2) : p.amount?.toFixed(2)}
-                      </span>
-                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
-                        style={{ background: p.payment_captured ? 'rgba(0,255,135,0.1)' : 'rgba(255,140,0,0.1)', color: payoutColor, border: `1px solid ${payoutColor}44` }}>
-                        {payoutState}
-                      </span>
-                      {p.payment_captured && (
-                        <span className="text-[10px] text-muted-foreground">· Stripe deposits 2–7 days (up to 14 days first payout)</span>
-                      )}
-                      {p.payment_capture_failed && (
-                        <span className="text-[10px] font-bold" style={{ color: '#FF2D78' }}>· ⚠️ Capture failed — contact support</span>
-                      )}
-                      {p.created_date && (
-                        <span className="text-xs text-muted-foreground">· {format(new Date(p.created_date), 'MMM d, yyyy')}</span>
-                      )}
+                <article key={p.id} className="pg-sale-ticket">
+                  <div className="pg-sale-ticket-summary">
+                    <div className="pg-sale-copy">
+                      <h3>{ev?.title || 'Event'}</h3>
+                      {eventDate && <p>{format(new Date(eventDate), 'EEE, MMM d, yyyy')}</p>}
+                      <p className="pg-sale-payout">${p.seller_payout != null ? p.seller_payout.toFixed(2) : p.amount?.toFixed(2)}</p>
                     </div>
+                    <span className={`pg-sale-status ${p.payment_captured ? 'pg-sale-status-active' : 'pg-sale-status-warning'}`}>{payoutState}</span>
                   </div>
-                  <Link to={`/purchase/${p.id}`}
-                    className="text-xs font-bold px-3 py-1.5 rounded-xl flex-shrink-0"
-                    style={{ background: 'hsl(var(--muted))', color: 'hsl(var(--foreground))' }}>
-                    View →
-                  </Link>
-                </div>
+                  <div className="pg-sale-ticket-footer">
+                    <div className="pg-sale-history-notes">
+                      {p.payment_captured && <p>Stripe deposits 2–7 days (up to 14 days first payout)</p>}
+                      {p.payment_capture_failed && <p className="pg-activity-error-text"><AlertTriangle className="w-4 h-4" aria-hidden="true" /> Capture failed — contact support</p>}
+                      {p.created_date && <p>Sale date: {format(new Date(p.created_date), 'MMM d, yyyy')}</p>}
+                    </div>
+                    <Link to={`/purchase/${p.id}`} className="pg-action pg-activity-secondary">
+                      View sale <ArrowRight className="w-4 h-4" aria-hidden="true" />
+                    </Link>
+                  </div>
+                </article>
               );
             })}
           </div>
         )}
-      </section>
+      </Disclosure>
     </div>
   );
 }

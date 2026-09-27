@@ -11,12 +11,15 @@ import SellerTransferAttestation from '@/components/events/SellerTransferAttesta
 import SellingEventPicker from '@/components/listings/SellingEventPicker';
 import SellingEventSummary from '@/components/listings/SellingEventSummary';
 import { isCanonicalEventId } from '@/lib/resolveSellingEvent';
+import { PageIntro, Disclosure } from '@/components/ClarityUI';
+import './transaction-clarity.css';
 
 const STEPS = ['Event', 'Seats', 'Price & review'];
 function StepBar({ current }) {
-  return <ol aria-label="Selling steps" className="grid grid-cols-3 gap-3 mb-6">
-    {STEPS.map((label, index) => <li key={label} aria-current={index === current ? 'step' : undefined} className={`border-t-2 pt-3 ${index <= current ? 'border-primary' : 'border-border'}`}>
-      <span className={`text-xs font-bold ${index === current ? 'text-primary' : 'text-muted-foreground'}`}>{index + 1}. {label}</span>
+  return <ol aria-label="Selling steps" className="pg-listing-steps">
+    {STEPS.map((label, index) => <li key={label} aria-current={index === current ? 'step' : undefined} className={index <= current ? 'is-reached' : ''}>
+      <span className="pg-listing-step-number">{index < current ? <CheckCircle size={16} aria-hidden="true" /> : index + 1}</span>
+      <span>{label}</span>
     </li>)}
   </ol>;
 }
@@ -204,88 +207,42 @@ export default function CreateListing() {
   // ── Success screen ────────────────────────────────────────────────────────
 
   if (done) {
-    // Draft saved — seller needs to complete Stripe onboarding first
-    if (savedAsDraft) {
-      return (
-        <div className="max-w-md mx-auto px-4 py-16 text-center">
-          <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-5"
-            style={{ background: 'rgba(255,140,0,0.12)', border: '1px solid rgba(255,140,0,0.3)', boxShadow: '0 0 32px rgba(255,140,0,0.15)' }}>
-            <span className="text-4xl">🏦</span>
-          </div>
-          <h1 className="font-display text-4xl mb-2" style={{ color: '#FF8C00' }}>Listing Saved</h1>
-          <p className="text-sm text-muted-foreground leading-relaxed mt-2 mb-1 max-w-xs mx-auto">
-            Your listing details are saved. To make it live and visible to buyers, you need to complete your Stripe payout setup.
-          </p>
-          <p className="text-xs text-muted-foreground mb-8">It takes under 2 minutes and your bank info is never stored by Peanut Gallery.</p>
-          <div className="flex flex-col gap-3">
-            <Link
-              to="/sell"
-              className="inline-flex items-center justify-center gap-2 py-4 rounded-full font-black text-sm"
-              style={{ background: 'linear-gradient(135deg, #FF8C00, #FF2D78)', color: '#fff', boxShadow: '0 0 18px rgba(255,140,0,0.25)' }}
-            >
-              Complete Payout Setup →
-            </Link>
-            <Link to="/my-sales"
-              className="inline-flex items-center justify-center gap-2 py-3 rounded-full font-semibold text-sm"
-              style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--muted-foreground))' }}
-            >
-              View My Listings
-            </Link>
-          </div>
-        </div>
-      );
-    }
-
+    // Keep saved drafts and verification states distinct from a live listing.
+    const needsVerification = listingMode === 'instant_transfer_ready' || flagged;
     return (
-      <div className="max-w-md mx-auto px-4 py-16 text-center">
-        {isAdminUser && (
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black mb-4 dark:text-[#FFE600] text-[#7a6000]"
-            style={{ background: 'rgba(255,200,80,0.12)', border: '1px solid rgba(255,200,80,0.3)' }}>
-            🧪 Test Listing
+      <div className="pg-secondary-page pg-transaction-page pg-listing-page">
+        <PageIntro eyebrow="Sell tickets" title={savedAsDraft ? 'Listing saved.' : needsVerification ? 'Listing submitted.' : 'Your listing is live.'}
+          description={savedAsDraft ? 'One more step before buyers can see it.' : needsVerification ? 'We’ll review your submission before it goes live.' : 'Buyers can now see your tickets.'}
+          backTo="/my-sales" backLabel="My sales" />
+        <section className="pg-transaction-result">
+          <div className="pg-transaction-result-icon"><CheckCircle size={28} aria-hidden="true" /></div>
+          {isAdminUser && <p className="pg-transaction-kicker">Test listing</p>}
+          <h2>{savedAsDraft ? 'Complete your payout setup' : listingMode === 'instant_transfer_ready' ? 'Custody verification pending' : flagged ? 'Verification pending' : 'Ready for buyers'}</h2>
+          <p>{savedAsDraft
+            ? 'Your details are saved as a draft. Complete Stripe payout setup to make your listing live.'
+            : listingMode === 'instant_transfer_ready'
+            ? 'Once our team confirms custody, your listing will go live with the Instant Transfer Ready badge.'
+            : flagged ? 'Your listing is being reviewed. Check My sales for its status.'
+            : 'Keep an eye on your notifications so you’re ready to transfer when your tickets sell.'}</p>
+          {savedAsDraft && <p className="pg-transaction-note">Your bank details are handled by Stripe.</p>}
+          <div className="pg-transaction-result-actions">
+            <Link to={savedAsDraft ? '/sell' : '/my-sales'} className="pg-action pg-transaction-primary">
+              {savedAsDraft ? 'Complete payout setup' : 'View my listings'} <ArrowRight size={18} aria-hidden="true" />
+            </Link>
+            {savedAsDraft ? <Link to="/my-sales" className="pg-action pg-transaction-secondary">View my listings</Link> :
+              <button
+                onClick={() => {
+                  setDone(false); setSavedAsDraft(false); setStep(0);
+                  setForm({ event_id: '', section: '', row: '', seats: '', quantity: '1', tier: '', asking_price: '', original_price: '', transfer_method: 'email_transfer', proof_url: '' });
+                  setSelectedEvent(null); selectedEventRef.current = null;
+                  setAttestationDone(false); setAttestationData(null); setAttestationBlocked(false);
+                  setListingMode('standard'); setItrAgreementDone(false); setPgTransferProofUrl(''); setPgTransferNotes('');
+                }}
+                className="pg-action pg-transaction-secondary"
+              >List another</button>}
           </div>
-        )}
-        <div
-          className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-5"
-          style={{ background: 'rgba(0,255,135,0.12)', border: '1px solid rgba(0,255,135,0.3)', boxShadow: '0 0 32px rgba(0,255,135,0.2)' }}
-        >
-          <CheckCircle className="w-10 h-10" style={{ color: '#00FF87' }} />
-        </div>
-        <h1 className="font-display text-4xl mb-2 dark:[filter:none] [filter:brightness(0.45)_saturate(1.5)]" style={{ background: 'linear-gradient(135deg, #00FF87, #00C8FF)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
-          {listingMode === 'instant_transfer_ready' ? 'Pending Custody Verification' : flagged ? 'Pending Verification' : 'Listing Live'}
-        </h1>
-        <p className="text-muted-foreground text-sm mb-1 mt-2">
-          {listingMode === 'instant_transfer_ready'
-            ? 'We received your transfer submission. Once our team confirms custody, your listing will go live with the Instant Transfer Ready badge.'
-            : flagged ? 'Your listing is being reviewed and will go live shortly.'
-            : 'Your listing is now live and visible to buyers.'}
-        </p>
-        <p className="text-xs mb-8 dark:opacity-70" style={{ color: listingMode === 'instant' ? '#006080' : flagged ? '#a07000' : '#007a3d' }}>
-          {listingMode === 'instant_transfer_ready' ? 'Usually verified within hours.' : flagged ? 'Usually approved within minutes.' : 'Buyers can see it right now ⚡'}
-        </p>
-        <div className="flex flex-col gap-3">
-          <Link
-            to="/my-sales"
-            className="inline-flex items-center justify-center gap-2 py-3.5 rounded-full font-black text-sm"
-            style={{ background: 'linear-gradient(135deg, #00E87A, #00B8E8)', color: '#0D0B14', boxShadow: '0 0 18px rgba(0,232,122,0.22)' }}
-          >
-            View My Listings
-          </Link>
-          <button
-            onClick={() => {
-              setDone(false); setSavedAsDraft(false); setStep(0);
-              setForm({ event_id: '', section: '', row: '', seats: '', quantity: '1', tier: '', asking_price: '', original_price: '', transfer_method: 'email_transfer', proof_url: '' });
-              setSelectedEvent(null); selectedEventRef.current = null;
-              setAttestationDone(false); setAttestationData(null); setAttestationBlocked(false);
-              setListingMode('standard'); setItrAgreementDone(false); setPgTransferProofUrl(''); setPgTransferNotes('');
-            }}
-            className="inline-flex items-center justify-center gap-2 py-3 rounded-full font-semibold text-sm"
-            style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--muted-foreground))' }}
-          >
-            List Another
-          </button>
-        </div>
-        {/* Prompt for push notifications after successful listing */}
-        <NotificationPermissionPrompt trigger="listing" />
+        </section>
+        {!savedAsDraft && <NotificationPermissionPrompt trigger="listing" />}
       </div>
     );
   }
@@ -302,16 +259,16 @@ export default function CreateListing() {
   const feePreview = priceVal > 0 ? formatFeeBreakdown(priceVal, parseInt(form.quantity) || 1) : null;
 
   return (
-    <div className="max-w-lg mx-auto px-4 selling-flow" style={{ paddingTop: 'calc(1rem + var(--app-safe-top))', paddingBottom: 'calc(8rem + env(safe-area-inset-bottom))' }}>
-      <Link to="/my-sales" className="inline-flex min-h-11 items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-4 transition-colors">
-        <ArrowLeft className="w-4 h-4" /> My sales
-      </Link>
-
-      <header className="mb-6 space-y-2">
-        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-primary">Peanut Gallery · Sell</p>
-        <h1 ref={stepHeading} tabIndex={-1} className="font-display text-4xl leading-tight text-foreground outline-none scroll-mt-20">{step === 0 ? 'Sell your tickets.' : step === 1 ? 'Add your seats.' : 'Price & review.'}</h1>
-        <p className="text-base text-muted-foreground">{step === 0 ? 'Choose your event to get started.' : step === 1 ? 'Tell buyers where they’ll be sitting.' : 'Set your price and check the details.'}</p>
-      </header>
+    <div className="pg-secondary-page pg-transaction-page pg-listing-page selling-flow">
+      <div ref={stepHeading} tabIndex={-1} className="outline-none scroll-mt-20">
+        <PageIntro
+          eyebrow={`Sell tickets · Step ${step + 1} of 3`}
+          title={step === 0 ? 'Sell your tickets.' : step === 1 ? 'Add your seats.' : 'Price & review.'}
+          description={step === 0 ? 'Choose the event for the tickets you want to sell.' : step === 1 ? 'Add your seat details, then confirm you can transfer the tickets.' : 'Choose how to deliver, set your price, and review the buyer’s total.'}
+          backTo="/my-sales"
+          backLabel="My sales"
+        />
+      </div>
       <StepBar current={step} />
       <div hidden={step !== 0}>
         <SellingEventPicker initialKeyword={preselectedQuery} initialEventId={preselectedEventId} onSelect={acceptEvent} />
@@ -320,7 +277,8 @@ export default function CreateListing() {
 
       {/* ── Step 1: Seat Info ── */}
       {step === 1 && (
-        <div className="space-y-4">
+        <section className="pg-transaction-card space-y-4" aria-label="Seat details">
+          <p className="pg-transaction-kicker">Your seats</p>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-muted-foreground mb-1.5">Section *</label>
@@ -336,55 +294,35 @@ export default function CreateListing() {
 
           <div className="grid grid-cols-1 gap-4">
             <div>
-              <label className="block text-sm text-muted-foreground mb-2">Ticket quantity</label>
-              <div role="group" aria-label="Ticket quantity" className="grid grid-cols-6 gap-1">
-                {[1,2,3,4,5,6].map(n => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => set('quantity', String(n))}
-                    aria-pressed={form.quantity === String(n)} className="min-h-11 rounded-xl text-sm font-bold transition-all"
-                    style={{
-                      background: form.quantity === String(n) ? 'rgba(191,95,255,0.15)' : 'hsl(var(--muted))',
-                      border: form.quantity === String(n) ? '1px solid rgba(191,95,255,0.4)' : '1px solid hsl(var(--border))',
-                      color: form.quantity === String(n) ? '#BF5FFF' : 'hsl(var(--muted-foreground))',
-                    }}
-                  >
-                    {n}
-                  </button>
-                ))}
-              </div>
+              <label htmlFor="listing-quantity" className="block text-sm text-muted-foreground mb-2">Ticket quantity</label>
+              <select id="listing-quantity" value={form.quantity} onChange={e => set('quantity', e.target.value)} className={inputClass} style={inputStyle}>
+                {[1,2,3,4,5,6].map(n => <option key={n} value={String(n)}>{n} {n === 1 ? 'ticket' : 'tickets'}</option>)}
+              </select>
             </div>
+          </div>
+          <Disclosure title="More seat details" description="Optional seat numbers and level.">
             <div>
               <label className="block text-xs text-muted-foreground mb-1.5">Seat #s <span className="opacity-50">(optional)</span></label>
               <input type="text" value={form.seats} onChange={e => set('seats', e.target.value)}
                 aria-label="Seat numbers" placeholder="4, 5" className={inputClass} style={inputStyle} />
             </div>
-          </div>
-
           <div>
-            <label className="block text-xs text-muted-foreground mb-2">Level <span className="opacity-50">(optional)</span></label>
-            <div className="grid grid-cols-4 gap-2">
-              {['floor','lower','mid','upper'].map(t => (
-                <button key={t} type="button" onClick={() => set('tier', form.tier === t ? '' : t)}
-                  className="py-2.5 rounded-xl text-xs font-bold capitalize transition-all"
-                  style={{
-                    background: form.tier === t ? 'rgba(191,95,255,0.15)' : 'hsl(var(--muted))',
-                    border: form.tier === t ? '1px solid rgba(191,95,255,0.4)' : '1px solid hsl(var(--border))',
-                    color: form.tier === t ? '#BF5FFF' : 'hsl(var(--muted-foreground))',
-                  }}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
+            <label htmlFor="listing-level" className="block text-xs text-muted-foreground mb-2 mt-4">Level <span className="opacity-50">(optional)</span></label>
+            <select id="listing-level" value={form.tier} onChange={e => set('tier', e.target.value)} className={inputClass} style={inputStyle}>
+              <option value="">Choose a level</option>
+              <option value="floor">Floor</option>
+              <option value="lower">Lower</option>
+              <option value="mid">Mid</option>
+              <option value="upper">Upper</option>
+            </select>
           </div>
-        </div>
+          </Disclosure>
+        </section>
       )}
 
       {/* ── Attestation gate (shown at bottom of step 1) ── */}
       {step === 1 && !attestationDone && !attestationBlocked && (
-        <div className="mt-6">
+        <div className="mt-6 pg-listing-attestation">
           <SellerTransferAttestation key={selectedEvent?.id}
             onConfirm={(data) => { setAttestationData(data); setAttestationDone(true); }}
             onBlocked={() => setAttestationBlocked(true)}
@@ -417,7 +355,7 @@ export default function CreateListing() {
         <div className="mt-4 flex items-center gap-2 px-3 py-2 rounded-xl"
           style={{ background: 'rgba(0,255,135,0.06)', border: '1px solid rgba(0,255,135,0.25)' }}>
           <CheckCircle className="w-4 h-4 flex-shrink-0" style={{ color: '#00FF87' }} />
-          <span className="text-xs font-semibold" style={{ color: '#00FF87' }}>Transfer verified · Ready to continue</span>
+          <span className="text-xs font-semibold" style={{ color: '#00FF87' }}>Transfer ability confirmed · Ready to continue</span>
         </div>
       )}
 
@@ -427,10 +365,11 @@ export default function CreateListing() {
 
           {/* Listing mode selector */}
           <div>
-            <p className="text-xs text-muted-foreground mb-2 font-semibold uppercase tracking-wide">Listing Type</p>
+            <p className="pg-transaction-kicker mb-3">Choose your delivery option</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 type="button"
+                aria-pressed={listingMode === 'standard'}
                 onClick={() => { setListingMode('standard'); setItrAgreementDone(false); }}
                 className="p-4 rounded-2xl text-left transition-all"
                 style={{
@@ -438,11 +377,12 @@ export default function CreateListing() {
                   border: listingMode === 'standard' ? '1px solid rgba(191,95,255,0.35)' : '1px solid hsl(var(--border))',
                 }}
               >
-                <div className="font-bold text-sm text-foreground mb-1">📋 Standard</div>
+                <div className="font-bold text-sm text-foreground mb-1">{listingMode === 'standard' && '✓ '}Standard</div>
                 <div className="text-[11px] text-muted-foreground leading-relaxed">You transfer to the buyer after sale. You must be available when the ticket sells.</div>
               </button>
               <button
                 type="button"
+                aria-pressed={listingMode === 'instant_transfer_ready'}
                 onClick={() => { setListingMode('instant_transfer_ready'); setItrAgreementDone(false); }}
                 className="p-4 rounded-2xl text-left transition-all"
                 style={{
@@ -451,9 +391,9 @@ export default function CreateListing() {
                 }}
               >
                 <div className="font-bold text-sm flex items-center gap-1.5" style={{ color: listingMode === 'instant_transfer_ready' ? '#00C8FF' : 'hsl(var(--foreground))' }}>
-                  <Shield className="w-3.5 h-3.5" /> Instant Transfer Ready
+                  <Shield className="w-3.5 h-3.5" /> {listingMode === 'instant_transfer_ready' && '✓ '}Instant Transfer Ready
                 </div>
-                <div className="text-[11px] text-muted-foreground leading-relaxed mt-1">Authorize PG as your delivery agent. Buyers receive tickets immediately — you don't need to be online.</div>
+                <div className="text-[11px] text-muted-foreground leading-relaxed mt-1">Send your tickets to PG first. After custody is verified, PG handles delivery when they sell.</div>
               </button>
             </div>
           </div>
@@ -488,8 +428,9 @@ export default function CreateListing() {
               {/* PG transfer proof upload */}
               <div>
                 <label className="block text-xs text-muted-foreground mb-1.5 font-semibold">
-                  Upload transfer confirmation screenshot <span style={{ color: '#FF2D78' }}>*</span>
+                  Transfer confirmation screenshot
                 </label>
+                <p className="text-xs text-muted-foreground mb-3">Provide a screenshot or transfer notes below to continue.</p>
                 {pgTransferProofUrl ? (
                   <div className="flex items-center gap-3 px-4 py-3 rounded-2xl"
                     style={{ background: 'rgba(0,200,255,0.08)', border: '1px solid rgba(0,200,255,0.25)' }}>
@@ -573,6 +514,7 @@ export default function CreateListing() {
             <p className="text-[11px] text-muted-foreground mt-1.5">Buyers see the total at checkout.</p>
           </div>
 
+          <Disclosure title="Optional listing details" description="Add face value or a ticket screenshot.">
           <div>
             <label className="block text-xs text-muted-foreground mb-1.5">Face value <span className="opacity-50">(optional · shows savings badge)</span></label>
             <div className="relative">
@@ -584,9 +526,9 @@ export default function CreateListing() {
           </div>
 
           {/* Proof upload */}
-          <div>
+          <div className="mt-4">
             <label className="block text-xs text-muted-foreground mb-1.5">
-              Ticket screenshot or PDF <span className="opacity-50">(optional · earns Verified badge)</span>
+              Ticket screenshot or PDF <span className="opacity-50">(optional · for review)</span>
             </label>
             {form.proof_url ? (
               <div className="flex items-center gap-3 px-4 py-3 rounded-2xl"
@@ -606,6 +548,7 @@ export default function CreateListing() {
               </label>
             )}
           </div>
+          </Disclosure>
 
           {/* Transfer method */}
           <div>
@@ -615,7 +558,7 @@ export default function CreateListing() {
                 { value: 'email_transfer', label: '📧 Email Transfer' },
                 { value: 'platform_transfer', label: '📲 Mobile Ticket Transfer' },
               ].map(opt => (
-                <button key={opt.value} type="button" onClick={() => set('transfer_method', opt.value)}
+                <button key={opt.value} type="button" onClick={() => set('transfer_method', opt.value)} aria-pressed={form.transfer_method === opt.value}
                   className="w-full text-left px-4 py-3.5 rounded-2xl transition-all"
                   style={{
                     background: form.transfer_method === opt.value ? 'rgba(191,95,255,0.1)' : 'hsl(var(--card))',
@@ -631,16 +574,18 @@ export default function CreateListing() {
         </div>
       )}
 
-      {step === 2 && <p className="mt-6 text-xs leading-relaxed text-muted-foreground">PG upgrades are separately priced add-on purchases.</p>}
+      {step === 2 && <div className="pg-listing-submit-note">
+        {!onboardingComplete && <p>Your listing will be saved as a draft. Complete payout setup to make it live.</p>}
+        <p>PG upgrades are separately priced add-on purchases.</p>
+      </div>}
       {/* Navigation remains in flow so the keyboard cannot cover a fixed action bar. */}
-      {step > 0 && <div className="mt-8 pt-5 border-t border-border flex gap-3">
+      {step > 0 && <div className="pg-transaction-actions">
         {step > 0 && (
           <button
             onClick={() => setStep(s => s - 1)}
             disabled={uploadingProof || uploadingPgProof || submitting}
             aria-label={step === 1 ? 'Back to events' : 'Back to seats'}
-            className="flex items-center gap-1.5 px-5 py-3 rounded-full text-sm font-semibold transition-colors"
-            style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--muted-foreground))' }}
+            className="pg-action pg-transaction-secondary"
           >
             <ArrowLeft className="w-4 h-4" /> Back
           </button>
@@ -649,8 +594,7 @@ export default function CreateListing() {
           <button
             onClick={() => setStep(s => s + 1)}
             disabled={!canNext1}
-            className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-full font-black text-sm transition-all disabled:opacity-30"
-            style={{ background: 'linear-gradient(135deg, #BF5FFF, #FF2D78)', color: '#fff', boxShadow: '0 0 18px rgba(191,95,255,0.25)' }}
+            className="pg-action pg-transaction-primary"
           >
             Price & review <ArrowRight className="w-4 h-4" />
           </button>
@@ -659,12 +603,11 @@ export default function CreateListing() {
           <button
             onClick={handleSubmit}
             disabled={!canSubmit || submitting || uploadingProof}
-            className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-full font-black text-sm transition-all disabled:opacity-30"
-            style={{ background: 'linear-gradient(135deg, #00E87A, #00B8E8)', color: '#0D0B14', boxShadow: '0 0 18px rgba(0,232,122,0.22)' }}
+            className="pg-action pg-transaction-primary"
           >
             {submitting
-              ? <><span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> Listing…</>
-              : <><Zap className="w-4 h-4" /> List My Tickets</>
+              ? <><span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> Saving…</>
+              : <><Zap className="w-4 h-4" /> {!onboardingComplete ? 'Save listing draft' : listingMode === 'instant_transfer_ready' ? 'Submit for verification' : 'List my tickets'}</>
             }
           </button>
         )}
