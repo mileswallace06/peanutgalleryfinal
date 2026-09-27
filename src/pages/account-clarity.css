@@ -1,6 +1,11 @@
 .pg-account-page { padding-bottom: 32px; }
 .pg-account-page .pg-page-title { font-size: clamp(28px, 8vw, 36px); }
 .pg-account-page .pg-page-intro { margin-bottom: 18px; }
+.pg-me-page .pg-page-intro,
+.pg-account-settings-page .pg-page-intro { margin-bottom: 10px; }
+.pg-account-heading-row { display: flex; align-items: center; gap: 12px; min-height: 44px; }
+.pg-account-heading-row .pg-back-link { flex-shrink: 0; }
+.pg-account-settings-page .pg-page-title { font-size: clamp(22px, 6.4vw, 28px); }
 .pg-account-page button:disabled { cursor: wait; opacity: .6; }
 .pg-member-ticket { overflow: hidden; border-radius: 11px; color: var(--pg-ink); background: var(--pg-paper); }
 .pg-member-banner { height: 94px; position: relative; overflow: hidden; background: var(--pg-surface-raised); }

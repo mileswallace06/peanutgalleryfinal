@@ -137,9 +137,7 @@ export default function Sell() {
   return (
     <div className="pg-design-page pg-sell-page">
       <header className="pg-sell-intro" data-page-hero="sell">
-        <p className="pg-sell-eyebrow">SELL TICKETS</p>
         <h1 className="pg-page-title">Sell your seats</h1>
-        <p className="pg-sell-subtitle">Pass a better view to another fan.</p>
       </header>
 
       <div className="pg-sell-content">

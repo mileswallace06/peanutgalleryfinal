@@ -103,7 +103,7 @@ export default function Me() {
   if (!user) {
     return (
       <div className="pg-secondary-page pg-account-page">
-        <PageIntro eyebrow="YOUR ACCOUNT" title="Me" description="Your tickets, sales and fan profile in one place." />
+        <PageIntro title="Me" />
         <div className="pg-state pg-account-signin">
           <Ticket size={32} aria-hidden="true" />
           <h2>Make yourself at home.</h2>
@@ -117,7 +117,7 @@ export default function Me() {
 
   return (
     <div className="pg-secondary-page pg-account-page pg-me-page">
-      <PageIntro eyebrow="YOUR ACCOUNT" title="Me" description="Find your tickets. Keep track of your sales." />
+      <PageIntro title="Me" />
 
       <section className="pg-member-ticket" aria-label="Your fan profile">
         <div className="pg-member-banner" data-page-hero="me">

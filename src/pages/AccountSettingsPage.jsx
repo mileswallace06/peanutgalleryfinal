@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { useTheme } from '@/hooks/useTheme';
-import { Disclosure, PageIntro } from '@/components/ClarityUI';
+import { Disclosure } from '@/components/ClarityUI';
 import ProfileIdentitySection from '@/components/account/ProfileIdentitySection';
 import SecuritySection from '@/components/account/SecuritySection';
 import StripePayoutSection from '@/components/account/StripePayoutSection';
@@ -49,7 +49,10 @@ export default function AccountSettingsPage() {
 
   return (
     <div className="pg-secondary-page pg-account-page pg-account-settings-page">
-      <PageIntro eyebrow="YOUR ACCOUNT" title="Account Settings" description="Choose a section to manage your account." action={<button type="button" className="pg-back-link" onClick={() => navigate(-1)}><ArrowLeft size={16} aria-hidden="true" /> Back</button>} />
+      <header className="pg-page-intro pg-account-heading-row">
+        <button type="button" className="pg-back-link" onClick={() => navigate(-1)}><ArrowLeft size={16} aria-hidden="true" /> Back</button>
+        <h1 className="pg-page-title font-display">Account Settings</h1>
+      </header>
 
       <div className="pg-account-disclosures">
         <Disclosure title="Profile & verification" description="Your identity, profile and verification status">

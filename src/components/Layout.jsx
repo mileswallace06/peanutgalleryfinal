@@ -67,6 +67,7 @@ export default function Layout() {
   };
 
   const currentTab = getCurrentTab();
+  const browseTitle = { '/events': 'Events', '/upgrades': 'Upgrades' }[location.pathname];
   const accountRoutes = ['/my-tickets', '/my-sales', '/me', '/account-settings', '/edit-persona', '/notifications'];
   const usesTicketDesign = ['/events', '/upgrades', '/sell', '/fan-zone', '/create-listing', ...accountRoutes].includes(location.pathname)
     || ['/events/', '/upgrades/', '/purchase/'].some(prefix => location.pathname.startsWith(prefix));
@@ -162,23 +163,27 @@ export default function Layout() {
   }
 
   return (
-    <div className={`pg-ticket-app bg-background font-sans ${usesTicketDesign ? 'pg-ticket-app--designed' : 'dark:rave-bg'}`} style={{ height: '100dvh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+    <div className={`pg-ticket-app bg-background font-sans ${usesTicketDesign ? 'pg-ticket-app--designed' : 'dark:rave-bg'} ${browseTitle ? 'pg-ticket-app--browse' : ''}`} style={{ height: '100dvh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       {user?.email && <DonationWinNotification userEmail={user.email} />}
       {user && <FeedbackWidget user={user} />}
       {usesTicketDesign && (
-        <header className="pg-brandbar">
+        <header className={`pg-brandbar ${browseTitle ? 'pg-brandbar--browse' : ''} ${browseTitle && !user ? 'pg-brandbar--guest' : ''}`}>
           <div className="pg-brandbar-inner">
             <Link to="/events" className="pg-brand" aria-label="Peanut Gallery — Events">
               <img src="https://media.base44.com/images/public/69ef9900cf3862dc0ea39734/9022a5431_ChatGPTImageMay1202601_29_27PM.png" alt="" width="34" height="34" />
-              <span>Peanut Gallery</span>
+              <span className={browseTitle ? 'sr-only' : undefined}>Peanut Gallery</span>
             </Link>
+            {browseTitle && <>
+              <h1 className="pg-browse-title">{browseTitle}</h1>
+              <div id="pg-browse-header-tools" className="pg-browse-header-tools" />
+            </>}
           </div>
         </header>
       )}
       {/* Sign in — only when auth has definitively resolved as unauthenticated.
           During loading (authChecked=false) render nothing so "Sign in" never flashes. */}
       {authChecked && !isAuthenticated && !user && (
-        <div className="fixed right-4 z-[60]" style={{ top: 'calc(1rem + var(--app-safe-top))' }}>
+        <div className="fixed right-4 z-[60]" style={{ top: `calc(${browseTitle ? '2px' : '1rem'} + var(--app-safe-top))` }}>
           <button
             onClick={() => base44.auth.redirectToLogin()}
             aria-label="Sign in to Peanut Gallery"
@@ -193,7 +198,7 @@ export default function Layout() {
       {user && (
         <Link to="/notifications" aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
           className="fixed right-4 z-[60] flex items-center justify-center w-11 h-11 rounded-full transition-all active:scale-95"
-          style={{ top: 'calc(0.75rem + var(--app-safe-top))', background: unreadCount > 0 ? 'rgba(var(--neon-pink-rgb), 0.1)' : 'hsl(var(--card))', border: `1px solid ${unreadCount > 0 ? 'rgba(var(--neon-pink-rgb), 0.25)' : 'hsl(var(--border))'}` }}>
+          style={{ top: `calc(${browseTitle ? '2px' : usesTicketDesign ? '4px' : '0.75rem'} + var(--app-safe-top))`, background: unreadCount > 0 ? 'rgba(var(--neon-pink-rgb), 0.1)' : 'hsl(var(--card))', border: `1px solid ${unreadCount > 0 ? 'rgba(var(--neon-pink-rgb), 0.25)' : 'hsl(var(--border))'}` }}>
           <Bell className="w-5 h-5" style={{ color: unreadCount > 0 ? 'var(--neon-pink)' : 'hsl(var(--muted-foreground))' }} />
           {unreadCount > 0 && (
             <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black"

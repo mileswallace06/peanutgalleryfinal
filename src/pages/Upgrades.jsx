@@ -13,6 +13,7 @@ import { useAuth } from '@/lib/AuthContext';
 import WhatIsPGOverlay, { shouldShowOverlay } from '@/components/WhatIsPGOverlay';
 import FounderStoryCard from '@/components/founder/FounderStoryCard';
 import EventThumbnail from '@/components/events/EventThumbnail';
+import BrowseHeaderTools from '@/components/BrowseHeaderTools';
 import '@/components/eventmode/ticket-upgrades.css';
 
 // ── sessionStorage helpers ────────────────────────────────────────────────
@@ -148,12 +149,11 @@ export default function Upgrades() {
       {showOverlay && <WhatIsPGOverlay onDismiss={() => setShowOverlay(false)} user={user} />}
       {pulling && <div className="pg-upgrades-refresh" role="status"><RefreshCw size={16} className="animate-spin" /> Refreshing…</div>}
 
-      <header className="pg-upgrades-heading">
-        <h1 className="pg-page-title">Upgrades</h1>
+      <BrowseHeaderTools path="/upgrades">
         <button className="pg-upgrades-location" aria-expanded={editingLocation} aria-controls="upgrade-location-filter" onClick={() => { setLocationInput(locationLabel === 'Near me' ? '' : locationLabel || ''); setEditingLocation(!editingLocation); }}>
           <MapPin size={18} aria-hidden="true" /><span>{locationLabel || 'Choose your location'}</span><ChevronRight size={15} aria-hidden="true" />
         </button>
-      </header>
+      </BrowseHeaderTools>
 
       <div className="pg-upgrades-location-panel">
         {editingLocation ? (
@@ -195,8 +195,8 @@ export default function Upgrades() {
         </div>}
         {loading ? <div className="pg-upgrades-stack" role="status" aria-label="Loading nearby upgrades">{[1, 2, 3].map(i => <div key={i} className="pg-upgrades-skeleton animate-pulse" />)}</div>
           : (locationStatus === 'granted' || locationLabel) && <>
-            <section aria-label="Live now">
-              {liveEvents.length === 0 ? <p className="pg-upgrades-live-empty"><span className="pg-upgrades-status-dot" aria-hidden="true" />No live events · upgrades open at showtime</p>
+            <section aria-label="Live now" className={liveEvents.length === 0 ? 'sr-only' : undefined}>
+              {liveEvents.length === 0 ? <p>No live events · upgrades open at showtime</p>
                 : <><SectionHeader variant="live" label="Live now" count={liveEvents.length} /><div className="pg-upgrades-stack">{liveEvents.map(event => <EventCard key={event.id} event={event} mode="live" />)}</div></>}
             </section>
             {soonEvents.length > 0 && <section>
@@ -289,12 +289,14 @@ function EventCard({ event, mode }) {
       <div className="pg-upgrade-art">
         <EventThumbnail event={event} className="pg-upgrade-image" />
         <div className="pg-upgrade-eyebrow"><span>{event.category || 'Live events'}</span>{isLive && <b>LIVE</b>}{isSoon && <b className="pg-upgrade-soon">SOON</b>}</div>
-        {!isLive && !isTM && <span className="pg-upgrade-availability">Upgrades open at showtime</span>}
+        <div className="pg-upgrade-art-caption">
+          <p>{event.venue}{event.city ? ` · ${event.city}` : ''}</p>
+          {!isLive && !isTM && <span className="pg-upgrade-availability">Upgrades open at showtime</span>}
+        </div>
       </div>
       <div className="pg-upgrade-ticket-bottom">
         <div className="pg-upgrade-ticket-copy">
           <h3>{event.title}</h3>
-          <p>{event.venue}{event.city ? ` · ${event.city}` : ''}</p>
         </div>
         <span className="pg-ticket-end pg-upgrade-ticket-action">
           <span className="pg-upgrade-date">{event.date ? format(new Date(event.date), 'MMM d · h:mm a') : 'Date to be announced'}</span>

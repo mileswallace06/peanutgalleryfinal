@@ -20,6 +20,15 @@
 .pg-feed-hint a { color: var(--pg-violet); text-decoration: underline; }
 .pg-feed-hint svg { flex-shrink: 0; }
 .pg-feed-tools { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; column-gap: 10px; row-gap: 5px; padding: 9px 0; border-bottom: 1px solid var(--pg-line); }
+.pg-feed-filter-menu { min-width: 0; border-bottom: 1px solid var(--pg-line); }
+.pg-feed-filter-menu > summary { display: flex; align-items: center; gap: 8px; min-height: 44px; list-style: none; cursor: pointer; color: var(--pg-muted); font-size: 11px; }
+.pg-feed-filter-menu > summary::-webkit-details-marker { display: none; }
+.pg-feed-filter-menu > summary strong { color: var(--pg-text); font-size: 12px; flex-shrink: 0; }
+.pg-feed-filter-menu > summary span { min-width: 0; flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.pg-feed-filter-menu > summary svg { flex-shrink: 0; }
+.pg-feed-filter-menu[open] > summary svg { transform: rotate(180deg); }
+.pg-feed-filter-menu > summary:focus-visible { outline: 3px solid var(--pg-cyan); outline-offset: -3px; }
+.pg-feed-filter-menu .pg-feed-tools { padding-top: 0; border-bottom: 0; }
 .pg-date-filters { display: flex; gap: 4px; }
 .pg-date-filters button { min-height: 44px; min-width: 44px; padding: 8px 10px; border-radius: 7px; color: var(--pg-muted); font-size: 12px; font-weight: 700; flex-shrink: 0; }
 .pg-date-filters button.is-active { background: var(--pg-surface-raised); color: var(--pg-text); }

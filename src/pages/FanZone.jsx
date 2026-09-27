@@ -332,6 +332,7 @@ export default function FanZone() {
   });
 
   const currentSortLabel = SORT_OPTIONS.find(o => o.id === dateSort)?.label || 'Sort';
+  const currentDateLabel = { all: 'All dates', upcoming: 'Upcoming', past: 'Past', recent: 'Recent' }[dateFilter] || 'All dates';
 
   return (
     <>
@@ -380,27 +381,34 @@ export default function FanZone() {
         )}
       </div>
 
-      <div className="pg-feed-tools">
-        <div className="pg-date-filters" aria-label="Event date filters">
-          {[
-            { id: 'all', label: 'All' },
-            { id: 'upcoming', label: 'Upcoming' },
-            { id: 'past', label: 'Past' },
-          ].map(opt => (
-            <button key={opt.id} onClick={() => setDateFilter(opt.id)}
-              aria-pressed={dateFilter === opt.id}
-              className={dateFilter === opt.id ? 'is-active' : ''}>
-              {opt.label}
-            </button>
-          ))}
+      <details className="pg-feed-filter-menu">
+        <summary>
+          <strong>Filters</strong>
+          <span>{currentDateLabel} · {currentSortLabel}</span>
+          <ChevronDown size={15} aria-hidden="true" />
+        </summary>
+        <div className="pg-feed-tools">
+          <div className="pg-date-filters" aria-label="Event date filters">
+            {[
+              { id: 'all', label: 'All' },
+              { id: 'upcoming', label: 'Upcoming' },
+              { id: 'past', label: 'Past' },
+            ].map(opt => (
+              <button key={opt.id} onClick={() => setDateFilter(opt.id)}
+                aria-pressed={dateFilter === opt.id}
+                className={dateFilter === opt.id ? 'is-active' : ''}>
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <button onClick={() => setSortSheetOpen(true)} className="pg-sort-control"
+            aria-label={`Sort posts. Current: ${currentSortLabel}`}>
+            <ArrowUpDown size={16} aria-hidden="true" />
+            <span>{currentSortLabel}</span>
+            <ChevronDown size={14} aria-hidden="true" />
+          </button>
         </div>
-        <button onClick={() => setSortSheetOpen(true)} className="pg-sort-control"
-          aria-label={`Sort posts. Current: ${currentSortLabel}`}>
-          <ArrowUpDown size={16} aria-hidden="true" />
-          <span>{currentSortLabel}</span>
-          <ChevronDown size={14} aria-hidden="true" />
-        </button>
-      </div>
+      </details>
 
       {/* Feed */}
       <div className="pg-feed">

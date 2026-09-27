@@ -4,8 +4,49 @@ Owner direction: keep the accepted neon ticket-stub design, make individual even
 
 Base: published main `e3c77b08ea585ecc9743163473807c5028b2b6f8` (PR12).
 Remote destination: `codex/pg-mobile-clarity-20260926`.
-Density refinement branch: `codex/pg-mobile-density-20260926`.
-Status: first version `22a28830` was pushed and reviewed in Base44's real mobile preview. Owner requested denser cards before release. The refinement below is prepared locally; it has not yet reached the remote preview or TestFlight.
+Current refinement branch: `codex/pg-three-events-20260926`.
+Status: `318d17f0` was pushed and independently confirmed to fit two full cards on both feeds. The owner then requested at least three events and marked remaining blank footer space. The three-card refinement below is prepared locally; it has not yet reached the remote preview or TestFlight.
+
+## Three-card refinement — September 26, 19:07 onward
+
+Inspected the supplied marked screenshot. The blank area came from a forced64px
+footer and vertical date/arrow stack. This revision reduces the title strip to
+44px including a two-line title and keeps44px action targets. Venue/time move
+onto a readable dark photo caption; listing price/count and status remain
+available. The photo height is now100–120px (about119px at373px wide), about9%
+shorter than the previously measured130.55px, still roughly twice the initial
+design's image height. The date and arrow sit alongside each other.
+
+Events/Upgrades now share one48px shell header with logo, page title, location
+and notifications. Events search/sort/past controls open on demand from the
+header. A small route-gated portal ensures retained inactive tabs cannot leave
+their controls in the active header. Tab mounting, scroll memory and data
+queries remain unchanged. The ordinary Events list starts after its compact
+scope/count line; Upgrades starts at the first populated timing group.
+
+Other top-screen cleanup: smaller52px brandbar on designed secondary pages;
+remove generic eyebrow/subtitle from Me, Sell and Settings; inline Settings
+Back/title; Fan Zone date and sort choices move inside one native Filters
+disclosure while feed tabs stay visible. No functions or options deleted.
+
+CSS sizing at373×665, with controls closed, no error/location/intro overlay and
+normal text size: Events approximately68px to first card +3×165.36px +12px gaps
+=576.08px; bottom navigation previously began592px. Upgrades is similar for
+three cards in one group. Multiple group headings, alerts, native safe areas,
+accessibility text sizing and smaller screens can change the fit. These are
+calculations, not new screenshots or physical-phone evidence. Actual measurement
+and header/filter/navigation checks remain required after the owner push.
+
+Validation: Vite build passed; lint on changed JSX passed with zero errors and
+four existing Sell/Upgrades warnings; all six changed CSS files parsed; diff
+whitespace check passed. Peer review caught and corrected the header component's
+named/default import mismatch before build. No browser or DOM-test dependency
+is available locally; no substitute browser was used. Existing broad tests were
+not repeated. Source review confirms retained navigation, location/search,
+filtering and financial callbacks. No backend/auth/secret/payment changes.
+
+The following sections preserve earlier iterations and their evidence. They do
+not describe the current three-card geometry.
 
 ## Density refinement — September 26, 18:52 onward
 
