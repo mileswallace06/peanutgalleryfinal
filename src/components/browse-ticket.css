@@ -3,7 +3,7 @@
   --ticket-notch: 7px;
   --browse-stub-width: 44px;
   --browse-tear-x: calc(100% - var(--browse-stub-width) - .5px);
-  --browse-accent: var(--pg-page-accent-soft);
+  --browse-accent: var(--pg-ticket-accent);
   --browse-paper: var(--pg-stock);
   --browse-ink: var(--pg-stock-ink);
   --browse-muted: var(--pg-stock-muted);
