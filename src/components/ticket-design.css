@@ -30,12 +30,16 @@
 .pg-brand { display: inline-flex; align-items: center; min-height: 44px; gap: 10px; color: var(--pg-text); text-decoration: none; }
 .pg-brand img { width: 34px; height: 34px; flex-shrink: 0; object-fit: contain; }
 .pg-brand span { font-family: var(--font-display); font-size: 16px; line-height: 1.2; }
-.pg-brandbar--browse .pg-brandbar-inner { min-height: 48px; padding: 2px 60px 2px 6px; gap: 5px; }
+.pg-brandbar--browse { --pg-page-accent: var(--pg-cyan); }
+.pg-brandbar--browse[data-browse-page="upgrades"] { --pg-page-accent: var(--pg-mint); }
+.pg-brandbar--browse .pg-brandbar-inner { min-height: 60px; padding: 8px 60px 8px 6px; gap: 5px; }
 .pg-brandbar--browse .pg-brand { width: 44px; flex: none; justify-content: center; }
-.pg-brandbar--browse .pg-brand img { width: 27px; height: 27px; }
-.pg-browse-title { flex: none; margin: 0; font-family: var(--font-display); font-size: clamp(23px, 6.5vw, 27px); line-height: 1.1; letter-spacing: -.035em; }
-.pg-brandbar--guest .pg-brandbar-inner { padding-left: 2px; padding-right: 104px; gap: 2px; }
-.pg-brandbar--guest .pg-browse-title { font-size: 20px; }
+.pg-brandbar--browse .pg-brand img { width: 32px; height: 32px; }
+.pg-browse-title { position: relative; flex: none; margin: 0; padding: 0 0 6px; font-family: var(--font-display); font-size: clamp(24px, 8vw, 30px); line-height: 1.1; letter-spacing: -.035em; white-space: nowrap; }
+.pg-browse-title::after { content: ''; position: absolute; left: 0; bottom: 0; width: 36px; height: 3px; background: var(--pg-page-accent); clip-path: polygon(0 0, 100% 0, 91% 100%, 0 100%); }
+.pg-brandbar--browse[data-browse-page="upgrades"] .pg-browse-title::after { width: 44px; background: linear-gradient(105deg, var(--pg-page-accent) 0 32%, transparent 32% 42%, var(--pg-page-accent) 42% 100%); }
+.pg-brandbar--guest .pg-brandbar-inner { padding-left: 2px; padding-right: 88px; gap: 2px; }
+.pg-brandbar--guest .pg-browse-title { font-size: clamp(20px, 6vw, 24px); }
 .pg-browse-header-tools { display: flex; align-items: center; justify-content: flex-end; gap: 4px; flex: 1; min-width: 0; }
 .pg-browse-header-tools :is(button, a) { min-height: 44px; min-width: 44px; }
 .pg-browse-header-tools .pg-events-location, .pg-browse-header-tools .pg-upgrades-location { display: flex; align-items: center; justify-content: flex-end; flex: 1; min-width: 44px; max-width: 100%; gap: 3px; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--pg-text); font-size: 11px; font-weight: 650; }

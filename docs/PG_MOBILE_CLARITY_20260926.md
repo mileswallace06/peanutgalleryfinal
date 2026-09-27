@@ -4,8 +4,32 @@ Owner direction: keep the accepted neon ticket-stub design, make individual even
 
 Base: published main `e3c77b08ea585ecc9743163473807c5028b2b6f8` (PR12).
 Remote destination: `codex/pg-mobile-clarity-20260926`.
-Current refinement branch: `codex/pg-upgrade-clarity-20260926`.
+Current refinement branch: `codex/pg-header-balance-20260926`.
 Status: Three-card head `e2804f28b3dcd1ddb9265b3b4510656155b9f304` was independently verified identical to the remote clarity branch and reviewed in Final's actual Base44 branch preview. Three complete card bounds fit above navigation on both feeds at 373×665. A header hit-target correction is now prepared locally; neither this refinement nor that correction is published.
+
+## Browse-header balance — September 26, 20:11 onward
+
+Owner found48px browse chrome too compressed and wanted stronger page identity.
+Revised Events and Upgrades to one60px row: title up to30px instead approximately
+24px at373wide, PG logo32px instead27px, and a small cyan ticket-cut underline
+for Events / split mint underline for Upgrades. Labels remain white and use PG's
+existing display font. No extra subtitle or permanent control row.
+
+Existing bell/sign-in moves down6px to center on the taller row. All browse
+controls retain44px targets. The browse guest sign-in uses less horizontal
+padding and keeps44px height, reserving88px instead104px. Guest title scales
+20–24px so page names remain unwrapped at narrow widths while city text can
+truncate. Sign-in/auth logic unchanged. Other page headers unchanged.
+
+With previous373×665 measurements, the12px increase predicts Events third-card
+bottom588.08px and Upgrades585.08px against navigation592px. These are estimates,
+not a new browser measurement. Very little vertical spare room remains; native
+safe areas, text scaling, alerts and mixed event groups can alter the result.
+Actual guest/narrow layout and physical-phone fit remain required coverage.
+
+CSS parse, scoped Layout lint and whitespace checks passed. Production build
+result recorded in the session log. Prior Upgrades charcoal/neon palette and
+header pointer fix are included; nothing new is published.
 
 ## Upgrades palette and scanning refinement — September 26, 19:44 onward
 
