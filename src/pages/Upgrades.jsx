@@ -1,10 +1,12 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { MapPin, ChevronRight, LocateFixed, X, RefreshCw, Zap, HelpCircle, ArrowRight } from 'lucide-react';
+import { MapPin, ChevronRight, ChevronDown, LocateFixed, X, RefreshCw, Zap, HelpCircle, ArrowRight, Ticket, Radio, CalendarDays } from 'lucide-react';
 import LocationAutocomplete from '@/components/LocationAutocomplete';
-import { getEventLiveStatus, SOON_WINDOW_MINUTES } from '@/lib/eventTiming';
+import { getEventLiveStatus } from '@/lib/eventTiming';
+import { groupUpgradeEvents, loadOwnedUpgradeEvents } from '@/lib/upgradeDiscovery';
 import { logNavEvent } from '@/lib/navLogger';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { fetchTMEvents, bustTMCache } from '@/lib/tmCache';
@@ -26,13 +28,28 @@ function writeSS(data) {
 }
 
 export default function Upgrades() {
-  const { user } = useAuth();
+  const { user, isAuthenticated, isLoadingAuth } = useAuth();
   const _ss = readSS();
   const [allEvents, setAllEvents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showOverlay, setShowOverlay] = useState(() => shouldShowOverlay(user));
   const [locationInput, setLocationInput] = useState(_ss?.locationInput || '');
   const [editingLocation, setEditingLocation] = useState(false);
+  const [browseView, setBrowseView] = useState('upcoming');
+  const [nowMs, setNowMs] = useState(Date.now);
+
+  const canReadTickets = Boolean(user?.id && isAuthenticated && !isLoadingAuth);
+  const ticketQuery = useQuery({
+    queryKey: ['upgrade-owned-events', user?.id],
+    queryFn: () => loadOwnedUpgradeEvents(base44),
+    enabled: canReadTickets,
+    staleTime: 60000,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+  const ownedGroups = groupUpgradeEvents(canReadTickets ? ticketQuery.data?.events || [] : [], nowMs);
+  const ownedEvents = [...ownedGroups.live, ...ownedGroups.upcoming];
+  const ticketPanelShown = canReadTickets && (ticketQuery.isPending || ticketQuery.isError || ownedEvents.length > 0 || ticketQuery.data?.unavailableCount > 0);
 
   const [tmError, setTmError] = useState(false);
 
@@ -44,6 +61,17 @@ export default function Upgrades() {
 
   useEffect(() => {
     return () => abortRef.current?.abort();
+  }, []);
+
+  // Keep Live now accurate while the page remains open without refetching inventory.
+  useEffect(() => {
+    const updateClock = () => { if (!document.hidden) setNowMs(Date.now()); };
+    const timer = setInterval(updateClock, 30000);
+    document.addEventListener('visibilitychange', updateClock);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', updateClock);
+    };
   }, []);
 
   // Restore last manual city on hard refresh.
@@ -118,44 +146,18 @@ export default function Upgrades() {
     requestLocation();
   };
 
-  const nowMs = Date.now();
-  const liveEvents = allEvents.filter((e) => {
-    const s = getEventLiveStatus(e, nowMs).status;
-    return s === 'live';
-  });
-  const soonEvents = allEvents.filter((e) => {
-    const s = getEventLiveStatus(e, nowMs).status;
-    return s === 'soon';
-  });
-  const upcomingEvents = allEvents
-    .filter((e) => {
-      const s = getEventLiveStatus(e, nowMs).status;
-      return s === 'upcoming';
-    })
-    .sort((a, b) => {
-      const aMs = new Date(a.event_start_utc || a.date || 0).getTime();
-      const bMs = new Date(b.event_start_utc || b.date || 0).getTime();
-      return aMs - bMs;
-    });
-
-  // Presentation only: reserve the headings encountered by the first three cards.
-  let firstThreeGroupCount = 0;
-  let remainingVisibleCards = 3;
-  for (const group of [liveEvents, soonEvents, upcomingEvents]) {
-    if (remainingVisibleCards === 0) break;
-    if (group.length === 0) continue;
-    firstThreeGroupCount += 1;
-    remainingVisibleCards -= Math.min(remainingVisibleCards, group.length);
-  }
+  const { live: liveEvents, upcoming: upcomingEvents } = groupUpgradeEvents(allEvents, nowMs);
+  const visibleEvents = browseView === 'live' ? liveEvents : upcomingEvents;
 
   const { containerRef, pulling } = usePullToRefresh(() => {
     const ll = latlongRef.current || null;
     const city = !ll && locationLabelRef.current && locationLabelRef.current !== 'Near me' ? locationLabelRef.current : null;
     fetchEvents(ll, city, true);
+    if (canReadTickets) ticketQuery.refetch();
   });
 
   return (
-    <div ref={containerRef} className="pg-design-page pg-upgrades-page" style={{ '--pg-upgrade-visible-groups': firstThreeGroupCount || 1 }}>
+    <div ref={containerRef} className="pg-design-page pg-upgrades-page" style={{ '--pg-upgrade-wallet-space': ticketPanelShown ? '48px' : '0px' }}>
       {showOverlay && <WhatIsPGOverlay onDismiss={() => setShowOverlay(false)} user={user} />}
       {pulling && <div className="pg-upgrades-refresh" role="status"><RefreshCw size={16} className="animate-spin" /> Refreshing…</div>}
 
@@ -167,6 +169,11 @@ export default function Upgrades() {
           <HelpCircle size={17} aria-hidden="true" /><span>How it works</span>
         </button>
       </BrowseHeaderTools>
+
+      {ticketPanelShown && <OwnedTicketsPanel
+        events={ownedEvents} nowMs={nowMs} loading={ticketQuery.isPending}
+        failed={ticketQuery.isError} unavailableCount={ticketQuery.data?.unavailableCount || 0}
+        retrying={ticketQuery.isFetching} onRetry={() => ticketQuery.refetch()} />}
 
       <div className="pg-upgrades-location-panel">
         {editingLocation ? (
@@ -208,18 +215,22 @@ export default function Upgrades() {
         </div>}
         {loading ? <div className="pg-upgrades-stack" role="status" aria-label="Loading nearby upgrades">{[1, 2, 3].map(i => <div key={i} className="pg-upgrades-skeleton animate-pulse" />)}</div>
           : (locationStatus === 'granted' || locationLabel) && <>
-            <section aria-label="Live now" className={liveEvents.length === 0 ? 'sr-only' : undefined}>
-              {liveEvents.length === 0 ? <p>No live events · upgrades open at showtime</p>
-                : <><SectionHeader variant="live" label="Live now" count={liveEvents.length} /><div className="pg-upgrades-stack">{liveEvents.map(event => <EventCard key={event.id} event={event} mode="live" />)}</div></>}
-            </section>
-            {soonEvents.length > 0 && <section>
-              <SectionHeader variant="soon" label="Starting soon" count={soonEvents.length} meta={`within ${SOON_WINDOW_MINUTES} min`} />
-              <div className="pg-upgrades-stack">{soonEvents.map(event => <EventCard key={event.id} event={event} mode="soon" />)}</div>
-            </section>}
-            <section>
-              <SectionHeader variant="upcoming" label="Upcoming near you" count={upcomingEvents.length > 0 ? upcomingEvents.length : null} />
-              {upcomingEvents.length === 0 ? <div className="pg-state">No upcoming events in this area — check back soon.</div>
-                : <div className="pg-upgrades-stack">{upcomingEvents.map(event => <EventCard key={event.id} event={event} mode="upcoming" />)}</div>}
+            <div className="pg-upgrades-view-switch" role="group" aria-label="Browse upgrades by event time">
+              <button type="button" aria-pressed={browseView === 'upcoming'} aria-controls="upgrade-discovery-results" onClick={() => setBrowseView('upcoming')}>
+                <CalendarDays size={16} aria-hidden="true" /><span>Upcoming</span><span className="pg-upgrades-view-count">{upcomingEvents.length}</span>
+              </button>
+              <button type="button" aria-pressed={browseView === 'live'} aria-controls="upgrade-discovery-results" onClick={() => setBrowseView('live')}>
+                <Radio size={16} aria-hidden="true" /><span>Live now</span><span className="pg-upgrades-view-count">{liveEvents.length}</span>
+              </button>
+            </div>
+            <section id="upgrade-discovery-results" aria-label={browseView === 'live' ? 'Live now' : 'Upcoming events'}>
+              <p className="sr-only" role="status">{visibleEvents.length} {browseView === 'live' ? 'live' : 'upcoming'} events</p>
+              {visibleEvents.length === 0 ? <div className="pg-state pg-upgrades-view-empty">
+                <h2>{browseView === 'live' ? 'Nothing live nearby right now.' : 'No upcoming events nearby.'}</h2>
+                <p>{browseView === 'live' ? 'Find your next event in Upcoming. Available upgrades appear in its event hub.' : 'Try another city, or check back for more events.'}</p>
+                {browseView === 'live' && <button type="button" className="pg-action" onClick={() => setBrowseView('upcoming')}>See upcoming events <ArrowRight size={16} aria-hidden="true" /></button>}
+              </div>
+                : <div className="pg-upgrades-stack">{visibleEvents.map(event => <EventCard key={event.id} event={event} mode={getEventLiveStatus(event, nowMs).status} />)}</div>}
             </section>
           </>}
         <div className="pg-upgrades-founder"><FounderStoryCard /></div>
@@ -228,20 +239,29 @@ export default function Upgrades() {
   );
 }
 
-function SectionHeader({ label, count, meta, variant }) {
-  return <div className={`pg-upgrades-section-heading pg-upgrades-section-${variant}`}>
-    <span className="pg-upgrades-status-dot" aria-hidden="true" />
-    <h2 className="pg-section-title">{label}</h2>
-    {count != null && <span className="pg-upgrades-count">{count}</span>}
-    {meta && <span className="pg-upgrades-meta">{meta}</span>}
+function OwnedTicketsPanel({ events, nowMs, loading, failed, unavailableCount, retrying, onRetry }) {
+  if (loading) return <div className="pg-upgrades-wallet-status" role="status"><Ticket size={17} aria-hidden="true" /> Checking your tickets…</div>;
+  if (failed || (events.length === 0 && unavailableCount > 0)) return <div className="pg-upgrades-wallet-status" role="status">
+    <Link to="/my-tickets">Your tickets couldn’t load</Link>
+    <button type="button" onClick={onRetry} disabled={retrying}>{retrying ? 'Retrying…' : 'Retry'}</button>
   </div>;
+  if (events.length === 0) return null;
+  return <details className="pg-upgrades-owned">
+    <summary><Ticket size={17} aria-hidden="true" /><strong>Your tickets <span>{events.length}</span></strong><span className="pg-upgrades-owned-hint">Find upgrades</span><ChevronDown size={16} aria-hidden="true" /></summary>
+    <div className="pg-upgrades-owned-body">
+      <p>Choose a ticket you bought on PG. Upgrades are separate purchases, subject to availability.</p>
+      <div className="pg-upgrades-stack">{events.map(event => <EventCard key={event.id} event={event} mode={getEventLiveStatus(event, nowMs).status} owned />)}</div>
+      {unavailableCount > 0 && <p>Some tickets couldn’t load. <button type="button" onClick={onRetry} disabled={retrying}>{retrying ? 'Retrying…' : 'Try again'}</button></p>}
+      <Link className="pg-upgrades-wallet-link" to="/my-tickets">Manage all your tickets <ArrowRight size={16} aria-hidden="true" /></Link>
+    </div>
+  </details>;
 }
 
-function EventCard({ event, mode }) {
+function EventCard({ event, mode, owned = false }) {
   const isLive = mode === 'live';
   const isSoon = mode === 'soon';
   const navigate = useNavigate();
-  const isTM = event.source === 'ticketmaster' || String(event.id || '').startsWith('tm_');
+  const isTM = !owned && (event.source === 'ticketmaster' || String(event.id || '').startsWith('tm_'));
   // Admin check is done server-side; this component doesn't have user context, so just hide debug overlay for non-admins
   // Pass isAdmin from parent if needed — for now disable client-side bypass
   const adminUnlocked = false;
@@ -256,7 +276,7 @@ function EventCard({ event, mode }) {
   const handleClick = async (e) => {
     if (pgId) {
       // Real PG event — for live/soon go to upgrade hub; for upcoming go to event detail where tickets are listed
-      const dest = (isLive || isSoon) ? `/upgrades/${pgId}` : `/events/${pgId}`;
+      const dest = (owned || isLive || isSoon) ? `/upgrades/${pgId}` : `/events/${pgId}`;
       logNavEvent({ result: 'success', event, sourcePage: 'Upgrades', generatedHref: dest, lookupMethod: 'direct_id' });
       navigate(dest);
       return;
@@ -293,8 +313,9 @@ function EventCard({ event, mode }) {
     }
   };
 
-  const linkLabel = syncing ? 'Loading…' : isLive ? 'Open Live Hub' : isSoon ? 'Get Ready' : 'View Tickets';
-  const date = event.date ? new Date(event.date) : null;
+  const linkLabel = syncing ? 'Loading…' : owned ? 'Find upgrades for your ticket' : isLive ? 'Open Live Hub' : isSoon ? 'Get Ready' : 'View Tickets';
+  const dateValue = event.event_start_utc || event.date;
+  const date = dateValue ? new Date(dateValue) : null;
   const hasDate = date && !Number.isNaN(date.getTime());
 
   return (
@@ -306,7 +327,7 @@ function EventCard({ event, mode }) {
         <h3 className="pg-browse-ticket-title" title={event.title}>{event.title}</h3>
         <p className="pg-browse-ticket-venue" title={[event.venue, event.city].filter(Boolean).join(' · ')}>{event.venue}{event.city ? ` · ${event.city}` : ''}</p>
         <p className="pg-browse-ticket-detail">{hasDate ? format(date, 'MMM d · h:mm a') : 'Date to be announced'}</p>
-        {!isLive && !isTM && <p className="pg-browse-ticket-detail">Upgrades open at showtime</p>}
+        {owned ? <p className="pg-browse-ticket-detail"><strong>Find upgrades</strong></p> : !isLive && !isTM && <p className="pg-browse-ticket-detail">Upgrades open at showtime</p>}
       </div>
       <span className="pg-browse-ticket-stub">
         {(isLive || isSoon) && <span className="pg-browse-ticket-status">{isLive ? 'Live' : 'Soon'}</span>}

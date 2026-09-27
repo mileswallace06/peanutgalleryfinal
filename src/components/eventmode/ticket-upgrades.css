@@ -1,6 +1,6 @@
 /* Compact photographic tickets for upgrade discovery and the live seat hub. */
 .pg-design-page.pg-upgrades-page {
-  --pg-browse-row-height: clamp(96px, calc((100dvh - var(--app-safe-top, 0px) - env(safe-area-inset-bottom, 0px) - var(--pg-browse-header-height) - 93px - (var(--pg-upgrade-visible-groups, 1) * 23px)) / 3), 140px);
+  --pg-browse-row-height: clamp(96px, calc((100dvh - var(--app-safe-top, 0px) - env(safe-area-inset-bottom, 0px) - var(--pg-browse-header-height) - 145px - var(--pg-upgrade-wallet-space, 0px)) / 3), 140px);
   padding: 0 14px 30px;
 }
 .pg-upgrades-location { display: flex; align-items: center; justify-content: flex-end; flex: 1; gap: 5px; min-height: 44px; min-width: 0; max-width: 100%; font-size: 12px; font-weight: 600; color: var(--pg-text); padding: 0; margin: 0; text-align: left; }
@@ -25,6 +25,33 @@
 .pg-upgrades-refresh { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; color: var(--pg-mint); font-size: 13px; }
 .pg-upgrades-feed { display: flex; flex-direction: column; gap: 8px; }
 .pg-upgrades-stack { display: flex; flex-direction: column; gap: 8px; }
+.pg-upgrades-view-switch { display: grid; grid-template-columns: 1fr 1fr; min-height: 44px; border-bottom: 1px solid var(--pg-line); }
+.pg-upgrades-view-switch button { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; padding: 0 5px; color: var(--pg-muted); font-size: 13px; font-weight: 650; border-bottom: 3px solid transparent; }
+.pg-upgrades-view-switch button[aria-pressed="true"] { color: var(--pg-text); border-bottom-color: var(--pg-mint); }
+.pg-upgrades-view-switch button[aria-pressed="true"] > svg { color: var(--pg-mint); }
+.pg-upgrades-view-count { font-size: 11px; color: var(--pg-muted); font-variant-numeric: tabular-nums; }
+.pg-upgrades-owned { margin: 0 0 4px; border-bottom: 1px solid var(--pg-line); }
+.pg-upgrades-owned summary { display: flex; align-items: center; gap: 7px; min-height: 43px; list-style: none; cursor: pointer; color: var(--pg-text); font-size: 12px; }
+.pg-upgrades-owned summary::-webkit-details-marker { display: none; }
+.pg-upgrades-owned summary > svg { color: var(--pg-mint); flex: none; }
+.pg-upgrades-owned summary strong { min-width: 0; font-size: 13px; }
+.pg-upgrades-owned summary strong span { color: var(--pg-muted); font-size: 11px; font-weight: 400; margin-left: 4px; }
+.pg-upgrades-owned-hint { margin-left: auto; font-size: 11px; color: var(--pg-muted); }
+.pg-upgrades-owned[open] summary > svg:last-child { transform: rotate(180deg); }
+.pg-upgrades-owned summary:focus-visible { outline: 2px solid var(--pg-mint); outline-offset: -2px; }
+.pg-upgrades-owned-body { padding: 0 0 8px; }
+.pg-upgrades-owned-body > p { margin: 0 0 10px; color: var(--pg-muted); font-size: 12px; line-height: 17px; }
+.pg-upgrades-owned-body > p button { min-height: 44px; padding: 0 8px; color: var(--pg-mint); text-decoration: underline; }
+.pg-upgrades-wallet-link { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; font-size: 12px; color: var(--pg-text); }
+.pg-upgrades-wallet-link > svg { color: var(--pg-mint); }
+.pg-upgrades-wallet-status { display: flex; align-items: center; gap: 7px; min-height: 44px; margin: 0 0 4px; color: var(--pg-muted); font-size: 12px; }
+.pg-upgrades-wallet-status > svg { color: var(--pg-mint); }
+.pg-upgrades-wallet-status > button { margin-left: auto; min-height: 44px; min-width: 44px; color: var(--pg-mint); font-weight: 650; }
+.pg-upgrades-view-empty { gap: 8px; }
+.pg-upgrades-view-empty h2 { font-family: var(--font-editorial); font-size: 17px; font-weight: 750; }
+.pg-upgrades-view-empty .pg-action { margin-top: 4px; font-size: 12px; }
+:root:not(.dark) .pg-upgrades-page :is(.pg-upgrades-wallet-status > button, .pg-upgrades-owned-body > p button, .pg-upgrades-owned summary > svg, .pg-upgrades-wallet-status > svg, .pg-upgrades-wallet-link > svg, .pg-upgrades-view-switch button[aria-pressed="true"] > svg) { color: #00713b; }
+:root:not(.dark) .pg-upgrades-page .pg-upgrades-view-switch button[aria-pressed="true"] { border-bottom-color: #00713b; }
 .pg-upgrades-section-heading { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; min-width: 0; }
 .pg-upgrades-section-heading .pg-section-title { margin: 0; font-family: var(--font-display); font-size: 16px; letter-spacing: -.02em; line-height: 18px; }
 .pg-upgrades-status-dot { width: 13px; height: 13px; border-radius: 50%; background: var(--pg-mint); flex: none; }

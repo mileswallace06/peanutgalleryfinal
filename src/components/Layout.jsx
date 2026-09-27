@@ -51,6 +51,18 @@ const NAV = [
   { to: '/me', label: 'Me', icon: User, color: '#00FF87', key: 'me' }
 ];
 
+// Reuse the concert photography already featured in PG's onboarding.
+const BROWSE_HERO = {
+  Events: {
+    image: 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=1200&q=90',
+    description: 'Concerts, games & nights worth going out for.',
+  },
+  Upgrades: {
+    image: 'https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?w=1200&q=90',
+    description: 'Already going? Find a better seat for your night.',
+  },
+};
+
 export default function Layout() {
   const { user, authChecked, isAuthenticated } = useAuth();
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('pg_onboarded'));
@@ -171,6 +183,11 @@ export default function Layout() {
       {usesTicketDesign && (
         <header data-browse-page={browseTitle?.toLowerCase()} className={`pg-brandbar ${browseTitle ? 'pg-brandbar--browse' : ''} ${browseTitle && !user ? 'pg-brandbar--guest' : ''}`}>
           <div className="pg-brandbar-inner">
+            {browseTitle && (
+              <div className="pg-browse-photo" aria-hidden="true">
+                <img src={BROWSE_HERO[browseTitle].image} alt="" />
+              </div>
+            )}
             <Link to="/events" className="pg-brand" aria-label="Peanut Gallery — Events">
               <img src="https://media.base44.com/images/public/69ef9900cf3862dc0ea39734/9022a5431_ChatGPTImageMay1202601_29_27PM.png" alt="" width="34" height="34" />
               <span className={browseTitle ? 'sr-only' : undefined}>Peanut Gallery</span>
@@ -178,7 +195,7 @@ export default function Layout() {
             {browseTitle && <>
               <div className="pg-browse-heading">
                 <h1 className="pg-browse-title">{browseTitle}</h1>
-                <p className="pg-browse-description">{browseTitle === 'Upgrades' ? 'Same event. Better seats.' : 'Find your next great night.'}</p>
+                <p className="pg-browse-description">{BROWSE_HERO[browseTitle].description}</p>
               </div>
               <div id="pg-browse-header-tools" className="pg-browse-header-tools" />
             </>}

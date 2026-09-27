@@ -2,25 +2,25 @@
 .pg-design-page:is(.pg-events-page, .pg-upgrades-page, .pg-sell-page) {
   --pg-page-accent: #bf5fff;
   --pg-page-accent-soft: #d5a3ff;
-  --pg-ticket-accent: #d8bedf;
-  --pg-stock: #a39baa;
-  --pg-stock-light: #aca4b1;
-  --pg-stock-dark: #9991a1;
-  --pg-stock-ink: #291f31;
-  --pg-stock-muted: #291f31;
-  --pg-stock-line: #60566950;
-  --pg-stock-highlight: #dbd1df6b;
-  --pg-stock-edge: #706577;
-  --pg-stock-grain-light: #d4ccd880;
-  --pg-stock-grain-dark: #4b435180;
-  --pg-stock-fiber: #645b6b14;
-  --pg-stock-art-tint: #433e481a;
-  --pg-stock-art-border: #5148593d;
-  --pg-tear-line: #a094a9b3;
-  --pg-stub-ink: #e2d7e5;
-  --pg-stub-start: #38313e;
-  --pg-stub-end: #423949;
-  --pg-stub-grain: #9a8ba544;
+  --pg-ticket-accent: #dbc1ee;
+  --pg-stock: #aa98b9;
+  --pg-stock-light: #b29fc2;
+  --pg-stock-dark: #9f8eaf;
+  --pg-stock-ink: #291c35;
+  --pg-stock-muted: #291c35;
+  --pg-stock-line: #69547550;
+  --pg-stock-highlight: #e1d0ec6b;
+  --pg-stock-edge: #766183;
+  --pg-stock-grain-light: #decde680;
+  --pg-stock-grain-dark: #51415e80;
+  --pg-stock-fiber: #69547514;
+  --pg-stock-art-tint: #4c3e5a1a;
+  --pg-stock-art-border: #5b486b3d;
+  --pg-tear-line: #af95c0b3;
+  --pg-stub-ink: #e5d7ee;
+  --pg-stub-start: #41334e;
+  --pg-stub-end: #4c3b5d;
+  --pg-stub-grain: #ad8dc144;
 }
 .pg-design-page.pg-upgrades-page {
   --pg-page-accent: #00ff87;
