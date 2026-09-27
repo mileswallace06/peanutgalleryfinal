@@ -4,8 +4,33 @@ Owner direction: keep the accepted neon ticket-stub design, make individual even
 
 Base: published main `e3c77b08ea585ecc9743163473807c5028b2b6f8` (PR12).
 Remote destination: `codex/pg-mobile-clarity-20260926`.
-Current refinement branch: `codex/pg-header-hitfix-20260926`.
+Current refinement branch: `codex/pg-upgrade-clarity-20260926`.
 Status: Three-card head `e2804f28b3dcd1ddb9265b3b4510656155b9f304` was independently verified identical to the remote clarity branch and reviewed in Final's actual Base44 branch preview. Three complete card bounds fit above navigation on both feeds at 373×665. A header hit-target correction is now prepared locally; neither this refinement nor that correction is published.
+
+## Upgrades palette and scanning refinement — September 26, 19:44 onward
+
+Owner wants far less yellow/tan, retained visual life, and easier event recognition
+while scrolling. Actual Events screenshot supplied in conversation; Events styling
+remains as reviewed at e2804f28. This revision changes only the Upgrades feed CSS.
+
+- Charcoal title strip with explicit near-white event names in both app themes.
+- Slightly raised dark date/action stub with a visible perforation and narrow neon edge.
+- Consistent semantic accents: mint Live, light violet Starting soon, cyan Upcoming.
+  Status text remains, so color is not the sole identifier.
+- Large yellow and cyan action fills replaced by small accent text/edges. Photo badges
+  have a dark backing and a small matching underline. No yellow feed blocks remain.
+- Dates stay in the same right column, with tabular numerals. Titles remain16px/18px,
+  up to two lines; photos, footer sizes, spacing, data order and callbacks unchanged.
+- Explicit bright inset keyboard-focus outline on dark cards.
+
+One existing stylesheet changed; no queries, sorting, location, event routing or
+purchase code changes. CSS parser and diff whitespace checks passed. Text contrast
+ratios against final declared surfaces: title17.27:1, date15.76:1, mint12.27:1,
+violet7.28:1, cyan8.39:1. Existing three-card measurements still describe the unchanged
+geometry, but the revised colors have not yet been rendered in the remote preview.
+No broad tests or full build repeated for this bounded CSS-only revision. The combined
+bundle includes the previous header hit-test correction. Next: owner push, actual
+palette review and header pointer retest, then PR/release. Nothing newly published.
 
 ## Actual three-card review and header correction — September 26, 19:19–19:30 Arizona
 
