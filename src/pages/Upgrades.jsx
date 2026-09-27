@@ -138,6 +138,16 @@ export default function Upgrades() {
       return aMs - bMs;
     });
 
+  // Presentation only: reserve the headings encountered by the first three cards.
+  let firstThreeGroupCount = 0;
+  let remainingVisibleCards = 3;
+  for (const group of [liveEvents, soonEvents, upcomingEvents]) {
+    if (remainingVisibleCards === 0) break;
+    if (group.length === 0) continue;
+    firstThreeGroupCount += 1;
+    remainingVisibleCards -= Math.min(remainingVisibleCards, group.length);
+  }
+
   const { containerRef, pulling } = usePullToRefresh(() => {
     const ll = latlongRef.current || null;
     const city = !ll && locationLabelRef.current && locationLabelRef.current !== 'Near me' ? locationLabelRef.current : null;
@@ -145,13 +155,16 @@ export default function Upgrades() {
   });
 
   return (
-    <div ref={containerRef} className="pg-design-page pg-upgrades-page">
+    <div ref={containerRef} className="pg-design-page pg-upgrades-page" style={{ '--pg-upgrade-visible-groups': firstThreeGroupCount || 1 }}>
       {showOverlay && <WhatIsPGOverlay onDismiss={() => setShowOverlay(false)} user={user} />}
       {pulling && <div className="pg-upgrades-refresh" role="status"><RefreshCw size={16} className="animate-spin" /> Refreshing…</div>}
 
       <BrowseHeaderTools path="/upgrades">
         <button className="pg-upgrades-location" aria-expanded={editingLocation} aria-controls="upgrade-location-filter" onClick={() => { setLocationInput(locationLabel === 'Near me' ? '' : locationLabel || ''); setEditingLocation(!editingLocation); }}>
           <MapPin size={18} aria-hidden="true" /><span>{locationLabel || 'Choose your location'}</span><ChevronRight size={15} aria-hidden="true" />
+        </button>
+        <button type="button" className="pg-upgrades-help" aria-label="How seat upgrades work" onClick={() => setShowOverlay(true)}>
+          <HelpCircle size={17} aria-hidden="true" /><span>How it works</span>
         </button>
       </BrowseHeaderTools>
 
@@ -209,7 +222,6 @@ export default function Upgrades() {
                 : <div className="pg-upgrades-stack">{upcomingEvents.map(event => <EventCard key={event.id} event={event} mode="upcoming" />)}</div>}
             </section>
           </>}
-        <button className="pg-upgrades-explainer" onClick={() => setShowOverlay(true)}><HelpCircle size={19} />How seat upgrades work<ChevronRight size={17} /></button>
         <div className="pg-upgrades-founder"><FounderStoryCard /></div>
       </div>
     </div>

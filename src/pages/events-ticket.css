@@ -2,6 +2,7 @@
    compact ticket layout. All event photography and prices come from the event. */
 .pg-design-page.pg-events-page {
   --pg-events-accent: var(--pg-cyan, #00c8ff);
+  --pg-event-photo-height: clamp(64px, calc((100dvh - var(--app-safe-top) - env(safe-area-inset-bottom, 0px) - 365px) / 3), 100px);
   padding: 0 0 108px;
   color: var(--pg-text, #f7f5f9);
 }
@@ -254,7 +255,7 @@
 
 .pg-events-page .pg-event-photo {
   position: relative;
-  height: clamp(100px, 32vw, 120px);
+  height: var(--pg-event-photo-height);
   overflow: hidden;
   background: var(--pg-surface, #1b1924);
 }
@@ -435,7 +436,7 @@
 }
 
 .pg-events-page .pg-events-skeleton-photo {
-  height: clamp(100px, 32vw, 120px);
+  height: var(--pg-event-photo-height);
   background: #302c3b;
 }
 
@@ -474,6 +475,7 @@
 }
 
 @media (min-width: 640px) {
+  .pg-events-page { --pg-event-photo-height: 120px; }
   .pg-events-page .pg-event-title { font-size: 19px; line-height: 22px; }
   .pg-events-page .pg-event-ticket-copy { padding-top: 11px; padding-bottom: 12px; }
   .pg-events-page .pg-event-location,

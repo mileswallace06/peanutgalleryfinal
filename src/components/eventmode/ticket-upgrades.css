@@ -1,10 +1,15 @@
 /* Compact photographic tickets for upgrade discovery and the live seat hub. */
-.pg-design-page.pg-upgrades-page { padding: 0 14px 30px; }
-.pg-upgrades-location { display: flex; align-items: center; justify-content: flex-end; gap: 5px; min-height: 44px; min-width: 0; max-width: 100%; font-size: 12px; font-weight: 600; color: var(--pg-text); padding: 0; margin: 0; text-align: left; }
+.pg-design-page.pg-upgrades-page {
+  --pg-upgrade-photo-height: clamp(64px, calc((100dvh - var(--app-safe-top, 0px) - env(safe-area-inset-bottom, 0px) - 335px - (var(--pg-upgrade-visible-groups, 1) * 25px) - 2px) / 3), 100px);
+  padding: 0 14px 30px;
+}
+.pg-upgrades-location { display: flex; align-items: center; justify-content: flex-end; flex: 1; gap: 5px; min-height: 44px; min-width: 0; max-width: 100%; font-size: 12px; font-weight: 600; color: var(--pg-text); padding: 0; margin: 0; text-align: left; }
 .pg-upgrades-location span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pg-upgrades-location svg { flex: none; }
 .pg-upgrades-location svg:last-child { transform: rotate(90deg); }
 .pg-upgrades-location:focus-visible { outline: 2px solid var(--pg-cyan); outline-offset: 3px; }
+.pg-upgrades-help { display: inline-flex; align-items: center; justify-content: center; flex: none; gap: 6px; min-height: 44px; padding: 0 12px; background: #211d2b; color: #fbf9ff; border: 1px solid #c996ff66; border-radius: 8px; font-size: 12px; font-weight: 750; white-space: nowrap; }
+.pg-upgrades-help svg { flex: none; color: var(--pg-mint); }
 .pg-upgrades-location-panel { margin-bottom: 18px; }
 .pg-upgrades-location-panel:empty { display: none; }
 .pg-upgrades-feed > section > .pg-state { margin: 0; padding: 14px 16px; font-size: 13px; line-height: 1.4; }
@@ -33,7 +38,7 @@
 .pg-ticket.pg-upgrade-ticket-upcoming { --upgrade-accent: var(--pg-cyan); }
 .pg-upgrade-ticket:disabled { cursor: default; }
 .pg-design-page.pg-upgrades-page .pg-upgrade-ticket:focus-visible { outline: 3px solid var(--pg-cyan); outline-offset: -4px; }
-.pg-upgrade-art { height: clamp(100px, 32vw, 120px); position: relative; overflow: hidden; }
+.pg-upgrade-art { height: var(--pg-upgrade-photo-height); position: relative; overflow: hidden; }
 .pg-upgrade-image { height: 100%; width: 100%; }
 .pg-upgrade-ticket-bottom { display: grid; grid-template-columns: minmax(0, 1fr) 120px; background: #17151f; box-shadow: inset 0 1px #ffffff18; }
 .pg-upgrade-ticket-copy { padding: 4px 8px 4px 12px; min-width: 0; align-self: center; }
@@ -50,15 +55,16 @@
 .pg-upgrade-ticket .pg-upgrade-ticket-action { align-self: stretch; display: flex; flex-direction: column; gap: 3px; align-items: center; justify-content: center; min-height: 44px; background: #211d2b; color: var(--upgrade-accent); padding: 4px; font-size: 12px; font-weight: 850; text-align: center; line-height: 1.18; border-left: 1px dashed #ffffff42; box-shadow: inset -3px 0 var(--upgrade-accent); }
 .pg-upgrade-action-label { display: flex; align-items: center; justify-content: center; gap: 4px; }
 .pg-upgrade-action-label svg { flex: none; }
-.pg-upgrades-skeleton { height: clamp(144px, calc(32vw + 44px), 164px); border-radius: 10px; background: var(--pg-surface); border: 1px solid #ffffff1c; }
+.pg-upgrades-skeleton { height: calc(var(--pg-upgrade-photo-height) + 44px); border-radius: 10px; background: var(--pg-surface); border: 1px solid #ffffff1c; }
+@media (min-width: 640px) {
+  .pg-design-page.pg-upgrades-page { --pg-upgrade-photo-height: 120px; }
+}
 .pg-upgrades-intro { display: flex; flex-direction: column; gap: 12px; padding: 24px 18px; }
 .pg-upgrades-intro > svg { color: var(--pg-mint); }
 .pg-upgrades-intro h2 { font-family: var(--font-display); font-size: 23px; line-height: 1.15; color: var(--pg-text); }
 .pg-upgrades-intro ol { list-style: decimal; padding-left: 20px; font-size: 14px; line-height: 1.7; color: var(--pg-muted); }
 .pg-upgrades-intro .pg-action { background: var(--pg-mint); color: var(--pg-ink); gap: 8px; }
 .pg-upgrades-notice { margin-bottom: 18px; border-color: var(--pg-orange); }
-.pg-upgrades-explainer { display: flex; align-items: center; gap: 8px; min-height: 44px; text-align: left; color: var(--pg-cyan); font-size: 14px; font-weight: 650; }
-.pg-upgrades-explainer svg:last-child { margin-left: auto; }
 .pg-upgrades-founder { margin-top: 3px; }
 
 .pg-design-page.pg-live-page { padding: 0 0 25px; --ev-bg: var(--pg-canvas); --ev-surface: var(--pg-surface); --ev-text: var(--pg-text); --ev-text-2: var(--pg-muted); --ev-text-muted: var(--pg-muted); }

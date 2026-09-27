@@ -273,6 +273,7 @@ export default function Events() {
           </button>
           <button type="button" className="pg-events-tools-toggle" aria-label="Search and filters" aria-expanded={showSearchTools} aria-controls="event-search-tools" onClick={() => setShowSearchTools(open => !open)}>
             {showSearchTools ? <X aria-hidden="true" size={20} /> : <Search aria-hidden="true" size={20} />}
+            <span>Search</span>
             {(sortMode !== 'soonest' || showPast || activeSearch.keyword) && <span className="pg-events-filter-active"><span className="sr-only">Active search or filters</span></span>}
           </button>
       </BrowseHeaderTools>

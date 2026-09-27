@@ -4,8 +4,41 @@ Owner direction: keep the accepted neon ticket-stub design, make individual even
 
 Base: published main `e3c77b08ea585ecc9743163473807c5028b2b6f8` (PR12).
 Remote destination: `codex/pg-mobile-clarity-20260926`.
-Current refinement branch: `codex/pg-header-balance-20260926`.
+Current refinement branch: `codex/pg-statement-headers-20260926`.
 Status: Three-card head `e2804f28b3dcd1ddb9265b3b4510656155b9f304` was independently verified identical to the remote clarity branch and reviewed in Final's actual Base44 branch preview. Three complete card bounds fit above navigation on both feeds at 373×665. A header hit-target correction is now prepared locally; neither this refinement nor that correction is published.
+
+## Statement headers with a three-card budget — September26,20:22 onward
+
+Owner explicitly requested substantially more title space, explanation, visual
+character and buttons, while retaining at least three visible events. The new
+header is120px (formerly60px):60px identity row plus44px controls and16px combined
+padding/gap. Existing display font,36px title (responsive26–36px for guest/narrow),
+34px logo, route-colored wash and diagonal ticket detailing. Explanations:
+Events — “Find your next great night.”; Upgrades — “Same event. Better seats.”
+
+Location and Search have their own control row on Events. Upgrades places location
+beside the existing How it works action; duplicate bottom help button removed.
+The existing overlay action is reused. One route-gated portal host remains.
+Sign-in/bell reserve only the identity row; controls retain44px touch targets.
+
+Full-width photographs use a shallower crop,100px on the measured373×665 viewport
+with one group, formerly119.36px.44px footers and16px two-line titles are unchanged.
+Photo height adapts to viewport and safe areas. Upgrades additionally budgets the
+number of section headings among the first three events:100px /92.67px /84.33px
+photos for one/two/three groups at665px height and no safe insets. Counts derive
+only from existing ordered groups; no query, filtering, ordering or route changes.
+Loading skeletons use the same dimensions. Desktop photos120px.
+
+Calculated Events third bottom590px, Upgrades587px (one group) or590px(two/three),
+versus navigation592px at373×665. These are layout calculations; new actual preview
+and physical-phone checks remain pending owner push. The64px lower photo limit,
+very short windows, expanded controls, alerts, text scaling and unusual native
+chrome can still exceed this budget. Text is not clipped to force a fit.
+
+Focused lint on three changed JSX files:0errors,2existing Upgrades warnings. Three
+CSS files parsed; whitespace and arithmetic budget checks passed. No broad tests.
+Production build result recorded in session log. No backend or purchase-security
+changes, merge or publication. Combined bundle supersedes prior design handoffs.
 
 ## Browse-header balance — September 26, 20:11 onward
 
