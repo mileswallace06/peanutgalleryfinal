@@ -4,8 +4,34 @@ Owner direction: keep the accepted neon ticket-stub design, make individual even
 
 Base: published main `e3c77b08ea585ecc9743163473807c5028b2b6f8` (PR12).
 Remote destination: `codex/pg-mobile-clarity-20260926`.
-Current refinement branch: `codex/pg-calm-tickets-20260926`.
-Status: Calm-ticket refinement is prepared locally on top of the remotely verified statement-header head `2e3a688e85b3a2bc23c8456845cc0d20baf1dbdc`. The new layout has not yet been reviewed in the actual Base44 preview or on TestFlight. No merge or publication.
+Current refinement branch: `codex/pg-paper-tickets-20260927`.
+Status: Prior horizontal layout passed the actual mobile preview at `62df73df`, but owner rejected the all-dark ticket surfaces. A CSS-only paper/neon refinement is now prepared locally. Hold PR/publication pending the revised appearance review.
+
+## Paper tickets with neon tear-off stubs — September 27, 00:05 onward (Arizona)
+
+Owner likes full artwork on the left but finds the dark ticket body lifeless and
+wants a more recognizable ticket shape. Revised only `browse-ticket.css`:
+
+- Cool off-white/lilac paper (#f4f0fa) with dark plum ink (#251b32), avoiding the
+  previous tan/yellow and all-black surfaces. Artwork letterboxing uses a pale
+  lilac backing; original image remains uncropped with object-fit:contain.
+- Saturated cyan date stub, mint for Live and PG violet for Starting soon. Color
+  remains consistent by status, with status labels retained; no arbitrary rainbow.
+- Real top/bottom semicircular cutouts at the stub's dashed perforation. Both WebKit
+  and standard masks retained; shared stub-width variable tracks44px/40px geometry.
+  Outer radius8px. Focus uses a contrasting dark inset ring.
+- Header, row budget, photo dimensions, spacing, typography, data and full-card
+  navigation remain unchanged. No JS/JSX change; no new backend interaction.
+
+CSS parser and whitespace checks passed. Contrast on declared surfaces: title
+14.59:1, metadata6.07:1, cyan-stub ink8.35:1, mint12.22:1 and violet4.91:1. Focus
+specificity accounts for older Upgrades page styles. No build or interaction tests
+repeated for this CSS-only refinement. Prior actual373×665 geometry and navigation
+checks cover the retained dimensions/handlers, not the new visual appearance or
+native WebKit mask rendering. Fresh actual preview remains required after push.
+
+Next: update the existing clarity branch using the new bundle, review both feeds,
+then proceed to PR/publication. User has not approved the new appearance yet.
 
 ## Calm tickets and full-card navigation — September 26, 23:04 onward (Arizona)
 
