@@ -149,11 +149,10 @@ export default function Upgrades() {
       {pulling && <div className="pg-upgrades-refresh" role="status"><RefreshCw size={16} className="animate-spin" /> Refreshing…</div>}
 
       <header className="pg-upgrades-heading">
+        <h1 className="pg-page-title">Upgrades</h1>
         <button className="pg-upgrades-location" aria-expanded={editingLocation} aria-controls="upgrade-location-filter" onClick={() => { setLocationInput(locationLabel === 'Near me' ? '' : locationLabel || ''); setEditingLocation(!editingLocation); }}>
           <MapPin size={18} aria-hidden="true" /><span>{locationLabel || 'Choose your location'}</span><ChevronRight size={15} aria-hidden="true" />
         </button>
-        <h1 className="pg-page-title">Upgrades</h1>
-        <p>Better seats from fans already inside.</p>
       </header>
 
       <div className="pg-upgrades-location-panel">
@@ -196,10 +195,9 @@ export default function Upgrades() {
         </div>}
         {loading ? <div className="pg-upgrades-stack" role="status" aria-label="Loading nearby upgrades">{[1, 2, 3].map(i => <div key={i} className="pg-upgrades-skeleton animate-pulse" />)}</div>
           : (locationStatus === 'granted' || locationLabel) && <>
-            <section>
-              <SectionHeader variant="live" label="Live now" count={liveEvents.length > 0 ? liveEvents.length : null} />
-              {liveEvents.length === 0 ? <div className="pg-state">No events live right now — upgrades open at showtime.</div>
-                : <div className="pg-upgrades-stack">{liveEvents.map(event => <EventCard key={event.id} event={event} mode="live" />)}</div>}
+            <section aria-label="Live now">
+              {liveEvents.length === 0 ? <p className="pg-upgrades-live-empty"><span className="pg-upgrades-status-dot" aria-hidden="true" />No live events · upgrades open at showtime</p>
+                : <><SectionHeader variant="live" label="Live now" count={liveEvents.length} /><div className="pg-upgrades-stack">{liveEvents.map(event => <EventCard key={event.id} event={event} mode="live" />)}</div></>}
             </section>
             {soonEvents.length > 0 && <section>
               <SectionHeader variant="soon" label="Starting soon" count={soonEvents.length} meta={`within ${SOON_WINDOW_MINUTES} min`} />
@@ -288,19 +286,23 @@ function EventCard({ event, mode }) {
   return (
     <button type="button" onClick={handleClick} disabled={syncing || !hasValidLink}
       className={`pg-ticket pg-upgrade-ticket pg-upgrade-ticket-${mode}`}>
-      <div className="pg-upgrade-art"><EventThumbnail event={event} className="pg-upgrade-image" /></div>
+      <div className="pg-upgrade-art">
+        <EventThumbnail event={event} className="pg-upgrade-image" />
+        <div className="pg-upgrade-eyebrow"><span>{event.category || 'Live events'}</span>{isLive && <b>LIVE</b>}{isSoon && <b className="pg-upgrade-soon">SOON</b>}</div>
+        {!isLive && !isTM && <span className="pg-upgrade-availability">Upgrades open at showtime</span>}
+      </div>
       <div className="pg-upgrade-ticket-bottom">
         <div className="pg-upgrade-ticket-copy">
-          <div className="pg-upgrade-eyebrow"><span>{event.category || 'Live events'}</span>{isLive && <b>LIVE</b>}{isSoon && <b className="pg-upgrade-soon">SOON</b>}</div>
           <h3>{event.title}</h3>
           <p>{event.venue}{event.city ? ` · ${event.city}` : ''}</p>
-          <p className="pg-upgrade-date">{event.date ? format(new Date(event.date), 'MMM d · h:mm a') : 'Date to be announced'}</p>
-          {!isLive && !isTM && <p className="pg-upgrade-availability">Upgrades open at showtime</p>}
         </div>
         <span className="pg-ticket-end pg-upgrade-ticket-action">
-          {syncing ? <RefreshCw size={18} className="animate-spin" /> : null}
-          <span>{hasValidLink ? linkLabel : 'Unavailable'}</span>
-          {!syncing && hasValidLink && <ArrowRight size={22} aria-hidden="true" />}
+          <span className="pg-upgrade-date">{event.date ? format(new Date(event.date), 'MMM d · h:mm a') : 'Date to be announced'}</span>
+          <span className="pg-upgrade-action-label">
+            {syncing ? <RefreshCw size={14} className="animate-spin" /> : null}
+            <span>{hasValidLink ? linkLabel : 'Unavailable'}</span>
+            {!syncing && hasValidLink && <ArrowRight size={14} aria-hidden="true" />}
+          </span>
         </span>
       </div>
       {adminUnlocked && <span className="sr-only">id:{String(event.id || '').slice(0, 12)} tm:{String(event.tm_id || '-').slice(0, 12)} src:{event.source || '?'}</span>}

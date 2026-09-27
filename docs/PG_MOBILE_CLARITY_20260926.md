@@ -3,8 +3,49 @@
 Owner direction: keep the accepted neon ticket-stub design, make individual events easier to recognize, simplify Me, and reduce the number of controls competing for attention.
 
 Base: published main `e3c77b08ea585ecc9743163473807c5028b2b6f8` (PR12).
-Branch: `codex/pg-mobile-clarity-20260926`.
-Status: implemented and checked locally; not yet reviewed in the live mobile renderer, pushed, merged, or published.
+Remote destination: `codex/pg-mobile-clarity-20260926`.
+Density refinement branch: `codex/pg-mobile-density-20260926`.
+Status: first version `22a28830` was pushed and reviewed in Base44's real mobile preview. Owner requested denser cards before release. The refinement below is prepared locally; it has not yet reached the remote preview or TestFlight.
+
+## Density refinement — September 26, 18:52 onward
+
+The owner approved the larger photography but found the overall cards too tall.
+The new changes retain the exact photo CSS (`clamp(112px, 35vw, 160px)`) and
+make room around it:
+
+| Area | Previous clarity pass | Refined layout |
+| --- | --- | --- |
+| Events footer | At least 88px; venue and full date on separate lines; 78px stub | At least 64px; title up to two lines; venue/time share a row; date retained in 60px stub |
+| Upgrades footer | At least 98px plus stacked metadata | At least 60px, approximately 65px for two-line titles; date/action share the stub; category/status remain visible on photo |
+| Card gaps | 16px | 10px |
+| Events heading | City, title, tagline, search, scope, always-visible sort | Title/city share a row; search and a labeled Filters dropdown share a row; scope/count share a row |
+| Upgrades heading | City, title, tagline, larger empty-live section | Title/city share a row; one-line empty-live notice; existing live/soon/upcoming groups retained |
+
+At 373px width the unchanged photo is about 131px. A standard event card is
+therefore approximately 197px including its 64px footer and borders; an upgrade
+card approximately 191–196px, with longer action/date text allowed to grow.
+Two standard cards plus a 10px gap are designed to fit in the available feed
+area of the previously reviewed 373×665 viewport. These are CSS calculations,
+not new browser measurements. Long titles, extra marketplace information,
+location prompts, notices, text scaling and device safe areas may use more space.
+Essential text and controls are not clipped to force an arbitrary card height.
+
+Only Events/Upgrades JSX and their two existing stylesheets changed in this
+refinement. Photo styles and all pre-render search/location/fetch behavior were
+compared directly and are unchanged. Card navigation/sync callbacks are
+unchanged by source diff. Existing marketplace price/count and availability
+information remain visible. No backend, auth or financial logic changes.
+
+Validation: final stable-source Vite build passed; changed-page lint has zero
+errors and two existing Upgrades warnings; diff whitespace check passed. An
+initial build overlapped a formatting write and read a partial file; it was
+repeated after writes finished, successfully. No broad tests were repeated.
+New Filters interaction and the denser layout require remote mobile review after
+the owner pushes this revision. Earlier screenshots show the prior version.
+
+The sections below document the preceding clarity implementation and its
+original local checks; the density table above supersedes its card dimensions
+and always-visible sort description.
 
 ## Changes
 

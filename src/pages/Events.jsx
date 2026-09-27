@@ -263,6 +263,7 @@ export default function Events() {
       )}
 
       <div className="pg-events-heading" data-page-hero="events">
+        <h1 className="pg-page-title font-display">Events</h1>
         <div className="pg-events-location-row">
           <button type="button" onClick={openLocationPicker} aria-expanded={editingLocation} aria-controls="event-location-filter"
             className="pg-events-location pg-action">
@@ -276,37 +277,53 @@ export default function Events() {
             {locationStatus === 'requesting' ? 'Locating…' : 'Near Me'}
           </button>}
         </div>
-        <h1 className="pg-page-title font-display">Events</h1>
-        <p className="pg-events-intro">Find your event. Make it a night.</p>
       </div>
 
       {/* One event search; new submissions always use the retained local area. */}
       <div className="pg-events-search-area">
-        <form role="search" onSubmit={(e) => { e.preventDefault(); runSearch(keyword); }}>
-          <label htmlFor="event-search" className="sr-only">Search events, artists, teams, or venues</label>
-          <div className="pg-events-search-row">
-            <div className="pg-events-search-field">
-              <Search aria-hidden="true" className="pg-events-search-icon" />
-              <input id="event-search" type="search" value={keyword} maxLength={100}
-                onChange={e => setKeyword(e.target.value)}
-                placeholder="Artist, team or venue"
-                enterKeyHint="search" autoComplete="off"
-                className="pg-events-search-input" />
-              {keyword && (
-                <button type="button" onClick={() => runSearch('')} aria-label="Clear event search"
-                  className="pg-events-search-clear pg-action">
-                  <X aria-hidden="true" className="w-4 h-4" />
-                </button>
-              )}
+        <div className="pg-events-toolbar">
+          <form role="search" onSubmit={(e) => { e.preventDefault(); runSearch(keyword); }}>
+            <label htmlFor="event-search" className="sr-only">Search events, artists, teams, or venues</label>
+            <div className="pg-events-search-row">
+              <div className="pg-events-search-field">
+                <Search aria-hidden="true" className="pg-events-search-icon" />
+                <input id="event-search" type="search" value={keyword} maxLength={100}
+                  onChange={e => setKeyword(e.target.value)}
+                  placeholder="Artist, team or venue"
+                  enterKeyHint="search" autoComplete="off"
+                  className="pg-events-search-input" />
+                {keyword && (
+                  <button type="button" onClick={() => runSearch('')} aria-label="Clear event search"
+                    className="pg-events-search-clear pg-action">
+                    <X aria-hidden="true" className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+              <button type="submit" aria-label="Search events" className="pg-events-search-submit pg-action">
+                <ArrowRight aria-hidden="true" className="w-5 h-5" />
+              </button>
             </div>
-            <button type="submit" aria-label="Search events" className="pg-events-search-submit pg-action">
-              <ArrowRight aria-hidden="true" className="w-5 h-5" />
-            </button>
-          </div>
-        </form>
-        {hasSearched && <p data-search-scope={activeSearch.scope} className="pg-events-search-scope">
-          {activeSearch.scope === 'nationwide' ? 'Nationwide results · United States' : `Nearby · ${activeSearch.locationLabel}`}
-        </p>}
+          </form>
+          <details className="pg-events-filters">
+            <summary>
+              <ArrowUpDown aria-hidden="true" className="pg-events-sort-icon" />
+              Filters{(sortMode !== 'soonest' || showPast) && <span className="pg-events-filter-active"><span className="sr-only">Active filters</span></span>}
+            </summary>
+            <div className="pg-events-sort" aria-label="Event date filters">
+              <label className="pg-events-sort-control">
+                <span className="sr-only">Sort events by date</span>
+                <select value={sortMode} onChange={e => setSortMode(e.target.value)}>
+                  <option value="soonest">Soonest first</option>
+                  <option value="latest">Latest first</option>
+                </select>
+              </label>
+              <label className="pg-events-past-control">
+                <input type="checkbox" checked={showPast} onChange={e => setShowPast(e.target.checked)} />
+                Include past
+              </label>
+            </div>
+          </details>
+        </div>
         {editingLocation && (
           <section id="event-location-filter" aria-label="Location filter" className="pg-events-location-panel p-3 space-y-3">
             <div className="flex justify-between items-center">
@@ -328,22 +345,6 @@ export default function Events() {
             </button>
           </section>
         )}
-      </div>
-
-      {/* Compact native controls keep all existing date-filter behavior. */}
-      <div className="pg-events-sort" aria-label="Event date filters">
-        <label className="pg-events-sort-control">
-          <ArrowUpDown aria-hidden="true" className="pg-events-sort-icon" />
-          <span className="sr-only">Sort events by date</span>
-          <select value={sortMode} onChange={e => setSortMode(e.target.value)}>
-            <option value="soonest">Soonest first</option>
-            <option value="latest">Latest first</option>
-          </select>
-        </label>
-        <label className="pg-events-past-control">
-          <input type="checkbox" checked={showPast} onChange={e => setShowPast(e.target.checked)} />
-          Include past
-        </label>
       </div>
 
       {/* ── Rate limit / network error ── */}
@@ -389,6 +390,9 @@ export default function Events() {
 
       {/* ── Event count + aria-live announcement ── */}
       <div aria-live="polite" aria-atomic="true" className="pg-events-count">
+        {hasSearched && <p data-search-scope={activeSearch.scope} className="pg-events-search-scope">
+          {activeSearch.scope === 'nationwide' ? 'Nationwide · United States' : `Nearby · ${activeSearch.locationLabel}`}
+        </p>}
         {!loading && hasSearched && filtered.length > 0 && (
           <p>{filtered.length} event{filtered.length !== 1 ? 's' : ''}</p>
         )}
@@ -501,7 +505,7 @@ function EventRow({ event }) {
       <span className="pg-event-date-day">{hasDate ? format(date, 'd') : '—'}</span>
       <span className="pg-event-date-month">{hasDate ? format(date, 'MMM') : 'TBD'}</span>
       <span className="pg-event-stub-action">
-        {isLive ? <span>Live Hub</span> : <span className="sr-only">View event</span>}
+        <span className="sr-only">{isLive ? 'Open live hub' : 'View event'}</span>
         {eventUrl && <ArrowRight aria-hidden="true" className="w-5 h-5" />}
       </span>
     </>
@@ -511,6 +515,7 @@ function EventRow({ event }) {
     <article className={`pg-event-ticket pg-ticket ${isLive ? 'is-live' : ''}`}>
       <div className="pg-event-photo">
         <EventThumbnail event={event} className="absolute inset-0 w-full h-full" />
+        {event.category && <span className="pg-event-category">{event.category}</span>}
         {isLive && <span className="pg-event-live-badge">LIVE</span>}
         {eventUrl && <Link to={isLive ? `/upgrades/${event.id}` : eventUrl}
           state={!isLive && isTM ? { tmEvent: event } : undefined}
@@ -519,12 +524,13 @@ function EventRow({ event }) {
       </div>
       <div className="pg-event-ticket-body">
         <div className="pg-event-ticket-copy">
-          {event.category && <p className="pg-event-category">{event.category}</p>}
           <h3 className="pg-event-title font-display">{event.title}</h3>
-          <p className="pg-event-location" title={[event.venue, event.city, event.state].filter(Boolean).join(', ')}>
-            {event.venue}{event.city ? `, ${event.city}` : ''}{event.state ? `, ${event.state}` : ''}
-          </p>
-          <p className="pg-event-time">{dateLabel}</p>
+          <div className="pg-event-meta">
+            <p className="pg-event-location" title={[event.venue, event.city, event.state].filter(Boolean).join(', ')}>
+              {event.venue}{event.city ? `, ${event.city}` : ''}{event.state ? `, ${event.state}` : ''}
+            </p>
+            <p className="pg-event-time" title={dateLabel}>{hasDate ? format(date, 'h:mm a') : 'Time TBA'}</p>
+          </div>
           {isPGEvent && listingCount > 0 && (
             <p className="pg-event-listings">
               {minPrice ? <>From <strong>${minPrice}</strong><span> · </span></> : null}
