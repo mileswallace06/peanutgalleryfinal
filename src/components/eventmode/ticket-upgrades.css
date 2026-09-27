@@ -1,6 +1,6 @@
 /* Compact photographic tickets for upgrade discovery and the live seat hub. */
 .pg-design-page.pg-upgrades-page {
-  --pg-upgrade-photo-height: clamp(64px, calc((100dvh - var(--app-safe-top, 0px) - env(safe-area-inset-bottom, 0px) - 335px - (var(--pg-upgrade-visible-groups, 1) * 25px) - 2px) / 3), 100px);
+  --pg-browse-row-height: clamp(96px, calc((100dvh - var(--app-safe-top, 0px) - env(safe-area-inset-bottom, 0px) - var(--pg-browse-header-height) - 93px - (var(--pg-upgrade-visible-groups, 1) * 23px)) / 3), 140px);
   padding: 0 14px 30px;
 }
 .pg-upgrades-location { display: flex; align-items: center; justify-content: flex-end; flex: 1; gap: 5px; min-height: 44px; min-width: 0; max-width: 100%; font-size: 12px; font-weight: 600; color: var(--pg-text); padding: 0; margin: 0; text-align: left; }
@@ -24,7 +24,7 @@
 .pg-upgrades-note { font-size: 13px; line-height: 1.4; color: var(--pg-muted); margin-top: 9px; }
 .pg-upgrades-refresh { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; color: var(--pg-mint); font-size: 13px; }
 .pg-upgrades-feed { display: flex; flex-direction: column; gap: 8px; }
-.pg-upgrades-stack { display: flex; flex-direction: column; gap: 6px; }
+.pg-upgrades-stack { display: flex; flex-direction: column; gap: 8px; }
 .pg-upgrades-section-heading { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; min-width: 0; }
 .pg-upgrades-section-heading .pg-section-title { margin: 0; font-family: var(--font-display); font-size: 16px; letter-spacing: -.02em; line-height: 18px; }
 .pg-upgrades-status-dot { width: 13px; height: 13px; border-radius: 50%; background: var(--pg-mint); flex: none; }
@@ -55,10 +55,7 @@
 .pg-upgrade-ticket .pg-upgrade-ticket-action { align-self: stretch; display: flex; flex-direction: column; gap: 3px; align-items: center; justify-content: center; min-height: 44px; background: #211d2b; color: var(--upgrade-accent); padding: 4px; font-size: 12px; font-weight: 850; text-align: center; line-height: 1.18; border-left: 1px dashed #ffffff42; box-shadow: inset -3px 0 var(--upgrade-accent); }
 .pg-upgrade-action-label { display: flex; align-items: center; justify-content: center; gap: 4px; }
 .pg-upgrade-action-label svg { flex: none; }
-.pg-upgrades-skeleton { height: calc(var(--pg-upgrade-photo-height) + 44px); border-radius: 10px; background: var(--pg-surface); border: 1px solid #ffffff1c; }
-@media (min-width: 640px) {
-  .pg-design-page.pg-upgrades-page { --pg-upgrade-photo-height: 120px; }
-}
+.pg-upgrades-skeleton { height: var(--pg-browse-row-height); border-radius: 10px; background: var(--pg-surface); border: 1px solid #ffffff1c; }
 .pg-upgrades-intro { display: flex; flex-direction: column; gap: 12px; padding: 24px 18px; }
 .pg-upgrades-intro > svg { color: var(--pg-mint); }
 .pg-upgrades-intro h2 { font-family: var(--font-display); font-size: 23px; line-height: 1.15; color: var(--pg-text); }

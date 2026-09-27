@@ -294,31 +294,27 @@ function EventCard({ event, mode }) {
   };
 
   const linkLabel = syncing ? 'Loading…' : isLive ? 'Open Live Hub' : isSoon ? 'Get Ready' : 'View Tickets';
+  const date = event.date ? new Date(event.date) : null;
+  const hasDate = date && !Number.isNaN(date.getTime());
 
   return (
     <button type="button" onClick={handleClick} disabled={syncing || !hasValidLink}
-      className={`pg-ticket pg-upgrade-ticket pg-upgrade-ticket-${mode}`}>
-      <div className="pg-upgrade-art">
-        <EventThumbnail event={event} className="pg-upgrade-image" />
-        <div className="pg-upgrade-eyebrow"><span>{event.category || 'Live events'}</span>{isLive && <b>LIVE</b>}{isSoon && <b className="pg-upgrade-soon">SOON</b>}</div>
-        <div className="pg-upgrade-art-caption">
-          <p>{event.venue}{event.city ? ` · ${event.city}` : ''}</p>
-          {!isLive && !isTM && <span className="pg-upgrade-availability">Upgrades open at showtime</span>}
-        </div>
+      className={`pg-ticket pg-browse-ticket pg-upgrade-ticket pg-upgrade-ticket-${mode}`}>
+      <EventThumbnail event={event} className="pg-browse-ticket-art" />
+      <div className="pg-browse-ticket-copy">
+        {event.category && <span className="sr-only">{event.category}</span>}
+        <h3 className="pg-browse-ticket-title" title={event.title}>{event.title}</h3>
+        <p className="pg-browse-ticket-venue" title={[event.venue, event.city].filter(Boolean).join(' · ')}>{event.venue}{event.city ? ` · ${event.city}` : ''}</p>
+        <p className="pg-browse-ticket-detail">{hasDate ? format(date, 'MMM d · h:mm a') : 'Date to be announced'}</p>
+        {!isLive && !isTM && <p className="pg-browse-ticket-detail">Upgrades open at showtime</p>}
       </div>
-      <div className="pg-upgrade-ticket-bottom">
-        <div className="pg-upgrade-ticket-copy">
-          <h3>{event.title}</h3>
-        </div>
-        <span className="pg-ticket-end pg-upgrade-ticket-action">
-          <span className="pg-upgrade-date">{event.date ? format(new Date(event.date), 'MMM d · h:mm a') : 'Date to be announced'}</span>
-          <span className="pg-upgrade-action-label">
-            {syncing ? <RefreshCw size={14} className="animate-spin" /> : null}
-            <span>{hasValidLink ? linkLabel : 'Unavailable'}</span>
-            {!syncing && hasValidLink && <ArrowRight size={14} aria-hidden="true" />}
-          </span>
-        </span>
-      </div>
+      <span className="pg-browse-ticket-stub">
+        {(isLive || isSoon) && <span className="pg-browse-ticket-status">{isLive ? 'Live' : 'Soon'}</span>}
+        <span className="pg-browse-ticket-month">{hasDate ? format(date, 'MMM') : 'TBA'}</span>
+        <span className="pg-browse-ticket-day">{hasDate ? format(date, 'd') : '—'}</span>
+        <span className={hasValidLink ? 'sr-only' : 'pg-browse-ticket-status'}>{hasValidLink ? linkLabel : 'Unavailable'}</span>
+        {syncing ? <RefreshCw size={18} className="pg-browse-ticket-arrow animate-spin" aria-hidden="true" /> : hasValidLink && <ArrowRight size={18} className="pg-browse-ticket-arrow" aria-hidden="true" />}
+      </span>
       {adminUnlocked && <span className="sr-only">id:{String(event.id || '').slice(0, 12)} tm:{String(event.tm_id || '-').slice(0, 12)} src:{event.source || '?'}</span>}
     </button>
   );

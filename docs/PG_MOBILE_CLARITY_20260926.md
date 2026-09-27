@@ -4,8 +4,66 @@ Owner direction: keep the accepted neon ticket-stub design, make individual even
 
 Base: published main `e3c77b08ea585ecc9743163473807c5028b2b6f8` (PR12).
 Remote destination: `codex/pg-mobile-clarity-20260926`.
-Current refinement branch: `codex/pg-statement-headers-20260926`.
-Status: Three-card head `e2804f28b3dcd1ddb9265b3b4510656155b9f304` was independently verified identical to the remote clarity branch and reviewed in Final's actual Base44 branch preview. Three complete card bounds fit above navigation on both feeds at 373×665. A header hit-target correction is now prepared locally; neither this refinement nor that correction is published.
+Current refinement branch: `codex/pg-calm-tickets-20260926`.
+Status: Calm-ticket refinement is prepared locally on top of the remotely verified statement-header head `2e3a688e85b3a2bc23c8456845cc0d20baf1dbdc`. The new layout has not yet been reviewed in the actual Base44 preview or on TestFlight. No merge or publication.
+
+## Calm tickets and full-card navigation — September 26, 23:04 onward (Arizona)
+
+Owner requested a page-identity area around 20% of the screen, full ticket tap
+coverage, and a less repetitive/overwhelming feed while preserving ticket shapes,
+neon branding and three visible events. The two supplied ticket-app references
+inform hierarchy and restraint only; no reference artwork is incorporated.
+
+- Events/Upgrades identity area is `clamp(112px, 20dvh, 180px)`, followed by the
+  existing 44px control row and 8px bottom spacing. At 373×665 the identity area
+  is 133px and total header is 185px (safe-area padding additional).
+- Both feeds use horizontal tickets: complete, uncropped source artwork at left,
+  two-line event names in DM Sans, venue/time details, and a narrow date stub.
+  Ticket cutouts/perforation remain; theme-aware neutral surfaces replace repeated
+  color blocks. Neon remains in the header, status marks, arrows and outer edge.
+- Each eligible Events ticket is one wrapping Link with the same PG/TM/live
+  destination and TM navigation state. Upgrades retains its existing full button,
+  handler and disabled states. Invalid targets show Unavailable without navigation.
+- Eligible live seat-offer tickets now have one full-area native button. Sold,
+  reserved-by-other and transfer-disabled offers retain their noninteractive state;
+  reserved-for-you keeps the original callback. No reservation/payment behavior changed.
+- The floating feedback button is hidden on the two browse routes to avoid covering
+  the third ticket. Feedback remains on Me and other existing eligible routes.
+- Queries, ordering, source images, prices/counts, auth and backend are unchanged.
+  Existing financial/protection wording is retained, not independently validated.
+
+Row height adapts to viewport/safe areas; Upgrades also budgets the timing headings
+among the first three records. Rows have a 96px minimum and 140px maximum. Titles
+stay at two lines; metadata line-height adapts between 12–14px so a normal-size PG
+row containing venue, time and availability fits the minimum height. Content can
+expand for accessibility rather than being forced inside a clipped card.
+
+Calculated normal-text geometry (not rendered evidence):
+
+| Viewport height | Events third bottom | Upgrades third bottom, 1 / 2 / 3 groups | Navigation top |
+| --- | --- | --- | --- |
+| 665px | 588px | 588 / 588 / 588px | 592px |
+| 701px | 624px | 624 / 624 / 624px | 628px |
+| 844px | 676.8px | 679.8 / 702.8 / 725.8px | 771px |
+
+These calculations assume no native safe insets, closed controls and no extra
+alerts/live shortcut banners. Short viewports, enlarged text and unusual native
+chrome still need device review. Whole images deliberately letterbox when source
+aspect ratios differ; this avoids the former shallow banner crop.
+
+Verification: scoped lint passed with zero errors and three existing warnings;
+production build exited 0; four stylesheets parsed and whitespace checks passed.
+Build warns that local Base44 app configuration is unset; this is compilation
+coverage, not a working authenticated application deployment. Thirteen focused
+interaction checks passed using the actual card functions and production routing/
+visibility helpers, with only remote logging replaced. This verifies destinations,
+TM state, one wrapping Link, callback counts and disabled states, not pixel hit
+testing. No broad backend/security tests repeated.
+
+Next: push the bundle to the existing clarity branch, inspect the actual mobile
+Events/Upgrades preview (including full-card tap coverage), then progress the
+reviewed PR/publication path to TestFlight. Earlier screenshots show the previous
+vertical-card version and are not evidence for this new layout.
 
 ## Statement headers with a three-card budget — September26,20:22 onward
 

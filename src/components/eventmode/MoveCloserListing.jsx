@@ -23,6 +23,7 @@ export default function MoveCloserListing({ listing, event, accent = 'mint', cur
   const reservedByOther = isReservedByOther(listing, currentUserEmail);
   const reservedByMe = isReservedByMe(listing, currentUserEmail);
   const transferDisabled = listing.transfer_status === 'transfer_disabled';
+  const canView = !sold && !reservedByOther && !transferDisabled;
 
   return (
     <article className={`pg-ticket pg-seat-offer pg-seat-offer-${accent}`}>
@@ -40,9 +41,16 @@ export default function MoveCloserListing({ listing, event, accent = 'mint', cur
         {sold ? <span className="pg-seat-offer-status">Sold</span>
           : reservedByOther ? <span className="pg-seat-offer-status"><Clock size={14} />Reserved</span>
           : transferDisabled ? <span className="pg-seat-offer-status">Unavailable</span>
-          : reservedByMe ? <button onClick={() => onView?.(listing)} className="pg-seat-offer-view pg-seat-offer-reserved"><Clock size={14} /><span>Reserved for you</span></button>
-          : <button onClick={() => onView?.(listing)} className="pg-seat-offer-view">View<ArrowRight size={16} /></button>}
+          : reservedByMe ? <span className="pg-seat-offer-view pg-seat-offer-reserved"><Clock size={14} /><span>Reserved for you</span></span>
+          : <span className="pg-seat-offer-view">View<ArrowRight size={16} /></span>}
       </div>
+      {canView && <button
+        type="button"
+        className="absolute inset-0 z-10 h-full w-full bg-transparent"
+        style={{ borderRadius: 'inherit', outlineOffset: '-3px' }}
+        aria-label={`${reservedByMe ? 'Reserved for you. View' : 'View'} ${tierLabel}, section ${listing.section}, row ${listing.row}${listing.seats ? `, seats ${listing.seats}` : ''}, $${listing.asking_price} per seat`}
+        onClick={() => { if (canView) onView?.(listing); }}
+      />}
     </article>
   );
 }

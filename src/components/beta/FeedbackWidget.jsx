@@ -59,8 +59,8 @@ export default function FeedbackWidget({ user }) {
     }
   };
 
-  // Don't show on admin pages
-  if (location.pathname.startsWith('/admin') || location.pathname.startsWith('/founder') || location.pathname.startsWith('/beta-')) return null;
+  // Keep browse cards unobstructed. Feedback remains available on Me and other pages.
+  if (['/events', '/upgrades'].includes(location.pathname) || location.pathname.startsWith('/admin') || location.pathname.startsWith('/founder') || location.pathname.startsWith('/beta-')) return null;
 
   return (
     <>

@@ -424,15 +424,7 @@ export default function Events() {
       {loading ? (
         <div className="pg-events-list" role="status" aria-label="Loading events">
           {[...Array(3)].map((_, i) => (
-            <div key={i} className="pg-events-skeleton pg-ticket animate-pulse" aria-hidden="true">
-              <div className="pg-events-skeleton-photo" />
-              <div className="pg-events-skeleton-bottom">
-                <div className="pg-events-skeleton-copy">
-                  <div /><div /><div />
-                </div>
-                <div className="pg-events-skeleton-stub pg-ticket-end" />
-              </div>
-            </div>
+            <div key={i} className="pg-events-skeleton pg-ticket animate-pulse" aria-hidden="true" />
           ))}
         </div>
       ) : restoringLocation ? (
@@ -498,66 +490,47 @@ function EventRow({ event }) {
   const hasDate = date && !Number.isNaN(date.getTime());
   const dateLabel = hasDate ? format(date, 'EEE, MMM d · h:mm a') : 'Date to be announced';
 
-  const dateStub = (
+  const content = (
     <>
-      <span className="pg-event-date-label"><span className="pg-event-date-day">{hasDate ? format(date, 'd') : '—'}</span>
-      <span className="pg-event-date-month">{hasDate ? format(date, 'MMM') : 'TBD'}</span></span>
-      <span className="pg-event-stub-action">
-        <span className="sr-only">{isLive ? 'Open live hub' : 'View event'}</span>
-        {eventUrl && <ArrowRight aria-hidden="true" className="w-5 h-5" />}
+      <EventThumbnail event={event} className="pg-browse-ticket-art" />
+      <div className="pg-browse-ticket-copy">
+        <h3 className="pg-browse-ticket-title" title={event.title}>{event.title}</h3>
+        <p className="pg-browse-ticket-venue" title={[event.venue, event.city, event.state].filter(Boolean).join(', ')}>
+          {event.venue}{event.city ? `, ${event.city}` : ''}{event.state ? `, ${event.state}` : ''}
+        </p>
+        <p className="pg-browse-ticket-detail" title={dateLabel}>{hasDate ? format(date, 'h:mm a') : 'Time TBA'}</p>
+        {isPGEvent && listingCount > 0 && (
+          <p className="pg-browse-ticket-detail">
+            {minPrice ? <>From <strong>${minPrice}</strong><span> · </span></> : null}
+            {listingCount} listing{listingCount !== 1 ? 's' : ''}
+          </p>
+        )}
+        {isPGEvent && !listingCount && (
+          <p className="pg-browse-ticket-detail pg-event-protection"><ShieldCheck aria-hidden="true" className="w-3 h-3" /> Buyer protected</p>
+        )}
+        {event.category && <span className="sr-only">{event.category}</span>}
+      </div>
+      <span className="pg-browse-ticket-stub">
+        <span className="pg-browse-ticket-month">{hasDate ? format(date, 'MMM') : 'TBD'}</span>
+        <span className="pg-browse-ticket-day">{hasDate ? format(date, 'd') : '—'}</span>
+        {isLive && <span className="pg-browse-ticket-status">LIVE</span>}
+        {eventUrl ? <ArrowRight aria-hidden="true" className="pg-browse-ticket-arrow" /> : <span className="pg-browse-ticket-status">Unavailable</span>}
       </span>
     </>
   );
+  const cardClass = `pg-ticket pg-browse-ticket pg-event-ticket ${isLive ? 'is-live' : ''}`;
 
   return (
-    <article className={`pg-event-ticket pg-ticket ${isLive ? 'is-live' : ''}`}>
-      <div className="pg-event-photo">
-        <EventThumbnail event={event} className="absolute inset-0 w-full h-full" />
-        <div className="pg-event-meta">
-          <p className="pg-event-location" title={[event.venue, event.city, event.state].filter(Boolean).join(', ')}>
-            {event.venue}{event.city ? `, ${event.city}` : ''}{event.state ? `, ${event.state}` : ''}
-          </p>
-          <p className="pg-event-time" title={dateLabel}>{hasDate ? format(date, 'h:mm a') : 'Time TBA'}</p>
-        </div>
-        <div className="pg-event-market">
-          {isPGEvent && listingCount > 0 && (
-            <p className="pg-event-listings">
-              {minPrice ? <>From <strong>${minPrice}</strong><span> · </span></> : null}
-              {listingCount} listing{listingCount !== 1 ? 's' : ''}
-            </p>
-          )}
-          {isPGEvent && !listingCount && (
-            <p className="pg-event-protection"><ShieldCheck aria-hidden="true" className="w-3 h-3" /> Buyer protected</p>
-          )}
-        </div>
-        {event.category && <span className="pg-event-category">{event.category}</span>}
-        {isLive && <span className="pg-event-live-badge">LIVE</span>}
-        {eventUrl && <Link to={isLive ? `/upgrades/${event.id}` : eventUrl}
+    <article className="pg-event-row">
+      {eventUrl ? (
+        <Link to={isLive ? `/upgrades/${event.id}` : eventUrl}
           state={!isLive && isTM ? { tmEvent: event } : undefined}
-          className="pg-event-photo-link" aria-label={`${isLive ? 'Open live hub for' : 'View'} ${event.title}`}
-          onClick={isLive ? e => e.stopPropagation() : handleCardClick} />}
-      </div>
-      <div className="pg-event-ticket-body">
-        <div className="pg-event-ticket-copy">
-          <h3 className="pg-event-title font-display">{event.title}</h3>
-
-        </div>
-        {eventUrl ? (
-          isLive ? (
-            <Link to={`/upgrades/${event.id}`} className="pg-event-date-stub pg-ticket-end pg-action"
-              aria-label={`Open live hub for ${event.title}, ${dateLabel}`}
-              onClick={e => e.stopPropagation()}>
-              {dateStub}
-            </Link>
-          ) : (
-            <Link to={eventUrl} state={isTM ? { tmEvent: event } : undefined}
-              className="pg-event-date-stub pg-ticket-end pg-action"
-              aria-label={`View ${event.title}, ${dateLabel}`} onClick={handleCardClick}>
-              {dateStub}
-            </Link>
-          )
-        ) : <div className="pg-event-date-stub pg-ticket-end">{dateStub}</div>}
-      </div>
+          className={cardClass}
+          aria-label={`${isLive ? 'Open live hub for' : 'View'} ${event.title}, ${dateLabel}`}
+          onClick={isLive ? e => e.stopPropagation() : handleCardClick}>
+          {content}
+        </Link>
+      ) : <div className={cardClass} role="group" aria-disabled="true" aria-label={`${event.title}, event details unavailable`}>{content}</div>}
     </article>
   );
 }

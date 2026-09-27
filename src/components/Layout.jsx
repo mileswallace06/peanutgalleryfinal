@@ -11,6 +11,7 @@ import DonationWinNotification from '@/components/donations/DonationWinNotificat
 import FeedbackWidget from '@/components/beta/FeedbackWidget';
 import { pageVariants, useNavigationDirection } from '@/lib/pageTransitions';
 import '@/components/ticket-design.css';
+import '@/components/browse-ticket.css';
 
 /**
  * Once a tab has been activated, keep its Outlet mounted permanently.
