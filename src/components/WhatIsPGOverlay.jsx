@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Zap, X, ShieldCheck, Ticket, Gift } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
+import './upgrades-explainer.css';
 
 /**
  * Versioned "What is PG?" onboarding overlay for the Upgrades page.
@@ -122,12 +123,7 @@ export default function WhatIsPGOverlay({ onDismiss, user }) {
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[9999] flex flex-col justify-end"
-      style={{
-        height: '100dvh',
-        background: 'rgba(0,0,0,0.7)',
-        paddingTop: 'env(safe-area-inset-top)',
-      }}
+      className="pg-upgrade-explainer-backdrop"
       onClick={handleDismiss}
     >
       <div
@@ -135,26 +131,23 @@ export default function WhatIsPGOverlay({ onDismiss, user }) {
         role="dialog"
         aria-modal="true"
         aria-label="What is Peanut Gallery?"
-        className="w-full rounded-t-3xl flex flex-col relative overflow-hidden"
+        className="pg-upgrade-explainer"
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: '#111',
-          borderTop: '1px solid #222',
-          maxHeight: '85dvh',
           transform: `translateY(${dragY}px)`,
           transition: isDragging.current ? 'none' : 'transform 0.25s ease-out',
-          paddingBottom: 'env(safe-area-inset-bottom)',
         }}
       >
         {/* Drag handle + header — swipe-down target */}
         <div
+          className="pg-upgrade-explainer-header"
           onTouchStart={onTouchStart}
           onTouchMove={onTouchMove}
           onTouchEnd={onTouchEnd}
         >
           {/* Drag handle */}
-          <div className="flex justify-center py-3">
-            <div className="w-9 h-1 rounded-full" style={{ background: '#333' }} />
+          <div className="pg-upgrade-explainer-handle">
+            <div />
           </div>
 
           {/* Close button — 44×44px tap target */}
@@ -162,21 +155,20 @@ export default function WhatIsPGOverlay({ onDismiss, user }) {
             ref={closeBtnRef}
             onClick={handleDismiss}
             aria-label="Close"
-            className="absolute top-3 right-3 w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0"
-            style={{ background: '#1e1e1e' }}
+            className="pg-upgrade-explainer-close"
           >
-            <X className="w-5 h-5" style={{ color: '#666' }} />
+            <X className="w-5 h-5" />
           </button>
 
           {/* Header content (non-scrollable) */}
-          <div className="px-6 pt-1 pb-4">
-            <p className="text-xs font-bold tracking-widest uppercase mb-3" style={{ color: '#00FF87' }}>
+          <div className="pg-upgrade-explainer-heading">
+            <p className="pg-upgrade-explainer-eyebrow">
               ⚡ Peanut Gallery
             </p>
-            <h2 className="font-display text-white mb-2" style={{ fontSize: '1.75rem', lineHeight: 1.1 }}>
+            <h2 className="font-display">
               Better Seats,<br />Live At The Show
             </h2>
-            <p className="text-sm" style={{ color: '#888', lineHeight: 1.6 }}>
+            <p className="pg-upgrade-explainer-description">
               Buy seat upgrades directly from fans already inside the venue — payment held safely until you confirm.
             </p>
           </div>
@@ -185,39 +177,33 @@ export default function WhatIsPGOverlay({ onDismiss, user }) {
         {/* Scrollable content */}
         <div
           ref={scrollRef}
-          className="px-6 overflow-y-auto flex-1"
-          style={{ WebkitOverflowScrolling: 'touch' }}
+          className="pg-upgrade-explainer-body"
         >
-          <div className="space-y-4 mb-6">
+          <div className="pg-upgrade-explainer-features">
             {[
-              { Icon: Ticket, label: 'Upgrade your seats during the event', color: '#FFE600' },
-              { Icon: Gift, label: 'Win free upgrades through Fan Drops', color: '#BF5FFF' },
-              { Icon: ShieldCheck, label: 'Money held in escrow until you confirm', color: '#00FF87' },
-            ].map(({ Icon, label, color }) => (
-              <div key={label} className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{ background: `${color}15` }}>
-                  <Icon className="w-4 h-4" style={{ color }} />
+              { Icon: Ticket, label: 'Upgrade your seats during the event' },
+              { Icon: Gift, label: 'Win free upgrades through Fan Drops' },
+              { Icon: ShieldCheck, label: 'Money held in escrow until you confirm' },
+            ].map(({ Icon, label }) => (
+              <div key={label} className="pg-upgrade-explainer-feature">
+                <div className="pg-upgrade-explainer-icon">
+                  <Icon className="w-4 h-4" />
                 </div>
-                <p className="text-sm font-medium text-white">{label}</p>
+                <p>{label}</p>
               </div>
             ))}
           </div>
         </div>
 
         {/* Sticky footer with CTA */}
-        <div className="px-6 pt-3 pb-6 flex-shrink-0" style={{ background: '#111', borderTop: '1px solid #1a1a1a' }}>
+        <div className="pg-upgrade-explainer-footer">
           <button
             onClick={handleDismiss}
-            className="w-full py-4 rounded-2xl font-bold text-base flex items-center justify-center gap-2"
-            style={{
-              background: 'linear-gradient(135deg, #00FF87, #00C8FF)',
-              color: '#000',
-            }}
+            className="pg-upgrade-explainer-action"
           >
             <Zap className="w-4 h-4" /> Got it, let's go
           </button>
-          <p className="text-center text-xs mt-3" style={{ color: '#444' }}>
+          <p>
             This won't show again
           </p>
         </div>

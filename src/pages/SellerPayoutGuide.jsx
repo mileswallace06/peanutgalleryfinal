@@ -1,7 +1,7 @@
 import { PageIntro } from '@/components/ClarityUI';
 import '@/components/member-surfaces.css';
 import { Link } from 'react-router-dom';
-import { Shield, CreditCard, CheckCircle, Banknote, Lock, Eye, EyeOff, User, Building2 } from 'lucide-react';
+import { ArrowLeft, Shield, CreditCard, CheckCircle, Banknote, Lock, Eye, EyeOff, User, Building2 } from 'lucide-react';
 import FaqAccordion from '@/components/education/FaqAccordion';
 
 const ORANGE = '#FF8C00';

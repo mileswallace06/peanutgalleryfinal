@@ -1,0 +1,47 @@
+/* Portalled Upgrades introduction: the same neutral ticket stock and green ink. */
+.pg-upgrade-explainer-backdrop {
+  position: fixed; inset: 0; z-index: 9999; height: 100dvh;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+  padding-top: env(safe-area-inset-top); background: rgb(0 0 0 / 70%);
+}
+.pg-upgrade-explainer {
+  position: relative; display: flex; flex-direction: column; width: 100%; max-width: 32rem;
+  min-height: 0; max-height: min(85dvh, calc(100dvh - env(safe-area-inset-top) - 16px));
+  overflow: hidden; padding-bottom: env(safe-area-inset-bottom);
+  background: var(--pg-surface); color: var(--pg-text);
+  border: 1px solid var(--pg-line); border-top: 4px solid var(--pg-mint);
+  border-radius: 12px 12px 0 0; box-shadow: 0 16px 48px rgb(0 0 0 / 25%);
+}
+.pg-upgrade-explainer-header { flex-shrink: 0; border-bottom: 1px dashed var(--pg-line); }
+.pg-upgrade-explainer-handle { display: flex; justify-content: center; padding: 11px 0; }
+.pg-upgrade-explainer-handle > div { width: 36px; height: 4px; border-radius: 2px; background: var(--pg-line); }
+.pg-upgrade-explainer-close {
+  position: absolute; top: 10px; right: 12px; display: flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; padding: 0; border: 1px solid var(--pg-line); border-radius: 7px;
+  background: var(--pg-surface-raised); color: var(--pg-text);
+}
+.pg-upgrade-explainer-heading { padding: 3px 22px 20px; }
+.pg-upgrade-explainer-eyebrow {
+  margin: 0 44px 13px 0; font-size: 11px; font-weight: 800; line-height: 1.5;
+  letter-spacing: .13em; text-transform: uppercase; color: var(--neon-green);
+}
+.pg-upgrade-explainer-heading h2 { margin: 0 0 12px; font-size: clamp(26px, 7vw, 32px); line-height: 1.08; font-weight: 400; color: var(--pg-text); }
+.pg-upgrade-explainer-description { margin: 0; font-size: 14px; line-height: 1.6; color: var(--pg-muted); }
+.pg-upgrade-explainer-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding: 5px 22px; }
+.pg-upgrade-explainer-feature { display: flex; align-items: center; gap: 12px; padding: 15px 0; }
+.pg-upgrade-explainer-feature + .pg-upgrade-explainer-feature { border-top: 1px dashed var(--pg-line); }
+.pg-upgrade-explainer-icon { display: flex; align-items: center; justify-content: center; flex: 0 0 34px; width: 34px; height: 34px; border-radius: 5px; background: color-mix(in srgb, var(--pg-mint) 9%, var(--pg-surface)); color: var(--neon-green); }
+.pg-upgrade-explainer-feature p { margin: 0; min-width: 0; font-size: 14px; font-weight: 600; line-height: 1.5; color: var(--pg-text); }
+.pg-upgrade-explainer-footer { flex-shrink: 0; padding: 16px 22px 18px; border-top: 1px dashed var(--pg-line); background: var(--pg-surface); }
+.pg-upgrade-explainer-action { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 48px; padding: 12px 14px; border-radius: 7px; background: var(--pg-mint); color: var(--pg-ink); font-size: 15px; font-weight: 800; line-height: 1.4; }
+.pg-upgrade-explainer-footer > p { margin: 10px 0 0; text-align: center; font-size: 12px; line-height: 1.5; color: var(--pg-muted); }
+.pg-upgrade-explainer button:focus-visible { outline: 3px solid var(--neon-green); outline-offset: 3px; }
+@media (max-height: 620px) {
+  .pg-upgrade-explainer { max-height: calc(100dvh - env(safe-area-inset-top) - 8px); }
+  .pg-upgrade-explainer-heading { padding-bottom: 12px; }
+  .pg-upgrade-explainer-heading h2 { font-size: 25px; margin-bottom: 8px; }
+  .pg-upgrade-explainer-description { font-size: 13px; line-height: 1.45; }
+  .pg-upgrade-explainer-footer { padding-top: 12px; padding-bottom: 12px; }
+}
+@media (min-width: 640px) { .pg-upgrade-explainer { border-radius: 12px 12px 0 0; } }
+@media (prefers-reduced-motion: reduce) { .pg-upgrade-explainer { transition: none !important; } }
