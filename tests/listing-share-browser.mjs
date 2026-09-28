@@ -1,6 +1,6 @@
 /** Narrow local-only browser checks for the listing sharing kit.
  * Run the isolated fixture first, then PG_SHARE_REVIEW_URL=http://127.0.0.1:4174 node tests/listing-share-browser.mjs.
- * Optional: PG_PLAYWRIGHT_MODULE, PG_CHROMIUM_PATH, PG_SHARE_EVIDENCE_DIR.
+ * Optional: PG_PLAYWRIGHT_MODULE, PG_CHROMIUM_PATH (or PG_TEST_CHROMIUM), PG_CHROMIUM_ARGS JSON array, PG_SHARE_EVIDENCE_DIR.
  * No production API, authenticated browser session, reservation, or purchase is used.
  */
 import assert from 'node:assert/strict';
@@ -12,7 +12,10 @@ const base = new URL(process.env.PG_SHARE_REVIEW_URL || 'http://127.0.0.1:4174')
 assert.ok(['127.0.0.1', 'localhost', '[::1]'].includes(base.hostname), 'Browser review must use a local fixture origin');
 const modulePath = process.env.PG_PLAYWRIGHT_MODULE || '/opt/codex/runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/index.mjs';
 const { chromium } = await import(pathToFileURL(modulePath).href);
-const browser = await chromium.launch({ headless: true, ...(process.env.PG_CHROMIUM_PATH ? { executablePath: process.env.PG_CHROMIUM_PATH } : {}) });
+const executablePath = process.env.PG_CHROMIUM_PATH || process.env.PG_TEST_CHROMIUM;
+const browserArgs = process.env.PG_CHROMIUM_ARGS ? JSON.parse(process.env.PG_CHROMIUM_ARGS) : [];
+assert.ok(Array.isArray(browserArgs) && browserArgs.every(value => typeof value === 'string'), 'Chromium args must be a JSON array of strings');
+const browser = await chromium.launch({ headless: true, args: browserArgs, ...(executablePath ? { executablePath } : {}) });
 const evidence = process.env.PG_SHARE_EVIDENCE_DIR || '/tmp/pg-listing-share-browser';
 await mkdir(evidence, { recursive: true });
 const report = { fixtureOnly: true, externalRequests: [], checks: [], screenshots: [], png: [], errors: [] };
