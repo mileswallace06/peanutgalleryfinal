@@ -3,9 +3,9 @@ import { createPortal } from 'react-dom';
 import { Link, useLocation } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { formatDistanceToNow } from 'date-fns';
-import { Plus, X, ImagePlus, Star, MapPin, Users, Search, ChevronDown, RefreshCw, ArrowUpDown, Check, Pencil, Armchair, Ticket, ArrowRight, MessageCircle, AlertCircle } from 'lucide-react';
+import { Plus, X, Star, MapPin, Users, ChevronDown, RefreshCw, ArrowUpDown, Check, Pencil, Ticket, ArrowRight, MessageCircle, AlertCircle } from 'lucide-react';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
-import SeatFlexSheet from '@/components/fanzone/SeatFlexSheet';
+import FanPostComposer from '@/components/fanzone/FanPostComposer';
 import BucketListSheet from '@/components/fanzone/BucketListSheet';
 import './community-ticket.css';
 
@@ -41,29 +41,24 @@ export default function FanZone() {
   const isTabActive = location.pathname === '/fan-zone' || location.pathname.startsWith('/fan-zone/');
   const [user, setUser] = useState(null);
 
-  // Close any open FAB sheets when navigating away from FanZone
+  // Close the composer when this retained tab is no longer visible.
   useEffect(() => {
     if (!isTabActive && fab) setFab(null);
   }, [isTabActive]);
   const [posts, setPosts] = useState([]);
   const [events, setEvents] = useState([]);
+  const [eventsLoading, setEventsLoading] = useState(true);
+  const [eventsError, setEventsError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [reactingId, setReactingId] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
+  const [postedAt, setPostedAt] = useState(0);
 
   // FAB state
   const [fab, setFab] = useState(null);
 
-  // Compose state
-  const [text, setText] = useState('');
-  const [selectedEventId, setSelectedEventId] = useState('');
-  const [eventQuery, setEventQuery] = useState('');
-  const [showEventPicker, setShowEventPicker] = useState(false);
-  const [photoUrl, setPhotoUrl] = useState('');
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const eventPickerRef = useRef(null);
+  const createPostButton = useRef(null);
 
   // Filter state
   const [feedTab, setFeedTab] = useState('trending'); // 'trending' | 'bucket' | 'nearby' | 'friends'
@@ -94,10 +89,36 @@ export default function FanZone() {
     loadPosts();
     // Load ALL events (including past) so retrospective posts can link to them.
     // Fan Zone is conversation, not just upcoming purchases.
-    base44.entities.Event.list('date', 100)
-      .then(data => setEvents(Array.isArray(data) ? data : []))
-      .catch((err) => console.warn('[FanZone] Event.list failed:', err?.message || err));
+    loadEvents();
   }, []);
+
+  useEffect(() => {
+    if (!postedAt) return;
+    const timer = window.setTimeout(() => setPostedAt(0), 6000);
+    return () => window.clearTimeout(timer);
+  }, [postedAt]);
+
+  const handlePosted = () => {
+    setFab(null);
+    setFeedTab('trending');
+    setDateFilter('all');
+    setDateSort('newest_posted');
+    setPostedAt(Date.now());
+    loadPosts();
+  };
+
+  const loadEvents = async () => {
+    setEventsLoading(true);
+    setEventsError(false);
+    try {
+      const data = await base44.entities.Event.list('date', 100);
+      setEvents(Array.isArray(data) ? data : []);
+    } catch {
+      setEventsError(true);
+    } finally {
+      setEventsLoading(false);
+    }
+  };
 
   // Request geolocation when Near Me tab is selected
   useEffect(() => {
@@ -131,37 +152,6 @@ export default function FanZone() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const closeAll = () => { setFab(null); setText(''); setSelectedEventId(''); setEventQuery(''); setShowEventPicker(false); setPhotoUrl(''); };
-
-  const handlePhotoUpload = async (file) => {
-    if (!file) return;
-    setUploadingPhoto(true);
-    const { file_url } = await base44.integrations.Core.UploadFile({ file });
-    setPhotoUrl(file_url);
-    setUploadingPhoto(false);
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!text.trim() && !photoUrl) return;
-    setSubmitting(true);
-    const event = events.find(ev => ev.id === selectedEventId);
-    await base44.entities.FanPost.create({
-      author_email: user?.email || '',
-      author_name: user?.full_name || user?.email || 'Fan',
-      text: text.trim() || '📸',
-      post_type: 'post',
-      event_id: selectedEventId || null,
-      event_title: event?.title || null,
-      event_city: event?.city || null,
-      photo_url: photoUrl || null,
-      reactions: { fire: [], eyes: [], peanut: [] },
-    });
-    closeAll();
-    await loadPosts();
-    setSubmitting(false);
   };
 
   const handleReact = async (post, reactionKey) => {
@@ -351,12 +341,14 @@ export default function FanZone() {
           <p className="pg-community-subtitle">Share the moment.</p>
         </div>
         <button
-          onClick={() => user ? setFab(fab === 'menu' ? null : 'menu') : base44.auth.redirectToLogin()}
-          aria-label={fab === 'menu' ? 'Close post menu' : 'Create post'}
-          aria-expanded={fab === 'menu'}
-          className={`pg-compose-button${fab === 'menu' ? ' is-open' : ''}`}
+          ref={createPostButton}
+          onClick={() => user?.email ? setFab('post') : base44.auth.redirectToLogin()}
+          disabled={authLoading}
+          aria-label="Create post"
+          aria-haspopup="dialog"
+          className="pg-compose-button"
         >
-          {fab === 'menu' ? <X aria-hidden="true" /> : <Pencil aria-hidden="true" />}
+          <Plus aria-hidden="true" /><span>Create</span>
         </button>
       </header>
 
@@ -412,6 +404,7 @@ export default function FanZone() {
 
       {/* Feed */}
       <div className="pg-feed">
+        {postedAt > 0 && <p className="pg-post-shared" role="status"><Check size={16} aria-hidden="true" /> Post shared.</p>}
         {loadError && !authLoading ? (
           <div className="pg-state pg-community-state">
             <AlertCircle size={32} aria-hidden="true" />
@@ -447,7 +440,7 @@ export default function FanZone() {
             </p>
             {feedTab !== 'friends' && (
               <button
-                onClick={() => user ? setFab('post') : base44.auth.redirectToLogin()}
+                onClick={() => user?.email ? setFab('post') : base44.auth.redirectToLogin()}
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-sm"
                 style={{ background: 'rgba(var(--neon-cyan-rgb), 0.08)', border: '1px solid rgba(var(--neon-cyan-rgb), 0.2)', color: 'var(--neon-cyan)' }}
               >
@@ -465,164 +458,17 @@ export default function FanZone() {
       </div>
     </div>
 
+      {isTabActive && fab === 'post' && <FanPostComposer
+        user={user}
+        events={events}
+        eventsLoading={eventsLoading}
+        eventsError={eventsError}
+        onReloadEvents={loadEvents}
+        triggerRef={createPostButton}
+        onClose={() => setFab(null)}
+        onPosted={handlePosted}
+      />}
       {createPortal(<div className="pg-community-overlays">
-      {/* FAB mini-menu */}
-      {isTabActive && fab === 'menu' && (
-        <>
-          <div className="fixed inset-0 z-30" onClick={closeAll} />
-          <div className="fixed right-5 z-40 flex flex-col items-end gap-3"
-            style={{ bottom: 'calc(10rem + env(safe-area-inset-bottom))', animation: 'fabMenuIn 0.18s cubic-bezier(0.34,1.56,0.64,1) both' }}>
-            <FabOption label="Seat Flex" icon={<Armchair size={19} aria-hidden="true" />} color="var(--pg-cyan)" delay="0s" onClick={() => setFab('flex')} />
-            <FabOption label="Create a post" icon={<Pencil size={19} aria-hidden="true" />} color="var(--pg-violet)" delay="0.05s" onClick={() => setFab('post')} />
-          </div>
-          <style>{`
-            @keyframes fabMenuIn { from { opacity:0; transform:translateY(16px) scale(0.92); } to { opacity:1; transform:translateY(0) scale(1); } }
-            @keyframes fabItemIn { from { opacity:0; transform:translateX(20px) scale(0.88); } to { opacity:1; transform:translateX(0) scale(1); } }
-          `}</style>
-        </>
-      )}
-
-      {/* Bottom sheet — regular post */}
-      {fab === 'post' && (
-        <div className="fixed inset-0 z-50 flex flex-col justify-end">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeAll} />
-          <div className="relative z-10 rounded-t-3xl px-5 pt-5 overflow-y-auto max-h-[85vh]"
-            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', paddingBottom: 'calc(7rem + env(safe-area-inset-bottom))' }}>
-            <div className="w-10 h-1 rounded-full mx-auto mb-5" style={{ background: 'hsl(var(--border))' }} />
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-bold text-base text-foreground">Create a post</h2>
-              <button onClick={closeAll} aria-label="Close post composer"><X className="w-5 h-5 text-muted-foreground" /></button>
-            </div>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <textarea
-                autoFocus
-                value={text}
-                onChange={e => setText(e.target.value)}
-                placeholder="What's happening at the show?"
-                maxLength={280}
-                rows={3}
-                className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none leading-relaxed"
-              />
-
-              {/* Photo upload */}
-              {photoUrl ? (
-                <div className="relative rounded-xl overflow-hidden">
-                  <img src={photoUrl} alt="post" className="w-full max-h-48 object-cover rounded-xl" />
-                  <button type="button" onClick={() => setPhotoUrl('')} aria-label="Remove photo"
-                    className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center"
-                    style={{ background: 'rgba(0,0,0,0.7)' }}>
-                    <X className="w-4 h-4 text-white" />
-                  </button>
-                </div>
-              ) : (
-                <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer w-fit"
-                  style={{ color: uploadingPhoto ? 'var(--neon-purple)' : 'hsl(var(--muted-foreground))' }}>
-                  {uploadingPhoto
-                    ? <span className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                    : <ImagePlus className="w-4 h-4" />}
-                  <span>{uploadingPhoto ? 'Uploading…' : 'Add photo'}</span>
-                  <input type="file" accept="image/*" className="hidden"
-                    onChange={e => handlePhotoUpload(e.target.files[0])} disabled={uploadingPhoto} />
-                </label>
-              )}
-
-              <div className="h-px" style={{ background: 'hsl(var(--border))' }} />
-
-              {/* Searchable event picker */}
-              <div className="relative" ref={eventPickerRef}>
-                <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowEventPicker(v => !v)}
-                  className="min-w-0 flex-1 flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs text-left"
-                  style={{ background: 'var(--search-bg)', border: '1px solid hsl(var(--border))', color: selectedEventId ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))' }}
-                >
-                  <Ticket className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
-                  <span className="flex-1 truncate">
-                    {selectedEventId ? events.find(e => e.id === selectedEventId)?.title : 'Tag an event (optional)'}
-                  </span>
-                  <ChevronDown className="w-3.5 h-3.5 flex-shrink-0 opacity-50" />
-                </button>
-                {selectedEventId && (
-                  <button type="button" aria-label="Clear tagged event"
-                    onClick={() => { setSelectedEventId(''); setEventQuery(''); setShowEventPicker(false); }}>
-                    <X className="w-4 h-4 text-muted-foreground" />
-                  </button>
-                )}
-                </div>
-
-                {showEventPicker && (
-                  <div className="absolute bottom-full left-0 right-0 mb-1 rounded-2xl overflow-hidden z-10"
-                    style={{ background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', maxHeight: '220px', display: 'flex', flexDirection: 'column' }}>
-                    <div className="p-2 flex-shrink-0">
-                      <div className="relative">
-                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                        <input
-                          autoFocus
-                          type="text"
-                          placeholder="Search events…"
-                          value={eventQuery}
-                          onChange={e => setEventQuery(e.target.value)}
-                          className="w-full pl-8 pr-3 py-2 rounded-xl text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
-                          style={{ background: 'var(--search-bg)', border: '1px solid hsl(var(--border))' }}
-                        />
-                      </div>
-                    </div>
-                    <div className="overflow-y-auto flex-1">
-                      {events
-                        .filter(ev => !eventQuery || ev.title?.toLowerCase().includes(eventQuery.toLowerCase()) || ev.venue?.toLowerCase().includes(eventQuery.toLowerCase()))
-                        .map(ev => (
-                          <button
-                            key={ev.id}
-                            type="button"
-                            onClick={() => { setSelectedEventId(ev.id); setShowEventPicker(false); setEventQuery(''); }}
-                            className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left transition-all"
-                            style={{ background: selectedEventId === ev.id ? 'rgba(var(--neon-cyan-rgb), 0.08)' : 'transparent', borderBottom: '1px solid hsl(var(--border))' }}
-                          >
-                            {ev.image_url
-                              ? <img src={ev.image_url} alt="" className="w-7 h-7 rounded-lg object-cover flex-shrink-0" />
-                              : <span className="w-7 h-7 flex items-center justify-center text-sm flex-shrink-0 rounded-lg" style={{ background: 'rgba(255,255,255,0.06)' }}><Ticket size={16} aria-hidden="true" /></span>
-                            }
-                            <div className="min-w-0 flex-1">
-                              <p className="text-xs font-semibold text-foreground truncate">{ev.title}</p>
-                              {ev.city && <p className="text-[10px] text-muted-foreground">{ev.city}</p>}
-                            </div>
-                          </button>
-                        ))
-                      }
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex items-center justify-end">
-                <span className="text-[10px] text-muted-foreground">{280 - text.length}</span>
-              </div>
-              <button
-                type="submit"
-                disabled={(!text.trim() && !photoUrl) || submitting || uploadingPhoto}
-                className="w-full py-3 rounded-2xl font-bold text-sm disabled:opacity-40 transition-opacity"
-                style={{ background: 'linear-gradient(135deg, rgba(var(--neon-cyan-rgb), 0.2), rgba(var(--neon-purple-rgb), 0.2))', color: 'var(--gradient-btn-text)', border: '1px solid rgba(var(--neon-cyan-rgb), 0.25)' }}
-              >
-                {submitting ? 'Posting…' : 'Post'}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Bottom sheet — seat flex */}
-      {fab === 'flex' && (
-        <div className="fixed inset-0 z-50 flex flex-col justify-end">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeAll} />
-          <SeatFlexSheet
-            user={user}
-            onClose={closeAll}
-            onPosted={async () => { closeAll(); await loadPosts(); }}
-          />
-        </div>
-      )}
-
       {/* Sort bottom sheet */}
       {sortSheetOpen && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end">
@@ -684,15 +530,6 @@ function FeedTab({ id, active, label, badge, onClick }) {
     >
       <span>{label}</span>
       {badge && <span className="pg-feed-count">{badge}</span>}
-    </button>
-  );
-}
-
-function FabOption({ label, icon, color, delay = '0s', onClick }) {
-  return (
-    <button onClick={onClick} className="pg-compose-option"
-      style={{ background: color, animation: `fabItemIn 0.22s cubic-bezier(0.34,1.56,0.64,1) ${delay} both` }}>
-      {icon}<span>{label}</span>
     </button>
   );
 }

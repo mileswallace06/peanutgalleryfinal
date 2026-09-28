@@ -18,14 +18,23 @@ export default function SessionSection({ onDeleteRequest, theme, toggleTheme, us
               <p className="text-[11px] text-muted-foreground">{theme === 'dark' ? 'Currently on' : 'Currently off'}</p>
             </div>
             <button
+              type="button"
+              role="switch"
+              aria-label="Dark mode"
+              aria-checked={theme === 'dark'}
               onClick={toggleTheme}
-              className="relative w-12 h-6 rounded-full transition-colors flex-shrink-0"
-              style={{ background: theme === 'dark' ? '#BF5FFF' : 'hsl(var(--muted))' }}
+              className="w-12 h-11 flex items-center justify-center rounded-lg flex-shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-400"
             >
               <span
-                className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform"
-                style={{ transform: theme === 'dark' ? 'translateX(24px)' : 'translateX(0)' }}
-              />
+                aria-hidden="true"
+                className="relative block w-12 h-6 rounded-full transition-colors"
+                style={{ background: theme === 'dark' ? '#BF5FFF' : 'hsl(var(--muted))' }}
+              >
+                <span
+                  className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform"
+                  style={{ transform: theme === 'dark' ? 'translateX(24px)' : 'translateX(0)' }}
+                />
+              </span>
             </button>
           </div>
         </div>

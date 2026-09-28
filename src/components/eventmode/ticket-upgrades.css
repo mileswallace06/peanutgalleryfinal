@@ -83,11 +83,10 @@
 .pg-upgrade-action-label { display: flex; align-items: center; justify-content: center; gap: 4px; }
 .pg-upgrade-action-label svg { flex: none; }
 .pg-upgrades-skeleton { height: var(--pg-browse-row-height); border-radius: 10px; background: var(--pg-surface); border: 1px solid #ffffff1c; }
-.pg-upgrades-intro { display: flex; flex-direction: column; gap: 12px; padding: 24px 18px; }
-.pg-upgrades-intro > svg { color: var(--pg-mint); }
-.pg-upgrades-intro h2 { font-family: var(--font-display); font-size: 23px; line-height: 1.15; color: var(--pg-text); }
-.pg-upgrades-intro ol { list-style: decimal; padding-left: 20px; font-size: 14px; line-height: 1.7; color: var(--pg-muted); }
-.pg-upgrades-intro .pg-action { background: var(--pg-mint); color: var(--pg-ink); gap: 8px; }
+.pg-upgrades-intro { padding: 16px; border: 1px solid var(--pg-line); border-radius: 10px; background: var(--pg-surface); }
+.pg-upgrades-intro h2 { margin: 0; font-family: var(--font-display); font-size: 18px; line-height: 1.25; color: var(--pg-text); }
+.pg-upgrades-intro > p { margin: 5px 0 14px; font-size: 13px; line-height: 1.45; color: var(--pg-muted); }
+.pg-upgrades-intro .pg-action { min-height: 44px; padding: 0 10px; font-size: 13px; gap: 6px; }
 .pg-upgrades-notice { margin-bottom: 18px; border-color: var(--pg-orange); }
 .pg-upgrades-founder { margin-top: 3px; }
 
