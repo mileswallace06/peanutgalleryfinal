@@ -32,6 +32,8 @@ function instant(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+export { instant as parseShareInstant };
+
 function dateLabel(event, start) {
   const zone = cleanShareText(event.venue_timezone, 100);
   const options = { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' };

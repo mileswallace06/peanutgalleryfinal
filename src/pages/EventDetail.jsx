@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useLocation, Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 import { MapPin, Calendar, ArrowLeft, Ticket, Zap, Plus, Bell, ShieldCheck } from 'lucide-react';
@@ -9,9 +9,13 @@ import { getEventLiveStatus } from '@/lib/eventTiming';
 import { logNavEvent } from '@/lib/navLogger';
 import EventLookupDebugPanel from '@/components/debug/EventLookupDebugPanel';
 import { Disclosure } from '@/components/ClarityUI';
+import { TICKET_LISTING_TYPES } from '@/lib/listingTypes';
+import { sharedListingSelection } from '@/lib/sharedListingDestination';
 import './event-detail-clarity.css';
+import './shared-listing.css';
 export default function EventDetail() {
   const { id } = useParams();
+  const { search } = useLocation();
   const [event, setEvent] = useState(null);
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -158,8 +162,9 @@ export default function EventDetail() {
   const isLive = timing.status === 'live';
   const isLiveMode = timing.status === 'live' || timing.status === 'ended';
   const isDemoOnly = listings.length > 0 && listings.some(l => l.is_demo_listing);
-  const sorted = [...listings].sort((a, b) => a.asking_price - b.asking_price);
-  const cheapest = sorted[0]?.asking_price;
+  const shared = sharedListingSelection(listings, event, search, TICKET_LISTING_TYPES);
+  const sorted = [...shared.listings].sort((a, b) => a.asking_price - b.asking_price);
+  const cheapest = [...listings].sort((a, b) => a.asking_price - b.asking_price)[0]?.asking_price;
 
   return (
     <div className="pg-secondary-page pg-event-detail">
@@ -197,8 +202,15 @@ export default function EventDetail() {
 
       <div className="pg-event-content">
         <section id="event-tickets" className="pg-event-listing-section" aria-labelledby="event-tickets-heading">
+          {shared.requested && (
+            <div className="pg-shared-handoff" role="status">
+              <h2>{shared.listings.length ? 'The ticket shared with you' : 'This shared listing is no longer available'}</h2>
+              <p>{shared.listings.length ? 'Review this exact listing below before continuing.' : 'No other listing has been selected. You can browse the event’s other tickets.'}</p>
+              <Link to={`/events/${encodeURIComponent(event.id)}`}>View all tickets for this event</Link>
+            </div>
+          )}
           <div className="pg-event-section-heading">
-            <h2 id="event-tickets-heading" className="font-display">Ticket listings <span>({listings.length})</span></h2>
+            <h2 id="event-tickets-heading" className="font-display">{shared.requested ? 'Shared ticket' : 'Ticket listings'} <span>({sorted.length})</span></h2>
             <p>Choose a listing to see its seats and purchase details.</p>
             <div className="pg-event-badges">
               {adminUnlocked && <span className="pg-event-notice">Admin</span>}
@@ -206,7 +218,7 @@ export default function EventDetail() {
             </div>
           </div>
 
-          {listings.length === 0 ? (
+          {shared.requested && sorted.length === 0 ? null : sorted.length === 0 ? (
             isLiveMode && !adminUnlocked ? (
               <div className="pg-event-empty">
                 <h3>{timing.status === 'ended' ? 'Pre-event ticket sales have closed' : 'Event is live — check Upgrades'}</h3>
