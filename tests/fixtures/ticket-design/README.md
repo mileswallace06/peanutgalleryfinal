@@ -57,9 +57,17 @@ Only a frame initially requested as `page=founder` receives the fictional admin 
 - `page=my-sales` includes one eligible fictional future resale listing. Its share action opens the real dialog, which performs its fresh participant and public-list reads through this local stub.
 - `page=shared-listing&auth=guest` renders the real public destination for that exact listing without an authenticated fixture user.
 - `page=shared-event` renders the real event detail with `?listing=fixture-seller-active`; it must show only that listing and must not open a purchase automatically.
-- `scenario=share-unavailable` retains the seller inventory row but makes fresh sharing reads return unavailable. `empty` gives a missing shared destination; `provider-error` exercises its sanitized error state.
+- `scenario=share-unavailable` retains the seller inventory row but makes fresh sharing reads return unavailable. `empty` gives a missing shared destination; `provider-error` exercises its sanitized error state; `auth-denied` returns a fictional 403 and checks the branded sign-in link preserves the exact listing destination.
 - Deliberately fictional proof, transfer-note and barcode canaries exist only in test data. They must never appear in exported metadata or the public landing page.
 
 The focused runner is `tests/listing-share-browser.mjs`. It only accepts localhost fixture origins, intercepts all external requests, stubs clipboard/native sharing, and checks 320/390px dialog fit in both themes, Escape/focus return, PNG dimensions, copied canonical URL, native-share cancellation, fresh-unavailable handling and exact listing handoff. Run it against the isolated server using `PG_SHARE_REVIEW_URL=http://127.0.0.1:4174 node tests/listing-share-browser.mjs`. `PG_PLAYWRIGHT_MODULE`, `PG_CHROMIUM_PATH` (or `PG_TEST_CHROMIUM`), `PG_CHROMIUM_ARGS` (JSON argument array) and `PG_SHARE_EVIDENCE_DIR` can select locally installed test tools/output paths.
 
-**Browser execution remains NOT RUN in this workspace:** Chromium was absent; one Playwright install invocation returned an empty/truncated download and failed. The runner is prepared and syntax-checked, not evidence of passing browser behavior. Compile results are reported separately. Native iPhone share sheets, camera QR scanning, hosted public routing and TestFlight remain separate checks even after a local Chromium pass.
+**Local browser verification passed September 28:** ten initial cases passed with no external requests, mutating SDK calls or browser runtime errors. This included both real PNG downloads, four dialog viewport/theme combinations, native-share cancellation through a stub, fresh-unavailable handling, three guest destination states and the exact event handoff. The visual review found the existing feedback widget overlaying the dialog; a localized modal correction then passed a separate three-case recheck (320px dark, 390px light, guest 403/branded sign-in). The corrected modal keeps 12px side margins and covers the fixed feedback widget. Browser evidence is recorded in `docs/reviews/listing-share-evidence/browser/`.
+
+Playwright's browser archive download failed once; a separate test-only Chromium binary supplied by the root task ran successfully. No browser dependency was added to the app. Native iPhone share sheets, camera QR scanning, hosted public routing and TestFlight remain separate checks.
+
+For the narrow modal/auth recheck only, use `PG_SHARE_RECHECK=modal-auth`. If execution cells do not share localhost, start Vite and the runner in one Node process:
+
+```sh
+node --input-type=module -e "import { createServer } from 'vite'; const server = await createServer({ configFile: 'tests/fixtures/ticket-design/vite.config.mjs' }); await server.listen(); try { await import('./tests/listing-share-browser.mjs'); } finally { await server.close(); }"
+```

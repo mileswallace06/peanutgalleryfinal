@@ -1,0 +1,45 @@
+{
+  "fixtureOnly": true,
+  "externalRequests": [],
+  "checks": [
+    "Share dialog 320px dark: fit, privacy, canonical copied link, Escape/focus",
+    "Share dialog 320px light: fit, privacy, canonical copied link, Escape/focus",
+    "Share dialog 390px dark: fit, privacy, canonical copied link, Escape/focus, both PNG dimensions",
+    "Share dialog 390px light: fit, privacy, canonical copied link, Escape/focus",
+    "Stubbed native share cancellation: no fallback download or failure alert",
+    "Seller inventory stale: fresh unavailable read prevents sharing",
+    "Shared listing guest populated: exact state, privacy, local reads only",
+    "Shared listing guest empty: exact state, privacy, local reads only",
+    "Shared listing guest provider-error: exact state, privacy, local reads only",
+    "Signed-in event handoff: exact listing only, no purchase auto-open"
+  ],
+  "screenshots": [
+    "docs/reviews/listing-share-evidence/browser/share-320-dark.png",
+    "docs/reviews/listing-share-evidence/browser/share-320-light-before-modal-fix.png",
+    "docs/reviews/listing-share-evidence/browser/share-390-dark-before-modal-fix.png",
+    "docs/reviews/listing-share-evidence/browser/share-390-light.png",
+    "docs/reviews/listing-share-evidence/browser/shared-listing-populated.png",
+    "docs/reviews/listing-share-evidence/browser/shared-listing-empty.png",
+    "docs/reviews/listing-share-evidence/browser/shared-listing-provider-error.png"
+  ],
+  "png": [
+    {
+      "kind": "Story",
+      "width": 1080,
+      "height": 1920,
+      "bytes": 797628,
+      "path": "docs/reviews/listing-share-evidence/browser/story.png"
+    },
+    {
+      "kind": "Square",
+      "width": 1080,
+      "height": 1080,
+      "bytes": 495477,
+      "path": "docs/reviews/listing-share-evidence/browser/square.png"
+    }
+  ],
+  "errors": [],
+  "status": "PASSED",
+  "stage": "Initial ten-case browser pass before the localized modal layering/margins correction",
+  "note": "320-dark and 390-light screenshots were replaced by the final targeted modal/auth recheck. The two before-modal-fix images are historical only."
+}

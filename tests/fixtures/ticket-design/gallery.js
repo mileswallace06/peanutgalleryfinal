@@ -1,6 +1,6 @@
 const params = new URLSearchParams(location.search);
 const page = params.get('page') || 'events';
-const scenario = ['populated', 'empty', 'provider-error', 'share-unavailable'].includes(params.get('scenario')) ? params.get('scenario') : 'populated';
+const scenario = ['populated', 'empty', 'provider-error', 'share-unavailable', 'auth-denied'].includes(params.get('scenario')) ? params.get('scenario') : 'populated';
 const width = ['320', '390', '430'].includes(params.get('width')) ? params.get('width') : 'all';
 const theme = params.get('theme') === 'dark' ? 'dark' : 'light';
 const pages = [['events', 'Tickets'], ['upgrades', 'Upgrades'], ['hub', 'Live event hub'], ['sell', 'Sell'], ['fan-zone', 'Fan Zone'], ['my-tickets', 'My Tickets'], ['my-sales', 'My Sales / sharing'], ['shared-listing', 'Shared listing'], ['shared-event', 'Exact event listing'], ['account-settings', 'Account Settings'], ['founder', 'Founder'], ['seller-payout-guide', 'Payout Guide'], ['upgrades-intro', 'Upgrades Introduction']];

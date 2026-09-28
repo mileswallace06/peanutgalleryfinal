@@ -19,8 +19,9 @@ const browser = await chromium.launch({ headless: true, args: browserArgs, ...(e
 const evidence = process.env.PG_SHARE_EVIDENCE_DIR || '/tmp/pg-listing-share-browser';
 await mkdir(evidence, { recursive: true });
 const report = { fixtureOnly: true, externalRequests: [], checks: [], screenshots: [], png: [], errors: [] };
+const modalAuthRecheck = process.env.PG_SHARE_RECHECK === 'modal-auth';
 const expectedLink = 'https://peanutgallery.store/listings/fixture-seller-active';
-const privateCanaries = ['reviewer@example.invalid', 'FICTIONAL_PRIVATE_PROOF_MUST_NOT_APPEAR', 'FICTIONAL_PRIVATE_TRANSFER_MUST_NOT_APPEAR', 'FICTIONAL_PRIVATE_BARCODE_MUST_NOT_APPEAR'];
+const privateCanaries = ['reviewer@example.invalid', 'FICTIONAL_PRIVATE_PROOF_MUST_NOT_APPEAR', 'FICTIONAL_PRIVATE_TRANSFER_MUST_NOT_APPEAR', 'FICTIONAL_PRIVATE_BARCODE_MUST_NOT_APPEAR', 'FICTIONAL_AUTH_RESPONSE_MUST_NOT_APPEAR'];
 const fixtureUrl = (page, theme = 'dark', scenario = 'populated', auth = 'member') => `${base.origin}/tests/fixtures/ticket-design/app.html?${new URLSearchParams({ page, theme, scenario, auth })}`;
 
 async function setupPage(width, theme, extra = {}) {
@@ -63,8 +64,16 @@ async function checkFit(page, dialog, width) {
   const dimensions = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, client: document.documentElement.clientWidth }));
   assert.ok(dimensions.scroll <= dimensions.client + 1, `No horizontal viewport overflow at ${width}`);
   const box = await dialog.boundingBox();
-  assert.ok(box && box.x >= -1 && box.x + box.width <= width + 1, 'Dialog fits width');
+  assert.ok(box && box.x >= 11 && box.x + box.width <= width - 11, 'Dialog preserves 12px side margins');
   assert.ok(box.y >= -1 && box.y + box.height <= 845, 'Dialog fits height and can scroll internally');
+  const feedbackCovered = await page.evaluate(() => {
+    const button = document.querySelector('button[aria-label="Send feedback"]');
+    if (!button) return true;
+    const box = button.getBoundingClientRect();
+    const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+    return !!hit?.closest('[role="dialog"], .pg-listing-share-overlay');
+  });
+  assert.equal(feedbackCovered, true, 'Modal covers the fixed feedback widget');
 }
 async function downloadImage(page, dialog, kind) {
   await dialog.getByText(kind === 'Square' ? 'Square post' : kind, { exact: true }).click();
@@ -86,6 +95,7 @@ async function downloadImage(page, dialog, kind) {
 try {
   for (const width of [320, 390]) {
     for (const theme of ['dark', 'light']) {
+      if (modalAuthRecheck && !((width === 320 && theme === 'dark') || (width === 390 && theme === 'light'))) continue;
       const { context, page } = await setupPage(width, theme);
       const { trigger, dialog } = await openShare(page, theme);
       await dialog.getByRole('button', { name: 'Copy link', exact: true }).waitFor({ state: 'visible' });
@@ -95,7 +105,7 @@ try {
       privateCanaries.forEach(value => assert.ok(!text.includes(value), `Private listing field excluded: ${value}`));
       await dialog.getByRole('button', { name: 'Copy link', exact: true }).click();
       assert.equal(await page.evaluate(() => window.__shareReview.copied.at(-1)), expectedLink);
-      if (width === 390 && theme === 'dark') {
+      if (!modalAuthRecheck && width === 390 && theme === 'dark') {
         await downloadImage(page, dialog, 'Story');
         await downloadImage(page, dialog, 'Square');
       }
@@ -103,6 +113,7 @@ try {
       await page.screenshot({ path: screenshot }); report.screenshots.push(screenshot);
       await page.keyboard.press('Escape');
       await dialog.waitFor({ state: 'hidden' });
+      await page.waitForFunction(() => document.activeElement?.tagName === 'BUTTON' && document.activeElement.textContent.trim() === 'Share listing', null, { timeout: 2000 });
       assert.equal(await trigger.evaluate(node => document.activeElement === node), true, 'Escape returns focus to seller trigger');
       await checkFixture(page);
       report.checks.push(`Share dialog ${width}px ${theme}: fit, privacy, canonical copied link, Escape/focus${width === 390 && theme === 'dark' ? ', both PNG dimensions' : ''}`);
@@ -110,7 +121,7 @@ try {
     }
   }
   // A native share cancellation is not an error and must not trigger a download.
-  {
+  if (!modalAuthRecheck) {
     const { context, page } = await setupPage(390, 'dark', { shareMode: 'cancel' });
     const downloads = []; page.on('download', download => downloads.push(download.suggestedFilename()));
     const { dialog } = await openShare(page, 'dark');
@@ -125,7 +136,7 @@ try {
     await context.close();
   }
   // Fresh read invalidates an otherwise shareable row without publishing stale artwork.
-  {
+  if (!modalAuthRecheck) {
     const { context, page } = await setupPage(390, 'dark');
     const { dialog } = await openShare(page, 'dark', 'share-unavailable');
     await dialog.getByText(/not currently available to share/).waitFor({ state: 'visible' });
@@ -135,11 +146,11 @@ try {
     await context.close();
   }
   // Shared destinations and failure paths are deliberately read-only.
-  for (const scenario of ['populated', 'empty', 'provider-error']) {
+  for (const scenario of modalAuthRecheck ? ['auth-denied'] : ['populated', 'empty', 'provider-error', 'auth-denied']) {
     const { context, page } = await setupPage(390, 'dark');
     await page.goto(fixtureUrl('shared-listing', 'dark', scenario, 'guest'));
     const heading = scenario === 'populated' ? 'Neon Orchard: After Hours'
-      : scenario === 'empty' ? 'This listing isn’t available' : 'We couldn’t load this listing';
+      : scenario === 'empty' ? 'This listing isn’t available' : scenario === 'auth-denied' ? 'Sign in to check this listing' : 'We couldn’t load this listing';
     await page.getByRole('heading', { name: heading, exact: true }).waitFor({ state: 'visible' });
     const body = await page.locator('body').innerText();
     privateCanaries.forEach(value => assert.ok(!body.includes(value), `Public destination omits private field: ${value}`));
@@ -150,13 +161,19 @@ try {
     } else {
       assert.equal(await handoff.count(), 0, 'Unavailable listing offers no specific-ticket CTA');
     }
+    if (scenario === 'auth-denied') {
+      const loginHref = await page.getByRole('link', { name: 'Sign in to Peanut Gallery', exact: true }).getAttribute('href');
+      const login = new URL(loginHref, base);
+      assert.equal(login.pathname, '/login');
+      assert.equal(login.searchParams.get('from_url'), '/listings/fixture-seller-active', 'Sign-in retains exact listing destination');
+    }
     const screenshot = join(evidence, `shared-listing-${scenario}.png`);
     await page.screenshot({ path: screenshot }); report.screenshots.push(screenshot);
     await checkFixture(page);
     report.checks.push(`Shared listing guest ${scenario}: exact state, privacy, local reads only`);
     await context.close();
   }
-  {
+  if (!modalAuthRecheck) {
     const { context, page } = await setupPage(390, 'dark');
     await page.goto(fixtureUrl('shared-event'));
     await page.getByRole('heading', { name: 'The ticket shared with you', exact: true }).waitFor({ state: 'visible' });
@@ -173,7 +190,7 @@ try {
   report.status = 'FAILED'; report.failure = error.message;
   throw error;
 } finally {
-  await writeFile(join(evidence, 'result.json'), `${JSON.stringify(report, null, 2)}\n`);
+  await writeFile(join(evidence, modalAuthRecheck ? 'modal-auth-recheck.json' : 'result.json'), `${JSON.stringify(report, null, 2)}\n`);
   await browser.close();
 }
 console.log(JSON.stringify(report, null, 2));

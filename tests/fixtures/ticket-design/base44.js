@@ -1,6 +1,6 @@
 /** Test-only SDK boundary: fictional data, no backend client and no network. */
 const params = new URLSearchParams(window.location.search);
-const scenario = ['populated', 'empty', 'provider-error', 'share-unavailable'].includes(params.get('scenario')) ? params.get('scenario') : 'populated';
+const scenario = ['populated', 'empty', 'provider-error', 'share-unavailable', 'auth-denied'].includes(params.get('scenario')) ? params.get('scenario') : 'populated';
 const now = Date.now();
 const iso = (minutes) => new Date(now + minutes * 60000).toISOString();
 const artwork = new URL('./fixture-arena.svg', import.meta.url).href;
@@ -147,6 +147,7 @@ const functions = { invoke: async (name, args = {}) => {
   if (['getPurchaseParticipantView','getListingParticipantView','getFlashDropView'].includes(name) && scenario === 'provider-error') throw failure(`Sample provider failure: ${name}`);
   if (name === 'getPurchaseParticipantView') return { data: { purchases: scenario === 'empty' ? [] : copy(purchases.filter(p => !args.event_id || p.event_id === args.event_id)), sales: scenario === 'empty' ? [] : copy(sales.filter(p => !args.event_id || p.event_id === args.event_id)) } };
   if (name === 'getListingParticipantView') {
+    if (scenario === 'auth-denied') throw failure('FICTIONAL_AUTH_RESPONSE_MUST_NOT_APPEAR', 403);
     // Mimic a listing becoming unavailable between the seller list and fresh public read.
     const available = scenario !== 'empty' && scenario !== 'share-unavailable';
     if (args.listing_id) return { data: { listing: available ? copy(listings.find(l => l.id === args.listing_id) || null) : null } };
