@@ -1,4 +1,13 @@
-import { getEventLiveStatus } from './eventTiming.js';
+import { SOON_WINDOW_MINUTES } from './eventTiming.js';
+import { sellingEventTiming } from './sellingEventTiming.js';
+
+// Discovery must agree with Sell about actual ends, estimated windows and TBA
+// times. Keep the Upgrades-only "Soon" label without changing those rules.
+export function getUpgradeEventTiming(event, nowMs = Date.now()) {
+  const timing = sellingEventTiming(event, nowMs);
+  return timing.status === 'upcoming' && timing.start - nowMs <= SOON_WINDOW_MINUTES * 60000
+    ? { ...timing, status: 'soon' } : timing;
+}
 
 const eventStart = event => {
   const value = Date.parse(event.event_start_utc || event.date || '');
@@ -10,10 +19,9 @@ export function groupUpgradeEvents(events, nowMs = Date.now()) {
   const live = [];
   const upcoming = [];
   for (const event of events) {
-    if (event.status === 'ended') continue;
-    const status = getEventLiveStatus(event, nowMs).status;
-    if (status === 'live') live.push(event);
-    else if (status === 'soon' || status === 'upcoming') upcoming.push(event);
+    const status = getUpgradeEventTiming(event, nowMs).status;
+    if (status === 'live' || status === 'estimated_live') live.push(event);
+    else if (status === 'soon' || status === 'upcoming' || status === 'unknown') upcoming.push(event);
   }
   live.sort((a, b) => eventStart(a) - eventStart(b));
   upcoming.sort((a, b) => eventStart(a) - eventStart(b));

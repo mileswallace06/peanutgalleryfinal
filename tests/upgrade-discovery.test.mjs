@@ -104,7 +104,7 @@ test('discovery combines soon and upcoming, retains live, and excludes ended eve
     event('beta-live', '2026-10-01T18:00:00Z', { is_beta_live: true }),
   ], now);
 
-  assert.deepEqual(groups.live.map(value => value.id), ['live', 'beta-live']);
+  assert.deepEqual(groups.live.map(value => value.id), ['live']);
   assert.deepEqual(groups.upcoming.map(value => value.id), ['soon', 'upcoming']);
 });
 
