@@ -100,11 +100,14 @@ test('closed or invalid advertised transfer windows are unavailable and instant-
 });
 
 test('unavailable HTTP responses and operational failures are distinct and never include provider errors', async () => {
-  for (const status of [400, 401, 403, 404]) {
+  for (const status of [400, 404]) {
     assert.deepEqual(await loadSharedListing(reads({ failure: { response: { status, data: { secret: 'private' } } } }), listing.id, now), { status: 'unavailable' });
   }
   for (const failure of [new Error('sensitive transport details'), { response: { status: 500 } }]) {
     assert.deepEqual(await loadSharedListing(reads({ failure }), listing.id, now), { status: 'error' });
+  }
+  for (const status of [401, 403]) {
+    assert.deepEqual(await loadSharedListing(reads({ failure: { response: { status, data: { secret: 'private' } } } }), listing.id, now), { status: 'authentication-required' });
   }
   assert.deepEqual(await loadSharedListing(reads({ publicListings: null }), listing.id, now), { status: 'error' });
 });

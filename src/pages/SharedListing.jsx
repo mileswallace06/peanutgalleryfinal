@@ -6,6 +6,7 @@ import PublicPage from '@/components/PublicPage';
 import EventThumbnail from '@/components/events/EventThumbnail';
 import { UPGRADE_LISTING_TYPES } from '@/lib/listingTypes';
 import { listingHandoffHref, loadSharedListing } from '@/lib/sharedListingDestination';
+import { authPageHref } from '@/lib/brandedAuth';
 import './shared-listing.css';
 
 const reads = {
@@ -53,10 +54,11 @@ export default function SharedListing() {
         ) : result.status !== 'available' ? (
           <section className="pg-public-state pg-shared-state" role="status" aria-live="polite">
             <Ticket aria-hidden="true" />
-            <h1>{result.status === 'error' ? 'We couldn’t load this listing' : 'This listing isn’t available'}</h1>
-            <p>{result.status === 'error' ? 'Please try again. We haven’t confirmed whether these tickets are available.'
+            <h1>{result.status === 'authentication-required' ? 'Sign in to check this listing' : result.status === 'error' ? 'We couldn’t load this listing' : 'This listing isn’t available'}</h1>
+            <p>{result.status === 'authentication-required' ? 'We couldn’t confirm access to this listing. Try signing in, or try again.' : result.status === 'error' ? 'Please try again. We haven’t confirmed whether these tickets are available.'
               : 'It may be reserved, sold, removed, or past its event.'}</p>
-            {result.status === 'error' && <button type="button" className="pg-public-action" onClick={() => setAttempt(value => value + 1)}><RefreshCw aria-hidden="true" /> Try again</button>}
+            {result.status === 'authentication-required' && <Link className="pg-public-action" to={authPageHref('/login', `/listings/${encodeURIComponent(listingId)}`)}>Sign in to Peanut Gallery</Link>}
+            {['error', 'authentication-required'].includes(result.status) && <button type="button" className="pg-public-action" onClick={() => setAttempt(value => value + 1)}><RefreshCw aria-hidden="true" /> Try again</button>}
             <Link className="pg-public-link" to="/events">Browse events</Link>
           </section>
         ) : (

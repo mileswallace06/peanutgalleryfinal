@@ -52,7 +52,7 @@ function windowStillOpen(value, nowMs) {
 
 function unavailableError(error) {
   const status = Number(error?.response?.status ?? error?.status);
-  return [400, 401, 403, 404].includes(status);
+  return [400, 404].includes(status);
 }
 
 /**
@@ -84,6 +84,7 @@ export async function loadSharedListing({ invoke, filterEvents }, listingId, now
     return { status: 'available', listing: allowed(listing, LISTING_FIELDS), event: allowed(event, EVENT_FIELDS) };
   } catch (error) {
     // Never surface provider responses: they can include request details.
+    if ([401, 403].includes(Number(error?.response?.status ?? error?.status))) return { status: 'authentication-required' };
     return { status: unavailableError(error) ? 'unavailable' : 'error' };
   }
 }

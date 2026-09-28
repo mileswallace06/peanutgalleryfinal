@@ -170,7 +170,7 @@ export async function createListingShareImage(data, format = 'square', { canvasF
   const priceY = y + h - (story ? 122 : 78);
   textBlock(ctx, cleanShareText(data.priceLabel, 40), left, priceY, mainWidth, { size: 57, minSize: 42, maxLines: 1, weight: 900, color: accent });
   textBlock(ctx, 'per ticket + fees · USD', left, priceY + 34, mainWidth, { size: 23, maxLines: 1, color: muted });
-  if (data.isUpgrade) textBlock(ctx, 'Separate upgrade purchase. See entry requirements.', left, priceY + 69, mainWidth, { size: 19, maxLines: 1, color: muted });
+  if (data.isUpgrade) textBlock(ctx, 'Upgrade only. Event admission required.', left, priceY + 69, mainWidth, { size: 19, maxLines: 1, color: muted });
 
   const qrY = y + (story ? 414 : 235);
   textBlock(ctx, 'ON PG', 807, y + 60, 170, { size: 23, weight: 700, maxLines: 1, color: accent });

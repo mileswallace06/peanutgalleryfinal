@@ -1,5 +1,13 @@
 # Session checkpoint — September 28, 2026 (America/Phoenix)
 
+## Build session — sharing kit
+
+Implemented the first functional slice on `codex/listing-share-kit-20260928`: My Sales sharing controls, square/Story PNGs with exact-listing QR, public current-listing landing and preserved ticket/upgrade handoffs. 29 focused source tests, compilation/scoped lint, 10 browser cases plus 3 targeted follow-ups, and independent PNG/QR checks passed. The mobile feedback-widget overlap was found and corrected.
+
+Delivery and limitations: [LISTING_SHARE_KIT_20260928.md](../../reviews/LISTING_SHARE_KIT_20260928.md). This is a local reviewed build, not a published TestFlight change. No points, entitlements, watches, payment logic or backend settings were activated. No external outreach.
+
+Next: upload/review/publish this branch through the existing rebrand delivery path and verify it on TestFlight; then implement advanced saved watches. Session timing is approximate/unmeasured; retain the concrete completed work rather than inventing a velocity estimate.
+
 ## Latest direction — in-house rewards
 
 Miles rejected partner outreach until the app is launch-ready. No outreach was sent. The prior next action below is superseded.

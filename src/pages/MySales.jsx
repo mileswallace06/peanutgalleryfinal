@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 import { Ticket, Clock, CheckCircle, AlertTriangle, ArrowRight, Plus, RefreshCw, Zap } from 'lucide-react';
 import SellerMetrics from '@/components/sales/SellerMetrics';
 import ListingStatusBanner from '@/components/listings/ListingStatusBanner';
+import ListingShareControl from '@/components/sales/ListingShareControl';
 import { isVerificationExpired } from '@/lib/transferConfidence';
 import { PageIntro, Disclosure } from '@/components/ClarityUI';
 import './activity-clarity.css';
@@ -251,6 +252,7 @@ export default function MySales() {
                   </div>
                   <div className="pg-sale-ticket-body">
                     <ListingStatusBanner listing={l} event={ev} onRefresh={load} />
+                    <ListingShareControl listing={l} event={ev} />
                     <Disclosure title="Manage listing" description="Pause or cancel this listing." className="pg-sale-management">
                       <div className="pg-activity-controls">
                         <button onClick={() => handlePauseListing(l.id)} className="pg-action pg-activity-secondary">Pause</button>
