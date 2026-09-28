@@ -32,6 +32,7 @@ for (const [name, event, owned, mode, expected] of [
   ['owned upcoming ticket', { id: 'internal-event' }, true, 'upcoming', '/upgrades/internal-event'],
   ['owned synced Ticketmaster ticket', { id: 'internal-event', source: 'ticketmaster', tm_id: 'TM-123' }, true, 'upcoming', '/upgrades/internal-event'],
   ['owned live ticket', { id: 'internal-live' }, true, 'live', '/upgrades/internal-live'],
+  ['estimated live discovery', { id: 'estimated-live' }, false, 'estimated_live', '/upgrades/estimated-live'],
   ['ordinary upcoming discovery', { id: 'internal-event' }, false, 'upcoming', '/events/internal-event'],
 ]) {
   test(`${name} keeps its correct full-card destination`, async () => {

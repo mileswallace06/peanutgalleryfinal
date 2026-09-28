@@ -1,16 +1,14 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
 import { MapPin, ChevronRight, ChevronDown, LocateFixed, X, RefreshCw, Zap, HelpCircle, ArrowRight, Ticket, Radio, CalendarDays } from 'lucide-react';
 import LocationAutocomplete from '@/components/LocationAutocomplete';
-import { getEventLiveStatus } from '@/lib/eventTiming';
-import { groupUpgradeEvents, loadOwnedUpgradeEvents } from '@/lib/upgradeDiscovery';
+import { getUpgradeEventTiming, groupUpgradeEvents, loadOwnedUpgradeEvents } from '@/lib/upgradeDiscovery';
 import { logNavEvent } from '@/lib/navLogger';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
-import { fetchTMEvents, bustTMCache } from '@/lib/tmCache';
-import { useLocationDetect } from '@/hooks/useLocationDetect';
+import { useSellingDiscovery } from '@/hooks/useSellingDiscovery';
 import { useAuth } from '@/lib/AuthContext';
 import WhatIsPGOverlay, { shouldShowOverlay } from '@/components/WhatIsPGOverlay';
 import FounderStoryCard from '@/components/founder/FounderStoryCard';
@@ -18,23 +16,16 @@ import EventThumbnail from '@/components/events/EventThumbnail';
 import BrowseHeaderTools from '@/components/BrowseHeaderTools';
 import '@/components/eventmode/ticket-upgrades.css';
 
-// ── sessionStorage helpers ────────────────────────────────────────────────
-const SS_KEY = 'pg_upgrades_location';
-function readSS() {
-  try { return JSON.parse(sessionStorage.getItem(SS_KEY) || 'null'); } catch { return null; }
-}
-function writeSS(data) {
-  try { sessionStorage.setItem(SS_KEY, JSON.stringify(data)); } catch {}
-}
-
 export default function Upgrades() {
   const { user, isAuthenticated, isLoadingAuth } = useAuth();
-  const _ss = readSS();
-  const [allEvents, setAllEvents] = useState([]);
-  const [loading, setLoading] = useState(false);
+  // Reuse Sell's bounded future + ongoing requests and validated location.
+  const discovery = useSellingDiscovery();
+  const { result, editingLocation, locationInput, locationStatus, cityError } = discovery;
+  const allEvents = result.events;
+  const loading = discovery.loading || discovery.restoring;
+  const locationLabel = discovery.area?.label || '';
+  const sourceError = result.pgError || result.tmError;
   const [showOverlay, setShowOverlay] = useState(() => shouldShowOverlay(user));
-  const [locationInput, setLocationInput] = useState(_ss?.locationInput || '');
-  const [editingLocation, setEditingLocation] = useState(false);
   const [browseView, setBrowseView] = useState('upcoming');
   const [nowMs, setNowMs] = useState(Date.now);
 
@@ -51,18 +42,6 @@ export default function Upgrades() {
   const ownedEvents = [...ownedGroups.live, ...ownedGroups.upcoming];
   const ticketPanelShown = canReadTickets && (ticketQuery.isPending || ticketQuery.isError || ownedEvents.length > 0 || ticketQuery.data?.unavailableCount > 0);
 
-  const [tmError, setTmError] = useState(false);
-
-  const { locationStatus, latlong, latlongRef, locationLabel, locationLabelRef, requestLocation, refreshLocation, setManualCity } = useLocationDetect({
-    onSuccess: (ll) => fetchEvents(ll, null),
-  });
-
-  const abortRef = useRef(null);
-
-  useEffect(() => {
-    return () => abortRef.current?.abort();
-  }, []);
-
   // Keep Live now accurate while the page remains open without refetching inventory.
   useEffect(() => {
     const updateClock = () => { if (!document.hidden) setNowMs(Date.now()); };
@@ -74,85 +53,11 @@ export default function Upgrades() {
     };
   }, []);
 
-  // Restore last manual city on hard refresh.
-  // GPS coords are auto-restored by useLocationDetect.
-  useEffect(() => {
-    const ss = readSS();
-    if (ss?.city && ss.city !== 'Near me' && !latlong) {
-      setManualCity(ss.city);
-      fetchEvents(null, ss.city);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const fetchEvents = useCallback(async (ll, cityOverride, bust = false) => {
-    if (!ll && !cityOverride) return;
-
-    abortRef.current?.abort();
-    abortRef.current = new AbortController();
-    const signal = abortRef.current.signal;
-
-    setLoading(true);
-    setTmError(false);
-    const tmParams = { size: 40 };
-    if (ll) { tmParams.latlong = ll; tmParams.radius = '50'; }
-    else if (cityOverride) { tmParams.city = cityOverride; }
-
-    if (bust) bustTMCache(tmParams);
-
-    try {
-      const [localData, { events: tmEventsRaw }] = await Promise.all([
-        base44.entities.Event.list('date', 200),
-        fetchTMEvents(base44, tmParams),
-      ]);
-
-      let pgEvents = localData.filter(e => e.status !== 'ended');
-
-      if (cityOverride && !ll) {
-        const q = cityOverride.toLowerCase();
-        pgEvents = pgEvents.filter(e =>
-          e.city?.toLowerCase().includes(q) ||
-          e.state?.toLowerCase().includes(q) ||
-          e.venue?.toLowerCase().includes(q)
-        );
-      }
-      if (ll) {
-        const tmCities = new Set(tmEventsRaw.map(e => e.city?.toLowerCase()).filter(Boolean));
-        if (tmCities.size > 0) {
-          pgEvents = pgEvents.filter(e => !e.city || tmCities.has(e.city.toLowerCase()));
-        } else {
-          pgEvents = [];
-        }
-      }
-
-      const pgMapped = pgEvents.map(e => ({ ...e, source: 'pg' }));
-      const tmEvents = tmEventsRaw.map(e => ({ ...e, id: `tm_${e.tm_id}`, source: 'ticketmaster' }));
-      const pgTmIds = new Set(pgMapped.map(e => e.tm_id).filter(Boolean));
-      const uniqueTM = tmEvents.filter(e => !pgTmIds.has(e.tm_id));
-
-      if (signal.aborted) return;
-      setAllEvents([...pgMapped, ...uniqueTM]);
-    } catch (err) {
-      if (signal.aborted) return;
-      if (err?.response?.status === 429) setTmError(true);
-      else console.error(err);
-    } finally {
-      if (!signal.aborted) setLoading(false);
-    }
-  }, []);
-
-  const handleNearMe = () => {
-    setEditingLocation(false);
-    requestLocation();
-  };
-
   const { live: liveEvents, upcoming: upcomingEvents } = groupUpgradeEvents(allEvents, nowMs);
   const visibleEvents = browseView === 'live' ? liveEvents : upcomingEvents;
 
   const { containerRef, pulling } = usePullToRefresh(() => {
-    const ll = latlongRef.current || null;
-    const city = !ll && locationLabelRef.current && locationLabelRef.current !== 'Near me' ? locationLabelRef.current : null;
-    fetchEvents(ll, city, true);
+    discovery.refresh();
     if (canReadTickets) ticketQuery.refetch();
   });
 
@@ -162,7 +67,7 @@ export default function Upgrades() {
       {pulling && <div className="pg-upgrades-refresh" role="status"><RefreshCw size={16} className="animate-spin" /> Refreshing…</div>}
 
       <BrowseHeaderTools path="/upgrades">
-        <button className="pg-upgrades-location" aria-expanded={editingLocation} aria-controls="upgrade-location-filter" onClick={() => { setLocationInput(locationLabel === 'Near me' ? '' : locationLabel || ''); setEditingLocation(!editingLocation); }}>
+        <button className="pg-upgrades-location" aria-expanded={editingLocation} aria-controls="upgrade-location-filter" onClick={editingLocation ? discovery.closeLocation : discovery.openLocation}>
           <MapPin size={18} aria-hidden="true" /><span>{locationLabel || 'Choose your location'}</span><ChevronRight size={15} aria-hidden="true" />
         </button>
         <button type="button" className="pg-upgrades-help" aria-label="How seat upgrades work" onClick={() => setShowOverlay(true)}>
@@ -179,22 +84,22 @@ export default function Upgrades() {
         {editingLocation ? (
           <div id="upgrade-location-filter" className="pg-upgrades-city-edit">
             <div className="pg-upgrades-city-input">
-              <LocationAutocomplete value={locationInput} onChange={setLocationInput}
-                onSelect={(s) => { setManualCity(s.label); setEditingLocation(false); writeSS({ city: s.label, locationInput: s.label }); fetchEvents(null, s.label); }}
-                onSubmit={(val) => { setManualCity(val); setEditingLocation(false); writeSS({ city: val, locationInput: val }); fetchEvents(null, val); }}
-                onNearMe={handleNearMe} nearMeLoading={locationStatus === 'requesting'} autoFocus />
-              <button type="button" className="pg-upgrades-close" aria-label="Close location editor" onClick={() => setEditingLocation(false)}><X size={20} /></button>
+              <LocationAutocomplete value={locationInput} onChange={discovery.changeLocationInput}
+                onSelect={discovery.selectCity} onSubmit={discovery.rejectCity}
+                onNearMe={() => discovery.locate()} nearMeLoading={locationStatus === 'requesting'} autoFocus />
+              <button type="button" className="pg-upgrades-close" aria-label="Close location editor" onClick={discovery.closeLocation}><X size={20} /></button>
             </div>
+            {cityError && <p className="pg-upgrades-note" role="alert">{cityError}</p>}
             {(locationStatus === 'denied' || locationStatus === 'unavailable' || locationStatus === 'timeout') && <p className="pg-upgrades-note">
               {locationStatus === 'denied' ? 'Location blocked — enter your city above.' : locationStatus === 'timeout' ? 'Location timed out — enter your city above.' : "Couldn't detect location — enter your city above."}
             </p>}
           </div>
         ) : !locationLabel ? (
           <div className="pg-upgrades-location-actions">
-            <button className="pg-action pg-upgrades-near" onClick={handleNearMe} disabled={locationStatus === 'requesting'}>
+            <button className="pg-action pg-upgrades-near" onClick={() => discovery.locate()} disabled={locationStatus === 'requesting'}>
               <LocateFixed size={18} />{locationStatus === 'requesting' ? 'Locating…' : 'Near me'}
             </button>
-            <button className="pg-action pg-upgrades-city" onClick={() => { setLocationInput(locationLabel === 'Near me' ? '' : locationLabel || ''); setEditingLocation(true); }}>
+            <button className="pg-action pg-upgrades-city" onClick={discovery.openLocation}>
               <MapPin size={18} />{locationLabel ? 'Change city' : 'Enter city'}
             </button>
           </div>
@@ -203,9 +108,12 @@ export default function Upgrades() {
         {!editingLocation && ['denied', 'unavailable', 'timeout'].includes(locationStatus) && <p className="pg-upgrades-note" role="status">We couldn’t get your location. Tap the location above to choose a city.</p>}
       </div>
 
-      {tmError && <div className="pg-state pg-upgrades-notice" role="alert">Too many requests right now. Please wait a moment and try again.</div>}
+      {sourceError && <div className="pg-state pg-upgrades-notice" role="alert">
+        {result.rateLimited ? 'Some events could not load because the provider is busy.' : 'Some events could not load. These results may be incomplete.'}
+        {' '}<button type="button" onClick={discovery.refresh} disabled={loading}>Try again</button>
+      </div>}
       <div aria-live="polite" aria-atomic="true" className="sr-only">
-        {!loading && locationLabel && (allEvents.length === 0 ? `No events found near ${locationLabel}` : `${allEvents.length} event${allEvents.length !== 1 ? 's' : ''} found near ${locationLabel}`)}
+        {!loading && locationLabel && (sourceError ? 'Event results are incomplete' : allEvents.length === 0 ? `No events found near ${locationLabel}` : `${allEvents.length} event${allEvents.length !== 1 ? 's' : ''} found near ${locationLabel}`)}
       </div>
 
       <div className="pg-upgrades-feed">
@@ -226,11 +134,11 @@ export default function Upgrades() {
             <section id="upgrade-discovery-results" aria-label={browseView === 'live' ? 'Live now' : 'Upcoming events'}>
               <p className="sr-only" role="status">{visibleEvents.length} {browseView === 'live' ? 'live' : 'upcoming'} events</p>
               {visibleEvents.length === 0 ? <div className="pg-state pg-upgrades-view-empty">
-                <h2>{browseView === 'live' ? 'Nothing live nearby right now.' : 'No upcoming events nearby.'}</h2>
-                <p>{browseView === 'live' ? 'Find your next event in Upcoming. Available upgrades appear in its event hub.' : 'Try another city, or check back for more events.'}</p>
+                <h2>{sourceError ? 'Events couldn’t fully load.' : result.limited ? 'No matching events in these results.' : browseView === 'live' ? 'Nothing live nearby right now.' : 'No upcoming events nearby.'}</h2>
+                <p>{sourceError ? 'Try again before checking whether anything is live.' : result.limited ? 'More events may exist beyond these results. Try a nearby city.' : browseView === 'live' ? 'Find your next event in Upcoming. Available upgrades appear in its event hub.' : 'Try another city, or check back for more events.'}</p>
                 {browseView === 'live' && <button type="button" className="pg-action" onClick={() => setBrowseView('upcoming')}>See upcoming events <ArrowRight size={16} aria-hidden="true" /></button>}
               </div>
-                : <div className="pg-upgrades-stack">{visibleEvents.map(event => <EventCard key={event.id} event={event} mode={getEventLiveStatus(event, nowMs).status} />)}</div>}
+                : <div className="pg-upgrades-stack">{visibleEvents.map(event => <EventCard key={event.id} event={event} mode={getUpgradeEventTiming(event, nowMs).status} />)}</div>}
             </section>
           </>}
         <div className="pg-upgrades-founder"><FounderStoryCard /></div>
@@ -250,7 +158,7 @@ function OwnedTicketsPanel({ events, nowMs, loading, failed, unavailableCount, r
     <summary><Ticket size={17} aria-hidden="true" /><strong>Your tickets <span>{events.length}</span></strong><span className="pg-upgrades-owned-hint">Find upgrades</span><ChevronDown size={16} aria-hidden="true" /></summary>
     <div className="pg-upgrades-owned-body">
       <p>Choose a ticket you bought on PG. Upgrades are separate purchases, subject to availability.</p>
-      <div className="pg-upgrades-stack">{events.map(event => <EventCard key={event.id} event={event} mode={getEventLiveStatus(event, nowMs).status} owned />)}</div>
+      <div className="pg-upgrades-stack">{events.map(event => <EventCard key={event.id} event={event} mode={getUpgradeEventTiming(event, nowMs).status} owned />)}</div>
       {unavailableCount > 0 && <p>Some tickets couldn’t load. <button type="button" onClick={onRetry} disabled={retrying}>{retrying ? 'Retrying…' : 'Try again'}</button></p>}
       <Link className="pg-upgrades-wallet-link" to="/my-tickets">Manage all your tickets <ArrowRight size={16} aria-hidden="true" /></Link>
     </div>
@@ -258,7 +166,8 @@ function OwnedTicketsPanel({ events, nowMs, loading, failed, unavailableCount, r
 }
 
 function EventCard({ event, mode, owned = false }) {
-  const isLive = mode === 'live';
+  const isEstimated = mode === 'estimated_live';
+  const isLive = mode === 'live' || isEstimated;
   const isSoon = mode === 'soon';
   const navigate = useNavigate();
   const isTM = !owned && (event.source === 'ticketmaster' || String(event.id || '').startsWith('tm_'));
@@ -316,11 +225,11 @@ function EventCard({ event, mode, owned = false }) {
   const linkLabel = syncing ? 'Loading…' : owned ? 'Find upgrades for your ticket' : isLive ? 'Open Live Hub' : isSoon ? 'Get Ready' : 'View Tickets';
   const dateValue = event.event_start_utc || event.date;
   const date = dateValue ? new Date(dateValue) : null;
-  const hasDate = date && !Number.isNaN(date.getTime());
+  const hasDate = mode !== 'unknown' && date && !Number.isNaN(date.getTime());
 
   return (
     <button type="button" onClick={handleClick} disabled={syncing || !hasValidLink}
-      className={`pg-ticket pg-browse-ticket pg-printed-ticket pg-upgrade-ticket pg-upgrade-ticket-${mode}`}>
+      className={`pg-ticket pg-browse-ticket pg-printed-ticket pg-upgrade-ticket pg-upgrade-ticket-${isLive ? 'live' : mode}`}>
       <EventThumbnail event={event} className="pg-browse-ticket-art" />
       <div className="pg-browse-ticket-copy">
         {event.category && <span className="sr-only">{event.category}</span>}
@@ -330,7 +239,7 @@ function EventCard({ event, mode, owned = false }) {
         {owned ? <p className="pg-browse-ticket-detail"><strong>Find upgrades</strong></p> : !isLive && !isTM && <p className="pg-browse-ticket-detail">Upgrades open at showtime</p>}
       </div>
       <span className="pg-browse-ticket-stub">
-        {(isLive || isSoon) && <span className="pg-browse-ticket-status">{isLive ? 'Live' : 'Soon'}</span>}
+        {(isLive || isSoon) && <span className="pg-browse-ticket-status" title={isEstimated ? 'Estimated live window; the event may have ended' : undefined}>{isEstimated ? 'Live · est.' : isLive ? 'Live' : 'Soon'}</span>}
         <span className="pg-browse-ticket-month">{hasDate ? format(date, 'MMM') : 'TBA'}</span>
         <span className="pg-browse-ticket-day">{hasDate ? format(date, 'd') : '—'}</span>
         <span className={hasValidLink ? 'sr-only' : 'pg-browse-ticket-status'}>{hasValidLink ? linkLabel : 'Unavailable'}</span>
