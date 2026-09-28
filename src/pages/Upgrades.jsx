@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { MapPin, ChevronRight, ChevronDown, LocateFixed, X, RefreshCw, Zap, HelpCircle, ArrowRight, Ticket, Radio, CalendarDays } from 'lucide-react';
+import { MapPin, ChevronRight, ChevronDown, LocateFixed, X, RefreshCw, HelpCircle, ArrowRight, Ticket, Radio, CalendarDays } from 'lucide-react';
 import LocationAutocomplete from '@/components/LocationAutocomplete';
 import { getUpgradeEventTiming, groupUpgradeEvents, loadOwnedUpgradeEvents } from '@/lib/upgradeDiscovery';
 import { logNavEvent } from '@/lib/navLogger';
@@ -95,14 +95,18 @@ export default function Upgrades() {
             </p>}
           </div>
         ) : !locationLabel ? (
-          <div className="pg-upgrades-location-actions">
-            <button className="pg-action pg-upgrades-near" onClick={() => discovery.locate()} disabled={locationStatus === 'requesting'}>
-              <LocateFixed size={18} />{locationStatus === 'requesting' ? 'Locating…' : 'Near me'}
-            </button>
-            <button className="pg-action pg-upgrades-city" onClick={discovery.openLocation}>
-              <MapPin size={18} />{locationLabel ? 'Change city' : 'Enter city'}
-            </button>
-          </div>
+          <section className="pg-upgrades-intro" aria-labelledby="upgrade-location-heading">
+            <h2 id="upgrade-location-heading">Find your event</h2>
+            <p>Choose a city to see nearby events and available upgrades.</p>
+            <div className="pg-upgrades-location-actions">
+              <button type="button" className="pg-action pg-upgrades-near" onClick={() => discovery.locate()} disabled={locationStatus === 'requesting'}>
+                <LocateFixed size={18} aria-hidden="true" />{locationStatus === 'requesting' ? 'Locating…' : 'Near me'}
+              </button>
+              <button type="button" className="pg-action pg-upgrades-city" onClick={discovery.openLocation}>
+                <MapPin size={18} aria-hidden="true" />Choose city
+              </button>
+            </div>
+          </section>
         ) : null}
         {!editingLocation && locationLabel && locationStatus === 'requesting' && <p className="pg-upgrades-note" role="status">Finding your location…</p>}
         {!editingLocation && ['denied', 'unavailable', 'timeout'].includes(locationStatus) && <p className="pg-upgrades-note" role="status">We couldn’t get your location. Tap the location above to choose a city.</p>}
@@ -117,10 +121,6 @@ export default function Upgrades() {
       </div>
 
       <div className="pg-upgrades-feed">
-        {!loading && locationStatus === 'idle' && !locationLabel && <div className="pg-state pg-upgrades-intro">
-          <Zap size={24} /><h2>Move closer to the moment.</h2>
-          <ol><li>Choose your location</li><li>Browse available upgrades</li><li>Choose a better seat</li></ol>
-        </div>}
         {loading ? <div className="pg-upgrades-stack" role="status" aria-label="Loading nearby upgrades">{[1, 2, 3].map(i => <div key={i} className="pg-upgrades-skeleton animate-pulse" />)}</div>
           : (locationStatus === 'granted' || locationLabel) && <>
             <div className="pg-upgrades-view-switch" role="group" aria-label="Browse upgrades by event time">
