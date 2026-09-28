@@ -5,9 +5,9 @@ const now = Date.now();
 const iso = (minutes) => new Date(now + minutes * 60000).toISOString();
 const artwork = new URL('./fixture-arena.svg', import.meta.url).href;
 export const fixtureUser = {
-  id: 'fixture-user', email: 'reviewer@example.invalid', full_name: 'Alex Sample', role: 'user',
+  id: 'fixture-user', email: 'reviewer@example.invalid', full_name: 'Alex Sample', role: params.get('page') === 'founder' ? 'admin' : 'user',
   has_seen_onboarding: true, has_seen_upgrades_onboarding: true,
-  stripe_onboarding_complete: true, peanut_points: 240,
+  stripe_onboarding_complete: true, peanut_points: 240, avatar_url: artwork,
 };
 const event = (id, title, minutes, category, extra = {}) => ({
   id, tm_id: `tm-${id}`, title, category, city: 'Phoenix', state: 'AZ', venue: 'Imaginary Arena',
@@ -38,12 +38,23 @@ const listings = [
   listing('fixture-owned', '308', 'K', 26, { status: 'sold', listing_type: 'admission_ticket', seller_email: 'earlier-seller@example.invalid' }),
   listing('fixture-seller-active', '210', 'E', 45, { event_id: 'fixture-night', event_title: 'Neon Orchard: After Hours', seller_email: fixtureUser.email, viewer_is_seller: true }),
   listing('fixture-seller-sold', '114', 'J', 70, { event_id: 'fixture-weekend', event_title: 'The Paper Lanterns', seller_email: fixtureUser.email, viewer_is_seller: true, status: 'sold' }),
+  listing('fixture-seller-hidden', '208', 'H', 46, { event_id: 'fixture-night', event_title: 'Neon Orchard: After Hours', seller_email: fixtureUser.email, viewer_is_seller: true, status: 'hidden', hidden_reason: 'seller_paused' }),
 ];
 const purchases = [
   { id: 'fixture-received', event_id: 'fixture-live', listing_id: 'fixture-owned', transfer_status: 'completed', seller_confirmed: true, buyer_confirmed: true, amount: 52, quantity: 2, created_date: iso(-1440) },
   { id: 'fixture-confirm', event_id: 'fixture-night', listing_id: 'fixture-seller-active', transfer_status: 'pending_transfer', seller_confirmed: true, buyer_confirmed: false, amount: 90, quantity: 2, created_date: iso(-150) },
   { id: 'fixture-waiting', event_id: 'fixture-weekend', listing_id: 'fixture-seller-sold', transfer_status: 'pending_transfer', seller_confirmed: false, buyer_confirmed: false, amount: 140, quantity: 2, created_date: iso(-90) },
+  { id: 'fixture-disputed', event_id: 'fixture-comedy', listing_id: 'fixture-owned', transfer_status: 'disputed', seller_confirmed: true, buyer_confirmed: false, amount: 35, quantity: 1, created_date: iso(-180) },
 ];
+const sales = [
+  { id: 'fixture-sale-send', event_id: 'fixture-night', listing_id: 'fixture-seller-active', transfer_status: 'pending_transfer', seller_confirmed: false, buyer_confirmed: false, amount: 90, seller_payout: 80, quantity: 2, created_date: iso(-20) },
+  { id: 'fixture-sale-awaiting', event_id: 'fixture-weekend', listing_id: 'fixture-seller-sold', transfer_status: 'pending_transfer', seller_confirmed: true, buyer_confirmed: false, amount: 140, seller_payout: 125, quantity: 2, created_date: iso(-60), seller_confirmed_at: iso(-55) },
+  { id: 'fixture-sale-paid', event_id: 'fixture-live', listing_id: 'fixture-seller-sold', transfer_status: 'completed', seller_confirmed: true, buyer_confirmed: true, payment_captured: true, amount: 60, seller_payout: 54, platform_fee: 6, quantity: 2, created_date: iso(-1440), seller_confirmed_at: iso(-1437), updated_date: iso(-1435) },
+  { id: 'fixture-sale-payout', event_id: 'fixture-weekend', listing_id: 'fixture-seller-sold', transfer_status: 'completed', seller_confirmed: true, buyer_confirmed: true, payment_captured: false, amount: 140, seller_payout: 125, platform_fee: 15, quantity: 2, created_date: iso(-180), seller_confirmed_at: iso(-177), updated_date: iso(-170) },
+];
+const navigationLogs = ['event_not_found', 'navigation_error', 'lookup_fallback_failed', 'success'].map((result, index) => ({
+  id: `fixture-nav-${index}`, timestamp: iso(-index - 1), result, source_page: index % 2 ? 'Upgrades' : 'Events', event_id: 'fixture-live', event_title: 'The Aurora Waves', generated_href: '/upgrades/fixture-live', failure_reason: result === 'success' ? null : 'Fictional failure for visual review',
+}));
 const posts = [
   { id: 'fixture-post-1', author_email: 'morgan@example.invalid', author_name: 'Morgan Sample', event_id: 'fixture-live', event_title: 'The Aurora Waves', event_city: 'Phoenix', text: 'Fictional fan moment: the lights just came up. Who else is here tonight?', post_type: 'post', photo_url: artwork, created_date: iso(-8), updated_date: iso(-3), reactions: { fire: ['sample1@example.invalid','sample2@example.invalid','sample3@example.invalid'], eyes: ['sample4@example.invalid'], peanut: [] } },
   { id: 'fixture-post-2', author_email: 'jamie@example.invalid', author_name: 'Jamie Example', event_id: 'fixture-soon', event_title: 'Phoenix Comets vs Desert Foxes', event_city: 'Phoenix', text: 'Sample seat flex — moved a little closer for the opening pitch.', post_type: 'seat_flex', from_section: '312', from_row: 'M', to_section: '108', to_row: 'D', created_date: iso(-22), updated_date: iso(-5), reactions: { fire: ['sample5@example.invalid'], eyes: [], peanut: ['sample6@example.invalid'] } },
@@ -51,7 +62,7 @@ const posts = [
 const drops = [{ id: 'fixture-drop', event_id: 'fixture-live', status: 'pending', section: '112', row: 'F', quantity: 2, scheduled_label: 'Sample gift at the next intermission' }];
 export const fixture = window.ticketDesignFixture = {
   scenario, startedAt: new Date(now).toISOString(), calls: [], blocked: [], unexpected: [],
-  events, listings, purchases, posts, drops,
+  events, listings, purchases, sales, posts, drops,
 };
 const copy = value => structuredClone(value);
 const record = (name, params) => fixture.calls.push({ name, params, at: new Date().toISOString() });
@@ -86,12 +97,17 @@ function matches(row, query = {}) {
   });
 }
 const rowsByEntity = {
-  Event: events, Listing: listings, FanPost: posts, Notification: [], SeatDonation: [],
+  Event: events, Listing: listings, Purchase: [...purchases, ...sales], FanPost: posts, Notification: [], SeatDonation: [],
   BucketListItem: [{ id: 'fixture-bucket', user_email: fixtureUser.email, name: 'The Aurora Waves', type: 'artist' }],
   Follow: [{ id: 'fixture-follow', follower_email: fixtureUser.email, following_email: 'morgan@example.invalid' }],
   SeatInventory: [], FlashDropEntry: [],
   PointsActivity: [{ id: 'fixture-points', user_email: fixtureUser.email, reference_id: 'fixture-live', points: 100 }],
-  EventNavigationLog: [], AdminAlert: [],
+  EventNavigationLog: navigationLogs,
+  AdminAlert: [{ id: 'fixture-alert', resolved: false, priority: 'critical', title: 'Fictional transfer review requires attention', created_date: iso(-25) }],
+  TransferOutcome: [
+    { id: 'fixture-outcome-ok', transfer_successful: true, minutes_to_transfer: 5, created_date: iso(-60) },
+    { id: 'fixture-outcome-failed', transfer_successful: false, created_date: iso(-30) },
+  ],
 };
 function read(entity, query = {}, sort, limit, offset = 0) {
   if (scenario === 'provider-error' && ['FanPost', 'Listing'].includes(entity)) throw failure(`Sample provider failure: ${entity}`);
@@ -109,7 +125,7 @@ const entities = new Proxy({}, { get(_, entity) {
     if (method === 'filter') return async (query, sort, limit, offset) => { record(name, { query, sort, limit, offset }); return read(entity, query, sort, limit, offset); };
     if (method === 'list') return async (sort, limit, offset) => { record(name, { sort, limit, offset }); return read(entity, {}, sort, limit, offset); };
     if (method === 'subscribe' && entity === 'SeatDonation') return () => { record(name, {}); return () => {}; };
-    if (method === 'create' && ['EventNavigationLog', 'AdminAlert'].includes(entity)) return async payload => { record(name, payload); return { id: 'fixture-log-only', ...payload }; };
+    if (method === 'create' && entity === 'EventNavigationLog') return async payload => { record(name, payload); return { id: 'fixture-log-only', ...payload }; };
     if (['create','update','delete','bulkCreate'].includes(method)) return async (...args) => blocked(name, args);
     return async (...args) => unexpected(name, args);
   } });
@@ -128,13 +144,13 @@ const functions = { invoke: async (name, args = {}) => {
   }
   if (name === 'suggestCities') return { data: { cities: [{ city: 'Phoenix', state: 'AZ', label: 'Phoenix, AZ' }, { city: 'Boston', state: 'MA', label: 'Boston, MA' }].filter(c => c.label.toLowerCase().includes((args.keyword || '').toLowerCase())) } };
   if (['getPurchaseParticipantView','getListingParticipantView','getFlashDropView'].includes(name) && scenario === 'provider-error') throw failure(`Sample provider failure: ${name}`);
-  if (name === 'getPurchaseParticipantView') return { data: { purchases: scenario === 'empty' ? [] : copy(purchases.filter(p => !args.event_id || p.event_id === args.event_id)) } };
-  if (name === 'getListingParticipantView') return { data: args.listing_id ? { listing: scenario === 'empty' ? null : copy(listings.find(l => l.id === args.listing_id) || null) } : { listings: scenario === 'empty' ? [] : copy(listings.filter(l => l.event_id === args.event_id && l.status === 'active')) } };
+  if (name === 'getPurchaseParticipantView') return { data: { purchases: scenario === 'empty' ? [] : copy(purchases.filter(p => !args.event_id || p.event_id === args.event_id)), sales: scenario === 'empty' ? [] : copy(sales.filter(p => !args.event_id || p.event_id === args.event_id)) } };
+  if (name === 'getListingParticipantView') return { data: args.listing_id ? { listing: scenario === 'empty' ? null : copy(listings.find(l => l.id === args.listing_id) || null) } : { listings: scenario === 'empty' ? [] : copy(listings.filter(l => args.action === 'list_mine' ? l.seller_email === fixtureUser.email : l.event_id === args.event_id && l.status === 'active')) } };
   if (name === 'getFlashDropView') return { data: { drops: scenario === 'empty' ? [] : copy(drops), leaders: scenario === 'empty' ? [] : [{ name: 'A fictional fan', drops: 2 }] } };
-  if (name === 'checkSellerOnboarding') return { data: { complete: true } };
+  if (name === 'checkSellerOnboarding') return { data: { complete: true, details_submitted: true, charges_enabled: true, payouts_enabled: true } };
   if (name === 'tmSuggest') return { data: { attractions: [], venues: [] } };
   if (name === 'syncTMEvent') return { data: { id: events.find(e => e.tm_id === args.tm_id)?.id || null } };
-  if (['getStripeKey','reserveListing','releaseReservation','createCheckout','abortCheckout','confirmCheckoutAuthorized','createDemoUpgrade','flashDrop','seatDonation','submitFeedback','onboardSeller','submitListing'].includes(name)) return blocked(`functions.${name}`, args);
+  if (['getStripeKey','reserveListing','releaseReservation','createCheckout','abortCheckout','confirmCheckoutAuthorized','createDemoUpgrade','flashDrop','seatDonation','submitFeedback','onboardSeller','submitListing','deleteAccount'].includes(name)) return blocked(`functions.${name}`, args);
   return unexpected(`functions.${name}`, args);
 } };
 export const base44 = {

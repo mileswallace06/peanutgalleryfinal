@@ -8,7 +8,7 @@ Earlier Base44 error/stuck states and the failed GitHub fallback (HTTP 403) did 
 
 Approved source: `2d3adeab9601c9f64fbc2f7bc8a0f14958c1dbcb`, branch `codex/pg-fanzone-posting-20260927`.
 
-This additional audit/correction is isolated on `codex/pg-rebrand-completeness-20260927`, based on that approved source. It is not in Base44, Main or TestFlight.
+This additional audit/correction is isolated on `codex/pg-rebrand-completeness-20260927`, based on that approved source. The uploaded revision `6f3f505d6cf495e6e0bc469f13da6b1869d21d40` is now imported into Base44 as its own preview branch. It is not merged into Main or published to TestFlight. The September 28 follow-up fixes below are local until the next upload.
 
 ## Scope and findings
 
@@ -18,7 +18,7 @@ Confirmed gaps corrected: legacy guide/leaderboard shell; mismatched account/dis
 
 ## Route matrix
 
-“Baseline opened” refers to the existing reviewed branch or published app, before these additional local corrections. Updated-source visual rendering remains pending.
+“Baseline opened” refers to the existing reviewed branch or published app, before these additional local corrections. The historical baseline matrix below is retained; updated-source September 28 coverage and remaining gaps are recorded separately below.
 
 | Route | Source entry | Baseline browser coverage this pass | Updated source |
 | --- | --- | --- | --- |
@@ -92,3 +92,46 @@ The Base44 preview intermittently stalled and returned 502 errors. A fresh Main 
 - Merge/publication: completed; Base44 acknowledged publication. Main exactly matches the approved tree. Exact served-code and physical-phone confirmation remain open.
 - Not accomplished: updated completeness-source full visual sign-off.
 - Next session: confirm the phone received the approved fixes; import the completeness branch and visually verify its affected secondary screens. Purchase-security work remains owned by the separate session.
+
+
+## September 28 follow-up — rendered branch audit
+
+Current preview: exact Final app `69ef9900cf3862dc0ea39734`, branch `codex/pg-rebrand-completeness-20260927`, uploaded revision `6f3f505d`. The browser import completed and the selected branch was visible in the toolbar. Main was not selected for these screenshots. This branch has not been merged or published.
+
+36 screenshots are saved in `rebrand-evidence/mobile-20260928/`, with a browsable [contact sheet](rebrand-evidence/mobile-20260928/index.html). They show the uploaded revision before the two follow-up fixes. The phone preview measured 373×665 CSS pixels; these are browser observations, not physical TestFlight results.
+
+### Observed route outcomes
+
+| Group | New branch observation |
+| --- | --- |
+| Events, Upgrades, Sell, Fan Zone, Me | Rendered with live images/data or honest empty states. Events and Upcoming Upgrades fit three complete cards at this viewport. Event card opened its Ticketmaster detail. |
+| Ticketmaster detail | Hero, event information, external purchase link, and empty PG-listings state rendered. External purchase was not opened. |
+| Edit persona, notifications, create listing | Rendered; notifications All/Unread filters opened; listing stopped at event selection. No profile edits or listings submitted. |
+| Instant listings, Why PG, leaderboard | Rendered. FAQ expanded-state timing is not fully evidenced by its screenshot. |
+| Seller payout guide | Failed with `ReferenceError: ArrowLeft is not defined`; missing import corrected locally. Corrected render remains pending. |
+| Login, register, forgot password, reset password | Branded forms rendered. Reset without a token showed a readable disabled/error state. No credentials entered or forms submitted. |
+| Terms, privacy, cookies, Our Story | Rendered with readable contrast; founder photographs retained. Legal content was not audited for accuracy. |
+| Admin command center, legacy admin, beta QA/checklist/testers/dashboard | Initial screens rendered. Legacy admin stayed locked; no administrative action or edit performed. |
+| Not-found | Branded fallback rendered. Existing admin-only note retained. |
+| `/` | Existing authenticated redirect reached Events. Public unauthenticated landing not rechecked this pass. |
+
+Additional rendered surfaces: Me activity disclosure, New post, Seat Flex, bucket-list sheet/search, Upgrades Live Now empty state and its explanation dialog. Bucket-list first screenshot caught loading; search screenshot shows the stable search entry. No posts, uploads, purchases, transfers, or record-changing controls were submitted during this pass. Ordinary application mount effects were not asserted to be globally write-free.
+
+### Follow-up corrections
+
+1. `SellerPayoutGuide.jsx`: restore the `ArrowLeft` import used by its footer. This fixes an observed crash missed by the earlier build.
+2. `WhatIsPGOverlay.jsx` plus `upgrades-explainer.css`: replace old black/gradient sheet chrome with shared PG surfaces, green accent, dashed divisions, readable footer, bounded scrolling and 44px close control. Copy, handlers, focus/Escape/swipe behavior and dismissal preference persistence are unchanged.
+
+Verification: production build passed; scoped ESLint passed for both changed JSX files; a focused undefined-JSX scan across 98 changed JSX files found zero errors after the import fix. A separate isolated fixture build passed. `git diff --check` passed. Prior broad test evidence is retained, not rerun or relabeled as new live proof. Build warnings noted missing local Base44 environment configuration and stale Browserslist data; no application connectivity is claimed by compilation.
+
+### Remaining visual coverage
+
+Account settings, My Tickets, My Sales and Founder were not newly mounted against live data: their existing effects can create/update records. Extended the existing fail-closed local fixture for account settings, sales, founder, payout guide and the Upgrades intro, with additional wallet data. All writes are blocked and reads are explicit local fixtures. The cloud browser rejected localhost with `ERR_BLOCKED_BY_CLIENT`; rendered fixture QA is therefore NOT RUN. Fixture build success is not a visual pass.
+
+Still open: corrected payout/intro renders; narrow 320px and light-theme review; keyboard and physical-device behavior; populated purchase/transfer/dispute/donation outcomes; PG-specific dynamic event and purchase routes; all conditional admin panels. The EventMode redirect remains source-reviewed only. Existing guide claims about fees/escrow and time-zone display consistency require their own product/behavior checks and were not changed by this presentation pass.
+
+### Session checkpoint / next action
+
+September 28, 2026: continued the secondary-screen rebrand mission, imported the uploaded branch, saved 36 mobile screenshots, found and repaired one crash and one visual mismatch, and preserved an isolated fixture for the remaining risky states. Work is saved locally; this follow-up is not yet uploaded. No new Base44 AI prompt, merge, publication, maintenance change, or purchase-security work was performed.
+
+Next: upload the follow-up bundle to the same branch; refresh its Base44 preview and verify the two fixes; complete the isolated/phone checks before claiming no mismatches or publishing the full rebrand-completeness branch. The original merged Fan Zone update remains separate and already published.
