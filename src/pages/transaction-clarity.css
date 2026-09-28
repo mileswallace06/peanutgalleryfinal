@@ -3,7 +3,7 @@
 .pg-transaction-page :is(button, a, select, input, textarea) { touch-action: manipulation; }
 .pg-transaction-page :is(button, input, select, textarea) { border-radius: 9px; }
 .pg-transaction-page button { line-height: 1.4; }
-.pg-transaction-page :is(input, select, textarea) { color-scheme: dark; }
+.pg-transaction-page :is(input, select, textarea) { color-scheme: inherit; }
 .pg-transaction-page .pg-transaction-primary { min-height: 50px; background: var(--pg-mint); color: var(--pg-ink); }
 .pg-transaction-page .pg-transaction-secondary { min-height: 46px; background: transparent; border: 1px solid var(--pg-line); color: var(--pg-text); }
 .pg-transaction-card { padding: 18px; border: 1px solid var(--pg-line); border-radius: 12px; background: var(--pg-surface); }
