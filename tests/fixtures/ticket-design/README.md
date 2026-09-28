@@ -50,3 +50,16 @@ Example: `http://127.0.0.1:4174/tests/fixtures/ticket-design/?page=account-setti
 Only a frame initially requested as `page=founder` receives the fictional admin role. All APIs remain the local alias, including `checkSellerOnboarding`, which does not call its potentially mutating backend implementation. Read response shapes explicitly include buyer purchases, seller sales, owned listings, Purchase, TransferOutcome, and navigation logs. Unknown API access still fails closed.
 
 **Rendered verification: NOT RUN for these added fixture states.** The cloud browser rejected the local preview URL with `ERR_BLOCKED_BY_CLIENT`; compile validation is separate from a visual pass. Review locally at 320px and 390px in both themes, including account disclosures, founder spike rows, guide footer and overlay scrolling/focus. Full admin panels, purchase/checkout outcomes and physical TestFlight remain outside this extension.
+
+
+## September 28 listing sharing extension
+
+- `page=my-sales` includes one eligible fictional future resale listing. Its share action opens the real dialog, which performs its fresh participant and public-list reads through this local stub.
+- `page=shared-listing&auth=guest` renders the real public destination for that exact listing without an authenticated fixture user.
+- `page=shared-event` renders the real event detail with `?listing=fixture-seller-active`; it must show only that listing and must not open a purchase automatically.
+- `scenario=share-unavailable` retains the seller inventory row but makes fresh sharing reads return unavailable. `empty` gives a missing shared destination; `provider-error` exercises its sanitized error state.
+- Deliberately fictional proof, transfer-note and barcode canaries exist only in test data. They must never appear in exported metadata or the public landing page.
+
+The focused runner is `tests/listing-share-browser.mjs`. It only accepts localhost fixture origins, intercepts all external requests, stubs clipboard/native sharing, and checks 320/390px dialog fit in both themes, Escape/focus return, PNG dimensions, copied canonical URL, native-share cancellation, fresh-unavailable handling and exact listing handoff. Run it against the isolated server using `PG_SHARE_REVIEW_URL=http://127.0.0.1:4174 node tests/listing-share-browser.mjs`. `PG_PLAYWRIGHT_MODULE`, `PG_CHROMIUM_PATH` and `PG_SHARE_EVIDENCE_DIR` can select locally installed test tools/output paths.
+
+**Browser execution remains NOT RUN in this workspace:** Chromium was absent; one Playwright install invocation returned an empty/truncated download and failed. The runner is prepared and syntax-checked, not evidence of passing browser behavior. Compile results are reported separately. Native iPhone share sheets, camera QR scanning, hosted public routing and TestFlight remain separate checks even after a local Chromium pass.
