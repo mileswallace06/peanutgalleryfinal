@@ -135,3 +135,10 @@ Still open: corrected payout/intro renders; narrow 320px and light-theme review;
 September 28, 2026: continued the secondary-screen rebrand mission, imported the uploaded branch, saved 36 mobile screenshots, found and repaired one crash and one visual mismatch, and preserved an isolated fixture for the remaining risky states. Work is saved locally; this follow-up is not yet uploaded. No new Base44 AI prompt, merge, publication, maintenance change, or purchase-security work was performed.
 
 Next: upload the follow-up bundle to the same branch; refresh its Base44 preview and verify the two fixes; complete the isolated/phone checks before claiming no mismatches or publishing the full rebrand-completeness branch. The original merged Fan Zone update remains separate and already published.
+
+
+### September 28 upload recovery
+
+The follow-up push was safely rejected because Base44 added `9605fb640d63c066030ac2d27d74e3812167750e` (`Update base44 packages`) to the branch after the bundle's base. Its only changes are SDK 0.8.51 → 0.8.52 and Vite plugin 1.0.42 → 1.0.44 in package.json and package-lock.json.
+
+Normal local merge `1c0c0e12956b529ce25f8222975b237008ea72f2` preserves both that commit and follow-up `d8813c8c`. Exact comparison confirms the only additions over the follow-up are those two package files, byte-identical to the remote. No source conflict, force-push, remote mutation, or publication occurred. Existing build evidence is not relabeled as testing the bumped dependency versions. A replacement incremental bundle contains both histories; normal push will reject safely if the remote advances again. Next step remains corrected-preview verification after upload.
