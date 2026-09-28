@@ -66,7 +66,7 @@ export default function FanPostComposer({ user, events, eventsLoading = false, e
   };
   const share = async event => {
     event.preventDefault();
-    if (sharing || tasks.current.isSharing() || anyUpload || problem) return;
+    if (view !== 'compose' || sharing || tasks.current.isSharing() || anyUpload || problem) return;
     setSharing(true);
     setError('');
     let result;
