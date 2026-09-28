@@ -2,7 +2,9 @@
 
 ## Delivery status
 
-The approved Fan Zone/Upgrades/accessibility branch is **not merged or published**. Base44 returned a merge error; its second attempt did not update Main. After reloading the editor, the reviewed branch remained editable and Main remained `dee12087782ac179355a17f0bce6679052ff8d3a`. GitHub create-PR returned HTTP 403, `Resource not accessible by integration`; direct git has no saved write credential. No third merge retry occurred.
+The approved Fan Zone/Upgrades/accessibility branch **merged successfully after a delayed Base44 operation**. Main is `4c0856fdef8a2dc41cbd63df1b1e767dd1826de7` with parents `dee12087` and `2d3adeab`; its complete tree exactly matches the approved source. GitHub independently confirmed the merge. Base44 subsequently confirmed “Your app is published and live online!” at approximately 03:21 UTC on September 28 (20:21 Arizona on September 27), targeting `peanutgallery.store`. The live login page rendered normally. Its version-history Live link still points to older commit `e3c77b08ea585ecc9743163473807c5028b2b6f8`; therefore the served Main SHA is not independently established by that history link. Direct inspection of the public script asset was blocked by the browser. Physical TestFlight verification remains open.
+
+Earlier Base44 error/stuck states and the failed GitHub fallback (HTTP 403) did not represent the final merge result. No third merge attempt was issued.
 
 Approved source: `2d3adeab9601c9f64fbc2f7bc8a0f14958c1dbcb`, branch `codex/pg-fanzone-posting-20260927`.
 
@@ -75,17 +77,18 @@ No auth guards, backend code, secrets, payment execution, data mutations, worker
 
 ## Remaining verification before claiming “no mismatches”
 
-1. Complete the approved merge through an available authenticated route, verify Main contents, then publish the reviewed branch to Final.
+1. Confirm the newly published Fan Zone composer and compact Upgrades intro on the phone; the merge and publication action are complete, while the stale version-history link leaves exact live-code attribution unresolved.
 2. Import/push the separate completeness branch and review its new appearance in a usable browser preview at narrow and standard phone widths, both themes and with the keyboard open.
 3. Render the source-only states with isolated fixtures: populated purchase/sale/wallet states, transfer/dispute outcomes, donation outcomes, auth/approval errors, Fan Gifts eligibility/create/winner states, and all admin panels. Do not create real purchases or records to generate screenshots.
 4. Recheck the five main pages for regressions and then review/merge/publish the completeness branch. Confirm the resulting app on the physical TestFlight build.
 
-The Base44 preview stalled on “Loading your app” late in this pass; a refresh did not recover it. The earlier local cloud-browser preview was also unavailable. Those limitations are kept open rather than reported as visual passes. The `/founder` route is specifically unsafe to mount for a read-only audit because an existing health panel can create an AdminAlert from an effect; source/fixture verification is required.
+The Base44 preview intermittently stalled and returned 502 errors. A fresh Main page followed by in-app navigation recovered it: the merged New post composer was opened and verified without submitting, after publication. The separate completeness branch is not yet uploaded/rendered. The earlier local cloud-browser preview was unavailable. These limitations are kept open rather than reported as visual passes. The `/founder` route is specifically unsafe to mount for a read-only audit because an existing health panel can create an AdminAlert from an effect; source/fixture verification is required.
 
 ## Session record
 
 - Date: September 27 Arizona / September 28 UTC.
 - Goal: publish the reviewed fixes, then cover every reachable PG screen with the approved ticket/neon identity.
 - Accomplished: full route and nested-source inventory, isolated presentation corrections, safe baseline inspections, preservation verification and saved delivery package.
-- Not accomplished: merge/publication and updated-source full visual sign-off.
-- Next session: resolve merge access first, publish the reviewed branch, then visually verify the completeness branch. Purchase-security work remains owned by the separate session.
+- Merge/publication: completed; Base44 acknowledged publication. Main exactly matches the approved tree. Exact served-code and physical-phone confirmation remain open.
+- Not accomplished: updated completeness-source full visual sign-off.
+- Next session: confirm the phone received the approved fixes; import the completeness branch and visually verify its affected secondary screens. Purchase-security work remains owned by the separate session.

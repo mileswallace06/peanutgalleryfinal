@@ -1,5 +1,5 @@
 {
-  "checked_at_utc": "2026-09-28T03:23:00Z",
+  "checked_at_utc": "2026-09-28T03:23:12.335312+00:00",
   "baseline": "2d3adeab9601c9f64fbc2f7bc8a0f14958c1dbcb",
   "production_build": "PASS (compile only; no deploy environment supplied)",
   "initial_build": "Started before final child CSS write; unresolved import. Final stable build passes.",
@@ -16,7 +16,9 @@
   },
   "updated_source_browser_rendering": "NOT RUN \u2014 not imported to Base44; cloud local preview unavailable",
   "physical_testflight": "NOT RUN",
-  "merge": "BLOCKED",
-  "publication": "NOT RUN",
-  "backend_files_changed": 0
+  "merge": "VERIFIED \u2014 4c0856fdef8a2dc41cbd63df1b1e767dd1826de7",
+  "publication": "ACKNOWLEDGED by Base44 success dialog; custom domain live login renders",
+  "backend_files_changed": 0,
+  "served_commit": "NOT independently verified; version-history Live link stale (e3c77b08)",
+  "approved_main_composer": "Rendered after publication: New post, Post/Seat Flex, photo, caption, optional event tag, disabled Share; closed without submission"
 }
