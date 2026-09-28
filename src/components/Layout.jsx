@@ -9,7 +9,7 @@ import Onboarding from '@/components/Onboarding';
 import { useAuth } from '@/lib/AuthContext';
 import DonationWinNotification from '@/components/donations/DonationWinNotification';
 import FeedbackWidget from '@/components/beta/FeedbackWidget';
-import { pageVariants, useNavigationDirection } from '@/lib/pageTransitions';
+import { pageVariants, reducedPageVariants, useNavigationDirection, useReducedMotion } from '@/lib/pageTransitions';
 import '@/components/ticket-design.css';
 import '@/components/browse-ticket.css';
 import '@/components/printed-ticket.css';
@@ -19,7 +19,7 @@ import '@/components/printed-ticket.css';
  * This prevents remounts / state resets on tab switches.
  * AnimatePresence provides iOS-native horizontal slide transitions within each tab.
  */
-function MountedTab({ tabKey, activeKey, direction, pathname }) {
+function MountedTab({ tabKey, activeKey, direction, pathname, reducedMotion }) {
   const savedRoute = useRef(null);
   const outlet = useOutlet();
   // Freeze each inactive tab at its own route. Reading the latest outlet in every
@@ -31,7 +31,7 @@ function MountedTab({ tabKey, activeKey, direction, pathname }) {
       <motion.div
         key={savedRoute.current.pathname}
         custom={direction}
-        variants={pageVariants}
+        variants={reducedMotion ? reducedPageVariants : pageVariants}
         initial="initial"
         animate="animate"
         exit="exit"
@@ -70,6 +70,7 @@ export default function Layout() {
   const [liveEventId, setLiveEventId] = useState(null);
   const location = useLocation();
   const direction = useNavigationDirection();
+  const reducedMotion = useReducedMotion();
   const scrollPositions = useRef({});
   const containerRefs = useRef({});
 
@@ -248,9 +249,9 @@ export default function Layout() {
             pointerEvents: !currentTab ? 'auto' : 'none',
             position: !currentTab ? 'relative' : 'absolute',
             inset: !currentTab ? 'auto' : 0,
-            transition: !currentTab ? 'opacity 0.18s ease' : 'none',
+            transition: !reducedMotion && !currentTab ? 'opacity 0.18s ease' : 'none',
           }}>
-          <MountedTab tabKey="_null" activeKey={currentTab || '_null'} direction={direction} pathname={location.pathname} />
+          <MountedTab tabKey="_null" activeKey={currentTab || '_null'} direction={direction} pathname={location.pathname} reducedMotion={reducedMotion} />
         </div>
         {NAV.map(({ key }) => (
           <div
@@ -268,9 +269,9 @@ export default function Layout() {
               pointerEvents: currentTab === key ? 'auto' : 'none',
               position: currentTab === key ? 'relative' : 'absolute',
               inset: currentTab === key ? 'auto' : 0,
-              transition: currentTab === key ? 'opacity 0.18s ease' : 'none',
+              transition: !reducedMotion && currentTab === key ? 'opacity 0.18s ease' : 'none',
             }}>
-            <MountedTab tabKey={key} activeKey={currentTab || '_null'} direction={direction} pathname={location.pathname} />
+            <MountedTab tabKey={key} activeKey={currentTab || '_null'} direction={direction} pathname={location.pathname} reducedMotion={reducedMotion} />
           </div>
         ))}
       </div>
@@ -291,7 +292,7 @@ export default function Layout() {
                   if (active && location.pathname === to) {
                     e.preventDefault();
                     const container = containerRefs.current[key];
-                    if (container) container.scrollTo({ top: 0, behavior: 'smooth' });
+                    if (container) container.scrollTo({ top: 0, behavior: reducedMotion ? 'auto' : 'smooth' });
                   }
                 }}
                 className={`pg-nav-item ${active ? 'is-active' : ''}`}
