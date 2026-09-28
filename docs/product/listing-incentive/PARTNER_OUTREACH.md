@@ -1,5 +1,7 @@
 # First-listing reward partner outreach — prepared, not sent
 
+**ON HOLD — DO NOT SEND.** September 28: Miles wants an in-house program until the app is launch-ready. This draft is historical preparation only. No outreach authorization was received and no message was sent. See [IN_APP_REWARDS.md](IN_APP_REWARDS.md).
+
 ## Suggested first prospect
 
 Novel Ice Cream. Its official site lists downtown Phoenix and Mesa locations and hello@novelicecream.com for general questions. Fit is an inference: an inexpensive, immediately usable local treat could provide a concrete first-listing reward. No willingness, free-item promotion, partnership or stock has been confirmed.

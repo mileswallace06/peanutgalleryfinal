@@ -1,5 +1,7 @@
 # PG first-listing pilot — review proposal, September 28, 2026
 
+**SUPERSEDED / ON HOLD:** Miles directed on September 28 that incentives remain in-house until the app is launch-ready. No outreach was sent. The current recommendation is [IN_APP_REWARDS.md](IN_APP_REWARDS.md); the historical proposal below is retained for context and is not an active next action.
+
 Status: PREPARATION ONLY. No offer activated, partner agreement, credit balance, reward grant, code issuance, outreach, app change or publication. Branch: codex/listing-incentive-pilot-20260928. Source inspected: f4172e4578c1cd92610ffc932c39529d4418aed3.
 
 ## Outcome
