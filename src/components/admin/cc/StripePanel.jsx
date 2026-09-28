@@ -3,9 +3,9 @@ import { format } from 'date-fns';
 
 function StatCard({ label, value, color, sub }) {
   return (
-    <div className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+    <div className="pg-operations-card rounded-xl p-4" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
       <div className="text-xs text-muted-foreground mb-1">{label}</div>
-      <div className="text-2xl font-black" style={{ color: color || 'hsl(var(--foreground))' }}>{value}</div>
+      <div className="pg-operations-status text-2xl font-black" style={{ '--pg-status-ink': color || 'var(--pg-text)' }}>{value}</div>
       {sub && <div className="text-[10px] text-muted-foreground mt-1">{sub}</div>}
     </div>
   );
@@ -24,15 +24,15 @@ export default function StripePanel({ purchases, stripeMode, onRefresh }) {
       <div className="flex items-center justify-between">
         <h2 className="font-bold text-foreground text-lg">Stripe / Payments</h2>
         <a href="https://dashboard.stripe.com" target="_blank" rel="noopener noreferrer"
-          className="text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-lg"
-          style={{ background: 'rgba(191,95,255,0.1)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.3)' }}>
+          className="pg-operations-status text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-lg"
+          style={{ background: 'color-mix(in srgb, rgb(191 95 255) 10%, var(--pg-surface))', '--pg-status-ink': '#BF5FFF', border: '1px solid rgba(191,95,255,0.3)' }}>
           <ExternalLink className="w-3 h-3" /> Open Stripe Dashboard
         </a>
       </div>
 
       {/* Stripe mode status */}
       {stripeMode && (
-        <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}>
+        <div className="pg-operations-card rounded-2xl p-4" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
           <div className="flex items-center gap-2 mb-3">
             <CreditCard className="w-4 h-4 text-primary" />
             <span className="font-semibold text-sm">Stripe Mode</span>
@@ -77,8 +77,8 @@ export default function StripePanel({ purchases, stripeMode, onRefresh }) {
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Failed Captures — Action Required</h3>
           <div className="space-y-3">
             {failedCaptures.map(p => (
-              <div key={p.id} className="rounded-xl p-4 text-sm"
-                style={{ background: 'rgba(255,45,120,0.08)', border: '1px solid rgba(255,45,120,0.3)' }}>
+              <div key={p.id} className="pg-operations-card rounded-xl p-4 text-sm"
+                style={{ background: 'color-mix(in srgb, rgb(255 45 120) 8%, var(--pg-surface))', border: '1px solid rgba(255,45,120,0.3)' }}>
                 <div className="flex items-start justify-between gap-2 flex-wrap">
                   <div>
                     <div className="font-semibold text-foreground">${p.amount?.toFixed(2)} — {p.buyer_email}</div>
@@ -87,8 +87,8 @@ export default function StripePanel({ purchases, stripeMode, onRefresh }) {
                   </div>
                   <a href={`https://dashboard.stripe.com/payments/${p.payment_intent_id}`}
                     target="_blank" rel="noopener noreferrer"
-                    className="text-xs flex items-center gap-1 px-2.5 py-1.5 rounded-lg"
-                    style={{ background: 'rgba(191,95,255,0.12)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.3)' }}>
+                    className="pg-operations-status text-xs flex items-center gap-1 px-2.5 py-1.5 rounded-lg"
+                    style={{ background: 'color-mix(in srgb, rgb(191 95 255) 12%, var(--pg-surface))', '--pg-status-ink': '#BF5FFF', border: '1px solid rgba(191,95,255,0.3)' }}>
                     <ExternalLink className="w-3 h-3" /> Stripe
                   </a>
                 </div>
@@ -104,8 +104,8 @@ export default function StripePanel({ purchases, stripeMode, onRefresh }) {
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Pending Transfers ({pending.length})</h3>
           <div className="space-y-2">
             {pending.slice(0, 10).map(p => (
-              <div key={p.id} className="rounded-xl px-4 py-3 text-xs flex items-center justify-between gap-2"
-                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+              <div key={p.id} className="pg-operations-card rounded-xl px-4 py-3 text-xs flex items-center justify-between gap-2"
+                style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
                 <div>
                   <span className="font-semibold text-foreground">${p.amount?.toFixed(2)}</span>
                   <span className="text-muted-foreground ml-2">{p.buyer_email} → {p.seller_email}</span>

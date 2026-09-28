@@ -1,6 +1,7 @@
+import { PageIntro } from '@/components/ClarityUI';
+import '@/components/member-surfaces.css';
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Trophy, ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { getRankForPoints, TRUST_BADGE_DEFS, getTrustColor } from '@/lib/peanutPoints';
 import { motion } from 'framer-motion';
@@ -47,35 +48,19 @@ export default function Leaderboard() {
   const activeTab = TABS.find(t => t.id === tab);
 
   return (
-    <div className="max-w-lg mx-auto px-4 pb-32 dark:rave-bg"
-      style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
-
-      {/* Back */}
-      <Link to="/me" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-6 transition-colors">
-        <ArrowLeft className="w-3.5 h-3.5" /> Back
-      </Link>
-
-      {/* Hero */}
-      <div className="mb-7">
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-black mb-3"
-          style={{ background: 'rgba(255,230,0,0.12)', border: '1px solid rgba(255,230,0,0.3)', color: '#FFE600' }}>
-          🏆 Fan Leaderboard
-        </div>
-        <h1 className="font-display leading-none mb-1"
-          style={{ fontSize: 'clamp(2rem, 9vw, 3rem)', background: 'linear-gradient(135deg, #FFE600, #FF8C00)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
-          Top Fans
-        </h1>
-        <p className="text-sm text-muted-foreground">Earn 🥜 Peanut Points through real marketplace activity.</p>
-      </div>
+    <div className="pg-secondary-page pg-guide-page pg-guide-leaderboard">
+      <PageIntro backTo="/me" backLabel="Back" eyebrow="🏆 Fan Leaderboard"
+        title="Top Fans"
+        description="Earn 🥜 Peanut Points through real marketplace activity." />
 
       {/* Tabs */}
       <div className="flex gap-2 mb-6 overflow-x-auto pb-1 -mx-1 px-1">
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className="flex-shrink-0 px-4 py-2 rounded-full text-xs font-black transition-all"
+            className="pg-leaderboard-tab flex-shrink-0 px-4 py-2 text-xs font-black transition-all"
             style={tab === t.id
-              ? { background: 'rgba(255,230,0,0.15)', border: '1px solid rgba(255,230,0,0.4)', color: '#FFE600' }
-              : { background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--muted-foreground))' }
+              ? { background: 'rgba(255,230,0,0.15)', border: '1px solid rgba(255,230,0,0.4)', color: 'var(--neon-yellow)' }
+              : { background: 'var(--pg-surface)', border: '1px solid hsl(var(--border))', color: 'hsl(var(--muted-foreground))' }
             }>
             {t.label}
           </button>
@@ -112,12 +97,12 @@ export default function Leaderboard() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.04 }}
-                className="flex items-center gap-3 px-4 py-3.5 rounded-2xl"
+                className="pg-leaderboard-row flex items-center gap-3 px-4 py-3.5 rounded-2xl"
                 style={{
                   background: isHof  ? 'rgba(255,230,0,0.08)'
                     : isMe           ? 'rgba(191,95,255,0.12)'
                     : i === 0        ? 'rgba(255,230,0,0.05)'
-                    : 'hsl(var(--card))',
+                    : 'var(--pg-surface)',
                   border: isHof  ? '1px solid rgba(255,230,0,0.35)'
                     : isMe       ? '1px solid rgba(191,95,255,0.4)'
                     : i === 0    ? '1px solid rgba(255,230,0,0.2)'
@@ -182,7 +167,7 @@ export default function Leaderboard() {
         <div className="mt-6 px-4 py-3.5 rounded-2xl text-center"
           style={{ background: 'rgba(191,95,255,0.08)', border: '1px solid rgba(191,95,255,0.25)' }}>
           <p className="text-xs text-muted-foreground mb-0.5">Your rank</p>
-          <p className="font-black text-sm" style={{ color: '#BF5FFF' }}>
+          <p className="font-black text-sm" style={{ color: 'var(--neon-purple)' }}>
             {currentUser.peanut_rank || 'Rookie Fan'} · {(currentUser.lifetime_points || 0).toLocaleString()} pts
           </p>
           <p className="text-[10px] text-muted-foreground mt-0.5">Earn more points through real marketplace activity to climb the board.</p>

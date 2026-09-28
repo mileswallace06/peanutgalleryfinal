@@ -84,8 +84,8 @@ export default function Layout() {
   const currentTab = getCurrentTab();
   const browseTitle = { '/events': 'Events', '/upgrades': 'Upgrades' }[location.pathname];
   const accountRoutes = ['/my-tickets', '/my-sales', '/me', '/account-settings', '/edit-persona', '/notifications'];
-  const usesTicketDesign = ['/events', '/upgrades', '/sell', '/fan-zone', '/create-listing', ...accountRoutes].includes(location.pathname)
-    || ['/events/', '/upgrades/', '/purchase/'].some(prefix => location.pathname.startsWith(prefix));
+  // Every member route shares the same shell, including guides and operations.
+  const usesTicketDesign = true;
   const selectedNavKey = accountRoutes.includes(location.pathname) || location.pathname.startsWith('/purchase/')
     ? 'me' : location.pathname === '/create-listing' ? 'sell' : currentTab;
 

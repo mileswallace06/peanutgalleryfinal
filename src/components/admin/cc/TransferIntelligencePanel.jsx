@@ -13,8 +13,8 @@ function ListingRow({ listing, event, onAdminVerify, onDisable, onOverride, onRe
   const [showOverride, setShowOverride] = useState(false);
 
   return (
-    <div className="rounded-xl p-3 text-xs space-y-2"
-      style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+    <div className="pg-operations-card rounded-xl p-3 text-xs space-y-2"
+      style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
       <div className="flex items-start justify-between gap-2 flex-wrap">
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-foreground truncate">
@@ -22,8 +22,8 @@ function ListingRow({ listing, event, onAdminVerify, onDisable, onOverride, onRe
           </div>
           <div className="text-muted-foreground">{listing.seller_email}</div>
         </div>
-        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
-          style={{ background: badge.bg, color: badge.color, border: `1px solid ${badge.border}` }}>
+        <span className="pg-operations-status text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
+          style={{ background: badge.bg, '--pg-status-ink': badge.color, border: `1px solid ${badge.border}` }}>
           {badge.icon} {badge.label}
         </span>
       </div>
@@ -36,35 +36,35 @@ function ListingRow({ listing, event, onAdminVerify, onDisable, onOverride, onRe
 
       {listing.transfer_verification_proof_url && (
         <a href={listing.transfer_verification_proof_url} target="_blank" rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-[10px] font-medium hover:underline"
-          style={{ color: '#BF5FFF' }}>
+          className="pg-operations-status inline-flex items-center gap-1 text-[10px] font-medium hover:underline"
+          style={{ '--pg-status-ink': '#BF5FFF' }}>
           <ExternalLink className="w-3 h-3" /> View proof
         </a>
       )}
 
-      <div className="flex flex-wrap gap-2 pt-1 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+      <div className="flex flex-wrap gap-2 pt-1 border-t" style={{ borderColor: 'var(--pg-line)' }}>
         {listing.status === 'hidden' ? (
           <button onClick={() => onRestore(listing)}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-lg font-semibold"
-            style={{ background: 'rgba(0,200,255,0.08)', color: '#00C8FF', border: '1px solid rgba(0,200,255,0.25)' }}>
+            className="pg-operations-status flex items-center gap-1 px-2.5 py-1 rounded-lg font-semibold"
+            style={{ background: 'color-mix(in srgb, rgb(0 200 255) 8%, var(--pg-surface))', '--pg-status-ink': '#00C8FF', border: '1px solid rgba(0,200,255,0.25)' }}>
             <RefreshCw className="w-3 h-3" /> Restore Listing
           </button>
         ) : (
           <button onClick={() => onAdminVerify(listing)}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-lg font-semibold"
-            style={{ background: 'rgba(0,255,135,0.08)', color: '#00FF87', border: '1px solid rgba(0,255,135,0.25)' }}>
+            className="pg-operations-status flex items-center gap-1 px-2.5 py-1 rounded-lg font-semibold"
+            style={{ background: 'color-mix(in srgb, rgb(0 255 135) 8%, var(--pg-surface))', '--pg-status-ink': '#00FF87', border: '1px solid rgba(0,255,135,0.25)' }}>
             <ShieldCheck className="w-3 h-3" /> Admin Verify
           </button>
         )}
         <button onClick={() => onDisable(listing)}
           disabled={listing.status === 'hidden'}
-          className="flex items-center gap-1 px-2.5 py-1 rounded-lg font-semibold disabled:opacity-40"
-          style={{ background: 'rgba(255,45,120,0.08)', color: '#FF2D78', border: '1px solid rgba(255,45,120,0.25)' }}>
+          className="pg-operations-status flex items-center gap-1 px-2.5 py-1 rounded-lg font-semibold disabled:opacity-40"
+          style={{ background: 'color-mix(in srgb, rgb(255 45 120) 8%, var(--pg-surface))', '--pg-status-ink': '#FF2D78', border: '1px solid rgba(255,45,120,0.25)' }}>
           <XCircle className="w-3 h-3" /> Disable Transfer
         </button>
         <button onClick={() => setShowOverride(v => !v)}
-          className="flex items-center gap-1 px-2.5 py-1 rounded-lg font-semibold"
-          style={{ background: 'rgba(255,230,0,0.08)', color: '#FFE600', border: '1px solid rgba(255,230,0,0.25)' }}>
+          className="pg-operations-status flex items-center gap-1 px-2.5 py-1 rounded-lg font-semibold"
+          style={{ background: 'color-mix(in srgb, rgb(255 230 0) 8%, var(--pg-surface))', '--pg-status-ink': '#FFE600', border: '1px solid rgba(255,230,0,0.25)' }}>
           <AlertTriangle className="w-3 h-3" /> Override Score
         </button>
       </div>
@@ -75,11 +75,11 @@ function ListingRow({ listing, event, onAdminVerify, onDisable, onOverride, onRe
             onChange={e => setOverrideScore(e.target.value)}
             placeholder="0–100"
             className="w-20 px-2 py-1 rounded text-xs text-foreground focus:outline-none"
-            style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)' }} />
+            style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)' }} />
           <button onClick={() => { onOverride(listing, parseInt(overrideScore)); setShowOverride(false); setOverrideScore(''); }}
             disabled={!overrideScore}
-            className="px-3 py-1 rounded-lg text-xs font-semibold disabled:opacity-40"
-            style={{ background: 'rgba(255,230,0,0.12)', color: '#FFE600', border: '1px solid rgba(255,230,0,0.3)' }}>
+            className="pg-operations-status px-3 py-1 rounded-lg text-xs font-semibold disabled:opacity-40"
+            style={{ background: 'color-mix(in srgb, rgb(255 230 0) 12%, var(--pg-surface))', '--pg-status-ink': '#FFE600', border: '1px solid rgba(255,230,0,0.3)' }}>
             Apply
           </button>
         </div>
@@ -232,9 +232,9 @@ export default function TransferIntelligencePanel({ events: eventsMap, onRefresh
           { label: 'Disabled', value: disabled.length, color: '#FF2D78' },
           { label: 'Low Confidence', value: lowConf.length, color: '#FF8C00' },
         ].map(s => (
-          <div key={s.label} className="rounded-xl p-3 text-center"
-            style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${s.value > 0 ? s.color + '30' : 'rgba(255,255,255,0.06)'}` }}>
-            <div className="text-xl font-black" style={{ color: s.color }}>{s.value}</div>
+          <div key={s.label} className="pg-operations-card rounded-xl p-3 text-center"
+            style={{ background: 'var(--pg-surface)', border: `1px solid ${s.value > 0 ? s.color + '30' : 'var(--pg-line)'}` }}>
+            <div className="pg-operations-status text-xl font-black" style={{ '--pg-status-ink': s.color }}>{s.value}</div>
             <div className="text-[10px] text-muted-foreground">{s.label}</div>
           </div>
         ))}
@@ -242,18 +242,18 @@ export default function TransferIntelligencePanel({ events: eventsMap, onRefresh
 
       {/* ⚡ Conflict detection banner */}
       {conflictingEvents.length > 0 && (
-        <div className="rounded-xl p-3 space-y-2"
-          style={{ background: 'rgba(255,230,0,0.08)', border: '1px solid rgba(255,230,0,0.35)' }}>
+        <div className="pg-operations-card rounded-xl p-3 space-y-2"
+          style={{ background: 'color-mix(in srgb, rgb(255 230 0) 8%, var(--pg-surface))', border: '1px solid rgba(255,230,0,0.35)' }}>
           <div className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 flex-shrink-0" style={{ color: '#FFE600' }} />
-            <span className="text-xs font-bold" style={{ color: '#FFE600' }}>
+            <AlertTriangle className="pg-operations-status w-4 h-4 flex-shrink-0" style={{ '--pg-status-ink': '#FFE600' }} />
+            <span className="pg-operations-status text-xs font-bold" style={{ '--pg-status-ink': '#FFE600' }}>
               {conflictingEvents.length} event{conflictingEvents.length !== 1 ? 's' : ''} with conflicting community reports
             </span>
           </div>
           {conflictingEvents.map(({ eid, open, closed }) => (
             <div key={eid} className="text-xs text-foreground flex justify-between pl-6">
               <span className="text-muted-foreground truncate">{eventsMap?.[eid]?.title || eid.slice(0, 12)}</span>
-              <span><span style={{ color: '#00FF87' }}>{open} open</span> vs <span style={{ color: '#FF2D78' }}>{closed} closed</span></span>
+              <span><span className="pg-operations-status" style={{ '--pg-status-ink': '#00FF87' }}>{open} open</span> vs <span className="pg-operations-status" style={{ '--pg-status-ink': '#FF2D78' }}>{closed} closed</span></span>
             </div>
           ))}
         </div>
@@ -262,23 +262,23 @@ export default function TransferIntelligencePanel({ events: eventsMap, onRefresh
       {/* Community report summaries */}
       {(topEventsByOpen.length > 0 || topEventsByClosed.length > 0) && (
         <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-xl p-3 space-y-2"
-            style={{ background: 'rgba(0,255,135,0.04)', border: '1px solid rgba(0,255,135,0.15)' }}>
-            <div className="text-xs font-bold" style={{ color: '#00FF87' }}>Most Open Reports</div>
+          <div className="pg-operations-card rounded-xl p-3 space-y-2"
+            style={{ background: 'color-mix(in srgb, rgb(0 255 135) 4%, var(--pg-surface))', border: '1px solid rgba(0,255,135,0.15)' }}>
+            <div className="pg-operations-status text-xs font-bold" style={{ '--pg-status-ink': '#00FF87' }}>Most Open Reports</div>
             {topEventsByOpen.map(([eid, data]) => (
               <div key={eid} className="text-xs text-foreground flex justify-between">
                 <span className="truncate text-muted-foreground">{eventsMap?.[eid]?.title || eid.slice(0, 8)}</span>
-                <span style={{ color: '#00FF87' }}>+{data.open}</span>
+                <span className="pg-operations-status" style={{ '--pg-status-ink': '#00FF87' }}>+{data.open}</span>
               </div>
             ))}
           </div>
-          <div className="rounded-xl p-3 space-y-2"
-            style={{ background: 'rgba(255,45,120,0.04)', border: '1px solid rgba(255,45,120,0.15)' }}>
-            <div className="text-xs font-bold" style={{ color: '#FF2D78' }}>Most Closed Reports</div>
+          <div className="pg-operations-card rounded-xl p-3 space-y-2"
+            style={{ background: 'color-mix(in srgb, rgb(255 45 120) 4%, var(--pg-surface))', border: '1px solid rgba(255,45,120,0.15)' }}>
+            <div className="pg-operations-status text-xs font-bold" style={{ '--pg-status-ink': '#FF2D78' }}>Most Closed Reports</div>
             {topEventsByClosed.map(([eid, data]) => (
               <div key={eid} className="text-xs text-foreground flex justify-between">
                 <span className="truncate text-muted-foreground">{eventsMap?.[eid]?.title || eid.slice(0, 8)}</span>
-                <span style={{ color: '#FF2D78' }}>+{data.closed}</span>
+                <span className="pg-operations-status" style={{ '--pg-status-ink': '#FF2D78' }}>+{data.closed}</span>
               </div>
             ))}
           </div>
@@ -295,10 +295,10 @@ export default function TransferIntelligencePanel({ events: eventsMap, onRefresh
           { key: 'all', label: `All (${listings.length})` },
         ].map(tab => (
           <button key={tab.key} onClick={() => setFilter(tab.key)}
-            className="text-xs px-2.5 py-1 rounded-lg transition-all"
+            className="pg-operations-status text-xs px-2.5 py-1 rounded-lg transition-all"
             style={filter === tab.key
-              ? { background: 'rgba(191,95,255,0.12)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.3)' }
-              : { background: 'rgba(255,255,255,0.04)', color: 'hsl(var(--muted-foreground))', border: '1px solid rgba(255,255,255,0.08)' }}>
+              ? { background: 'color-mix(in srgb, rgb(191 95 255) 12%, var(--pg-surface))', '--pg-status-ink': '#BF5FFF', border: '1px solid rgba(191,95,255,0.3)' }
+              : { background: 'var(--pg-surface)', '--pg-status-ink': 'var(--pg-muted)', border: '1px solid var(--pg-line)' }}>
             {tab.label}
           </button>
         ))}
@@ -306,7 +306,7 @@ export default function TransferIntelligencePanel({ events: eventsMap, onRefresh
 
       {/* Listing rows */}
       {loading ? (
-        <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-20 rounded-xl bg-white/5 animate-pulse" />)}</div>
+        <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="pg-operations-card h-20 rounded-xl pg-operations-skeleton animate-pulse" />)}</div>
       ) : filteredListings.length === 0 ? (
         <p className="text-sm text-muted-foreground text-center py-8">No listings in this category.</p>
       ) : (

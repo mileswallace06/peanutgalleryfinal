@@ -23,10 +23,10 @@ const VALIDATION_PRICES = [10, 25, 50, 75, 100, 200, 500];
 
 function Tag({ children, live }) {
   return (
-    <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full ml-1"
+    <span className="pg-operations-status text-[9px] font-black px-1.5 py-0.5 rounded-full ml-1"
       style={live
-        ? { background: 'rgba(0,255,135,0.15)', color: '#00FF87', border: '1px solid rgba(0,255,135,0.3)' }
-        : { background: 'rgba(191,95,255,0.12)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.25)' }}>
+        ? { background: 'color-mix(in srgb, rgb(0 255 135) 15%, var(--pg-surface))', '--pg-status-ink': '#00FF87', border: '1px solid rgba(0,255,135,0.3)' }
+        : { background: 'color-mix(in srgb, rgb(191 95 255) 12%, var(--pg-surface))', '--pg-status-ink': '#BF5FFF', border: '1px solid rgba(191,95,255,0.25)' }}>
       {children}
     </span>
   );
@@ -34,10 +34,10 @@ function Tag({ children, live }) {
 
 function Row({ label, value, sub, color, bold }) {
   return (
-    <div className="flex items-center justify-between text-xs py-1.5 border-b last:border-0" style={{ borderColor: 'rgba(255,255,255,0.05)' }}>
+    <div className="flex items-center justify-between text-xs py-1.5 border-b last:border-0" style={{ borderColor: 'var(--pg-line)' }}>
       <span className="text-muted-foreground">{label}</span>
       <div className="text-right">
-        <span className={`font-${bold ? 'black' : 'semibold'} text-sm`} style={{ color: color || 'hsl(var(--foreground))' }}>{value}</span>
+        <span className={`pg-operations-status font-${bold ? 'black' : 'semibold'} text-sm`} style={{ '--pg-status-ink': color || 'var(--pg-text)' }}>{value}</span>
         {sub && <div className="text-[10px] text-muted-foreground">{sub}</div>}
       </div>
     </div>
@@ -94,7 +94,7 @@ export default function FeeSimulatorV2() {
   );
 
   const inputClass = "w-full px-3 py-2 rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30";
-  const inputStyle = { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' };
+  const inputStyle = { background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' };
 
   return (
     <div className="space-y-6">
@@ -102,7 +102,7 @@ export default function FeeSimulatorV2() {
         <h2 className="font-bold text-lg text-foreground">Fee Engine Simulator</h2>
         <p className="text-xs text-muted-foreground mt-0.5">
           Compare fee models before switching live pricing.
-          <span className="ml-2 font-semibold" style={{ color: '#00FF87' }}>
+          <span className="pg-operations-status ml-2 font-semibold" style={{ '--pg-status-ink': '#00FF87' }}>
             Live model: {FEE_MODELS[ACTIVE_FEE_MODEL_ID]?.label}
           </span>
         </p>
@@ -116,10 +116,10 @@ export default function FeeSimulatorV2() {
           { id: 'validation', label: '✅ Validation Tests' },
         ].map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className="px-3 py-1.5 rounded-full text-xs font-semibold transition-all"
+            className="pg-operations-status px-3 py-1.5 rounded-full text-xs font-semibold transition-all"
             style={tab === t.id
-              ? { background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }
-              : { background: 'rgba(255,255,255,0.06)', color: 'hsl(var(--muted-foreground))', border: '1px solid rgba(255,255,255,0.1)' }}>
+              ? { background: 'var(--pg-violet)', '--pg-status-ink': 'var(--pg-ink)' }
+              : { background: 'var(--pg-surface)', '--pg-status-ink': 'var(--pg-muted)', border: '1px solid var(--pg-line)' }}>
             {t.label}
           </button>
         ))}
@@ -134,10 +134,10 @@ export default function FeeSimulatorV2() {
             <div className="flex gap-2 flex-wrap">
               {SCENARIOS.map(s => (
                 <button key={s.label} onClick={() => applyScenario(s)}
-                  className="px-3 py-1.5 rounded-xl text-xs font-semibold transition-all"
+                  className="pg-operations-status px-3 py-1.5 rounded-xl text-xs font-semibold transition-all"
                   style={scenario === s.label
-                    ? { background: 'rgba(191,95,255,0.15)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.4)' }
-                    : { background: 'rgba(255,255,255,0.04)', color: 'hsl(var(--muted-foreground))', border: '1px solid rgba(255,255,255,0.08)' }}>
+                    ? { background: 'color-mix(in srgb, rgb(191 95 255) 15%, var(--pg-surface))', '--pg-status-ink': '#BF5FFF', border: '1px solid rgba(191,95,255,0.4)' }
+                    : { background: 'var(--pg-surface)', '--pg-status-ink': 'var(--pg-muted)', border: '1px solid var(--pg-line)' }}>
                   {s.label}
                   <span className="ml-1 opacity-60">{s.txPerMonth.toLocaleString()} tx · ${s.avgPrice}</span>
                 </button>
@@ -147,7 +147,7 @@ export default function FeeSimulatorV2() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             {/* Inputs */}
-            <div className="space-y-4 rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <div className="pg-operations-card space-y-4 rounded-2xl p-4" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
               <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide">Inputs</p>
 
               <div>
@@ -197,15 +197,15 @@ export default function FeeSimulatorV2() {
             </div>
 
             {/* Per Transaction */}
-            <div className="rounded-2xl p-4 space-y-1" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <div className="pg-operations-card rounded-2xl p-4 space-y-1" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
               <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-3">Per Transaction — {FEE_MODELS[selectedModel]?.shortLabel}</p>
               <Row label="Ticket subtotal" value={fmt(perTx.subtotal)} />
               <Row label="Buyer fee" value={fmt(perTx.buyerFee)} color="#BF5FFF" />
               <Row label="Buyer pays total" value={fmt(perTx.buyerTotal)} bold color="#BF5FFF" />
-              <div className="border-t my-1" style={{ borderColor: 'rgba(255,255,255,0.08)' }} />
-              <Row label="Seller fee" value={perTx.sellerFee > 0 ? fmt(perTx.sellerFee) : '$0.00 (none)'} color={perTx.sellerFee > 0 ? '#FF8C00' : 'hsl(var(--muted-foreground))'} />
+              <div className="border-t my-1" style={{ borderColor: 'var(--pg-line)' }} />
+              <Row label="Seller fee" value={perTx.sellerFee > 0 ? fmt(perTx.sellerFee) : '$0.00 (none)'} color={perTx.sellerFee > 0 ? '#FF8C00' : 'var(--pg-muted)'} />
               <Row label="Seller receives" value={fmt(perTx.sellerPayout)} bold color="#00FF87" sub={`${perTx.sellerPayoutRate}% of asking price`} />
-              <div className="border-t my-1" style={{ borderColor: 'rgba(255,255,255,0.08)' }} />
+              <div className="border-t my-1" style={{ borderColor: 'var(--pg-line)' }} />
               <Row label="PG gross revenue" value={fmt(perTx.pgGrossRevenue)} />
               <Row label="Stripe fee" value={fmt(perTx.stripeFee)} color="#FF2D78" />
               <Row label="PG net revenue" value={fmt(perTx.pgNetRevenue)} bold color={perTx.pgNetRevenue > 0 ? '#00FF87' : '#FF2D78'} sub={`${perTx.effectiveTakeRate}% effective take rate`} />
@@ -220,16 +220,16 @@ export default function FeeSimulatorV2() {
               { label: 'Annual PG Net', value: fmtK(annual.annualPgNet), color: annual.annualPgNet > 0 ? '#00FF87' : '#FF2D78' },
               { label: 'Annual Seller Payouts', value: fmtK(annual.annualSellerPayouts), color: '#00C8FF' },
             ].map(s => (
-              <div key={s.label} className="rounded-2xl p-4 text-center" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                <div className="text-xl font-black" style={{ color: s.color }}>{s.value}</div>
+              <div key={s.label} className="pg-operations-card rounded-2xl p-4 text-center" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
+                <div className="pg-operations-status text-xl font-black" style={{ '--pg-status-ink': s.color }}>{s.value}</div>
                 <div className="text-[10px] text-muted-foreground mt-1">{s.label}</div>
               </div>
             ))}
           </div>
 
           {/* Seller-facing payout preview */}
-          <div className="rounded-2xl p-4" style={{ background: 'rgba(0,255,135,0.04)', border: '1px solid rgba(0,255,135,0.15)' }}>
-            <p className="text-xs font-bold mb-3" style={{ color: '#00FF87' }}>Seller-Facing Payout Preview (at avg price)</p>
+          <div className="pg-operations-card rounded-2xl p-4" style={{ background: 'color-mix(in srgb, rgb(0 255 135) 4%, var(--pg-surface))', border: '1px solid rgba(0,255,135,0.15)' }}>
+            <p className="pg-operations-status text-xs font-bold mb-3" style={{ '--pg-status-ink': '#00FF87' }}>Seller-Facing Payout Preview (at avg price)</p>
             <div className="grid grid-cols-3 gap-4 text-center text-sm">
               <div>
                 <div className="text-xs text-muted-foreground mb-1">Your Asking Price</div>
@@ -237,11 +237,11 @@ export default function FeeSimulatorV2() {
               </div>
               <div>
                 <div className="text-xs text-muted-foreground mb-1">Buyer Sees</div>
-                <div className="font-black text-xl" style={{ color: '#BF5FFF' }}>{fmt(perTx.buyerTotal)}</div>
+                <div className="pg-operations-status font-black text-xl" style={{ '--pg-status-ink': '#BF5FFF' }}>{fmt(perTx.buyerTotal)}</div>
               </div>
               <div>
                 <div className="text-xs text-muted-foreground mb-1">You Receive</div>
-                <div className="font-black text-xl" style={{ color: '#00FF87' }}>{fmt(perTx.sellerPayout)}</div>
+                <div className="pg-operations-status font-black text-xl" style={{ '--pg-status-ink': '#00FF87' }}>{fmt(perTx.sellerPayout)}</div>
               </div>
             </div>
             {perTx.sellerFee > 0 && (
@@ -284,7 +284,7 @@ export default function FeeSimulatorV2() {
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
-                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                  <tr style={{ borderBottom: '1px solid var(--pg-line)' }}>
                     {['Model', 'Buyer Pays', 'Seller Gets', 'PG Gross', 'Stripe Cost', 'PG Net', 'Take Rate'].map(h => (
                       <th key={h} className="text-left py-2 pr-3 text-muted-foreground font-semibold whitespace-nowrap">{h}</th>
                     ))}
@@ -292,17 +292,17 @@ export default function FeeSimulatorV2() {
                 </thead>
                 <tbody>
                   {perTxComparison.map(r => (
-                    <tr key={r.modelId} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    <tr key={r.modelId} style={{ borderBottom: '1px solid var(--pg-line)' }}>
                       <td className="py-2 pr-3 font-semibold text-foreground whitespace-nowrap">
                         {FEE_MODELS[r.modelId]?.shortLabel}
                         {r.modelId === ACTIVE_FEE_MODEL_ID && <Tag live>LIVE</Tag>}
                         {FEE_MODELS[r.modelId]?.instant_only && <Tag>Instant</Tag>}
                       </td>
-                      <td className="py-2 pr-3" style={{ color: '#BF5FFF' }}>{fmt(r.buyerTotal)}</td>
-                      <td className="py-2 pr-3" style={{ color: '#00FF87' }}>{fmt(r.sellerPayout)} <span className="text-muted-foreground">({r.sellerPayoutRate}%)</span></td>
+                      <td className="pg-operations-status py-2 pr-3" style={{ '--pg-status-ink': '#BF5FFF' }}>{fmt(r.buyerTotal)}</td>
+                      <td className="pg-operations-status py-2 pr-3" style={{ '--pg-status-ink': '#00FF87' }}>{fmt(r.sellerPayout)} <span className="text-muted-foreground">({r.sellerPayoutRate}%)</span></td>
                       <td className="py-2 pr-3 text-foreground">{fmt(r.pgGrossRevenue)}</td>
-                      <td className="py-2 pr-3" style={{ color: '#FF2D78' }}>{fmt(r.stripeFee)}</td>
-                      <td className="py-2 pr-3 font-bold" style={{ color: r.pgNetRevenue > 0 ? '#00FF87' : '#FF2D78' }}>{fmt(r.pgNetRevenue)}</td>
+                      <td className="pg-operations-status py-2 pr-3" style={{ '--pg-status-ink': '#FF2D78' }}>{fmt(r.stripeFee)}</td>
+                      <td className="pg-operations-status py-2 pr-3 font-bold" style={{ '--pg-status-ink': r.pgNetRevenue > 0 ? '#00FF87' : '#FF2D78' }}>{fmt(r.pgNetRevenue)}</td>
                       <td className="py-2 pr-3 text-muted-foreground">{r.effectiveTakeRate}%</td>
                     </tr>
                   ))}
@@ -317,7 +317,7 @@ export default function FeeSimulatorV2() {
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
-                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                  <tr style={{ borderBottom: '1px solid var(--pg-line)' }}>
                     {['Model', 'Monthly PG Net', 'Annual PG Net', 'Monthly @ 100 tx', 'Monthly @ 1K tx', 'Annual @ 1K/mo'].map(h => (
                       <th key={h} className="text-left py-2 pr-3 text-muted-foreground font-semibold whitespace-nowrap">{h}</th>
                     ))}
@@ -328,13 +328,13 @@ export default function FeeSimulatorV2() {
                     const at100 = estimateAnnualRevenue(avgPrice, 100, qty, id);
                     const at1k = estimateAnnualRevenue(avgPrice, 1000, qty, id);
                     return (
-                      <tr key={id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                      <tr key={id} style={{ borderBottom: '1px solid var(--pg-line)' }}>
                         <td className="py-2 pr-3 font-semibold text-foreground whitespace-nowrap">
                           {model?.shortLabel}
                           {id === ACTIVE_FEE_MODEL_ID && <Tag live>LIVE</Tag>}
                         </td>
-                        <td className="py-2 pr-3 font-bold" style={{ color: ann.pgNet > 0 ? '#00FF87' : '#FF2D78' }}>{fmtK(ann.pgNet)}</td>
-                        <td className="py-2 pr-3 font-bold" style={{ color: ann.annualPgNet > 0 ? '#00FF87' : '#FF2D78' }}>{fmtK(ann.annualPgNet)}</td>
+                        <td className="pg-operations-status py-2 pr-3 font-bold" style={{ '--pg-status-ink': ann.pgNet > 0 ? '#00FF87' : '#FF2D78' }}>{fmtK(ann.pgNet)}</td>
+                        <td className="pg-operations-status py-2 pr-3 font-bold" style={{ '--pg-status-ink': ann.annualPgNet > 0 ? '#00FF87' : '#FF2D78' }}>{fmtK(ann.annualPgNet)}</td>
                         <td className="py-2 pr-3 text-muted-foreground">{fmtK(at100.pgNet)}</td>
                         <td className="py-2 pr-3 text-muted-foreground">{fmtK(at1k.pgNet)}</td>
                         <td className="py-2 pr-3 text-muted-foreground">{fmtK(at1k.annualPgNet)}</td>
@@ -352,7 +352,7 @@ export default function FeeSimulatorV2() {
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
-                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                  <tr style={{ borderBottom: '1px solid var(--pg-line)' }}>
                     <th className="text-left py-2 pr-3 text-muted-foreground font-semibold">Scenario</th>
                     {PRIMARY_MODELS.map(id => (
                       <th key={id} className="text-left py-2 pr-3 text-muted-foreground font-semibold whitespace-nowrap">
@@ -364,7 +364,7 @@ export default function FeeSimulatorV2() {
                 </thead>
                 <tbody>
                   {SCENARIOS.map(s => (
-                    <tr key={s.label} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    <tr key={s.label} style={{ borderBottom: '1px solid var(--pg-line)' }}>
                       <td className="py-2 pr-3 text-foreground font-semibold whitespace-nowrap">
                         {s.label}
                         <div className="text-[10px] text-muted-foreground">{s.txPerMonth.toLocaleString()} tx · ${s.avgPrice}</div>
@@ -372,7 +372,7 @@ export default function FeeSimulatorV2() {
                       {PRIMARY_MODELS.map(id => {
                         const ann = estimateAnnualRevenue(s.avgPrice, s.txPerMonth, 1, id);
                         return (
-                          <td key={id} className="py-2 pr-3 font-bold whitespace-nowrap" style={{ color: ann.annualPgNet > 0 ? '#00FF87' : '#FF2D78' }}>
+                          <td key={id} className="pg-operations-status py-2 pr-3 font-bold whitespace-nowrap" style={{ '--pg-status-ink': ann.annualPgNet > 0 ? '#00FF87' : '#FF2D78' }}>
                             {fmtK(ann.annualPgNet)}
                           </td>
                         );
@@ -395,7 +395,7 @@ export default function FeeSimulatorV2() {
             const allPositivePayout = prices.every(p => p.sellerPayout >= 0);
             const profitableAt10 = prices.find(p => p.ticketPrice === 10)?.pgNetRevenue > 0;
             return (
-              <div key={modelId} className="rounded-2xl p-4 space-y-3" style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${modelId === ACTIVE_FEE_MODEL_ID ? 'rgba(0,255,135,0.25)' : 'rgba(255,255,255,0.08)'}` }}>
+              <div key={modelId} className="pg-operations-card rounded-2xl p-4 space-y-3" style={{ background: 'var(--pg-surface)', border: `1px solid ${modelId === ACTIVE_FEE_MODEL_ID ? 'rgba(0,255,135,0.25)' : 'var(--pg-line)'}` }}>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-bold text-sm text-foreground">{model?.label}</span>
                   {modelId === ACTIVE_FEE_MODEL_ID && <Tag live>LIVE</Tag>}
@@ -412,7 +412,7 @@ export default function FeeSimulatorV2() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead>
-                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                      <tr style={{ borderBottom: '1px solid var(--pg-line)' }}>
                         {['Price', 'Buyer Pays', 'Seller Gets', 'PG Gross', 'Stripe', 'PG Net', '✓'].map(h => (
                           <th key={h} className="text-left py-1.5 pr-3 text-muted-foreground">{h}</th>
                         ))}
@@ -420,17 +420,17 @@ export default function FeeSimulatorV2() {
                     </thead>
                     <tbody>
                       {prices.map(r => (
-                        <tr key={r.ticketPrice} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                        <tr key={r.ticketPrice} style={{ borderBottom: '1px solid var(--pg-line)' }}>
                           <td className="py-1.5 pr-3 font-bold text-foreground">${r.ticketPrice}</td>
-                          <td className="py-1.5 pr-3" style={{ color: '#BF5FFF' }}>{fmt(r.buyerTotal)}</td>
-                          <td className="py-1.5 pr-3" style={{ color: '#00FF87' }}>{fmt(r.sellerPayout)}</td>
+                          <td className="pg-operations-status py-1.5 pr-3" style={{ '--pg-status-ink': '#BF5FFF' }}>{fmt(r.buyerTotal)}</td>
+                          <td className="pg-operations-status py-1.5 pr-3" style={{ '--pg-status-ink': '#00FF87' }}>{fmt(r.sellerPayout)}</td>
                           <td className="py-1.5 pr-3 text-foreground">{fmt(r.pgGrossRevenue)}</td>
-                          <td className="py-1.5 pr-3" style={{ color: '#FF2D78' }}>{fmt(r.stripeFee)}</td>
-                          <td className="py-1.5 pr-3 font-bold" style={{ color: r.pgNetRevenue > 0 ? '#00FF87' : '#FF2D78' }}>{fmt(r.pgNetRevenue)}</td>
+                          <td className="pg-operations-status py-1.5 pr-3" style={{ '--pg-status-ink': '#FF2D78' }}>{fmt(r.stripeFee)}</td>
+                          <td className="pg-operations-status py-1.5 pr-3 font-bold" style={{ '--pg-status-ink': r.pgNetRevenue > 0 ? '#00FF87' : '#FF2D78' }}>{fmt(r.pgNetRevenue)}</td>
                           <td className="py-1.5">
                             {r.sellerPayout >= 0 && r.pgNetRevenue > 0
-                              ? <span style={{ color: '#00FF87' }}>✓</span>
-                              : <span style={{ color: '#FF2D78' }}>✗</span>}
+                              ? <span className="pg-operations-status" style={{ '--pg-status-ink': '#00FF87' }}>✓</span>
+                              : <span className="pg-operations-status" style={{ '--pg-status-ink': '#FF2D78' }}>✗</span>}
                           </td>
                         </tr>
                       ))}
@@ -442,8 +442,8 @@ export default function FeeSimulatorV2() {
           })}
 
           {/* Live model consistency check */}
-          <div className="rounded-2xl p-4" style={{ background: 'rgba(0,255,135,0.04)', border: '1px solid rgba(0,255,135,0.2)' }}>
-            <p className="text-xs font-bold mb-2" style={{ color: '#00FF87' }}>✓ Live Checkout Consistency Check</p>
+          <div className="pg-operations-card rounded-2xl p-4" style={{ background: 'color-mix(in srgb, rgb(0 255 135) 4%, var(--pg-surface))', border: '1px solid rgba(0,255,135,0.2)' }}>
+            <p className="pg-operations-status text-xs font-bold mb-2" style={{ '--pg-status-ink': '#00FF87' }}>✓ Live Checkout Consistency Check</p>
             <p className="text-xs text-muted-foreground">
               Active model: <strong className="text-foreground">{ACTIVE_FEE_MODEL_ID}</strong> — {FEE_MODELS[ACTIVE_FEE_MODEL_ID]?.description}
             </p>
@@ -454,10 +454,10 @@ export default function FeeSimulatorV2() {
               {[10, 50, 100, 200].map(p => {
                 const r = calculateFees(p, 1, ACTIVE_FEE_MODEL_ID);
                 return (
-                  <div key={p} className="text-center rounded-xl p-2" style={{ background: 'rgba(0,255,135,0.06)', border: '1px solid rgba(0,255,135,0.15)' }}>
+                  <div key={p} className="pg-operations-card text-center rounded-xl p-2" style={{ background: 'color-mix(in srgb, rgb(0 255 135) 6%, var(--pg-surface))', border: '1px solid rgba(0,255,135,0.15)' }}>
                     <div className="text-[10px] text-muted-foreground">Ticket ${p}</div>
                     <div className="font-bold text-xs text-foreground mt-0.5">Buyer: {fmt(r.buyerTotal)}</div>
-                    <div className="text-[10px]" style={{ color: '#00FF87' }}>PG net: {fmt(r.pgNetRevenue)}</div>
+                    <div className="pg-operations-status text-[10px]" style={{ '--pg-status-ink': '#00FF87' }}>PG net: {fmt(r.pgNetRevenue)}</div>
                   </div>
                 );
               })}

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { MapPin, Ticket, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import './upgrade-eligibility-ticket.css';
 
 /**
  * Simulates eligibility checks for upgrade listings.
@@ -58,23 +59,22 @@ export default function UpgradeEligibilityGate({ listing, isDemo = false, onElig
   };
 
   const statusIcon = (status) => {
-    if (status === 'checking') return <Loader2 className="w-4 h-4 animate-spin" style={{ color: '#FFE600' }} />;
-    if (status === 'pass') return <CheckCircle className="w-4 h-4" style={{ color: '#00FF87' }} />;
-    if (status === 'fail') return <XCircle className="w-4 h-4" style={{ color: '#FF2D78' }} />;
+    if (status === 'checking') return <Loader2 className="pg-eligibility-checking w-4 h-4 animate-spin" />;
+    if (status === 'pass') return <CheckCircle className="pg-eligibility-passed w-4 h-4" />;
+    if (status === 'fail') return <XCircle className="pg-eligibility-failed w-4 h-4" />;
     return null;
   };
 
   return (
-    <div className="rounded-2xl p-3 space-y-2"
-      style={{ background: 'rgba(255,140,0,0.06)', border: '1px solid rgba(255,140,0,0.2)' }}>
+    <div className="pg-upgrade-eligibility p-3 space-y-2">
       <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
-        Eligibility Checks {isDemo && <span style={{ color: '#BF5FFF' }}>· Demo</span>}
+        Eligibility Checks {isDemo && <span className="pg-eligibility-demo">· Demo</span>}
       </p>
 
       {needsLocation && (
-        <div className="flex items-center justify-between gap-3">
+        <div className="pg-eligibility-row flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <MapPin className="w-4 h-4 flex-shrink-0" style={{ color: '#00C8FF' }} />
+            <MapPin className="pg-eligibility-location w-4 h-4 flex-shrink-0" />
             <span className="text-xs text-foreground">
               {listing.location_requirement === 'inside_venue' && 'Must be inside the venue'}
               {listing.location_requirement === 'venue_proximity' && 'Must be near the venue'}
@@ -87,22 +87,21 @@ export default function UpgradeEligibilityGate({ listing, isDemo = false, onElig
               <button
                 type="button"
                 onClick={checkLocation}
-                className="text-[11px] font-bold px-3 py-1.5 rounded-full transition-all"
-                style={{ background: 'rgba(0,200,255,0.12)', border: '1px solid rgba(0,200,255,0.3)', color: '#00C8FF' }}
+                className="pg-eligibility-button pg-eligibility-location text-[11px] font-bold px-3 py-1.5 transition-all"
               >
                 {locationStatus === 'fail' ? 'Retry' : isDemo ? 'Simulate' : 'Check'}
               </button>
             ) : locationStatus === 'pass' ? (
-              <span className="text-[11px] font-bold" style={{ color: '#00FF87' }}>Verified</span>
+              <span className="pg-eligibility-passed text-[11px] font-bold">Verified</span>
             ) : null}
           </div>
         </div>
       )}
 
       {needsTicket && (
-        <div className="flex items-center justify-between gap-3">
+        <div className="pg-eligibility-row flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <Ticket className="w-4 h-4 flex-shrink-0" style={{ color: '#FF8C00' }} />
+            <Ticket className="pg-eligibility-ticket w-4 h-4 flex-shrink-0" />
             <span className="text-xs text-foreground">I have a ticket to this event</span>
           </div>
           <div className="flex items-center gap-2">
@@ -111,20 +110,19 @@ export default function UpgradeEligibilityGate({ listing, isDemo = false, onElig
               <button
                 type="button"
                 onClick={checkTicket}
-                className="text-[11px] font-bold px-3 py-1.5 rounded-full transition-all"
-                style={{ background: 'rgba(255,140,0,0.12)', border: '1px solid rgba(255,140,0,0.3)', color: '#FF8C00' }}
+                className="pg-eligibility-button pg-eligibility-ticket text-[11px] font-bold px-3 py-1.5 transition-all"
               >
                 {isDemo ? 'Simulate' : 'Confirm'}
               </button>
             ) : ticketStatus === 'pass' ? (
-              <span className="text-[11px] font-bold" style={{ color: '#00FF87' }}>Confirmed</span>
+              <span className="pg-eligibility-passed text-[11px] font-bold">Confirmed</span>
             ) : null}
           </div>
         </div>
       )}
 
       {allPassed && (
-        <p className="text-[11px] font-bold text-center pt-1" style={{ color: '#00FF87' }}>
+        <p className="pg-eligibility-passed text-[11px] font-bold text-center pt-1">
           ✓ All checks passed — you may proceed
         </p>
       )}

@@ -4,10 +4,10 @@ import { AlertTriangle, CheckCircle, RefreshCw, Bell } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 
 const PRIORITY_CONFIG = {
-  critical: { color: '#FF2D78', bg: 'rgba(255,45,120,0.1)', border: 'rgba(255,45,120,0.35)', dot: 'bg-red-500' },
-  high:     { color: '#FF8C00', bg: 'rgba(255,140,0,0.08)', border: 'rgba(255,140,0,0.3)',  dot: 'bg-orange-500' },
-  medium:   { color: '#FFE600', bg: 'rgba(255,230,0,0.07)', border: 'rgba(255,230,0,0.25)', dot: 'bg-yellow-400' },
-  low:      { color: '#00C8FF', bg: 'rgba(0,200,255,0.06)', border: 'rgba(0,200,255,0.2)',  dot: 'bg-blue-400' },
+  critical: { color: '#FF2D78', bg: 'color-mix(in srgb, rgb(255 45 120) 10%, var(--pg-surface))', border: 'rgba(255,45,120,0.35)', dot: 'bg-red-500' },
+  high:     { color: '#FF8C00', bg: 'color-mix(in srgb, rgb(255 140 0) 8%, var(--pg-surface))', border: 'rgba(255,140,0,0.3)',  dot: 'bg-orange-500' },
+  medium:   { color: '#FFE600', bg: 'color-mix(in srgb, rgb(255 230 0) 7%, var(--pg-surface))', border: 'rgba(255,230,0,0.25)', dot: 'bg-yellow-400' },
+  low:      { color: '#00C8FF', bg: 'color-mix(in srgb, rgb(0 200 255) 6%, var(--pg-surface))', border: 'rgba(0,200,255,0.2)',  dot: 'bg-blue-400' },
 };
 
 const ALERT_ICONS = {
@@ -67,11 +67,11 @@ export default function AdminAlertCenter() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="font-bold text-lg text-foreground flex items-center gap-2">
-            <Bell className="w-5 h-5" style={{ color: criticalCount > 0 ? '#FF2D78' : '#BF5FFF' }} />
+            <Bell className="pg-operations-status w-5 h-5" style={{ '--pg-status-ink': criticalCount > 0 ? '#FF2D78' : '#BF5FFF' }} />
             Alert Center
             {open.length > 0 && (
-              <span className="text-xs font-black px-2 py-0.5 rounded-full"
-                style={{ background: criticalCount > 0 ? 'rgba(255,45,120,0.15)' : 'rgba(191,95,255,0.15)', color: criticalCount > 0 ? '#FF2D78' : '#BF5FFF' }}>
+              <span className="pg-operations-status text-xs font-black px-2 py-0.5 rounded-full"
+                style={{ background: criticalCount > 0 ? 'color-mix(in srgb, rgb(255 45 120) 15%, var(--pg-surface))' : 'color-mix(in srgb, rgb(191 95 255) 15%, var(--pg-surface))', '--pg-status-ink': criticalCount > 0 ? '#FF2D78' : '#BF5FFF' }}>
                 {open.length} open
               </span>
             )}
@@ -86,14 +86,14 @@ export default function AdminAlertCenter() {
       {/* Summary pills */}
       <div className="flex gap-2 flex-wrap">
         {criticalCount > 0 && (
-          <span className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full animate-pulse"
-            style={{ background: 'rgba(255,45,120,0.12)', color: '#FF2D78', border: '1px solid rgba(255,45,120,0.35)' }}>
+          <span className="pg-operations-status flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full animate-pulse"
+            style={{ background: 'color-mix(in srgb, rgb(255 45 120) 12%, var(--pg-surface))', '--pg-status-ink': '#FF2D78', border: '1px solid rgba(255,45,120,0.35)' }}>
             🚨 {criticalCount} Critical
           </span>
         )}
         {highCount > 0 && (
-          <span className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full"
-            style={{ background: 'rgba(255,140,0,0.1)', color: '#FF8C00', border: '1px solid rgba(255,140,0,0.3)' }}>
+          <span className="pg-operations-status flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full"
+            style={{ background: 'color-mix(in srgb, rgb(255 140 0) 10%, var(--pg-surface))', '--pg-status-ink': '#FF8C00', border: '1px solid rgba(255,140,0,0.3)' }}>
             ⚠️ {highCount} High
           </span>
         )}
@@ -106,21 +106,21 @@ export default function AdminAlertCenter() {
           { key: 'resolved', label: `Resolved (${resolved.length})` },
         ].map(tab => (
           <button key={tab.key} onClick={() => setFilter(tab.key)}
-            className="text-xs px-3 py-1.5 rounded-lg transition-all"
+            className="pg-operations-status text-xs px-3 py-1.5 rounded-lg transition-all"
             style={filter === tab.key
-              ? { background: 'rgba(191,95,255,0.12)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.3)' }
-              : { background: 'rgba(255,255,255,0.04)', color: 'hsl(var(--muted-foreground))', border: '1px solid rgba(255,255,255,0.08)' }}>
+              ? { background: 'color-mix(in srgb, rgb(191 95 255) 12%, var(--pg-surface))', '--pg-status-ink': '#BF5FFF', border: '1px solid rgba(191,95,255,0.3)' }
+              : { background: 'var(--pg-surface)', '--pg-status-ink': 'var(--pg-muted)', border: '1px solid var(--pg-line)' }}>
             {tab.label}
           </button>
         ))}
       </div>
 
       {loading ? (
-        <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-20 rounded-xl bg-white/5 animate-pulse" />)}</div>
+        <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="pg-operations-card h-20 rounded-xl pg-operations-skeleton animate-pulse" />)}</div>
       ) : shown.length === 0 ? (
-        <div className="text-center py-12 rounded-2xl"
-          style={{ background: 'rgba(0,255,135,0.04)', border: '1px solid rgba(0,255,135,0.15)' }}>
-          <CheckCircle className="w-10 h-10 mx-auto mb-2" style={{ color: '#00FF87' }} />
+        <div className="pg-operations-card text-center py-12 rounded-2xl"
+          style={{ background: 'color-mix(in srgb, rgb(0 255 135) 4%, var(--pg-surface))', border: '1px solid rgba(0,255,135,0.15)' }}>
+          <CheckCircle className="pg-operations-status w-10 h-10 mx-auto mb-2" style={{ '--pg-status-ink': '#00FF87' }} />
           <p className="font-semibold text-foreground text-sm">All clear!</p>
           <p className="text-xs text-muted-foreground mt-1">No {filter} alerts.</p>
         </div>
@@ -130,7 +130,7 @@ export default function AdminAlertCenter() {
             const cfg = PRIORITY_CONFIG[alert.priority] || PRIORITY_CONFIG.medium;
             const icon = ALERT_ICONS[alert.alert_type] || '🔔';
             return (
-              <div key={alert.id} className="rounded-2xl p-4 space-y-2"
+              <div key={alert.id} className="pg-operations-card rounded-2xl p-4 space-y-2"
                 style={{ background: cfg.bg, border: `1px solid ${cfg.border}` }}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-start gap-2 flex-1 min-w-0">
@@ -138,8 +138,8 @@ export default function AdminAlertCenter() {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-bold text-sm text-foreground">{alert.title}</span>
-                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full capitalize"
-                          style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }}>
+                        <span className="pg-operations-status text-[10px] font-black px-2 py-0.5 rounded-full capitalize"
+                          style={{ background: cfg.bg, '--pg-status-ink': cfg.color, border: `1px solid ${cfg.border}` }}>
                           {alert.priority}
                         </span>
                       </div>
@@ -159,8 +159,8 @@ export default function AdminAlertCenter() {
                     <button
                       onClick={() => handleResolve(alert)}
                       disabled={resolving === alert.id}
-                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold flex-shrink-0 disabled:opacity-40"
-                      style={{ background: 'rgba(0,255,135,0.08)', color: '#00FF87', border: '1px solid rgba(0,255,135,0.25)' }}>
+                      className="pg-operations-status flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold flex-shrink-0 disabled:opacity-40"
+                      style={{ background: 'color-mix(in srgb, rgb(0 255 135) 8%, var(--pg-surface))', '--pg-status-ink': '#00FF87', border: '1px solid rgba(0,255,135,0.25)' }}>
                       {resolving === alert.id
                         ? <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
                         : <><CheckCircle className="w-3 h-3" /> Resolve</>}

@@ -111,26 +111,26 @@ export default function FulfillmentItem({ listing, purchase, event, onRefresh, a
   const isLoading = (a) => loading === a;
 
   return (
-    <div className="rounded-xl overflow-hidden text-sm"
+    <div className="pg-operations-card rounded-xl overflow-hidden text-sm"
       style={{ background: urgStyle.bg, border: `1px solid ${urgStyle.border}` }}>
       {/* Header row */}
       <div className="px-4 py-3 flex items-start justify-between gap-3 flex-wrap">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-0.5">
             {/* Urgency badge */}
-            <span className="text-[10px] font-black px-2 py-0.5 rounded-full"
-              style={{ background: urgStyle.bg, color: urgStyle.color, border: `1px solid ${urgStyle.border}` }}>
+            <span className="pg-operations-status text-[10px] font-black px-2 py-0.5 rounded-full"
+              style={{ background: urgStyle.bg, '--pg-status-ink': urgStyle.color, border: `1px solid ${urgStyle.border}` }}>
               {urgencyLabel}
             </span>
             {countdown && (
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                style={{ background: 'rgba(255,255,255,0.06)', color: 'hsl(var(--foreground))', border: '1px solid hsl(var(--border))' }}>
+                style={{ background: 'var(--pg-surface)', color: 'var(--pg-text)', border: '1px solid var(--pg-line)' }}>
                 ⏱ {countdown}
               </span>
             )}
             {fs && (
-              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                style={{ background: 'rgba(255,255,255,0.06)', color: fs.color }}>
+              <span className="pg-operations-status text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                style={{ background: 'var(--pg-surface)', '--pg-status-ink': fs.color }}>
                 {fs.label}
               </span>
             )}
@@ -149,7 +149,7 @@ export default function FulfillmentItem({ listing, purchase, event, onRefresh, a
         </div>
 
         <button onClick={() => setExpanded(v => !v)}
-          className="p-1.5 rounded-lg hover:bg-white/10 transition-colors text-muted-foreground flex-shrink-0">
+          className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground flex-shrink-0">
           {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </button>
       </div>
@@ -161,18 +161,18 @@ export default function FulfillmentItem({ listing, purchase, event, onRefresh, a
 
           {/* Seller / Buyer info */}
           <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className="rounded-lg p-2.5" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <div className="rounded-lg p-2.5" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
               <div className="text-muted-foreground uppercase tracking-wide font-semibold mb-0.5 text-[9px]">Seller</div>
               <div className="font-medium text-foreground truncate">{listing.seller_email}</div>
             </div>
             {purchase ? (
-              <div className="rounded-lg p-2.5" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+              <div className="rounded-lg p-2.5" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
                 <div className="text-muted-foreground uppercase tracking-wide font-semibold mb-0.5 text-[9px]">Buyer</div>
                 <div className="font-medium text-foreground truncate">{purchase.buyer_email}</div>
                 {purchase.buyer_name && <div className="text-muted-foreground text-[10px]">{purchase.buyer_name}</div>}
               </div>
             ) : (
-              <div className="rounded-lg p-2.5" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+              <div className="rounded-lg p-2.5" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
                 <div className="text-muted-foreground uppercase tracking-wide font-semibold mb-0.5 text-[9px]">Status</div>
                 <div className="text-muted-foreground">Not yet sold</div>
               </div>
@@ -183,15 +183,15 @@ export default function FulfillmentItem({ listing, purchase, event, onRefresh, a
           <div className="flex flex-wrap gap-2">
             {listing.pg_transfer_proof_url && (
               <a href={listing.pg_transfer_proof_url} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1 rounded-lg"
-                style={{ background: 'rgba(191,95,255,0.1)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.25)' }}>
+                className="pg-operations-status inline-flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1 rounded-lg"
+                style={{ background: 'color-mix(in srgb, rgb(191 95 255) 10%, var(--pg-surface))', '--pg-status-ink': '#BF5FFF', border: '1px solid rgba(191,95,255,0.25)' }}>
                 Custody Proof <ExternalLink className="w-2.5 h-2.5" />
               </a>
             )}
             {purchase?.fulfillment_proof_url && (
               <a href={purchase.fulfillment_proof_url} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1 rounded-lg"
-                style={{ background: 'rgba(0,255,135,0.1)', color: '#00FF87', border: '1px solid rgba(0,255,135,0.25)' }}>
+                className="pg-operations-status inline-flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1 rounded-lg"
+                style={{ background: 'color-mix(in srgb, rgb(0 255 135) 10%, var(--pg-surface))', '--pg-status-ink': '#00FF87', border: '1px solid rgba(0,255,135,0.25)' }}>
                 Fulfillment Proof <ExternalLink className="w-2.5 h-2.5" />
               </a>
             )}
@@ -200,7 +200,7 @@ export default function FulfillmentItem({ listing, purchase, event, onRefresh, a
           {/* Transfer notes */}
           {listing.pg_transfer_notes && (
             <div className="text-[11px] text-muted-foreground italic px-2.5 py-2 rounded-lg"
-              style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+              style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
               "{listing.pg_transfer_notes}"
             </div>
           )}
@@ -213,7 +213,7 @@ export default function FulfillmentItem({ listing, purchase, event, onRefresh, a
               placeholder="Add fulfillment notes (saved with next action)…"
               rows={2}
               className="w-full px-3 py-2 rounded-lg text-xs text-foreground placeholder:text-muted-foreground focus:outline-none resize-none"
-              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}
+              style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}
             />
           )}
 
@@ -221,14 +221,14 @@ export default function FulfillmentItem({ listing, purchase, event, onRefresh, a
           {listing.custody_status === 'pending_pg_verification' && !purchase && (
             <div className="flex flex-wrap gap-2">
               <button onClick={handleCustodyVerify} disabled={!!loading}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50"
-                style={{ background: 'rgba(0,255,135,0.12)', color: '#00FF87', border: '1px solid rgba(0,255,135,0.3)' }}>
+                className="pg-operations-status flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50"
+                style={{ background: 'color-mix(in srgb, rgb(0 255 135) 12%, var(--pg-surface))', '--pg-status-ink': '#00FF87', border: '1px solid rgba(0,255,135,0.3)' }}>
                 {isLoading('verify') ? <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> : <CheckCircle className="w-3 h-3" />}
                 Verify & Go Live
               </button>
               <button onClick={handleCustodyReject} disabled={!!loading}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50"
-                style={{ background: 'rgba(255,45,120,0.08)', color: '#FF2D78', border: '1px solid rgba(255,45,120,0.25)' }}>
+                className="pg-operations-status flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50"
+                style={{ background: 'color-mix(in srgb, rgb(255 45 120) 8%, var(--pg-surface))', '--pg-status-ink': '#FF2D78', border: '1px solid rgba(255,45,120,0.25)' }}>
                 {isLoading('reject') ? <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> : <AlertTriangle className="w-3 h-3" />}
                 Reject
               </button>
@@ -240,22 +240,22 @@ export default function FulfillmentItem({ listing, purchase, event, onRefresh, a
             <div className="flex flex-wrap gap-2">
               {(purchase.fulfillment_status === 'awaiting_pg_transfer' || !purchase.fulfillment_status) && (
                 <button onClick={() => act('start')} disabled={!!loading}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50"
-                  style={{ background: 'rgba(0,200,255,0.12)', color: '#00C8FF', border: '1px solid rgba(0,200,255,0.3)' }}>
+                  className="pg-operations-status flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50"
+                  style={{ background: 'color-mix(in srgb, rgb(0 200 255) 12%, var(--pg-surface))', '--pg-status-ink': '#00C8FF', border: '1px solid rgba(0,200,255,0.3)' }}>
                   {isLoading('start') ? <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> : '⚡'}
                   Mark Transfer Started
                 </button>
               )}
               {purchase.fulfillment_status === 'transfer_in_progress' && (
                 <button onClick={() => act('complete')} disabled={!!loading}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50"
-                  style={{ background: 'rgba(0,255,135,0.12)', color: '#00FF87', border: '1px solid rgba(0,255,135,0.3)' }}>
+                  className="pg-operations-status flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50"
+                  style={{ background: 'color-mix(in srgb, rgb(0 255 135) 12%, var(--pg-surface))', '--pg-status-ink': '#00FF87', border: '1px solid rgba(0,255,135,0.3)' }}>
                   {isLoading('complete') ? <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> : <CheckCircle className="w-3 h-3" />}
                   Mark Transfer Complete
                 </button>
               )}
-              <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer"
-                style={{ background: 'rgba(191,95,255,0.1)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.25)' }}>
+              <label className="pg-operations-status flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer"
+                style={{ background: 'color-mix(in srgb, rgb(191 95 255) 10%, var(--pg-surface))', '--pg-status-ink': '#BF5FFF', border: '1px solid rgba(191,95,255,0.25)' }}>
                 {uploadingProof
                   ? <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
                   : <Upload className="w-3 h-3" />}
@@ -264,13 +264,13 @@ export default function FulfillmentItem({ listing, purchase, event, onRefresh, a
               </label>
               <button onClick={() => act('notify')} disabled={!!loading}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50"
-                style={{ background: 'rgba(255,255,255,0.06)', color: 'hsl(var(--foreground))', border: '1px solid hsl(var(--border))' }}>
+                style={{ background: 'var(--pg-surface)', color: 'var(--pg-text)', border: '1px solid var(--pg-line)' }}>
                 <Bell className="w-3 h-3" /> Notify Buyer
               </button>
               {purchase.fulfillment_status !== 'issue_reported' && (
                 <button onClick={() => act('issue')} disabled={!!loading}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50"
-                  style={{ background: 'rgba(255,45,120,0.08)', color: '#FF2D78', border: '1px solid rgba(255,45,120,0.25)' }}>
+                  className="pg-operations-status flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50"
+                  style={{ background: 'color-mix(in srgb, rgb(255 45 120) 8%, var(--pg-surface))', '--pg-status-ink': '#FF2D78', border: '1px solid rgba(255,45,120,0.25)' }}>
                   <AlertTriangle className="w-3 h-3" /> Escalate Issue
                 </button>
               )}

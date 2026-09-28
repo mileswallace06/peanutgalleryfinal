@@ -1,0 +1,67 @@
+/* Reachable detail and checkout surfaces share the printed-ticket vocabulary. */
+.pg-detail-surface { color: var(--pg-text); }
+.pg-detail-surface :is(.text-foreground, h2, h3) { color: var(--pg-text); }
+.pg-detail-surface .text-muted-foreground { color: var(--pg-muted); }
+.pg-detail-surface :is(button, a) { min-height: 44px; }
+.pg-detail-surface :is(button, input, select, textarea) { border-radius: 7px; }
+.pg-detail-surface :is(button, input, select, textarea):focus-visible,
+.pg-location-picker :is(button, input):focus-visible,
+.pg-city-suggestions button:focus-visible { outline: 3px solid var(--neon-cyan); outline-offset: 3px; }
+.pg-detail-surface :is(input:not([type='checkbox']):not([type='file']), select, textarea),
+.pg-location-picker input { font-size: 16px; }
+.pg-detail-surface span.rounded-full { border-radius: 4px; }
+.pg-detail-surface .pg-detail-paper,
+.pg-detail-paper { background: var(--pg-paper) !important; color: var(--pg-ink); border: 1px solid #11121726; border-radius: 8px; }
+.pg-detail-paper :is(.text-foreground, h2, h3) { color: var(--pg-ink); }
+.pg-detail-paper .text-muted-foreground { color: var(--pg-paper-muted); }
+.pg-detail-paper :is(.text-primary, button.text-primary) { color: #593b72; }
+.pg-listing-card { box-shadow: none; }
+.pg-listing-seat-summary { padding: 16px 14px; border-bottom: 1px dashed #11121755; }
+.pg-listing-seat-summary > div:first-child { min-width: 0; overflow-wrap: anywhere; }
+.pg-listing-seat-summary > div:last-child { padding-left: 12px; border-left: 1px dashed #11121745; }
+.pg-checkout-dialog { max-height: calc(100dvh - 72px); border-radius: 12px 12px 0 0; box-shadow: 0 12px 36px #0005; overflow: hidden; }
+.pg-checkout-header { border-bottom-style: dashed; }
+.pg-checkout-header h2 { font-size: 24px; line-height: 1.2; font-weight: 400; }
+.pg-checkout-header button { min-width: 44px; }
+.pg-checkout-summary { position: relative; }
+.pg-checkout-summary > div:first-child { font-family: var(--font-display); font-size: 20px; font-weight: 400; }
+.pg-checkout-summary > .font-black { border-top-style: dashed !important; border-color: #11121745 !important; }
+.pg-checkout-summary > .font-black > span:last-child { color: var(--pg-ink) !important; }
+.pg-checkout-summary .rounded-full { color: #593b72 !important; background: #bf5fff1a !important; }
+/* Stripe iframe colors are literal; its fixed dark field stays legible in both themes. */
+.pg-checkout-dialog .pg-checkout-card-field { background: #1a1822 !important; border-color: #5b5266 !important; }
+.pg-checkout-dialog button[type='submit'] { box-shadow: none; padding-inline: 12px; line-height: 1.45; }
+.pg-selling-summary { border-bottom: 1px dashed #11121745; }
+.pg-seller-attestation > div:first-child,
+.pg-transfer-agreement > div:first-child { border-bottom-style: dashed !important; }
+.pg-transfer-agreement button[role='checkbox'] { min-width: 44px; min-height: 44px; }
+.pg-bucket-sheet { width: 100%; max-width: 32rem; margin-inline: auto; border-radius: 12px 12px 0 0; overflow: hidden; }
+.pg-bucket-heading { margin-bottom: 14px; padding-bottom: 15px; border-bottom: 1px dashed var(--pg-line); }
+.pg-bucket-heading h2 { font-family: var(--font-display); font-size: 25px; font-weight: 400; }
+.pg-bucket-sheet button:has(> svg:only-child) { min-width: 44px; }
+.pg-location-picker button { border-radius: 7px; min-height: 44px; }
+.pg-location-picker input { border-radius: 7px; color: var(--pg-text); }
+.pg-city-suggestions { color: var(--pg-text); }
+.pg-city-suggestions .text-muted-foreground { color: var(--pg-muted); }
+.pg-city-suggestions .text-foreground { color: var(--pg-text); }
+.pg-city-suggestions button { min-height: 44px; }
+@media (min-width: 640px) { .pg-checkout-dialog { border-radius: 12px; } }
+@media (max-width: 360px) {
+  .pg-checkout-header { padding-inline: 16px; }
+  .pg-listing-seat-summary { padding: 14px 10px; gap: 9px; }
+  .pg-bucket-sheet .px-5 { padding-left: 16px; padding-right: 16px; }
+}
+.pg-transfer-badge { --pg-transfer-ink: var(--pg-muted); }
+.pg-transfer-badge[data-tone='#00FF87'] { --pg-transfer-ink: var(--neon-green); }
+.pg-transfer-badge[data-tone='#FF8C00'] { --pg-transfer-ink: var(--neon-orange); }
+.pg-transfer-badge[data-tone='#FF2D78'] { --pg-transfer-ink: var(--neon-pink); }
+.pg-transfer-badge[data-tone='#FFE600'] { --pg-transfer-ink: var(--neon-yellow); }
+.pg-fan-sort-sheet { width: 100%; max-width: 32rem; margin-inline: auto; border-radius: 12px 12px 0 0; }
+.pg-fan-sort-sheet h2 { font-family: var(--font-display); font-size: 25px; font-weight: 400; }
+.pg-fan-sort-sheet > .flex { padding-bottom: 14px; border-bottom: 1px dashed var(--pg-line); }
+.pg-selling-picker > article { border-radius: 8px; background: var(--pg-paper); color: var(--pg-ink); border-color: #11121726; }
+.pg-selling-picker > article h2 { color: var(--pg-ink); font-family: var(--font-display); font-size: 21px; font-weight: 400; }
+.pg-selling-picker > article .text-muted-foreground { color: var(--pg-paper-muted); }
+.pg-selling-picker > article :is(.text-primary, .text-green-400) { color: #356249; }
+.pg-selling-picker > article > .border-t { border-top: 1px dashed #11121745; }
+.pg-selling-picker > article button { background: var(--pg-mint); color: var(--pg-ink); border-color: #11121726; }

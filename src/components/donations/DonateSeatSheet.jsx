@@ -1,10 +1,11 @@
+import '@/components/member-surfaces.css';
 /**
  * DonateSeatSheet — bottom sheet triggered after upgrade or from My Tickets.
  * Allows a fan to donate their old seats to the community donation pool.
  */
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Heart, Zap, ChevronRight } from 'lucide-react';
+import { X, Heart, Zap } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 
 export default function DonateSeatSheet({ event, purchase, onClose, onDonated }) {
@@ -49,10 +50,8 @@ export default function DonateSeatSheet({ event, purchase, onClose, onDonated })
         <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
 
         <motion.div
-          className="relative rounded-t-3xl overflow-hidden"
+          className="pg-member-sheet relative"
           style={{
-            background: 'hsl(var(--card))',
-            border: '1px solid rgba(255,255,255,0.1)',
             paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))',
           }}
           initial={{ y: '100%' }}
@@ -65,8 +64,8 @@ export default function DonateSeatSheet({ event, purchase, onClose, onDonated })
             <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
           </div>
 
-          <button onClick={onClose} className="absolute top-4 right-4 p-2 rounded-full"
-            style={{ background: 'hsl(var(--muted))' }}>
+          <button onClick={onClose} aria-label="Close donation sheet" className="pg-member-close absolute top-3 right-3"
+            style={{ background: 'var(--pg-surface-raised)' }}>
             <X className="w-4 h-4 text-muted-foreground" />
           </button>
 
@@ -88,7 +87,7 @@ export default function DonateSeatSheet({ event, purchase, onClose, onDonated })
                     { icon: '✨', text: 'They receive your seats instantly with a surprise notification' },
                     { icon: '🏆', text: 'You earn +150 Peanut Points and community reputation' },
                   ].map((item, i) => (
-                    <div key={i} className="flex items-start gap-3 px-4 py-3 rounded-2xl"
+                    <div key={i} className="flex items-start gap-3 px-4 py-3 rounded-lg"
                       style={{ background: 'rgba(191,95,255,0.06)', border: '1px solid rgba(191,95,255,0.15)' }}>
                       <span className="text-lg flex-shrink-0">{item.icon}</span>
                       <p className="text-sm text-muted-foreground leading-snug">{item.text}</p>
@@ -98,11 +97,10 @@ export default function DonateSeatSheet({ event, purchase, onClose, onDonated })
 
                 <button
                   onClick={() => setStep('details')}
-                  className="w-full py-4 rounded-full font-black text-sm flex items-center justify-center gap-2"
+                  className="pg-member-action w-full py-4 font-black text-sm"
                   style={{
-                    background: 'linear-gradient(135deg, #BF5FFF, #FF2D78)',
-                    color: '#fff',
-                    boxShadow: '0 0 24px rgba(191,95,255,0.3)',
+                    background: 'var(--pg-violet)',
+                    color: 'var(--pg-ink)',
                   }}>
                   <Heart className="w-4 h-4" /> Donate My Seats
                 </button>
@@ -161,7 +159,7 @@ export default function DonateSeatSheet({ event, purchase, onClose, onDonated })
                   />
                 </div>
 
-                <label className="flex items-center gap-3 px-4 py-3 rounded-2xl cursor-pointer mb-5"
+                <label className="flex items-center gap-3 px-4 py-3 rounded-lg cursor-pointer mb-5"
                   style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}>
                   <div
                     className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 transition-all"
@@ -181,11 +179,10 @@ export default function DonateSeatSheet({ event, purchase, onClose, onDonated })
                 <button
                   onClick={handleDonate}
                   disabled={loading || !section}
-                  className="w-full py-4 rounded-full font-black text-sm flex items-center justify-center gap-2 disabled:opacity-60"
+                  className="pg-member-action w-full py-4 font-black text-sm disabled:opacity-60"
                   style={{
-                    background: 'linear-gradient(135deg, #BF5FFF, #FF2D78)',
-                    color: '#fff',
-                    boxShadow: section ? '0 0 24px rgba(191,95,255,0.3)' : 'none',
+                    background: 'var(--pg-violet)',
+                    color: 'var(--pg-ink)',
                   }}>
                   {loading
                     ? <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
@@ -209,19 +206,19 @@ export default function DonateSeatSheet({ event, purchase, onClose, onDonated })
                 >
                   🥜
                 </motion.div>
-                <h2 className="font-display text-3xl mb-2" style={{ color: '#BF5FFF' }}>You're a Fan Hero</h2>
+                <h2 className="font-display text-3xl mb-2" style={{ color: 'var(--neon-purple)' }}>You're a Fan Hero</h2>
                 <p className="text-sm text-muted-foreground mb-4 leading-relaxed">
                   Your seats are in the pool. A lucky fan will be selected and notified. You're earning{' '}
                   <span className="font-black text-foreground">🥜 Peanut Points</span> for your generosity.
                 </p>
                 <div className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-full mx-auto w-fit mb-6"
                   style={{ background: 'rgba(191,95,255,0.12)', border: '1px solid rgba(191,95,255,0.3)' }}>
-                  <Zap className="w-3.5 h-3.5" style={{ color: '#BF5FFF' }} />
-                  <span className="text-xs font-black" style={{ color: '#BF5FFF' }}>Peanut Points awarded · Fan Hero progress</span>
+                  <Zap className="w-3.5 h-3.5" style={{ color: 'var(--neon-purple)' }} />
+                  <span className="text-xs font-black" style={{ color: 'var(--neon-purple)' }}>Peanut Points awarded · Fan Hero progress</span>
                 </div>
                 <button onClick={onClose}
-                  className="w-full py-3.5 rounded-full font-black text-sm"
-                  style={{ background: 'hsl(var(--muted))', color: 'hsl(var(--foreground))' }}>
+                  className="pg-member-action pg-member-action--secondary w-full py-3.5 font-black text-sm"
+                  style={{ background: 'var(--pg-surface-raised)', color: 'var(--pg-text)' }}>
                   Done
                 </button>
               </motion.div>

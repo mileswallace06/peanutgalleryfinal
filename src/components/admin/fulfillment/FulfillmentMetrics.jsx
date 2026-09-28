@@ -53,10 +53,10 @@ export default function FulfillmentMetrics({ listings, purchases }) {
   return (
     <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-6">
       {stats.map(({ icon: Icon, label, value, color }) => (
-        <div key={label} className="rounded-xl p-3 text-center"
-          style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
-          <Icon className="w-4 h-4 mx-auto mb-1" style={{ color }} />
-          <div className="font-black text-base" style={{ color }}>{value}</div>
+        <div key={label} className="pg-operations-card rounded-xl p-3 text-center"
+          style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
+          <Icon className="pg-operations-status w-4 h-4 mx-auto mb-1" style={{ '--pg-status-ink': color }} />
+          <div className="pg-operations-status font-black text-base" style={{ '--pg-status-ink': color }}>{value}</div>
           <div className="text-[9px] text-muted-foreground leading-tight mt-0.5">{label}</div>
         </div>
       ))}

@@ -7,8 +7,8 @@ import { RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
 
 function Stat({ label, value, color, sub }) {
   return (
-    <div className="rounded-xl p-3 text-center" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-      <div className="text-2xl font-black" style={{ color: color || 'hsl(var(--foreground))' }}>{value}</div>
+    <div className="pg-operations-card rounded-xl p-3 text-center" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
+      <div className="pg-operations-status text-2xl font-black" style={{ '--pg-status-ink': color || 'var(--pg-text)' }}>{value}</div>
       <div className="text-[10px] text-muted-foreground mt-0.5">{label}</div>
       {sub && <div className="text-[9px] text-muted-foreground opacity-70 mt-0.5">{sub}</div>}
     </div>
@@ -152,17 +152,17 @@ export default function FlashDropMetricsPanel() {
       <div className="flex gap-2 flex-wrap">
         {tabs.map(t => (
           <button key={t.id} onClick={() => setActiveTab(t.id)}
-            className="text-xs px-3 py-1.5 rounded-lg transition-all"
+            className="pg-operations-status text-xs px-3 py-1.5 rounded-lg transition-all"
             style={activeTab === t.id
-              ? { background: 'rgba(191,95,255,0.12)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.3)' }
-              : { background: 'rgba(255,255,255,0.04)', color: 'hsl(var(--muted-foreground))', border: '1px solid rgba(255,255,255,0.08)' }}>
+              ? { background: 'color-mix(in srgb, rgb(191 95 255) 12%, var(--pg-surface))', '--pg-status-ink': '#BF5FFF', border: '1px solid rgba(191,95,255,0.3)' }
+              : { background: 'var(--pg-surface)', '--pg-status-ink': 'var(--pg-muted)', border: '1px solid var(--pg-line)' }}>
             {t.label}
           </button>
         ))}
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-4 gap-2">{[1,2,3,4].map(i => <div key={i} className="h-16 rounded-xl animate-pulse bg-muted" />)}</div>
+        <div className="grid grid-cols-4 gap-2">{[1,2,3,4].map(i => <div key={i} className="pg-operations-card h-16 rounded-xl animate-pulse bg-muted" />)}</div>
       ) : (
         <>
           {/* ── OVERVIEW ── */}
@@ -210,11 +210,11 @@ export default function FlashDropMetricsPanel() {
                     { label: 'Entry Rate', value: pct(totalEntries, totalDrops * Math.max(avgEntriesPerDrop, 1)), color: '#FFE600', sub: 'entries vs capacity' },
                     { label: 'Winners Selected', value: winners, color: '#00FF87' },
                   ].map(row => (
-                    <div key={row.label} className="flex items-center justify-between px-4 py-2.5 rounded-xl"
-                      style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                    <div key={row.label} className="pg-operations-card flex items-center justify-between px-4 py-2.5 rounded-xl"
+                      style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
                       <span className="text-xs text-muted-foreground">{row.label}</span>
                       <div className="text-right">
-                        <span className="font-black text-sm" style={{ color: row.color }}>{row.value}</span>
+                        <span className="pg-operations-status font-black text-sm" style={{ '--pg-status-ink': row.color }}>{row.value}</span>
                         {row.sub && <p className="text-[9px] text-muted-foreground">{row.sub}</p>}
                       </div>
                     </div>
@@ -230,12 +230,12 @@ export default function FlashDropMetricsPanel() {
                   <Stat label="Clicked Listing" value={loserClicked} color="#FF8C00" sub={pct(loserClicked, losers)} />
                   <Stat label="Purchased" value={loserPurchased} color={loserPurchased > 0 ? '#00FF87' : '#FF2D78'} sub={pct(loserPurchased, losers)} />
                 </div>
-                <div className="mt-3 rounded-xl px-4 py-3 text-xs"
-                  style={{ background: 'rgba(255,230,0,0.06)', border: '1px solid rgba(255,230,0,0.2)' }}>
-                  <p className="font-bold mb-1" style={{ color: '#FFE600' }}>Primary KPI</p>
+                <div className="pg-operations-card mt-3 rounded-xl px-4 py-3 text-xs"
+                  style={{ background: 'color-mix(in srgb, rgb(255 230 0) 6%, var(--pg-surface))', border: '1px solid rgba(255,230,0,0.2)' }}>
+                  <p className="pg-operations-status font-bold mb-1" style={{ '--pg-status-ink': '#FFE600' }}>Primary KPI</p>
                   <p className="text-muted-foreground">
-                    Loser click rate: <strong className="text-foreground" style={{ color: colorForRate(loserClickRate) }}>{loserClickRate}%</strong> ·
-                    Purchase rate: <strong className="text-foreground" style={{ color: colorForRate(loserPurchaseRate) }}>{loserPurchaseRate}%</strong> ·
+                    Loser click rate: <strong className="pg-operations-status text-foreground" style={{ '--pg-status-ink': colorForRate(loserClickRate) }}>{loserClickRate}%</strong> ·
+                    Purchase rate: <strong className="pg-operations-status text-foreground" style={{ '--pg-status-ink': colorForRate(loserPurchaseRate) }}>{loserPurchaseRate}%</strong> ·
                     Repeat participants: <strong className="text-foreground">{repeatParticipantRate}%</strong>
                   </p>
                 </div>
@@ -260,10 +260,10 @@ export default function FlashDropMetricsPanel() {
                 const eventObj = eventsMap[ev.event_id];
                 const isExpanded = expandedEvent === ev.event_id;
                 return (
-                  <div key={ev.event_id} className="rounded-xl overflow-hidden"
-                    style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <div key={ev.event_id} className="pg-operations-card rounded-xl overflow-hidden"
+                    style={{ border: '1px solid var(--pg-line)' }}>
                     <button className="w-full px-4 py-3 flex items-center gap-3 text-left"
-                      style={{ background: 'rgba(255,255,255,0.04)' }}
+                      style={{ background: 'var(--pg-surface)' }}
                       onClick={() => setExpandedEvent(isExpanded ? null : ev.event_id)}>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-bold text-foreground truncate">{eventObj?.title || ev.event_id.slice(0, 12)}</p>
@@ -271,13 +271,13 @@ export default function FlashDropMetricsPanel() {
                       </div>
                       <div className="flex items-center gap-3 flex-shrink-0 text-xs">
                         <span className="text-muted-foreground">{ev.drops} drops</span>
-                        <span style={{ color: '#00C8FF' }}>{ev.entries} entries</span>
-                        <span style={{ color: colorForRate(ev.loser_click_rate) }}>{ev.loser_click_rate}% click</span>
+                        <span className="pg-operations-status" style={{ '--pg-status-ink': '#00C8FF' }}>{ev.entries} entries</span>
+                        <span className="pg-operations-status" style={{ '--pg-status-ink': colorForRate(ev.loser_click_rate) }}>{ev.loser_click_rate}% click</span>
                         {isExpanded ? <ChevronUp className="w-3 h-3 text-muted-foreground" /> : <ChevronDown className="w-3 h-3 text-muted-foreground" />}
                       </div>
                     </button>
                     {isExpanded && (
-                      <div className="px-4 pb-3 pt-2 grid grid-cols-3 gap-2 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)', background: 'rgba(255,255,255,0.02)' }}>
+                      <div className="px-4 pb-3 pt-2 grid grid-cols-3 gap-2 border-t" style={{ borderColor: 'var(--pg-line)', background: 'var(--pg-surface)' }}>
                         <Stat label="Drops" value={ev.drops} />
                         <Stat label="Total Entries" value={ev.entries} color="#00C8FF" />
                         <Stat label="Completed" value={ev.completed} color="#00FF87" />
@@ -309,9 +309,9 @@ export default function FlashDropMetricsPanel() {
                   <div className="space-y-1.5">
                     {Object.entries(flagCounts).sort((a, b) => b[1] - a[1]).map(([flag, count]) => (
                       <div key={flag} className="flex items-center justify-between px-3 py-2 rounded-lg"
-                        style={{ background: 'rgba(255,140,0,0.06)', border: '1px solid rgba(255,140,0,0.2)' }}>
+                        style={{ background: 'color-mix(in srgb, rgb(255 140 0) 6%, var(--pg-surface))', border: '1px solid rgba(255,140,0,0.2)' }}>
                         <span className="text-xs text-muted-foreground capitalize">{flag.replace(/_/g, ' ')}</span>
-                        <span className="text-xs font-black" style={{ color: '#FF8C00' }}>{count}</span>
+                        <span className="pg-operations-status text-xs font-black" style={{ '--pg-status-ink': '#FF8C00' }}>{count}</span>
                       </div>
                     ))}
                   </div>
@@ -322,16 +322,16 @@ export default function FlashDropMetricsPanel() {
                   <SectionLabel>Recent Flagged Drops</SectionLabel>
                   <div className="space-y-2">
                     {flaggedDrops.slice(0, 5).map(d => (
-                      <div key={d.id} className="rounded-xl px-3 py-2.5 text-xs"
-                        style={{ background: 'rgba(255,45,120,0.05)', border: '1px solid rgba(255,45,120,0.2)' }}>
+                      <div key={d.id} className="pg-operations-card rounded-xl px-3 py-2.5 text-xs"
+                        style={{ background: 'color-mix(in srgb, rgb(255 45 120) 5%, var(--pg-surface))', border: '1px solid rgba(255,45,120,0.2)' }}>
                         <div className="flex items-center justify-between">
                           <span className="font-semibold text-foreground">{d.event_title || d.event_id?.slice(0, 8)} · Sec {d.section}</span>
                           <span className="text-muted-foreground">{d.donor_email?.split('@')[0]}</span>
                         </div>
                         <div className="flex flex-wrap gap-1 mt-1">
                           {(d.abuse_flags || []).map(f => (
-                            <span key={f} className="text-[9px] px-1.5 py-0.5 rounded-full font-bold"
-                              style={{ background: 'rgba(255,45,120,0.15)', color: '#FF2D78' }}>
+                            <span key={f} className="pg-operations-status text-[9px] px-1.5 py-0.5 rounded-full font-bold"
+                              style={{ background: 'color-mix(in srgb, rgb(255 45 120) 15%, var(--pg-surface))', '--pg-status-ink': '#FF2D78' }}>
                               {f.replace(/_/g, ' ')}
                             </span>
                           ))}
@@ -341,8 +341,8 @@ export default function FlashDropMetricsPanel() {
                   </div>
                 </div>
               )}
-              <div className="rounded-xl px-4 py-3 text-xs"
-                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+              <div className="pg-operations-card rounded-xl px-4 py-3 text-xs"
+                style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
                 <p className="font-bold text-foreground mb-1">Anti-Abuse Rules Active</p>
                 <ul className="space-y-1 text-muted-foreground">
                   <li>• Max 2 drops per user per event</li>

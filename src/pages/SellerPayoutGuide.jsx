@@ -1,5 +1,7 @@
+import { PageIntro } from '@/components/ClarityUI';
+import '@/components/member-surfaces.css';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Shield, CreditCard, Clock, CheckCircle, Banknote, Lock, Eye, EyeOff, User, Building2, AlertCircle } from 'lucide-react';
+import { Shield, CreditCard, CheckCircle, Banknote, Lock, Eye, EyeOff, User, Building2 } from 'lucide-react';
 import FaqAccordion from '@/components/education/FaqAccordion';
 
 const ORANGE = '#FF8C00';
@@ -24,7 +26,7 @@ const STEPS = [
     title: 'Tap "Set Up Payouts"',
     desc: 'On the Sell tab, tap the orange "Set Up Payouts with Stripe" button. You\'ll be redirected to Stripe\'s secure site.',
     tip: 'Look for "stripe.com" in your browser bar — that\'s how you know you\'re on their official page.',
-    color: ORANGE,
+    color: 'var(--neon-orange)',
   },
   {
     num: '2',
@@ -32,7 +34,7 @@ const STEPS = [
     title: 'Enter your email address',
     desc: 'Stripe asks for an email to create your payout account. Use any personal email — this is just for receiving receipts and payout summaries.',
     tip: 'You can use Gmail, iCloud, Yahoo — any email works. This is NOT creating a "business account."',
-    color: '#FF2D78',
+    color: 'var(--neon-pink)',
   },
   {
     num: '3',
@@ -40,7 +42,7 @@ const STEPS = [
     title: 'Select "Individual" as your type',
     desc: 'Stripe will ask what type of account you want. Select Individual — this is the correct option for fans selling personal tickets.',
     highlight: 'You are NOT a business. Select Individual and keep going.',
-    color: PURPLE,
+    color: 'var(--neon-purple)',
   },
   {
     num: '4',
@@ -48,7 +50,7 @@ const STEPS = [
     title: 'Enter your name & personal details',
     desc: 'Stripe asks for your legal name, date of birth, and the last 4 digits of your SSN. This is standard for anyone receiving money in the US.',
     tip: 'This is the same kind of info you\'d give a bank or Venmo. It\'s how they verify you\'re a real person — not a scammer.',
-    color: CYAN,
+    color: 'var(--neon-cyan)',
   },
   {
     num: '5',
@@ -56,7 +58,7 @@ const STEPS = [
     title: 'No website? No problem.',
     desc: 'Stripe may ask for a website. Most Peanut Gallery sellers don\'t have one — and that\'s completely fine.',
     highlight: 'Click "Don\'t have a website? Add product description instead" — then type: Peanut Gallery Ticket Seller',
-    color: '#FF8C00',
+    color: 'var(--neon-orange)',
   },
   {
     num: '6',
@@ -64,7 +66,7 @@ const STEPS = [
     title: 'Connect your bank account',
     desc: 'Enter your bank routing and account number, or use the instant bank login option (via Plaid). Checking or savings both work.',
     tip: 'Not sure where to find these? Open your banking app → account details. Routing is usually 9 digits.',
-    color: GREEN,
+    color: 'var(--neon-green)',
   },
   {
     num: '7',
@@ -72,7 +74,7 @@ const STEPS = [
     title: 'Review & tap "Agree and submit"',
     desc: 'Stripe shows you a summary of your info. Review it, then hit "Agree and submit." That\'s it — you\'re done.',
     tip: 'Most accounts are approved instantly. You\'ll be redirected back to Peanut Gallery automatically.',
-    color: GREEN,
+    color: 'var(--neon-green)',
   },
 ];
 
@@ -93,14 +95,14 @@ const WHAT_YOU_DONT_NEED = [
 ];
 
 const STRIPE_SEES = [
-  { icon: <CheckCircle className="w-4 h-4" />, label: 'Your identity (name, DOB, SSN last 4)', color: ORANGE },
-  { icon: <CheckCircle className="w-4 h-4" />, label: 'Your bank account for payouts', color: ORANGE },
+  { icon: <CheckCircle className="w-4 h-4" />, label: 'Your identity (name, DOB, SSN last 4)', color: 'var(--neon-orange)' },
+  { icon: <CheckCircle className="w-4 h-4" />, label: 'Your bank account for payouts', color: 'var(--neon-orange)' },
 ];
 
 const PG_SEES = [
-  { icon: <EyeOff className="w-4 h-4" />, label: 'Your bank account details — never', color: GREEN },
-  { icon: <EyeOff className="w-4 h-4" />, label: 'Your SSN — never', color: GREEN },
-  { icon: <Eye className="w-4 h-4" />, label: 'Only: a Stripe account ID to send your payout', color: CYAN },
+  { icon: <EyeOff className="w-4 h-4" />, label: 'Your bank account details — never', color: 'var(--neon-green)' },
+  { icon: <EyeOff className="w-4 h-4" />, label: 'Your SSN — never', color: 'var(--neon-green)' },
+  { icon: <Eye className="w-4 h-4" />, label: 'Only: a Stripe account ID to send your payout', color: 'var(--neon-cyan)' },
 ];
 
 const PAYOUT_FACTS = [
@@ -155,35 +157,15 @@ const FAQS = [
 
 export default function SellerPayoutGuide() {
   return (
-    <div className="max-w-lg mx-auto px-4 pb-32"
-      style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
+    <div className="pg-secondary-page pg-guide-page pg-guide-payout">
+      <PageIntro backTo="/sell" backLabel="Back to Sell" eyebrow="🏦 Getting Paid Guide"
+        title={<>Getting paid<br />is simple.</>}
+        description="You don't need a business, a website, or an LLC. You're just a fan connecting a bank account so we can send you money after you sell." />
 
-      {/* Back */}
-      <Link to="/sell"
-        className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-8 transition-colors">
-        <ArrowLeft className="w-3.5 h-3.5" /> Back to Sell
-      </Link>
-
-      {/* ── Hero ─────────────────────────────────────────── */}
-      <div className="mb-8">
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-black mb-4"
-          style={{ background: 'rgba(255,140,0,0.12)', border: '1px solid rgba(255,140,0,0.3)', color: ORANGE }}>
-          🏦 Getting Paid Guide
-        </div>
-        <h1 className="font-display leading-none mb-3"
-          style={{ fontSize: 'clamp(2.4rem, 10vw, 3.5rem)', background: `linear-gradient(135deg, ${ORANGE}, #FF2D78)`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
-          Getting paid<br />is simple.
-        </h1>
-        <p className="text-sm text-muted-foreground leading-relaxed max-w-sm">
-          You don't need a business, a website, or an LLC. You're just a fan connecting a bank account so we can send you money after you sell.
-        </p>
-      </div>
-
-      {/* ── Big reassurance card ─────────────────────────── */}
       <div className="mb-8 rounded-2xl p-5"
         style={{ background: 'rgba(0,255,135,0.06)', border: '1px solid rgba(0,255,135,0.25)' }}>
         <div className="flex items-center gap-2 mb-4">
-          <CheckCircle className="w-5 h-5 flex-shrink-0" style={{ color: GREEN }} />
+          <CheckCircle className="w-5 h-5 flex-shrink-0" style={{ color: 'var(--neon-green)' }} />
           <p className="font-black text-sm text-foreground">You do NOT need any of this:</p>
         </div>
         <div className="space-y-2">
@@ -197,7 +179,7 @@ export default function SellerPayoutGuide() {
         </div>
         <div className="mt-4 pt-4 text-sm font-semibold text-foreground"
           style={{ borderTop: '1px solid rgba(0,255,135,0.2)' }}>
-          ✅ You just need: <span style={{ color: GREEN }}>your name, bank account, and 2 minutes.</span>
+          ✅ You just need: <span style={{ color: 'var(--neon-green)' }}>your name, bank account, and 2 minutes.</span>
         </div>
       </div>
 
@@ -207,10 +189,10 @@ export default function SellerPayoutGuide() {
         <div className="space-y-2">
           {WHAT_YOU_NEED.map((r, i) => (
             <div key={i} className="flex items-center gap-3 px-4 py-3 rounded-xl"
-              style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+              style={{ background: 'var(--pg-surface)', border: '1px solid hsl(var(--border))' }}>
               <span className="text-lg flex-shrink-0">{r.emoji}</span>
               <span className="text-sm text-foreground">{r.item}</span>
-              <CheckCircle className="w-4 h-4 flex-shrink-0 ml-auto" style={{ color: GREEN }} />
+              <CheckCircle className="w-4 h-4 flex-shrink-0 ml-auto" style={{ color: 'var(--neon-green)' }} />
             </div>
           ))}
         </div>
@@ -234,8 +216,8 @@ export default function SellerPayoutGuide() {
             { icon: <CheckCircle className="w-3.5 h-3.5" />, label: 'Used by millions of people' },
           ].map((b, i) => (
             <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium"
-              style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
-              <span style={{ color: PURPLE }}>{b.icon}</span>
+              style={{ background: 'var(--pg-surface)', border: '1px solid hsl(var(--border))' }}>
+              <span style={{ color: 'var(--neon-purple)' }}>{b.icon}</span>
               <span className="text-foreground">{b.label}</span>
             </div>
           ))}
@@ -265,7 +247,7 @@ export default function SellerPayoutGuide() {
 
                 {/* Card */}
                 <div className="flex-1 rounded-2xl p-4 mb-1"
-                  style={{ background: 'hsl(var(--card))', border: `1px solid ${step.color}20` }}>
+                  style={{ background: 'var(--pg-surface)', border: `1px solid ${step.color}20` }}>
                   <div className="flex items-center gap-2 mb-1.5">
                     <span className="text-lg">{step.emoji}</span>
                     <p className="font-bold text-sm text-foreground">{step.title}</p>
@@ -283,7 +265,7 @@ export default function SellerPayoutGuide() {
                   {/* Tip */}
                   {step.tip && (
                     <div className="mt-2 px-3 py-2 rounded-xl text-xs text-muted-foreground leading-relaxed"
-                      style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}>
+                      style={{ background: 'var(--pg-surface-raised)', border: '1px solid hsl(var(--border))' }}>
                       💡 {step.tip}
                     </div>
                   )}
@@ -301,7 +283,7 @@ export default function SellerPayoutGuide() {
 
           <div className="rounded-2xl p-4" style={{ background: 'rgba(255,140,0,0.06)', border: '1px solid rgba(255,140,0,0.2)' }}>
             <div className="flex items-center gap-2 mb-3">
-              <Building2 className="w-4 h-4 flex-shrink-0" style={{ color: ORANGE }} />
+              <Building2 className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--neon-orange)' }} />
               <p className="font-bold text-sm text-foreground">What Stripe verifies</p>
             </div>
             <div className="space-y-2">
@@ -320,7 +302,7 @@ export default function SellerPayoutGuide() {
 
           <div className="rounded-2xl p-4" style={{ background: 'rgba(0,255,135,0.05)', border: '1px solid rgba(0,255,135,0.2)' }}>
             <div className="flex items-center gap-2 mb-3">
-              <User className="w-4 h-4 flex-shrink-0" style={{ color: GREEN }} />
+              <User className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--neon-green)' }} />
               <p className="font-bold text-sm text-foreground">What Peanut Gallery sees</p>
             </div>
             <div className="space-y-2">
@@ -345,7 +327,7 @@ export default function SellerPayoutGuide() {
         <div className="space-y-3">
           {PAYOUT_FACTS.map((fact, i) => (
             <div key={i} className="flex items-start gap-4 px-4 py-4 rounded-2xl"
-              style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+              style={{ background: 'var(--pg-surface)', border: '1px solid hsl(var(--border))' }}>
               <span className="text-2xl flex-shrink-0">{fact.icon}</span>
               <div>
                 <p className="font-bold text-sm text-foreground">{fact.title}</p>
@@ -397,13 +379,13 @@ export default function SellerPayoutGuide() {
       {/* ── CTAs ─────────────────────────────────────────── */}
       <div className="space-y-3">
         <Link to="/sell"
-          className="flex items-center justify-center gap-2 w-full py-4 rounded-full font-black text-sm"
+          className="pg-guide-action flex items-center justify-center gap-2 w-full py-4 rounded-full font-black text-sm"
           style={{ background: `linear-gradient(135deg, ${ORANGE}, #FF2D78)`, color: '#fff', boxShadow: `0 0 18px rgba(255,140,0,0.25)` }}>
           <Banknote className="w-4 h-4" /> Set Up My Payouts →
         </Link>
         <Link to="/sell"
-          className="flex items-center justify-center gap-2 w-full py-3.5 rounded-full font-semibold text-sm"
-          style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--muted-foreground))' }}>
+          className="pg-guide-action flex items-center justify-center gap-2 w-full py-3.5 rounded-full font-semibold text-sm"
+          style={{ background: 'var(--pg-surface-raised)', border: '1px solid hsl(var(--border))', color: 'hsl(var(--muted-foreground))' }}>
           <ArrowLeft className="w-3.5 h-3.5" /> Back to Sell
         </Link>
       </div>

@@ -1,3 +1,4 @@
+import '@/components/events/detail-ticket.css';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { MapPin, LocateFixed, Loader2, Clock } from 'lucide-react';
@@ -203,11 +204,11 @@ export default function LocationAutocomplete({
   const isDropdownVisible = (open || showRecent) && displayItems.length > 0 && dropdownRect;
 
   return (
-    <div ref={inputWrapRef} className="relative flex-1">
+    <div ref={inputWrapRef} className="pg-location-picker relative flex-1 min-w-0">
       {/* Input row */}
       <div className="flex gap-2">
         <div className="relative flex-1">
-          <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: '#00C8FF' }} />
+          <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: 'var(--neon-cyan)' }} />
           <input
             ref={inputRef}
             type="text"
@@ -221,8 +222,8 @@ export default function LocationAutocomplete({
             aria-expanded={isDropdownVisible || false}
             role="combobox"
             autoComplete="off"
-            className="w-full pl-9 pr-10 py-3 rounded-2xl text-sm font-medium text-foreground placeholder:text-muted-foreground focus:outline-none"
-            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+            className="w-full pl-9 pr-10 py-3 rounded-lg text-sm font-medium text-foreground placeholder:text-muted-foreground focus:outline-none"
+            style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}
           />
           {suggestLoading && (
             <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-muted-foreground" />
@@ -236,11 +237,11 @@ export default function LocationAutocomplete({
             disabled={nearMeLoading}
             aria-label="Use my current location"
             title="Near Me"
-            className="flex items-center justify-center w-11 h-11 rounded-2xl flex-shrink-0 transition-all active:scale-95 disabled:opacity-60"
-            style={{ background: 'rgba(0,200,255,0.12)', border: '1px solid rgba(0,200,255,0.3)', color: '#00C8FF' }}
+            className="flex items-center justify-center w-11 h-11 rounded-lg flex-shrink-0 transition-all active:scale-95 disabled:opacity-60"
+            style={{ background: 'color-mix(in srgb, var(--pg-cyan) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--pg-cyan) 30%, transparent)', color: 'var(--neon-cyan)' }}
           >
             {nearMeLoading
-              ? <span className="w-4 h-4 border-2 rounded-full animate-spin" style={{ borderColor: '#00C8FF', borderTopColor: 'transparent' }} />
+              ? <span className="w-4 h-4 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--pg-cyan)', borderTopColor: 'transparent' }} />
               : <LocateFixed className="w-4 h-4" />
             }
           </button>
@@ -251,6 +252,7 @@ export default function LocationAutocomplete({
       {isDropdownVisible && createPortal(
         <div
           id="pg-city-dropdown"
+          className="pg-city-suggestions"
           ref={listRef}
           role="listbox"
           aria-label="City suggestions"
@@ -260,12 +262,12 @@ export default function LocationAutocomplete({
             left: dropdownRect.left,
             width: dropdownRect.width,
             zIndex: 9999,
-            borderRadius: '1rem',
+            borderRadius: '8px',
             overflow: 'hidden auto',
             maxHeight: '240px',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.35)',
-            background: 'hsl(var(--card))',
-            border: '1px solid hsl(var(--border))',
+            boxShadow: '0 8px 24px #0003',
+            background: 'var(--pg-surface)',
+            border: '1px solid var(--pg-line)',
             animation: 'pgDropIn 0.12s ease-out both',
           }}
         >
@@ -288,8 +290,8 @@ export default function LocationAutocomplete({
                 onMouseEnter={() => setActiveIndex(i)}
                 className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors"
                 style={{
-                  background: isActive ? 'rgba(255,255,255,0.07)' : 'transparent',
-                  borderBottom: i < displayItems.length - 1 ? '1px solid hsl(var(--border))' : 'none',
+                  background: isActive ? 'var(--pg-surface-raised)' : 'transparent',
+                  borderBottom: i < displayItems.length - 1 ? '1px solid var(--pg-line)' : 'none',
                 }}
               >
                 {showRecent

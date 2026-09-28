@@ -1,0 +1,773 @@
+{
+  "baseline": "2d3adeab9601c9f64fbc2f7bc8a0f14958c1dbcb",
+  "files": [
+    {
+      "file": "src/App.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 2,
+      "requests": 0
+    },
+    {
+      "file": "src/components/DeleteAccountModal.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 9,
+      "requests": 2
+    },
+    {
+      "file": "src/components/Layout.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 5,
+      "requests": 9
+    },
+    {
+      "file": "src/components/LocationAutocomplete.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 7,
+      "requests": 1
+    },
+    {
+      "file": "src/components/NotificationPermissionPrompt.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 3,
+      "requests": 0
+    },
+    {
+      "file": "src/components/Onboarding.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": false,
+      "handlers": 9,
+      "requests": 0
+    },
+    {
+      "file": "src/components/RouteFallback.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 0,
+      "requests": 0
+    },
+    {
+      "file": "src/components/UserNotRegisteredError.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 2,
+      "requests": 1
+    },
+    {
+      "file": "src/components/account/NotificationsSection.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 2,
+      "requests": 1
+    },
+    {
+      "file": "src/components/account/ProfileIdentitySection.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 1,
+      "requests": 0
+    },
+    {
+      "file": "src/components/account/SecuritySection.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 0,
+      "requests": 0
+    },
+    {
+      "file": "src/components/account/SessionSection.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 4,
+      "requests": 3
+    },
+    {
+      "file": "src/components/account/StripePayoutSection.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 2,
+      "requests": 1
+    },
+    {
+      "file": "src/components/account/SupportLegalSection.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 1,
+      "requests": 0
+    },
+    {
+      "file": "src/components/account/TransactionHistorySection.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 2,
+      "requests": 0
+    },
+    {
+      "file": "src/components/account/VerificationStatusSection.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 0,
+      "requests": 0
+    },
+    {
+      "file": "src/components/admin/AIVerificationQueue.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 10,
+      "requests": 1
+    },
+    {
+      "file": "src/components/admin/EventTimingDebug.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 1,
+      "requests": 1
+    },
+    {
+      "file": "src/components/admin/FeeComparisonReport.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 1,
+      "requests": 0
+    },
+    {
+      "file": "src/components/admin/FeeSimulator.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 6,
+      "requests": 0
+    },
+    {
+      "file": "src/components/admin/FeeSimulatorV2.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 11,
+      "requests": 0
+    },
+    {
+      "file": "src/components/admin/InstantFulfillmentCenter.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 8,
+      "requests": 0
+    },
+    {
+      "file": "src/components/admin/InstantTransferReadyPanel.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 6,
+      "requests": 6
+    },
+    {
+      "file": "src/components/admin/MinListingPriceConfig.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 3,
+      "requests": 0
+    },
+    {
+      "file": "src/components/admin/PendingReviewQueue.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 13,
+      "requests": 8
+    },
+    {
+      "file": "src/components/admin/PricingStrategyAnalyzer.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 8,
+      "requests": 0
+    },
+    {
+      "file": "src/components/admin/TransactionAnalytics.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 0,
+      "requests": 0
+    },
+    {
+      "file": "src/components/admin/TransferWindowAdminPanel.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 11,
+      "requests": 2
+    },
+    {
+      "file": "src/components/admin/cc/AIVerificationPanel.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 6,
+      "requests": 1
+    },
+    {
+      "file": "src/components/admin/cc/AdminAlertCenter.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 3,
+      "requests": 4
+    },
+    {
+      "file": "src/components/admin/cc/CommandSummaryBar.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 1,
+      "requests": 0
+    },
+    {
+      "file": "src/components/admin/cc/ConfidenceCalibrationPanel.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 1,
+      "requests": 3
+    },
+    {
+      "file": "src/components/admin/cc/DonationOpsPanel.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 0,
+      "requests": 0
+    },
+    {
+      "file": "src/components/admin/cc/EventConfidenceOverview.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 4,
+      "requests": 8
+    },
+    {
+      "file": "src/components/admin/cc/FlashDropMetricsPanel.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 3,
+      "requests": 3
+    },
+    {
+      "file": "src/components/admin/cc/InstantOpsPanel.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 2,
+      "requests": 3
+    },
+    {
+      "file": "src/components/admin/cc/IssueFeed.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 4,
+      "requests": 15
+    },
+    {
+      "file": "src/components/admin/cc/LiveUpgradeControlPanel.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 5,
+      "requests": 4
+    },
+    {
+      "file": "src/components/admin/cc/MarketplaceHealth.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 0,
+      "requests": 0
+    },
+    {
+      "file": "src/components/admin/cc/StripePanel.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 0,
+      "requests": 0
+    },
+    {
+      "file": "src/components/admin/cc/TransferIntelligencePanel.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 12,
+      "requests": 8
+    },
+    {
+      "file": "src/components/admin/fulfillment/FulfillmentItem.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 9,
+      "requests": 7
+    },
+    {
+      "file": "src/components/admin/fulfillment/FulfillmentMetrics.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 0,
+      "requests": 0
+    },
+    {
+      "file": "src/components/admin/fulfillment/FulfillmentQueue.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 4,
+      "requests": 0
+    },
+    {
+      "file": "src/components/admin/fulfillment/useUrgency.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 0,
+      "requests": 0
+    },
+    {
+      "file": "src/components/auth/PGAuthShell.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 0,
+      "requests": 0
+    },
+    {
+      "file": "src/components/beta/BetaFeedbackForm.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 12,
+      "requests": 7
+    },
+    {
+      "file": "src/components/beta/BugTracker.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 13,
+      "requests": 6
+    },
+    {
+      "file": "src/components/beta/FeedbackDetails.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 2,
+      "requests": 0
+    },
+    {
+      "file": "src/components/beta/FeedbackInbox.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 7,
+      "requests": 0
+    },
+    {
+      "file": "src/components/beta/FeedbackWidget.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 6,
+      "requests": 1
+    },
+    {
+      "file": "src/components/beta/LiveEventChecklist.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 4,
+      "requests": 0
+    },
+    {
+      "file": "src/components/beta/OperationalRiskChecklist.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 2,
+      "requests": 0
+    },
+    {
+      "file": "src/components/beta/QAChecklist.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 6,
+      "requests": 7
+    },
+    {
+      "file": "src/components/donations/CommunityImpactCard.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 0,
+      "requests": 2
+    },
+    {
+      "file": "src/components/donations/DonateSeatSheet.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 11,
+      "requests": 1
+    },
+    {
+      "file": "src/components/donations/DonationWinNotification.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 2,
+      "requests": 5
+    },
+    {
+      "file": "src/components/education/FaqAccordion.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 1,
+      "requests": 0
+    },
+    {
+      "file": "src/components/eventmode/FlashDropCenter.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 5,
+      "requests": 0
+    },
+    {
+      "file": "src/components/events/ListingCard.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 2,
+      "requests": 0
+    },
+    {
+      "file": "src/components/events/PurchaseDialog.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 12,
+      "requests": 26
+    },
+    {
+      "file": "src/components/events/SellerTransferAttestation.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 7,
+      "requests": 0
+    },
+    {
+      "file": "src/components/fanzone/BucketListSearch.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 5,
+      "requests": 1
+    },
+    {
+      "file": "src/components/fanzone/BucketListSheet.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 7,
+      "requests": 6
+    },
+    {
+      "file": "src/components/flashdrops/CreateFlashDropSheet.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 23,
+      "requests": 4
+    },
+    {
+      "file": "src/components/flashdrops/FlashDropCard.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 6,
+      "requests": 14
+    },
+    {
+      "file": "src/components/flashdrops/FlashDropCountdown.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 0,
+      "requests": 0
+    },
+    {
+      "file": "src/components/founder/EventNavHealthPanel.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 1,
+      "requests": 3
+    },
+    {
+      "file": "src/components/listings/InstantTransferAgreement.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 4,
+      "requests": 0
+    },
+    {
+      "file": "src/components/listings/SellingEventPicker.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 18,
+      "requests": 0
+    },
+    {
+      "file": "src/components/listings/SellingEventSummary.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 1,
+      "requests": 0
+    },
+    {
+      "file": "src/components/listings/TransferAcknowledgment.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 2,
+      "requests": 0
+    },
+    {
+      "file": "src/components/listings/TransferStatusBadge.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 0,
+      "requests": 0
+    },
+    {
+      "file": "src/components/points/PeanutPointsCard.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 1,
+      "requests": 0
+    },
+    {
+      "file": "src/components/purchase/DisputeModal.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 5,
+      "requests": 0
+    },
+    {
+      "file": "src/components/purchase/TransferAssistant.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 4,
+      "requests": 1
+    },
+    {
+      "file": "src/components/upgrades/UpgradeEligibilityGate.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 2,
+      "requests": 0
+    },
+    {
+      "file": "src/lib/PageNotFound.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 1,
+      "requests": 1
+    },
+    {
+      "file": "src/pages/AdminCommandCenter.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 12,
+      "requests": 7
+    },
+    {
+      "file": "src/pages/AdminMode.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 17,
+      "requests": 16
+    },
+    {
+      "file": "src/pages/BetaDashboard.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 4,
+      "requests": 2
+    },
+    {
+      "file": "src/pages/BetaQA.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 4,
+      "requests": 0
+    },
+    {
+      "file": "src/pages/BetaRecruitment.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 18,
+      "requests": 8
+    },
+    {
+      "file": "src/pages/BrandedAuth.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 9,
+      "requests": 0
+    },
+    {
+      "file": "src/pages/CookiePolicy.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 1,
+      "requests": 0
+    },
+    {
+      "file": "src/pages/FanZone.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 21,
+      "requests": 18
+    },
+    {
+      "file": "src/pages/FounderBetaChecklist.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 18,
+      "requests": 0
+    },
+    {
+      "file": "src/pages/FounderDashboard.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 1,
+      "requests": 5
+    },
+    {
+      "file": "src/pages/InstantListingsGuide.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": false,
+      "handlers": 0,
+      "requests": 0
+    },
+    {
+      "file": "src/pages/Landing.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 2,
+      "requests": 0
+    },
+    {
+      "file": "src/pages/Leaderboard.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": false,
+      "handlers": 1,
+      "requests": 7
+    },
+    {
+      "file": "src/pages/OurStory.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 1,
+      "requests": 0
+    },
+    {
+      "file": "src/pages/PrivacyPolicy.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 2,
+      "requests": 0
+    },
+    {
+      "file": "src/pages/SellerPayoutGuide.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": false,
+      "handlers": 0,
+      "requests": 0
+    },
+    {
+      "file": "src/pages/TermsOfService.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": true,
+      "handlers": 1,
+      "requests": 0
+    },
+    {
+      "file": "src/pages/WhyPeanutGallery.jsx",
+      "handlersUnchanged": true,
+      "requestsUnchanged": true,
+      "fieldsUnchanged": false,
+      "handlers": 0,
+      "requests": 0
+    }
+  ]
+}

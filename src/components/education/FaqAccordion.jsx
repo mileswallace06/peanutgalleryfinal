@@ -12,10 +12,10 @@ export default function FaqAccordion({ items, accentColor = '#BF5FFF' }) {
           <div
             key={i}
             role="listitem"
-            className="rounded-2xl overflow-hidden transition-all"
+            className="rounded-lg overflow-hidden transition-all"
             style={{
-              background: isOpen ? `${accentColor}08` : 'hsl(var(--card))',
-              border: `1px solid ${isOpen ? accentColor + '35' : 'hsl(var(--border))'}`,
+              background: isOpen ? `color-mix(in srgb, ${accentColor} 5%, var(--pg-surface))` : 'var(--pg-surface)',
+              border: `1px solid ${isOpen ? `color-mix(in srgb, ${accentColor} 40%, var(--pg-line))` : 'var(--pg-line)'}`,
             }}
           >
             <button

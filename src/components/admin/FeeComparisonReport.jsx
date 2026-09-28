@@ -11,16 +11,16 @@ import {
 } from '@/lib/feeEngine';
 
 const RISK_COLORS = {
-  none: { bg: 'rgba(0,255,135,0.08)', border: 'rgba(0,255,135,0.2)', text: '#00FF87', label: '✓ OK' },
-  low:  { bg: 'rgba(0,200,255,0.08)', border: 'rgba(0,200,255,0.2)', text: '#00C8FF', label: '↑ Minor' },
-  medium: { bg: 'rgba(255,200,0,0.08)', border: 'rgba(255,200,0,0.2)', text: '#FFE600', label: '⚠ Noticeable' },
-  high: { bg: 'rgba(255,45,120,0.08)', border: 'rgba(255,45,120,0.2)', text: '#FF2D78', label: '🔴 Risk' },
+  none: { bg: 'color-mix(in srgb, rgb(0 255 135) 8%, var(--pg-surface))', border: 'rgba(0,255,135,0.2)', text: '#00FF87', label: '✓ OK' },
+  low:  { bg: 'color-mix(in srgb, rgb(0 200 255) 8%, var(--pg-surface))', border: 'rgba(0,200,255,0.2)', text: '#00C8FF', label: '↑ Minor' },
+  medium: { bg: 'color-mix(in srgb, rgb(255 200 0) 8%, var(--pg-surface))', border: 'rgba(255,200,0,0.2)', text: '#FFE600', label: '⚠ Noticeable' },
+  high: { bg: 'color-mix(in srgb, rgb(255 45 120) 8%, var(--pg-surface))', border: 'rgba(255,45,120,0.2)', text: '#FF2D78', label: '🔴 Risk' },
 };
 
 function ProfitPill({ row }) {
-  if (!row.profitable) return <span className="text-[10px] font-black px-2 py-0.5 rounded-full" style={{ background: 'rgba(255,45,120,0.12)', color: '#FF2D78' }}>LOSS</span>;
-  if (row.thin)        return <span className="text-[10px] font-black px-2 py-0.5 rounded-full" style={{ background: 'rgba(255,200,0,0.12)', color: '#FFE600' }}>THIN</span>;
-  return                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full" style={{ background: 'rgba(0,255,135,0.12)', color: '#00FF87' }}>✓</span>;
+  if (!row.profitable) return <span className="pg-operations-status text-[10px] font-black px-2 py-0.5 rounded-full" style={{ background: 'color-mix(in srgb, rgb(255 45 120) 12%, var(--pg-surface))', '--pg-status-ink': '#FF2D78' }}>LOSS</span>;
+  if (row.thin)        return <span className="pg-operations-status text-[10px] font-black px-2 py-0.5 rounded-full" style={{ background: 'color-mix(in srgb, rgb(255 200 0) 12%, var(--pg-surface))', '--pg-status-ink': '#FFE600' }}>THIN</span>;
+  return                      <span className="pg-operations-status text-[10px] font-black px-2 py-0.5 rounded-full" style={{ background: 'color-mix(in srgb, rgb(0 255 135) 12%, var(--pg-surface))', '--pg-status-ink': '#00FF87' }}>✓</span>;
 }
 
 export default function FeeComparisonReport() {
@@ -39,7 +39,7 @@ export default function FeeComparisonReport() {
   const sampleHigh = calculateFees(100, 1, 'pct5_min1');
 
   return (
-    <div className="bg-card border border-border rounded-2xl p-5 mb-6 space-y-6">
+    <div className="pg-operations-card bg-card border border-border rounded-2xl p-5 mb-6 space-y-6">
       {/* Header */}
       <div className="flex items-start gap-3">
         <span className="text-2xl">⚖️</span>
@@ -51,14 +51,14 @@ export default function FeeComparisonReport() {
 
       {/* Breakeven summary */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-xl p-3 text-center" style={{ background: 'rgba(255,45,120,0.06)', border: '1px solid rgba(255,45,120,0.2)' }}>
+        <div className="pg-operations-card rounded-xl p-3 text-center" style={{ background: 'color-mix(in srgb, rgb(255 45 120) 6%, var(--pg-surface))', border: '1px solid rgba(255,45,120,0.2)' }}>
           <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">Current 5% — Breakeven</div>
-          <div className="font-black text-xl" style={{ color: '#FF2D78' }}>${breakevenCurrent?.toFixed(2) ?? '—'}</div>
+          <div className="pg-operations-status font-black text-xl" style={{ '--pg-status-ink': '#FF2D78' }}>${breakevenCurrent?.toFixed(2) ?? '—'}</div>
           <div className="text-[10px] text-muted-foreground mt-0.5">per ticket (qty 1)</div>
         </div>
-        <div className="rounded-xl p-3 text-center" style={{ background: 'rgba(0,255,135,0.06)', border: '1px solid rgba(0,255,135,0.2)' }}>
+        <div className="pg-operations-card rounded-xl p-3 text-center" style={{ background: 'color-mix(in srgb, rgb(0 255 135) 6%, var(--pg-surface))', border: '1px solid rgba(0,255,135,0.2)' }}>
           <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">5% + $1 min — Breakeven</div>
-          <div className="font-black text-xl" style={{ color: '#00FF87' }}>${breakevenCandidate?.toFixed(2) ?? '—'}</div>
+          <div className="pg-operations-status font-black text-xl" style={{ '--pg-status-ink': '#00FF87' }}>${breakevenCandidate?.toFixed(2) ?? '—'}</div>
           <div className="text-[10px] text-muted-foreground mt-0.5">per ticket (qty 1)</div>
         </div>
       </div>
@@ -71,10 +71,10 @@ export default function FeeComparisonReport() {
             <thead>
               <tr className="text-left text-muted-foreground">
                 <th className="pb-2 pr-2 font-semibold">Price</th>
-                <th className="pb-2 pr-2 font-semibold" style={{ color: 'rgba(191,95,255,0.7)' }}>Fee (5%)</th>
-                <th className="pb-2 pr-2 font-semibold" style={{ color: 'rgba(191,95,255,0.7)' }}>Net (5%)</th>
-                <th className="pb-2 pr-2 font-semibold" style={{ color: '#00C8FF' }}>Fee (min$1)</th>
-                <th className="pb-2 pr-2 font-semibold" style={{ color: '#00C8FF' }}>Net (min$1)</th>
+                <th className="pg-operations-status pb-2 pr-2 font-semibold" style={{ '--pg-status-ink': 'rgba(191,95,255,0.7)' }}>Fee (5%)</th>
+                <th className="pg-operations-status pb-2 pr-2 font-semibold" style={{ '--pg-status-ink': 'rgba(191,95,255,0.7)' }}>Net (5%)</th>
+                <th className="pg-operations-status pb-2 pr-2 font-semibold" style={{ '--pg-status-ink': '#00C8FF' }}>Fee (min$1)</th>
+                <th className="pg-operations-status pb-2 pr-2 font-semibold" style={{ '--pg-status-ink': '#00C8FF' }}>Net (min$1)</th>
                 <th className="pb-2 pr-2 font-semibold">Buyer Δ</th>
                 <th className="pb-2 pr-2 font-semibold">PG Δ</th>
                 <th className="pb-2 font-semibold">Status</th>
@@ -83,23 +83,23 @@ export default function FeeComparisonReport() {
             <tbody>
               {comparison.map(({ price, a, b, feeImpact, netImpact }) => (
                 <tr key={price} className="border-t border-border"
-                  style={{ background: !b.profitable ? 'rgba(255,45,120,0.04)' : b.thin ? 'rgba(255,200,0,0.04)' : 'transparent' }}>
+                  style={{ background: !b.profitable ? 'color-mix(in srgb, rgb(255 45 120) 4%, var(--pg-surface))' : b.thin ? 'color-mix(in srgb, rgb(255 200 0) 4%, var(--pg-surface))' : 'transparent' }}>
                   <td className="py-1.5 pr-2 font-bold text-foreground">${price}</td>
                   {/* Current 5% */}
                   <td className="py-1.5 pr-2 text-muted-foreground">${a.pgFee.toFixed(2)}</td>
-                  <td className="py-1.5 pr-2 font-semibold" style={{ color: a.profitable ? (a.thin ? '#FFE600' : '#00FF87') : '#FF2D78' }}>
+                  <td className="pg-operations-status py-1.5 pr-2 font-semibold" style={{ '--pg-status-ink': a.profitable ? (a.thin ? '#FFE600' : '#00FF87') : '#FF2D78' }}>
                     ${a.pgNetRevenue.toFixed(2)}
                   </td>
                   {/* Candidate */}
-                  <td className="py-1.5 pr-2" style={{ color: '#00C8FF' }}>${b.pgFee.toFixed(2)}</td>
-                  <td className="py-1.5 pr-2 font-semibold" style={{ color: b.profitable ? (b.thin ? '#FFE600' : '#00FF87') : '#FF2D78' }}>
+                  <td className="pg-operations-status py-1.5 pr-2" style={{ '--pg-status-ink': '#00C8FF' }}>${b.pgFee.toFixed(2)}</td>
+                  <td className="pg-operations-status py-1.5 pr-2 font-semibold" style={{ '--pg-status-ink': b.profitable ? (b.thin ? '#FFE600' : '#00FF87') : '#FF2D78' }}>
                     ${b.pgNetRevenue.toFixed(2)}
                   </td>
                   {/* Deltas */}
-                  <td className="py-1.5 pr-2" style={{ color: feeImpact > 0 ? '#FFE600' : '#00FF87' }}>
+                  <td className="pg-operations-status py-1.5 pr-2" style={{ '--pg-status-ink': feeImpact > 0 ? '#FFE600' : '#00FF87' }}>
                     {feeImpact > 0 ? `+$${feeImpact.toFixed(2)}` : '—'}
                   </td>
-                  <td className="py-1.5 pr-2 font-bold" style={{ color: netImpact > 0 ? '#00FF87' : netImpact < 0 ? '#FF2D78' : 'hsl(var(--muted-foreground))' }}>
+                  <td className="pg-operations-status py-1.5 pr-2 font-bold" style={{ '--pg-status-ink': netImpact > 0 ? '#00FF87' : netImpact < 0 ? '#FF2D78' : 'var(--pg-muted)' }}>
                     {netImpact > 0 ? `+$${netImpact.toFixed(2)}` : netImpact < 0 ? `-$${Math.abs(netImpact).toFixed(2)}` : '—'}
                   </td>
                   <td className="py-1.5"><ProfitPill row={b} /></td>
@@ -117,12 +117,12 @@ export default function FeeComparisonReport() {
           {uxRisk.map(({ price, currentFee, candidateFee, feeIncrease, feeRatio, uxRisk: risk, uxNote }) => {
             const c = RISK_COLORS[risk];
             return (
-              <div key={price} className="flex items-center gap-3 px-3 py-2 rounded-xl text-xs"
+              <div key={price} className="pg-operations-card flex items-center gap-3 px-3 py-2 rounded-xl text-xs"
                 style={{ background: c.bg, border: `1px solid ${c.border}` }}>
                 <span className="font-black w-8 text-foreground">${price}</span>
-                <span className="text-muted-foreground w-20">Fee: <strong style={{ color: c.text }}>${candidateFee.toFixed(2)}</strong></span>
-                <span className="text-muted-foreground w-20">Ratio: <strong style={{ color: feeRatio > 0.1 ? '#FFE600' : 'inherit' }}>{Math.round(feeRatio * 100)}%</strong></span>
-                <span className="font-semibold w-16" style={{ color: c.text }}>{c.label}</span>
+                <span className="text-muted-foreground w-20">Fee: <strong className="pg-operations-status" style={{ '--pg-status-ink': c.text }}>${candidateFee.toFixed(2)}</strong></span>
+                <span className="text-muted-foreground w-20">Ratio: <strong className="pg-operations-status" style={{ '--pg-status-ink': feeRatio > 0.1 ? '#FFE600' : 'inherit' }}>{Math.round(feeRatio * 100)}%</strong></span>
+                <span className="pg-operations-status font-semibold w-16" style={{ '--pg-status-ink': c.text }}>{c.label}</span>
                 <span className="text-muted-foreground flex-1 text-[10px]">{uxNote}</span>
               </div>
             );
@@ -140,17 +140,17 @@ export default function FeeComparisonReport() {
             value={minThreshold}
             onChange={e => setMinThreshold(parseInt(e.target.value) || 1)}
             className="w-24 px-3 py-1.5 rounded-xl text-sm font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-            style={{ background: 'hsl(var(--input))', border: '1px solid hsl(var(--border))' }}
+            style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}
           />
           <span className="text-xs text-muted-foreground">dollars</span>
         </div>
         <div className="flex flex-wrap gap-2 text-xs mb-2">
           {minImpact.blocked.length > 0 && (
-            <span className="px-2 py-1 rounded-lg" style={{ background: 'rgba(255,45,120,0.1)', color: '#FF2D78', border: '1px solid rgba(255,45,120,0.2)' }}>
+            <span className="pg-operations-status px-2 py-1 rounded-lg" style={{ background: 'color-mix(in srgb, rgb(255 45 120) 10%, var(--pg-surface))', '--pg-status-ink': '#FF2D78', border: '1px solid rgba(255,45,120,0.2)' }}>
               🚫 Blocked: {minImpact.blocked.map(p => `$${p}`).join(', ')}
             </span>
           )}
-          <span className="px-2 py-1 rounded-lg" style={{ background: 'rgba(0,255,135,0.08)', color: '#00FF87', border: '1px solid rgba(0,255,135,0.2)' }}>
+          <span className="pg-operations-status px-2 py-1 rounded-lg" style={{ background: 'color-mix(in srgb, rgb(0 255 135) 8%, var(--pg-surface))', '--pg-status-ink': '#00FF87', border: '1px solid rgba(0,255,135,0.2)' }}>
             ✓ Allowed from: ${minImpact.lowestAllowed} → PG net ${minImpact.lowestAllowedFees.pgNetRevenue.toFixed(2)}
           </span>
         </div>
@@ -173,10 +173,10 @@ export default function FeeComparisonReport() {
           ].map((r, i) => {
             const color = r.type === 'warning' ? '#FFE600' : r.type === 'ok' ? '#00FF87' : '#00C8FF';
             return (
-              <div key={i} className="flex items-start gap-2.5 text-xs px-3 py-2.5 rounded-xl"
-                style={{ background: `${color}0D`, border: `1px solid ${color}25` }}>
+              <div key={i} className="pg-operations-card flex items-start gap-2.5 text-xs px-3 py-2.5 rounded-xl"
+                style={{ background: `color-mix(in srgb, ${color} 5.1%, var(--pg-surface))`, border: `1px solid ${color}25` }}>
                 <span className="flex-shrink-0 text-sm">{r.icon}</span>
-                <span style={{ color }}>{r.text}</span>
+                <span className="pg-operations-status" style={{ '--pg-status-ink': color }}>{r.text}</span>
               </div>
             );
           })}

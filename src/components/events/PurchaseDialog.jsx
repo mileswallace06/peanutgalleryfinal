@@ -1,3 +1,4 @@
+import '@/components/events/detail-ticket.css';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { loadStripe } from '@stripe/stripe-js';
@@ -121,15 +122,15 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onCheckoutCreated }
     <form onSubmit={isDemoUpgrade ? handleDemoUpgradeSubmit : handleSubmit} className="space-y-5">
       {/* Upgrade disclaimer */}
       {isUpgrade && (
-        <div className="flex items-start gap-3 rounded-2xl p-3"
-          style={{ background: 'rgba(255,140,0,0.08)', border: '1px solid rgba(255,140,0,0.35)' }}>
-          <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: '#FF8C00' }} />
-          <div className="text-xs leading-relaxed" style={{ color: 'rgba(255,200,100,0.9)' }}>
-            <strong style={{ color: '#FF8C00' }}>This is an upgrade, not admission.</strong> You must already have a ticket to this event. This purchase grants you access to better seats, not entry to the venue.
+        <div className="flex items-start gap-3 rounded-lg p-3"
+          style={{ background: 'color-mix(in srgb, var(--pg-orange) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--pg-orange) 35%, transparent)' }}>
+          <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: 'var(--neon-orange)' }} />
+          <div className="text-xs leading-relaxed" style={{ color: 'var(--pg-text)' }}>
+            <strong style={{ color: 'var(--neon-orange)' }}>This is an upgrade, not admission.</strong> You must already have a ticket to this event. This purchase grants you access to better seats, not entry to the venue.
             {listing.requires_location && listing.location_requirement !== 'none' && (
               <div className="flex items-center gap-1.5 mt-1.5">
-                <MapPin className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#00C8FF' }} />
-                <span style={{ color: '#00C8FF' }}>
+                <MapPin className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--neon-cyan)' }} />
+                <span style={{ color: 'var(--neon-cyan)' }}>
                   {listing.location_requirement === 'inside_venue' && 'You must be inside the venue to complete this purchase.'}
                   {listing.location_requirement === 'venue_proximity' && 'You must be near the venue to complete this purchase.'}
                   {listing.location_requirement === 'city_only' && 'You must be in the city to complete this purchase.'}
@@ -142,11 +143,11 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onCheckoutCreated }
 
       {/* Demo upgrade notice */}
       {isDemoUpgrade && (
-        <div className="flex items-start gap-3 rounded-2xl p-3"
-          style={{ background: 'rgba(191,95,255,0.08)', border: '1px solid rgba(191,95,255,0.3)' }}>
-          <Ticket className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: '#BF5FFF' }} />
-          <div className="text-xs leading-relaxed" style={{ color: 'rgba(220,190,255,0.9)' }}>
-            <strong style={{ color: '#BF5FFF' }}>Demo mode.</strong> This simulates an upgrade purchase. No real payment, barcode validation, ticket transfer, or geofencing will occur.
+        <div className="flex items-start gap-3 rounded-lg p-3"
+          style={{ background: 'color-mix(in srgb, var(--pg-violet) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--pg-violet) 30%, transparent)' }}>
+          <Ticket className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: 'var(--neon-purple)' }} />
+          <div className="text-xs leading-relaxed" style={{ color: 'var(--pg-text)' }}>
+            <strong style={{ color: 'var(--neon-purple)' }}>Demo mode.</strong> This simulates an upgrade purchase. No real payment, barcode validation, ticket transfer, or geofencing will occur.
           </div>
         </div>
       )}
@@ -161,7 +162,7 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onCheckoutCreated }
       )}
 
       {/* Order summary */}
-      <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
+      <div className="pg-checkout-summary pg-detail-paper rounded-lg p-4" style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)' }}>
         <div className="font-semibold text-sm text-foreground mb-3">Order Summary</div>
         <div className="space-y-1.5 text-sm">
           <div className="flex justify-between">
@@ -171,16 +172,16 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onCheckoutCreated }
           <div className="flex justify-between">
             <span className="text-muted-foreground flex items-center gap-1.5">
               Service fee
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(191,95,255,0.12)', color: '#BF5FFF' }}>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: 'color-mix(in srgb, var(--pg-violet) 12%, transparent)', color: 'var(--neon-purple)' }}>
                 {FEE_MODELS[ACTIVE_FEE_MODEL_ID]?.shortLabel}
               </span>
             </span>
             <span className="text-foreground">${estimatedBreakdown.fee.toFixed(2)}</span>
           </div>
         </div>
-        <div className="mt-3 pt-2.5 flex justify-between font-black text-base" style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+        <div className="mt-3 pt-2.5 flex justify-between font-black text-base" style={{ borderTop: '1px solid var(--pg-line)' }}>
           <span className="text-foreground">Total</span>
-          <span style={{ color: '#00FF87' }}>${total.toFixed(2)}</span>
+          <span style={{ color: 'var(--neon-green)' }}>${total.toFixed(2)}</span>
         </div>
         <p className="text-[10px] text-muted-foreground mt-1.5 leading-relaxed">
           Payment held in escrow until you confirm ticket receipt.
@@ -197,19 +198,19 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onCheckoutCreated }
 
       {/* Instant Transfer Ready notice */}
       {listing.listing_transfer_mode === 'instant_transfer_ready' && (
-        <div className="rounded-2xl p-3 space-y-2" style={{ background: 'rgba(0,200,255,0.08)', border: '1px solid rgba(0,200,255,0.3)' }}>
+        <div className="rounded-lg p-3 space-y-2" style={{ background: 'color-mix(in srgb, var(--pg-cyan) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--pg-cyan) 30%, transparent)' }}>
           <div className="flex items-start gap-3">
             <span className="text-lg flex-shrink-0">⚡</span>
-            <div className="text-xs" style={{ color: 'rgba(200,240,255,0.9)' }}>
-              <strong style={{ color: '#00C8FF' }}>Instant Transfer Ready</strong>
+            <div className="text-xs" style={{ color: 'var(--pg-text)' }}>
+              <strong style={{ color: 'var(--neon-cyan)' }}>Instant Transfer Ready</strong>
               <p className="mt-0.5 leading-relaxed">
                 The seller has authorized Peanut Gallery as their delivery agent. After your payment is confirmed, Peanut Gallery will transfer the ticket to you — expected immediately, but not guaranteed if transfer verification fails.
               </p>
             </div>
           </div>
-          <div className="flex items-start gap-2 pt-2" style={{ borderTop: '1px solid rgba(0,200,255,0.15)' }}>
-            <Shield className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" style={{ color: '#00FF87' }} />
-            <p className="text-[11px] leading-relaxed" style={{ color: 'rgba(200,255,230,0.8)' }}>
+          <div className="flex items-start gap-2 pt-2" style={{ borderTop: '1px solid color-mix(in srgb, var(--pg-cyan) 15%, transparent)' }}>
+            <Shield className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" style={{ color: 'var(--neon-green)' }} />
+            <p className="text-[11px] leading-relaxed" style={{ color: 'var(--pg-text)' }}>
               If delivery fails for any reason, you'll be automatically refunded. Peanut Gallery holds the ticket as the seller's limited delivery agent — it does not own this ticket.
             </p>
           </div>
@@ -218,9 +219,9 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onCheckoutCreated }
 
       {/* Escrow notice — skip for demo upgrades */}
       {!isDemoUpgrade && (
-        <div className="flex items-start gap-3 rounded-2xl p-3" style={{ background: 'rgba(0,255,135,0.08)', border: '1px solid rgba(0,255,135,0.25)' }}>
-          <Shield className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: '#00FF87' }} />
-          <div className="text-xs" style={{ color: 'rgba(200,255,230,0.85)' }}>
+        <div className="flex items-start gap-3 rounded-lg p-3" style={{ background: 'color-mix(in srgb, var(--pg-mint) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--pg-mint) 25%, transparent)' }}>
+          <Shield className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: 'var(--neon-green)' }} />
+          <div className="text-xs" style={{ color: 'var(--pg-text)' }}>
             {isUpgrade
               ? 'Your payment is held in escrow. The seller is paid only after you confirm access to the upgraded seats.'
               : 'Your payment is held safely until the ticket transfer is confirmed. The seller does not get paid until you confirm you received the seats.'
@@ -238,8 +239,8 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onCheckoutCreated }
             required
             value={name}
             onChange={e => setName(e.target.value)}
-            className="w-full px-3 py-2.5 rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
-            style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)' }}
+            className="w-full px-3 py-2.5 rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+            style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)' }}
             placeholder="Your full name"
           />
         </div>
@@ -250,8 +251,8 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onCheckoutCreated }
             required
             value={email}
             readOnly
-            className="w-full px-3 py-2.5 rounded-xl text-sm text-foreground opacity-70 cursor-not-allowed"
-            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+            className="w-full px-3 py-2.5 rounded-lg text-sm text-foreground opacity-70 cursor-not-allowed"
+            style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)' }}
           />
         </div>
         <div>
@@ -260,8 +261,8 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onCheckoutCreated }
             type="tel"
             value={phone}
             onChange={e => setPhone(e.target.value)}
-            className="w-full px-3 py-2.5 rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
-            style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)' }}
+            className="w-full px-3 py-2.5 rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+            style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)' }}
             placeholder="+1 (555) 000-0000"
           />
         </div>
@@ -273,12 +274,12 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onCheckoutCreated }
           <label className="block text-xs font-medium text-muted-foreground mb-1 flex items-center gap-1">
             <Lock className="w-3 h-3" /> Card Details
           </label>
-          <div className="px-3 py-3 rounded-xl" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)' }}>
+          <div className="pg-checkout-card-field px-3 py-3 rounded-lg" style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)' }}>
             <CardElement options={{
               hidePostalCode: false,
               style: {
-                base: { fontSize: '14px', color: '#ffffff', '::placeholder': { color: 'rgba(255,255,255,0.35)' }, iconColor: '#BF5FFF' },
-                invalid: { color: '#FF2D78' }
+                base: { fontSize: '16px', color: '#f6f2e8', '::placeholder': { color: '#b8b4c3' }, iconColor: '#bda5d5' },
+                invalid: { color: '#f4a4bc' }
               }
             }} />
           </div>
@@ -286,7 +287,7 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onCheckoutCreated }
       )}
 
       {error && (
-        <div className="text-sm rounded-xl px-3 py-2" style={{ color: '#FF2D78', background: 'rgba(255,45,120,0.1)', border: '1px solid rgba(255,45,120,0.25)' }}>
+        <div className="text-sm rounded-lg px-3 py-2" style={{ color: 'var(--neon-pink)', background: 'color-mix(in srgb, var(--neon-pink) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--neon-pink) 25%, transparent)' }}>
           {error}
         </div>
       )}
@@ -297,12 +298,11 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onCheckoutCreated }
         className="w-full flex items-center justify-center gap-2 py-3.5 rounded-full font-black text-sm transition-all disabled:opacity-40 mt-2"
         style={{
           background: isDemoUpgrade
-            ? 'linear-gradient(135deg, #BF5FFF, #7B2FFF)'
+            ? 'var(--pg-violet)'
             : isUpgrade
-            ? 'linear-gradient(135deg, #FF8C00, #FF2D78)'
-            : 'linear-gradient(135deg, #00E87A, #00B8E8)',
-          color: isDemoUpgrade ? '#fff' : '#0D0B14',
-          boxShadow: isDemoUpgrade ? '0 0 18px rgba(191,95,255,0.22)' : '0 0 18px rgba(0,232,122,0.22)',
+            ? 'var(--pg-orange)'
+            : 'var(--pg-mint)',
+          color: 'var(--pg-ink)',
         }}
       >
         {loading ? (
@@ -393,30 +393,30 @@ export default function PurchaseDialog({ event, listing, onClose, mode = 'ticket
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center">
+    <div className="pg-checkout-overlay fixed inset-0 z-[60] flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/50" onClick={handleClose} />
-      <div className="relative rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md mx-auto flex flex-col"
-        style={{ maxHeight: 'calc(100dvh - 72px)', background: 'hsl(255 12% 9%)', border: '1px solid rgba(255,255,255,0.1)' }}>
+      <div className="pg-checkout-dialog pg-detail-surface relative w-full sm:max-w-md mx-auto flex flex-col"
+        style={{ maxHeight: 'calc(100dvh - 72px)', background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
         {/* Sticky header */}
-        <div className="flex-shrink-0 border-b px-5 py-4 rounded-t-2xl"
-          style={{ background: 'hsl(255 12% 9%)', borderColor: 'rgba(255,255,255,0.1)' }}>
+        <div className="pg-checkout-header flex-shrink-0 border-b px-5 py-4"
+          style={{ background: 'var(--pg-surface)', borderColor: 'var(--pg-line)' }}>
           <div className="flex items-center justify-between mb-3">
             <div>
-              <h2 className="font-bold text-foreground">
+              <h2 className="font-display text-foreground">
                 {isDemoUpgrade ? 'Simulate Upgrade Purchase' : isUpgrade ? 'Upgrade Live' : 'Buy Ticket'}
               </h2>
               <p className="text-xs text-muted-foreground">Section {listing.section} · Row {listing.row}</p>
             </div>
-            <button onClick={handleClose} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors text-foreground">
+            <button onClick={handleClose} aria-label="Close checkout" className="p-1.5 rounded-lg hover:bg-white/10 transition-colors text-foreground">
               <X className="w-5 h-5" />
             </button>
           </div>
           {/* Trust strip — context-aware */}
           {isDemoUpgrade ? (
-            <div className="flex items-center gap-2 px-3 py-2 rounded-xl"
-              style={{ background: 'rgba(191,95,255,0.08)', border: '1px solid rgba(191,95,255,0.2)' }}>
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg"
+              style={{ background: 'color-mix(in srgb, var(--pg-violet) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--pg-violet) 20%, transparent)' }}>
               <span className="text-sm">🧪</span>
-              <p className="text-[10px] leading-tight" style={{ color: 'rgba(220,190,255,0.8)' }}>
+              <p className="text-[10px] leading-tight" style={{ color: 'var(--pg-text)' }}>
                 Demo simulation — no real payment, no ticket transfer, no geofencing
               </p>
             </div>
@@ -428,10 +428,10 @@ export default function PurchaseDialog({ event, listing, onClose, mode = 'ticket
                 { icon: '✅', text: 'You confirm before seller is paid' },
                 { icon: '🛡️', text: 'Disputes supported' },
               ].map(({ icon, text }) => (
-                <div key={text} className="flex items-start gap-1.5 px-2.5 py-2 rounded-xl"
-                  style={{ background: 'rgba(255,140,0,0.05)', border: '1px solid rgba(255,140,0,0.15)' }}>
+                <div key={text} className="flex items-start gap-1.5 px-2.5 py-2 rounded-lg"
+                  style={{ background: 'color-mix(in srgb, var(--pg-orange) 5%, transparent)', border: '1px solid color-mix(in srgb, var(--pg-orange) 15%, transparent)' }}>
                   <span className="text-sm leading-none flex-shrink-0 mt-0.5">{icon}</span>
-                  <p className="text-[10px] leading-tight" style={{ color: 'rgba(255,200,130,0.8)' }}>{text}</p>
+                  <p className="text-[10px] leading-tight" style={{ color: 'var(--pg-text)' }}>{text}</p>
                 </div>
               ))}
             </div>
@@ -443,10 +443,10 @@ export default function PurchaseDialog({ event, listing, onClose, mode = 'ticket
                 { icon: '🎫', text: 'Seller notified to transfer immediately' },
                 { icon: '🛡️', text: 'Disputes supported if something goes wrong' },
               ].map(({ icon, text }) => (
-                <div key={text} className="flex items-start gap-1.5 px-2.5 py-2 rounded-xl"
-                  style={{ background: 'rgba(0,255,135,0.05)', border: '1px solid rgba(0,255,135,0.12)' }}>
+                <div key={text} className="flex items-start gap-1.5 px-2.5 py-2 rounded-lg"
+                  style={{ background: 'color-mix(in srgb, var(--pg-mint) 5%, transparent)', border: '1px solid color-mix(in srgb, var(--pg-mint) 12%, transparent)' }}>
                   <span className="text-sm leading-none flex-shrink-0 mt-0.5">{icon}</span>
-                  <p className="text-[10px] leading-tight" style={{ color: 'rgba(200,255,230,0.7)' }}>{text}</p>
+                  <p className="text-[10px] leading-tight" style={{ color: 'var(--pg-text)' }}>{text}</p>
                 </div>
               ))}
             </div>
@@ -464,7 +464,7 @@ export default function PurchaseDialog({ event, listing, onClose, mode = 'ticket
               <p className="font-bold text-foreground">You can't buy your own listing</p>
               <p className="text-sm text-muted-foreground">This ticket is listed by you. Share the event link with friends so they can buy it.</p>
               <button onClick={handleClose} className="mt-2 px-6 py-2.5 rounded-full font-bold text-sm"
-                style={{ background: 'hsl(var(--muted))', color: 'hsl(var(--foreground))' }}>
+                style={{ background: 'var(--pg-surface-raised)', color: 'var(--pg-text)' }}>
                 Close
               </button>
             </div>
@@ -473,34 +473,34 @@ export default function PurchaseDialog({ event, listing, onClose, mode = 'ticket
               <p className="text-4xl">⚠️</p>
               <p className="font-bold text-foreground text-sm">{reservationError}</p>
               <button onClick={handleClose} className="mt-2 px-6 py-2.5 rounded-full font-bold text-sm"
-                style={{ background: 'hsl(var(--muted))', color: 'hsl(var(--foreground))' }}>
+                style={{ background: 'var(--pg-surface-raised)', color: 'var(--pg-text)' }}>
                 Close
               </button>
             </div>
           ) : (
             <>
               {reservation && countdown > 0 && (
-                <div className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl mb-3"
-                  style={{ background: 'rgba(0,255,135,0.08)', border: '1px solid rgba(0,255,135,0.2)' }}>
+                <div className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg mb-3"
+                  style={{ background: 'color-mix(in srgb, var(--pg-mint) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--pg-mint) 20%, transparent)' }}>
                   <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4" style={{ color: '#00FF87' }} />
-                    <span className="text-xs font-bold" style={{ color: '#00FF87' }}>Reserved for you</span>
-                    <span className="text-xs font-mono font-bold" style={{ color: countdown < 60 ? '#FF8C00' : '#00FF87' }}>
+                    <Clock className="w-4 h-4" style={{ color: 'var(--neon-green)' }} />
+                    <span className="text-xs font-bold" style={{ color: 'var(--neon-green)' }}>Reserved for you</span>
+                    <span className="text-xs font-mono font-bold" style={{ color: countdown < 60 ? 'var(--neon-orange)' : 'var(--neon-green)' }}>
                       {formatCountdown(countdown)}
                     </span>
                   </div>
                   <button onClick={handleReleaseReservation}
                     className="text-[11px] font-bold px-3 py-1.5 rounded-full transition-all"
-                    style={{ background: 'rgba(255,255,255,0.08)', color: 'hsl(var(--muted-foreground))' }}>
+                    style={{ background: 'var(--pg-line)', color: 'var(--pg-muted)' }}>
                     Release
                   </button>
                 </div>
               )}
               {reservation && countdown === 0 && (
-                <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl mb-3"
-                  style={{ background: 'rgba(255,140,0,0.08)', border: '1px solid rgba(255,140,0,0.2)' }}>
-                  <Clock className="w-4 h-4" style={{ color: '#FF8C00' }} />
-                  <span className="text-xs font-bold" style={{ color: '#FF8C00' }}>Reservation expired — re-reserve when you submit</span>
+                <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg mb-3"
+                  style={{ background: 'color-mix(in srgb, var(--pg-orange) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--pg-orange) 20%, transparent)' }}>
+                  <Clock className="w-4 h-4" style={{ color: 'var(--neon-orange)' }} />
+                  <span className="text-xs font-bold" style={{ color: 'var(--neon-orange)' }}>Reservation expired — re-reserve when you submit</span>
                 </div>
               )}
               {reservationLoading && (

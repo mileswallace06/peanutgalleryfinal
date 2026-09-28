@@ -1,3 +1,4 @@
+import '@/components/admin/operations-theme.css';
 import { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useLocation } from 'react-router-dom';
@@ -68,11 +69,11 @@ export default function FeedbackWidget({ user }) {
       {!open && (
         <button
           onClick={() => { setOpen(true); setError(null); }}
-          className="fixed left-4 z-[60] w-11 h-11 rounded-full flex items-center justify-center shadow-xl transition-all active:scale-95"
-          style={{ bottom: 'calc(6.25rem + env(safe-area-inset-bottom))', background: 'rgba(191,95,255,0.15)', border: '1px solid rgba(191,95,255,0.4)', backdropFilter: 'blur(12px)' }}
+          className="pg-operations-widget fixed left-4 z-[60] w-11 h-11 rounded-full flex items-center justify-center shadow-lg transition-all active:scale-95"
+          style={{ bottom: 'calc(6.25rem + env(safe-area-inset-bottom))', background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}
           aria-label="Send feedback"
         >
-          <MessageSquare className="w-4 h-4" style={{ color: '#BF5FFF' }} />
+          <MessageSquare className="w-4 h-4" style={{ color: 'var(--pg-text)' }} />
         </button>
       )}
 
@@ -80,15 +81,15 @@ export default function FeedbackWidget({ user }) {
       {open && (
         <div className="fixed inset-0 z-[70] flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
           onClick={e => { if (e.target === e.currentTarget) setOpen(false); }}>
-          <div className="w-full max-w-lg rounded-t-3xl p-5 space-y-4"
-            style={{ background: 'hsl(var(--card))', border: '1px solid rgba(255,255,255,0.1)', paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))', maxHeight: 'calc(100dvh - env(safe-area-inset-top) - 0.75rem)', overflowY: 'auto', overscrollBehavior: 'contain' }}>
+          <div className="pg-operations-widget w-full max-w-lg rounded-t-xl p-5 space-y-4"
+            style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)', paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))', maxHeight: 'calc(100dvh - env(safe-area-inset-top) - 0.75rem)', overflowY: 'auto', overscrollBehavior: 'contain' }}>
 
             <div className="flex items-center justify-between">
               <div>
                 <p className="font-black text-sm text-foreground">Send Feedback</p>
                 <p className="text-[10px] text-muted-foreground">{location.pathname}</p>
               </div>
-              <button onClick={() => setOpen(false)} className="p-1.5 text-muted-foreground">
+              <button onClick={() => setOpen(false)} className="inline-flex items-center justify-center p-1.5 text-muted-foreground">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -104,13 +105,13 @@ export default function FeedbackWidget({ user }) {
                 <div className="grid grid-cols-4 gap-2">
                   {TYPES.map(t => (
                     <button key={t.key} onClick={() => setSelected(t.key)}
-                      className="flex flex-col items-center gap-1.5 py-3 rounded-2xl transition-all active:scale-95"
+                      className="flex flex-col items-center gap-1.5 py-3 rounded-xl transition-all active:scale-95"
                       style={{
-                        background: selected === t.key ? `${t.color}18` : 'rgba(255,255,255,0.04)',
-                        border: `1px solid ${selected === t.key ? t.color + '55' : 'rgba(255,255,255,0.08)'}`,
+                        background: selected === t.key ? `${t.color}18` : 'var(--pg-surface-raised)',
+                        border: `1px solid ${selected === t.key ? t.color + '55' : 'var(--pg-line)'}`,
                       }}>
                       <span className="text-xl">{t.emoji}</span>
-                      <span className="text-[10px] font-bold" style={{ color: selected === t.key ? t.color : 'hsl(var(--muted-foreground))' }}>{t.label}</span>
+                      <span className="pg-operations-status text-[10px] font-bold" style={{ '--pg-status-ink': selected === t.key ? t.color : 'var(--pg-muted)' }}>{t.label}</span>
                     </button>
                   ))}
                 </div>
@@ -122,15 +123,15 @@ export default function FeedbackWidget({ user }) {
                   placeholder={selected === 'bug' ? 'What went wrong?' : selected === 'confused' ? 'What confused you?' : selected === 'idea' ? "What's your idea?" : 'Tell us more\u2026'}
                   rows={3}
                   className="w-full px-3 py-2.5 rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none resize-none"
-                  style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}
+                  style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)' }}
                 />
 
                 {error && (
-                  <p className="text-xs font-bold text-center" style={{ color: '#FF2D78' }}>{error}</p>
+                  <p className="text-xs font-bold text-center" style={{ color: 'var(--neon-pink)' }}>{error}</p>
                 )}
                 <button onClick={handleSend} disabled={!selected || sending}
-                  className="w-full py-3 rounded-2xl font-black text-sm disabled:opacity-50 transition-all"
-                  style={{ background: selected ? `${TYPES.find(t => t.key === selected)?.color}` : 'rgba(255,255,255,0.1)', color: '#000' }}>
+                  className="w-full py-3 rounded-xl font-black text-sm disabled:opacity-50 transition-all"
+                  style={{ background: selected ? `${TYPES.find(t => t.key === selected)?.color}` : 'var(--pg-surface-raised)', color: selected ? 'var(--pg-ink)' : 'var(--pg-muted)' }}>
                   {sending ? 'Sending…' : 'Send Feedback'}
                 </button>
               </>

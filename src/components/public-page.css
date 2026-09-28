@@ -1,0 +1,39 @@
+.pg-public-page { background: var(--pg-canvas); color: var(--pg-text); }
+.pg-public-page--photo { background: #0d0b14; color: #f9f7f1; }
+.pg-public-page :is(button, a, input):focus-visible { outline: 2px solid var(--neon-cyan); outline-offset: 3px; }
+.pg-public-header { position: sticky; top: 0; z-index: 20; background: var(--pg-canvas); border-bottom: 1px solid var(--pg-line); padding-top: calc(env(safe-area-inset-top) + 8px); }
+.pg-public-header > div { max-width: 42rem; margin-inline: auto; display: flex; align-items: center; gap: 12px; padding: 0 16px 8px; }
+.pg-public-header h1 { font-size: 1.35rem; line-height: 1.2; }
+.pg-public-back { display: inline-flex; align-items: center; justify-content: center; flex: none; min-width: 44px; min-height: 44px; border: 1px solid var(--pg-line); border-radius: 8px; background: var(--pg-surface); color: var(--pg-text); }
+.pg-public-action { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 12px 18px; border: 1px solid transparent; border-radius: 8px; background: var(--pg-mint); color: var(--pg-ink); font-weight: 800; line-height: 1.35; text-align: center; }
+.pg-public-action:disabled { opacity: .55; }
+.pg-public-action--secondary { background: var(--pg-surface); border-color: var(--pg-line); color: var(--pg-text); }
+.pg-public-link { display: inline-flex; align-items: center; min-height: 44px; color: var(--neon-cyan); text-decoration: underline; text-underline-offset: 4px; }
+.pg-public-state { width: 100%; max-width: 28rem; padding: 28px 20px; border: 1px solid var(--pg-line); border-radius: 10px; background: var(--pg-surface); color: var(--pg-text); }
+.pg-public-state:not(.pg-public-loading)::before { content: ''; display: block; width: 100%; flex: none; border-top: 1px dashed var(--pg-line); margin-bottom: 24px; }
+.pg-public-muted { color: var(--pg-muted); }
+.pg-public-state-icon { color: var(--neon-purple); background: var(--pg-surface-raised); border: 1px solid var(--pg-line); border-radius: 8px; }
+.pg-public-state-note { background: var(--pg-surface-raised); color: var(--pg-muted); border: 1px solid var(--pg-line); }
+.pg-landing-brand { color: #f9f7f1; border-left: 2px solid #bf5fff; padding: 7px 12px; font-size: 11px; font-weight: 900; letter-spacing: .16em; }
+.pg-landing-actions { border-top: 1px dashed #f9f7f16b; padding-top: 20px; }
+.pg-landing-actions .pg-public-action { min-height: 56px; font-size: 18px; }
+.pg-landing-actions .pg-public-action--secondary { color: #f9f7f1; background: #0d0b14b8; border-color: #f9f7f170; }
+.pg-auth-ticket { position: relative; padding: 24px 20px; border: 1px solid var(--pg-line); border-radius: 10px; color: var(--pg-text); background: var(--pg-surface); }
+.pg-auth-ticket > footer { border-top: 1px dashed var(--pg-line); padding-top: 20px; }
+.pg-auth-ticket .pg-public-action { min-height: 48px; }
+.pg-auth-input { display: block; width: 100%; min-height: 48px; margin-top: 8px; padding: 12px 16px; border: 1px solid var(--pg-line); border-radius: 8px; background: var(--pg-canvas); color: var(--pg-text); font-size: 16px; }
+.pg-auth-input::placeholder { color: var(--pg-muted); }
+.pg-auth-input:disabled { opacity: .6; }
+.pg-auth-divider { display: flex; align-items: center; gap: 12px; margin-block: 24px; color: var(--pg-muted); font-size: 14px; }
+.pg-auth-divider > span { height: 1px; flex: 1; background: var(--pg-line); }
+.pg-auth-notice--success { color: var(--neon-green); }
+.pg-auth-notice--error { color: var(--neon-orange); }
+.pg-onboarding-skip { min-height: 44px; min-width: 44px; padding: 10px 12px; border-radius: 8px; }
+.pg-onboarding-tag { display: inline-block; border-left: 2px solid currentColor; padding: 6px 12px; font-size: 11px; font-weight: 900; letter-spacing: .2em; }
+.pg-onboarding-progress { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; padding: 8px 4px; }
+.pg-onboarding-back { min-height: 44px; padding: 10px; color: #f9f7f1c7; }
+.pg-onboarding-content { max-width: 36rem; width: 100%; margin-inline: auto; }
+.pg-public-page--story .stub-perf-h { background-image: linear-gradient(to right, var(--pg-line) 50%, transparent 50%); }
+.pg-public-page--story .stub-perf-h::before,
+.pg-public-page--story .stub-perf-h::after { background: var(--pg-canvas); border-color: var(--pg-line); }
+@media (max-width: 360px) { .pg-auth-ticket { padding: 20px 16px; } }

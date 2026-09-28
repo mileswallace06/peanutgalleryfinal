@@ -25,10 +25,10 @@ function ResultButton({ value, current, onSet, label, color }) {
   return (
     <button
       onClick={() => onSet(value)}
-      className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all"
+      className="pg-operations-status flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all"
       style={current === value
-        ? { background: `${color}22`, color, border: `1px solid ${color}55` }
-        : { background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }
+        ? { background: `${color}22`, '--pg-status-ink': color, border: `1px solid ${color}55` }
+        : { background: 'var(--pg-surface-raised)', '--pg-status-ink': 'var(--pg-muted)', border: '1px solid var(--pg-line)' }
       }
     >
       {value === 'pass' && <CheckCircle2 className="w-3 h-3" />}
@@ -98,19 +98,19 @@ export default function QAChecklist({ sessionId, testerName, device }) {
   return (
     <div className="space-y-4">
       {/* Summary bar */}
-      <div className="flex items-center gap-4 px-4 py-3 rounded-2xl" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+      <div className="flex items-center gap-4 px-4 py-3 rounded-xl" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
         <div className="flex-1">
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-xs font-black text-muted-foreground">{passCount}/{totalItems} PASSED</span>
-            <span className="text-xs font-black" style={{ color: pct === 100 ? '#00FF87' : failCount > 0 ? '#FF2D78' : '#BF5FFF' }}>{pct}%</span>
+            <span className="text-xs font-black" style={{ color: pct === 100 ? 'var(--neon-green)' : failCount > 0 ? 'var(--neon-pink)' : 'var(--neon-purple)' }}>{pct}%</span>
           </div>
-          <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'hsl(var(--muted))' }}>
+          <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--pg-surface-raised)' }}>
             <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: failCount > 0 ? '#FF2D78' : '#00FF87' }} />
           </div>
         </div>
         <div className="flex gap-3 text-xs">
-          <span className="font-bold" style={{ color: '#00FF87' }}>✓ {passCount}</span>
-          <span className="font-bold" style={{ color: '#FF2D78' }}>✗ {failCount}</span>
+          <span className="font-bold" style={{ color: 'var(--neon-green)' }}>✓ {passCount}</span>
+          <span className="font-bold" style={{ color: 'var(--neon-pink)' }}>✗ {failCount}</span>
           <span className="text-muted-foreground">{totalItems - passCount - failCount} untested</span>
         </div>
       </div>
@@ -124,7 +124,7 @@ export default function QAChecklist({ sessionId, testerName, device }) {
         const hasFail = catFail > 0;
 
         return (
-          <div key={category} className="rounded-2xl overflow-hidden" style={{ background: 'hsl(var(--card))', border: `1px solid ${hasFail ? 'rgba(255,45,120,0.3)' : allPass ? 'rgba(0,255,135,0.2)' : 'hsl(var(--border))'}` }}>
+          <div key={category} className="pg-operations-card rounded-xl overflow-hidden" style={{ background: 'var(--pg-surface)', border: `1px solid ${hasFail ? 'rgba(255,45,120,0.3)' : allPass ? 'rgba(0,255,135,0.2)' : 'var(--pg-line)'}` }}>
             <button
               onClick={() => setOpenCategories(prev => ({ ...prev, [category]: !isOpen }))}
               className="w-full flex items-center gap-3 px-4 py-3 text-left"
@@ -132,8 +132,8 @@ export default function QAChecklist({ sessionId, testerName, device }) {
               <div className="flex-1">
                 <span className="text-sm font-bold text-foreground">{category}</span>
                 <span className="ml-2 text-xs text-muted-foreground">{catPass}/{items.length}</span>
-                {hasFail && <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(255,45,120,0.12)', color: '#FF2D78' }}>{catFail} fail</span>}
-                {allPass && <span className="ml-2 text-[10px] font-bold" style={{ color: '#00FF87' }}>✓ All passed</span>}
+                {hasFail && <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(255,45,120,0.12)', color: 'var(--neon-pink)' }}>{catFail} fail</span>}
+                {allPass && <span className="ml-2 text-[10px] font-bold" style={{ color: 'var(--neon-green)' }}>✓ All passed</span>}
               </div>
               {isOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
             </button>
@@ -160,7 +160,7 @@ export default function QAChecklist({ sessionId, testerName, device }) {
                             onBlur={() => saveNote(category, title)}
                             placeholder="Add notes…"
                             className="flex-1 text-xs px-3 py-1.5 rounded-xl focus:outline-none"
-                            style={{ background: 'hsl(var(--input))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--foreground))' }}
+                            style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)', color: 'var(--pg-text)' }}
                           />
                         </div>
                       )}

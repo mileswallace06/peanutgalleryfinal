@@ -108,30 +108,30 @@ export default function LiveEventChecklist() {
         <input value={eventName}
           onChange={e => { setEventName(e.target.value); localStorage.setItem('pg_live_event_name', e.target.value); }}
           placeholder="Event name (e.g. Taylor Swift @ MSG)"
-          className="flex-1 px-4 py-2.5 rounded-2xl text-sm font-bold focus:outline-none"
-          style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--foreground))' }} />
+          className="flex-1 px-4 py-2.5 rounded-xl text-sm font-bold focus:outline-none"
+          style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)', color: 'var(--pg-text)' }} />
         <button onClick={reset}
-          className="px-3 py-2.5 rounded-2xl text-xs font-bold"
-          style={{ background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }}>
+          className="px-3 py-2.5 rounded-xl text-xs font-bold"
+          style={{ background: 'var(--pg-surface-raised)', color: 'var(--pg-muted)', border: '1px solid var(--pg-line)' }}>
           Reset
         </button>
       </div>
 
       {/* Launch readiness */}
-      <div className="rounded-2xl px-4 py-4" style={{
+      <div className="pg-operations-card rounded-xl px-4 py-4" style={{
         background: isLaunchReady ? 'rgba(0,255,135,0.07)' : 'rgba(255,45,120,0.06)',
         border: `1px solid ${isLaunchReady ? 'rgba(0,255,135,0.25)' : 'rgba(255,45,120,0.2)'}`,
       }}>
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
-            <Zap className="w-4 h-4" style={{ color: isLaunchReady ? '#00FF87' : '#FF2D78' }} />
-            <span className="text-sm font-black" style={{ color: isLaunchReady ? '#00FF87' : '#FF2D78' }}>
+            <Zap className="w-4 h-4" style={{ color: isLaunchReady ? 'var(--neon-green)' : 'var(--neon-pink)' }} />
+            <span className="text-sm font-black" style={{ color: isLaunchReady ? 'var(--neon-green)' : 'var(--neon-pink)' }}>
               {isLaunchReady ? '✓ Ready for Live Event' : 'Not Ready for Live Event'}
             </span>
           </div>
-          <span className="text-xs font-black" style={{ color: isLaunchReady ? '#00FF87' : '#FF2D78' }}>{pct}%</span>
+          <span className="text-xs font-black" style={{ color: isLaunchReady ? 'var(--neon-green)' : 'var(--neon-pink)' }}>{pct}%</span>
         </div>
-        <div className="h-1.5 rounded-full overflow-hidden mb-2" style={{ background: 'rgba(255,255,255,0.1)' }}>
+        <div className="h-1.5 rounded-full overflow-hidden mb-2" style={{ background: 'var(--pg-surface-raised)' }}>
           <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: isLaunchReady ? '#00FF87' : '#FF2D78' }} />
         </div>
         <p className="text-[10px] text-muted-foreground">
@@ -145,12 +145,12 @@ export default function LiveEventChecklist() {
         const isOpen = openCats[category] !== false;
 
         return (
-          <div key={category} className="rounded-2xl overflow-hidden" style={{ background: 'hsl(var(--card))', border: `1px solid hsl(var(--border))` }}>
+          <div key={category} className="pg-operations-card rounded-xl overflow-hidden" style={{ background: 'var(--pg-surface)', border: `1px solid var(--pg-line)` }}>
             <button onClick={() => setOpenCats(p => ({ ...p, [category]: !isOpen }))}
               className="w-full flex items-center gap-3 px-4 py-3 text-left">
               <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
               <span className="flex-1 text-sm font-bold text-foreground">{category}</span>
-              <span className="text-xs font-bold" style={{ color: catPass === items.length ? '#00FF87' : 'hsl(var(--muted-foreground))' }}>
+              <span className="text-xs font-bold" style={{ color: catPass === items.length ? 'var(--neon-green)' : 'var(--pg-muted)' }}>
                 {catPass}/{items.length}
               </span>
               {isOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
@@ -164,15 +164,15 @@ export default function LiveEventChecklist() {
                       className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors"
                       style={{ background: done ? 'rgba(0,255,135,0.03)' : 'transparent' }}>
                       {done
-                        ? <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: '#00FF87' }} />
+                        ? <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--neon-green)' }} />
                         : <Circle className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
                       }
-                      <span className="flex-1 text-sm" style={{ color: done ? 'hsl(var(--muted-foreground))' : 'hsl(var(--foreground))' }}>
+                      <span className="flex-1 text-sm" style={{ color: done ? 'var(--pg-muted)' : 'var(--pg-text)' }}>
                         {label}
                       </span>
                       {critical && !done && (
                         <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full flex-shrink-0"
-                          style={{ background: 'rgba(255,45,120,0.12)', color: '#FF2D78', border: '1px solid rgba(255,45,120,0.25)' }}>
+                          style={{ background: 'rgba(255,45,120,0.12)', color: 'var(--neon-pink)', border: '1px solid rgba(255,45,120,0.25)' }}>
                           CRITICAL
                         </span>
                       )}

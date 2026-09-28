@@ -1,3 +1,4 @@
+import '@/components/events/detail-ticket.css';
 import { useState } from 'react';
 import { AlertTriangle, CheckCircle, XCircle, Upload, ShieldCheck } from 'lucide-react';
 
@@ -50,13 +51,13 @@ export default function SellerTransferAttestation({ onConfirm, onBlocked, upload
   };
 
   return (
-    <div className="rounded-2xl overflow-hidden"
-      style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.12)' }}>
+    <div className="pg-seller-attestation pg-detail-surface rounded-lg overflow-hidden"
+      style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)' }}>
 
       {/* Header */}
-      <div className="px-4 py-4" style={{ background: 'rgba(191,95,255,0.08)', borderBottom: '1px solid rgba(191,95,255,0.2)' }}>
+      <div className="px-4 py-4" style={{ background: 'color-mix(in srgb, var(--pg-violet) 8%, transparent)', borderBottom: '1px solid color-mix(in srgb, var(--pg-violet) 20%, transparent)' }}>
         <div className="flex items-center gap-2 mb-1">
-          <ShieldCheck className="w-4 h-4 flex-shrink-0" style={{ color: '#BF5FFF' }} />
+          <ShieldCheck className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--neon-purple)' }} />
           <span className="font-bold text-sm text-foreground">Transfer Verification Required</span>
         </div>
         <p className="text-xs text-muted-foreground leading-relaxed">
@@ -69,17 +70,17 @@ export default function SellerTransferAttestation({ onConfirm, onBlocked, upload
         {/* Q1: Can you still transfer? */}
         <div>
           <p className="text-sm font-semibold text-foreground mb-3">
-            Can you still transfer this ticket in your ticketing app? <span style={{ color: '#FF2D78' }}>*</span>
+            Can you still transfer this ticket in your ticketing app? <span style={{ color: 'var(--neon-pink)' }}>*</span>
           </p>
           <div className="grid grid-cols-2 gap-3">
             <button
               type="button"
               onClick={() => setCanTransfer(true)}
-              className="flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all"
+              className="flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all"
               style={{
-                background: canTransfer === true ? 'rgba(0,255,135,0.12)' : 'hsl(var(--muted))',
-                border: canTransfer === true ? '1.5px solid rgba(0,255,135,0.4)' : '1px solid hsl(var(--border))',
-                color: canTransfer === true ? '#00FF87' : 'hsl(var(--muted-foreground))',
+                background: canTransfer === true ? 'color-mix(in srgb, var(--pg-mint) 12%, transparent)' : 'var(--pg-surface-raised)',
+                border: canTransfer === true ? '1.5px solid color-mix(in srgb, var(--pg-mint) 40%, transparent)' : '1px solid var(--pg-line)',
+                color: canTransfer === true ? 'var(--neon-green)' : 'var(--pg-muted)',
               }}
             >
               <CheckCircle className="w-4 h-4" /> Yes, I can transfer
@@ -87,11 +88,11 @@ export default function SellerTransferAttestation({ onConfirm, onBlocked, upload
             <button
               type="button"
               onClick={() => { setCanTransfer(false); onBlocked(); }}
-              className="flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all"
+              className="flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all"
               style={{
-                background: canTransfer === false ? 'rgba(255,45,120,0.1)' : 'hsl(var(--muted))',
-                border: canTransfer === false ? '1.5px solid rgba(255,45,120,0.4)' : '1px solid hsl(var(--border))',
-                color: canTransfer === false ? '#FF2D78' : 'hsl(var(--muted-foreground))',
+                background: canTransfer === false ? 'color-mix(in srgb, var(--pg-pink) 10%, transparent)' : 'var(--pg-surface-raised)',
+                border: canTransfer === false ? '1.5px solid color-mix(in srgb, var(--pg-pink) 40%, transparent)' : '1px solid var(--pg-line)',
+                color: canTransfer === false ? 'var(--neon-pink)' : 'var(--pg-muted)',
               }}
             >
               <XCircle className="w-4 h-4" /> No, I cannot transfer
@@ -101,11 +102,11 @@ export default function SellerTransferAttestation({ onConfirm, onBlocked, upload
 
         {/* Blocked state */}
         {canTransfer === false && (
-          <div className="rounded-xl p-4 space-y-2"
-            style={{ background: 'rgba(255,45,120,0.08)', border: '1px solid rgba(255,45,120,0.3)' }}>
+          <div className="rounded-lg p-4 space-y-2"
+            style={{ background: 'color-mix(in srgb, var(--pg-pink) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--pg-pink) 30%, transparent)' }}>
             <div className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 flex-shrink-0" style={{ color: '#FF2D78' }} />
-              <span className="text-sm font-bold" style={{ color: '#FF2D78' }}>Listing blocked</span>
+              <AlertTriangle className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--neon-pink)' }} />
+              <span className="text-sm font-bold" style={{ color: 'var(--neon-pink)' }}>Listing blocked</span>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed">
               You cannot list a ticket you cannot transfer. If your ticket has already been used for entry, it cannot be sold.
@@ -122,7 +123,7 @@ export default function SellerTransferAttestation({ onConfirm, onBlocked, upload
             {/* Platform */}
             <div>
               <label className="block text-xs font-semibold text-muted-foreground mb-2">
-                Which platform is your ticket on? <span style={{ color: '#FF2D78' }}>*</span>
+                Which platform is your ticket on? <span style={{ color: 'var(--neon-pink)' }}>*</span>
               </label>
               <div className="grid grid-cols-3 gap-2">
                 {PLATFORMS.map(p => (
@@ -130,11 +131,11 @@ export default function SellerTransferAttestation({ onConfirm, onBlocked, upload
                     key={p.value}
                     type="button"
                     onClick={() => setPlatform(p.value)}
-                    className="py-2 px-2 rounded-xl text-xs font-semibold transition-all text-center"
+                    className="py-2 px-2 rounded-lg text-xs font-semibold transition-all text-center"
                     style={{
-                      background: platform === p.value ? 'rgba(191,95,255,0.12)' : 'hsl(var(--muted))',
-                      border: platform === p.value ? '1px solid rgba(191,95,255,0.4)' : '1px solid hsl(var(--border))',
-                      color: platform === p.value ? '#BF5FFF' : 'hsl(var(--muted-foreground))',
+                      background: platform === p.value ? 'color-mix(in srgb, var(--pg-violet) 12%, transparent)' : 'var(--pg-surface-raised)',
+                      border: platform === p.value ? '1px solid color-mix(in srgb, var(--pg-violet) 40%, transparent)' : '1px solid var(--pg-line)',
+                      color: platform === p.value ? 'var(--neon-purple)' : 'var(--pg-muted)',
                     }}
                   >
                     {p.label}
@@ -148,15 +149,15 @@ export default function SellerTransferAttestation({ onConfirm, onBlocked, upload
               <button
                 type="button"
                 onClick={() => setNotScanned(v => !v)}
-                className="w-full flex items-start gap-3 text-left px-4 py-3.5 rounded-xl transition-all"
+                className="w-full flex items-start gap-3 text-left px-4 py-3.5 rounded-lg transition-all"
                 style={{
-                  background: notScanned ? 'rgba(0,255,135,0.06)' : 'hsl(var(--muted))',
-                  border: notScanned ? '1.5px solid rgba(0,255,135,0.35)' : '1px solid hsl(var(--border))',
+                  background: notScanned ? 'color-mix(in srgb, var(--pg-mint) 6%, transparent)' : 'var(--pg-surface-raised)',
+                  border: notScanned ? '1.5px solid color-mix(in srgb, var(--pg-mint) 35%, transparent)' : '1px solid var(--pg-line)',
                 }}
               >
                 <div className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5"
                   style={{
-                    background: notScanned ? '#00FF87' : 'transparent',
+                    background: notScanned ? 'var(--pg-mint)' : 'transparent',
                     border: notScanned ? 'none' : '2px solid hsl(var(--muted-foreground))',
                   }}>
                   {notScanned && <span className="text-black text-xs font-black">✓</span>}
@@ -173,16 +174,16 @@ export default function SellerTransferAttestation({ onConfirm, onBlocked, upload
                 Screenshot of transfer button <span className="opacity-60 font-normal">(optional but increases buyer trust)</span>
               </label>
               {proofUrl ? (
-                <div className="flex items-center gap-3 px-4 py-3 rounded-xl"
-                  style={{ background: 'rgba(0,255,135,0.06)', border: '1px solid rgba(0,255,135,0.25)' }}>
-                  <CheckCircle className="w-4 h-4 flex-shrink-0" style={{ color: '#00FF87' }} />
-                  <span className="text-sm font-semibold" style={{ color: '#00FF87' }}>Screenshot uploaded ✓</span>
+                <div className="flex items-center gap-3 px-4 py-3 rounded-lg"
+                  style={{ background: 'color-mix(in srgb, var(--pg-mint) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--pg-mint) 25%, transparent)' }}>
+                  <CheckCircle className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--neon-green)' }} />
+                  <span className="text-sm font-semibold" style={{ color: 'var(--neon-green)' }}>Screenshot uploaded ✓</span>
                   <button onClick={() => { setProofUrl(''); setProofFile(null); }}
                     className="ml-auto text-xs text-muted-foreground hover:text-foreground">Remove</button>
                 </div>
               ) : (
-                <label className={`flex items-center gap-2 rounded-xl px-4 py-3 cursor-pointer transition-all ${uploading ? 'opacity-60' : ''}`}
-                  style={{ border: '1.5px dashed rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.02)' }}>
+                <label className={`flex items-center gap-2 rounded-lg px-4 py-3 cursor-pointer transition-all ${uploading ? 'opacity-60' : ''}`}
+                  style={{ border: '1.5px dashed var(--pg-line)', background: 'var(--pg-surface-raised)' }}>
                   {uploading
                     ? <span className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                     : <Upload className="w-4 h-4 text-muted-foreground" />}
@@ -193,7 +194,7 @@ export default function SellerTransferAttestation({ onConfirm, onBlocked, upload
             </div>
 
             {error && (
-              <div className="text-xs px-3 py-2 rounded-lg" style={{ color: '#FF2D78', background: 'rgba(255,45,120,0.08)', border: '1px solid rgba(255,45,120,0.25)' }}>
+              <div className="text-xs px-3 py-2 rounded-lg" style={{ color: 'var(--neon-pink)', background: 'color-mix(in srgb, var(--neon-pink) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--neon-pink) 25%, transparent)' }}>
                 {error}
               </div>
             )}
@@ -203,7 +204,7 @@ export default function SellerTransferAttestation({ onConfirm, onBlocked, upload
               onClick={handleConfirm}
               disabled={uploading}
               className="w-full py-3.5 rounded-full font-black text-sm transition-all disabled:opacity-40 flex items-center justify-center gap-2"
-              style={{ background: 'linear-gradient(135deg, #BF5FFF, #FF2D78)', color: '#fff' }}
+              style={{ background: 'var(--pg-violet)', color: 'var(--pg-ink)' }}
             >
               <ShieldCheck className="w-4 h-4" /> Confirm & Continue to Listing
             </button>

@@ -1,3 +1,4 @@
+import '@/components/events/detail-ticket.css';
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { X, Star, Trash2, Plus } from 'lucide-react';
@@ -39,28 +40,28 @@ export default function BucketListSheet({ user, onClose }) {
   const venues = following.filter(f => f.type === 'venue');
 
   return (
-    <div className="relative z-10 rounded-t-3xl flex flex-col"
+    <div className="pg-bucket-sheet pg-detail-surface relative z-10 flex flex-col"
       style={{
-        background: 'hsl(255 12% 9%)',
-        border: '1px solid rgba(255,255,255,0.1)',
+        background: 'var(--pg-surface)',
+        border: '1px solid var(--pg-line)',
         maxHeight: '85vh',
       }}>
       {/* Handle */}
-      <div className="w-10 h-1 rounded-full mx-auto mt-4 mb-0 flex-shrink-0" style={{ background: 'rgba(255,255,255,0.2)' }} />
+      <div className="w-10 h-1 rounded-full mx-auto mt-4 mb-0 flex-shrink-0" style={{ background: 'var(--pg-line)' }} />
 
       {/* Header */}
-      <div className="flex items-center justify-between px-5 pt-4 pb-3 flex-shrink-0">
+      <div className="pg-bucket-heading flex items-center justify-between px-5 pt-4 pb-3 flex-shrink-0">
         <div className="flex items-center gap-2">
-          <Star className="w-5 h-5" style={{ color: '#FFE600' }} />
+          <Star className="w-5 h-5" style={{ color: 'var(--neon-yellow)' }} />
           <h2 className="font-black text-base text-foreground">Bucket List</h2>
           {following.length > 0 && (
             <span className="text-[10px] font-black px-2 py-0.5 rounded-full"
-              style={{ background: 'rgba(255,230,0,0.15)', color: '#FFE600', border: '1px solid rgba(255,230,0,0.3)' }}>
+              style={{ background: 'color-mix(in srgb, var(--pg-yellow) 15%, transparent)', color: 'var(--neon-yellow)', border: '1px solid color-mix(in srgb, var(--neon-yellow) 30%, transparent)' }}>
               {following.length}
             </span>
           )}
         </div>
-        <button onClick={onClose}><X className="w-5 h-5 text-muted-foreground" /></button>
+        <button onClick={onClose} aria-label="Close bucket list"><X className="w-5 h-5 text-muted-foreground" /></button>
       </div>
 
       {/* Tabs */}
@@ -71,8 +72,8 @@ export default function BucketListSheet({ user, onClose }) {
             onClick={() => setTab(t)}
             className="px-4 py-1.5 rounded-full text-xs font-bold transition-all"
             style={tab === t
-              ? { background: 'rgba(255,230,0,0.15)', color: '#FFE600', border: '1px solid rgba(255,230,0,0.35)' }
-              : { background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.08)' }
+              ? { background: 'color-mix(in srgb, var(--pg-yellow) 15%, transparent)', color: 'var(--neon-yellow)', border: '1px solid color-mix(in srgb, var(--neon-yellow) 35%, transparent)' }
+              : { background: 'var(--pg-surface-raised)', color: 'var(--pg-muted)', border: '1px solid var(--pg-line)' }
             }
           >
             {t === 'list' ? '⭐ My List' : '+ Add More'}
@@ -86,7 +87,7 @@ export default function BucketListSheet({ user, onClose }) {
         ) : loading ? (
           <div className="space-y-2 pt-2">
             {[...Array(3)].map((_, i) => (
-              <div key={i} className="h-14 rounded-2xl animate-pulse" style={{ background: 'rgba(255,255,255,0.05)' }} />
+              <div key={i} className="h-14 rounded-lg animate-pulse" style={{ background: 'var(--pg-surface-raised)' }} />
             ))}
           </div>
         ) : following.length === 0 ? (
@@ -96,8 +97,8 @@ export default function BucketListSheet({ user, onClose }) {
             <p className="text-sm text-muted-foreground">Follow artists, teams & venues to track posts and get notified about shows near you</p>
             <button
               onClick={() => setTab('search')}
-              className="mt-2 flex items-center gap-2 mx-auto px-5 py-2.5 rounded-2xl font-bold text-sm"
-              style={{ background: 'rgba(255,230,0,0.15)', color: '#FFE600', border: '1px solid rgba(255,230,0,0.3)' }}
+              className="mt-2 flex items-center gap-2 mx-auto px-5 py-2.5 rounded-lg font-bold text-sm"
+              style={{ background: 'color-mix(in srgb, var(--pg-yellow) 15%, transparent)', color: 'var(--neon-yellow)', border: '1px solid color-mix(in srgb, var(--neon-yellow) 30%, transparent)' }}
             >
               <Plus className="w-4 h-4" /> Add Artists & Venues
             </button>
@@ -106,7 +107,7 @@ export default function BucketListSheet({ user, onClose }) {
           <div className="space-y-4 pt-1">
             {artists.length > 0 && (
               <div>
-                <p className="text-[10px] font-black tracking-widest uppercase mb-2" style={{ color: '#FF99CC' }}>Artists / Teams</p>
+                <p className="text-[10px] font-black tracking-widest uppercase mb-2" style={{ color: 'var(--neon-pink)' }}>Artists / Teams</p>
                 <div className="space-y-2">
                   {artists.map(item => <FollowingRow key={item.id} item={item} onUnfollow={handleUnfollow} />)}
                 </div>
@@ -114,7 +115,7 @@ export default function BucketListSheet({ user, onClose }) {
             )}
             {venues.length > 0 && (
               <div>
-                <p className="text-[10px] font-black tracking-widest uppercase mb-2" style={{ color: '#66FFFF' }}>Venues</p>
+                <p className="text-[10px] font-black tracking-widest uppercase mb-2" style={{ color: 'var(--neon-cyan)' }}>Venues</p>
                 <div className="space-y-2">
                   {venues.map(item => <FollowingRow key={item.id} item={item} onUnfollow={handleUnfollow} />)}
                 </div>
@@ -130,21 +131,21 @@ export default function BucketListSheet({ user, onClose }) {
 function FollowingRow({ item, onUnfollow }) {
   const isVenue = item.type === 'venue';
   return (
-    <div className="flex items-center gap-3 px-3 py-2.5 rounded-2xl"
-      style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+    <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg"
+      style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-surface-raised)' }}>
       {item.image_url
-        ? <img src={item.image_url} alt="" className="w-10 h-10 rounded-xl object-cover flex-shrink-0" />
-        : <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
-            style={{ background: 'rgba(255,255,255,0.06)' }}>{isVenue ? '🏟️' : '🎤'}</div>
+        ? <img src={item.image_url} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
+        : <div className="w-10 h-10 rounded-lg flex items-center justify-center text-xl flex-shrink-0"
+            style={{ background: 'var(--pg-surface-raised)' }}>{isVenue ? '🏟️' : '🎤'}</div>
       }
       <div className="flex-1 min-w-0">
         <p className="text-sm font-bold text-foreground truncate">{item.name}</p>
         <div className="flex items-center gap-1.5 mt-0.5">
           <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full"
             style={{
-              background: isVenue ? 'rgba(102,255,255,0.12)' : 'rgba(255,153,204,0.12)',
-              color: isVenue ? '#66FFFF' : '#FF99CC',
-              border: `1px solid ${isVenue ? 'rgba(102,255,255,0.25)' : 'rgba(255,153,204,0.25)'}`,
+              background: isVenue ? 'color-mix(in srgb, var(--pg-cyan) 12%, transparent)' : 'color-mix(in srgb, var(--pg-pink) 12%, transparent)',
+              color: isVenue ? 'var(--neon-cyan)' : 'var(--neon-pink)',
+              border: `1px solid ${isVenue ? 'color-mix(in srgb, var(--pg-cyan) 25%, transparent)' : 'color-mix(in srgb, var(--pg-pink) 25%, transparent)'}`,
             }}>
             {isVenue ? 'VENUE' : 'ARTIST'}
           </span>
@@ -152,9 +153,10 @@ function FollowingRow({ item, onUnfollow }) {
         </div>
       </div>
       <button
+        aria-label={`Remove ${item.name} from bucket list`}
         onClick={() => onUnfollow(item)}
-        className="w-8 h-8 flex items-center justify-center rounded-xl transition-all"
-        style={{ background: 'rgba(255,45,120,0.1)', color: '#FF2D78', border: '1px solid rgba(255,45,120,0.2)' }}
+        className="w-8 h-8 flex items-center justify-center rounded-lg transition-all"
+        style={{ background: 'color-mix(in srgb, var(--pg-pink) 10%, transparent)', color: 'var(--neon-pink)', border: '1px solid color-mix(in srgb, var(--neon-pink) 20%, transparent)' }}
       >
         <Trash2 className="w-3.5 h-3.5" />
       </button>

@@ -2,9 +2,9 @@ import { format } from 'date-fns';
 
 function StatCard({ label, value, sub, color }) {
   return (
-    <div className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+    <div className="pg-operations-card rounded-xl p-4" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
       <div className="text-xs text-muted-foreground mb-1">{label}</div>
-      <div className="text-2xl font-black" style={{ color: color || 'hsl(var(--foreground))' }}>{value}</div>
+      <div className="pg-operations-status text-2xl font-black" style={{ '--pg-status-ink': color || 'var(--pg-text)' }}>{value}</div>
       {sub && <div className="text-[10px] text-muted-foreground mt-1">{sub}</div>}
     </div>
   );
@@ -72,13 +72,13 @@ export default function MarketplaceHealth({ purchases, listings, events }) {
             <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Top Events by GMV</h3>
             <div className="space-y-2">
               {topEvents.map(({ event, vol }, i) => (
-                <div key={i} className="flex items-center justify-between px-4 py-3 rounded-xl"
-                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <div key={i} className="pg-operations-card flex items-center justify-between px-4 py-3 rounded-xl"
+                  style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
                   <div>
                     <div className="font-semibold text-foreground text-sm">{event?.title || 'Unknown Event'}</div>
                     <div className="text-xs text-muted-foreground">{event?.venue}</div>
                   </div>
-                  <div className="font-black text-sm" style={{ color: '#00FF87' }}>${vol.toFixed(0)}</div>
+                  <div className="pg-operations-status font-black text-sm" style={{ '--pg-status-ink': '#00FF87' }}>${vol.toFixed(0)}</div>
                 </div>
               ))}
             </div>

@@ -1,16 +1,17 @@
+import '@/components/member-surfaces.css';
 import { useState } from 'react';
 import { CreditCard, TrendingUp, ChevronDown, ChevronUp } from 'lucide-react';
 import { format } from 'date-fns';
 
 const STATUS_CONFIG = {
-  completed:        { label: 'Transfer Complete', color: '#00FF87' },
-  pending_transfer: { label: 'Pending Transfer', color: '#BF5FFF' },
-  disputed:         { label: 'Dispute Open', color: '#FF2D78' },
-  expired:          { label: 'Expired', color: '#FF8C00' },
+  completed:        { label: 'Transfer Complete', color: 'var(--neon-green)' },
+  pending_transfer: { label: 'Pending Transfer', color: 'var(--neon-purple)' },
+  disputed:         { label: 'Dispute Open', color: 'var(--neon-pink)' },
+  expired:          { label: 'Expired', color: 'var(--neon-orange)' },
 };
 
 function statusBadge(s) {
-  const cfg = STATUS_CONFIG[s] || { label: (s || 'Unknown').replace(/_/g, ' '), color: '#BF5FFF' };
+  const cfg = STATUS_CONFIG[s] || { label: (s || 'Unknown').replace(/_/g, ' '), color: 'var(--neon-purple)' };
   return (
     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full capitalize"
       style={{ background: `${cfg.color}18`, color: cfg.color, border: `1px solid ${cfg.color}33` }}>
@@ -53,9 +54,9 @@ export default function TransactionHistorySection({ purchases, sales }) {
   const totalEarned = sales.reduce((s, p) => s + (p.seller_payout || 0), 0);
 
   return (
-    <section>
+    <section className="pg-member-section">
       <h3 className="text-xs font-black tracking-widest uppercase text-muted-foreground mb-3">Purchases, Sales &amp; Payouts</h3>
-      <div className="rounded-2xl overflow-hidden" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+      <div className="rounded-xl overflow-hidden" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
         {/* Summary row */}
         <button
           className="flex items-center gap-3 px-4 py-3.5 w-full text-left"
@@ -65,11 +66,11 @@ export default function TransactionHistorySection({ purchases, sales }) {
           <div className="flex-1 flex gap-5">
             <div>
               <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide">Spent</p>
-              <p className="text-sm font-bold" style={{ color: '#FF2D78' }}>${totalPurchased.toFixed(2)}</p>
+              <p className="text-sm font-bold" style={{ color: 'var(--neon-pink)' }}>${totalPurchased.toFixed(2)}</p>
             </div>
             <div>
               <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide">Earned</p>
-              <p className="text-sm font-bold" style={{ color: '#00FF87' }}>${totalEarned.toFixed(2)}</p>
+              <p className="text-sm font-bold" style={{ color: 'var(--neon-green)' }}>${totalEarned.toFixed(2)}</p>
             </div>
           </div>
           {open ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
@@ -83,10 +84,10 @@ export default function TransactionHistorySection({ purchases, sales }) {
                 <button
                   key={t}
                   onClick={() => setTab(t)}
-                  className="px-3 py-1.5 rounded-full text-xs font-bold capitalize transition-all"
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold capitalize transition-all"
                   style={tab === t
-                    ? { background: 'rgba(191,95,255,0.15)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.3)' }
-                    : { background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }
+                    ? { background: 'rgba(191,95,255,0.15)', color: 'var(--neon-purple)', border: '1px solid rgba(191,95,255,0.3)' }
+                    : { background: 'var(--pg-surface-raised)', color: 'hsl(var(--muted-foreground))', border: '1px solid var(--pg-line)' }
                   }
                 >
                   {t} ({t === 'purchases' ? purchases.length : sales.length})

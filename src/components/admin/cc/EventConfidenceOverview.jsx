@@ -4,14 +4,14 @@ import { formatDistanceToNow } from 'date-fns';
 import { RefreshCw, ShieldCheck, XCircle, Eye, TrendingUp, Anchor } from 'lucide-react';
 
 const REC_META = {
-  open: { label: 'Open', color: '#00FF87', bg: 'rgba(0,255,135,0.08)', border: 'rgba(0,255,135,0.3)', icon: '✅' },
-  likely_open: { label: 'Likely Open', color: '#00C8FF', bg: 'rgba(0,200,255,0.08)', border: 'rgba(0,200,255,0.25)', icon: '🙂' },
-  closing_soon: { label: 'Closing Soon', color: '#FF8C00', bg: 'rgba(255,140,0,0.08)', border: 'rgba(255,140,0,0.3)', icon: '⚠️' },
-  closed: { label: 'Closed', color: '#FF2D78', bg: 'rgba(255,45,120,0.08)', border: 'rgba(255,45,120,0.3)', icon: '🚫' },
-  unknown: { label: 'Unknown', color: '#BF5FFF', bg: 'rgba(191,95,255,0.08)', border: 'rgba(191,95,255,0.25)', icon: '❓' },
-  admin_review: { label: 'Admin Review', color: '#FFE600', bg: 'rgba(255,230,0,0.08)', border: 'rgba(255,230,0,0.3)', icon: '🧐' },
-  manually_verified_open: { label: 'Admin: Open', color: '#00FF87', bg: 'rgba(0,255,135,0.08)', border: 'rgba(0,255,135,0.3)', icon: '🛡️' },
-  manually_verified_closed: { label: 'Admin: Closed', color: '#FF2D78', bg: 'rgba(255,45,120,0.08)', border: 'rgba(255,45,120,0.3)', icon: '🛡️' },
+  open: { label: 'Open', color: '#00FF87', bg: 'color-mix(in srgb, rgb(0 255 135) 8%, var(--pg-surface))', border: 'rgba(0,255,135,0.3)', icon: '✅' },
+  likely_open: { label: 'Likely Open', color: '#00C8FF', bg: 'color-mix(in srgb, rgb(0 200 255) 8%, var(--pg-surface))', border: 'rgba(0,200,255,0.25)', icon: '🙂' },
+  closing_soon: { label: 'Closing Soon', color: '#FF8C00', bg: 'color-mix(in srgb, rgb(255 140 0) 8%, var(--pg-surface))', border: 'rgba(255,140,0,0.3)', icon: '⚠️' },
+  closed: { label: 'Closed', color: '#FF2D78', bg: 'color-mix(in srgb, rgb(255 45 120) 8%, var(--pg-surface))', border: 'rgba(255,45,120,0.3)', icon: '🚫' },
+  unknown: { label: 'Unknown', color: '#BF5FFF', bg: 'color-mix(in srgb, rgb(191 95 255) 8%, var(--pg-surface))', border: 'rgba(191,95,255,0.25)', icon: '❓' },
+  admin_review: { label: 'Admin Review', color: '#FFE600', bg: 'color-mix(in srgb, rgb(255 230 0) 8%, var(--pg-surface))', border: 'rgba(255,230,0,0.3)', icon: '🧐' },
+  manually_verified_open: { label: 'Admin: Open', color: '#00FF87', bg: 'color-mix(in srgb, rgb(0 255 135) 8%, var(--pg-surface))', border: 'rgba(0,255,135,0.3)', icon: '🛡️' },
+  manually_verified_closed: { label: 'Admin: Closed', color: '#FF2D78', bg: 'color-mix(in srgb, rgb(255 45 120) 8%, var(--pg-surface))', border: 'rgba(255,45,120,0.3)', icon: '🛡️' },
 };
 
 const EVIDENCE_LABELS = {
@@ -59,7 +59,7 @@ function EvidenceBreakdown({ evidence }) {
         return (
           <div key={key} className="flex items-center justify-between text-[10px]">
             <span className="text-muted-foreground truncate flex-1 min-w-0 pr-2">{EVIDENCE_LABELS[key] || key}</span>
-            <span className="font-bold flex-shrink-0" style={{ color: positive ? '#00FF87' : '#FF2D78' }}>
+            <span className="pg-operations-status font-bold flex-shrink-0" style={{ '--pg-status-ink': positive ? '#00FF87' : '#FF2D78' }}>
               {positive ? '+' : ''}{Math.round(val)}
             </span>
           </div>
@@ -142,8 +142,8 @@ export default function EventConfidenceOverview() {
   };
 
   return (
-    <div className="rounded-2xl p-4 space-y-4"
-      style={{ background: 'rgba(191,95,255,0.04)', border: '1px solid rgba(191,95,255,0.18)' }}>
+    <div className="pg-operations-card rounded-2xl p-4 space-y-4"
+      style={{ background: 'color-mix(in srgb, rgb(191 95 255) 4%, var(--pg-surface))', border: '1px solid rgba(191,95,255,0.18)' }}>
       <div className="flex items-center justify-between">
         <div>
           <h3 className="font-bold text-sm text-foreground flex items-center gap-1.5">
@@ -168,9 +168,9 @@ export default function EventConfidenceOverview() {
           { label: 'Unknown', value: counts.unknown, color: '#BF5FFF' },
           { label: 'Review', value: counts.admin_review, color: '#FFE600' },
         ].map(s => (
-          <div key={s.label} className="rounded-xl p-2 text-center"
-            style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${s.value > 0 ? s.color + '30' : 'rgba(255,255,255,0.06)'}` }}>
-            <div className="text-base font-black" style={{ color: s.color }}>{s.value}</div>
+          <div key={s.label} className="pg-operations-card rounded-xl p-2 text-center"
+            style={{ background: 'var(--pg-surface)', border: `1px solid ${s.value > 0 ? s.color + '30' : 'var(--pg-line)'}` }}>
+            <div className="pg-operations-status text-base font-black" style={{ '--pg-status-ink': s.color }}>{s.value}</div>
             <div className="text-[8px] text-muted-foreground leading-tight">{s.label}</div>
           </div>
         ))}
@@ -178,10 +178,10 @@ export default function EventConfidenceOverview() {
 
       {/* Venue historical rates */}
       {topVenues.length > 0 && (
-        <div className="rounded-xl p-3 space-y-1.5"
-          style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+        <div className="pg-operations-card rounded-xl p-3 space-y-1.5"
+          style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
           <div className="text-[11px] font-bold text-foreground flex items-center gap-1.5">
-            <TrendingUp className="w-3.5 h-3.5" style={{ color: '#00FF87' }} /> Learned Venue Transfer Rates
+            <TrendingUp className="pg-operations-status w-3.5 h-3.5" style={{ '--pg-status-ink': '#00FF87' }} /> Learned Venue Transfer Rates
           </div>
           {topVenues.map(([venue, v]) => {
             const pct = Math.round((v.success / v.total) * 100);
@@ -189,7 +189,7 @@ export default function EventConfidenceOverview() {
               <div key={venue} className="flex items-center justify-between text-[11px]">
                 <span className="text-muted-foreground truncate flex-1 min-w-0 pr-2">{venue}</span>
                 <span className="flex items-center gap-2 flex-shrink-0">
-                  <span style={{ color: pct >= 70 ? '#00FF87' : pct >= 40 ? '#FF8C00' : '#FF2D78' }}>{pct}% success</span>
+                  <span className="pg-operations-status" style={{ '--pg-status-ink': pct >= 70 ? '#00FF87' : pct >= 40 ? '#FF8C00' : '#FF2D78' }}>{pct}% success</span>
                   <span className="text-muted-foreground">({v.total})</span>
                 </span>
               </div>
@@ -200,7 +200,7 @@ export default function EventConfidenceOverview() {
 
       {/* Event list */}
       {loading ? (
-        <div className="space-y-2">{[1, 2, 3].map(i => <div key={i} className="h-24 rounded-xl bg-white/5 animate-pulse" />)}</div>
+        <div className="space-y-2">{[1, 2, 3].map(i => <div key={i} className="pg-operations-card h-24 rounded-xl pg-operations-skeleton animate-pulse" />)}</div>
       ) : sorted.length === 0 ? (
         <p className="text-xs text-muted-foreground text-center py-4">No events loaded.</p>
       ) : (
@@ -214,15 +214,15 @@ export default function EventConfidenceOverview() {
             const mom = ev.transfer_confidence_momentum;
             const updated = ev.transfer_confidence_last_updated ? formatDistanceToNow(new Date(ev.transfer_confidence_last_updated), { addSuffix: true }) : null;
             return (
-              <div key={ev.id} className="rounded-xl p-3 space-y-2.5"
-                style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+              <div key={ev.id} className="pg-operations-card rounded-xl p-3 space-y-2.5"
+                style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <div className="font-semibold text-xs text-foreground truncate">{ev.title || ev.id}</div>
                     <div className="text-[10px] text-muted-foreground truncate">{ev.venue}{ev.city ? ` · ${ev.city}` : ''}</div>
                   </div>
-                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
-                    style={{ background: meta.bg, color: meta.color, border: `1px solid ${meta.border}` }}>
+                  <span className="pg-operations-status text-[9px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
+                    style={{ background: meta.bg, '--pg-status-ink': meta.color, border: `1px solid ${meta.border}` }}>
                     {meta.icon} {meta.label}
                   </span>
                 </div>
@@ -230,18 +230,18 @@ export default function EventConfidenceOverview() {
                 {/* Directional score bars */}
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-2">
-                    <span className="text-[9px] font-bold w-12 flex-shrink-0" style={{ color: closedColor(cc) }}>CLOSED</span>
-                    <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                    <span className="pg-operations-status text-[9px] font-bold w-12 flex-shrink-0" style={{ '--pg-status-ink': closedColor(cc) }}>CLOSED</span>
+                    <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--pg-surface-raised)' }}>
                       <div className="h-full rounded-full transition-all" style={{ width: `${cc ?? 0}%`, background: closedColor(cc) }} />
                     </div>
-                    <span className="text-[10px] font-black w-6 text-right flex-shrink-0" style={{ color: closedColor(cc) }}>{cc ?? '—'}</span>
+                    <span className="pg-operations-status text-[10px] font-black w-6 text-right flex-shrink-0" style={{ '--pg-status-ink': closedColor(cc) }}>{cc ?? '—'}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[9px] font-bold w-12 flex-shrink-0" style={{ color: openColor(oc) }}>OPEN</span>
-                    <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                    <span className="pg-operations-status text-[9px] font-bold w-12 flex-shrink-0" style={{ '--pg-status-ink': openColor(oc) }}>OPEN</span>
+                    <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--pg-surface-raised)' }}>
                       <div className="h-full rounded-full transition-all" style={{ width: `${oc ?? 0}%`, background: openColor(oc) }} />
                     </div>
-                    <span className="text-[10px] font-black w-6 text-right flex-shrink-0" style={{ color: openColor(oc) }}>{oc ?? '—'}</span>
+                    <span className="pg-operations-status text-[10px] font-black w-6 text-right flex-shrink-0" style={{ '--pg-status-ink': openColor(oc) }}>{oc ?? '—'}</span>
                   </div>
                 </div>
 
@@ -253,7 +253,7 @@ export default function EventConfidenceOverview() {
                   <div className="flex items-center gap-2 text-[9px] text-muted-foreground">
                     <Anchor className="w-3 h-3 flex-shrink-0" />
                     {mom.bypassed ? (
-                      <span style={{ color: '#BF5FFF' }}>Momentum bypassed (authoritative source)</span>
+                      <span className="pg-operations-status" style={{ '--pg-status-ink': '#BF5FFF' }}>Momentum bypassed (authoritative source)</span>
                     ) : mom.open == null ? (
                       <span>First scan</span>
                     ) : (
@@ -264,21 +264,21 @@ export default function EventConfidenceOverview() {
                 {updated && <p className="text-[9px] text-muted-foreground opacity-60">Updated {updated}</p>}
 
                 {/* Override controls */}
-                <div className="flex flex-wrap gap-1.5 pt-1 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+                <div className="flex flex-wrap gap-1.5 pt-1 border-t" style={{ borderColor: 'var(--pg-line)' }}>
                   <button onClick={() => override(ev, 'manually_verified_open')} disabled={!!busy}
-                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold disabled:opacity-40"
-                    style={{ background: 'rgba(0,255,135,0.08)', color: '#00FF87', border: '1px solid rgba(0,255,135,0.25)' }}>
+                    className="pg-operations-status flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold disabled:opacity-40"
+                    style={{ background: 'color-mix(in srgb, rgb(0 255 135) 8%, var(--pg-surface))', '--pg-status-ink': '#00FF87', border: '1px solid rgba(0,255,135,0.25)' }}>
                     <ShieldCheck className="w-3 h-3" /> Mark Open
                   </button>
                   <button onClick={() => override(ev, 'manually_verified_closed')} disabled={!!busy}
-                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold disabled:opacity-40"
-                    style={{ background: 'rgba(255,45,120,0.08)', color: '#FF2D78', border: '1px solid rgba(255,45,120,0.25)' }}>
+                    className="pg-operations-status flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold disabled:opacity-40"
+                    style={{ background: 'color-mix(in srgb, rgb(255 45 120) 8%, var(--pg-surface))', '--pg-status-ink': '#FF2D78', border: '1px solid rgba(255,45,120,0.25)' }}>
                     <XCircle className="w-3 h-3" /> Mark Closed
                   </button>
                   {isOverride && (
                     <button onClick={() => clearOverride(ev)} disabled={!!busy}
-                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold disabled:opacity-40"
-                      style={{ background: 'rgba(255,230,0,0.08)', color: '#FFE600', border: '1px solid rgba(255,230,0,0.25)' }}>
+                      className="pg-operations-status flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold disabled:opacity-40"
+                      style={{ background: 'color-mix(in srgb, rgb(255 230 0) 8%, var(--pg-surface))', '--pg-status-ink': '#FFE600', border: '1px solid rgba(255,230,0,0.25)' }}>
                       <Eye className="w-3 h-3" /> Clear Override
                     </button>
                   )}

@@ -1,3 +1,4 @@
+import '@/components/admin/operations-theme.css';
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useAuth } from '@/lib/AuthContext';
@@ -159,7 +160,7 @@ export default function AdminMode() {
 
   if (!unlocked) {
     return (
-      <div className="max-w-sm mx-auto px-4 py-20">
+      <div className="pg-operations-page pg-operations-unlock max-w-sm mx-auto px-4 py-20">
         <div className="text-center mb-8">
           <div className="text-4xl mb-3">🥜</div>
           <h1 className="text-2xl font-bold">Admin Mode</h1>
@@ -194,8 +195,8 @@ export default function AdminMode() {
   const autoReviewQueue = purchases.filter(p => p.auto_review_flagged && p.transfer_status === 'pending_transfer');
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
-      <div className="flex items-center gap-3 mb-8">
+    <div className="pg-operations-page pg-legacy-operations max-w-4xl mx-auto px-4 py-8">
+      <div className="pg-operations-heading flex items-center gap-3 mb-8">
         <Shield className="w-7 h-7 text-primary" />
         <div>
           <h1 className="text-2xl font-bold">Admin Mode</h1>
@@ -211,23 +212,23 @@ export default function AdminMode() {
       </div>
 
       {/* Beta QA link */}
-      <div className="bg-card border border-border rounded-2xl p-5 mb-6 flex items-center justify-between gap-4">
+      <div className="pg-operations-card bg-card border border-border rounded-2xl p-5 mb-6 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <FlaskConical className="w-5 h-5" style={{ color: '#BF5FFF' }} />
+          <FlaskConical className="pg-operations-status w-5 h-5" style={{ '--pg-status-ink': '#BF5FFF' }} />
           <div>
             <h2 className="font-bold">Beta QA Dashboard</h2>
             <p className="text-sm text-muted-foreground mt-0.5">Checklists, bug tracking, feedback, and operational risks.</p>
           </div>
         </div>
         <Link to="/beta-qa"
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm whitespace-nowrap"
-          style={{ background: 'rgba(191,95,255,0.12)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.3)' }}>
+          className="pg-operations-status flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm whitespace-nowrap"
+          style={{ background: 'color-mix(in srgb, rgb(191 95 255) 12%, var(--pg-surface))', '--pg-status-ink': '#BF5FFF', border: '1px solid rgba(191,95,255,0.3)' }}>
           Open QA →
         </Link>
       </div>
 
       {/* Stripe Mode Status */}
-      <div className="bg-card border border-border rounded-2xl p-5 mb-6">
+      <div className="pg-operations-card bg-card border border-border rounded-2xl p-5 mb-6">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <CreditCard className="w-5 h-5 text-primary" />
@@ -301,7 +302,7 @@ export default function AdminMode() {
       </div>
 
       {/* Replay Onboarding */}
-      <div className="bg-card border border-border rounded-2xl p-5 mb-6">
+      <div className="pg-operations-card bg-card border border-border rounded-2xl p-5 mb-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <h2 className="font-bold text-lg">Replay Onboarding</h2>
@@ -317,7 +318,7 @@ export default function AdminMode() {
       </div>
 
       {/* Seed Demo Inventory */}
-      <div className="bg-card border border-border rounded-2xl p-5 mb-6">
+      <div className="pg-operations-card bg-card border border-border rounded-2xl p-5 mb-6">
         <div className="flex items-center gap-2 mb-3">
           <Database className="w-5 h-5 text-primary" />
           <h2 className="font-bold text-lg">Seed Demo Inventory</h2>
@@ -375,7 +376,7 @@ export default function AdminMode() {
       <AIVerificationQueue purchases={purchases} events={events} listings={listings} onRefresh={loadData} />
 
       {/* Proof Review */}
-      <div className="bg-card border border-border rounded-2xl p-5 mb-6">
+      <div className="pg-operations-card bg-card border border-border rounded-2xl p-5 mb-6">
         <h2 className="font-bold text-lg mb-4">Flagged Listings ({pendingProof.length} pending review)</h2>
         {pendingProof.length === 0 ? (
           <p className="text-sm text-muted-foreground">No listings pending proof review.</p>
@@ -429,18 +430,18 @@ export default function AdminMode() {
 
       {/* CRITICAL-B: Auto-Review Queue — buyer inactive 24h after seller confirms */}
       {autoReviewQueue.length > 0 && (
-        <div className="bg-card border-2 rounded-2xl p-5 mb-6" style={{ borderColor: 'rgba(255,45,120,0.5)', background: 'rgba(255,45,120,0.06)' }}>
+        <div className="pg-operations-card bg-card border-2 rounded-2xl p-5 mb-6" style={{ borderColor: 'rgba(255,45,120,0.5)', background: 'color-mix(in srgb, rgb(255 45 120) 6%, var(--pg-surface))' }}>
           <div className="flex items-center gap-2 mb-4">
-            <AlertTriangle className="w-5 h-5" style={{ color: '#FF2D78' }} />
+            <AlertTriangle className="pg-operations-status w-5 h-5" style={{ '--pg-status-ink': '#FF2D78' }} />
             <h2 className="font-bold text-lg text-foreground">🚨 Auto-Review Queue ({autoReviewQueue.length})</h2>
-            <span className="text-xs px-2 py-0.5 rounded-full font-bold" style={{ background: 'rgba(255,45,120,0.15)', color: '#FF2D78', border: '1px solid rgba(255,45,120,0.4)' }}>Action Required</span>
+            <span className="pg-operations-status text-xs px-2 py-0.5 rounded-full font-bold" style={{ background: 'color-mix(in srgb, rgb(255 45 120) 15%, var(--pg-surface))', '--pg-status-ink': '#FF2D78', border: '1px solid rgba(255,45,120,0.4)' }}>Action Required</span>
           </div>
           <p className="text-xs text-muted-foreground mb-4">Buyer inactive 24h after seller confirmed. Review each case before approving payout capture. Do NOT approve if transfer is unverified.</p>
           <div className="space-y-4">
             {autoReviewQueue.map(p => {
               const event = events[p.event_id];
               return (
-                <div key={p.id} className="rounded-xl p-4 text-sm space-y-3" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,45,120,0.3)' }}>
+                <div key={p.id} className="pg-operations-card rounded-xl p-4 text-sm space-y-3" style={{ background: 'var(--pg-surface)', border: '1px solid rgba(255,45,120,0.3)' }}>
                   <div className="flex items-start justify-between gap-2 flex-wrap">
                     <div>
                       <div className="font-semibold text-foreground">{event?.title || p.event_id}</div>
@@ -449,7 +450,7 @@ export default function AdminMode() {
                     </div>
                   </div>
                   {(p.transfer_proof_url || p.transfer_notes) ? (
-                    <div className="rounded-lg p-2.5 text-xs space-y-1" style={{ background: 'rgba(0,255,135,0.06)', border: '1px solid rgba(0,255,135,0.2)' }}>
+                    <div className="rounded-lg p-2.5 text-xs space-y-1" style={{ background: 'color-mix(in srgb, rgb(0 255 135) 6%, var(--pg-surface))', border: '1px solid rgba(0,255,135,0.2)' }}>
                       <div className="text-xs font-bold text-muted-foreground uppercase tracking-wide">Seller Proof</div>
                       {p.transfer_notes && <p className="text-foreground">{p.transfer_notes}</p>}
                       {p.transfer_proof_url && <a href={p.transfer_proof_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">View screenshot ↗</a>}
@@ -461,15 +462,15 @@ export default function AdminMode() {
                     <button
                       onClick={() => handleCaptureAdmin(p)}
                       disabled={!!actionLoading || !p.transfer_proof_url}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-40"
-                      style={{ background: 'rgba(0,255,135,0.12)', color: '#00FF87', border: '1px solid rgba(0,255,135,0.3)' }}>
+                      className="pg-operations-status flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-40"
+                      style={{ background: 'color-mix(in srgb, rgb(0 255 135) 12%, var(--pg-surface))', '--pg-status-ink': '#00FF87', border: '1px solid rgba(0,255,135,0.3)' }}>
                       <CheckCircle className="w-3.5 h-3.5" /> Approve Capture
                     </button>
                     <button
                       onClick={() => handleDisputeAction(p, 'refund_buyer')}
                       disabled={!!actionLoading}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
-                      style={{ background: 'rgba(0,200,255,0.1)', color: '#00C8FF', border: '1px solid rgba(0,200,255,0.3)' }}>
+                      className="pg-operations-status flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
+                      style={{ background: 'color-mix(in srgb, rgb(0 200 255) 10%, var(--pg-surface))', '--pg-status-ink': '#00C8FF', border: '1px solid rgba(0,200,255,0.3)' }}>
                       <XCircle className="w-3.5 h-3.5" /> Refund Buyer
                     </button>
                   </div>
@@ -481,7 +482,7 @@ export default function AdminMode() {
       )}
 
       {/* Dispute Queue */}
-      <div className="bg-card border border-border rounded-2xl p-5 mb-6">
+      <div className="pg-operations-card bg-card border border-border rounded-2xl p-5 mb-6">
         <div className="flex items-center gap-2 mb-4">
           <AlertTriangle className="w-5 h-5 text-amber-500" />
           <h2 className="font-bold text-lg">Dispute Queue ({disputedPurchases.length})</h2>
@@ -493,7 +494,7 @@ export default function AdminMode() {
             {disputedPurchases.map(p => {
               const event = events[p.event_id];
               return (
-                <div key={p.id} className="border border-amber-500/30 bg-amber-500/10 rounded-xl p-4 text-sm space-y-3">
+                <div key={p.id} className="pg-operations-card border border-amber-500/30 bg-amber-500/10 rounded-xl p-4 text-sm space-y-3">
                   {/* Header row */}
                   <div className="flex items-start justify-between gap-2 flex-wrap">
                     <div>
@@ -596,7 +597,7 @@ export default function AdminMode() {
       <EventTimingDebug />
 
       {/* Escrow Dashboard */}
-      <div className="bg-card border border-border rounded-2xl p-5">
+      <div className="pg-operations-card bg-card border border-border rounded-2xl p-5">
         <h2 className="font-bold text-lg mb-4">Escrow Dashboard ({activePurchases.length} active)</h2>
         {activePurchases.length === 0 ? (
           <p className="text-sm text-muted-foreground">No active purchases in escrow.</p>

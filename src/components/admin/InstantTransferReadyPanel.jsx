@@ -4,13 +4,13 @@ import { format } from 'date-fns';
 import { RefreshCw, AlertTriangle, CheckCircle, RotateCcw, XCircle, Package } from 'lucide-react';
 
 const CUSTODY_LABELS = {
-  not_received: { label: 'Not Received', color: '#FF8C00', bg: 'rgba(255,140,0,0.1)' },
-  pending:      { label: 'Pending',       color: '#FFE600', bg: 'rgba(255,230,0,0.1)' },
-  received:     { label: 'Received ✓',   color: '#00C8FF', bg: 'rgba(0,200,255,0.1)' },
-  delivered_to_buyer: { label: 'Delivered to Buyer', color: '#00FF87', bg: 'rgba(0,255,135,0.1)' },
-  returned_to_seller: { label: 'Returned to Seller', color: '#BF5FFF', bg: 'rgba(191,95,255,0.1)' },
-  failed:  { label: 'Failed',   color: '#FF2D78', bg: 'rgba(255,45,120,0.1)' },
-  expired: { label: 'Expired',  color: '#666',    bg: 'rgba(102,102,102,0.1)' },
+  not_received: { label: 'Not Received', color: '#FF8C00', bg: 'color-mix(in srgb, rgb(255 140 0) 10%, var(--pg-surface))' },
+  pending:      { label: 'Pending',       color: '#FFE600', bg: 'color-mix(in srgb, rgb(255 230 0) 10%, var(--pg-surface))' },
+  received:     { label: 'Received ✓',   color: '#00C8FF', bg: 'color-mix(in srgb, rgb(0 200 255) 10%, var(--pg-surface))' },
+  delivered_to_buyer: { label: 'Delivered to Buyer', color: '#00FF87', bg: 'color-mix(in srgb, rgb(0 255 135) 10%, var(--pg-surface))' },
+  returned_to_seller: { label: 'Returned to Seller', color: '#BF5FFF', bg: 'color-mix(in srgb, rgb(191 95 255) 10%, var(--pg-surface))' },
+  failed:  { label: 'Failed',   color: '#FF2D78', bg: 'color-mix(in srgb, rgb(255 45 120) 10%, var(--pg-surface))' },
+  expired: { label: 'Expired',  color: '#666',    bg: 'color-mix(in srgb, rgb(102 102 102) 10%, var(--pg-surface))' },
 };
 
 const STATUS_TRANSITIONS = [
@@ -104,17 +104,17 @@ export default function InstantTransferReadyPanel() {
             Listings where sellers authorized PG as limited transfer agent. PG does not own these tickets.
           </p>
         </div>
-        <button onClick={load} className="p-2 rounded-xl" style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}>
+        <button onClick={load} className="p-2 rounded-xl" style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)' }}>
           <RefreshCw className="w-4 h-4 text-muted-foreground" />
         </button>
       </div>
 
       {/* Disclaimer banner */}
-      <div className="flex items-start gap-3 px-4 py-3 rounded-2xl"
-        style={{ background: 'rgba(255,140,0,0.08)', border: '1px solid rgba(255,140,0,0.25)' }}>
-        <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#FF8C00' }} />
-        <p className="text-xs leading-relaxed" style={{ color: 'rgba(255,200,130,0.9)' }}>
-          PG acts as a <strong style={{ color: '#FF8C00' }}>limited transfer agent only</strong>. Sellers retain ownership. Do not mark "Received" unless the ticket has been physically transferred to the PG account. Refund buyers immediately if delivery fails.
+      <div className="pg-operations-card flex items-start gap-3 px-4 py-3 rounded-2xl"
+        style={{ background: 'color-mix(in srgb, rgb(255 140 0) 8%, var(--pg-surface))', border: '1px solid rgba(255,140,0,0.25)' }}>
+        <AlertTriangle className="pg-operations-status w-4 h-4 flex-shrink-0 mt-0.5" style={{ '--pg-status-ink': '#FF8C00' }} />
+        <p className="pg-operations-status text-xs leading-relaxed" style={{ '--pg-status-ink': 'rgba(255,200,130,0.9)' }}>
+          PG acts as a <strong className="pg-operations-status" style={{ '--pg-status-ink': '#FF8C00' }}>limited transfer agent only</strong>. Sellers retain ownership. Do not mark "Received" unless the ticket has been physically transferred to the PG account. Refund buyers immediately if delivery fails.
         </p>
       </div>
 
@@ -130,8 +130,8 @@ export default function InstantTransferReadyPanel() {
             const isExpanded = expandedId === listing.id;
 
             return (
-              <div key={listing.id} className="rounded-2xl overflow-hidden"
-                style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+              <div key={listing.id} className="pg-operations-card rounded-2xl overflow-hidden"
+                style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
                 {/* Header row */}
                 <button
                   className="w-full px-4 py-3.5 text-left flex items-center gap-3"
@@ -140,13 +140,13 @@ export default function InstantTransferReadyPanel() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-bold text-sm text-foreground">Sec {listing.section} · Row {listing.row}</span>
-                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full"
-                        style={{ background: custody.bg, color: custody.color }}>
+                      <span className="pg-operations-status text-[10px] font-black px-2 py-0.5 rounded-full"
+                        style={{ background: custody.bg, '--pg-status-ink': custody.color }}>
                         {custody.label}
                       </span>
                       {listing.status === 'cancelled' && (
-                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full"
-                          style={{ background: 'rgba(255,45,120,0.1)', color: '#FF2D78' }}>
+                        <span className="pg-operations-status text-[10px] font-black px-2 py-0.5 rounded-full"
+                          style={{ background: 'color-mix(in srgb, rgb(255 45 120) 10%, var(--pg-surface))', '--pg-status-ink': '#FF2D78' }}>
                           Cancelled
                         </span>
                       )}
@@ -165,7 +165,7 @@ export default function InstantTransferReadyPanel() {
 
                 {/* Expanded detail */}
                 {isExpanded && (
-                  <div className="px-4 pb-4 space-y-4 border-t" style={{ borderColor: 'hsl(var(--border))' }}>
+                  <div className="px-4 pb-4 space-y-4 border-t" style={{ borderColor: 'var(--pg-line)' }}>
                     {/* Key fields */}
                     <div className="grid grid-cols-2 gap-2 pt-3">
                       {[
@@ -178,8 +178,8 @@ export default function InstantTransferReadyPanel() {
                         { label: 'Returned At', value: listing.returned_to_seller_at ? format(new Date(listing.returned_to_seller_at), 'MMM d, h:mm a') : '—' },
                         { label: 'Seller Release Deadline', value: listing.seller_release_deadline ? format(new Date(listing.seller_release_deadline), 'MMM d, h:mm a') : '—' },
                       ].map(({ label, value }) => (
-                        <div key={label} className="px-3 py-2 rounded-xl"
-                          style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}>
+                        <div key={label} className="pg-operations-card px-3 py-2 rounded-xl"
+                          style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)' }}>
                           <p className="text-[10px] text-muted-foreground">{label}</p>
                           <p className="text-xs font-bold text-foreground mt-0.5">{value}</p>
                         </div>
@@ -191,8 +191,8 @@ export default function InstantTransferReadyPanel() {
                       <div>
                         <p className="text-xs font-semibold text-muted-foreground mb-1">Transfer Proof</p>
                         <a href={listing.pg_transfer_proof_url} target="_blank" rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 text-xs font-bold underline"
-                          style={{ color: '#00C8FF' }}>
+                          className="pg-operations-status inline-flex items-center gap-1.5 text-xs font-bold underline"
+                          style={{ '--pg-status-ink': '#00C8FF' }}>
                           View Screenshot ↗
                         </a>
                       </div>
@@ -207,7 +207,7 @@ export default function InstantTransferReadyPanel() {
                         onChange={e => setFailureReason(e.target.value)}
                         placeholder="e.g. Ticket already used, transfer reversed by TM…"
                         className="w-full px-3 py-2 rounded-xl text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
-                        style={{ background: 'hsl(var(--input))', border: '1px solid hsl(var(--border))' }}
+                        style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}
                       />
                     </div>
 
@@ -221,7 +221,7 @@ export default function InstantTransferReadyPanel() {
                             disabled={!!updating || listing.ticket_custody_status === opt.value}
                             onClick={() => updateCustody(listing, opt.value)}
                             className="px-3 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-40 text-left"
-                            style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--foreground))' }}
+                            style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)', color: 'var(--pg-text)' }}
                           >
                             {updating === listing.id ? '…' : opt.label}
                           </button>
@@ -234,16 +234,16 @@ export default function InstantTransferReadyPanel() {
                       <button
                         onClick={() => triggerRefund(listing)}
                         disabled={!!updating}
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-40"
-                        style={{ background: 'rgba(255,45,120,0.1)', border: '1px solid rgba(255,45,120,0.3)', color: '#FF2D78' }}
+                        className="pg-operations-status flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-40"
+                        style={{ background: 'color-mix(in srgb, rgb(255 45 120) 10%, var(--pg-surface))', border: '1px solid rgba(255,45,120,0.3)', '--pg-status-ink': '#FF2D78' }}
                       >
                         <XCircle className="w-3.5 h-3.5" /> Trigger Refund Workflow
                       </button>
                       <button
                         onClick={() => flagSeller(listing)}
                         disabled={!!updating}
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-40"
-                        style={{ background: 'rgba(255,140,0,0.1)', border: '1px solid rgba(255,140,0,0.3)', color: '#FF8C00' }}
+                        className="pg-operations-status flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-40"
+                        style={{ background: 'color-mix(in srgb, rgb(255 140 0) 10%, var(--pg-surface))', border: '1px solid rgba(255,140,0,0.3)', '--pg-status-ink': '#FF8C00' }}
                       >
                         <AlertTriangle className="w-3.5 h-3.5" /> Flag Seller
                       </button>

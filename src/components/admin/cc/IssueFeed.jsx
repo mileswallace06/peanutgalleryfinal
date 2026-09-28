@@ -188,10 +188,10 @@ function buildIssues(purchases, listings, donations, events) {
 }
 
 const SEV_STYLES = {
-  critical: { color: '#FF2D78', bg: 'rgba(255,45,120,0.1)', border: 'rgba(255,45,120,0.35)', label: 'CRITICAL' },
-  high:     { color: '#FF8C00', bg: 'rgba(255,140,0,0.1)',  border: 'rgba(255,140,0,0.35)',  label: 'HIGH' },
-  medium:   { color: '#FFE600', bg: 'rgba(255,230,0,0.08)', border: 'rgba(255,230,0,0.3)',   label: 'MEDIUM' },
-  low:      { color: '#00C8FF', bg: 'rgba(0,200,255,0.06)', border: 'rgba(0,200,255,0.2)',   label: 'LOW' },
+  critical: { color: '#FF2D78', bg: 'color-mix(in srgb, rgb(255 45 120) 10%, var(--pg-surface))', border: 'rgba(255,45,120,0.35)', label: 'CRITICAL' },
+  high:     { color: '#FF8C00', bg: 'color-mix(in srgb, rgb(255 140 0) 10%, var(--pg-surface))',  border: 'rgba(255,140,0,0.35)',  label: 'HIGH' },
+  medium:   { color: '#FFE600', bg: 'color-mix(in srgb, rgb(255 230 0) 8%, var(--pg-surface))', border: 'rgba(255,230,0,0.3)',   label: 'MEDIUM' },
+  low:      { color: '#00C8FF', bg: 'color-mix(in srgb, rgb(0 200 255) 6%, var(--pg-surface))', border: 'rgba(0,200,255,0.2)',   label: 'LOW' },
 };
 
 function IssueCard({ issue, onRefresh }) {
@@ -270,18 +270,18 @@ function IssueCard({ issue, onRefresh }) {
   };
 
   return (
-    <div className="rounded-2xl overflow-hidden" style={{ background: sev.bg, border: `1px solid ${sev.border}` }}>
+    <div className="pg-operations-card rounded-2xl overflow-hidden" style={{ background: sev.bg, border: `1px solid ${sev.border}` }}>
       <div className="px-4 py-3.5">
         {/* Header */}
         <div className="flex items-start gap-3">
-          <span className="text-[9px] font-black px-1.5 py-0.5 rounded mt-0.5 flex-shrink-0"
-            style={{ background: sev.bg, color: sev.color, border: `1px solid ${sev.border}` }}>
+          <span className="pg-operations-status text-[9px] font-black px-1.5 py-0.5 rounded mt-0.5 flex-shrink-0"
+            style={{ background: sev.bg, '--pg-status-ink': sev.color, border: `1px solid ${sev.border}` }}>
             {sev.label}
           </span>
           <div className="flex-1 min-w-0">
             <div className="font-bold text-sm text-foreground">{issue.title}</div>
             <div className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{issue.description}</div>
-            {issue.event && <div className="text-xs font-medium mt-0.5" style={{ color: '#BF5FFF' }}>{issue.event.title}</div>}
+            {issue.event && <div className="pg-operations-status text-xs font-medium mt-0.5" style={{ '--pg-status-ink': '#BF5FFF' }}>{issue.event.title}</div>}
             <div className="text-[10px] text-muted-foreground mt-1">
               {issue.timestamp ? formatRelative(issue.timestamp) : ''}
             </div>
@@ -299,8 +299,8 @@ function IssueCard({ issue, onRefresh }) {
             if (def.isLink) {
               return def.href ? (
                 <a key={key} href={def.href} target="_blank" rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
-                  style={{ background: `${def.color}15`, color: def.color, border: `1px solid ${def.color}40` }}>
+                  className="pg-operations-status inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
+                  style={{ background: `color-mix(in srgb, ${def.color} 8.24%, var(--pg-surface))`, '--pg-status-ink': def.color, border: `1px solid ${def.color}40` }}>
                   <ExternalLink className="w-3 h-3" /> {def.label}
                 </a>
               ) : null;
@@ -310,10 +310,10 @@ function IssueCard({ issue, onRefresh }) {
               <button key={key}
                 disabled={!!loading || def.disabled}
                 onClick={() => def.confirm ? confirm(key, def.label, () => act(key)) : act(key)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all disabled:opacity-40"
+                className="pg-operations-status inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all disabled:opacity-40"
                 style={{
-                  background: isConfirming ? def.color : `${def.color}15`,
-                  color: isConfirming ? '#000' : def.color,
+                  background: isConfirming ? def.color : `color-mix(in srgb, ${def.color} 8.24%, var(--pg-surface))`,
+                  '--pg-status-ink': isConfirming ? '#000' : def.color,
                   border: `1px solid ${def.color}40`,
                 }}>
                 {loading === key
@@ -327,27 +327,27 @@ function IssueCard({ issue, onRefresh }) {
 
       {/* Expanded detail */}
       {expanded && (
-        <div className="px-4 pb-4 space-y-2 border-t" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
+        <div className="px-4 pb-4 space-y-2 border-t" style={{ borderColor: 'var(--pg-line)' }}>
           <div className="pt-3 text-xs rounded-lg px-3 py-2 mt-1"
-            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+            style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
             <div className="font-semibold text-muted-foreground uppercase tracking-wide text-[10px] mb-1">Recommended Action</div>
             <div className="text-foreground">{issue.recommended}</div>
           </div>
           {p && (
             <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="rounded-lg p-2.5" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+              <div className="rounded-lg p-2.5" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
                 <div className="text-muted-foreground text-[10px] mb-1 uppercase font-semibold">Buyer</div>
                 <div className="font-medium text-foreground truncate">{p.buyer_email}</div>
                 {p.buyer_name && <div className="text-muted-foreground">{p.buyer_name}</div>}
               </div>
-              <div className="rounded-lg p-2.5" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+              <div className="rounded-lg p-2.5" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
                 <div className="text-muted-foreground text-[10px] mb-1 uppercase font-semibold">Seller</div>
                 <div className="font-medium text-foreground truncate">{p.seller_email}</div>
               </div>
             </div>
           )}
           {p?.transfer_notes && (
-            <div className="text-xs rounded-lg p-2.5" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <div className="text-xs rounded-lg p-2.5" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
               <div className="text-muted-foreground text-[10px] mb-1 uppercase font-semibold">Transfer Notes</div>
               <div className="text-foreground">{p.transfer_notes}</div>
             </div>
@@ -397,17 +397,17 @@ export default function IssueFeed({ purchases, listings, events, donations, onRe
       <div className="flex gap-2 flex-wrap mb-4">
         {SEV_FILTERS.map(f => (
           <button key={f.key} onClick={() => setSevFilter(f.key)}
-            className="text-xs px-3 py-1.5 rounded-full font-semibold transition-all"
+            className="pg-operations-status text-xs px-3 py-1.5 rounded-full font-semibold transition-all"
             style={sevFilter === f.key
-              ? { background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }
-              : { background: 'rgba(255,255,255,0.06)', color: 'hsl(var(--muted-foreground))', border: '1px solid rgba(255,255,255,0.1)' }}>
+              ? { background: 'var(--pg-violet)', '--pg-status-ink': 'var(--pg-ink)' }
+              : { background: 'var(--pg-surface)', '--pg-status-ink': 'var(--pg-muted)', border: '1px solid var(--pg-line)' }}>
             {f.label}
           </button>
         ))}
       </div>
 
       {filtered.length === 0 ? (
-        <div className="text-center py-16 rounded-2xl" style={{ background: 'rgba(0,255,135,0.05)', border: '1px solid rgba(0,255,135,0.2)' }}>
+        <div className="pg-operations-card text-center py-16 rounded-2xl" style={{ background: 'color-mix(in srgb, rgb(0 255 135) 5%, var(--pg-surface))', border: '1px solid rgba(0,255,135,0.2)' }}>
           <div className="text-3xl mb-3">✅</div>
           <div className="font-bold text-foreground">Everything looks healthy right now.</div>
           <div className="text-sm text-muted-foreground mt-1">No {sevFilter !== 'all' ? sevFilter + ' ' : ''}issues detected.</div>

@@ -1,0 +1,21 @@
+.pg-upgrade-eligibility {
+  color: var(--pg-text);
+  background: var(--pg-surface);
+  border: 1px solid var(--pg-line);
+  border-top: 3px solid var(--pg-orange);
+  border-radius: 6px;
+  box-shadow: inset 0 1px color-mix(in srgb, var(--pg-text) 5%, transparent);
+}
+.pg-upgrade-eligibility .text-foreground { color: var(--pg-text); }
+.pg-upgrade-eligibility .text-muted-foreground { color: var(--pg-muted); }
+.pg-eligibility-row { border-top: 1px dashed var(--pg-line); padding-top: 8px; min-height: 53px; }
+.pg-eligibility-row > div:first-child { min-width: 0; }
+.pg-eligibility-row > div:last-child { flex-shrink: 0; }
+.pg-eligibility-button { min-height: 44px; min-width: 44px; border-radius: 5px; border: 1px solid var(--pg-line); background: var(--pg-surface-raised); }
+.pg-eligibility-button:focus-visible { outline: 2px solid var(--neon-cyan); outline-offset: 3px; }
+.pg-eligibility-checking { color: var(--neon-yellow); }
+.pg-eligibility-passed { color: var(--neon-green); }
+.pg-eligibility-failed { color: var(--neon-pink); }
+.pg-eligibility-demo { color: var(--neon-purple); }
+.pg-eligibility-location { color: var(--neon-cyan); }
+.pg-eligibility-ticket { color: var(--neon-orange); }

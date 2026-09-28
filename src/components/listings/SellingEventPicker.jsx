@@ -1,3 +1,4 @@
+import '@/components/events/detail-ticket.css';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Search, MapPin, LocateFixed, RefreshCw, X, ArrowRight, Clock3 } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
@@ -30,7 +31,7 @@ export default function SellingEventPicker({ initialKeyword = '', initialEventId
   const hasArea = search.request.scope === 'nationwide' || !!(search.request.cityOverride || search.request.ll);
   const noLocalMatches = hasArea && search.request.scope === 'local' && search.request.keyword && !search.loading && !sourceError && !search.result.limited && all.length === 0;
   const resetFilter = action => { setMode('all'); action(); };
-  return <section aria-label="Choose an event" data-ongoing-window={search.result.ongoingCoverage?.discoveryWindow} data-ongoing-as-of={search.result.ongoingCoverage?.endDateTime} className="space-y-5">
+  return <section aria-label="Choose an event" data-ongoing-window={search.result.ongoingCoverage?.discoveryWindow} data-ongoing-as-of={search.result.ongoingCoverage?.endDateTime} className="pg-selling-picker pg-detail-surface space-y-5">
     <div className="flex flex-wrap items-center gap-2">
       <button type="button" onClick={() => resetFilter(search.nearMe)} disabled={search.locationStatus === 'requesting'} className="inline-flex min-h-11 items-center gap-2 rounded-full bg-primary px-3 py-3 text-sm font-bold text-primary-foreground disabled:opacity-50"><LocateFixed className="h-4 w-4" />{search.locationStatus === 'requesting' ? 'Locating…' : 'Near Me'}</button>
       <button type="button" onClick={search.openLocation} aria-expanded={search.editingLocation} aria-controls="selling-location" className="inline-flex min-h-11 items-center gap-2 rounded-full border border-border bg-card px-3 py-3 text-sm font-bold"><MapPin className="h-4 w-4 text-primary" />Change location</button>

@@ -5,8 +5,8 @@ import { format } from 'date-fns';
 
 function StatCard({ label, value, color }) {
   return (
-    <div className="rounded-xl p-4 text-center" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-      <div className="text-2xl font-black" style={{ color: color || 'hsl(var(--foreground))' }}>{value}</div>
+    <div className="pg-operations-card rounded-xl p-4 text-center" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
+      <div className="pg-operations-status text-2xl font-black" style={{ '--pg-status-ink': color || 'var(--pg-text)' }}>{value}</div>
       <div className="text-[10px] text-muted-foreground mt-1">{label}</div>
     </div>
   );
@@ -62,8 +62,8 @@ export default function InstantOpsPanel({ purchases, listings, events, onRefresh
           </h3>
           <div className="space-y-3">
             {awaitingCustody.map(l => (
-              <div key={l.id} className="rounded-xl p-4 text-sm space-y-3"
-                style={{ background: 'rgba(255,140,0,0.08)', border: '1px solid rgba(255,140,0,0.3)' }}>
+              <div key={l.id} className="pg-operations-card rounded-xl p-4 text-sm space-y-3"
+                style={{ background: 'color-mix(in srgb, rgb(255 140 0) 8%, var(--pg-surface))', border: '1px solid rgba(255,140,0,0.3)' }}>
                 <div className="flex items-start justify-between gap-2 flex-wrap">
                   <div>
                     <div className="font-semibold text-foreground">Sec {l.section} Row {l.row} — ${l.asking_price}/ea</div>
@@ -73,16 +73,16 @@ export default function InstantOpsPanel({ purchases, listings, events, onRefresh
                 </div>
                 {l.pg_transfer_proof_url && (
                   <a href={l.pg_transfer_proof_url} target="_blank" rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-xs font-medium"
-                    style={{ color: '#BF5FFF' }}>
+                    className="pg-operations-status inline-flex items-center gap-1.5 text-xs font-medium"
+                    style={{ '--pg-status-ink': '#BF5FFF' }}>
                     <ExternalLink className="w-3 h-3" /> View submitted proof
                   </a>
                 )}
                 <div className="flex gap-2 flex-wrap">
                   <button onClick={() => act('approve_custody', l.id)}
                     disabled={!!loading}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-40"
-                    style={{ background: 'rgba(0,255,135,0.12)', color: '#00FF87', border: '1px solid rgba(0,255,135,0.3)' }}>
+                    className="pg-operations-status flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-40"
+                    style={{ background: 'color-mix(in srgb, rgb(0 255 135) 12%, var(--pg-surface))', '--pg-status-ink': '#00FF87', border: '1px solid rgba(0,255,135,0.3)' }}>
                     {loading === 'approve_custody' + l.id
                       ? <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
                       : <CheckCircle className="w-3 h-3" />}
@@ -90,8 +90,8 @@ export default function InstantOpsPanel({ purchases, listings, events, onRefresh
                   </button>
                   <button onClick={() => act('reject_custody', l.id)}
                     disabled={!!loading}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-40"
-                    style={{ background: 'rgba(255,45,120,0.1)', color: '#FF2D78', border: '1px solid rgba(255,45,120,0.3)' }}>
+                    className="pg-operations-status flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-40"
+                    style={{ background: 'color-mix(in srgb, rgb(255 45 120) 10%, var(--pg-surface))', '--pg-status-ink': '#FF2D78', border: '1px solid rgba(255,45,120,0.3)' }}>
                     <XCircle className="w-3 h-3" /> Reject
                   </button>
                 </div>
@@ -111,14 +111,14 @@ export default function InstantOpsPanel({ purchases, listings, events, onRefresh
             {awaitingFulfillment.map(p => {
               const ev = events[p.event_id];
               return (
-                <div key={p.id} className="rounded-xl p-4 text-sm space-y-2"
-                  style={{ background: 'rgba(0,200,255,0.06)', border: '1px solid rgba(0,200,255,0.2)' }}>
+                <div key={p.id} className="pg-operations-card rounded-xl p-4 text-sm space-y-2"
+                  style={{ background: 'color-mix(in srgb, rgb(0 200 255) 6%, var(--pg-surface))', border: '1px solid rgba(0,200,255,0.2)' }}>
                   <div className="font-semibold text-foreground">{ev?.title || 'Event'}</div>
                   <div className="text-xs text-muted-foreground">
                     Buyer: {p.buyer_email} · ${p.amount?.toFixed(2)}
                   </div>
-                  <div className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full w-fit"
-                    style={{ background: 'rgba(0,200,255,0.1)', color: '#00C8FF', border: '1px solid rgba(0,200,255,0.3)' }}>
+                  <div className="pg-operations-status flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full w-fit"
+                    style={{ background: 'color-mix(in srgb, rgb(0 200 255) 10%, var(--pg-surface))', '--pg-status-ink': '#00C8FF', border: '1px solid rgba(0,200,255,0.3)' }}>
                     Status: {p.fulfillment_status || 'awaiting_pg_transfer'}
                   </div>
                 </div>
@@ -129,7 +129,7 @@ export default function InstantOpsPanel({ purchases, listings, events, onRefresh
       )}
 
       {awaitingCustody.length === 0 && awaitingFulfillment.length === 0 && (
-        <div className="text-center py-10 rounded-2xl" style={{ background: 'rgba(0,255,135,0.04)', border: '1px solid rgba(0,255,135,0.15)' }}>
+        <div className="pg-operations-card text-center py-10 rounded-2xl" style={{ background: 'color-mix(in srgb, rgb(0 255 135) 4%, var(--pg-surface))', border: '1px solid rgba(0,255,135,0.15)' }}>
           <div className="text-2xl mb-2">⚡</div>
           <div className="text-sm text-muted-foreground">No instant ops need attention right now.</div>
         </div>

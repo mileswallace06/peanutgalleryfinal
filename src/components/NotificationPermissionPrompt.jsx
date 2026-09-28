@@ -1,3 +1,4 @@
+import '@/components/member-surfaces.css';
 /**
  * NotificationPermissionPrompt
  * ─────────────────────────────
@@ -55,10 +56,8 @@ export default function NotificationPermissionPrompt({ trigger }) {
 
   return (
     <div
-      className="fixed bottom-24 left-4 right-4 z-50 max-w-sm mx-auto rounded-2xl px-4 py-4 flex items-start gap-3 shadow-xl"
+      className="pg-member-prompt fixed bottom-24 left-4 right-4 z-50 max-w-sm mx-auto px-4 py-4 flex items-start gap-3 shadow-xl"
       style={{
-        background: 'hsl(var(--card))',
-        border: '1px solid hsl(var(--border))',
         boxShadow: '0 8px 32px rgba(0,0,0,0.35)',
       }}
     >
@@ -76,22 +75,22 @@ export default function NotificationPermissionPrompt({ trigger }) {
           <button
             onClick={handleAllow}
             disabled={asking}
-            className="flex-1 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-60"
-            style={{ background: '#BF5FFF', color: '#fff' }}
+            className="pg-member-action flex-1 py-2 text-xs font-bold transition-all disabled:opacity-60"
+            style={{ background: 'var(--pg-violet)', color: 'var(--pg-ink)' }}
           >
             {asking ? 'Asking…' : 'Enable'}
           </button>
           <button
             onClick={handleDismiss}
             className="flex-1 py-2 rounded-xl text-xs font-medium transition-all text-muted-foreground"
-            style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}
+            style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)' }}
           >
             Not now
           </button>
         </div>
       </div>
 
-      <button onClick={handleDismiss} className="flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors">
+      <button onClick={handleDismiss} aria-label="Dismiss notification prompt" className="pg-member-close text-muted-foreground hover:text-foreground transition-colors">
         <X className="w-4 h-4" />
       </button>
     </div>

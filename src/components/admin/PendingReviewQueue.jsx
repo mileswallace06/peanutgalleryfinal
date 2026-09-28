@@ -11,11 +11,11 @@ function ReviewCard({ listing, event, onApprove, onReject, onMessage, loading })
   const isLoading = loading === listing.id;
 
   return (
-    <div className="rounded-2xl overflow-hidden text-sm"
-      style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}>
+    <div className="pg-operations-card rounded-2xl overflow-hidden text-sm"
+      style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
       {/* Header */}
       <div className="px-4 py-3 flex items-start justify-between gap-3"
-        style={{ background: 'rgba(255,230,0,0.06)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+        style={{ background: 'color-mix(in srgb, rgb(255 230 0) 6%, var(--pg-surface))', borderBottom: '1px solid var(--pg-line)' }}>
         <div className="min-w-0">
           <p className="font-bold text-foreground truncate">
             {event?.title || listing.event_id?.slice(0, 16)}
@@ -28,8 +28,8 @@ function ReviewCard({ listing, event, onApprove, onReject, onMessage, loading })
           </p>
         </div>
         <div className="flex flex-col items-end gap-1 flex-shrink-0">
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-            style={{ background: 'rgba(255,230,0,0.15)', color: '#FFE600', border: '1px solid rgba(255,230,0,0.3)' }}>
+          <span className="pg-operations-status text-[10px] font-bold px-2 py-0.5 rounded-full"
+            style={{ background: 'color-mix(in srgb, rgb(255 230 0) 15%, var(--pg-surface))', '--pg-status-ink': '#FFE600', border: '1px solid rgba(255,230,0,0.3)' }}>
             Pending Review
           </span>
           <span className="text-[10px] text-muted-foreground">
@@ -41,8 +41,8 @@ function ReviewCard({ listing, event, onApprove, onReject, onMessage, loading })
       {/* Proof */}
       <div className="px-4 py-3 space-y-2">
         {listing.listing_mode === 'instant' && (
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold"
-            style={{ background: 'rgba(0,200,255,0.1)', color: '#00C8FF', border: '1px solid rgba(0,200,255,0.25)' }}>
+          <div className="pg-operations-status flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold"
+            style={{ background: 'color-mix(in srgb, rgb(0 200 255) 10%, var(--pg-surface))', '--pg-status-ink': '#00C8FF', border: '1px solid rgba(0,200,255,0.25)' }}>
             ⚡ Instant Listing — verify PG has custody before approving
           </div>
         )}
@@ -50,22 +50,22 @@ function ReviewCard({ listing, event, onApprove, onReject, onMessage, loading })
         <div className="flex flex-wrap gap-2">
           {listing.proof_url && (
             <a href={listing.proof_url} target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg"
-              style={{ background: 'rgba(191,95,255,0.1)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.25)' }}>
+              className="pg-operations-status inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg"
+              style={{ background: 'color-mix(in srgb, rgb(191 95 255) 10%, var(--pg-surface))', '--pg-status-ink': '#BF5FFF', border: '1px solid rgba(191,95,255,0.25)' }}>
               <ExternalLink className="w-3 h-3" /> Ticket Proof
             </a>
           )}
           {listing.pg_transfer_proof_url && (
             <a href={listing.pg_transfer_proof_url} target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg"
-              style={{ background: 'rgba(0,200,255,0.1)', color: '#00C8FF', border: '1px solid rgba(0,200,255,0.25)' }}>
+              className="pg-operations-status inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg"
+              style={{ background: 'color-mix(in srgb, rgb(0 200 255) 10%, var(--pg-surface))', '--pg-status-ink': '#00C8FF', border: '1px solid rgba(0,200,255,0.25)' }}>
               <ExternalLink className="w-3 h-3" /> PG Transfer Proof
             </a>
           )}
           {listing.transfer_verification_proof_url && (
             <a href={listing.transfer_verification_proof_url} target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg"
-              style={{ background: 'rgba(0,255,135,0.08)', color: '#00FF87', border: '1px solid rgba(0,255,135,0.2)' }}>
+              className="pg-operations-status inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg"
+              style={{ background: 'color-mix(in srgb, rgb(0 255 135) 8%, var(--pg-surface))', '--pg-status-ink': '#00FF87', border: '1px solid rgba(0,255,135,0.2)' }}>
               <ExternalLink className="w-3 h-3" /> Transfer Verification
             </a>
           )}
@@ -81,19 +81,19 @@ function ReviewCard({ listing, event, onApprove, onReject, onMessage, loading })
         {!showReject && !showMessage && (
           <div className="flex gap-2">
             <button onClick={() => onApprove(listing)} disabled={isLoading}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold disabled:opacity-40"
-              style={{ background: 'rgba(0,255,135,0.1)', color: '#00FF87', border: '1px solid rgba(0,255,135,0.3)' }}>
+              className="pg-operations-status flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold disabled:opacity-40"
+              style={{ background: 'color-mix(in srgb, rgb(0 255 135) 10%, var(--pg-surface))', '--pg-status-ink': '#00FF87', border: '1px solid rgba(0,255,135,0.3)' }}>
               {isLoading ? <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
               Approve
             </button>
             <button onClick={() => setShowReject(true)}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold"
-              style={{ background: 'rgba(255,45,120,0.08)', color: '#FF2D78', border: '1px solid rgba(255,45,120,0.25)' }}>
+              className="pg-operations-status flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold"
+              style={{ background: 'color-mix(in srgb, rgb(255 45 120) 8%, var(--pg-surface))', '--pg-status-ink': '#FF2D78', border: '1px solid rgba(255,45,120,0.25)' }}>
               <XCircle className="w-3.5 h-3.5" /> Reject
             </button>
             <button onClick={() => setShowMessage(true)}
-              className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold"
-              style={{ background: 'rgba(255,230,0,0.08)', color: '#FFE600', border: '1px solid rgba(255,230,0,0.2)' }}>
+              className="pg-operations-status flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold"
+              style={{ background: 'color-mix(in srgb, rgb(255 230 0) 8%, var(--pg-surface))', '--pg-status-ink': '#FFE600', border: '1px solid rgba(255,230,0,0.2)' }}>
               <MessageSquare className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -105,7 +105,7 @@ function ReviewCard({ listing, event, onApprove, onReject, onMessage, loading })
               placeholder="Rejection reason (shown to seller)…"
               rows={2}
               className="w-full px-3 py-2 rounded-xl text-xs text-foreground placeholder:text-muted-foreground focus:outline-none resize-none"
-              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }} />
+              style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }} />
             <div className="flex gap-2">
               <button onClick={() => onReject(listing, rejectReason)} disabled={!rejectReason.trim() || isLoading}
                 className="flex-1 py-2 rounded-xl text-xs font-bold disabled:opacity-40"
@@ -114,7 +114,7 @@ function ReviewCard({ listing, event, onApprove, onReject, onMessage, loading })
               </button>
               <button onClick={() => setShowReject(false)}
                 className="px-4 py-2 rounded-xl text-xs font-semibold text-muted-foreground"
-                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
                 Cancel
               </button>
             </div>
@@ -127,17 +127,17 @@ function ReviewCard({ listing, event, onApprove, onReject, onMessage, loading })
               placeholder="Message to seller…"
               rows={2}
               className="w-full px-3 py-2 rounded-xl text-xs text-foreground placeholder:text-muted-foreground focus:outline-none resize-none"
-              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }} />
+              style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }} />
             <div className="flex gap-2">
               <button onClick={() => { onMessage(listing, message); setShowMessage(false); setMessage(''); }}
                 disabled={!message.trim()}
-                className="flex-1 py-2 rounded-xl text-xs font-bold disabled:opacity-40"
-                style={{ background: 'rgba(255,230,0,0.15)', color: '#FFE600', border: '1px solid rgba(255,230,0,0.3)' }}>
+                className="pg-operations-status flex-1 py-2 rounded-xl text-xs font-bold disabled:opacity-40"
+                style={{ background: 'color-mix(in srgb, rgb(255 230 0) 15%, var(--pg-surface))', '--pg-status-ink': '#FFE600', border: '1px solid rgba(255,230,0,0.3)' }}>
                 Send Message
               </button>
               <button onClick={() => setShowMessage(false)}
                 className="px-4 py-2 rounded-xl text-xs font-semibold text-muted-foreground"
-                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
                 Cancel
               </button>
             </div>
@@ -226,11 +226,11 @@ export default function PendingReviewQueue({ onRefresh }) {
 
       {loading ? (
         <div className="space-y-3">
-          {[1, 2].map(i => <div key={i} className="h-40 rounded-2xl bg-white/5 animate-pulse" />)}
+          {[1, 2].map(i => <div key={i} className="pg-operations-card h-40 rounded-2xl pg-operations-skeleton animate-pulse" />)}
         </div>
       ) : listings.length === 0 ? (
-        <div className="text-center py-12 rounded-2xl"
-          style={{ background: 'rgba(0,255,135,0.05)', border: '1px solid rgba(0,255,135,0.15)' }}>
+        <div className="pg-operations-card text-center py-12 rounded-2xl"
+          style={{ background: 'color-mix(in srgb, rgb(0 255 135) 5%, var(--pg-surface))', border: '1px solid rgba(0,255,135,0.15)' }}>
           <p className="text-2xl mb-2">✅</p>
           <p className="text-sm font-semibold text-foreground">No listings pending review</p>
           <p className="text-xs text-muted-foreground mt-1">All caught up!</p>

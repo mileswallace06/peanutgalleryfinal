@@ -70,9 +70,9 @@ export function formatCountdown(ms) {
 }
 
 export const URGENCY_STYLES = {
-  critical: { bg: 'rgba(255,45,120,0.12)', border: 'rgba(255,45,120,0.35)', color: '#FF2D78', dot: 'bg-red-500 animate-pulse' },
-  high:     { bg: 'rgba(255,140,0,0.1)',   border: 'rgba(255,140,0,0.3)',   color: '#FF8C00', dot: 'bg-orange-400' },
-  medium:   { bg: 'rgba(255,230,0,0.07)',  border: 'rgba(255,230,0,0.25)', color: '#FFE600', dot: 'bg-yellow-400' },
-  low:      { bg: 'rgba(0,255,135,0.05)',  border: 'rgba(0,255,135,0.2)',  color: '#00FF87', dot: 'bg-green-400' },
-  ended:    { bg: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.4)', dot: 'bg-gray-500' },
+  critical: { bg: 'color-mix(in srgb, rgb(255 45 120) 12%, var(--pg-surface))', border: 'rgba(255,45,120,0.35)', color: '#FF2D78', dot: 'bg-red-500 animate-pulse' },
+  high:     { bg: 'color-mix(in srgb, rgb(255 140 0) 10%, var(--pg-surface))',   border: 'rgba(255,140,0,0.3)',   color: '#FF8C00', dot: 'bg-orange-400' },
+  medium:   { bg: 'color-mix(in srgb, rgb(255 230 0) 7%, var(--pg-surface))',  border: 'rgba(255,230,0,0.25)', color: '#FFE600', dot: 'bg-yellow-400' },
+  low:      { bg: 'color-mix(in srgb, rgb(0 255 135) 5%, var(--pg-surface))',  border: 'rgba(0,255,135,0.2)',  color: '#00FF87', dot: 'bg-green-400' },
+  ended:    { bg: 'var(--pg-surface)', border: 'var(--pg-line)', color: 'var(--pg-muted)', dot: 'bg-gray-500' },
 };

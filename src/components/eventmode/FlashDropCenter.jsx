@@ -6,6 +6,7 @@
 import FlashDropCard from '@/components/flashdrops/FlashDropCard';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, Gift, Clock, CheckCircle2 } from 'lucide-react';
+import '@/components/flashdrops/fan-gifts-ticket.css';
 
 export default function FlashDropCenter({ drops, user, listings, loading, loadError, onRetry, onDropSeats, onWinnerSelected }) {
   const activeDrops = drops.filter(d => d.status === 'active');
@@ -17,9 +18,9 @@ export default function FlashDropCenter({ drops, user, listings, loading, loadEr
   );
 
   return (
-    <section>
+    <section className="pg-fan-gifts">
       {/* Section header */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="pg-fan-gifts-heading flex items-center justify-between gap-2 mb-3">
         <div className="flex items-center gap-2">
           <Gift className="w-4 h-4 text-muted-foreground" />
           <h2 className="font-bold text-sm text-foreground uppercase tracking-wide">Fan Gifts</h2>
@@ -28,31 +29,28 @@ export default function FlashDropCenter({ drops, user, listings, loading, loadEr
               key={activeDrops.length}
               initial={{ scale: 1.3 }}
               animate={{ scale: 1 }}
-              className="text-[9px] font-black px-1.5 py-0.5 rounded-full"
-              style={{ background: 'rgba(255,45,120,0.2)', color: '#FF2D78', border: '1px solid rgba(255,45,120,0.4)' }}>
+              className="pg-gift-stamp pg-gift-stamp-live text-[9px] font-black px-1.5 py-0.5">
               {activeDrops.length} LIVE
             </motion.span>
           )}
         </div>
         <button
           onClick={onDropSeats}
-          className="text-xs px-3 py-1.5 rounded-full font-bold transition-all active:scale-95"
-          style={{ background: 'rgba(255,230,0,0.1)', color: '#FFE600', border: '1px solid rgba(255,230,0,0.3)' }}>
+          className="pg-gift-button pg-gift-button-yellow text-xs px-3 py-1.5 font-bold transition-all active:scale-95">
           + Drop Seats
         </button>
       </div>
 
       {/* Active Drops */}
       {loading ? (
-        <div className="h-48 rounded-2xl animate-pulse bg-muted" />
+        <div className="pg-gift-panel h-48 animate-pulse" />
       ) : loadError ? (
-        <div role="alert" className="rounded-2xl px-5 py-6 text-center space-y-3 bg-muted">
+        <div role="alert" className="pg-gift-panel px-5 py-6 text-center space-y-3">
           <p className="text-sm text-foreground">Fan Gifts couldn’t load. Please try again.</p>
           <button onClick={onRetry} className="text-sm font-semibold underline">Try again</button>
         </div>
       ) : activeDrops.length === 0 ? (
-        <div className="rounded-2xl px-5 py-6 text-center space-y-3"
-          style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}>
+        <div className="pg-gift-panel px-5 py-6 text-center space-y-3">
           <Gift className="w-5 h-5 mx-auto opacity-20" />
           <div>
             <p className="font-semibold text-sm text-foreground">No fan gifts yet</p>
@@ -62,14 +60,12 @@ export default function FlashDropCenter({ drops, user, listings, loading, loadEr
           </div>
           <div className="flex flex-col gap-2 items-center">
             <button
-              className="flex items-center gap-2 px-5 py-2.5 rounded-full font-medium text-sm transition-all active:scale-95"
-              style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.55)', border: '1px solid rgba(255,255,255,0.1)' }}>
+              className="pg-gift-button flex items-center gap-2 px-5 py-2.5 font-medium text-sm transition-all active:scale-95">
               <Bell className="w-3.5 h-3.5" />
               Notify me
             </button>
             <button onClick={onDropSeats}
-              className="text-xs px-4 py-2 rounded-full font-medium transition-all active:scale-95"
-              style={{ background: 'transparent', color: 'rgba(255,255,255,0.3)', border: '1px solid rgba(255,255,255,0.08)' }}>
+              className="pg-gift-button text-xs px-4 py-2 font-medium transition-all active:scale-95">
               Offer your seats
             </button>
           </div>
@@ -100,14 +96,13 @@ export default function FlashDropCenter({ drops, user, listings, loading, loadEr
             <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Upcoming</p>
           </div>
           {pendingDrops.map(d => (
-            <div key={d.id} className="flex items-center gap-3 px-4 py-2.5 rounded-xl"
-              style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <div key={d.id} className="pg-gift-summary flex items-center gap-3 px-4 py-2.5">
               <Clock className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-bold text-foreground">Sec {d.section}{d.row ? ` · Row ${d.row}` : ''}</p>
                 <p className="text-xs text-muted-foreground">{d.scheduled_label || 'Scheduled'}</p>
               </div>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ color: '#BF5FFF', background: 'rgba(191,95,255,0.1)', border: '1px solid rgba(191,95,255,0.3)' }}>
+              <span className="pg-gift-stamp pg-gift-stamp-queued text-[10px] font-bold px-2 py-0.5">
                 Queued
               </span>
             </div>
@@ -123,14 +118,13 @@ export default function FlashDropCenter({ drops, user, listings, loading, loadEr
             <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Just Completed</p>
           </div>
           {recentDrops.map(d => (
-            <div key={d.id} className="flex items-center gap-3 px-4 py-2.5 rounded-xl"
-              style={{ background: 'rgba(0,255,135,0.04)', border: '1px solid rgba(0,255,135,0.15)' }}>
-              <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: '#00FF87' }} />
+            <div key={d.id} className="pg-gift-summary pg-gift-summary-complete flex items-center gap-3 px-4 py-2.5">
+              <CheckCircle2 className="pg-gift-success w-4 h-4 flex-shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-bold text-foreground">Sec {d.section}{d.row ? ` · Row ${d.row}` : ''}</p>
                 <p className="text-xs text-muted-foreground">{d.entry_count || 0} entered · Won by {d.winner_name || 'a fan'}</p>
               </div>
-              <span className="text-[10px] font-semibold" style={{ color: '#00FF87' }}>Gifted</span>
+              <span className="pg-gift-success text-[10px] font-semibold">Gifted</span>
             </div>
           ))}
         </div>

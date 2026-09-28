@@ -1,9 +1,9 @@
+import '@/components/member-surfaces.css';
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Trophy, Star, ChevronRight, Shield, Info } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import {
-  RANKS,
   getRankForPoints,
   getNextRank,
   getLevelProgress,
@@ -16,7 +16,7 @@ import {
 
 function ProgressBar({ value, color }) {
   return (
-    <div className="h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
+    <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--pg-surface-raised)' }}>
       <motion.div
         className="h-full rounded-full"
         style={{ background: `linear-gradient(90deg, ${color}80, ${color})` }}
@@ -31,7 +31,7 @@ function ProgressBar({ value, color }) {
 function TrustBar({ score }) {
   const color = getTrustColor(score);
   return (
-    <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
+    <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--pg-surface-raised)' }}>
       <motion.div
         className="h-full rounded-full"
         style={{ background: `linear-gradient(90deg, ${color}80, ${color})` }}
@@ -82,7 +82,7 @@ export default function PeanutPointsCard({ user }) {
             </div>
           </div>
           <Link to="/leaderboard"
-            className="flex items-center gap-1 text-[10px] font-bold text-muted-foreground hover:text-foreground transition-colors mt-1">
+            className="pg-member-mini-action text-xs font-bold text-muted-foreground hover:text-foreground transition-colors">
             <Trophy className="w-3 h-3" /> Leaderboard <ChevronRight className="w-3 h-3" />
           </Link>
         </div>
@@ -109,7 +109,7 @@ export default function PeanutPointsCard({ user }) {
                   {ptsToNext.toLocaleString()} pts to <span style={{ color: nextRank.color }}>{nextRank.rank}</span>
                 </span>
                 {nextUnlocks.length > 0 && (
-                  <button onClick={() => setShowUnlocks(v => !v)} className="text-muted-foreground hover:text-foreground">
+                  <button onClick={() => setShowUnlocks(v => !v)} className="pg-member-mini-action text-muted-foreground hover:text-foreground">
                     <Info className="w-3 h-3" />
                   </button>
                 )}
@@ -132,7 +132,7 @@ export default function PeanutPointsCard({ user }) {
       </div>
 
       {/* ── Stats row */}
-      <div className="h-px mx-5" style={{ background: 'rgba(255,255,255,0.08)' }} />
+      <div className="h-px mx-5" style={{ background: 'var(--pg-surface-raised)' }} />
       <div className="grid grid-cols-3 divide-x" style={{ '--tw-divide-opacity': 1 }}>
         {[
           { label: 'Sales',     val: user?.total_sales     || 0, emoji: '💸' },
@@ -149,7 +149,7 @@ export default function PeanutPointsCard({ user }) {
       </div>
 
       {/* ── Trust score */}
-      <div className="h-px mx-5" style={{ background: 'rgba(255,255,255,0.08)' }} />
+      <div className="h-px mx-5" style={{ background: 'var(--pg-surface-raised)' }} />
       <div className="px-5 py-4">
         <div className="flex items-center justify-between mb-1.5">
           <div className="flex items-center gap-1.5">
@@ -184,7 +184,7 @@ export default function PeanutPointsCard({ user }) {
       {/* ── Achievements */}
       {achievements.length > 0 && (
         <>
-          <div className="h-px mx-5" style={{ background: 'rgba(255,255,255,0.08)' }} />
+          <div className="h-px mx-5" style={{ background: 'var(--pg-surface-raised)' }} />
           <div className="px-5 py-4">
             <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2">
               <Star className="w-3 h-3 inline mr-1" />Achievements ({achievements.length})

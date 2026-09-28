@@ -1,3 +1,4 @@
+import '@/components/admin/operations-theme.css';
 import { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { isAdmin } from '@/lib/isAdmin';
@@ -27,13 +28,13 @@ function FeeSimulatorTabs() {
   const [feeTab, setFeeTab] = useState('simulator');
   return (
     <div className="space-y-4">
-      <div className="flex gap-2">
+      <div className="pg-operations-tabs flex gap-2">
         {[{ id: 'simulator', label: '🧮 Fee Simulator' }, { id: 'strategy', label: '🎯 Pricing Strategy' }].map(t => (
           <button key={t.id} onClick={() => setFeeTab(t.id)}
-            className="px-3 py-1.5 rounded-full text-xs font-semibold transition-all"
+            className="pg-operations-status px-3 py-1.5 rounded-full text-xs font-semibold transition-all"
             style={feeTab === t.id
-              ? { background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }
-              : { background: 'rgba(255,255,255,0.06)', color: 'hsl(var(--muted-foreground))', border: '1px solid rgba(255,255,255,0.1)' }}>
+              ? { background: 'var(--pg-violet)', '--pg-status-ink': 'var(--pg-ink)' }
+              : { background: 'var(--pg-surface)', '--pg-status-ink': 'var(--pg-muted)', border: '1px solid var(--pg-line)' }}>
             {t.label}
           </button>
         ))}
@@ -109,7 +110,7 @@ export default function AdminCommandCenter() {
   // Still loading auth
   if (isLoadingAuth) {
     return (
-      <div className="min-h-full flex items-center justify-center">
+      <div className="pg-operations-page min-h-full flex items-center justify-center">
         <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -121,10 +122,10 @@ export default function AdminCommandCenter() {
   }
 
   return (
-    <div style={{ background: 'hsl(var(--background))' }}>
+    <div className="pg-operations-page pg-command-center" style={{ background: 'var(--pg-canvas)' }}>
       {/* Top bar */}
-      <div className="sticky top-0 z-40 px-4 py-3 flex items-center gap-3 border-b border-border"
-        style={{ background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(24px)' }}>
+      <div className="pg-operations-header sticky top-0 z-40 px-4 py-3 flex items-center gap-3 border-b border-border"
+        style={{ background: 'var(--pg-canvas)' }}>
         <Shield className="w-5 h-5 text-primary flex-shrink-0" />
         <div className="flex-1 min-w-0">
           <span className="font-display text-sm font-black text-foreground tracking-wide">COMMAND CENTER</span>
@@ -152,16 +153,16 @@ export default function AdminCommandCenter() {
       </div>
 
       {/* Section nav */}
-      <div className="px-4 mt-4 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+      <div className="pg-operations-tabs px-4 mt-4 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
         {SECTIONS.map(s => {
           const Icon = s.icon;
           return (
             <button key={s.id}
               onClick={() => setActiveSection(s.id)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap flex-shrink-0 transition-all"
+              className="pg-operations-status flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap flex-shrink-0 transition-all"
               style={activeSection === s.id
-                ? { background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' }
-                : { background: 'rgba(255,255,255,0.06)', color: 'hsl(var(--muted-foreground))', border: '1px solid rgba(255,255,255,0.1)' }}>
+                ? { background: 'var(--pg-violet)', '--pg-status-ink': 'var(--pg-ink)' }
+                : { background: 'var(--pg-surface)', '--pg-status-ink': 'var(--pg-muted)', border: '1px solid var(--pg-line)' }}>
               <Icon className="w-3 h-3" />{s.label}
             </button>
           );
