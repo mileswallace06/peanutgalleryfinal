@@ -46,6 +46,7 @@ const BetaDashboard = lazy(() => import('@/pages/BetaDashboard'));
 const Notifications = lazy(() => import('@/pages/Notifications'));
 const EventMode = lazy(() => import('@/pages/EventMode'));
 const BrandedAuth = lazy(() => import('@/pages/BrandedAuth'));
+const SharedListing = lazy(() => import('@/pages/SharedListing'));
 
 const MemberRoute = () => {
   const auth = useAuth();
@@ -108,6 +109,7 @@ const AuthenticatedApp = () => {
           <Route path="/privacy" element={<PrivacyPolicy />} />
           <Route path="/cookies" element={<CookiePolicy />} />
           <Route path="/our-story" element={<OurStory />} />
+          <Route path="/listings/:listingId" element={<SharedListing />} />
           <Route element={<MemberRoute />}>
            <Route element={<Layout />}>
             <Route path="/events" element={<Events />} />

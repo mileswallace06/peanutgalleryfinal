@@ -1,9 +1,10 @@
 /** Test-only SDK boundary: fictional data, no backend client and no network. */
 const params = new URLSearchParams(window.location.search);
-const scenario = ['populated', 'empty', 'provider-error'].includes(params.get('scenario')) ? params.get('scenario') : 'populated';
+const scenario = ['populated', 'empty', 'provider-error', 'share-unavailable', 'auth-denied'].includes(params.get('scenario')) ? params.get('scenario') : 'populated';
 const now = Date.now();
 const iso = (minutes) => new Date(now + minutes * 60000).toISOString();
 const artwork = new URL('./fixture-arena.svg', import.meta.url).href;
+export const fixtureSignedIn = params.get('auth') !== 'guest';
 export const fixtureUser = {
   id: 'fixture-user', email: 'reviewer@example.invalid', full_name: 'Alex Sample', role: params.get('page') === 'founder' ? 'admin' : 'user',
   has_seen_onboarding: true, has_seen_upgrades_onboarding: true,
@@ -27,7 +28,7 @@ const events = [
 const listing = (id, section, row, price, extra = {}) => ({
   id, event_id: 'fixture-live', event_title: 'The Aurora Waves', section, row, seats: '7–8', quantity: 2,
   asking_price: price, original_price: price + 45, listing_type: 'live_upgrade', tier: 'lower',
-  status: 'active', is_verified: true, is_instant_ready: false, reservation_state: 'available',
+  status: 'active', is_verified: true, proof_status: 'approved', is_demo_listing: false, is_instant_ready: false, reservation_state: 'available',
   viewer_is_seller: false, transfer_status: 'transfer_confirmed', seller_email: 'fictional-seller@example.invalid',
   created_date: iso(-80), ...extra,
 });
@@ -36,7 +37,7 @@ const listings = [
   listing('fixture-upgrade-two', 'Floor', 'G', 64, { tier: 'floor', original_price: 125 }),
   listing('fixture-upgrade-three', '116', 'D', 52),
   listing('fixture-owned', '308', 'K', 26, { status: 'sold', listing_type: 'admission_ticket', seller_email: 'earlier-seller@example.invalid' }),
-  listing('fixture-seller-active', '210', 'E', 45, { event_id: 'fixture-night', event_title: 'Neon Orchard: After Hours', seller_email: fixtureUser.email, viewer_is_seller: true }),
+  listing('fixture-seller-active', '210', 'E', 45, { event_id: 'fixture-night', event_title: 'Neon Orchard: After Hours', listing_type: 'resale_ticket', seller_email: fixtureUser.email, viewer_is_seller: true, proof_image_url: 'FICTIONAL_PRIVATE_PROOF_MUST_NOT_APPEAR', transfer_notes: 'FICTIONAL_PRIVATE_TRANSFER_MUST_NOT_APPEAR', ticket_barcode: 'FICTIONAL_PRIVATE_BARCODE_MUST_NOT_APPEAR' }),
   listing('fixture-seller-sold', '114', 'J', 70, { event_id: 'fixture-weekend', event_title: 'The Paper Lanterns', seller_email: fixtureUser.email, viewer_is_seller: true, status: 'sold' }),
   listing('fixture-seller-hidden', '208', 'H', 46, { event_id: 'fixture-night', event_title: 'Neon Orchard: After Hours', seller_email: fixtureUser.email, viewer_is_seller: true, status: 'hidden', hidden_reason: 'seller_paused' }),
 ];
@@ -145,7 +146,15 @@ const functions = { invoke: async (name, args = {}) => {
   if (name === 'suggestCities') return { data: { cities: [{ city: 'Phoenix', state: 'AZ', label: 'Phoenix, AZ' }, { city: 'Boston', state: 'MA', label: 'Boston, MA' }].filter(c => c.label.toLowerCase().includes((args.keyword || '').toLowerCase())) } };
   if (['getPurchaseParticipantView','getListingParticipantView','getFlashDropView'].includes(name) && scenario === 'provider-error') throw failure(`Sample provider failure: ${name}`);
   if (name === 'getPurchaseParticipantView') return { data: { purchases: scenario === 'empty' ? [] : copy(purchases.filter(p => !args.event_id || p.event_id === args.event_id)), sales: scenario === 'empty' ? [] : copy(sales.filter(p => !args.event_id || p.event_id === args.event_id)) } };
-  if (name === 'getListingParticipantView') return { data: args.listing_id ? { listing: scenario === 'empty' ? null : copy(listings.find(l => l.id === args.listing_id) || null) } : { listings: scenario === 'empty' ? [] : copy(listings.filter(l => args.action === 'list_mine' ? l.seller_email === fixtureUser.email : l.event_id === args.event_id && l.status === 'active')) } };
+  if (name === 'getListingParticipantView') {
+    if (scenario === 'auth-denied') throw failure('FICTIONAL_AUTH_RESPONSE_MUST_NOT_APPEAR', 403);
+    // Mimic a listing becoming unavailable between the seller list and fresh public read.
+    const available = scenario !== 'empty' && scenario !== 'share-unavailable';
+    if (args.listing_id) return { data: { listing: available ? copy(listings.find(l => l.id === args.listing_id) || null) : null } };
+    if (args.action === 'list_mine') return { data: { listings: scenario === 'empty' ? [] : copy(listings.filter(l => l.seller_email === fixtureUser.email)) } };
+    if (args.action === 'list_active_by_event') return { data: { listings: available ? copy(listings.filter(l => l.event_id === args.event_id && l.status === 'active')) : [] } };
+    return unexpected(`functions.${name}.${args.action || 'missing-action'}`, args);
+  }
   if (name === 'getFlashDropView') return { data: { drops: scenario === 'empty' ? [] : copy(drops), leaders: scenario === 'empty' ? [] : [{ name: 'A fictional fan', drops: 2 }] } };
   if (name === 'checkSellerOnboarding') return { data: { complete: true, details_submitted: true, charges_enabled: true, payouts_enabled: true } };
   if (name === 'tmSuggest') return { data: { attractions: [], venues: [] } };
@@ -156,8 +165,8 @@ const functions = { invoke: async (name, args = {}) => {
 export const base44 = {
   entities, functions,
   auth: new Proxy({
-    me: async () => { record('auth.me', {}); return copy(fixtureUser); },
-    isAuthenticated: async () => true,
+    me: async () => { record('auth.me', {}); return fixtureSignedIn ? copy(fixtureUser) : null; },
+    isAuthenticated: async () => fixtureSignedIn,
     updateMe: async args => blocked('auth.updateMe', args),
     logout: async () => blocked('auth.logout'),
     redirectToLogin: async () => blocked('auth.redirectToLogin'),

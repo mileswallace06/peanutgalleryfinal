@@ -1,0 +1,18 @@
+{
+  "fictionalData": true,
+  "renderer": "Node canvas with registered fallback font; browser verification recorded separately",
+  "checks": [
+    {
+      "format": "square",
+      "width": 1080,
+      "height": 1080,
+      "qrMatchesCanonicalUrl": true
+    },
+    {
+      "format": "story",
+      "width": 1080,
+      "height": 1920,
+      "qrMatchesCanonicalUrl": true
+    }
+  ]
+}
