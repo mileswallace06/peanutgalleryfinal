@@ -1,3 +1,4 @@
+import '@/components/member-surfaces.css';
 import { useState } from 'react';
 import { AlertTriangle, X } from 'lucide-react';
 
@@ -21,20 +22,20 @@ export default function DisputeModal({ onSubmit, onClose, loading }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+      <div className="pg-member-sheet pg-member-sheet--dispute shadow-xl w-full max-w-md">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div className="flex items-center gap-2">
             <AlertTriangle className="w-5 h-5 text-amber-500" />
-            <h2 className="font-bold text-base">Open a Dispute</h2>
+            <h2 className="pg-member-sheet-title text-xl">Open a Dispute</h2>
           </div>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+          <button onClick={onClose} aria-label="Close dispute dialog" className="pg-member-close text-muted-foreground hover:text-foreground transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800">
+          <div className="pg-member-dispute-note rounded-lg p-3 text-sm">
             Opening a dispute will <strong>freeze the payout</strong> immediately. Our team will review and resolve within 24–48 hours.
           </div>
 
@@ -45,8 +46,8 @@ export default function DisputeModal({ onSubmit, onClose, loading }) {
               {DISPUTE_CATEGORIES.map(c => (
                 <label key={c.value} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
                   category === c.value
-                    ? 'border-amber-400 bg-amber-50'
-                    : 'border-border hover:border-amber-300 hover:bg-amber-50/50'
+                    ? 'pg-member-dispute-option is-selected'
+                    : 'pg-member-dispute-option'
                 }`}>
                   <input
                     type="radio"
@@ -80,14 +81,14 @@ export default function DisputeModal({ onSubmit, onClose, loading }) {
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 border border-border py-2.5 rounded-xl text-sm text-muted-foreground hover:bg-muted transition-colors"
+              className="pg-member-action pg-member-action--secondary flex-1 py-2.5 text-sm transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={!category || loading}
-              className="flex-1 bg-amber-500 text-white py-2.5 rounded-xl text-sm font-bold hover:bg-amber-600 transition-colors disabled:opacity-50"
+              className="pg-member-action pg-member-action--warning flex-1 py-2.5 text-sm font-bold transition-colors disabled:opacity-50"
             >
               {loading ? 'Submitting…' : 'Submit Dispute'}
             </button>

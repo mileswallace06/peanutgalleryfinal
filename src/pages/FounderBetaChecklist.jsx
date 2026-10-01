@@ -1,3 +1,4 @@
+import '@/components/admin/operations-theme.css';
 import { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { CheckCircle2, XCircle, HelpCircle, AlertTriangle, ChevronDown, ChevronUp, Plus, Trash2, User, RefreshCw } from 'lucide-react';
@@ -117,16 +118,16 @@ function ScoreSummary({ results }) {
   const pct = Math.round((counts.completed / total) * 100);
 
   return (
-    <div className="rounded-2xl p-4 space-y-3" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}>
+    <div className="pg-operations-card rounded-xl p-4 space-y-3" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
       <div className="flex items-center justify-between">
         <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">Session Score</span>
-        <span className="text-2xl font-black" style={{ color: pct >= 80 ? '#00FF87' : pct >= 50 ? '#FFE600' : '#FF2D78' }}>{pct}%</span>
+        <span className="text-2xl font-black" style={{ color: pct >= 80 ? 'var(--neon-green)' : pct >= 50 ? 'var(--neon-yellow)' : 'var(--neon-pink)' }}>{pct}%</span>
       </div>
       <div className="flex gap-1 h-2 rounded-full overflow-hidden">
         {OUTCOMES.map(o => (
           <div key={o.key} style={{ flex: counts[o.key], background: o.color, opacity: counts[o.key] > 0 ? 1 : 0 }} />
         ))}
-        <div style={{ flex: counts.untested, background: 'rgba(255,255,255,0.1)' }} />
+        <div style={{ flex: counts.untested, background: 'var(--pg-surface-raised)' }} />
       </div>
       <div className="flex flex-wrap gap-3">
         {OUTCOMES.map(o => (
@@ -137,7 +138,7 @@ function ScoreSummary({ results }) {
           </div>
         ))}
         <div className="flex items-center gap-1 text-[11px]">
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: 'rgba(255,255,255,0.15)' }} />
+          <span className="w-2.5 h-2.5 rounded-full" style={{ background: 'var(--pg-surface-raised)' }} />
           <span className="text-muted-foreground">Untested:</span>
           <span className="font-black text-foreground">{counts.untested}</span>
         </div>
@@ -156,38 +157,38 @@ function TaskRow({ task, result, onChange }) {
 
   return (
     <div
-      className="rounded-2xl overflow-hidden transition-all"
+      className="rounded-xl overflow-hidden transition-all"
       style={{
-        background: outcome ? OUTCOME_BG[outcome] : 'rgba(255,255,255,0.03)',
-        border: outcome ? `1px solid ${activeOutcome?.color}40` : '1px solid rgba(255,255,255,0.08)',
+        background: outcome ? OUTCOME_BG[outcome] : 'var(--pg-surface)',
+        border: outcome ? `1px solid ${activeOutcome?.color}40` : '1px solid var(--pg-line)',
       }}
     >
       {/* Header row */}
       <div className="flex items-center gap-3 px-4 py-3.5">
         <span className="w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-black"
-          style={{ background: 'rgba(255,255,255,0.08)', color: 'hsl(var(--muted-foreground))' }}>
+          style={{ background: 'var(--pg-surface-raised)', color: 'var(--pg-muted)' }}>
           {task.id}
         </span>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-foreground leading-tight">{task.label}</p>
           {outcome && (
-            <p className="text-[10px] font-semibold mt-0.5" style={{ color: activeOutcome?.color }}>
+            <p className="pg-operations-status text-[10px] font-semibold mt-0.5" style={{ '--pg-status-ink': activeOutcome?.color }}>
               {activeOutcome?.label}
             </p>
           )}
         </div>
-        <button onClick={() => setExpanded(e => !e)} className="text-muted-foreground p-1">
+        <button onClick={() => setExpanded(e => !e)} className="inline-flex items-center justify-center text-muted-foreground p-1">
           {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </button>
       </div>
 
       {/* Expanded */}
       {expanded && (
-        <div className="px-4 pb-4 space-y-3 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+        <div className="px-4 pb-4 space-y-3 border-t" style={{ borderColor: 'var(--pg-line)' }}>
           {/* Ask this */}
           {task.question && (
             <div className="mt-3 px-3 py-2.5 rounded-xl"
-              style={{ background: 'rgba(0,200,255,0.07)', border: '1px solid rgba(0,200,255,0.2)' }}>
+              style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
               <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-1">Ask this</p>
               <p className="text-xs font-bold text-foreground italic">"{task.question}"</p>
             </div>
@@ -201,11 +202,11 @@ function TaskRow({ task, result, onChange }) {
               <button
                 key={key}
                 onClick={() => onChange(task.id, 'outcome', outcome === key ? null : key)}
-                className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-95"
+                className="pg-operations-status flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-95"
                 style={{
-                  background: outcome === key ? `${color}20` : 'rgba(255,255,255,0.04)',
-                  border: outcome === key ? `1px solid ${color}60` : '1px solid rgba(255,255,255,0.08)',
-                  color: outcome === key ? color : 'hsl(var(--muted-foreground))',
+                  background: outcome === key ? `${color}20` : 'var(--pg-surface-raised)',
+                  border: outcome === key ? `1px solid ${color}60` : '1px solid var(--pg-line)',
+                  '--pg-status-ink': outcome === key ? color : 'var(--pg-muted)',
                 }}
               >
                 <Icon className="w-3.5 h-3.5 flex-shrink-0" />
@@ -221,7 +222,7 @@ function TaskRow({ task, result, onChange }) {
             placeholder='Exact quote from tester (e.g. "Wait, is this legal?")'
             rows={2}
             className="w-full px-3 py-2.5 rounded-xl text-xs text-foreground placeholder:text-muted-foreground focus:outline-none resize-none"
-            style={{ background: 'rgba(255,230,0,0.04)', border: '1px solid rgba(255,230,0,0.15)' }}
+            style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)' }}
           />
 
           {/* Notes */}
@@ -231,7 +232,7 @@ function TaskRow({ task, result, onChange }) {
             placeholder="Observations — what they did, where they hesitated…"
             rows={2}
             className="w-full px-3 py-2.5 rounded-xl text-xs text-foreground placeholder:text-muted-foreground focus:outline-none resize-none"
-            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}
+            style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)' }}
           />
         </div>
       )}
@@ -258,29 +259,29 @@ function SessionPanel({ session, onUpdate, onDelete }) {
   const done = counts.filter(r => r.outcome).length;
 
   return (
-    <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.02)' }}>
+    <div className="pg-operations-card rounded-xl overflow-hidden" style={{ border: '1px solid var(--pg-line)', background: 'var(--pg-surface)' }}>
       {/* Session header */}
       <div className="flex items-center gap-3 px-4 py-3.5">
         <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
-          style={{ background: 'linear-gradient(135deg, #BF5FFF, #FF2D78)' }}>
-          <User className="w-4 h-4 text-white" />
+          style={{ background: 'var(--pg-violet)' }}>
+          <User className="w-4 h-4" style={{ color: 'var(--pg-ink)' }} />
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-bold text-sm text-foreground">{session.tester_name || 'Unnamed Tester'}</p>
           <p className="text-[10px] text-muted-foreground">{session.device || 'Unknown device'} · {done}/{TASKS.length} tasks</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => onDelete(session.id)} className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive transition-colors">
+          <button onClick={() => onDelete(session.id)} className="inline-flex items-center justify-center p-1.5 rounded-lg text-muted-foreground hover:text-destructive transition-colors">
             <Trash2 className="w-3.5 h-3.5" />
           </button>
-          <button onClick={() => setExpanded(e => !e)} className="p-1.5 rounded-lg text-muted-foreground transition-colors">
+          <button onClick={() => setExpanded(e => !e)} className="inline-flex items-center justify-center p-1.5 rounded-lg text-muted-foreground transition-colors">
             {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
         </div>
       </div>
 
       {expanded && (
-        <div className="px-3 pb-4 space-y-2 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+        <div className="px-3 pb-4 space-y-2 border-t" style={{ borderColor: 'var(--pg-line)' }}>
           <div className="pt-3">
             <ScoreSummary results={session.results} />
           </div>
@@ -300,7 +301,7 @@ function SessionPanel({ session, onUpdate, onDelete }) {
             placeholder="Overall session notes, big themes, quotes from tester…"
             rows={3}
             className="w-full px-3 py-2.5 rounded-xl text-xs text-foreground placeholder:text-muted-foreground focus:outline-none resize-none mt-2"
-            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}
+            style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)' }}
           />
         </div>
       )}
@@ -320,7 +321,7 @@ export default function FounderBetaChecklist() {
   // Only admins
   if (user && user.role !== 'admin') {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen gap-4 px-6 text-center">
+      <div className="pg-operations-page flex flex-col items-center justify-center min-h-screen gap-4 px-6 text-center">
         <p className="text-5xl">🔒</p>
         <p className="font-bold text-foreground">Admin only</p>
         <button onClick={() => navigate(-1)} className="text-sm text-muted-foreground underline">Go back</button>
@@ -362,28 +363,28 @@ export default function FounderBetaChecklist() {
   });
 
   return (
-    <div className="min-h-screen pb-32 dark:rave-bg" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+    <div className="pg-operations-page min-h-screen pb-32">
       {/* Header */}
-      <div className="sticky top-0 z-20 frosted-bar border-b border-white/5 px-4 py-4"
-        style={{ paddingTop: 'calc(env(safe-area-inset-top) + 16px)' }}>
-        <div className="flex items-center justify-between max-w-2xl mx-auto">
+      <div className="pg-operations-header sticky top-0 z-20 border-b px-4 py-4"
+        style={{ paddingTop: '16px' }}>
+        <div className="flex flex-wrap items-center justify-between gap-3 max-w-2xl mx-auto">
           <div>
             <h1 className="font-display text-2xl text-foreground leading-none">Beta Checklist</h1>
             <p className="text-[10px] text-muted-foreground mt-0.5">{totalSessions} session{totalSessions !== 1 ? 's' : ''} recorded</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <a href="/beta-dashboard" className="flex items-center gap-1.5 px-3 py-2 rounded-xl font-black text-xs"
-              style={{ background: 'rgba(191,95,255,0.12)', border: '1px solid rgba(191,95,255,0.3)', color: '#BF5FFF' }}>
+              style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)', color: 'var(--pg-text)' }}>
               📊 Dashboard
             </a>
             <a href="/beta-testers" className="flex items-center gap-1.5 px-3 py-2 rounded-xl font-black text-xs"
-              style={{ background: 'rgba(255,45,120,0.1)', border: '1px solid rgba(255,45,120,0.3)', color: '#FF2D78' }}>
+              style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)', color: 'var(--pg-text)' }}>
               👤 Testers
             </a>
             <button
               onClick={() => setAdding(true)}
               className="flex items-center gap-2 px-4 py-2 rounded-xl font-black text-sm"
-              style={{ background: 'linear-gradient(135deg, #00FF87, #00C8FF)', color: '#0D0B14' }}>
+              style={{ background: 'var(--pg-mint)', color: 'var(--pg-ink)' }}>
               <Plus className="w-4 h-4" /> Add Session
             </button>
           </div>
@@ -393,8 +394,8 @@ export default function FounderBetaChecklist() {
       <div className="px-4 pt-5 max-w-2xl mx-auto space-y-6">
 
         {/* Sprint goal */}
-        <div className="rounded-2xl px-4 py-4 space-y-2" style={{ background: 'rgba(0,255,135,0.06)', border: '1px solid rgba(0,255,135,0.2)' }}>
-          <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: '#00FF87' }}>Sprint Goal — Real User Validation</p>
+        <div className="pg-operations-card rounded-xl px-4 py-4 space-y-2" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
+          <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: 'var(--pg-text)' }}>Sprint Goal — Real User Validation</p>
           <p className="text-xs text-muted-foreground leading-relaxed">
             Can a complete stranger explain Peanut Gallery without help? Run 10 testers (5 sports fans, 5 concert fans). Do NOT explain the product first. Just hand them the app.
           </p>
@@ -407,14 +408,14 @@ export default function FounderBetaChecklist() {
 
         {/* Add tester form */}
         {adding && (
-          <div className="rounded-2xl p-4 space-y-3" style={{ background: 'rgba(0,255,135,0.07)', border: '1px solid rgba(0,255,135,0.25)' }}>
+          <div className="pg-operations-card rounded-xl p-4 space-y-3" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
             <p className="text-sm font-black text-foreground">New Beta Session</p>
             <input
               value={newName}
               onChange={e => setNewName(e.target.value)}
               placeholder="Tester name *"
               className="w-full px-3 py-2.5 rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
-              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }}
+              style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)' }}
               autoFocus
             />
             <input
@@ -422,17 +423,17 @@ export default function FounderBetaChecklist() {
               onChange={e => setNewDevice(e.target.value)}
               placeholder="Device (e.g. iPhone 15, Android S24)"
               className="w-full px-3 py-2.5 rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
-              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }}
+              style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)' }}
             />
             <div className="flex gap-2">
               <button onClick={handleAdd}
                 className="flex-1 py-2.5 rounded-xl font-black text-sm"
-                style={{ background: 'linear-gradient(135deg, #00FF87, #00C8FF)', color: '#0D0B14' }}>
+                style={{ background: 'var(--pg-mint)', color: 'var(--pg-ink)' }}>
                 Start Session
               </button>
               <button onClick={() => setAdding(false)}
                 className="flex-1 py-2.5 rounded-xl font-black text-sm"
-                style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', color: 'hsl(var(--muted-foreground))' }}>
+                style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)', color: 'var(--pg-muted)' }}>
                 Cancel
               </button>
             </div>
@@ -441,7 +442,7 @@ export default function FounderBetaChecklist() {
 
         {/* Aggregate heatmap */}
         {totalSessions > 0 && (
-          <div className="rounded-2xl p-4 space-y-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <div className="pg-operations-card rounded-xl p-4 space-y-3" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
             <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Aggregate Results — {totalSessions} session{totalSessions !== 1 ? 's' : ''}</p>
             <div className="space-y-1.5">
               {taskStats.map(task => {
@@ -456,7 +457,7 @@ export default function FounderBetaChecklist() {
                     ) : (
                       <div className="flex items-center gap-1.5 flex-shrink-0">
                         {OUTCOMES.filter(o => task[o.key] > 0).map(o => (
-                          <span key={o.key} className="text-[10px] font-bold" style={{ color: o.color }}>{task[o.key]}</span>
+                          <span key={o.key} className="pg-operations-status text-[10px] font-bold" style={{ '--pg-status-ink': o.color }}>{task[o.key]}</span>
                         ))}
                         <span className="text-[10px] text-muted-foreground">({pct}%)</span>
                       </div>
@@ -478,7 +479,7 @@ export default function FounderBetaChecklist() {
 
         {/* Sessions list */}
         {sessions.length === 0 ? (
-          <div className="rounded-2xl p-8 text-center space-y-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <div className="pg-operations-card rounded-xl p-8 text-center space-y-3" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
             <p className="text-4xl">🧪</p>
             <p className="font-bold text-foreground">No sessions yet</p>
             <p className="text-xs text-muted-foreground">Add a tester to start tracking their journey through the app.</p>
@@ -508,20 +509,20 @@ export default function FounderBetaChecklist() {
 function AuditSection({ title, color, icon, items }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${color}30` }}>
+    <div className="pg-operations-card rounded-xl overflow-hidden" style={{ border: `1px solid ${color}30` }}>
       <button onClick={() => setOpen(o => !o)}
         className="w-full flex items-center gap-3 px-4 py-4 text-left"
         style={{ background: `${color}08` }}>
         <span className="text-xl flex-shrink-0">{icon}</span>
         <span className="font-black text-sm text-foreground flex-1">{title}</span>
-        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: `${color}18`, color }}>{items.length}</span>
+        <span className="pg-operations-status text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: `${color}18`, '--pg-status-ink': color }}>{items.length}</span>
         {open ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
       </button>
       {open && (
         <div className="divide-y" style={{ borderColor: `${color}15` }}>
           {items.map((item, i) => (
             <div key={i} className="px-4 py-3 flex gap-3">
-              <span className="text-[10px] font-black w-5 flex-shrink-0 mt-0.5" style={{ color }}>{i + 1}</span>
+              <span className="pg-operations-status text-[10px] font-black w-5 flex-shrink-0 mt-0.5" style={{ '--pg-status-ink': color }}>{i + 1}</span>
               <div>
                 <p className="text-xs font-bold text-foreground leading-snug">{item.title}</p>
                 {item.fix && <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">→ {item.fix}</p>}
@@ -625,8 +626,8 @@ function AuditReport() {
   return (
     <div className="space-y-4">
       <button onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-5 py-4 rounded-2xl font-black text-sm"
-        style={{ background: 'rgba(191,95,255,0.1)', border: '1px solid rgba(191,95,255,0.3)', color: '#BF5FFF' }}>
+        className="w-full flex items-center justify-between px-5 py-4 rounded-xl font-black text-sm"
+        style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)', color: 'var(--pg-text)' }}>
         📋 Full Beta Audit Report
         {open ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
       </button>
@@ -634,9 +635,9 @@ function AuditReport() {
       {open && (
         <div className="space-y-4">
           {/* Score */}
-          <div className="rounded-2xl p-5 text-center space-y-2" style={{ background: 'linear-gradient(135deg, rgba(191,95,255,0.12), rgba(0,200,255,0.08))', border: '1px solid rgba(191,95,255,0.3)' }}>
+          <div className="pg-operations-card rounded-xl p-5 text-center space-y-2" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
             <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Beta Readiness Score</p>
-            <p className="font-display text-6xl" style={{ color: '#FFE600' }}>6.5<span className="text-2xl text-muted-foreground">/10</span></p>
+            <p className="font-display text-6xl" style={{ color: 'var(--neon-yellow)' }}>6.5<span className="text-2xl text-muted-foreground">/10</span></p>
             <p className="text-xs text-muted-foreground max-w-xs mx-auto leading-relaxed">
               Core mechanics work. Trust and clarity are the blockers. Users can transact but don't yet understand why they should trust it or where to start.
             </p>
@@ -649,7 +650,7 @@ function AuditReport() {
           <AuditSection title="Top 10 Onboarding Improvements" color="#00C8FF" icon="🚀" items={AUDIT_DATA.onboarding} />
 
           {/* What users say */}
-          <div className="rounded-2xl p-4 space-y-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <div className="pg-operations-card rounded-xl p-4 space-y-3" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
             <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">If 10 real users used PG tonight, the first 10 things they'd say:</p>
             <div className="space-y-2">
               {WHAT_USERS_SAY.map((q, i) => (
@@ -662,8 +663,8 @@ function AuditReport() {
           </div>
 
           {/* First-time user audit */}
-          <div className="rounded-2xl p-4 space-y-3" style={{ background: 'rgba(0,200,255,0.06)', border: '1px solid rgba(0,200,255,0.2)' }}>
-            <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: '#00C8FF' }}>First-Time User Audit — As a stranger</p>
+          <div className="pg-operations-card rounded-xl p-4 space-y-3" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
+            <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: 'var(--pg-text)' }}>First-Time User Audit — As a stranger</p>
             {[
               { q: 'What is this app?', a: 'Unclear. "Peanut Gallery" sounds like a social app or a comedy show, not a ticket marketplace.' },
               { q: 'What makes it different?', a: 'Location-based live upgrades and Flash Drops are genuinely novel — but buried behind login.' },

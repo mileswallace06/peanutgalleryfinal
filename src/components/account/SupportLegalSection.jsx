@@ -1,3 +1,4 @@
+import '@/components/member-surfaces.css';
 import { HelpCircle, FileText, ShieldCheck, Cookie, Mail, ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 // Icon is used dynamically via destructuring from LINKS array
@@ -8,29 +9,29 @@ const EXTERNAL_LINKS = [
     label: 'Help Center',
     desc: 'FAQs, guides, and how-tos',
     href: 'mailto:experience@peanutgallery.store?subject=Help Request',
-    color: '#00C8FF',
+    color: 'var(--neon-cyan)',
   },
   {
     icon: Mail,
     label: 'Contact Support',
     desc: 'Email us about any issue',
     href: 'mailto:experience@peanutgallery.store',
-    color: '#BF5FFF',
+    color: 'var(--neon-purple)',
   },
 ];
 
 const INTERNAL_LINKS = [
-  { icon: FileText, label: 'Terms of Service', desc: 'How Peanut Gallery works', to: '/terms', color: '#FF8C00' },
-  { icon: ShieldCheck, label: 'Privacy Policy', desc: 'How we handle your data', to: '/privacy', color: '#00FF87' },
-  { icon: Cookie, label: 'Cookie Policy', desc: 'How we use cookies & storage', to: '/cookies', color: '#00C8FF' },
+  { icon: FileText, label: 'Terms of Service', desc: 'How Peanut Gallery works', to: '/terms', color: 'var(--neon-orange)' },
+  { icon: ShieldCheck, label: 'Privacy Policy', desc: 'How we handle your data', to: '/privacy', color: 'var(--neon-green)' },
+  { icon: Cookie, label: 'Cookie Policy', desc: 'How we use cookies & storage', to: '/cookies', color: 'var(--neon-cyan)' },
 ];
 
 export default function SupportLegalSection() {
   const navigate = useNavigate();
   return (
-    <section>
+    <section className="pg-member-section">
       <h3 className="text-xs font-black tracking-widest uppercase text-muted-foreground mb-3">Support &amp; Legal</h3>
-      <div className="rounded-2xl overflow-hidden divide-y divide-border" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+      <div className="rounded-xl overflow-hidden divide-y divide-border" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
         {EXTERNAL_LINKS.map(({ icon: Icon, label, desc, href, color }) => (
           <a key={label} href={href} target="_blank" rel="noopener noreferrer"
             className="flex items-center gap-3 px-4 py-3.5 transition-all active:scale-[0.98]">

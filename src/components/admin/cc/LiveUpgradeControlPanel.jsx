@@ -5,14 +5,14 @@ import { UPGRADE_LISTING_TYPES } from '@/lib/listingTypes';
 
 function MetricCard({ label, value, sub, color = '#BF5FFF', isDemo = false }) {
   return (
-    <div className="rounded-2xl px-4 py-3"
-      style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-      <div className="font-display text-2xl" style={{ color }}>{value}</div>
+    <div className="pg-operations-card rounded-2xl px-4 py-3"
+      style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
+      <div className="pg-operations-status font-display text-2xl" style={{ '--pg-status-ink': color }}>{value}</div>
       <div className="text-[11px] font-semibold text-muted-foreground mt-0.5 flex items-center gap-1">
         {label}
         {isDemo && (
-          <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold"
-            style={{ background: 'rgba(191,95,255,0.15)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.25)' }}>
+          <span className="pg-operations-status text-[9px] px-1.5 py-0.5 rounded-full font-bold"
+            style={{ background: 'color-mix(in srgb, rgb(191 95 255) 15%, var(--pg-surface))', '--pg-status-ink': '#BF5FFF', border: '1px solid rgba(191,95,255,0.25)' }}>
             DEMO
           </span>
         )}
@@ -99,9 +99,9 @@ export default function LiveUpgradeControlPanel() {
     <div className="space-y-5">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-          style={{ background: 'rgba(255,140,0,0.12)', border: '1px solid rgba(255,140,0,0.3)' }}>
-          <ArrowUpRight className="w-4 h-4" style={{ color: '#FF8C00' }} />
+        <div className="pg-operations-card w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+          style={{ background: 'color-mix(in srgb, rgb(255 140 0) 12%, var(--pg-surface))', border: '1px solid rgba(255,140,0,0.3)' }}>
+          <ArrowUpRight className="pg-operations-status w-4 h-4" style={{ '--pg-status-ink': '#FF8C00' }} />
         </div>
         <div>
           <h2 className="font-bold text-sm text-foreground">Live Upgrade Control</h2>
@@ -117,7 +117,7 @@ export default function LiveUpgradeControlPanel() {
       {loading ? (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[1,2,3,4,5,6,7].map(i => (
-            <div key={i} className="h-16 rounded-2xl animate-pulse" style={{ background: 'rgba(255,255,255,0.06)' }} />
+            <div key={i} className="pg-operations-card h-16 rounded-2xl animate-pulse" style={{ background: 'var(--pg-surface)' }} />
           ))}
         </div>
       ) : (
@@ -134,8 +134,8 @@ export default function LiveUpgradeControlPanel() {
       )}
 
       {/* Event control */}
-      <div className="rounded-2xl p-4 space-y-4"
-        style={{ background: 'rgba(255,140,0,0.05)', border: '1px solid rgba(255,140,0,0.2)' }}>
+      <div className="pg-operations-card rounded-2xl p-4 space-y-4"
+        style={{ background: 'color-mix(in srgb, rgb(255 140 0) 5%, var(--pg-surface))', border: '1px solid rgba(255,140,0,0.2)' }}>
         <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Demo Upgrade Controls</p>
 
         <div>
@@ -144,7 +144,7 @@ export default function LiveUpgradeControlPanel() {
             value={selectedEventId}
             onChange={e => { setSelectedEventId(e.target.value); setActionMsg(null); }}
             className="w-full px-3 py-2.5 rounded-xl text-sm text-foreground focus:outline-none"
-            style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)' }}
+            style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)' }}
           >
             <option value="">— choose an event —</option>
             {events.map(ev => (
@@ -156,8 +156,8 @@ export default function LiveUpgradeControlPanel() {
         {selectedEvent && (
           <div className="text-xs text-muted-foreground">
             Demo upgrades for this event: <strong className="text-foreground">{selectedEventDemoUpgrades.length}</strong>
-            {hasActiveDemoUpgrades && <span className="ml-2 font-semibold" style={{ color: '#00FF87' }}>● Active</span>}
-            {!hasActiveDemoUpgrades && hasAnyDemoUpgrades && <span className="ml-2 font-semibold" style={{ color: '#FF8C00' }}>● Paused</span>}
+            {hasActiveDemoUpgrades && <span className="pg-operations-status ml-2 font-semibold" style={{ '--pg-status-ink': '#00FF87' }}>● Active</span>}
+            {!hasActiveDemoUpgrades && hasAnyDemoUpgrades && <span className="pg-operations-status ml-2 font-semibold" style={{ '--pg-status-ink': '#FF8C00' }}>● Paused</span>}
           </div>
         )}
 
@@ -166,7 +166,7 @@ export default function LiveUpgradeControlPanel() {
             onClick={() => runAction('released')}
             disabled={!selectedEventId || actionLoading || hasActiveDemoUpgrades}
             className="flex items-center gap-1.5 px-4 py-2.5 rounded-full font-bold text-xs transition-all disabled:opacity-40"
-            style={{ background: 'linear-gradient(135deg, #FF8C00, #FF2D78)', color: '#fff' }}
+            style={{ background: 'var(--pg-orange)', color: 'var(--pg-ink)' }}
           >
             <Play className="w-3.5 h-3.5" />
             {hasAnyDemoUpgrades && !hasActiveDemoUpgrades ? 'Reactivate' : 'Release Demo Upgrades'}
@@ -175,8 +175,8 @@ export default function LiveUpgradeControlPanel() {
           <button
             onClick={() => runAction('pause')}
             disabled={!selectedEventId || actionLoading || !hasActiveDemoUpgrades}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-full font-bold text-xs transition-all disabled:opacity-40"
-            style={{ background: 'rgba(255,200,0,0.12)', border: '1px solid rgba(255,200,0,0.3)', color: '#FFE600' }}
+            className="pg-operations-status flex items-center gap-1.5 px-4 py-2.5 rounded-full font-bold text-xs transition-all disabled:opacity-40"
+            style={{ background: 'color-mix(in srgb, rgb(255 200 0) 12%, var(--pg-surface))', border: '1px solid rgba(255,200,0,0.3)', '--pg-status-ink': '#FFE600' }}
           >
             <Pause className="w-3.5 h-3.5" /> Pause
           </button>
@@ -184,8 +184,8 @@ export default function LiveUpgradeControlPanel() {
           <button
             onClick={() => runAction('reset')}
             disabled={!selectedEventId || actionLoading || !hasAnyDemoUpgrades}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-full font-bold text-xs transition-all disabled:opacity-40"
-            style={{ background: 'rgba(255,45,120,0.1)', border: '1px solid rgba(255,45,120,0.25)', color: '#FF2D78' }}
+            className="pg-operations-status flex items-center gap-1.5 px-4 py-2.5 rounded-full font-bold text-xs transition-all disabled:opacity-40"
+            style={{ background: 'color-mix(in srgb, rgb(255 45 120) 10%, var(--pg-surface))', border: '1px solid rgba(255,45,120,0.25)', '--pg-status-ink': '#FF2D78' }}
           >
             <Trash2 className="w-3.5 h-3.5" /> Reset / Delete All
           </button>
@@ -198,7 +198,7 @@ export default function LiveUpgradeControlPanel() {
           </div>
         )}
         {actionMsg && (
-          <p className="text-xs font-semibold" style={{ color: actionMsg.type === 'success' ? '#00FF87' : '#FF2D78' }}>
+          <p className="pg-operations-status text-xs font-semibold" style={{ '--pg-status-ink': actionMsg.type === 'success' ? '#00FF87' : '#FF2D78' }}>
             {actionMsg.text}
           </p>
         )}

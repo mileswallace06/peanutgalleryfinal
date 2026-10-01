@@ -1,5 +1,5 @@
-/* PG's physical-ticket system. Scope page styling to the six redesigned routes. */
-.pg-ticket-app {
+/* Shared inks also reach public pages and dialogs portalled outside Layout. */
+:root, .dark {
   color-scheme: dark;
   --pg-canvas: #0d0b14;
   --pg-surface: #1a1822;
@@ -17,7 +17,7 @@
   --pg-yellow: #ffe600;
   --pg-orange: #ff8c00;
 }
-:root:not(.dark) .pg-ticket-app {
+:root:not(.dark) {
   color-scheme: light;
   --pg-canvas: #efede7;
   --pg-surface: #fffdf8;
@@ -28,6 +28,7 @@
 }
 .pg-ticket-app--browse { --pg-browse-hero-height: clamp(112px, 20dvh, 180px); --pg-browse-header-height: calc(var(--pg-browse-hero-height) + 52px); }
 .pg-ticket-app--designed { background: var(--pg-canvas); color: var(--pg-text); }
+.pg-access-state { background: var(--pg-canvas); color: var(--pg-text); }
 .pg-brandbar { flex-shrink: 0; background: var(--pg-canvas); padding-top: var(--app-safe-top); }
 .pg-brandbar-inner { max-width: 32rem; margin: auto; min-height: 52px; display: flex; align-items: center; padding: 4px 68px 4px 16px; }
 .pg-brand { display: inline-flex; align-items: center; min-height: 44px; gap: 10px; color: var(--pg-text); text-decoration: none; }

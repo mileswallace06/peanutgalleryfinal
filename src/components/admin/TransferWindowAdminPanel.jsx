@@ -54,11 +54,11 @@ function EventTransferCard({ event, onUpdate }) {
   };
 
   return (
-    <div className="rounded-xl text-sm"
-      style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)' }}>
+    <div className="pg-operations-card rounded-xl text-sm"
+      style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
       {/* Header */}
       <div className="px-4 py-3 flex items-start justify-between gap-3"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+        style={{ borderBottom: '1px solid var(--pg-line)' }}>
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-foreground truncate">{event.title}</div>
           <div className="text-xs text-muted-foreground mt-0.5">
@@ -66,14 +66,14 @@ function EventTransferCard({ event, onUpdate }) {
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <span className="text-xs px-2 py-0.5 rounded-full font-bold"
-            style={{ background: info.bg, color: info.color, border: `1px solid ${info.border}` }}>
+          <span className="pg-operations-status text-xs px-2 py-0.5 rounded-full font-bold"
+            style={{ background: info.bg, '--pg-status-ink': info.color, border: `1px solid ${info.border}` }}>
             {info.badgeIcon} {info.badge}
           </span>
           <button
             onClick={() => setEditing(e => !e)}
-            className="text-xs px-3 py-1 rounded-lg font-semibold transition-all"
-            style={{ background: editing ? 'rgba(191,95,255,0.15)' : 'rgba(255,255,255,0.06)', color: editing ? '#BF5FFF' : 'hsl(var(--muted-foreground))', border: `1px solid ${editing ? 'rgba(191,95,255,0.3)' : 'rgba(255,255,255,0.1)'}` }}>
+            className="pg-operations-status text-xs px-3 py-1 rounded-lg font-semibold transition-all"
+            style={{ background: editing ? 'color-mix(in srgb, rgb(191 95 255) 15%, var(--pg-surface))' : 'var(--pg-surface)', '--pg-status-ink': editing ? '#BF5FFF' : 'var(--pg-muted)', border: `1px solid ${editing ? 'rgba(191,95,255,0.3)' : 'var(--pg-line)'}` }}>
             {editing ? 'Cancel' : 'Edit'}
           </button>
         </div>
@@ -111,11 +111,11 @@ function EventTransferCard({ event, onUpdate }) {
               {STATUS_OPTIONS.map(opt => (
                 <button key={opt.value} type="button"
                   onClick={() => setForm(f => ({ ...f, transfer_window_status: opt.value }))}
-                  className="text-left px-3 py-2 rounded-lg text-xs font-semibold transition-all"
+                  className="pg-operations-status text-left px-3 py-2 rounded-lg text-xs font-semibold transition-all"
                   style={{
-                    background: form.transfer_window_status === opt.value ? `${opt.color}18` : 'rgba(255,255,255,0.04)',
-                    border: form.transfer_window_status === opt.value ? `1px solid ${opt.color}60` : '1px solid rgba(255,255,255,0.08)',
-                    color: form.transfer_window_status === opt.value ? opt.color : 'hsl(var(--muted-foreground))',
+                    background: form.transfer_window_status === opt.value ? `color-mix(in srgb, ${opt.color} 9.41%, var(--pg-surface))` : 'var(--pg-surface)',
+                    border: form.transfer_window_status === opt.value ? `1px solid ${opt.color}60` : '1px solid var(--pg-line)',
+                    '--pg-status-ink': form.transfer_window_status === opt.value ? opt.color : 'var(--pg-muted)',
                   }}>
                   {opt.label}
                 </button>
@@ -133,7 +133,7 @@ function EventTransferCard({ event, onUpdate }) {
               value={form.transfer_window_closes_at}
               onChange={e => setForm(f => ({ ...f, transfer_window_closes_at: e.target.value }))}
               className="w-full px-3 py-2.5 rounded-xl text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }}
+              style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}
             />
           </div>
 
@@ -144,7 +144,7 @@ function EventTransferCard({ event, onUpdate }) {
               value={form.transfer_window_source}
               onChange={e => setForm(f => ({ ...f, transfer_window_source: e.target.value }))}
               className="w-full px-3 py-2.5 rounded-xl text-xs text-foreground focus:outline-none"
-              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }}>
+              style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
               {SOURCE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
@@ -167,11 +167,11 @@ function EventTransferCard({ event, onUpdate }) {
               {['eligible','limited','unknown','not_eligible'].map(e => (
                 <button key={e} type="button"
                   onClick={() => setForm(f => ({ ...f, upgrade_eligibility_status: e }))}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                  className="pg-operations-status px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
                   style={{
-                    background: form.upgrade_eligibility_status === e ? 'rgba(191,95,255,0.12)' : 'rgba(255,255,255,0.04)',
-                    border: form.upgrade_eligibility_status === e ? '1px solid rgba(191,95,255,0.4)' : '1px solid rgba(255,255,255,0.08)',
-                    color: form.upgrade_eligibility_status === e ? '#BF5FFF' : 'hsl(var(--muted-foreground))',
+                    background: form.upgrade_eligibility_status === e ? 'color-mix(in srgb, rgb(191 95 255) 12%, var(--pg-surface))' : 'var(--pg-surface)',
+                    border: form.upgrade_eligibility_status === e ? '1px solid rgba(191,95,255,0.4)' : '1px solid var(--pg-line)',
+                    '--pg-status-ink': form.upgrade_eligibility_status === e ? '#BF5FFF' : 'var(--pg-muted)',
                   }}>
                   {e}
                 </button>
@@ -188,13 +188,13 @@ function EventTransferCard({ event, onUpdate }) {
               placeholder="e.g. Ticketmaster confirmed transfers close at halftime"
               rows={2}
               className="w-full px-3 py-2 rounded-xl text-xs text-foreground placeholder:text-muted-foreground resize-none focus:outline-none"
-              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }}
+              style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}
             />
           </div>
 
           <button onClick={handleSave} disabled={saving}
             className="w-full py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-2 disabled:opacity-40"
-            style={{ background: 'linear-gradient(135deg, #BF5FFF, #FF2D78)', color: '#fff' }}>
+            style={{ background: 'var(--pg-violet)', color: 'var(--pg-ink)' }}>
             {saving ? <><span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Saving…</> : <><ShieldCheck className="w-3.5 h-3.5" /> Save Transfer Status</>}
           </button>
         </div>
@@ -253,9 +253,9 @@ export default function TransferWindowAdminPanel({ onRefresh }) {
           { label: 'Closing', value: stats.closing, color: '#FF8C00' },
           { label: 'Closed', value: stats.closed, color: '#FF2D78' },
         ].map(s => (
-          <div key={s.label} className="rounded-xl p-3 text-center"
-            style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${s.color}25` }}>
-            <div className="text-xl font-black" style={{ color: s.color }}>{s.value}</div>
+          <div key={s.label} className="pg-operations-card rounded-xl p-3 text-center"
+            style={{ background: 'var(--pg-surface)', border: `1px solid ${s.color}25` }}>
+            <div className="pg-operations-status text-xl font-black" style={{ '--pg-status-ink': s.color }}>{s.value}</div>
             <div className="text-[10px] text-muted-foreground">{s.label}</div>
           </div>
         ))}
@@ -271,10 +271,10 @@ export default function TransferWindowAdminPanel({ onRefresh }) {
           { key: 'closed', label: `Closed (${stats.closed})` },
         ].map(tab => (
           <button key={tab.key} onClick={() => setFilter(tab.key)}
-            className="text-xs px-2.5 py-1 rounded-lg transition-all"
+            className="pg-operations-status text-xs px-2.5 py-1 rounded-lg transition-all"
             style={filter === tab.key
-              ? { background: 'rgba(191,95,255,0.12)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.3)' }
-              : { background: 'rgba(255,255,255,0.04)', color: 'hsl(var(--muted-foreground))', border: '1px solid rgba(255,255,255,0.08)' }}>
+              ? { background: 'color-mix(in srgb, rgb(191 95 255) 12%, var(--pg-surface))', '--pg-status-ink': '#BF5FFF', border: '1px solid rgba(191,95,255,0.3)' }
+              : { background: 'var(--pg-surface)', '--pg-status-ink': 'var(--pg-muted)', border: '1px solid var(--pg-line)' }}>
             {tab.label}
           </button>
         ))}
@@ -282,7 +282,7 @@ export default function TransferWindowAdminPanel({ onRefresh }) {
 
       {loading ? (
         <div className="space-y-3">
-          {[1,2,3].map(i => <div key={i} className="h-16 rounded-xl bg-white/5 animate-pulse" />)}
+          {[1,2,3].map(i => <div key={i} className="pg-operations-card h-16 rounded-xl pg-operations-skeleton animate-pulse" />)}
         </div>
       ) : filtered.length === 0 ? (
         <p className="text-sm text-muted-foreground text-center py-8">No events in this category.</p>

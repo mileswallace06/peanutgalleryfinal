@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { X, Zap, Gift, Clock } from 'lucide-react';
+import { X, Zap, Clock } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { motion, AnimatePresence } from 'framer-motion';
+import './fan-gifts-ticket.css';
 
 const DELIVERY_METHODS = [
   { value: 'ticket_transfer', label: 'Ticket Transfer', desc: 'Transfer via ticketing app (TM, SeatGeek, etc.)' },
@@ -97,25 +98,24 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated }
 
   return (
     <AnimatePresence>
-      <motion.div className="fixed inset-0 z-50 flex flex-col justify-end"
+      <motion.div className="pg-fan-gifts pg-gift-sheet-layer fixed inset-0 z-50 flex flex-col justify-end"
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-        <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+        <div className="pg-gift-sheet-backdrop absolute inset-0" onClick={onClose} />
         <motion.div
-          className="relative rounded-t-3xl overflow-hidden"
-          style={{ background: 'hsl(var(--card))', border: '1px solid rgba(255,255,255,0.1)', paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}
+          className="pg-gift-sheet relative"
           initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
           transition={{ type: 'spring', damping: 28, stiffness: 300 }}>
 
           <div className="flex justify-center pt-3 pb-2">
-            <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
+            <div className="pg-gift-sheet-handle w-10 h-1" />
           </div>
-          <button onClick={onClose} className="absolute top-4 right-4 p-2 rounded-full" style={{ background: 'hsl(var(--muted))' }}>
+          <button onClick={onClose} className="pg-gift-button pg-gift-sheet-close absolute top-4 right-4 p-2" aria-label="Close fan gift form">
             <X className="w-4 h-4 text-muted-foreground" />
           </button>
 
           <div className="px-5 pt-1 pb-4">
             {/* Top accent */}
-            <div className="flex items-center gap-2 mb-4">
+            <div className="pg-gift-sheet-heading flex items-center gap-2 mb-4">
               <span className="text-2xl">⚡</span>
               <div>
                 <h2 className="font-black text-lg text-foreground leading-none">Create Flash Drop</h2>
@@ -129,15 +129,13 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated }
                 <p className="text-sm text-muted-foreground">How do you want to drop these seats?</p>
                 <div className="grid grid-cols-2 gap-3">
                   <button onClick={() => { setDropType('immediate'); setStep('details'); }}
-                    className="rounded-2xl p-4 text-left space-y-2 transition-all active:scale-95"
-                    style={{ background: 'rgba(255,230,0,0.08)', border: '1px solid rgba(255,230,0,0.3)' }}>
+                    className="pg-gift-type pg-gift-type-immediate p-4 text-left space-y-2 transition-all active:scale-95">
                     <span className="text-2xl">⚡</span>
                     <p className="font-black text-sm text-foreground">Immediate Drop</p>
                     <p className="text-xs text-muted-foreground">Seats go live right now. Entry window opens instantly.</p>
                   </button>
                   <button onClick={() => { setDropType('scheduled'); setStep('details'); }}
-                    className="rounded-2xl p-4 text-left space-y-2 transition-all active:scale-95"
-                    style={{ background: 'rgba(191,95,255,0.08)', border: '1px solid rgba(191,95,255,0.3)' }}>
+                    className="pg-gift-type pg-gift-type-scheduled p-4 text-left space-y-2 transition-all active:scale-95">
                     <span className="text-2xl">⏰</span>
                     <p className="font-black text-sm text-foreground">Scheduled Drop</p>
                     <p className="text-xs text-muted-foreground">Drop at halftime, a quarter, or a specific moment.</p>
@@ -184,22 +182,17 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated }
                   <div className="flex gap-2">
                     {WINDOW_OPTIONS.map(o => (
                       <button key={o.value} onClick={() => setWindowSecs(o.value)}
-                        className="flex-1 py-2 rounded-xl text-xs font-bold transition-all"
-                        style={windowSecs === o.value
-                          ? { background: 'rgba(255,230,0,0.15)', color: '#FFE600', border: '1px solid rgba(255,230,0,0.4)' }
-                          : { background: 'rgba(255,255,255,0.05)', color: 'hsl(var(--muted-foreground))', border: '1px solid rgba(255,255,255,0.1)' }}>
+                        className={`pg-gift-choice pg-gift-choice-yellow flex-1 py-2 text-xs font-bold transition-all${windowSecs === o.value ? ' is-selected' : ''}`}>
                         {o.label}
                       </button>
                     ))}
                   </div>
                 </div>
 
-                <label className="flex items-center gap-3 px-4 py-3 rounded-2xl cursor-pointer"
-                  style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))' }}>
-                  <div className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0"
-                    style={{ background: isAnonymous ? '#BF5FFF' : 'transparent', border: `2px solid ${isAnonymous ? '#BF5FFF' : 'hsl(var(--border))'}` }}
+                <label className="pg-gift-choice flex items-center gap-3 px-4 py-3 cursor-pointer">
+                  <div className={`pg-gift-checkbox w-5 h-5 flex items-center justify-center flex-shrink-0${isAnonymous ? ' is-selected' : ''}`}
                     onClick={() => setIsAnonymous(v => !v)}>
-                    {isAnonymous && <span className="text-white text-[10px] font-black">✓</span>}
+                    {isAnonymous && <span className="text-[10px] font-black">✓</span>}
                   </div>
                   <div>
                     <p className="text-sm font-bold text-foreground">Drop anonymously</p>
@@ -212,7 +205,7 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated }
                   <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block">Verify You Own This Seat</label>
                   {userListings.length === 0 && (
                     <button type="button" onClick={loadUserListings}
-                      className="text-xs text-primary underline">
+                      className="pg-gift-link text-xs underline">
                       Check my listings for this event
                     </button>
                   )}
@@ -221,10 +214,7 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated }
                       <p className="text-[10px] text-muted-foreground">Link an existing listing:</p>
                       {userListings.map(l => (
                         <button key={l.id} onClick={() => setOwnershipListingId(l.id)}
-                          className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs transition-all"
-                          style={ownershipListingId === l.id
-                            ? { background: 'rgba(0,255,135,0.08)', border: '1px solid rgba(0,255,135,0.3)', color: '#00FF87' }
-                            : { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'hsl(var(--foreground))' }}>
+                          className={`pg-gift-choice pg-gift-choice-mint w-full flex items-center justify-between px-3 py-2 text-xs transition-all${ownershipListingId === l.id ? ' is-selected' : ''}`}>
                           <span>Sec {l.section}{l.row ? ` Row ${l.row}` : ''}</span>
                           <span className="font-bold">${l.asking_price}</span>
                         </button>
@@ -233,14 +223,12 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated }
                   )}
                   <div className="text-[10px] text-muted-foreground">Or upload proof:</div>
                   {ownershipProofUrl ? (
-                    <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-xl"
-                      style={{ background: 'rgba(0,255,135,0.06)', border: '1px solid rgba(0,255,135,0.2)', color: '#00FF87' }}>
+                    <div className="pg-gift-uploaded flex items-center gap-2 text-xs px-3 py-2">
                       ✓ Proof uploaded
                       <button onClick={() => setOwnershipProofUrl('')} className="ml-auto text-muted-foreground">Remove</button>
                     </div>
                   ) : (
-                    <label className="flex items-center gap-2 px-3 py-2 rounded-xl cursor-pointer text-xs text-muted-foreground"
-                      style={{ border: '1.5px dashed rgba(255,255,255,0.12)' }}>
+                    <label className="pg-gift-upload flex items-center gap-2 px-3 py-2 cursor-pointer text-xs text-muted-foreground">
                       {ownershipProofUploading ? <span className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" /> : '📎'}
                       {ownershipProofUploading ? 'Uploading…' : 'Upload ticket screenshot'}
                       <input type="file" accept="image/*" className="hidden" onChange={handleProofUpload} disabled={ownershipProofUploading} />
@@ -254,10 +242,7 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated }
                   <div className="space-y-1.5">
                     {DELIVERY_METHODS.map(m => (
                       <button key={m.value} onClick={() => setDeliveryMethod(m.value)}
-                        className="w-full flex items-start gap-3 px-3 py-2.5 rounded-xl text-left transition-all"
-                        style={deliveryMethod === m.value
-                          ? { background: 'rgba(191,95,255,0.1)', border: '1px solid rgba(191,95,255,0.35)' }
-                          : { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                        className={`pg-gift-choice w-full flex items-start gap-3 px-3 py-2.5 text-left transition-all${deliveryMethod === m.value ? ' is-selected' : ''}`}>
                         <div>
                           <p className="text-xs font-bold text-foreground">{m.label}</p>
                           <p className="text-[10px] text-muted-foreground">{m.desc}</p>
@@ -268,18 +253,16 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated }
                 </div>
 
                 <div className="flex gap-3 pt-1">
-                  <button onClick={() => setStep('type')} className="flex-1 py-3 rounded-2xl text-sm font-bold text-muted-foreground" style={{ background: 'hsl(var(--muted))' }}>Back</button>
+                  <button onClick={() => setStep('type')} className="pg-gift-button flex-1 py-3 text-sm font-bold">Back</button>
                   {dropType === 'scheduled' ? (
                     <button onClick={() => setStep('schedule')} disabled={!section}
-                      className="flex-1 py-3 rounded-2xl text-sm font-black disabled:opacity-40"
-                      style={{ background: 'linear-gradient(135deg, #BF5FFF, #FF2D78)', color: '#fff' }}>
+                      className="pg-gift-button pg-gift-button-primary flex-1 py-3 text-sm font-black disabled:opacity-40">
                       Next: Schedule
                     </button>
                   ) : (
                     <button onClick={handleCreate} disabled={!section || loading}
-                      className="flex-1 py-3 rounded-2xl text-sm font-black disabled:opacity-40 flex items-center justify-center gap-2"
-                      style={{ background: 'linear-gradient(135deg, #FFE600, #FF8C00)', color: '#000' }}>
-                      {loading ? <span className="w-4 h-4 border-2 border-black/40 border-t-black rounded-full animate-spin" /> : <><Zap className="w-4 h-4" /> Drop Now</>}
+                      className="pg-gift-button pg-gift-button-yellow flex-1 py-3 text-sm font-black disabled:opacity-40 flex items-center justify-center gap-2">
+                      {loading ? <span className="pg-gift-spinner w-4 h-4 border-2 rounded-full animate-spin" /> : <><Zap className="w-4 h-4" /> Drop Now</>}
                     </button>
                   )}
                 </div>
@@ -293,21 +276,17 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated }
                 <div className="grid grid-cols-2 gap-2 max-h-56 overflow-y-auto">
                   {SCHEDULE_OPTIONS.map(o => (
                     <button key={o.value} onClick={() => setScheduledLabel(o.label)}
-                      className="px-3 py-2.5 rounded-xl text-xs font-semibold text-left transition-all"
-                      style={scheduledLabel === o.label
-                        ? { background: 'rgba(191,95,255,0.15)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.4)' }
-                        : { background: 'rgba(255,255,255,0.04)', color: 'hsl(var(--foreground))', border: '1px solid rgba(255,255,255,0.08)' }}>
+                      className={`pg-gift-choice px-3 py-2.5 text-xs font-semibold text-left transition-all${scheduledLabel === o.label ? ' is-selected' : ''}`}>
                       <Clock className="w-3 h-3 inline mr-1.5 opacity-60" />{o.label}
                     </button>
                   ))}
                 </div>
                 <p className="text-xs text-muted-foreground">You'll manually activate this drop when the moment arrives from your My Tickets page.</p>
                 <div className="flex gap-3">
-                  <button onClick={() => setStep('details')} className="flex-1 py-3 rounded-2xl text-sm font-bold text-muted-foreground" style={{ background: 'hsl(var(--muted))' }}>Back</button>
+                  <button onClick={() => setStep('details')} className="pg-gift-button flex-1 py-3 text-sm font-bold">Back</button>
                   <button onClick={handleCreate} disabled={!scheduledLabel || loading}
-                    className="flex-1 py-3 rounded-2xl text-sm font-black disabled:opacity-40 flex items-center justify-center gap-2"
-                    style={{ background: 'linear-gradient(135deg, #BF5FFF, #FF2D78)', color: '#fff' }}>
-                    {loading ? <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <><Clock className="w-4 h-4" /> Schedule Drop</>}
+                    className="pg-gift-button pg-gift-button-primary flex-1 py-3 text-sm font-black disabled:opacity-40 flex items-center justify-center gap-2">
+                    {loading ? <span className="pg-gift-spinner w-4 h-4 border-2 rounded-full animate-spin" /> : <><Clock className="w-4 h-4" /> Schedule Drop</>}
                   </button>
                 </div>
               </motion.div>
@@ -325,7 +304,7 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated }
                     ? `Fans have ${windowSecs} seconds to enter. Winner selected instantly.`
                     : `Your drop is queued for ${scheduledLabel}. Activate it manually when the moment arrives.`}
                 </p>
-                <button onClick={onClose} className="w-full py-3.5 rounded-full font-black text-sm" style={{ background: 'hsl(var(--muted))', color: 'hsl(var(--foreground))' }}>
+                <button onClick={onClose} className="pg-gift-button w-full py-3.5 font-black text-sm">
                   Done
                 </button>
               </motion.div>

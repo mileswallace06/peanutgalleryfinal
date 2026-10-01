@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
+import PublicPage from '@/components/PublicPage';
+import { useState } from 'react';
 import { motion, AnimatePresence, useMotionValue, useSpring } from 'framer-motion';
 
 const SLIDES = [
@@ -148,7 +149,7 @@ function LightStreak({ color, delay, startX }) {
 export default function Onboarding({ onDone }) {
   const [index, setIndex] = useState(0);
   const [touchStart, setTouchStart] = useState(null);
-  const [btnHovered, setBtnHovered] = useState(false);
+  const [_btnHovered, setBtnHovered] = useState(false);
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
   const springX = useSpring(mouseX, { stiffness: 60, damping: 20 });
@@ -197,9 +198,9 @@ export default function Onboarding({ onDone }) {
   ];
 
   return (
-    <div
-      className="fixed inset-0 z-[100] flex flex-col overflow-hidden"
-      style={{ background: '#000', paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+    <PublicPage
+      className="pg-public-page--photo fixed inset-0 z-[100] flex flex-col overflow-y-auto overflow-x-hidden"
+      style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
       onMouseMove={handleMouseMove}
@@ -270,15 +271,15 @@ export default function Onboarding({ onDone }) {
         </div>
         <button
           onClick={finish}
-          className="text-xs font-black uppercase tracking-widest px-3 py-1.5 rounded-full"
-          style={{ color: 'rgba(255,255,255,0.55)', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)' }}
+          className="pg-onboarding-skip text-xs font-black uppercase tracking-widest"
+          style={{ color: '#f9f7f1', background: '#0d0b1499', border: '1px solid #f9f7f180' }}
         >
           SKIP ✕
         </button>
       </motion.div>
 
       {/* Content — bottom */}
-      <div className="relative z-10 flex-1 flex flex-col justify-end px-5 pb-4">
+      <div className="pg-onboarding-content relative z-10 flex-1 shrink-0 flex flex-col justify-end px-5 pb-4">
         <AnimatePresence mode="wait">
           <motion.div
             key={index}
@@ -288,15 +289,15 @@ export default function Onboarding({ onDone }) {
             transition={{ duration: 0.3 }}
             className="space-y-4"
           >
-            {/* Tag pill */}
+            {/* Ticket label */}
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.05 }}
             >
               <span
-                className="inline-block text-[11px] font-black tracking-[0.2em] px-4 py-1.5 rounded-full"
-                style={slide.tagStyle}
+                className="pg-onboarding-tag"
+                style={{ color: slide.accentDot }}
               >
                 {slide.tag}
               </span>
@@ -335,20 +336,24 @@ export default function Onboarding({ onDone }) {
         </AnimatePresence>
 
         {/* Progress dots */}
-        <div className="flex gap-2 mt-5 mb-4">
+        <div className="flex gap-1 mt-3 mb-1">
           {SLIDES.map((_, i) => (
-            <motion.div
+            <button
               key={i}
-              className="rounded-full cursor-pointer"
+              type="button"
+              className="pg-onboarding-progress"
               onClick={() => setIndex(i)}
-              animate={{
-                width: i === index ? 32 : 7,
-                background: i === index ? slide.accentDot : 'rgba(255,255,255,0.2)',
-                boxShadow: 'none',
-              }}
-              transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-              style={{ height: 6 }}
-            />
+              aria-label={`Go to slide ${i + 1}`}
+              aria-current={i === index ? 'step' : undefined}
+            >
+              <motion.span
+                aria-hidden="true"
+                className="block rounded-sm"
+                animate={{ width: i === index ? 32 : 10, background: i === index ? slide.accentDot : '#f9f7f180' }}
+                transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+                style={{ height: 4 }}
+              />
+            </button>
           ))}
         </div>
 
@@ -356,8 +361,7 @@ export default function Onboarding({ onDone }) {
         {index > 0 && (
           <motion.button
             onClick={() => setIndex(i => i - 1)}
-            className="text-xs font-black uppercase tracking-widest text-center mb-3"
-            style={{ color: 'rgba(255,255,255,0.35)' }}
+            className="pg-onboarding-back text-xs font-black uppercase tracking-widest text-center mb-1"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
           >
@@ -374,37 +378,14 @@ export default function Onboarding({ onDone }) {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="w-full rounded-2xl font-black tracking-wide overflow-hidden relative"
+          className="pg-public-action w-full font-black tracking-wide overflow-hidden relative"
           style={{
             padding: isLast ? '22px 0' : '20px 0',
             fontSize: isLast ? '1.15rem' : '1.05rem',
-            color: slide.btnColor,
-            boxShadow: `0 4px 24px rgba(0,0,0,0.4)`,
+            color: 'var(--pg-ink)',
+            background: slide.accentDot,
           }}
         >
-          {/* Animated gradient background */}
-          <motion.div
-            className="absolute inset-0"
-            animate={{
-              background: [
-                slide.btnGradient,
-                slide.btnGradient.replace('135deg', '180deg'),
-                slide.btnGradient.replace('135deg', '90deg'),
-                slide.btnGradient,
-              ],
-            }}
-            transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
-          />
-          {/* Shimmer sweep */}
-          <motion.div
-            className="absolute inset-0"
-            style={{
-              background: 'linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.25) 50%, transparent 70%)',
-              backgroundSize: '200% 100%',
-            }}
-            animate={{ backgroundPosition: ['-100% 0', '200% 0'] }}
-            transition={{ duration: 2, repeat: Infinity, ease: 'linear', repeatDelay: 1 }}
-          />
           <span className="relative z-10">
             {isLast ? (slide.btnLabel || '🎫 Find My Upgrade Now') : 'Next →'}
           </span>
@@ -423,6 +404,6 @@ export default function Onboarding({ onDone }) {
           </motion.p>
         )}
       </div>
-    </div>
+    </PublicPage>
   );
 }

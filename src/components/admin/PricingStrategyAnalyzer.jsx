@@ -197,10 +197,10 @@ function getRecommendationTags(scores, txPerMonth) {
 function ScoreBar({ value, color }) {
   return (
     <div className="flex items-center gap-2">
-      <div className="flex-1 h-1.5 rounded-full" style={{ background: 'rgba(255,255,255,0.08)' }}>
+      <div className="flex-1 h-1.5 rounded-full" style={{ background: 'var(--pg-surface-raised)' }}>
         <div className="h-full rounded-full transition-all" style={{ width: `${value}%`, background: color || '#BF5FFF' }} />
       </div>
-      <span className="text-xs font-bold w-7 text-right" style={{ color: color || '#BF5FFF' }}>{value}</span>
+      <span className="pg-operations-status text-xs font-bold w-7 text-right" style={{ '--pg-status-ink': color || '#BF5FFF' }}>{value}</span>
     </div>
   );
 }
@@ -209,7 +209,7 @@ function HealthRing({ score }) {
   const color = score >= 75 ? '#00FF87' : score >= 55 ? '#FFE600' : score >= 35 ? '#FF8C00' : '#FF2D78';
   return (
     <div className="flex flex-col items-center">
-      <div className="text-3xl font-black" style={{ color }}>{score}</div>
+      <div className="pg-operations-status text-3xl font-black" style={{ '--pg-status-ink': color }}>{score}</div>
       <div className="text-[9px] text-muted-foreground">/100</div>
     </div>
   );
@@ -234,7 +234,7 @@ export default function PricingStrategyAnalyzer() {
   };
 
   const inputClass = "w-full px-3 py-2 rounded-xl text-sm text-foreground focus:outline-none";
-  const inputStyle = { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' };
+  const inputStyle = { background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' };
 
   return (
     <div className="space-y-6">
@@ -243,12 +243,12 @@ export default function PricingStrategyAnalyzer() {
         <h2 className="font-bold text-lg text-foreground">Marketplace Pricing Strategy Analyzer</h2>
         <p className="text-xs text-muted-foreground mt-0.5">
           Read-only decision-support tool. Does not modify live pricing, checkout, or fee models.
-          <span className="ml-2 font-semibold" style={{ color: '#00FF87' }}>Live: {FEE_MODELS[ACTIVE_FEE_MODEL_ID]?.label}</span>
+          <span className="pg-operations-status ml-2 font-semibold" style={{ '--pg-status-ink': '#00FF87' }}>Live: {FEE_MODELS[ACTIVE_FEE_MODEL_ID]?.label}</span>
         </p>
       </div>
 
       {/* Inputs */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 rounded-2xl" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+      <div className="pg-operations-card grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 rounded-2xl" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
         <div>
           <label className="text-xs text-muted-foreground block mb-1">Avg Ticket Price ($)</label>
           <input type="number" min="10" value={ticketPrice} onChange={e => setTicketPrice(+e.target.value)} className={inputClass} style={inputStyle} />
@@ -259,23 +259,23 @@ export default function PricingStrategyAnalyzer() {
         </div>
         <div className="col-span-2 flex items-end gap-2">
           {isBeta && (
-            <span className="text-xs px-3 py-2 rounded-xl font-semibold" style={{ background: 'rgba(0,255,135,0.08)', color: '#00FF87', border: '1px solid rgba(0,255,135,0.25)' }}>
+            <span className="pg-operations-status text-xs px-3 py-2 rounded-xl font-semibold" style={{ background: 'color-mix(in srgb, rgb(0 255 135) 8%, var(--pg-surface))', '--pg-status-ink': '#00FF87', border: '1px solid rgba(0,255,135,0.25)' }}>
               🌱 Beta Mode — Optimizing for adoption
             </span>
           )}
           {isScale && (
-            <span className="text-xs px-3 py-2 rounded-xl font-semibold" style={{ background: 'rgba(191,95,255,0.08)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.25)' }}>
+            <span className="pg-operations-status text-xs px-3 py-2 rounded-xl font-semibold" style={{ background: 'color-mix(in srgb, rgb(191 95 255) 8%, var(--pg-surface))', '--pg-status-ink': '#BF5FFF', border: '1px solid rgba(191,95,255,0.25)' }}>
               📈 Scale Mode — Optimizing for profitability + competitiveness
             </span>
           )}
           {!isBeta && !isScale && (
-            <span className="text-xs px-3 py-2 rounded-xl font-semibold" style={{ background: 'rgba(255,255,255,0.04)', color: 'hsl(var(--muted-foreground))', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <span className="text-xs px-3 py-2 rounded-xl font-semibold" style={{ background: 'var(--pg-surface)', color: 'var(--pg-muted)', border: '1px solid var(--pg-line)' }}>
               Growth Stage
             </span>
           )}
           <button onClick={() => setShowCompetitorEdit(v => !v)}
             className="ml-auto text-xs px-3 py-2 rounded-xl font-semibold transition-all"
-            style={{ background: 'rgba(255,255,255,0.06)', color: 'hsl(var(--muted-foreground))', border: '1px solid rgba(255,255,255,0.1)' }}>
+            style={{ background: 'var(--pg-surface)', color: 'var(--pg-muted)', border: '1px solid var(--pg-line)' }}>
             ⚙️ Competitor Assumptions
           </button>
         </div>
@@ -283,13 +283,13 @@ export default function PricingStrategyAnalyzer() {
 
       {/* Competitor Assumption Editor */}
       {showCompetitorEdit && (
-        <div className="rounded-2xl p-4 space-y-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)' }}>
+        <div className="pg-operations-card rounded-2xl p-4 space-y-4" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
           <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide">Competitor Benchmark Assumptions (adjustable)</p>
           <p className="text-xs text-muted-foreground">These are directional estimates, not exact figures. Adjust to reflect current market knowledge.</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {Object.entries(competitors).map(([key, c]) => (
-              <div key={key} className="rounded-xl p-3 space-y-2" style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${c.color}30` }}>
-                <div className="font-semibold text-xs text-foreground" style={{ color: c.color }}>{c.name}</div>
+              <div key={key} className="pg-operations-card rounded-xl p-3 space-y-2" style={{ background: 'var(--pg-surface)', border: `1px solid ${c.color}30` }}>
+                <div className="pg-operations-status font-semibold text-xs text-foreground" style={{ '--pg-status-ink': c.color }}>{c.name}</div>
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div>
                     <label className="text-muted-foreground block mb-1">Buyer Fee Low (%)</label>
@@ -331,12 +331,12 @@ export default function PricingStrategyAnalyzer() {
       )}
 
       {/* Competitor baseline at current price */}
-      <div className="rounded-2xl p-4 space-y-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+      <div className="pg-operations-card rounded-2xl p-4 space-y-3" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
         <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide">Competitor Baseline at ${ticketPrice} ticket (midpoint estimates)</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {compStats.stats.map(c => (
-            <div key={c.name} className="rounded-xl p-3 space-y-1 text-center" style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${c.color}30` }}>
-              <div className="text-xs font-bold" style={{ color: c.color }}>{c.name}</div>
+            <div key={c.name} className="pg-operations-card rounded-xl p-3 space-y-1 text-center" style={{ background: 'var(--pg-surface)', border: `1px solid ${c.color}30` }}>
+              <div className="pg-operations-status text-xs font-bold" style={{ '--pg-status-ink': c.color }}>{c.name}</div>
               <div className="text-xs text-muted-foreground">Buyer pays <span className="text-foreground font-semibold">{fmt(c.buyerTotal)}</span></div>
               <div className="text-xs text-muted-foreground">Seller gets <span className="text-foreground font-semibold">{fmt(c.sellerPayout)}</span></div>
             </div>
@@ -359,10 +359,10 @@ export default function PricingStrategyAnalyzer() {
             const modelTags = tags[s.modelId] || [];
             const isLive = s.modelId === ACTIVE_FEE_MODEL_ID;
             return (
-              <div key={s.modelId} className="rounded-2xl p-4"
+              <div key={s.modelId} className="pg-operations-card rounded-2xl p-4"
                 style={{
-                  background: isLive ? 'rgba(0,255,135,0.04)' : 'rgba(255,255,255,0.03)',
-                  border: isLive ? '1px solid rgba(0,255,135,0.25)' : '1px solid rgba(255,255,255,0.08)',
+                  background: isLive ? 'color-mix(in srgb, rgb(0 255 135) 4%, var(--pg-surface))' : 'var(--pg-surface)',
+                  border: isLive ? '1px solid rgba(0,255,135,0.25)' : '1px solid var(--pg-line)',
                 }}>
                 <div className="flex items-start gap-4">
                   {/* Rank */}
@@ -380,10 +380,10 @@ export default function PricingStrategyAnalyzer() {
                     <div className="flex items-center flex-wrap gap-1.5 mb-2">
                       <span className="font-bold text-sm text-foreground">{FEE_MODELS[s.modelId]?.label}</span>
                       {isLive && (
-                        <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(0,255,135,0.15)', color: '#00FF87', border: '1px solid rgba(0,255,135,0.3)' }}>★ LIVE</span>
+                        <span className="pg-operations-status text-[9px] font-black px-1.5 py-0.5 rounded-full" style={{ background: 'color-mix(in srgb, rgb(0 255 135) 15%, var(--pg-surface))', '--pg-status-ink': '#00FF87', border: '1px solid rgba(0,255,135,0.3)' }}>★ LIVE</span>
                       )}
                       {FEE_MODELS[s.modelId]?.instant_only && (
-                        <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(191,95,255,0.12)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.25)' }}>Instant Only</span>
+                        <span className="pg-operations-status text-[9px] font-black px-1.5 py-0.5 rounded-full" style={{ background: 'color-mix(in srgb, rgb(191 95 255) 12%, var(--pg-surface))', '--pg-status-ink': '#BF5FFF', border: '1px solid rgba(191,95,255,0.25)' }}>Instant Only</span>
                       )}
                     </div>
 
@@ -391,8 +391,8 @@ export default function PricingStrategyAnalyzer() {
                     {modelTags.length > 0 && (
                       <div className="flex flex-wrap gap-1 mb-3">
                         {modelTags.map(t => (
-                          <span key={t} className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
-                            style={{ background: 'rgba(255,230,0,0.1)', color: '#FFE600', border: '1px solid rgba(255,230,0,0.2)' }}>
+                          <span key={t} className="pg-operations-status text-[10px] px-2 py-0.5 rounded-full font-semibold"
+                            style={{ background: 'color-mix(in srgb, rgb(255 230 0) 10%, var(--pg-surface))', '--pg-status-ink': '#FFE600', border: '1px solid rgba(255,230,0,0.2)' }}>
                             {t}
                           </span>
                         ))}
@@ -403,20 +403,20 @@ export default function PricingStrategyAnalyzer() {
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3 text-xs">
                       <div>
                         <div className="text-muted-foreground">Buyer pays</div>
-                        <div className="font-bold" style={{ color: '#BF5FFF' }}>{fmt(s.fees.buyerTotal)}</div>
+                        <div className="pg-operations-status font-bold" style={{ '--pg-status-ink': '#BF5FFF' }}>{fmt(s.fees.buyerTotal)}</div>
                         <div className="text-[10px] text-muted-foreground">
                           {s.buyerSavingsPct >= 0
-                            ? <span style={{ color: '#00FF87' }}>↓ {(s.buyerSavingsPct * 100).toFixed(0)}% vs competitors</span>
-                            : <span style={{ color: '#FF2D78' }}>↑ {Math.abs(s.buyerSavingsPct * 100).toFixed(0)}% above competitors</span>}
+                            ? <span className="pg-operations-status" style={{ '--pg-status-ink': '#00FF87' }}>↓ {(s.buyerSavingsPct * 100).toFixed(0)}% vs competitors</span>
+                            : <span className="pg-operations-status" style={{ '--pg-status-ink': '#FF2D78' }}>↑ {Math.abs(s.buyerSavingsPct * 100).toFixed(0)}% above competitors</span>}
                         </div>
                       </div>
                       <div>
                         <div className="text-muted-foreground">Seller gets</div>
-                        <div className="font-bold" style={{ color: '#00FF87' }}>{fmt(s.fees.sellerPayout)}</div>
+                        <div className="pg-operations-status font-bold" style={{ '--pg-status-ink': '#00FF87' }}>{fmt(s.fees.sellerPayout)}</div>
                         <div className="text-[10px] text-muted-foreground">
                           {s.sellerGainPct >= 0
-                            ? <span style={{ color: '#00FF87' }}>↑ {(s.sellerGainPct * 100).toFixed(0)}% vs competitors</span>
-                            : <span style={{ color: '#FF2D78' }}>↓ {Math.abs(s.sellerGainPct * 100).toFixed(0)}% below competitors</span>}
+                            ? <span className="pg-operations-status" style={{ '--pg-status-ink': '#00FF87' }}>↑ {(s.sellerGainPct * 100).toFixed(0)}% vs competitors</span>
+                            : <span className="pg-operations-status" style={{ '--pg-status-ink': '#FF2D78' }}>↓ {Math.abs(s.sellerGainPct * 100).toFixed(0)}% below competitors</span>}
                         </div>
                       </div>
                       <div>
@@ -459,12 +459,12 @@ export default function PricingStrategyAnalyzer() {
       </div>
 
       {/* Recommendation Summary */}
-      <div className="rounded-2xl p-4 space-y-3" style={{ background: 'rgba(255,230,0,0.04)', border: '1px solid rgba(255,230,0,0.2)' }}>
-        <p className="text-xs font-bold uppercase tracking-wide" style={{ color: '#FFE600' }}>Recommendation Engine</p>
+      <div className="pg-operations-card rounded-2xl p-4 space-y-3" style={{ background: 'color-mix(in srgb, rgb(255 230 0) 4%, var(--pg-surface))', border: '1px solid rgba(255,230,0,0.2)' }}>
+        <p className="pg-operations-status text-xs font-bold uppercase tracking-wide" style={{ '--pg-status-ink': '#FFE600' }}>Recommendation Engine</p>
 
         {isBeta && (
-          <div className="rounded-xl p-3 text-xs" style={{ background: 'rgba(0,255,135,0.06)', border: '1px solid rgba(0,255,135,0.2)' }}>
-            <div className="font-bold mb-1" style={{ color: '#00FF87' }}>🌱 Beta Stage ({txPerMonth} tx/month)</div>
+          <div className="pg-operations-card rounded-xl p-3 text-xs" style={{ background: 'color-mix(in srgb, rgb(0 255 135) 6%, var(--pg-surface))', border: '1px solid rgba(0,255,135,0.2)' }}>
+            <div className="pg-operations-status font-bold mb-1" style={{ '--pg-status-ink': '#00FF87' }}>🌱 Beta Stage ({txPerMonth} tx/month)</div>
             <p className="text-muted-foreground">
               At this transaction volume, prioritize <strong className="text-foreground">seller adoption and buyer conversion</strong> over revenue.
               The model with the lowest combined fee burden will drive the most listings and first-time purchases.
@@ -474,8 +474,8 @@ export default function PricingStrategyAnalyzer() {
         )}
 
         {isScale && (
-          <div className="rounded-xl p-3 text-xs" style={{ background: 'rgba(191,95,255,0.06)', border: '1px solid rgba(191,95,255,0.2)' }}>
-            <div className="font-bold mb-1" style={{ color: '#BF5FFF' }}>📈 Scale Stage ({txPerMonth.toLocaleString()} tx/month)</div>
+          <div className="pg-operations-card rounded-xl p-3 text-xs" style={{ background: 'color-mix(in srgb, rgb(191 95 255) 6%, var(--pg-surface))', border: '1px solid rgba(191,95,255,0.2)' }}>
+            <div className="pg-operations-status font-bold mb-1" style={{ '--pg-status-ink': '#BF5FFF' }}>📈 Scale Stage ({txPerMonth.toLocaleString()} tx/month)</div>
             <p className="text-muted-foreground">
               At this volume, a seller fee becomes meaningful revenue without killing marketplace competitiveness.
               <strong className="text-foreground ml-1">buyer_5_seller_3</strong> or <strong className="text-foreground">buyer_5_seller_5</strong> balances profitability
@@ -496,7 +496,7 @@ export default function PricingStrategyAnalyzer() {
             const winner = Object.entries(tags).find(([, ts]) => ts.includes(rec.tag));
             if (!winner) return null;
             return (
-              <div key={rec.tag} className="rounded-xl p-3 text-xs flex gap-2" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+              <div key={rec.tag} className="pg-operations-card rounded-xl p-3 text-xs flex gap-2" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
                 <span className="text-base flex-shrink-0">{rec.tag.split(' ')[0]}</span>
                 <div>
                   <div className="font-semibold text-foreground">{rec.tag.replace(/^\S+\s/, '')}</div>
@@ -509,13 +509,13 @@ export default function PricingStrategyAnalyzer() {
       </div>
 
       {/* Future metrics placeholder */}
-      <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
+      <div className="pg-operations-card rounded-2xl p-4" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
         <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-2">Future Real-Data Integration (Placeholders)</p>
         <p className="text-xs text-muted-foreground mb-3">These signals will automatically improve scoring accuracy once connected to real analytics.</p>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {Object.entries(FUTURE_METRICS_PLACEHOLDER).map(([key]) => (
             <div key={key} className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg"
-              style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+              style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
               <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground opacity-30 flex-shrink-0" />
               <span className="text-muted-foreground capitalize">{key.replace(/_/g, ' ')}</span>
               <span className="ml-auto text-muted-foreground opacity-50 text-[10px]">not connected</span>
@@ -525,9 +525,9 @@ export default function PricingStrategyAnalyzer() {
       </div>
 
       {/* Read-only confirmation */}
-      <div className="rounded-xl px-4 py-3 flex items-center gap-3 text-xs"
-        style={{ background: 'rgba(0,255,135,0.04)', border: '1px solid rgba(0,255,135,0.15)' }}>
-        <span style={{ color: '#00FF87' }}>🔒</span>
+      <div className="pg-operations-card rounded-xl px-4 py-3 flex items-center gap-3 text-xs"
+        style={{ background: 'color-mix(in srgb, rgb(0 255 135) 4%, var(--pg-surface))', border: '1px solid rgba(0,255,135,0.15)' }}>
+        <span className="pg-operations-status" style={{ '--pg-status-ink': '#00FF87' }}>🔒</span>
         <span className="text-muted-foreground">
           This tool is <strong className="text-foreground">read-only</strong>. It does not modify{' '}
           <code className="text-primary">ACTIVE_FEE_MODEL_ID</code>, checkout, listing creation, seller payouts, or any production pricing.

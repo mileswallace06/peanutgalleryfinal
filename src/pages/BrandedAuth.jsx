@@ -12,8 +12,8 @@ const COPY = {
   forgot: ['Let’s get you back in.', 'Enter your account email to request a password reset.'],
   reset: ['A fresh start.', 'Choose a new password for your account.'],
 };
-const INPUT_CLASS = 'block w-full mt-2 min-h-12 rounded-xl border border-white/25 bg-black/40 px-4 py-3 text-base text-white placeholder:text-white/45 focus:outline-none focus:ring-2 focus:ring-[#BF5FFF] disabled:opacity-60';
-const SECONDARY_CLASS = 'w-full min-h-12 rounded-xl border border-white/25 bg-white/5 px-4 py-3 text-base font-bold text-white hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#BF5FFF] disabled:opacity-50';
+const INPUT_CLASS = 'pg-auth-input';
+const SECONDARY_CLASS = 'pg-public-action pg-public-action--secondary w-full min-h-12 text-base';
 
 // resetToken is intentionally injected only by a caller with a verified reset-link
 // contract. Do not guess a query parameter or treat an ordinary login token as one.
@@ -86,7 +86,7 @@ export default function BrandedAuth({ mode = 'login', resetToken = '', providers
               value={email} onChange={(event) => setEmail(event.target.value)} className={INPUT_CLASS} />
           </label>}
           {step === 'verify' && <>
-            <p className="text-sm text-white/80 break-words">Sent to {email}</p>
+            <p className="text-sm pg-public-muted break-words">Sent to {email}</p>
             <label className="block text-sm font-semibold" htmlFor="pg-auth-code">Verification code
               <input id="pg-auth-code" type="text" inputMode="numeric" autoComplete="one-time-code" required
                 value={otpCode} onChange={(event) => setOtpCode(event.target.value)} className={INPUT_CLASS} />
@@ -100,36 +100,34 @@ export default function BrandedAuth({ mode = 'login', resetToken = '', providers
             <input id="pg-auth-confirm" type="password" autoComplete="new-password" required
               value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} className={INPUT_CLASS} />
           </label>}
-          {step === 'login' && <Link className="inline-flex min-h-11 items-center text-sm text-[#00C8FF] underline underline-offset-4" to={authPageHref('/forgot-password', returnTo)}>Forgot password?</Link>}
-          <button type="submit" className="w-full min-h-12 rounded-xl px-4 py-3 text-base font-black text-[#0D0B14] disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#00FF87]"
-            style={{ background: 'linear-gradient(135deg, #00FF87, #00C8FF)' }}>
+          {step === 'login' && <Link className="pg-public-link text-sm" to={authPageHref('/forgot-password', returnTo)}>Forgot password?</Link>}
+          <button type="submit" className="pg-public-action w-full min-h-12 text-base">
             {busy ? 'Please wait…' : ({ login: 'Sign in', register: 'Create account', verify: 'Verify email', forgot: 'Send reset link', reset: 'Reset password' }[step] || 'Continue')}
           </button>
         </fieldset>
-        {resetUnavailable && <div role="alert" className="text-sm leading-relaxed text-[#FFD56A]">
+        {resetUnavailable && <div role="alert" className="text-sm leading-relaxed pg-auth-notice--error">
           This reset link could not be opened. <Link className="underline underline-offset-4" to={authPageHref('/forgot-password', returnTo)}>Request a new reset link.</Link>
         </div>}
-        {notice?.message && <p role={notice.ok ? 'status' : 'alert'} aria-live="polite" className="text-sm leading-relaxed"
-          style={{ color: notice.ok ? '#B6F5D5' : '#FFD56A' }}>{notice.message}</p>}
+        {notice?.message && <p role={notice.ok ? 'status' : 'alert'} aria-live="polite" className={`text-sm leading-relaxed ${notice.ok ? 'pg-auth-notice--success' : 'pg-auth-notice--error'}`}>{notice.message}</p>}
       </form>
 
       {['login', 'register'].includes(step) && <>
-        <div className="flex items-center gap-3 my-6 text-sm text-white/60"><span className="h-px bg-white/20 flex-1" />or<span className="h-px bg-white/20 flex-1" /></div>
+        <div className="pg-auth-divider"><span />or<span /></div>
         <div className="space-y-3">
           {providers.includes('google') && <button type="button" disabled={busy} onClick={() => run('provider', 'google')} className={SECONDARY_CLASS}>Continue with Google</button>}
           {providers.includes('apple') && <button type="button" disabled={busy} onClick={() => run('provider', 'apple')} className={SECONDARY_CLASS}>Continue with Apple</button>}
         </div>
-        <p className="mt-6 text-sm text-white/80">{step === 'login' ? 'New to Peanut Gallery? ' : 'Already have an account? '}
-          <Link className="inline-flex min-h-11 items-center font-bold text-[#00FF87] underline underline-offset-4" to={authPageHref(step === 'login' ? '/register' : '/login', returnTo)}>
+        <p className="mt-6 text-sm pg-public-muted">{step === 'login' ? 'New to Peanut Gallery? ' : 'Already have an account? '}
+          <Link className="pg-public-link font-bold" to={authPageHref(step === 'login' ? '/register' : '/login', returnTo)}>
             {step === 'login' ? 'Create account' : 'Sign in'}
           </Link>
         </p>
       </>}
       {step === 'verify' && <div className="mt-5 space-y-3">
         <button type="button" disabled={busy} onClick={() => run('resend')} className={SECONDARY_CLASS}>Send another code</button>
-        <button type="button" disabled={busy} onClick={() => { setStep('register'); setOtpCode(''); setNotice(null); }} className="min-h-11 text-sm text-[#00C8FF] underline underline-offset-4">Use a different email</button>
+        <button type="button" disabled={busy} onClick={() => { setStep('register'); setOtpCode(''); setNotice(null); }} className="pg-public-link text-sm">Use a different email</button>
       </div>}
-      {['forgot', 'reset'].includes(step) && <Link className="inline-flex min-h-11 mt-5 text-sm items-center text-[#00C8FF] underline underline-offset-4" to={authPageHref('/login', returnTo)}>Back to sign in</Link>}
+      {['forgot', 'reset'].includes(step) && <Link className="pg-public-link mt-5 text-sm" to={authPageHref('/login', returnTo)}>Back to sign in</Link>}
     </PGAuthShell>
   );
 }

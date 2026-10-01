@@ -1,3 +1,4 @@
+import PublicPage from '@/components/PublicPage';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, LoaderCircle, RefreshCw } from 'lucide-react';
@@ -84,14 +85,13 @@ export default function PrivacyPolicy() {
   }, [loadAttempt]);
 
   return (
-    <div style={{ height: '100dvh', overflowY: 'auto' }}>
+    <PublicPage style={{ height: '100dvh', overflowY: 'auto' }}>
       {/* Header */}
-      <div className="sticky top-0 z-20 frosted-bar border-b border-border"
-        style={{ paddingTop: 'calc(env(safe-area-inset-top) + 10px)' }}>
+      <div className="pg-public-header">
         <div className="flex items-center gap-3 px-4 pb-3">
           <button onClick={() => window.history.length > 1 ? navigate(-1) : navigate('/')}
-            className="w-9 h-9 rounded-xl flex items-center justify-center"
-            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+            className="pg-public-back"
+            aria-label="Go back">
             <ChevronLeft className="w-5 h-5" />
           </button>
           <h1 className="font-display text-xl text-foreground">Privacy Policy</h1>
@@ -103,7 +103,7 @@ export default function PrivacyPolicy() {
           <div
             role="status"
             aria-live="polite"
-            className="rounded-2xl border border-border bg-card p-5 flex items-center gap-3 text-muted-foreground"
+            className="pg-public-state pg-public-loading flex items-center gap-3 pg-public-muted"
           >
             <LoaderCircle className="w-5 h-5 animate-spin shrink-0" aria-hidden="true" />
             <span>Loading the privacy policy…</span>
@@ -111,7 +111,7 @@ export default function PrivacyPolicy() {
         )}
 
         {loadState === 'error' && (
-          <div role="alert" className="rounded-2xl border border-border bg-card p-5">
+          <div role="alert" className="pg-public-state">
             <h2 className="font-display text-lg text-foreground">Privacy policy temporarily unavailable</h2>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
               The policy could not load from our policy provider. Try again, or contact us for a copy.
@@ -120,7 +120,7 @@ export default function PrivacyPolicy() {
               <button
                 type="button"
                 onClick={() => setLoadAttempt(attempt => attempt + 1)}
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 py-2 text-sm font-semibold text-foreground"
+                className="pg-public-action pg-public-action--secondary text-sm"
               >
                 <RefreshCw className="w-4 h-4" aria-hidden="true" />
                 Try again
@@ -260,6 +260,6 @@ export default function PrivacyPolicy() {
           }
         `}</style>
       </div>
-    </div>
+    </PublicPage>
   );
 }

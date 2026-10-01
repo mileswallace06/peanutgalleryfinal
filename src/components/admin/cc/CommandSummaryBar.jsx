@@ -31,7 +31,7 @@ export default function CommandSummaryBar({ purchases, listings, donations, stri
       value: urgentCount,
       detail: [disputes && `${disputes} dispute${disputes !== 1 ? 's' : ''}`, failedCaptures && `${failedCaptures} failed capture${failedCaptures !== 1 ? 's' : ''}`, suspicious && `${suspicious} suspicious`].filter(Boolean).join(' · ') || 'None',
       color: urgentCount > 0 ? '#FF2D78' : '#00FF87',
-      bg: urgentCount > 0 ? 'rgba(255,45,120,0.12)' : 'rgba(0,255,135,0.08)',
+      bg: urgentCount > 0 ? 'color-mix(in srgb, rgb(255 45 120) 12%, var(--pg-surface))' : 'color-mix(in srgb, rgb(0 255 135) 8%, var(--pg-surface))',
       border: urgentCount > 0 ? 'rgba(255,45,120,0.4)' : 'rgba(0,255,135,0.25)',
       section: 'issues',
       emoji: urgentCount > 0 ? '🚨' : '✅',
@@ -41,7 +41,7 @@ export default function CommandSummaryBar({ purchases, listings, donations, stri
       value: reviewCount,
       detail: [aiNeedsReview && `${aiNeedsReview} AI review`, autoReview && `${autoReview} inactive buyer`, instantNeedsReview && `${instantNeedsReview} instant custody`].filter(Boolean).join(' · ') || 'None',
       color: reviewCount > 0 ? '#FF8C00' : '#00FF87',
-      bg: reviewCount > 0 ? 'rgba(255,140,0,0.1)' : 'rgba(0,255,135,0.08)',
+      bg: reviewCount > 0 ? 'color-mix(in srgb, rgb(255 140 0) 10%, var(--pg-surface))' : 'color-mix(in srgb, rgb(0 255 135) 8%, var(--pg-surface))',
       border: reviewCount > 0 ? 'rgba(255,140,0,0.35)' : 'rgba(0,255,135,0.25)',
       section: 'issues',
       emoji: reviewCount > 0 ? '⚠️' : '✅',
@@ -51,7 +51,7 @@ export default function CommandSummaryBar({ purchases, listings, donations, stri
       value: pendingTransfers,
       detail: `${pendingTransfers} purchase${pendingTransfers !== 1 ? 's' : ''} in escrow`,
       color: pendingTransfers > 0 ? '#00C8FF' : '#888',
-      bg: 'rgba(0,200,255,0.08)',
+      bg: 'color-mix(in srgb, rgb(0 200 255) 8%, var(--pg-surface))',
       border: 'rgba(0,200,255,0.2)',
       section: 'stripe',
       emoji: '💳',
@@ -61,8 +61,8 @@ export default function CommandSummaryBar({ purchases, listings, donations, stri
       value: stripeMismatch ? '⚠️' : stripeMode?.overallMode === 'live' ? '✅' : '🧪',
       detail: stripeMismatch ? 'Key mismatch!' : stripeMode?.overallMode === 'live' ? 'Live mode' : stripeMode?.overallMode === 'test' ? 'Test mode' : 'Unknown',
       color: stripeMismatch ? '#FF2D78' : stripeMode?.overallMode === 'live' ? '#00FF87' : '#FF8C00',
-      bg: stripeMismatch ? 'rgba(255,45,120,0.1)' : 'rgba(255,255,255,0.04)',
-      border: stripeMismatch ? 'rgba(255,45,120,0.35)' : 'rgba(255,255,255,0.1)',
+      bg: stripeMismatch ? 'color-mix(in srgb, rgb(255 45 120) 10%, var(--pg-surface))' : 'var(--pg-surface)',
+      border: stripeMismatch ? 'rgba(255,45,120,0.35)' : 'var(--pg-line)',
       section: 'stripe',
       emoji: null,
     },
@@ -79,7 +79,7 @@ export default function CommandSummaryBar({ purchases, listings, donations, stri
             <span className="text-xs font-semibold text-muted-foreground">{card.label}</span>
             {card.emoji && <span className="text-base leading-none">{card.emoji}</span>}
           </div>
-          <div className="text-2xl font-black" style={{ color: card.color }}>{card.value}</div>
+          <div className="pg-operations-status text-2xl font-black" style={{ '--pg-status-ink': card.color }}>{card.value}</div>
           <div className="text-[10px] text-muted-foreground mt-1 leading-tight">{card.detail}</div>
         </button>
       ))}

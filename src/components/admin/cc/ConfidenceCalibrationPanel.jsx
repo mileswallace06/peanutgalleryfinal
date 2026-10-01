@@ -28,7 +28,7 @@ function AccuracyTable({ title, map, limit }) {
           <div key={k} className="flex items-center justify-between text-[10px] gap-2">
             <span className="text-muted-foreground truncate flex-1 min-w-0">{k}</span>
             <span className="text-muted-foreground flex-shrink-0">{v.correct}/{v.samples}</span>
-            <span className="font-bold w-8 text-right flex-shrink-0" style={{ color: accColor(v.accuracy) }}>{v.accuracy}%</span>
+            <span className="pg-operations-status font-bold w-8 text-right flex-shrink-0" style={{ '--pg-status-ink': accColor(v.accuracy) }}>{v.accuracy}%</span>
           </div>
         ))}
       </div>
@@ -42,29 +42,29 @@ function SourceWeightRow({ name, data }) {
   const effective = (baseWeight * multiplier).toFixed(2);
   const tuned = Math.abs(multiplier - 1) > 0.01;
   return (
-    <div className="rounded-lg p-2.5 space-y-1.5" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+    <div className="rounded-lg p-2.5 space-y-1.5" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
       <div className="flex items-center justify-between">
         <span className="text-[11px] font-semibold text-foreground flex items-center gap-1">
           {name}
-          {tuned && <Sparkles className="w-3 h-3" style={{ color: '#BF5FFF' }} />}
+          {tuned && <Sparkles className="pg-operations-status w-3 h-3" style={{ '--pg-status-ink': '#BF5FFF' }} />}
         </span>
-        <span className="text-[10px] font-bold" style={{ color: '#BF5FFF' }}>×{multiplier}</span>
+        <span className="pg-operations-status text-[10px] font-bold" style={{ '--pg-status-ink': '#BF5FFF' }}>×{multiplier}</span>
       </div>
       <div className="flex items-center justify-between text-[9px] text-muted-foreground">
-        <span>base {baseWeight} → eff <span className="font-bold" style={{ color: accColor(accuracy == null ? null : 70) }}>{effective}</span></span>
+        <span>base {baseWeight} → eff <span className="pg-operations-status font-bold" style={{ '--pg-status-ink': accColor(accuracy == null ? null : 70) }}>{effective}</span></span>
         <span>{samples} samples</span>
       </div>
       {samples > 0 ? (
         <>
           <div className="flex items-center justify-between text-[10px]">
             <span className="text-muted-foreground">source accuracy</span>
-            <span className="font-bold" style={{ color: accColor(accuracy) }}>{accuracy == null ? '—' : `${accuracy}%`}</span>
+            <span className="pg-operations-status font-bold" style={{ '--pg-status-ink': accColor(accuracy) }}>{accuracy == null ? '—' : `${accuracy}%`}</span>
           </div>
           <div className="flex items-center justify-between text-[10px]">
             <span className="text-muted-foreground flex items-center gap-1">
               bias {bias > 0 ? <TrendingUp className="w-3 h-3" /> : bias < 0 ? <TrendingDown className="w-3 h-3" /> : null}
             </span>
-            <span className="font-bold" style={{ color: biasColor(bias) }}>
+            <span className="pg-operations-status font-bold" style={{ '--pg-status-ink': biasColor(bias) }}>
               {bias > 0 ? 'over-optimistic' : bias < 0 ? 'over-pessimistic' : 'neutral'} ({bias > 0 ? '+' : ''}{bias})
             </span>
           </div>
@@ -114,40 +114,40 @@ export default function ConfidenceCalibrationPanel() {
   const lastCal = data?.last_calibrated_at ? formatDistanceToNow(new Date(data.last_calibrated_at), { addSuffix: true }) : null;
 
   return (
-    <div className="rounded-2xl p-4 space-y-4"
-      style={{ background: 'rgba(0,200,255,0.04)', border: '1px solid rgba(0,200,255,0.18)' }}>
+    <div className="pg-operations-card rounded-2xl p-4 space-y-4"
+      style={{ background: 'color-mix(in srgb, rgb(0 200 255) 4%, var(--pg-surface))', border: '1px solid rgba(0,200,255,0.18)' }}>
       <div className="flex items-center justify-between">
         <div>
           <h3 className="font-bold text-sm text-foreground flex items-center gap-1.5">
-            <Gauge className="w-4 h-4" style={{ color: '#00C8FF' }} /> Confidence Calibration
+            <Gauge className="pg-operations-status w-4 h-4" style={{ '--pg-status-ink': '#00C8FF' }} /> Confidence Calibration
           </h3>
           <p className="text-[11px] text-muted-foreground">Self-evaluating prediction accuracy · auto-tuning evidence weights</p>
         </div>
         <button onClick={run} disabled={running}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold disabled:opacity-50"
-          style={{ background: 'rgba(0,200,255,0.1)', color: '#00C8FF', border: '1px solid rgba(0,200,255,0.3)' }}>
+          className="pg-operations-status flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold disabled:opacity-50"
+          style={{ background: 'color-mix(in srgb, rgb(0 200 255) 10%, var(--pg-surface))', '--pg-status-ink': '#00C8FF', border: '1px solid rgba(0,200,255,0.3)' }}>
           <RefreshCw className={`w-3 h-3 ${running ? 'animate-spin' : ''}`} /> {running ? 'Calibrating…' : 'Run Calibration'}
         </button>
       </div>
 
       {/* Overall */}
       <div className="grid grid-cols-3 gap-2">
-        <div className="rounded-xl p-3 text-center" style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${accColor(overall)}30` }}>
-          <div className="text-2xl font-black" style={{ color: accColor(overall) }}>{overall == null ? '—' : `${overall}%`}</div>
+        <div className="pg-operations-card rounded-xl p-3 text-center" style={{ background: 'var(--pg-surface)', border: `1px solid ${accColor(overall)}30` }}>
+          <div className="pg-operations-status text-2xl font-black" style={{ '--pg-status-ink': accColor(overall) }}>{overall == null ? '—' : `${overall}%`}</div>
           <div className="text-[9px] text-muted-foreground leading-tight">Overall Accuracy</div>
         </div>
-        <div className="rounded-xl p-3 text-center" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+        <div className="pg-operations-card rounded-xl p-3 text-center" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
           <div className="text-2xl font-black text-foreground">{verdicts}</div>
           <div className="text-[9px] text-muted-foreground leading-tight">Verdict Predictions</div>
         </div>
-        <div className="rounded-xl p-3 text-center" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+        <div className="pg-operations-card rounded-xl p-3 text-center" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
           <div className="text-2xl font-black text-foreground">{data?.total_resolved || 0}</div>
           <div className="text-[9px] text-muted-foreground leading-tight">Resolved Total</div>
         </div>
       </div>
 
       {loading ? (
-        <div className="h-40 rounded-xl bg-white/5 animate-pulse" />
+        <div className="pg-operations-card h-40 rounded-xl pg-operations-skeleton animate-pulse" />
       ) : !data ? (
         <div className="text-center py-6 space-y-2">
           <Brain className="w-8 h-8 mx-auto text-muted-foreground opacity-50" />
@@ -158,7 +158,7 @@ export default function ConfidenceCalibrationPanel() {
           {/* Self-tuned evidence weights */}
           <div className="space-y-2">
             <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-              <Sparkles className="w-3 h-3" style={{ color: '#BF5FFF' }} /> Self-Tuned Evidence Weights
+              <Sparkles className="pg-operations-status w-3 h-3" style={{ '--pg-status-ink': '#BF5FFF' }} /> Self-Tuned Evidence Weights
             </div>
             {Object.entries(data.source_weights || {}).map(([k, v]) => (
               <SourceWeightRow key={k} name={SOURCE_LABELS[k] || k} data={v} />
@@ -166,22 +166,22 @@ export default function ConfidenceCalibrationPanel() {
           </div>
 
           {/* Accuracy by recommendation tier */}
-          <div className="rounded-xl p-3 space-y-2" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+          <div className="pg-operations-card rounded-xl p-3 space-y-2" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
             <AccuracyTable title="Accuracy by Recommendation Tier" map={data.accuracy_by_recommendation} limit={10} />
           </div>
 
           {/* Accuracy by dimensions */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-xl p-3 space-y-2" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+            <div className="pg-operations-card rounded-xl p-3 space-y-2" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
               <AccuracyTable title="By Event Type" map={data.accuracy_by_category} limit={6} />
             </div>
-            <div className="rounded-xl p-3 space-y-2" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+            <div className="pg-operations-card rounded-xl p-3 space-y-2" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
               <AccuracyTable title="By Platform" map={data.accuracy_by_platform} limit={6} />
             </div>
-            <div className="rounded-xl p-3 space-y-2" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+            <div className="pg-operations-card rounded-xl p-3 space-y-2" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
               <AccuracyTable title="By Venue (top)" map={data.accuracy_by_venue} limit={6} />
             </div>
-            <div className="rounded-xl p-3 space-y-2" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+            <div className="pg-operations-card rounded-xl p-3 space-y-2" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
               <AccuracyTable title="By Artist (top)" map={data.accuracy_by_artist} limit={6} />
             </div>
           </div>

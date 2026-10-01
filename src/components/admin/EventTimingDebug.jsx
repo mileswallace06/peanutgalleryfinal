@@ -4,10 +4,10 @@ import { getEventLiveStatus, resolveTimezone, formatInVenueTimezone } from '@/li
 import { Clock, AlertTriangle, RefreshCw } from 'lucide-react';
 
 const STATUS_STYLE = {
-  upcoming: { color: '#BF5FFF', bg: 'rgba(191,95,255,0.12)', border: 'rgba(191,95,255,0.3)', label: 'Upcoming' },
-  soon:     { color: '#FFE600', bg: 'rgba(255,230,0,0.12)',  border: 'rgba(255,230,0,0.3)',  label: 'Starting Soon' },
-  live:     { color: '#00FF87', bg: 'rgba(0,255,135,0.12)',  border: 'rgba(0,255,135,0.3)',  label: 'LIVE' },
-  ended:    { color: '#888',    bg: 'rgba(255,255,255,0.05)', border: 'rgba(255,255,255,0.1)', label: 'Ended' },
+  upcoming: { color: '#BF5FFF', bg: 'color-mix(in srgb, rgb(191 95 255) 12%, var(--pg-surface))', border: 'rgba(191,95,255,0.3)', label: 'Upcoming' },
+  soon:     { color: '#FFE600', bg: 'color-mix(in srgb, rgb(255 230 0) 12%, var(--pg-surface))',  border: 'rgba(255,230,0,0.3)',  label: 'Starting Soon' },
+  live:     { color: '#00FF87', bg: 'color-mix(in srgb, rgb(0 255 135) 12%, var(--pg-surface))',  border: 'rgba(0,255,135,0.3)',  label: 'LIVE' },
+  ended:    { color: '#888',    bg: 'var(--pg-surface)', border: 'var(--pg-line)', label: 'Ended' },
 };
 
 export default function EventTimingDebug() {
@@ -33,7 +33,7 @@ export default function EventTimingDebug() {
   const currentUtc = new Date(nowMs).toISOString();
 
   return (
-    <div className="bg-card border border-border rounded-2xl p-5 mb-6">
+    <div className="pg-operations-card bg-card border border-border rounded-2xl p-5 mb-6">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Clock className="w-5 h-5 text-primary" />
@@ -63,14 +63,14 @@ export default function EventTimingDebug() {
 
             return (
               <div key={event.id}
-                className="rounded-xl p-4 text-xs space-y-2"
-                style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                className="pg-operations-card rounded-xl p-4 text-xs space-y-2"
+                style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
 
                 {/* Header row */}
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="font-semibold text-sm text-foreground">{event.title}</div>
-                  <span className="text-[10px] font-black px-2.5 py-1 rounded-full"
-                    style={{ background: st.bg, color: st.color, border: `1px solid ${st.border}` }}>
+                  <span className="pg-operations-status text-[10px] font-black px-2.5 py-1 rounded-full"
+                    style={{ background: st.bg, '--pg-status-ink': st.color, border: `1px solid ${st.border}` }}>
                     {timing.is_beta_live ? '⚡ BETA LIVE' : st.label}
                   </span>
                 </div>
@@ -145,10 +145,10 @@ function DebugRow({ label, value, mono, warn }) {
 
 function FieldBadge({ label, present }) {
   return (
-    <span className="text-[9px] font-mono px-2 py-0.5 rounded-full"
+    <span className="pg-operations-status text-[9px] font-mono px-2 py-0.5 rounded-full"
       style={{
-        background: present ? 'rgba(0,255,135,0.1)' : 'rgba(255,45,120,0.1)',
-        color: present ? '#00FF87' : '#FF2D78',
+        background: present ? 'color-mix(in srgb, rgb(0 255 135) 10%, var(--pg-surface))' : 'color-mix(in srgb, rgb(255 45 120) 10%, var(--pg-surface))',
+        '--pg-status-ink': present ? '#00FF87' : '#FF2D78',
         border: `1px solid ${present ? 'rgba(0,255,135,0.25)' : 'rgba(255,45,120,0.25)'}`,
       }}>
       {present ? '✓' : '✗'} {label}

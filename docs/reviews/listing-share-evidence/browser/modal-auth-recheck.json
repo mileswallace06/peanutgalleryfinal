@@ -1,0 +1,17 @@
+{
+  "fixtureOnly": true,
+  "externalRequests": [],
+  "checks": [
+    "Share dialog 320px dark: fit, privacy, canonical copied link, Escape/focus",
+    "Share dialog 390px light: fit, privacy, canonical copied link, Escape/focus",
+    "Shared listing guest auth-denied: exact state, privacy, local reads only"
+  ],
+  "screenshots": [
+    "docs/reviews/listing-share-evidence/browser/share-320-dark.png",
+    "docs/reviews/listing-share-evidence/browser/share-390-light.png",
+    "docs/reviews/listing-share-evidence/browser/shared-listing-auth-denied.png"
+  ],
+  "png": [],
+  "errors": [],
+  "status": "PASSED"
+}

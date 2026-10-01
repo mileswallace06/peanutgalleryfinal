@@ -1,5 +1,6 @@
+import '@/components/member-surfaces.css';
 import { useNavigate } from 'react-router-dom';
-import { User, Edit2, ChevronRight } from 'lucide-react';
+import { User, Edit2 } from 'lucide-react';
 
 export default function ProfileIdentitySection({ user }) {
   const navigate = useNavigate();
@@ -8,9 +9,9 @@ export default function ProfileIdentitySection({ user }) {
     : '?';
 
   return (
-    <section>
+    <section className="pg-member-section">
       <h3 className="text-xs font-black tracking-widest uppercase text-muted-foreground mb-3">Profile Identity</h3>
-      <div className="rounded-2xl overflow-hidden divide-y divide-border" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+      <div className="rounded-xl overflow-hidden divide-y divide-border" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
         {/* Avatar + name row */}
         <div className="flex items-center gap-3 px-4 py-3.5">
           <div className="w-10 h-10 rounded-full flex items-center justify-center font-display text-base flex-shrink-0 overflow-hidden"
@@ -26,7 +27,7 @@ export default function ProfileIdentitySection({ user }) {
           <button
             onClick={() => navigate('/edit-persona')}
             className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-xl"
-            style={{ background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' }}
+            style={{ background: 'var(--pg-surface-raised)', color: 'hsl(var(--muted-foreground))' }}
           >
             <Edit2 className="w-3 h-3" /> Edit
           </button>

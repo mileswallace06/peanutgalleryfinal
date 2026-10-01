@@ -37,9 +37,9 @@ export default function FulfillmentQueue({ title, icon, items, listings, purchas
         className="w-full flex items-center gap-2 mb-2 text-left"
       >
         <span className="text-base">{icon}</span>
-        <h3 className="font-black text-sm tracking-wide uppercase" style={{ color: accentColor }}>{title}</h3>
-        <span className="text-xs font-bold px-2 py-0.5 rounded-full ml-1"
-          style={{ background: `${accentColor}18`, color: accentColor, border: `1px solid ${accentColor}44` }}>
+        <h3 className="pg-operations-status font-black text-sm tracking-wide uppercase" style={{ '--pg-status-ink': accentColor }}>{title}</h3>
+        <span className="pg-operations-status text-xs font-bold px-2 py-0.5 rounded-full ml-1"
+          style={{ background: `color-mix(in srgb, ${accentColor} 9.41%, var(--pg-surface))`, '--pg-status-ink': accentColor, border: `1px solid ${accentColor}44` }}>
           {items.length}
         </span>
         <div className="ml-auto flex items-center gap-2">
@@ -49,7 +49,7 @@ export default function FulfillmentQueue({ title, icon, items, listings, purchas
               onChange={e => { e.stopPropagation(); setSortBy(e.target.value); }}
               onClick={e => e.stopPropagation()}
               className="text-[10px] px-2 py-1 rounded-lg focus:outline-none"
-              style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--muted-foreground))' }}
+              style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)', color: 'var(--pg-muted)' }}
             >
               <option value="urgency">Sort: Urgency</option>
               <option value="price">Sort: Price</option>

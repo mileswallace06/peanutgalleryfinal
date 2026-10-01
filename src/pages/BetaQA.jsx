@@ -1,3 +1,4 @@
+import '@/components/admin/operations-theme.css';
 import { useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
@@ -22,7 +23,7 @@ export default function BetaQA() {
 
   if (access === 'checking') {
     return (
-      <div className="min-h-screen dark:rave-bg flex flex-col items-center justify-center px-6 pb-20">
+      <div className="pg-operations-page min-h-screen flex flex-col items-center justify-center px-6 pb-20">
         <div role="status" className="flex items-center gap-3 text-sm text-muted-foreground">
           <span className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           Checking admin access…
@@ -54,14 +55,14 @@ function BetaQAWorkspace() {
   const saveDevice = (v) => { setDevice(v); localStorage.setItem('pg_tester_device', v); };
 
   return (
-    <div className="min-h-screen dark:rave-bg" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+    <div className="pg-operations-page min-h-screen">
       {/* Header */}
-      <div className="sticky top-0 z-20 frosted-bar border-b border-white/5"
-        style={{ paddingTop: 'calc(env(safe-area-inset-top) + 10px)' }}>
+      <div className="pg-operations-header sticky top-0 z-20 border-b"
+        style={{ paddingTop: '10px' }}>
         <div className="flex items-center gap-3 px-4 pb-3">
           <button onClick={() => navigate(-1)}
-            className="w-9 h-9 rounded-xl flex items-center justify-center"
-            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+            className="w-11 h-11 shrink-0 rounded-lg flex items-center justify-center"
+            style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
             <ChevronLeft className="w-5 h-5" />
           </button>
           <div>
@@ -69,7 +70,7 @@ function BetaQAWorkspace() {
             <p className="text-[10px] text-muted-foreground mt-0.5">Internal testing · Admin only</p>
           </div>
           <span className="ml-auto text-[10px] font-black px-2.5 py-1 rounded-full"
-            style={{ background: 'rgba(255,45,120,0.12)', color: '#FF2D78', border: '1px solid rgba(255,45,120,0.25)' }}>
+            style={{ background: 'rgba(255,45,120,0.12)', color: 'var(--neon-pink)', border: '1px solid rgba(255,45,120,0.25)' }}>
             🧪 INTERNAL
           </span>
         </div>
@@ -78,22 +79,22 @@ function BetaQAWorkspace() {
         <div className="flex gap-2 px-4 pb-3">
           <input value={testerName} onChange={e => saveTesterName(e.target.value)}
             placeholder="Your name"
-            className="flex-1 px-3 py-1.5 rounded-xl text-xs focus:outline-none"
-            style={{ background: 'hsl(var(--input))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--foreground))' }} />
+            className="flex-1 min-w-0 px-3 py-1.5 rounded-xl text-xs focus:outline-none"
+            style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)', color: 'var(--pg-text)' }} />
           <input value={device} onChange={e => saveDevice(e.target.value)}
             placeholder="Device"
-            className="flex-1 px-3 py-1.5 rounded-xl text-xs focus:outline-none"
-            style={{ background: 'hsl(var(--input))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--foreground))' }} />
+            className="flex-1 min-w-0 px-3 py-1.5 rounded-xl text-xs focus:outline-none"
+            style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)', color: 'var(--pg-text)' }} />
         </div>
 
         {/* Tab bar */}
-        <div className="flex overflow-x-auto scrollbar-hide px-4 pb-2 gap-2" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div className="pg-operations-tabs flex overflow-x-auto scrollbar-hide px-4 pb-2 gap-2" style={{ WebkitOverflowScrolling: 'touch' }}>
           {TABS.map(({ key, label, Icon, color }) => (
             <button key={key} onClick={() => setTab(key)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap flex-shrink-0 transition-all"
+              className="pg-operations-status flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap flex-shrink-0 transition-all"
               style={tab === key
-                ? { background: `${color}18`, color, border: `1px solid ${color}40` }
-                : { background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }
+                ? { background: `${color}18`, '--pg-status-ink': color, border: `1px solid ${color}40` }
+                : { background: 'var(--pg-surface-raised)', '--pg-status-ink': 'var(--pg-muted)', border: '1px solid var(--pg-line)' }
               }>
               <Icon className="w-3.5 h-3.5" /> {label}
             </button>
@@ -102,7 +103,7 @@ function BetaQAWorkspace() {
       </div>
 
       {/* Content */}
-      <div className="px-4 pt-5 pb-32">
+      <div className="px-4 pt-5 pb-32 max-w-3xl mx-auto">
         {tab === 'checklist' && <QAChecklist sessionId={sessionId} testerName={testerName} device={device} />}
         {tab === 'bugs' && <BugTracker />}
         {tab === 'live' && <LiveEventChecklist />}

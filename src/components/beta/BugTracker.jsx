@@ -32,8 +32,8 @@ function SeverityDot({ severity }) {
 function StatusBadge({ status }) {
   const s = STATUSES.find(s => s.value === status);
   return (
-    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-      style={{ background: `${s?.color || '#BF5FFF'}18`, color: s?.color || '#BF5FFF', border: `1px solid ${s?.color || '#BF5FFF'}33` }}>
+    <span className="pg-operations-status text-[10px] font-bold px-2 py-0.5 rounded-full"
+      style={{ background: `${s?.color || '#BF5FFF'}18`, '--pg-status-ink': s?.color || '#BF5FFF', border: `1px solid ${s?.color || '#BF5FFF'}33` }}>
       {s?.label || status}
     </span>
   );
@@ -94,11 +94,11 @@ export default function BugTracker() {
       {/* Header stats */}
       <div className="grid grid-cols-3 gap-3">
         {[
-          { label: 'Open', value: openCount, color: '#FF2D78' },
-          { label: 'Critical', value: critCount, color: '#FF2D78' },
-          { label: 'Total', value: bugs.length, color: '#BF5FFF' },
+          { label: 'Open', value: openCount, color: 'var(--neon-pink)' },
+          { label: 'Critical', value: critCount, color: 'var(--neon-pink)' },
+          { label: 'Total', value: bugs.length, color: 'var(--neon-purple)' },
         ].map(({ label, value, color }) => (
-          <div key={label} className="rounded-2xl px-4 py-3 text-center" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+          <div key={label} className="pg-operations-card rounded-xl px-4 py-3 text-center" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
             <p className="text-2xl font-black" style={{ color }}>{value}</p>
             <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-0.5">{label}</p>
           </div>
@@ -109,40 +109,40 @@ export default function BugTracker() {
       <div className="flex items-center gap-2 flex-wrap">
         {['all', ...STATUSES.map(s => s.value)].map(s => (
           <button key={s} onClick={() => setFilterStatus(s)}
-            className="px-3 py-1.5 rounded-full text-xs font-bold capitalize transition-all"
+            className="px-3 py-1.5 rounded-lg text-xs font-bold capitalize transition-all"
             style={filterStatus === s
-              ? { background: 'rgba(191,95,255,0.15)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.35)' }
-              : { background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }
+              ? { background: 'var(--pg-surface-raised)', color: 'var(--pg-text)', border: '1px solid var(--pg-violet)' }
+              : { background: 'var(--pg-surface-raised)', color: 'var(--pg-muted)', border: '1px solid var(--pg-line)' }
             }>
             {s === 'all' ? `All (${bugs.length})` : s}
           </button>
         ))}
         <button onClick={() => setShowForm(v => !v)}
-          className="ml-auto flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-black"
-          style={{ background: 'rgba(255,45,120,0.12)', color: '#FF2D78', border: '1px solid rgba(255,45,120,0.3)' }}>
+          className="ml-auto flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-black"
+          style={{ background: 'var(--pg-violet)', color: 'var(--pg-ink)', border: '1px solid var(--pg-violet)' }}>
           <Plus className="w-3.5 h-3.5" /> Report Bug
         </button>
       </div>
 
       {/* New bug form */}
       {showForm && (
-        <div className="rounded-2xl p-4 space-y-3" style={{ background: 'hsl(var(--card))', border: '1px solid rgba(255,45,120,0.25)' }}>
+        <div className="pg-operations-card rounded-xl p-4 space-y-3" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
           <p className="text-xs font-black tracking-widest uppercase text-muted-foreground">New Bug Report</p>
           <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
             placeholder="Bug title *"
             className="w-full px-3 py-2.5 rounded-xl text-sm focus:outline-none"
-            style={{ background: 'hsl(var(--input))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--foreground))' }} />
+            style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)', color: 'var(--pg-text)' }} />
           <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
             placeholder="Describe what happened, steps to reproduce…"
             rows={3}
             className="w-full px-3 py-2.5 rounded-xl text-sm focus:outline-none resize-none"
-            style={{ background: 'hsl(var(--input))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--foreground))' }} />
+            style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)', color: 'var(--pg-text)' }} />
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Severity</label>
               <select value={form.severity} onChange={e => setForm(f => ({ ...f, severity: e.target.value }))}
                 className="w-full px-3 py-2 rounded-xl text-sm focus:outline-none"
-                style={{ background: 'hsl(var(--input))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--foreground))' }}>
+                style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)', color: 'var(--pg-text)' }}>
                 {SEVERITIES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
               </select>
             </div>
@@ -150,7 +150,7 @@ export default function BugTracker() {
               <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Affected Page</label>
               <select value={form.affected_page} onChange={e => setForm(f => ({ ...f, affected_page: e.target.value }))}
                 className="w-full px-3 py-2 rounded-xl text-sm focus:outline-none"
-                style={{ background: 'hsl(var(--input))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--foreground))' }}>
+                style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)', color: 'var(--pg-text)' }}>
                 <option value="">Select page…</option>
                 {PAGES.map(p => <option key={p} value={p}>{p}</option>)}
               </select>
@@ -160,16 +160,16 @@ export default function BugTracker() {
             <input value={form.reporter_name} onChange={e => setForm(f => ({ ...f, reporter_name: e.target.value }))}
               placeholder="Your name"
               className="px-3 py-2 rounded-xl text-sm focus:outline-none"
-              style={{ background: 'hsl(var(--input))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--foreground))' }} />
+              style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)', color: 'var(--pg-text)' }} />
             <input value={form.device} onChange={e => setForm(f => ({ ...f, device: e.target.value }))}
               placeholder="Device / browser"
               className="px-3 py-2 rounded-xl text-sm focus:outline-none"
-              style={{ background: 'hsl(var(--input))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--foreground))' }} />
+              style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)', color: 'var(--pg-text)' }} />
           </div>
           {/* Screenshot upload */}
           <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold cursor-pointer transition-all"
-              style={{ background: 'rgba(0,200,255,0.1)', color: '#00C8FF', border: '1px solid rgba(0,200,255,0.25)' }}>
+            <label className="flex min-h-11 items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold cursor-pointer transition-all"
+              style={{ background: 'var(--pg-surface-raised)', color: 'var(--pg-text)', border: '1px solid var(--pg-line)' }}>
               <Upload className="w-3.5 h-3.5" />
               {uploading ? 'Uploading…' : form.screenshot_url ? 'Screenshot attached ✓' : 'Attach screenshot'}
               <input type="file" accept="image/*" className="hidden" onChange={handleScreenshot} />
@@ -178,12 +178,12 @@ export default function BugTracker() {
           <div className="flex gap-2 pt-1">
             <button onClick={handleSubmit} disabled={saving || !form.title.trim()}
               className="flex-1 py-2.5 rounded-xl text-sm font-black transition-all disabled:opacity-60"
-              style={{ background: '#FF2D78', color: '#fff' }}>
+              style={{ background: 'var(--pg-violet)', color: 'var(--pg-ink)' }}>
               {saving ? 'Saving…' : 'Submit Bug'}
             </button>
             <button onClick={() => setShowForm(false)}
               className="px-5 py-2.5 rounded-xl text-sm font-bold"
-              style={{ background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }}>
+              style={{ background: 'var(--pg-surface-raised)', color: 'var(--pg-muted)', border: '1px solid var(--pg-line)' }}>
               Cancel
             </button>
           </div>
@@ -192,14 +192,14 @@ export default function BugTracker() {
 
       {/* Bug list */}
       {filtered.length === 0 ? (
-        <div className="text-center py-10" style={{ color: 'hsl(var(--muted-foreground))' }}>
+        <div className="text-center py-10" style={{ color: 'var(--pg-muted)' }}>
           <p className="text-3xl mb-2">🐛</p>
           <p className="text-sm font-medium">No bugs reported{filterStatus !== 'all' ? ` with status "${filterStatus}"` : ' yet'}</p>
         </div>
       ) : (
         <div className="space-y-2">
           {filtered.map(bug => (
-            <div key={bug.id} className="rounded-2xl overflow-hidden" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+            <div key={bug.id} className="pg-operations-card rounded-xl overflow-hidden" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
               <button onClick={() => setExpandedId(v => v === bug.id ? null : bug.id)}
                 className="w-full flex items-center gap-3 px-4 py-3 text-left">
                 <SeverityDot severity={bug.severity} />
@@ -225,10 +225,10 @@ export default function BugTracker() {
                     <div className="flex flex-wrap gap-1.5">
                       {STATUSES.map(s => (
                         <button key={s.value} onClick={() => updateStatus(bug.id, s.value)}
-                          className="px-3 py-1 rounded-lg text-xs font-bold transition-all"
+                          className="pg-operations-status px-3 py-1 rounded-lg text-xs font-bold transition-all"
                           style={bug.status === s.value
-                            ? { background: `${s.color}22`, color: s.color, border: `1px solid ${s.color}55` }
-                            : { background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }
+                            ? { background: `${s.color}22`, '--pg-status-ink': s.color, border: `1px solid ${s.color}55` }
+                            : { background: 'var(--pg-surface-raised)', '--pg-status-ink': 'var(--pg-muted)', border: '1px solid var(--pg-line)' }
                           }>
                           {s.label}
                         </button>

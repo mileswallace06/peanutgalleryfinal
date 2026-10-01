@@ -1,3 +1,4 @@
+import '@/components/member-surfaces.css';
 import { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { AlertTriangle, X } from 'lucide-react';
@@ -36,22 +37,21 @@ export default function DeleteAccountModal({ user, isOpen, onClose }) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="delete-account-title"
-        className="relative z-10 w-full sm:max-w-md sm:mx-auto rounded-t-3xl sm:rounded-3xl p-6 space-y-5"
-        style={{ background: 'hsl(255 12% 9%)', border: '1px solid rgba(255,255,255,0.1)' }}
+        className="pg-member-sheet pg-member-sheet--danger relative z-10 w-full sm:max-w-md sm:mx-auto p-6 space-y-5"
       >
         {/* Header */}
         <div className="flex items-start justify-between">
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
               style={{ background: 'rgba(255,45,120,0.15)' }}>
-              <AlertTriangle className="w-5 h-5" style={{ color: '#FF2D78' }} />
+              <AlertTriangle className="w-5 h-5" style={{ color: 'var(--neon-pink)' }} />
             </div>
             <div>
-              <h3 id="delete-account-title" className="font-black text-lg text-foreground">Delete Account</h3>
+              <h3 id="delete-account-title" className="pg-member-sheet-title text-xl text-foreground">Delete Account</h3>
               <p className="text-xs text-muted-foreground mt-0.5">Step {step} of 3</p>
             </div>
           </div>
-          <button onClick={reset} aria-label="Close dialog" className="text-muted-foreground hover:text-foreground transition-colors p-2 -mr-1">
+          <button onClick={reset} aria-label="Close dialog" className="pg-member-close text-muted-foreground hover:text-foreground transition-colors -mr-1">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -60,14 +60,14 @@ export default function DeleteAccountModal({ user, isOpen, onClose }) {
         <div className="flex gap-2">
           {[1, 2, 3].map(s => (
             <div key={s} className="h-1 flex-1 rounded-full transition-colors"
-              style={{ background: s <= step ? '#FF2D78' : 'rgba(255,255,255,0.1)' }} />
+              style={{ background: s <= step ? '#FF2D78' : 'var(--pg-line)' }} />
           ))}
         </div>
 
         {/* Step 1 — Consequences */}
         {step === 1 && (
           <>
-            <div className="rounded-2xl p-4 space-y-2"
+            <div className="rounded-lg p-4 space-y-2"
               style={{ background: 'rgba(255,45,120,0.08)', border: '1px solid rgba(255,45,120,0.2)' }}>
               <p className="text-sm font-bold text-foreground">What gets deleted:</p>
               <ul className="text-xs text-muted-foreground space-y-1.5">
@@ -84,14 +84,14 @@ export default function DeleteAccountModal({ user, isOpen, onClose }) {
             <div className="space-y-2">
               <button
                 onClick={() => setStep(2)}
-                className="w-full py-3 rounded-2xl font-bold text-sm transition-all active:scale-[0.98]"
-                style={{ background: 'rgba(255,45,120,0.12)', color: '#FF2D78', border: '1px solid rgba(255,45,120,0.3)' }}
+                className="w-full py-3 rounded-lg font-bold text-sm transition-all active:scale-[0.98]"
+                style={{ background: 'rgba(255,45,120,0.12)', color: 'var(--neon-pink)', border: '1px solid rgba(255,45,120,0.3)' }}
               >
                 I understand, continue
               </button>
               <button onClick={reset}
-                className="w-full py-3 rounded-2xl font-bold text-sm transition-all"
-                style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.1)' }}
+                className="w-full py-3 rounded-lg font-bold text-sm transition-all"
+                style={{ background: 'var(--pg-surface-raised)', color: 'var(--pg-muted)', border: '1px solid var(--pg-line)' }}
               >
                 Cancel
               </button>
@@ -111,8 +111,8 @@ export default function DeleteAccountModal({ user, isOpen, onClose }) {
                 placeholder={user?.email}
                 value={emailInput}
                 onChange={e => setEmailInput(e.target.value)}
-                className="w-full px-4 py-3 rounded-2xl text-sm text-foreground focus:outline-none"
-                style={{ background: 'rgba(255,255,255,0.06)', border: `1px solid ${emailInput === user?.email ? '#FF2D78' : 'rgba(255,255,255,0.1)'}` }}
+                className="w-full px-4 py-3 rounded-lg text-sm text-foreground focus:outline-none"
+                style={{ background: 'var(--pg-surface-raised)', border: `1px solid ${emailInput === user?.email ? '#FF2D78' : 'var(--pg-line)'}` }}
                 autoCapitalize="off"
                 autoCorrect="off"
               />
@@ -121,15 +121,15 @@ export default function DeleteAccountModal({ user, isOpen, onClose }) {
             <div className="space-y-2">
               <button
                 onClick={() => emailInput === user?.email ? setStep(3) : setError('Email doesn\'t match.')}
-                className="w-full py-3 rounded-2xl font-bold text-sm transition-all active:scale-[0.98] disabled:opacity-40"
-                style={{ background: emailInput === user?.email ? 'rgba(255,45,120,0.18)' : 'rgba(255,255,255,0.05)', color: emailInput === user?.email ? '#FF2D78' : 'hsl(var(--muted-foreground))', border: `1px solid ${emailInput === user?.email ? 'rgba(255,45,120,0.35)' : 'rgba(255,255,255,0.08)'}` }}
+                className="w-full py-3 rounded-lg font-bold text-sm transition-all active:scale-[0.98] disabled:opacity-40"
+                style={{ background: emailInput === user?.email ? 'rgba(255,45,120,0.18)' : 'var(--pg-surface-raised)', color: emailInput === user?.email ? 'var(--neon-pink)' : 'var(--pg-muted)', border: `1px solid ${emailInput === user?.email ? 'rgba(255,45,120,0.35)' : 'var(--pg-line)'}` }}
               >
                 Confirm email
               </button>
-              {error && <p className="text-xs text-center" style={{ color: '#FF2D78' }}>{error}</p>}
+              {error && <p className="text-xs text-center" style={{ color: 'var(--neon-pink)' }}>{error}</p>}
               <button onClick={() => { setStep(1); setError(''); }}
-                className="w-full py-3 rounded-2xl font-bold text-sm"
-                style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.1)' }}
+                className="w-full py-3 rounded-lg font-bold text-sm"
+                style={{ background: 'var(--pg-surface-raised)', color: 'var(--pg-muted)', border: '1px solid var(--pg-line)' }}
               >
                 Back
               </button>
@@ -140,19 +140,19 @@ export default function DeleteAccountModal({ user, isOpen, onClose }) {
         {/* Step 3 — Final confirmation */}
         {step === 3 && (
           <>
-            <div className="rounded-2xl p-4 text-center space-y-2"
+            <div className="rounded-lg p-4 text-center space-y-2"
               style={{ background: 'rgba(255,45,120,0.1)', border: '1px solid rgba(255,45,120,0.25)' }}>
               <p className="text-2xl">☠️</p>
               <p className="text-sm font-black text-foreground">Are you absolutely sure?</p>
               <p className="text-xs text-muted-foreground">This will permanently delete <span className="font-bold text-foreground">{user?.email}</span> and all associated data.</p>
             </div>
-            {error && <p className="text-xs text-center" style={{ color: '#FF2D78' }}>{error}</p>}
+            {error && <p className="text-xs text-center" style={{ color: 'var(--neon-pink)' }}>{error}</p>}
             <div className="space-y-2">
               <button
                 onClick={handleDelete}
                 disabled={deleting}
-                className="w-full py-3.5 rounded-2xl font-black text-sm transition-all active:scale-[0.98] disabled:opacity-60"
-                style={{ background: '#FF2D78', color: '#fff' }}
+                className="w-full py-3.5 rounded-lg font-black text-sm transition-all active:scale-[0.98] disabled:opacity-60"
+                style={{ background: 'var(--pg-pink)', color: 'var(--pg-ink)' }}
               >
                 {deleting
                   ? <span className="flex items-center justify-center gap-2">
@@ -163,8 +163,8 @@ export default function DeleteAccountModal({ user, isOpen, onClose }) {
                 }
               </button>
               <button onClick={() => { setStep(2); setError(''); }}
-                className="w-full py-3 rounded-2xl font-bold text-sm"
-                style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.1)' }}
+                className="w-full py-3 rounded-lg font-bold text-sm"
+                style={{ background: 'var(--pg-surface-raised)', color: 'var(--pg-muted)', border: '1px solid var(--pg-line)' }}
               >
                 Back
               </button>

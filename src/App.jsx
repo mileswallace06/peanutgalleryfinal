@@ -46,6 +46,7 @@ const BetaDashboard = lazy(() => import('@/pages/BetaDashboard'));
 const Notifications = lazy(() => import('@/pages/Notifications'));
 const EventMode = lazy(() => import('@/pages/EventMode'));
 const BrandedAuth = lazy(() => import('@/pages/BrandedAuth'));
+const SharedListing = lazy(() => import('@/pages/SharedListing'));
 
 const MemberRoute = () => {
   const auth = useAuth();
@@ -54,12 +55,12 @@ const MemberRoute = () => {
   if (access === 'loading') return <RouteFallback />;
   if (access === 'unregistered') return <UserNotRegisteredError onRetry={auth.checkAppState} />;
   if (access === 'unavailable') return (
-    <main className="min-h-dvh bg-background text-foreground flex items-center justify-center p-6">
-      <div className="max-w-sm text-center space-y-4">
+    <main className="pg-access-state min-h-dvh flex items-center justify-center p-6">
+      <div className="pg-state max-w-sm space-y-4">
         <h1 className="font-display text-2xl">We couldn’t check your sign-in</h1>
         <p>Please try again. Your account has not been changed.</p>
-        <button onClick={auth.checkAppState} className="min-h-11 px-5 py-3 rounded-xl border border-border">Try again</button>
-        <a href="/" className="block underline">Back to Peanut Gallery</a>
+        <button onClick={auth.checkAppState} className="pg-action">Try again</button>
+        <a href="/" className="inline-flex min-h-11 items-center underline">Back to Peanut Gallery</a>
       </div>
     </main>
   );
@@ -108,6 +109,7 @@ const AuthenticatedApp = () => {
           <Route path="/privacy" element={<PrivacyPolicy />} />
           <Route path="/cookies" element={<CookiePolicy />} />
           <Route path="/our-story" element={<OurStory />} />
+          <Route path="/listings/:listingId" element={<SharedListing />} />
           <Route element={<MemberRoute />}>
            <Route element={<Layout />}>
             <Route path="/events" element={<Events />} />

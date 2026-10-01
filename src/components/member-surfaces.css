@@ -1,0 +1,42 @@
+/* Secondary member screens share the ticket shell without changing event cards. */
+.pg-guide-page { --pg-member-accent: var(--pg-violet); --pg-member-ink: var(--neon-purple); padding-bottom: 40px; }
+.pg-guide-instant { --pg-member-accent: var(--pg-cyan); --pg-member-ink: var(--neon-cyan); }
+.pg-guide-payout { --pg-member-accent: var(--pg-orange); --pg-member-ink: var(--neon-orange); }
+.pg-guide-leaderboard { --pg-member-accent: var(--pg-yellow); --pg-member-ink: var(--neon-yellow); }
+.pg-guide-page .pg-page-intro { padding-bottom: 22px; margin-bottom: 24px; border-bottom: 1px dashed var(--pg-line); }
+.pg-guide-page .pg-page-title { color: var(--pg-member-ink); }
+.pg-guide-page .pg-page-eyebrow { color: var(--pg-muted); }
+.pg-guide-page .rounded-2xl { border-radius: 10px; }
+.pg-guide-page span.rounded-full { border-radius: 5px; }
+.pg-guide-page :is(a, button) { min-height: 44px; }
+.pg-guide-page .pg-guide-action { border-radius: 8px; box-shadow: none !important; }
+.pg-guide-page .pg-guide-action:first-child { background: var(--pg-member-accent) !important; color: var(--pg-ink) !important; }
+.pg-guide-page .pg-leaderboard-tab { border-radius: 7px; }
+.pg-leaderboard-row { border-radius: 10px; }
+.pg-member-section :is(button, a) { min-height: 44px; }
+.pg-member-section :is(button, a):focus-visible { outline: 2px solid var(--pg-cyan); outline-offset: 3px; }
+.pg-member-section .pg-preference-toggle { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 7px; background: transparent; }
+.pg-preference-toggle-track { position: relative; display: block; width: 44px; height: 24px; border-radius: 99px; }
+.pg-member-mini-action { display: inline-flex; min-height: 44px; min-width: 44px; align-items: center; justify-content: center; gap: 4px; border-radius: 7px; }
+.pg-member-sheet { color: var(--pg-text); background: var(--pg-surface); border: 1px solid var(--pg-line); border-top: 4px solid var(--pg-violet); border-radius: 12px 12px 0 0; max-height: calc(100dvh - 24px); overflow-y: auto; overscroll-behavior: contain; }
+.pg-member-sheet--danger { border-top-color: var(--pg-pink); }
+.pg-member-sheet--dispute { border-top-color: var(--pg-orange); border-radius: 12px; }
+.pg-member-sheet :is(button, input:not([type='checkbox']):not([type='radio']), textarea) { min-height: 44px; }
+.pg-member-sheet :is(input:not([type='checkbox']):not([type='radio']), textarea) { font-size: 16px; background: var(--pg-surface-raised); color: var(--pg-text); border-color: var(--pg-line); }
+.pg-member-sheet input[type='radio'] { width: 18px; height: 18px; min-height: 18px; flex: none; }
+.pg-member-sheet :is(button, input, textarea):focus-visible { outline: 2px solid var(--pg-cyan); outline-offset: 3px; }
+.pg-member-sheet button { border-radius: 8px; }
+.pg-member-sheet .pg-member-close, .pg-member-close { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 44px; height: 44px; padding: 0; border-radius: 8px; }
+.pg-member-sheet-title { font-family: var(--font-display); }
+.pg-member-action { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 8px; border-radius: 8px; background: var(--pg-violet); color: var(--pg-ink); box-shadow: none; }
+.pg-member-action--secondary { background: var(--pg-surface-raised); color: var(--pg-text); border: 1px solid var(--pg-line); }
+.pg-member-action--warning { background: var(--pg-orange); color: var(--pg-ink); }
+.pg-member-action--mint { background: var(--pg-mint); color: var(--pg-ink); }
+.pg-member-action:disabled { opacity: .55; }
+.pg-member-dispute-note { border-left: 3px solid var(--pg-orange); background: var(--pg-surface-raised); color: var(--pg-text); }
+.pg-member-dispute-option { min-height: 44px; border-color: var(--pg-line); background: var(--pg-surface); color: var(--pg-text); }
+.pg-member-dispute-option.is-selected { border-color: var(--pg-orange); background: color-mix(in srgb, var(--pg-orange) 12%, var(--pg-surface)); }
+.pg-member-dispute-option:hover { border-color: var(--pg-orange); }
+.pg-member-prompt { background: var(--pg-surface); color: var(--pg-text); border: 1px solid var(--pg-line); border-top: 3px solid var(--pg-violet); border-radius: 10px; }
+.pg-member-prompt button { min-height: 44px; border-radius: 7px; }
+@media (min-width: 640px) { .pg-member-sheet { border-radius: 12px; } }

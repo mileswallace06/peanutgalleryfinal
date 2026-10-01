@@ -1,5 +1,7 @@
+import { PageIntro } from '@/components/ClarityUI';
+import '@/components/member-surfaces.css';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Shield, Zap, CheckCircle, X, Users, Lock, TrendingUp, Heart } from 'lucide-react';
+import { Shield, Zap, CheckCircle, X, Users, Lock, TrendingUp, Heart } from 'lucide-react';
 import FaqAccordion from '@/components/education/FaqAccordion';
 
 const GREEN = '#00FF87';
@@ -64,37 +66,37 @@ const COMPARE = [
 const FEATURES = [
   {
     icon: <Lock className="w-5 h-5" />,
-    color: GREEN,
+    color: 'var(--neon-green)',
     title: 'Escrow Protection',
     desc: 'Every transaction is held in escrow. Buyers don\'t release funds until they confirm receipt. Sellers don\'t get paid until delivery. Simple.',
   },
   {
     icon: <Shield className="w-5 h-5" />,
-    color: CYAN,
+    color: 'var(--neon-cyan)',
     title: 'Verified Inventory',
     desc: 'Sellers submit proof of ownership. Our team reviews and approves listings. Listings marked Verified have passed a human review.',
   },
   {
     icon: <Zap className="w-5 h-5" />,
-    color: PURPLE,
+    color: 'var(--neon-purple)',
     title: 'Instant Transfer',
     desc: 'With Instant listings, the ticket is already in Peanut Gallery\'s hands before the listing goes live. Buyers get guaranteed instant delivery.',
   },
   {
     icon: <Users className="w-5 h-5" />,
-    color: PINK,
+    color: 'var(--neon-pink)',
     title: 'Fan-First Marketplace',
     desc: 'Built for fans who have real tickets they can\'t use — not for scalpers who mass-buy inventory. The vibe is different here.',
   },
   {
     icon: <TrendingUp className="w-5 h-5" />,
-    color: '#FFE600',
+    color: 'var(--neon-yellow)',
     title: 'Seller-Friendly Economics',
     desc: 'Sellers keep 95% of the sale price — one of the highest rates in the resale market. No hidden listing fees or withdrawal minimums.',
   },
   {
     icon: <Heart className="w-5 h-5" />,
-    color: GREEN,
+    color: 'var(--neon-green)',
     title: 'Anti-Ghosting Design',
     desc: 'Seller behavior is tracked. Buyers can leave feedback. Escrow + Instant Transfer remove the main incentives to ghost after listing.',
   },
@@ -114,29 +116,10 @@ const FAQS = [
 
 export default function WhyPeanutGallery() {
   return (
-    <div className="max-w-lg mx-auto px-4 pb-32 dark:rave-bg"
-      style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
-
-      {/* Back */}
-      <Link to="/me"
-        className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-8 transition-colors">
-        <ArrowLeft className="w-3.5 h-3.5" /> Back
-      </Link>
-
-      {/* Hero */}
-      <div className="mb-10">
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-black mb-4"
-          style={{ background: 'rgba(191,95,255,0.12)', border: '1px solid rgba(191,95,255,0.3)', color: PURPLE }}>
-          🥜 Built by fans, for fans.
-        </div>
-        <h1 className="font-display leading-none mb-3"
-          style={{ fontSize: 'clamp(2.4rem, 10vw, 3.5rem)', background: `linear-gradient(135deg, ${PURPLE}, ${PINK}, ${GREEN})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
-          Why Peanut<br />Gallery?
-        </h1>
-        <p className="text-sm text-muted-foreground leading-relaxed max-w-sm">
-          The resale market is broken. Fans get burned every day by fake tickets, ghosted sellers, and opaque fees. We built Peanut Gallery to fix that.
-        </p>
-      </div>
+    <div className="pg-secondary-page pg-guide-page pg-guide-why">
+      <PageIntro backTo="/me" backLabel="Back" eyebrow="🥜 Built by fans, for fans."
+        title={<>Why Peanut<br />Gallery?</>}
+        description="The resale market is broken. Fans get burned every day by fake tickets, ghosted sellers, and opaque fees. We built Peanut Gallery to fix that." />
 
       {/* The problem */}
       <div className="mb-10 rounded-2xl p-5"
@@ -152,7 +135,7 @@ export default function WhyPeanutGallery() {
             'The market is dominated by scalper bots, not real fans.',
           ].map((prob, i) => (
             <div key={i} className="flex items-start gap-3">
-              <X className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: PINK }} />
+              <X className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--neon-pink)' }} />
               <span className="text-sm text-muted-foreground">{prob}</span>
             </div>
           ))}
@@ -165,7 +148,7 @@ export default function WhyPeanutGallery() {
         <div className="space-y-3">
           {FEATURES.map((f, i) => (
             <div key={i} className="flex items-start gap-4 px-4 py-4 rounded-2xl"
-              style={{ background: 'hsl(var(--card))', border: `1px solid ${f.color}22` }}>
+              style={{ background: 'var(--pg-surface)', border: `1px solid ${f.color}22` }}>
               <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
                 style={{ background: `${f.color}12`, color: f.color }}>
                 {f.icon}
@@ -185,24 +168,24 @@ export default function WhyPeanutGallery() {
         <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid hsl(var(--border))' }}>
           {/* Header */}
           <div className="grid grid-cols-3 px-4 py-3 text-xs font-black"
-            style={{ background: 'hsl(var(--muted))', borderBottom: '1px solid hsl(var(--border))' }}>
+            style={{ background: 'var(--pg-surface-raised)', borderBottom: '1px solid hsl(var(--border))' }}>
             <div className="text-muted-foreground">Feature</div>
-            <div className="text-center" style={{ color: GREEN }}>🥜 Peanut Gallery</div>
+            <div className="text-center" style={{ color: 'var(--neon-green)' }}>🥜 Peanut Gallery</div>
             <div className="text-center text-muted-foreground">Others</div>
           </div>
           {COMPARE.map((row, i) => (
             <div key={i} className="grid grid-cols-3 px-4 py-3 items-center gap-2 text-xs"
-              style={{ background: i % 2 === 0 ? 'hsl(var(--card))' : 'transparent', borderBottom: i < COMPARE.length - 1 ? '1px solid hsl(var(--border))' : 'none' }}>
+              style={{ background: i % 2 === 0 ? 'var(--pg-surface)' : 'transparent', borderBottom: i < COMPARE.length - 1 ? '1px solid hsl(var(--border))' : 'none' }}>
               <div className="text-foreground font-medium leading-snug">{row.feature}</div>
               <div className="flex justify-center">
-                <CheckCircle className="w-4 h-4" style={{ color: GREEN }} />
+                <CheckCircle className="w-4 h-4" style={{ color: 'var(--neon-green)' }} />
               </div>
               <div className="flex justify-center">
                 {row.them === true
                   ? <CheckCircle className="w-4 h-4 text-muted-foreground" />
                   : row.them === 'partial'
                   ? <span className="text-muted-foreground font-bold">〜</span>
-                  : <X className="w-4 h-4" style={{ color: PINK }} />
+                  : <X className="w-4 h-4" style={{ color: 'var(--neon-pink)' }} />
                 }
               </div>
             </div>
@@ -225,7 +208,7 @@ export default function WhyPeanutGallery() {
             'Keep 95% — no nickel-and-diming',
           ].map((pt, i) => (
             <div key={i} className="flex items-center gap-2 text-sm text-foreground">
-              <CheckCircle className="w-3.5 h-3.5 flex-shrink-0" style={{ color: CYAN }} />
+              <CheckCircle className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--neon-cyan)' }} />
               {pt}
             </div>
           ))}
@@ -237,7 +220,7 @@ export default function WhyPeanutGallery() {
       <div className="mb-10 rounded-2xl p-5 text-center"
         style={{ background: 'rgba(191,95,255,0.06)', border: '1px solid rgba(191,95,255,0.2)' }}>
         <div className="text-4xl mb-3">🥜</div>
-        <h2 className="font-display text-2xl mb-2" style={{ color: PURPLE }}>Built by fans, for fans.</h2>
+        <h2 className="font-display text-2xl mb-2" style={{ color: 'var(--neon-purple)' }}>Built by fans, for fans.</h2>
         <p className="text-sm text-muted-foreground leading-relaxed max-w-xs mx-auto">
           We started Peanut Gallery because we got burned buying resale tickets. We built the marketplace we wish had existed. Every feature exists to protect real fans — not to maximize platform take rates.
         </p>
@@ -252,13 +235,13 @@ export default function WhyPeanutGallery() {
       {/* CTAs */}
       <div className="space-y-3">
         <Link to="/events"
-          className="flex items-center justify-center gap-2 w-full py-4 rounded-full font-black text-sm"
+          className="pg-guide-action flex items-center justify-center gap-2 w-full py-4 rounded-full font-black text-sm"
           style={{ background: `linear-gradient(135deg, ${PURPLE}, ${PINK})`, color: '#fff', boxShadow: `0 0 18px rgba(191,95,255,0.25)` }}>
           Browse Events
         </Link>
         <Link to="/sell"
-          className="flex items-center justify-center gap-2 w-full py-3.5 rounded-full font-semibold text-sm"
-          style={{ background: 'hsl(var(--muted))', border: '1px solid hsl(var(--border))', color: 'hsl(var(--muted-foreground))' }}>
+          className="pg-guide-action flex items-center justify-center gap-2 w-full py-3.5 rounded-full font-semibold text-sm"
+          style={{ background: 'var(--pg-surface-raised)', border: '1px solid hsl(var(--border))', color: 'hsl(var(--muted-foreground))' }}>
           Start Selling
         </Link>
       </div>

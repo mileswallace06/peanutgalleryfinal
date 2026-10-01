@@ -7,7 +7,7 @@
  * accessible via the preserved hub tabs so no existing behavior is lost.
  */
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useLocation, Link } from 'react-router-dom';
 import { Zap } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import FlashDropCenter from '@/components/eventmode/FlashDropCenter';
@@ -23,7 +23,9 @@ import MoveCloserRail from '@/components/eventmode/MoveCloserRail';
 import SellSeatsModule from '@/components/eventmode/SellSeatsModule';
 import PurchaseDialog from '@/components/events/PurchaseDialog';
 import { loadFanGifts } from '@/lib/fanGiftRead';
+import { sharedListingSelection } from '@/lib/sharedListingDestination';
 import '@/components/eventmode/ticket-upgrades.css';
+import './shared-listing.css';
 
 const TABS = [
   { key: 'Upgrades', label: 'Upgrades', sub: 'Better seats' },
@@ -33,6 +35,7 @@ const TABS = [
 
 export default function EventDetailUpgrade() {
   const { id } = useParams();
+  const { search } = useLocation();
   const [event, setEvent] = useState(null);
   const [listings, setListings] = useState([]);
   const [drops, setDrops] = useState([]);
@@ -192,6 +195,8 @@ export default function EventDetailUpgrade() {
     );
   }
 
+  const shared = sharedListingSelection(listings, event, search, UPGRADE_LISTING_TYPES);
+
   return (
     <div className="pg-design-page pg-live-page">
       <EventHero event={event} />
@@ -211,6 +216,13 @@ export default function EventDetailUpgrade() {
       <div className="pg-live-content">
         {activeTab === 'Upgrades' && (
           <>
+            {!loading && shared.requested && (
+              <div className="pg-shared-handoff" role="status">
+                <h2>{shared.listings.length ? 'The upgrade shared with you' : 'This shared listing is no longer available'}</h2>
+                <p>{shared.listings.length ? 'Review this exact upgrade below. Existing admission and eligibility requirements still apply.' : 'No other upgrade has been selected. You can browse the event’s other upgrades.'}</p>
+                <Link to={`/upgrades/${encodeURIComponent(event.id)}`}>View all upgrades for this event</Link>
+              </div>
+            )}
             {/* Hub-level eligibility gate — preserved as-is */}
             {!loading && (() => {
               const upgradeListings = listings.filter(l => UPGRADE_LISTING_TYPES.includes(l.listing_type));
@@ -235,13 +247,13 @@ export default function EventDetailUpgrade() {
               );
             })()}
 
-            <MoveCloserRail
-              listings={listings}
+            {(!shared.requested || shared.listings.length > 0 || loading) && <MoveCloserRail
+              listings={shared.listings}
               event={event}
               currentUserEmail={user?.email}
               loading={loading}
               onView={setSelectedListing}
-            />
+            />}
             <SellSeatsModule event={event} />
           </>
         )}

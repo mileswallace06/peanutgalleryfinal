@@ -4,13 +4,13 @@ import { format } from 'date-fns';
 import { Brain, CheckCircle, XCircle, AlertTriangle, ExternalLink, ChevronDown, ChevronUp, Flag, ShieldCheck, ShieldAlert, Clock } from 'lucide-react';
 
 const STATUS_CONFIG = {
-  verified_high_confidence:   { label: 'Verified ✓',       color: '#00FF87', bg: 'rgba(0,255,135,0.1)',   border: 'rgba(0,255,135,0.3)',  icon: ShieldCheck },
-  verified_medium_confidence: { label: 'Likely Valid',      color: '#00C8FF', bg: 'rgba(0,200,255,0.1)',   border: 'rgba(0,200,255,0.3)',  icon: ShieldCheck },
-  needs_human_review:         { label: 'Needs Review',      color: '#FF8C00', bg: 'rgba(255,140,0,0.1)',   border: 'rgba(255,140,0,0.3)',  icon: Clock },
-  rejected_suspicious:        { label: '🚨 Suspicious',     color: '#FF2D78', bg: 'rgba(255,45,120,0.1)',  border: 'rgba(255,45,120,0.35)', icon: ShieldAlert },
-  processing:                 { label: 'Processing…',       color: '#BF5FFF', bg: 'rgba(191,95,255,0.1)',  border: 'rgba(191,95,255,0.3)', icon: Brain },
-  failed_processing:          { label: 'Processing Failed', color: '#FFE600', bg: 'rgba(255,230,0,0.1)',   border: 'rgba(255,230,0,0.3)',  icon: AlertTriangle },
-  pending:                    { label: 'Not Yet Analyzed',  color: '#888',    bg: 'rgba(255,255,255,0.04)',border: 'rgba(255,255,255,0.1)', icon: Clock },
+  verified_high_confidence:   { label: 'Verified ✓',       color: '#00FF87', bg: 'color-mix(in srgb, rgb(0 255 135) 10%, var(--pg-surface))',   border: 'rgba(0,255,135,0.3)',  icon: ShieldCheck },
+  verified_medium_confidence: { label: 'Likely Valid',      color: '#00C8FF', bg: 'color-mix(in srgb, rgb(0 200 255) 10%, var(--pg-surface))',   border: 'rgba(0,200,255,0.3)',  icon: ShieldCheck },
+  needs_human_review:         { label: 'Needs Review',      color: '#FF8C00', bg: 'color-mix(in srgb, rgb(255 140 0) 10%, var(--pg-surface))',   border: 'rgba(255,140,0,0.3)',  icon: Clock },
+  rejected_suspicious:        { label: '🚨 Suspicious',     color: '#FF2D78', bg: 'color-mix(in srgb, rgb(255 45 120) 10%, var(--pg-surface))',  border: 'rgba(255,45,120,0.35)', icon: ShieldAlert },
+  processing:                 { label: 'Processing…',       color: '#BF5FFF', bg: 'color-mix(in srgb, rgb(191 95 255) 10%, var(--pg-surface))',  border: 'rgba(191,95,255,0.3)', icon: Brain },
+  failed_processing:          { label: 'Processing Failed', color: '#FFE600', bg: 'color-mix(in srgb, rgb(255 230 0) 10%, var(--pg-surface))',   border: 'rgba(255,230,0,0.3)',  icon: AlertTriangle },
+  pending:                    { label: 'Not Yet Analyzed',  color: '#888',    bg: 'var(--pg-surface)',border: 'var(--pg-line)', icon: Clock },
 };
 
 const PLATFORM_ICONS = {
@@ -28,10 +28,10 @@ function ConfidenceBar({ score }) {
   const color = score >= 90 ? '#00FF87' : score >= 70 ? '#00C8FF' : score >= 40 ? '#FF8C00' : '#FF2D78';
   return (
     <div className="flex items-center gap-2">
-      <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.1)' }}>
+      <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: 'var(--pg-surface-raised)' }}>
         <div className="h-full rounded-full transition-all" style={{ width: `${score}%`, background: color }} />
       </div>
-      <span className="text-xs font-bold w-10 text-right" style={{ color }}>{score}/100</span>
+      <span className="pg-operations-status text-xs font-bold w-10 text-right" style={{ '--pg-status-ink': color }}>{score}/100</span>
     </div>
   );
 }
@@ -55,7 +55,7 @@ function AIVerificationCard({ purchase, event, listing, onOverride, actionLoadin
   };
 
   return (
-    <div className="rounded-xl text-sm space-y-3" style={{ background: cfg.bg, border: `1px solid ${cfg.border}`, padding: '16px' }}>
+    <div className="pg-operations-card rounded-xl text-sm space-y-3" style={{ background: cfg.bg, border: `1px solid ${cfg.border}`, padding: '16px' }}>
       {/* Header */}
       <div className="flex items-start justify-between gap-2 flex-wrap">
         <div className="flex-1 min-w-0">
@@ -67,8 +67,8 @@ function AIVerificationCard({ purchase, event, listing, onOverride, actionLoadin
             ${purchase.amount?.toFixed(2)} · {purchase.ai_processed_at ? format(new Date(purchase.ai_processed_at), 'MMM d h:mm a') : 'Not processed'}
           </div>
         </div>
-        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold flex-shrink-0"
-          style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }}>
+        <div className="pg-operations-status flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold flex-shrink-0"
+          style={{ background: cfg.bg, '--pg-status-ink': cfg.color, border: `1px solid ${cfg.border}` }}>
           <Icon className="w-3 h-3" /> {cfg.label}
         </div>
       </div>
@@ -86,7 +86,7 @@ function AIVerificationCard({ purchase, event, listing, onOverride, actionLoadin
         <div className="flex items-center gap-2 text-xs">
           <Flag className="w-3 h-3 text-destructive flex-shrink-0" />
           <span className="text-muted-foreground">Fraud Risk:</span>
-          <span className="font-bold" style={{ color: purchase.fraud_risk_score >= 60 ? '#FF2D78' : purchase.fraud_risk_score >= 30 ? '#FF8C00' : '#FFE600' }}>
+          <span className="pg-operations-status font-bold" style={{ '--pg-status-ink': purchase.fraud_risk_score >= 60 ? '#FF2D78' : purchase.fraud_risk_score >= 30 ? '#FF8C00' : '#FFE600' }}>
             {purchase.fraud_risk_score}/100
           </span>
         </div>
@@ -94,7 +94,7 @@ function AIVerificationCard({ purchase, event, listing, onOverride, actionLoadin
 
       {/* Platform + summary */}
       {purchase.ai_review_notes && (
-        <div className="text-xs rounded-lg px-3 py-2" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
+        <div className="text-xs rounded-lg px-3 py-2" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
           {purchase.ai_detected_platform && purchase.ai_detected_platform !== 'screenshot_unknown' && (
             <span className="mr-1">{PLATFORM_ICONS[purchase.ai_detected_platform] || '📸'}</span>
           )}
@@ -106,8 +106,8 @@ function AIVerificationCard({ purchase, event, listing, onOverride, actionLoadin
       {purchase.ai_flags?.length > 0 && (
         <div className="flex flex-wrap gap-1">
           {purchase.ai_flags.map((flag, i) => (
-            <span key={i} className="text-[10px] px-1.5 py-0.5 rounded font-mono"
-              style={{ background: 'rgba(255,45,120,0.12)', color: '#FF2D78', border: '1px solid rgba(255,45,120,0.25)' }}>
+            <span key={i} className="pg-operations-status text-[10px] px-1.5 py-0.5 rounded font-mono"
+              style={{ background: 'color-mix(in srgb, rgb(255 45 120) 12%, var(--pg-surface))', '--pg-status-ink': '#FF2D78', border: '1px solid rgba(255,45,120,0.25)' }}>
               {flag}
             </span>
           ))}
@@ -117,9 +117,9 @@ function AIVerificationCard({ purchase, event, listing, onOverride, actionLoadin
       {/* Admin override indicator */}
       {purchase.admin_override_status && (
         <div className="text-xs rounded-lg px-3 py-2 flex items-center gap-2"
-          style={{ background: 'rgba(191,95,255,0.1)', border: '1px solid rgba(191,95,255,0.3)' }}>
-          <ShieldCheck className="w-3 h-3" style={{ color: '#BF5FFF' }} />
-          <span style={{ color: '#BF5FFF' }}>Admin override: <strong>{purchase.admin_override_status}</strong></span>
+          style={{ background: 'color-mix(in srgb, rgb(191 95 255) 10%, var(--pg-surface))', border: '1px solid rgba(191,95,255,0.3)' }}>
+          <ShieldCheck className="pg-operations-status w-3 h-3" style={{ '--pg-status-ink': '#BF5FFF' }} />
+          <span className="pg-operations-status" style={{ '--pg-status-ink': '#BF5FFF' }}>Admin override: <strong>{purchase.admin_override_status}</strong></span>
           {purchase.admin_override_reason && <span className="text-muted-foreground">— {purchase.admin_override_reason}</span>}
         </div>
       )}
@@ -132,7 +132,7 @@ function AIVerificationCard({ purchase, event, listing, onOverride, actionLoadin
       </button>
 
       {expanded && (
-        <div className="rounded-lg p-3 space-y-2 text-xs" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+        <div className="rounded-lg p-3 space-y-2 text-xs" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
           <div className="grid grid-cols-2 gap-2">
             {[
               ['Platform',   purchase.ai_detected_platform],
@@ -160,44 +160,44 @@ function AIVerificationCard({ purchase, event, listing, onOverride, actionLoadin
       {/* Proof screenshot link */}
       {purchase.transfer_proof_url && (
         <a href={purchase.transfer_proof_url} target="_blank" rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 text-xs font-medium hover:underline"
-          style={{ color: '#BF5FFF' }}>
+          className="pg-operations-status inline-flex items-center gap-1.5 text-xs font-medium hover:underline"
+          style={{ '--pg-status-ink': '#BF5FFF' }}>
           <ExternalLink className="w-3 h-3" /> View proof screenshot
         </a>
       )}
 
       {/* Admin actions */}
-      <div className="pt-2 border-t" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
+      <div className="pt-2 border-t" style={{ borderColor: 'var(--pg-line)' }}>
         {!showOverride ? (
           <div className="flex flex-wrap gap-2">
             <button onClick={() => { setSelectedAction('approved'); setShowOverride(true); }}
               disabled={!!actionLoading}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
-              style={{ background: 'rgba(0,255,135,0.1)', color: '#00FF87', border: '1px solid rgba(0,255,135,0.3)' }}>
+              className="pg-operations-status flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
+              style={{ background: 'color-mix(in srgb, rgb(0 255 135) 10%, var(--pg-surface))', '--pg-status-ink': '#00FF87', border: '1px solid rgba(0,255,135,0.3)' }}>
               <CheckCircle className="w-3 h-3" /> Approve
             </button>
             <button onClick={() => { setSelectedAction('rejected'); setShowOverride(true); }}
               disabled={!!actionLoading}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
-              style={{ background: 'rgba(0,200,255,0.1)', color: '#00C8FF', border: '1px solid rgba(0,200,255,0.3)' }}>
+              className="pg-operations-status flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
+              style={{ background: 'color-mix(in srgb, rgb(0 200 255) 10%, var(--pg-surface))', '--pg-status-ink': '#00C8FF', border: '1px solid rgba(0,200,255,0.3)' }}>
               <XCircle className="w-3 h-3" /> Reject
             </button>
             <button onClick={() => { setSelectedAction('escalated'); setShowOverride(true); }}
               disabled={!!actionLoading}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
-              style={{ background: 'rgba(255,230,0,0.1)', color: '#FFE600', border: '1px solid rgba(255,230,0,0.3)' }}>
+              className="pg-operations-status flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
+              style={{ background: 'color-mix(in srgb, rgb(255 230 0) 10%, var(--pg-surface))', '--pg-status-ink': '#FFE600', border: '1px solid rgba(255,230,0,0.3)' }}>
               <AlertTriangle className="w-3 h-3" /> Escalate
             </button>
             <button onClick={() => { setSelectedAction('marked_fraudulent'); setShowOverride(true); }}
               disabled={!!actionLoading}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
-              style={{ background: 'rgba(255,45,120,0.1)', color: '#FF2D78', border: '1px solid rgba(255,45,120,0.3)' }}>
+              className="pg-operations-status flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
+              style={{ background: 'color-mix(in srgb, rgb(255 45 120) 10%, var(--pg-surface))', '--pg-status-ink': '#FF2D78', border: '1px solid rgba(255,45,120,0.3)' }}>
               <Flag className="w-3 h-3" /> Mark Fraud
             </button>
           </div>
         ) : (
           <div className="space-y-2">
-            <div className="text-xs font-semibold" style={{ color: selectedAction === 'approved' ? '#00FF87' : selectedAction === 'marked_fraudulent' ? '#FF2D78' : '#FFE600' }}>
+            <div className="pg-operations-status text-xs font-semibold" style={{ '--pg-status-ink': selectedAction === 'approved' ? '#00FF87' : selectedAction === 'marked_fraudulent' ? '#FF2D78' : '#FFE600' }}>
               Override: {selectedAction} — reason required
             </div>
             <textarea
@@ -206,18 +206,18 @@ function AIVerificationCard({ purchase, event, listing, onOverride, actionLoadin
               placeholder="Enter reason for override…"
               rows={2}
               className="w-full px-3 py-2 text-xs text-foreground rounded-lg resize-none focus:outline-none"
-              style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)' }}
+              style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)' }}
             />
             <div className="flex gap-2">
               <button onClick={() => handleOverride(selectedAction)}
                 disabled={!overrideReason.trim() || !!actionLoading}
-                className="flex-1 py-1.5 rounded-lg text-xs font-bold disabled:opacity-40"
-                style={{ background: 'rgba(191,95,255,0.15)', color: '#BF5FFF', border: '1px solid rgba(191,95,255,0.3)' }}>
+                className="pg-operations-status flex-1 py-1.5 rounded-lg text-xs font-bold disabled:opacity-40"
+                style={{ background: 'color-mix(in srgb, rgb(191 95 255) 15%, var(--pg-surface))', '--pg-status-ink': '#BF5FFF', border: '1px solid rgba(191,95,255,0.3)' }}>
                 {actionLoading === purchase.id ? 'Saving…' : 'Submit Override'}
               </button>
               <button onClick={() => { setShowOverride(false); setOverrideReason(''); }}
                 className="px-3 py-1.5 rounded-lg text-xs text-muted-foreground"
-                style={{ border: '1px solid rgba(255,255,255,0.1)' }}>
+                style={{ border: '1px solid var(--pg-line)' }}>
                 Cancel
               </button>
             </div>
@@ -283,12 +283,12 @@ export default function AIVerificationQueue({ purchases, events, listings, onRef
   ];
 
   return (
-    <div className="bg-card border border-border rounded-2xl p-5 mb-6">
+    <div className="pg-operations-card bg-card border border-border rounded-2xl p-5 mb-6">
       <div className="flex items-center gap-2 mb-5">
-        <Brain className="w-5 h-5" style={{ color: '#BF5FFF' }} />
+        <Brain className="pg-operations-status w-5 h-5" style={{ '--pg-status-ink': '#BF5FFF' }} />
         <h2 className="font-bold text-lg text-foreground">AI Transfer Verification Queue</h2>
         {stats.suspicious > 0 && (
-          <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(255,45,120,0.15)', color: '#FF2D78', border: '1px solid rgba(255,45,120,0.35)' }}>
+          <span className="pg-operations-status text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: 'color-mix(in srgb, rgb(255 45 120) 15%, var(--pg-surface))', '--pg-status-ink': '#FF2D78', border: '1px solid rgba(255,45,120,0.35)' }}>
             {stats.suspicious} suspicious
           </span>
         )}
@@ -302,9 +302,9 @@ export default function AIVerificationQueue({ purchases, events, listings, onRef
           { label: 'Failed',          value: stats.failed,         color: '#FFE600' },
           { label: 'Verified Today',  value: stats.verifiedToday,  color: '#00FF87' },
         ].map(s => (
-          <div key={s.label} className="rounded-xl p-3 text-center"
-            style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${s.value > 0 && s.color !== '#00FF87' ? s.color + '40' : 'rgba(255,255,255,0.08)'}` }}>
-            <div className="text-xl font-black" style={{ color: s.color }}>{s.value}</div>
+          <div key={s.label} className="pg-operations-card rounded-xl p-3 text-center"
+            style={{ background: 'var(--pg-surface)', border: `1px solid ${s.value > 0 && s.color !== '#00FF87' ? s.color + '40' : 'var(--pg-line)'}` }}>
+            <div className="pg-operations-status text-xl font-black" style={{ '--pg-status-ink': s.color }}>{s.value}</div>
             <div className="text-[10px] text-muted-foreground mt-0.5">{s.label}</div>
           </div>
         ))}
@@ -312,7 +312,7 @@ export default function AIVerificationQueue({ purchases, events, listings, onRef
       {/* Secondary metrics row */}
       <div className="flex gap-3 text-xs text-muted-foreground mb-5 flex-wrap">
         <span>Total processed: <strong className="text-foreground">{stats.total}</strong></span>
-        {stats.processing > 0 && <span style={{ color: '#BF5FFF' }}>⏳ {stats.processing} processing now</span>}
+        {stats.processing > 0 && <span className="pg-operations-status" style={{ '--pg-status-ink': '#BF5FFF' }}>⏳ {stats.processing} processing now</span>}
         {stats.overridden > 0 && <span>Admin overridden: <strong className="text-foreground">{stats.overridden}</strong></span>}
       </div>
 
@@ -321,10 +321,10 @@ export default function AIVerificationQueue({ purchases, events, listings, onRef
         {FILTER_TABS.map(tab => (
           <button key={tab.key}
             onClick={() => setFilter(tab.key)}
-            className="text-xs px-2.5 py-1 rounded-lg transition-all"
+            className="pg-operations-status text-xs px-2.5 py-1 rounded-lg transition-all"
             style={filter === tab.key
-              ? { background: tab.color ? `${tab.color}20` : 'rgba(255,255,255,0.12)', color: tab.color || 'hsl(var(--foreground))', border: `1px solid ${tab.color || 'rgba(255,255,255,0.25)'}` }
-              : { background: 'rgba(255,255,255,0.04)', color: 'hsl(var(--muted-foreground))', border: '1px solid rgba(255,255,255,0.08)' }}>
+              ? { background: tab.color ? `color-mix(in srgb, ${tab.color} 12.55%, var(--pg-surface))` : 'var(--pg-surface-raised)', '--pg-status-ink': tab.color || 'var(--pg-text)', border: `1px solid ${tab.color || 'var(--pg-muted)'}` }
+              : { background: 'var(--pg-surface)', '--pg-status-ink': 'var(--pg-muted)', border: '1px solid var(--pg-line)' }}>
             {tab.label}
           </button>
         ))}

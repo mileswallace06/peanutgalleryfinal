@@ -1,3 +1,4 @@
+import PublicPage from '@/components/PublicPage';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
 
@@ -97,14 +98,13 @@ export default function CookiePolicy() {
   const navigate = useNavigate();
 
   return (
-    <div style={{ height: '100dvh', overflowY: 'auto' }}>
+    <PublicPage style={{ height: '100dvh', overflowY: 'auto' }}>
       {/* Header */}
-      <div className="sticky top-0 z-20 frosted-bar border-b border-border"
-        style={{ paddingTop: 'calc(env(safe-area-inset-top) + 10px)' }}>
+      <div className="pg-public-header">
         <div className="flex items-center gap-3 px-4 pb-3">
           <button onClick={() => window.history.length > 1 ? navigate(-1) : navigate('/')}
-            className="w-9 h-9 rounded-xl flex items-center justify-center"
-            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+            className="pg-public-back"
+            aria-label="Go back">
             <ChevronLeft className="w-5 h-5" />
           </button>
           <h1 className="font-display text-xl text-foreground">Cookie Policy</h1>
@@ -128,6 +128,6 @@ export default function CookiePolicy() {
 
 
       </div>
-    </div>
+    </PublicPage>
   );
 }

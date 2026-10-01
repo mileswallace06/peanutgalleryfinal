@@ -47,19 +47,19 @@ export default function InstantFulfillmentCenter({ listings, purchases, events, 
   const eventsMap = typeof events === 'object' && !Array.isArray(events) ? events : {};
 
   return (
-    <div className="rounded-2xl overflow-hidden mb-6"
-      style={{ border: '1px solid rgba(0,200,255,0.25)', background: 'rgba(0,200,255,0.03)' }}>
+    <div className="pg-operations-card rounded-2xl overflow-hidden mb-6"
+      style={{ border: '1px solid rgba(0,200,255,0.25)', background: 'color-mix(in srgb, rgb(0 200 255) 3%, var(--pg-surface))' }}>
 
       {/* Header */}
       <div className="px-5 py-4 flex items-center gap-3"
-        style={{ borderBottom: '1px solid rgba(0,200,255,0.15)', background: 'rgba(0,200,255,0.06)' }}>
-        <Zap className="w-5 h-5 flex-shrink-0" style={{ color: '#00C8FF' }} />
+        style={{ borderBottom: '1px solid rgba(0,200,255,0.15)', background: 'color-mix(in srgb, rgb(0 200 255) 6%, var(--pg-surface))' }}>
+        <Zap className="pg-operations-status w-5 h-5 flex-shrink-0" style={{ '--pg-status-ink': '#00C8FF' }} />
         <div className="flex-1">
-          <h2 className="font-black text-base" style={{ color: '#00C8FF' }}>Instant Fulfillment Center</h2>
+          <h2 className="pg-operations-status font-black text-base" style={{ '--pg-status-ink': '#00C8FF' }}>Instant Fulfillment Center</h2>
           <p className="text-[11px] text-muted-foreground">Custody verification · Inventory · Fulfillment ops</p>
         </div>
         <button onClick={onRefresh} disabled={loading}
-          className="p-1.5 rounded-lg hover:bg-white/10 transition-colors text-muted-foreground">
+          className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground">
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>

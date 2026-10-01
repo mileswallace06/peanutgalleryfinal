@@ -1,9 +1,9 @@
 import { createContext, useContext } from 'react';
-import { base44, fixtureUser } from './base44';
+import { base44, fixtureUser, fixtureSignedIn } from './base44';
 const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const value = {
-    user: fixtureUser, isAuthenticated: true, isLoadingAuth: false,
+    user: fixtureSignedIn ? fixtureUser : null, isAuthenticated: fixtureSignedIn, isLoadingAuth: false,
     isLoadingPublicSettings: false, authError: null, appPublicSettings: null, authChecked: true,
     checkUserAuth: () => base44.auth.me(), checkAppState: () => base44.auth.me(),
     logout: () => base44.auth.logout(), navigateToLogin: () => base44.auth.redirectToLogin(),

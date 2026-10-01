@@ -1,0 +1,57 @@
+/* Shared chrome for reachable PG operations pages and their portaled feedback UI. */
+.pg-operations-page,
+.pg-operations-dialog,
+.pg-operations-widget {
+  color: var(--pg-text);
+  color-scheme: inherit;
+  --pg-operations-accent: var(--pg-violet);
+  --pg-status-ink-strength: 100%;
+}
+.pg-operations-page { min-width: 0; background: var(--pg-canvas); }
+.pg-operations-page h1 { font-family: var(--font-display); font-size: clamp(26px, 7.5vw, 34px); font-weight: 400; line-height: 1.12; letter-spacing: -.025em; }
+.pg-operations-page :is(h2, h3) { font-family: var(--font-editorial); letter-spacing: -.015em; }
+.pg-operations-header { background: var(--pg-canvas); border-color: var(--pg-line); box-shadow: none; backdrop-filter: none; }
+.pg-operations-header .font-display { font-size: 18px; font-weight: 400; letter-spacing: -.01em; }
+.pg-operations-heading { padding-bottom: 18px; border-bottom: 1px dashed var(--pg-line); }
+.pg-operations-card { min-width: 0; border-radius: 10px; }
+.pg-operations-card > :is(h2, h3):first-child { text-wrap: balance; }
+.pg-operations-skeleton { background: var(--pg-surface-raised); }
+:root:not(.dark) :is(.pg-operations-page, .pg-operations-dialog, .pg-operations-widget) { --pg-status-ink-strength: 42%; }
+.pg-operations-tabs { gap: 8px; }
+.pg-operations-tabs > button { border-radius: 7px; padding: 10px 13px; line-height: 1.25; }
+.pg-operations-tabs > button[aria-pressed="true"] { background: var(--pg-surface-raised); color: var(--pg-text); border: 1px solid var(--pg-violet); }
+
+:is(.pg-operations-page, .pg-operations-dialog, .pg-operations-widget) :is(button, a) { -webkit-tap-highlight-color: transparent; }
+:is(.pg-operations-page, .pg-operations-dialog, .pg-operations-widget) button { min-height: 44px; min-width: 44px; }
+:is(.pg-operations-page, .pg-operations-dialog, .pg-operations-widget) :is(button, a).rounded-full { border-radius: 8px; }
+:is(.pg-operations-page, .pg-operations-dialog, .pg-operations-widget) :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) { min-height: 44px; min-width: 0; border-radius: 8px; color: var(--pg-text); background-color: var(--pg-surface); border-color: var(--pg-line); font-size: 16px; }
+:is(.pg-operations-page, .pg-operations-dialog, .pg-operations-widget) :is(button, a, input, select, textarea):focus-visible { outline: 2px solid var(--pg-operations-accent); outline-offset: 3px; }
+:is(.pg-operations-page, .pg-operations-dialog, .pg-operations-widget) .text-foreground { color: var(--pg-text); }
+:is(.pg-operations-page, .pg-operations-dialog, .pg-operations-widget) .text-muted-foreground { color: var(--pg-muted); }
+:is(.pg-operations-page, .pg-operations-dialog, .pg-operations-widget) .bg-background { background-color: var(--pg-canvas); }
+:is(.pg-operations-page, .pg-operations-dialog, .pg-operations-widget) .bg-card { background-color: var(--pg-surface); }
+:is(.pg-operations-page, .pg-operations-dialog, .pg-operations-widget) .bg-muted { background-color: var(--pg-surface-raised); }
+:is(.pg-operations-page, .pg-operations-dialog, .pg-operations-widget) .border-border { border-color: var(--pg-line); }
+:is(.pg-operations-page, .pg-operations-dialog, .pg-operations-widget) .bg-primary { background-color: var(--pg-violet); }
+:is(.pg-operations-page, .pg-operations-dialog, .pg-operations-widget) .text-primary-foreground { color: var(--pg-ink); }
+:is(.pg-operations-page, .pg-operations-dialog, .pg-operations-widget) .text-primary { color: var(--neon-purple); }
+:is(.pg-operations-page, .pg-operations-dialog, .pg-operations-widget) .pg-operations-status { color: color-mix(in srgb, var(--pg-status-ink) var(--pg-status-ink-strength, 100%), var(--pg-text)); }
+.pg-operations-page :is(table, pre) { font-variant-numeric: tabular-nums; }
+.pg-operations-page th { color: var(--pg-muted); }
+.pg-operations-page :is(th, td) { border-color: var(--pg-line); }
+.pg-operations-header a { min-height: 44px; align-content: center; }
+.pg-operations-unlock { padding-block: 40px; }
+.pg-operations-dialog { border-radius: 12px; border-color: var(--pg-line); background: var(--pg-surface); }
+.pg-operations-dialog > :first-child { border-bottom-style: dashed; }
+.pg-operations-widget { border-color: var(--pg-line); }
+
+/* Preserve the 24px switch track inside its 44px touch target. */
+.pg-operations-page .pg-operations-switch { position: relative; width: 44px; height: 44px; border-radius: 0; background: transparent; }
+.pg-operations-switch::before { content: ''; position: absolute; left: 0; top: 10px; width: 44px; height: 24px; border-radius: 999px; background: var(--pg-switch-track); }
+.pg-operations-switch > span { top: 12px; }
+
+@media (max-width: 420px) {
+  .pg-operations-page .pg-operations-header { gap: 8px; padding-inline: 14px; }
+  .pg-operations-header .font-display { font-size: 16px; }
+  .pg-operations-page .pg-operations-card { overflow-wrap: anywhere; }
+}

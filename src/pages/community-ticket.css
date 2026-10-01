@@ -72,7 +72,7 @@
 .pg-community-state p { color: var(--pg-muted); font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
 .pg-community-state button,
 .pg-community-state > a { min-height: 44px; }
-.pg-community-overlays { --pg-cyan: #00c8ff; --pg-violet: #bf5fff; --pg-ink: #111217; }
+.pg-community-overlays { color: var(--pg-text); }
 .pg-community-overlays button,
 .pg-community-overlays input:not([type='file']),
 .pg-community-overlays label { min-height: 44px; flex-shrink: 0; }

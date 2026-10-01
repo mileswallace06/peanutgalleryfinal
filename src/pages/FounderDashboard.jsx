@@ -1,3 +1,4 @@
+import '@/components/admin/operations-theme.css';
 import { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { isAdmin } from '@/lib/isAdmin';
@@ -10,14 +11,14 @@ import EventNavHealthPanel from '@/components/founder/EventNavHealthPanel';
 
 function StatCard({ label, value, color, icon, sub, urgent }) {
   return (
-    <div className="rounded-2xl p-4"
+    <div className="pg-operations-card rounded-2xl p-4"
       style={{
-        background: urgent && value > 0 ? `rgba(255,45,120,0.07)` : 'rgba(255,255,255,0.04)',
-        border: urgent && value > 0 ? '1px solid rgba(255,45,120,0.3)' : '1px solid rgba(255,255,255,0.08)',
+        background: urgent && value > 0 ? `rgba(255,45,120,0.07)` : 'var(--pg-surface)',
+        border: urgent && value > 0 ? '1px solid rgba(255,45,120,0.3)' : '1px solid var(--pg-line)',
       }}>
       <div className="flex items-start justify-between gap-2">
         <div>
-          <div className="text-2xl font-black" style={{ color: color || 'hsl(var(--foreground))' }}>{value}</div>
+          <div className="pg-operations-status text-2xl font-black" style={{ '--pg-status-ink': color || 'var(--pg-text)' }}>{value}</div>
           <div className="text-xs text-muted-foreground mt-0.5">{label}</div>
           {sub && <div className="text-[10px] text-muted-foreground mt-0.5">{sub}</div>}
         </div>
@@ -32,7 +33,7 @@ function SectionHeader({ title, icon }) {
     <div className="flex items-center gap-2 mb-3">
       <span className="text-base">{icon}</span>
       <h2 className="font-bold text-sm text-foreground uppercase tracking-wide">{title}</h2>
-      <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.06)' }} />
+      <div className="flex-1 h-px" style={{ background: 'var(--pg-line)' }} />
     </div>
   );
 }
@@ -71,7 +72,7 @@ export default function FounderDashboard() {
   }, [isLoadingAuth, user]);
 
   if (isLoadingAuth) return (
-    <div className="min-h-screen flex items-center justify-center">
+    <div className="pg-operations-page min-h-full flex items-center justify-center">
       <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
     </div>
   );
@@ -132,11 +133,11 @@ export default function FounderDashboard() {
   const needsAttentionNow = criticalAlerts.length > 0 || openDisputes.length > 0 || buyerWaiting.length > 3;
 
   return (
-    <div className="min-h-screen" style={{ background: 'hsl(var(--background))' }}>
+    <div className="pg-operations-page min-h-full" style={{ background: 'var(--pg-canvas)' }}>
       {/* Top bar */}
-      <div className="sticky top-0 z-40 px-4 py-3 flex items-center gap-3 border-b border-border"
-        style={{ background: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(24px)' }}>
-        <Shield className="w-5 h-5 flex-shrink-0" style={{ color: needsAttentionNow ? '#FF2D78' : '#BF5FFF' }} />
+      <div className="pg-operations-header sticky top-0 z-40 px-4 py-3 flex items-center gap-3 border-b border-border"
+        style={{ background: 'var(--pg-canvas)' }}>
+        <Shield className="pg-operations-status w-5 h-5 flex-shrink-0" style={{ '--pg-status-ink': needsAttentionNow ? '#FF2D78' : '#BF5FFF' }} />
         <div className="flex-1 min-w-0">
           <span className="font-display text-sm font-black text-foreground tracking-wide">FOUNDER DASHBOARD</span>
           {lastRefresh && (
@@ -161,34 +162,34 @@ export default function FounderDashboard() {
           {needsAttentionNow ? (
             <div className="space-y-2">
               {criticalAlerts.map(a => (
-                <div key={a.id} className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm"
-                  style={{ background: 'rgba(255,45,120,0.1)', border: '1px solid rgba(255,45,120,0.35)' }}>
+                <div key={a.id} className="pg-operations-card flex items-center gap-3 rounded-xl px-4 py-3 text-sm"
+                  style={{ background: 'color-mix(in srgb, rgb(255 45 120) 10%, var(--pg-surface))', border: '1px solid rgba(255,45,120,0.35)' }}>
                   <span>🚨</span>
                   <span className="font-semibold text-foreground flex-1">{a.title}</span>
-                  <Link to="/admin" className="text-xs font-bold flex-shrink-0" style={{ color: '#FF2D78' }}>Fix →</Link>
+                  <Link to="/admin" className="pg-operations-status text-xs font-bold flex-shrink-0" style={{ '--pg-status-ink': '#FF2D78' }}>Fix →</Link>
                 </div>
               ))}
               {openDisputes.length > 0 && (
-                <div className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm"
-                  style={{ background: 'rgba(255,45,120,0.08)', border: '1px solid rgba(255,45,120,0.3)' }}>
+                <div className="pg-operations-card flex items-center gap-3 rounded-xl px-4 py-3 text-sm"
+                  style={{ background: 'color-mix(in srgb, rgb(255 45 120) 8%, var(--pg-surface))', border: '1px solid rgba(255,45,120,0.3)' }}>
                   <span>⚖️</span>
                   <span className="font-semibold text-foreground flex-1">{openDisputes.length} open dispute{openDisputes.length !== 1 ? 's' : ''}</span>
-                  <Link to="/admin" className="text-xs font-bold flex-shrink-0" style={{ color: '#FF2D78' }}>Resolve →</Link>
+                  <Link to="/admin" className="pg-operations-status text-xs font-bold flex-shrink-0" style={{ '--pg-status-ink': '#FF2D78' }}>Resolve →</Link>
                 </div>
               )}
               {buyerWaiting.length > 3 && (
-                <div className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm"
-                  style={{ background: 'rgba(255,140,0,0.08)', border: '1px solid rgba(255,140,0,0.3)' }}>
+                <div className="pg-operations-card flex items-center gap-3 rounded-xl px-4 py-3 text-sm"
+                  style={{ background: 'color-mix(in srgb, rgb(255 140 0) 8%, var(--pg-surface))', border: '1px solid rgba(255,140,0,0.3)' }}>
                   <span>⏳</span>
                   <span className="font-semibold text-foreground flex-1">{buyerWaiting.length} buyers waiting for ticket transfer</span>
-                  <Link to="/admin" className="text-xs font-bold flex-shrink-0" style={{ color: '#FF8C00' }}>View →</Link>
+                  <Link to="/admin" className="pg-operations-status text-xs font-bold flex-shrink-0" style={{ '--pg-status-ink': '#FF8C00' }}>View →</Link>
                 </div>
               )}
             </div>
           ) : (
-            <div className="rounded-xl px-4 py-3 flex items-center gap-3 text-sm"
-              style={{ background: 'rgba(0,255,135,0.06)', border: '1px solid rgba(0,255,135,0.2)' }}>
-              <CheckCircle className="w-4 h-4" style={{ color: '#00FF87' }} />
+            <div className="pg-operations-card rounded-xl px-4 py-3 flex items-center gap-3 text-sm"
+              style={{ background: 'color-mix(in srgb, rgb(0 255 135) 6%, var(--pg-surface))', border: '1px solid rgba(0,255,135,0.2)' }}>
+              <CheckCircle className="pg-operations-status w-4 h-4" style={{ '--pg-status-ink': '#00FF87' }} />
               <span className="text-muted-foreground">No critical issues right now. Marketplace looks healthy.</span>
             </div>
           )}
@@ -210,13 +211,13 @@ export default function FounderDashboard() {
         {/* ── MARKETPLACE HEALTH SCORE ── */}
         <div>
           <SectionHeader title="Marketplace Health Score" icon="💊" />
-          <div className="rounded-2xl p-5 flex items-center gap-6"
+          <div className="pg-operations-card rounded-2xl p-5 flex items-center gap-6"
             style={{
-              background: healthScore >= 80 ? 'rgba(0,255,135,0.06)' : healthScore >= 60 ? 'rgba(255,140,0,0.06)' : 'rgba(255,45,120,0.08)',
+              background: healthScore >= 80 ? 'color-mix(in srgb, rgb(0 255 135) 6%, var(--pg-surface))' : healthScore >= 60 ? 'color-mix(in srgb, rgb(255 140 0) 6%, var(--pg-surface))' : 'color-mix(in srgb, rgb(255 45 120) 8%, var(--pg-surface))',
               border: `1px solid ${healthScore >= 80 ? 'rgba(0,255,135,0.25)' : healthScore >= 60 ? 'rgba(255,140,0,0.25)' : 'rgba(255,45,120,0.35)'}`,
             }}>
             <div>
-              <div className="text-5xl font-black" style={{ color: healthScore >= 80 ? '#00FF87' : healthScore >= 60 ? '#FF8C00' : '#FF2D78' }}>
+              <div className="pg-operations-status text-5xl font-black" style={{ '--pg-status-ink': healthScore >= 80 ? '#00FF87' : healthScore >= 60 ? '#FF8C00' : '#FF2D78' }}>
                 {healthScore}
               </div>
               <div className="text-xs text-muted-foreground mt-1">/ 100</div>
@@ -259,18 +260,18 @@ export default function FounderDashboard() {
           </div>
 
           {/* Transfer metrics from TransferOutcome (source of truth) */}
-          <div className="mt-3 rounded-xl p-4 grid grid-cols-2 sm:grid-cols-4 gap-4"
-            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <div className="pg-operations-card mt-3 rounded-xl p-4 grid grid-cols-2 sm:grid-cols-4 gap-4"
+            style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
             <div>
               <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Success Rate</div>
-              <div className="text-xl font-black mt-0.5" style={{ color: successRate >= 90 ? '#00FF87' : successRate >= 75 ? '#FF8C00' : '#FF2D78' }}>
+              <div className="pg-operations-status text-xl font-black mt-0.5" style={{ '--pg-status-ink': successRate >= 90 ? '#00FF87' : successRate >= 75 ? '#FF8C00' : '#FF2D78' }}>
                 {successRate}%
               </div>
               <div className="text-[9px] text-muted-foreground">{outcomeTotal > 0 ? `${outcomeTotal} outcomes` : 'Purchase fallback'}</div>
             </div>
             <div>
               <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Dispute Rate</div>
-              <div className="text-xl font-black mt-0.5" style={{ color: disputeRate === 0 ? '#00FF87' : disputeRate < 10 ? '#FF8C00' : '#FF2D78' }}>
+              <div className="pg-operations-status text-xl font-black mt-0.5" style={{ '--pg-status-ink': disputeRate === 0 ? '#00FF87' : disputeRate < 10 ? '#FF8C00' : '#FF2D78' }}>
                 {disputeRate}%
               </div>
               <div className="text-[9px] text-muted-foreground">{failedOutcomes.length} failures logged</div>
@@ -286,7 +287,7 @@ export default function FounderDashboard() {
             </div>
             <div>
               <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Open Disputes</div>
-              <div className="text-xl font-black mt-0.5" style={{ color: openDisputes.length > 0 ? '#FF2D78' : '#00FF87' }}>
+              <div className="pg-operations-status text-xl font-black mt-0.5" style={{ '--pg-status-ink': openDisputes.length > 0 ? '#FF2D78' : '#00FF87' }}>
                 {openDisputes.length}
               </div>
               <div className="text-[9px] text-muted-foreground">from Purchase entity</div>
@@ -303,13 +304,13 @@ export default function FounderDashboard() {
               { label: 'Sellers sent — waiting buyer confirm', value: sellerMissed.length, urgent: false, color: '#00C8FF' },
               { label: 'Donations active/pending', value: donations.filter(d => d.donation_status === 'active').length, urgent: false, color: '#BF5FFF' },
             ].map(row => (
-              <div key={row.label} className="flex items-center justify-between rounded-xl px-4 py-2.5"
+              <div key={row.label} className="pg-operations-card flex items-center justify-between rounded-xl px-4 py-2.5"
                 style={{
-                  background: row.urgent && row.value > 0 ? 'rgba(255,140,0,0.06)' : 'rgba(255,255,255,0.03)',
-                  border: `1px solid ${row.urgent && row.value > 0 ? 'rgba(255,140,0,0.25)' : 'rgba(255,255,255,0.07)'}`,
+                  background: row.urgent && row.value > 0 ? 'color-mix(in srgb, rgb(255 140 0) 6%, var(--pg-surface))' : 'var(--pg-surface)',
+                  border: `1px solid ${row.urgent && row.value > 0 ? 'rgba(255,140,0,0.25)' : 'var(--pg-line)'}`,
                 }}>
                 <span className="text-muted-foreground text-xs">{row.label}</span>
-                <span className="font-black text-sm" style={{ color: row.value > 0 ? row.color : 'hsl(var(--muted-foreground))' }}>
+                <span className="pg-operations-status font-black text-sm" style={{ '--pg-status-ink': row.value > 0 ? row.color : 'var(--pg-muted)' }}>
                   {row.value}
                 </span>
               </div>
@@ -332,8 +333,8 @@ export default function FounderDashboard() {
               { label: 'Leaderboard', to: '/leaderboard', icon: '🏆' },
             ].map(link => (
               <Link key={link.label} to={link.to}
-                className="flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition-all hover:bg-white/8"
-                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                className="flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition-all hover:bg-muted"
+                style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
                 <span>{link.icon}</span>
                 <span className="text-foreground text-xs">{link.label}</span>
               </Link>

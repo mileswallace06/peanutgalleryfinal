@@ -70,21 +70,21 @@ export default function OperationalRiskChecklist() {
   return (
     <div className="space-y-4">
       {/* Summary */}
-      <div className="flex items-center gap-4 px-4 py-3 rounded-2xl" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
-        <AlertTriangle className="w-4 h-4 flex-shrink-0" style={{ color: exposedCount > 0 ? '#FF2D78' : '#00FF87' }} />
+      <div className="flex items-center gap-4 px-4 py-3 rounded-xl" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
+        <AlertTriangle className="w-4 h-4 flex-shrink-0" style={{ color: exposedCount > 0 ? 'var(--neon-pink)' : 'var(--neon-green)' }} />
         <div className="flex-1">
           <p className="text-xs font-black text-foreground">{mitigatedCount}/{allItems.length} risks addressed</p>
           <p className="text-[10px] text-muted-foreground">{exposedCount > 0 ? `${exposedCount} exposed — review before launch` : 'All tracked risks have a mitigation plan'}</p>
         </div>
         {exposedCount > 0 && (
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(255,45,120,0.12)', color: '#FF2D78', border: '1px solid rgba(255,45,120,0.3)' }}>
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(255,45,120,0.12)', color: 'var(--neon-pink)', border: '1px solid rgba(255,45,120,0.3)' }}>
             {exposedCount} exposed
           </span>
         )}
       </div>
 
       {RISKS.map(({ category, items }) => (
-        <div key={category} className="rounded-2xl overflow-hidden" style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}>
+        <div key={category} className="pg-operations-card rounded-xl overflow-hidden" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
           <div className="px-4 py-3 border-b border-border">
             <p className="text-xs font-black tracking-widest uppercase text-muted-foreground">{category}</p>
           </div>
@@ -98,16 +98,16 @@ export default function OperationalRiskChecklist() {
                 <div key={id}>
                   <button onClick={() => setExpanded(p => ({ ...p, [id]: !isExpanded }))}
                     className="w-full flex items-center gap-3 px-4 py-3 text-left">
-                    <statusCfg.Icon className="w-4 h-4 flex-shrink-0" style={{ color: statusCfg.color }} />
+                    <statusCfg.Icon className="pg-operations-status w-4 h-4 flex-shrink-0" style={{ '--pg-status-ink': statusCfg.color }} />
                     <span className="flex-1 text-sm text-foreground">{label}</span>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
-                      style={{ background: `${statusCfg.color}15`, color: statusCfg.color, border: `1px solid ${statusCfg.color}30` }}>
+                    <span className="pg-operations-status text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
+                      style={{ background: `${statusCfg.color}15`, '--pg-status-ink': statusCfg.color, border: `1px solid ${statusCfg.color}30` }}>
                       {statusCfg.label}
                     </span>
                   </button>
                   {isExpanded && (
                     <div className="px-4 pb-4 space-y-3 border-t border-border pt-3">
-                      <div className="px-3 py-2.5 rounded-xl text-xs" style={{ background: 'rgba(0,200,255,0.06)', border: '1px solid rgba(0,200,255,0.15)' }}>
+                      <div className="px-3 py-2.5 rounded-xl text-xs" style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)' }}>
                         <p className="font-black text-muted-foreground uppercase tracking-wider text-[9px] mb-1">Mitigation</p>
                         <p className="text-foreground">{mitigation}</p>
                       </div>
@@ -116,10 +116,10 @@ export default function OperationalRiskChecklist() {
                         <div className="flex gap-2 flex-wrap">
                           {STATUS_OPTIONS.map(s => (
                             <button key={s.value} onClick={() => setStatus(id, s.value)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+                              className="pg-operations-status flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
                               style={status === s.value
-                                ? { background: `${s.color}20`, color: s.color, border: `1px solid ${s.color}50` }
-                                : { background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--border))' }
+                                ? { background: `${s.color}20`, '--pg-status-ink': s.color, border: `1px solid ${s.color}50` }
+                                : { background: 'var(--pg-surface-raised)', '--pg-status-ink': 'var(--pg-muted)', border: '1px solid var(--pg-line)' }
                               }>
                               <s.Icon className="w-3 h-3" /> {s.label}
                             </button>

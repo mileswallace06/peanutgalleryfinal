@@ -14,7 +14,7 @@ const RESULT_COLORS = {
   event_not_loaded: '#FFE600',
   event_not_found: '#FF2D78',
   navigation_error: '#FF2D78',
-  unknown: 'rgba(255,255,255,0.4)',
+  unknown: 'var(--pg-muted)',
 };
 
 const RESULT_LABELS = {
@@ -74,7 +74,7 @@ export default function EventNavHealthPanel() {
         <div className="flex items-center gap-2">
           <span className="text-base">🧭</span>
           <h2 className="font-bold text-sm text-foreground uppercase tracking-wide">Event Navigation Health</h2>
-          <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.06)' }} />
+          <div className="flex-1 h-px" style={{ background: 'var(--pg-line)' }} />
         </div>
         <button onClick={load} disabled={loading} className="p-1.5 rounded-lg hover:bg-muted">
           <RefreshCw className={`w-3.5 h-3.5 text-muted-foreground ${loading ? 'animate-spin' : ''}`} />
@@ -83,9 +83,9 @@ export default function EventNavHealthPanel() {
 
       {/* Spike alert banner */}
       {failureRate > 1 && failures.length >= 3 && (
-        <div className="flex items-start gap-3 rounded-xl px-4 py-3"
-          style={{ background: 'rgba(255,45,120,0.1)', border: '1px solid rgba(255,45,120,0.35)' }}>
-          <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#FF2D78' }} />
+        <div className="pg-operations-card flex items-start gap-3 rounded-xl px-4 py-3"
+          style={{ background: 'color-mix(in srgb, rgb(255 45 120) 10%, var(--pg-surface))', border: '1px solid rgba(255,45,120,0.35)' }}>
+          <AlertTriangle className="pg-operations-status w-4 h-4 flex-shrink-0 mt-0.5" style={{ '--pg-status-ink': '#FF2D78' }} />
           <div className="text-sm">
             <span className="font-bold text-foreground">⚠ Navigation Failure Spike — {failureRate}% failure rate</span>
             <p className="text-xs text-muted-foreground mt-0.5">
@@ -98,18 +98,18 @@ export default function EventNavHealthPanel() {
       {/* Stats grid */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
         {[
-          { label: 'Total Clicks', value: total, color: 'hsl(var(--foreground))' },
+          { label: 'Total Clicks', value: total, color: 'var(--pg-text)' },
           { label: 'Successful Opens', value: successes, color: '#00FF87' },
           { label: 'Fallback Resolutions', value: fallbacks, color: '#00C8FF' },
           { label: 'Nav Failures', value: failures.length, color: failures.length > 0 ? '#FF2D78' : '#00FF87', urgent: failures.length > 0 },
           { label: 'Failure Rate', value: `${failureRate}%`, color: failureRate > 1 ? '#FF2D78' : failureRate > 0 ? '#FF8C00' : '#00FF87' },
         ].map(stat => (
-          <div key={stat.label} className="rounded-2xl p-3"
+          <div key={stat.label} className="pg-operations-card rounded-2xl p-3"
             style={{
-              background: stat.urgent ? 'rgba(255,45,120,0.07)' : 'rgba(255,255,255,0.04)',
-              border: stat.urgent ? '1px solid rgba(255,45,120,0.3)' : '1px solid rgba(255,255,255,0.08)',
+              background: stat.urgent ? 'color-mix(in srgb, rgb(255 45 120) 7%, var(--pg-surface))' : 'var(--pg-surface)',
+              border: stat.urgent ? '1px solid rgba(255,45,120,0.3)' : '1px solid var(--pg-line)',
             }}>
-            <div className="text-xl font-black" style={{ color: stat.color }}>{stat.value}</div>
+            <div className="pg-operations-status text-xl font-black" style={{ '--pg-status-ink': stat.color }}>{stat.value}</div>
             <div className="text-[10px] text-muted-foreground mt-0.5 leading-tight">{stat.label}</div>
           </div>
         ))}
@@ -117,14 +117,14 @@ export default function EventNavHealthPanel() {
 
       {/* Health indicator */}
       {total > 0 && (
-        <div className="flex items-center gap-3 rounded-xl px-4 py-2.5"
+        <div className="pg-operations-card flex items-center gap-3 rounded-xl px-4 py-2.5"
           style={{
-            background: failureRate === 0 ? 'rgba(0,255,135,0.06)' : failureRate <= 1 ? 'rgba(255,140,0,0.06)' : 'rgba(255,45,120,0.08)',
+            background: failureRate === 0 ? 'color-mix(in srgb, rgb(0 255 135) 6%, var(--pg-surface))' : failureRate <= 1 ? 'color-mix(in srgb, rgb(255 140 0) 6%, var(--pg-surface))' : 'color-mix(in srgb, rgb(255 45 120) 8%, var(--pg-surface))',
             border: `1px solid ${failureRate === 0 ? 'rgba(0,255,135,0.2)' : failureRate <= 1 ? 'rgba(255,140,0,0.25)' : 'rgba(255,45,120,0.35)'}`,
           }}>
           {failureRate === 0
-            ? <CheckCircle className="w-4 h-4 flex-shrink-0" style={{ color: '#00FF87' }} />
-            : <AlertTriangle className="w-4 h-4 flex-shrink-0" style={{ color: failureRate <= 1 ? '#FF8C00' : '#FF2D78' }} />
+            ? <CheckCircle className="pg-operations-status w-4 h-4 flex-shrink-0" style={{ '--pg-status-ink': '#00FF87' }} />
+            : <AlertTriangle className="pg-operations-status w-4 h-4 flex-shrink-0" style={{ '--pg-status-ink': failureRate <= 1 ? '#FF8C00' : '#FF2D78' }} />
           }
           <span className="text-xs text-muted-foreground">
             {failureRate === 0
@@ -139,10 +139,10 @@ export default function EventNavHealthPanel() {
       {recentFailures.length > 0 && (
         <div>
           <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wide mb-2">Recent Failures</p>
-          <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
+          <div className="pg-operations-card rounded-2xl overflow-hidden" style={{ border: '1px solid var(--pg-line)' }}>
             {/* Header */}
             <div className="grid grid-cols-[80px_1fr_80px_1fr_90px] gap-2 px-3 py-2 text-[9px] font-bold text-muted-foreground uppercase tracking-wide"
-              style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+              style={{ background: 'var(--pg-surface)', borderBottom: '1px solid var(--pg-line)' }}>
               <span>Time</span>
               <span>Event</span>
               <span>Page</span>
@@ -152,7 +152,7 @@ export default function EventNavHealthPanel() {
             {recentFailures.map((log, i) => (
               <div key={log.id || i}
                 className="grid grid-cols-[80px_1fr_80px_1fr_90px] gap-2 px-3 py-2.5 text-[10px] items-start"
-                style={{ borderBottom: i < recentFailures.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+                style={{ borderBottom: i < recentFailures.length - 1 ? '1px solid var(--pg-line)' : 'none' }}>
                 <span className="text-muted-foreground leading-tight">
                   {log.timestamp ? formatDistanceToNow(new Date(log.timestamp), { addSuffix: true }) : '—'}
                 </span>
@@ -163,7 +163,7 @@ export default function EventNavHealthPanel() {
                 <span className="font-mono text-[9px] text-muted-foreground leading-tight break-all line-clamp-2">
                   {log.generated_href || 'none'}
                 </span>
-                <span className="leading-tight font-semibold" style={{ color: RESULT_COLORS[log.result] || 'hsl(var(--muted-foreground))' }}>
+                <span className="pg-operations-status leading-tight font-semibold" style={{ '--pg-status-ink': RESULT_COLORS[log.result] || 'var(--pg-muted)' }}>
                   {RESULT_LABELS[log.result] || log.result}
                   {log.failure_reason && (
                     <span className="block text-[9px] font-normal text-muted-foreground mt-0.5">{log.failure_reason}</span>

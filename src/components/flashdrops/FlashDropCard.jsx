@@ -3,6 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { Gift, ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import FlashDropCountdown from './FlashDropCountdown';
+import './fan-gifts-ticket.css';
 
 /**
  * FlashDropCard — Race-safe, server-authority winner selection.
@@ -137,21 +138,15 @@ export default function FlashDropCard({ drop: initialDrop, user, allListings = [
   const won = result?.is_winner === true;
 
   return (
-    <div className="rounded-2xl overflow-hidden relative"
-      style={{
-        background: 'linear-gradient(135deg, rgba(191,95,255,0.08) 0%, rgba(255,45,120,0.06) 100%)',
-        border: '1px solid rgba(191,95,255,0.35)',
-        boxShadow: '0 0 30px rgba(191,95,255,0.12)',
-      }}>
-      <div className="h-0.5" style={{ background: 'linear-gradient(90deg, #BF5FFF, #FF2D78, #FFE600)' }} />
+    <div className="pg-fan-gifts pg-gift-card overflow-hidden relative">
+      <div className="pg-gift-card-accent h-0.5" />
 
       {/* Header row */}
-      <div className="px-4 pt-3 pb-2 flex items-center gap-2">
+      <div className="pg-gift-card-header px-4 pt-3 pb-2 flex flex-wrap items-center gap-2">
         <span className="text-base">⚡</span>
-        <span className="text-[10px] font-black tracking-[0.2em] uppercase" style={{ color: '#FFE600' }}>Flash Drop — Win Free Seats</span>
+        <span className="pg-gift-yellow text-[10px] font-black tracking-[0.2em] uppercase">Flash Drop — Win Free Seats</span>
         {isVerified && (
-          <span className="flex items-center gap-0.5 text-[9px] font-black px-1.5 py-0.5 rounded-full"
-            style={{ background: 'rgba(0,255,135,0.12)', color: '#00FF87', border: '1px solid rgba(0,255,135,0.3)' }}>
+          <span className="pg-gift-stamp pg-gift-stamp-success flex items-center gap-0.5 text-[9px] font-black px-1.5 py-0.5">
             <ShieldCheck className="w-2.5 h-2.5" /> Verified
           </span>
         )}
@@ -172,22 +167,21 @@ export default function FlashDropCard({ drop: initialDrop, user, allListings = [
             From: {drop.is_anonymous ? 'A generous fan' : (drop.donor_name || 'Anonymous')}
           </p>
           {!drop.ownership_verified && (
-            <p className="text-[10px] mt-1" style={{ color: '#FF8C00' }}>⚠ Ownership unverified</p>
+            <p className="pg-gift-warning text-[10px] mt-1">⚠ Ownership unverified</p>
           )}
         </div>
 
         {/* Active — not entered, not donor */}
         {(phase === 'active' || phase === 'entered') && !isDonorOwnDrop && !entered && phase !== 'entered' && (
           <div className="space-y-3">
-            <div className="rounded-xl py-3 flex justify-center" style={{ background: 'rgba(0,0,0,0.3)' }}>
+            <div className="pg-gift-counter-panel py-3 flex justify-center">
               <FlashDropCountdown closesAt={drop.entry_closes_at} onExpired={handleExpired} />
             </div>
-            {error && <p className="text-xs text-center" style={{ color: '#FF2D78' }}>{error}</p>}
+            {error && <p className="pg-gift-error text-xs text-center">{error}</p>}
             <button onClick={handleEntry} disabled={loading}
-              className="w-full py-4 rounded-2xl font-black text-base flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95 transition-transform"
-              style={{ background: 'linear-gradient(135deg, #BF5FFF, #FF2D78)', color: '#fff', boxShadow: '0 0 24px rgba(191,95,255,0.5)' }}>
+              className="pg-gift-button pg-gift-button-primary w-full py-4 font-black text-base flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95 transition-transform">
               {loading
-                ? <span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                ? <span className="pg-gift-spinner w-5 h-5 border-2 rounded-full animate-spin" />
                 : <><Gift className="w-5 h-5" /> Enter Now — It's Free</>}
             </button>
           </div>
@@ -195,7 +189,7 @@ export default function FlashDropCard({ drop: initialDrop, user, allListings = [
 
         {/* Active — donor view */}
         {(phase === 'active' || phase === 'entered') && isDonorOwnDrop && (
-          <div className="rounded-xl py-3 text-center space-y-1" style={{ background: 'rgba(0,0,0,0.3)' }}>
+          <div className="pg-gift-counter-panel py-3 text-center space-y-1">
             <FlashDropCountdown closesAt={drop.entry_closes_at} onExpired={handleExpired} />
             <p className="text-xs text-muted-foreground">Your drop is live 🎁</p>
           </div>
@@ -203,8 +197,8 @@ export default function FlashDropCard({ drop: initialDrop, user, allListings = [
 
         {/* Entered — waiting for result */}
         {(phase === 'entered' || (entered && (phase === 'active'))) && !isDonorOwnDrop && (
-          <div className="rounded-xl py-3 text-center space-y-2" style={{ background: 'rgba(0,255,135,0.06)', border: '1px solid rgba(0,255,135,0.2)' }}>
-            <p className="text-sm font-black" style={{ color: '#00FF87' }}>✓ You're in!</p>
+          <div className="pg-gift-counter-panel pg-gift-counter-entered py-3 text-center space-y-2">
+            <p className="pg-gift-success text-sm font-black">✓ You're in!</p>
             <FlashDropCountdown closesAt={drop.entry_closes_at} onExpired={handleExpired} />
             <p className="text-xs text-muted-foreground">Winner selected instantly when timer ends</p>
           </div>
@@ -212,8 +206,8 @@ export default function FlashDropCard({ drop: initialDrop, user, allListings = [
 
         {/* Expired — waiting for server result */}
         {phase === 'expired' && !result && (
-          <div className="rounded-xl py-3 text-center" style={{ background: 'rgba(0,0,0,0.3)' }}>
-            <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin inline-block mb-2" />
+          <div className="pg-gift-counter-panel py-3 text-center">
+            <span className="pg-gift-spinner w-5 h-5 border-2 rounded-full animate-spin inline-block mb-2" />
             <p className="text-xs text-muted-foreground">Selecting winner…</p>
           </div>
         )}
@@ -225,7 +219,7 @@ export default function FlashDropCard({ drop: initialDrop, user, allListings = [
             : <LoserView drop={drop} allListings={allListings} userEmail={user?.email} />
         )}
         {phase === 'result' && result?.no_entries && (
-          <div className="rounded-xl py-3 text-center" style={{ background: 'rgba(255,255,255,0.04)' }}>
+          <div className="pg-gift-counter-panel py-3 text-center">
             <p className="text-sm text-muted-foreground">No entries — drop expired.</p>
           </div>
         )}
@@ -238,7 +232,7 @@ function WinnerView({ drop }) {
   return (
     <div className="text-center space-y-2 py-2">
       <div className="text-5xl">🎁</div>
-      <p className="font-black text-xl" style={{ color: '#00FF87' }}>You Won!</p>
+      <p className="pg-gift-success font-black text-xl">You Won!</p>
       <p className="text-sm text-muted-foreground">
         Section {drop.section}{drop.row ? ` Row ${drop.row}` : ''} — check your notifications for transfer details.
       </p>
@@ -292,21 +286,16 @@ function LoserView({ drop, allListings, userEmail }) {
             const isSameSection = l.section === drop.section;
             return (
               <Link key={l.id} to={`/upgrades/${l.event_id}`} onClick={handleListingClick}
-                className="flex items-center justify-between px-3 py-2.5 rounded-xl transition-all active:scale-95"
-                style={{
-                  background: isSameSection ? 'rgba(0,255,135,0.06)' : 'rgba(255,255,255,0.05)',
-                  border: isSameSection ? '1px solid rgba(0,255,135,0.2)' : '1px solid rgba(255,255,255,0.1)',
-                }}>
+                className={`pg-gift-listing flex items-center justify-between gap-2 px-3 py-2.5 transition-all active:scale-95${isSameSection ? ' pg-gift-listing-same' : ''}`}>
                 <div>
                   <span className="text-sm text-foreground font-semibold">
                     Sec {l.section}{l.row ? ` Row ${l.row}` : ''}
                   </span>
                   {isSameSection && (
-                    <span className="ml-2 text-[9px] font-black px-1.5 py-0.5 rounded-full"
-                      style={{ background: 'rgba(0,255,135,0.15)', color: '#00FF87' }}>Same section</span>
+                    <span className="pg-gift-stamp pg-gift-stamp-success ml-2 text-[9px] font-black px-1.5 py-0.5">Same section</span>
                   )}
                 </div>
-                <span className="font-black text-sm" style={{ color: '#00FF87' }}>${l.asking_price}</span>
+                <span className="pg-gift-listing-price font-black text-sm">${l.asking_price}</span>
               </Link>
             );
           })}
@@ -314,7 +303,7 @@ function LoserView({ drop, allListings, userEmail }) {
       ) : (
         <Link to={`/upgrades/${drop.event_id}`}
           onClick={handleListingClick}
-          className="block text-center text-xs text-primary underline py-2">
+          className="pg-gift-link block text-center text-xs underline py-2">
           Browse all available seats →
         </Link>
       )}

@@ -1,3 +1,4 @@
+import '@/components/member-surfaces.css';
 /**
  * DonationWinNotification — full-screen celebration shown to donation winners.
  * Polls for active drawn donations where the current user is the winner.
@@ -114,10 +115,8 @@ export default function DonationWinNotification({ userEmail }) {
         </div>
 
         <motion.div
-          className="relative w-full max-w-lg rounded-t-3xl p-6 text-center"
+          className="pg-member-sheet relative w-full max-w-lg p-6 text-center"
           style={{
-            background: 'linear-gradient(180deg, rgba(191,95,255,0.15) 0%, hsl(var(--card)) 30%)',
-            border: '1px solid rgba(191,95,255,0.4)',
             paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))',
           }}
           initial={{ y: '100%' }}
@@ -128,14 +127,14 @@ export default function DonationWinNotification({ userEmail }) {
           {accepted === true ? (
             <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
               <div className="text-6xl mb-3">🎉</div>
-              <h2 className="font-display text-3xl mb-2" style={{ color: '#BF5FFF' }}>Enjoy Your Upgrade!</h2>
+              <h2 className="font-display text-3xl mb-2" style={{ color: 'var(--neon-purple)' }}>Enjoy Your Upgrade!</h2>
               <p className="text-sm text-muted-foreground mb-4 leading-relaxed">
                 <span className="font-bold text-foreground">{donorName}</span> upgraded your night.
                 {donation.donor_message && (
                   <><br /><br /><em className="text-foreground">"{donation.donor_message}"</em></>
                 )}
               </p>
-              <div className="rounded-2xl px-4 py-3 mb-4 text-left"
+              <div className="rounded-lg px-4 py-3 mb-4 text-left"
                 style={{ background: 'rgba(191,95,255,0.1)', border: '1px solid rgba(191,95,255,0.3)' }}>
                 <p className="text-[10px] font-black tracking-widest uppercase text-muted-foreground mb-1">Your new seats</p>
                 <p className="font-display text-xl text-foreground">
@@ -176,7 +175,7 @@ export default function DonationWinNotification({ userEmail }) {
               </p>
 
               {/* Seat preview */}
-              <div className="rounded-2xl px-4 py-3 mb-4 text-left"
+              <div className="rounded-lg px-4 py-3 mb-4 text-left"
                 style={{ background: 'rgba(191,95,255,0.1)', border: '1px solid rgba(191,95,255,0.3)' }}>
                 <p className="text-[10px] font-black tracking-widest uppercase text-muted-foreground mb-1">Donated seats</p>
                 <p className="font-display text-xl text-foreground">
@@ -189,7 +188,7 @@ export default function DonationWinNotification({ userEmail }) {
               </div>
 
               {/* Progress bar */}
-              <div className="h-1.5 rounded-full overflow-hidden mb-5" style={{ background: 'rgba(255,255,255,0.1)' }}>
+              <div className="h-1.5 rounded-full overflow-hidden mb-5" style={{ background: 'var(--pg-line)' }}>
                 <motion.div
                   className="h-full rounded-full"
                   style={{ background: `linear-gradient(90deg, ${urgentColor}80, ${urgentColor})` }}
@@ -202,18 +201,16 @@ export default function DonationWinNotification({ userEmail }) {
                 <button
                   onClick={() => handleRespond(false)}
                   disabled={responding}
-                  className="flex-1 py-3.5 rounded-full font-black text-sm"
-                  style={{ background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' }}>
+                  className="pg-member-action pg-member-action--secondary flex-1 py-3.5 font-black text-sm">
                   Decline
                 </button>
                 <button
                   onClick={() => handleRespond(true)}
                   disabled={responding}
-                  className="flex-[2] py-3.5 rounded-full font-black text-sm flex items-center justify-center gap-2"
+                  className="pg-member-action flex-[2] py-3.5 font-black text-sm"
                   style={{
-                    background: 'linear-gradient(135deg, #BF5FFF, #FF2D78)',
-                    color: '#fff',
-                    boxShadow: '0 0 24px rgba(191,95,255,0.4)',
+                    background: 'var(--pg-violet)',
+                    color: 'var(--pg-ink)',
                   }}>
                   {responding
                     ? <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />

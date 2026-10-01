@@ -1,0 +1,24 @@
+{
+  "checked_at_utc": "2026-09-28T03:23:12.335312+00:00",
+  "baseline": "2d3adeab9601c9f64fbc2f7bc8a0f14958c1dbcb",
+  "production_build": "PASS (compile only; no deploy environment supplied)",
+  "initial_build": "Started before final child CSS write; unresolved import. Final stable build passes.",
+  "scoped_lint": {
+    "root_member_public_details": "PASS; targeted JSX scopes",
+    "operations": "56 baseline unused-import errors preserved; 0 new errors. Pass with only existing unused-import rule suppressed."
+  },
+  "diff_whitespace": "PASS",
+  "preservation": {
+    "changed_existing_jsx_files": 96,
+    "event_handler_expressions_unchanged": 465,
+    "base44_stripe_fetch_call_expressions_unchanged": 240,
+    "field_differences": "Reviewed: four guide/back links moved to equivalent PageIntro backTo props; onboarding progress controls explicitly type=button."
+  },
+  "updated_source_browser_rendering": "NOT RUN \u2014 not imported to Base44; cloud local preview unavailable",
+  "physical_testflight": "NOT RUN",
+  "merge": "VERIFIED \u2014 4c0856fdef8a2dc41cbd63df1b1e767dd1826de7",
+  "publication": "ACKNOWLEDGED by Base44 success dialog; custom domain live login renders",
+  "backend_files_changed": 0,
+  "served_commit": "NOT independently verified; version-history Live link stale (e3c77b08)",
+  "approved_main_composer": "Rendered after publication: New post, Post/Seat Flex, photo, caption, optional event tag, disabled Share; closed without submission"
+}

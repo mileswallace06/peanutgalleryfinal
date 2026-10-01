@@ -1,3 +1,4 @@
+import '@/components/admin/operations-theme.css';
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useAuth } from '@/lib/AuthContext';
@@ -29,40 +30,40 @@ function TesterCard({ tester, onUpdate, onDelete }) {
   };
 
   return (
-    <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}>
+    <div className="pg-operations-card rounded-xl overflow-hidden" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
       <div className="flex items-center gap-3 px-4 py-3.5">
-        <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-black"
-          style={{ background: `${statusColor}20`, border: `1px solid ${statusColor}50`, color: statusColor }}>
+        <div className="pg-operations-status w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-black"
+          style={{ background: `${statusColor}20`, border: `1px solid ${statusColor}50`, '--pg-status-ink': statusColor }}>
           {tester.name?.[0]?.toUpperCase() || '?'}
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-bold text-sm text-foreground leading-tight">{tester.name}</p>
           <p className="text-[10px] text-muted-foreground truncate">
-            {FAN_TYPE_LABELS[tester.fan_type] || '—'} · <span style={{ color: statusColor }}>{tester.status}</span>
+            {FAN_TYPE_LABELS[tester.fan_type] || '—'} · <span className="pg-operations-status" style={{ '--pg-status-ink': statusColor }}>{tester.status}</span>
             {tester.sessions_completed > 0 && ` · ${tester.sessions_completed} session${tester.sessions_completed !== 1 ? 's' : ''}`}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => onDelete(tester.id)} className="p-1.5 text-muted-foreground hover:text-destructive transition-colors">
+          <button onClick={() => onDelete(tester.id)} className="inline-flex items-center justify-center p-1.5 text-muted-foreground hover:text-destructive transition-colors">
             <Trash2 className="w-3.5 h-3.5" />
           </button>
-          <button onClick={() => setExpanded(e => !e)} className="p-1.5 text-muted-foreground">
+          <button onClick={() => setExpanded(e => !e)} className="inline-flex items-center justify-center p-1.5 text-muted-foreground">
             {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
         </div>
       </div>
 
       {expanded && (
-        <div className="border-t px-4 pb-4 pt-3 space-y-3" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+        <div className="border-t px-4 pb-4 pt-3 space-y-3" style={{ borderColor: 'var(--pg-line)' }}>
           {/* Status buttons */}
           <div className="flex gap-2 flex-wrap">
             {Object.entries(STATUS_COLORS).map(([s, c]) => (
               <button key={s} onClick={() => handleStatus(s)}
-                className="px-3 py-1.5 rounded-full text-[10px] font-black transition-all"
+                className="pg-operations-status px-3 py-1.5 rounded-lg text-[10px] font-black transition-all"
                 style={{
-                  background: tester.status === s ? `${c}20` : 'rgba(255,255,255,0.04)',
-                  border: `1px solid ${tester.status === s ? c + '60' : 'rgba(255,255,255,0.08)'}`,
-                  color: tester.status === s ? c : 'hsl(var(--muted-foreground))',
+                  background: tester.status === s ? `${c}20` : 'var(--pg-surface-raised)',
+                  border: `1px solid ${tester.status === s ? c + '60' : 'var(--pg-line)'}`,
+                  '--pg-status-ink': tester.status === s ? c : 'var(--pg-muted)',
                 }}>
                 {s.charAt(0).toUpperCase() + s.slice(1)}
               </button>
@@ -72,13 +73,13 @@ function TesterCard({ tester, onUpdate, onDelete }) {
           {/* Retention checkboxes */}
           <div className="flex gap-4">
             {['day1_returned', 'day3_returned', 'day7_returned'].map((key, i) => (
-              <label key={key} className="flex items-center gap-1.5 cursor-pointer">
+              <label key={key} className="flex min-h-11 items-center gap-1.5 cursor-pointer">
                 <input type="checkbox" checked={!!tester[key]}
                   onChange={async e => {
                     await base44.entities.BetaTester.update(tester.id, { [key]: e.target.checked });
                     onUpdate({ ...tester, [key]: e.target.checked });
                   }}
-                  className="w-3.5 h-3.5 accent-green-400"
+                  className="w-4 h-4 accent-[var(--pg-mint)]"
                 />
                 <span className="text-[10px] text-muted-foreground">Day {[1,3,7][i]}</span>
               </label>
@@ -87,7 +88,7 @@ function TesterCard({ tester, onUpdate, onDelete }) {
 
           {/* "What user thinks PG is" */}
           {tester.what_user_thinks_pg_is && (
-            <div className="px-3 py-2.5 rounded-xl" style={{ background: 'rgba(0,200,255,0.07)', border: '1px solid rgba(0,200,255,0.2)' }}>
+            <div className="px-3 py-2.5 rounded-xl" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
               <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-1">Their description of PG</p>
               <p className="text-xs text-foreground italic">"{tester.what_user_thinks_pg_is}"</p>
             </div>
@@ -107,16 +108,16 @@ function TesterCard({ tester, onUpdate, onDelete }) {
                 <textarea key={f.key} value={form[f.key] || ''} onChange={e => setForm(p => ({...p, [f.key]: e.target.value}))}
                   placeholder={f.placeholder} rows={2}
                   className="w-full px-3 py-2 rounded-xl text-xs text-foreground placeholder:text-muted-foreground focus:outline-none resize-none"
-                  style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }} />
+                  style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)' }} />
               ) : (
                 <input key={f.key} value={form[f.key] || ''} onChange={e => setForm(p => ({...p, [f.key]: e.target.value}))}
                   placeholder={f.placeholder}
                   className="w-full px-3 py-2 rounded-xl text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
-                  style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }} />
+                  style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)' }} />
               ))}
               <div className="flex gap-2">
-                <button onClick={handleSave} className="flex-1 py-2 rounded-xl font-black text-xs" style={{ background: 'linear-gradient(135deg,#00FF87,#00C8FF)', color: '#0D0B14' }}>Save</button>
-                <button onClick={() => { setEditing(false); setForm(tester); }} className="flex-1 py-2 rounded-xl font-black text-xs text-muted-foreground" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>Cancel</button>
+                <button onClick={handleSave} className="flex-1 py-2 rounded-xl font-black text-xs" style={{ background: 'var(--pg-mint)', color: 'var(--pg-ink)' }}>Save</button>
+                <button onClick={() => { setEditing(false); setForm(tester); }} className="flex-1 py-2 rounded-xl font-black text-xs text-muted-foreground" style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)' }}>Cancel</button>
               </div>
             </div>
           ) : (
@@ -126,7 +127,7 @@ function TesterCard({ tester, onUpdate, onDelete }) {
               {tester.favorite_teams && <p>🏈 {tester.favorite_teams}</p>}
               {tester.favorite_venues && <p>🏟 {tester.favorite_venues}</p>}
               {tester.notes && <p className="italic opacity-70">{tester.notes}</p>}
-              <button onClick={() => setEditing(true)} className="mt-2 text-[10px] font-bold underline" style={{ color: '#BF5FFF' }}>Edit</button>
+              <button onClick={() => setEditing(true)} className="mt-2 text-[10px] font-bold underline" style={{ color: 'var(--pg-text)' }}>Edit</button>
             </div>
           )}
         </div>
@@ -151,7 +152,7 @@ export default function BetaRecruitment() {
 
   if (user && user.role !== 'admin') {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen gap-4 px-6 text-center">
+      <div className="pg-operations-page flex flex-col items-center justify-center min-h-screen gap-4 px-6 text-center">
         <p className="text-5xl">🔒</p>
         <p className="font-bold text-foreground">Admin only</p>
         <button onClick={() => navigate(-1)} className="text-sm text-muted-foreground underline">Go back</button>
@@ -186,13 +187,13 @@ export default function BetaRecruitment() {
   const pgDescriptions = testers.filter(t => t.what_user_thinks_pg_is).map(t => t.what_user_thinks_pg_is);
 
   return (
-    <div className="min-h-screen pb-32" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+    <div className="pg-operations-page min-h-screen pb-32">
       {/* Header */}
-      <div className="sticky top-0 z-20 frosted-bar border-b border-white/5 px-4 py-4"
-        style={{ paddingTop: 'calc(env(safe-area-inset-top) + 16px)' }}>
-        <div className="flex items-center justify-between max-w-2xl mx-auto">
+      <div className="pg-operations-header sticky top-0 z-20 border-b px-4 py-4"
+        style={{ paddingTop: '16px' }}>
+        <div className="flex flex-wrap items-center justify-between gap-3 max-w-2xl mx-auto">
           <div className="flex items-center gap-3">
-            <Link to="/beta-checklist" className="text-muted-foreground">
+            <Link to="/beta-checklist" className="inline-flex min-h-11 min-w-11 items-center justify-center text-muted-foreground">
               <ArrowLeft className="w-5 h-5" />
             </Link>
             <div>
@@ -202,7 +203,7 @@ export default function BetaRecruitment() {
           </div>
           <button onClick={() => setAdding(true)}
             className="flex items-center gap-2 px-4 py-2 rounded-xl font-black text-sm"
-            style={{ background: 'linear-gradient(135deg,#BF5FFF,#FF2D78)', color: '#fff' }}>
+            style={{ background: 'var(--pg-violet)', color: 'var(--pg-ink)' }}>
             <Plus className="w-4 h-4" /> Add Tester
           </button>
         </div>
@@ -211,19 +212,19 @@ export default function BetaRecruitment() {
       <div className="px-4 pt-5 max-w-2xl mx-auto space-y-5">
 
         {/* Phase 1 progress */}
-        <div className="rounded-2xl p-4 space-y-3" style={{ background: 'rgba(191,95,255,0.08)', border: '1px solid rgba(191,95,255,0.25)' }}>
+        <div className="pg-operations-card rounded-xl p-4 space-y-3" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
           <div className="flex items-center justify-between">
             <p className="text-xs font-black text-foreground">Phase 1 Recruitment</p>
-            <p className="text-xs font-black" style={{ color: '#BF5FFF' }}>{testers.length}/{phase1Target}</p>
+            <p className="text-xs font-black" style={{ color: 'var(--neon-purple)' }}>{testers.length}/{phase1Target}</p>
           </div>
-          <div className="h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
-            <div className="h-full rounded-full transition-all" style={{ width: `${phase1Pct}%`, background: 'linear-gradient(90deg,#BF5FFF,#FF2D78)' }} />
+          <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--pg-surface-raised)' }}>
+            <div className="h-full rounded-full transition-all" style={{ width: `${phase1Pct}%`, background: 'var(--pg-violet)' }} />
           </div>
           <div className="grid grid-cols-3 gap-2 pt-1">
             {[
-              { label: 'Total', value: testers.length, color: '#BF5FFF' },
-              { label: 'Sports', value: sports.length, color: '#00C8FF' },
-              { label: 'Concert', value: concert.length, color: '#FF2D78' },
+              { label: 'Total', value: testers.length, color: 'var(--neon-purple)' },
+              { label: 'Sports', value: sports.length, color: 'var(--neon-cyan)' },
+              { label: 'Concert', value: concert.length, color: 'var(--neon-pink)' },
             ].map(s => (
               <div key={s.label} className="text-center">
                 <p className="text-xl font-black" style={{ color: s.color }}>{s.value}</p>
@@ -234,8 +235,8 @@ export default function BetaRecruitment() {
         </div>
 
         {/* Retention tracker */}
-        <div className="rounded-2xl p-4 space-y-2" style={{ background: 'rgba(0,255,135,0.05)', border: '1px solid rgba(0,255,135,0.2)' }}>
-          <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: '#00FF87' }}>Retention</p>
+        <div className="pg-operations-card rounded-xl p-4 space-y-2" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
+          <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: 'var(--pg-text)' }}>Retention</p>
           {[
             { label: 'Day 1 returned', key: 'day1_returned' },
             { label: 'Day 3 returned', key: 'day3_returned' },
@@ -246,7 +247,7 @@ export default function BetaRecruitment() {
             return (
               <div key={r.key} className="flex items-center gap-3">
                 <span className="text-xs text-muted-foreground flex-1">{r.label}</span>
-                <span className="text-xs font-black" style={{ color: pct >= 50 ? '#00FF87' : pct >= 30 ? '#FFE600' : '#FF2D78' }}>{count}/{testers.length} ({pct}%)</span>
+                <span className="text-xs font-black" style={{ color: pct >= 50 ? 'var(--neon-green)' : pct >= 30 ? 'var(--neon-yellow)' : 'var(--neon-pink)' }}>{count}/{testers.length} ({pct}%)</span>
               </div>
             );
           })}
@@ -254,8 +255,8 @@ export default function BetaRecruitment() {
 
         {/* What users think PG is */}
         {pgDescriptions.length > 0 && (
-          <div className="rounded-2xl p-4 space-y-3" style={{ background: 'rgba(0,200,255,0.06)', border: '1px solid rgba(0,200,255,0.2)' }}>
-            <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: '#00C8FF' }}>What Users Think PG Is</p>
+          <div className="pg-operations-card rounded-xl p-4 space-y-3" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
+            <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: 'var(--pg-text)' }}>What Users Think PG Is</p>
             <p className="text-[11px] text-muted-foreground">Verbatim from Test 1 — 30 Second Test</p>
             {pgDescriptions.map((q, i) => (
               <div key={i} className="flex gap-2 items-start">
@@ -268,7 +269,7 @@ export default function BetaRecruitment() {
 
         {/* Add form */}
         {adding && (
-          <div className="rounded-2xl p-4 space-y-3" style={{ background: 'rgba(191,95,255,0.08)', border: '1px solid rgba(191,95,255,0.3)' }}>
+          <div className="pg-operations-card rounded-xl p-4 space-y-3" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
             <p className="text-sm font-black text-foreground">New Beta Tester</p>
             <div className="grid grid-cols-2 gap-2">
               {[
@@ -280,8 +281,8 @@ export default function BetaRecruitment() {
               ].map(f => (
                 <input key={f.key} value={form[f.key]} onChange={e => setForm(p => ({...p, [f.key]: e.target.value}))}
                   placeholder={f.placeholder}
-                  className="px-3 py-2.5 rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none col-span-1"
-                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }} />
+                  className="min-w-0 px-3 py-2.5 rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none col-span-1"
+                  style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)' }} />
               ))}
             </div>
             {/* Fan type */}
@@ -290,9 +291,9 @@ export default function BetaRecruitment() {
                 <button key={ft} onClick={() => setForm(p => ({...p, fan_type: ft}))}
                   className="flex-1 py-2 rounded-xl text-xs font-black transition-all"
                   style={{
-                    background: form.fan_type === ft ? 'rgba(191,95,255,0.2)' : 'rgba(255,255,255,0.04)',
-                    border: `1px solid ${form.fan_type === ft ? 'rgba(191,95,255,0.5)' : 'rgba(255,255,255,0.08)'}`,
-                    color: form.fan_type === ft ? '#BF5FFF' : 'hsl(var(--muted-foreground))',
+                    background: form.fan_type === ft ? 'var(--pg-surface-raised)' : 'var(--pg-surface)',
+                    border: `1px solid ${form.fan_type === ft ? 'var(--pg-violet)' : 'var(--pg-line)'}`,
+                    color: form.fan_type === ft ? 'var(--pg-text)' : 'var(--pg-muted)',
                   }}>
                   {FAN_TYPE_LABELS[ft]}
                 </button>
@@ -302,16 +303,16 @@ export default function BetaRecruitment() {
               placeholder="Notes"
               rows={2}
               className="w-full px-3 py-2.5 rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none resize-none"
-              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }} />
+              style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)' }} />
             <div className="flex gap-2">
               <button onClick={handleAdd} disabled={saving}
                 className="flex-1 py-2.5 rounded-xl font-black text-sm disabled:opacity-60"
-                style={{ background: 'linear-gradient(135deg,#BF5FFF,#FF2D78)', color: '#fff' }}>
+                style={{ background: 'var(--pg-violet)', color: 'var(--pg-ink)' }}>
                 {saving ? 'Saving…' : 'Add Tester'}
               </button>
               <button onClick={() => { setAdding(false); setForm(EMPTY_FORM); }}
                 className="flex-1 py-2.5 rounded-xl font-black text-sm text-muted-foreground"
-                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)' }}>
                 Cancel
               </button>
             </div>
@@ -320,9 +321,9 @@ export default function BetaRecruitment() {
 
         {/* Testers list */}
         {loading ? (
-          <div className="space-y-3">{[...Array(3)].map((_, i) => <div key={i} className="h-16 rounded-2xl animate-pulse bg-muted" />)}</div>
+          <div className="space-y-3">{[...Array(3)].map((_, i) => <div key={i} className="h-16 rounded-xl animate-pulse bg-muted" />)}</div>
         ) : testers.length === 0 ? (
-          <div className="rounded-2xl p-8 text-center space-y-2" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)' }}>
+          <div className="pg-operations-card rounded-xl p-8 text-center space-y-2" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
             <p className="text-4xl">🧪</p>
             <p className="font-bold text-foreground">No testers yet</p>
             <p className="text-xs text-muted-foreground">Recruit 5 sports fans + 5 concert fans to start.</p>

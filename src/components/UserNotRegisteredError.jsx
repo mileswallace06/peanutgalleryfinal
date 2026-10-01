@@ -1,3 +1,4 @@
+import PublicPage from '@/components/PublicPage';
 import React, { useEffect, useState, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 
@@ -41,47 +42,35 @@ const UserNotRegisteredError = ({ onRetry }) => {
   };
 
   return (
-    <div className="fixed inset-0 flex flex-col items-center justify-center px-5"
-      style={{ background: 'hsl(255 10% 5%)' }}>
+    <PublicPage className="fixed inset-0 flex flex-col items-center overflow-y-auto px-5 py-8">
+      <div className="pg-public-state my-auto flex flex-col items-center">
 
       {/* Logo */}
       <img
         src="https://media.base44.com/images/public/69ef9900cf3862dc0ea39734/9022a5431_ChatGPTImageMay1202601_29_27PM.png"
         alt="Peanut Gallery"
-        className="h-20 w-auto rounded-2xl mb-8"
+        className="h-16 w-auto rounded-lg mb-6"
       />
 
       {/* Icon */}
       <div
-        className="w-20 h-20 rounded-full flex items-center justify-center text-4xl mb-6"
-        style={{
-          background: 'rgba(191,95,255,0.12)',
-          border: '1px solid rgba(191,95,255,0.3)',
-          boxShadow: '0 0 32px rgba(191,95,255,0.2)',
-        }}
+        className="pg-public-state-icon w-16 h-16 flex items-center justify-center text-3xl mb-6"
       >
         ⏳
       </div>
 
       <h1
         className="font-display text-3xl mb-3 text-center"
-        style={{
-          background: 'linear-gradient(135deg, #BF5FFF, #FF2D78)',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-          backgroundClip: 'text',
-        }}
+        style={{ color: 'var(--neon-purple)' }}
       >
         Awaiting Approval
       </h1>
 
-      <p className="text-sm text-center mb-2 max-w-xs leading-relaxed"
-        style={{ color: 'rgba(255,255,255,0.65)' }}>
+      <p className="pg-public-muted text-sm text-center mb-2 max-w-xs leading-relaxed">
         Your account is pending admin approval. You'll get access as soon as it's approved — no action needed.
       </p>
 
-      <p className="text-xs mb-8"
-        style={{ color: 'rgba(255,255,255,0.3)' }}>
+      <p className="pg-public-muted text-xs mb-8">
         Rechecking in {countdown}s…
       </p>
 
@@ -89,16 +78,11 @@ const UserNotRegisteredError = ({ onRetry }) => {
       <button
         onClick={handleRetry}
         disabled={checking}
-        className="flex items-center justify-center gap-2 px-8 py-3.5 rounded-full font-black text-sm mb-3 transition-all disabled:opacity-60"
-        style={{
-          background: 'linear-gradient(135deg, #BF5FFF, #FF2D78)',
-          color: '#fff',
-          boxShadow: '0 0 18px rgba(191,95,255,0.3)',
-        }}
+        className="pg-public-action text-sm mb-3"
       >
         {checking ? (
           <>
-            <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
             Checking…
           </>
         ) : (
@@ -109,12 +93,12 @@ const UserNotRegisteredError = ({ onRetry }) => {
       {/* Sign out */}
       <button
         onClick={handleSignOut}
-        className="text-xs font-medium transition-colors"
-        style={{ color: 'rgba(255,255,255,0.3)' }}
+        className="pg-public-link text-sm font-medium text-center"
       >
         Sign out and use a different account
       </button>
-    </div>
+      </div>
+    </PublicPage>
   );
 };
 
