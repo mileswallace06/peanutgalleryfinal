@@ -15,36 +15,36 @@
     --font-serif-italic: 'Instrument Serif', Georgia, serif;
     --font-mono-label: ui-monospace, 'SF Mono', Menlo, monospace;
 
-    /* Light mode — warm, cohesive palette */
-    --background: 240 20% 98%;
-    --foreground: 240 10% 10%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 10%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 10%;
-    --primary: 270 75% 42%;
+    /* Warm paper palette shared by the shell, forms and portalled dialogs. */
+    --background: 38.2 24.4% 91.2%;
+    --foreground: 270.0 13.9% 14.1%;
+    --card: 40.0 46.2% 94.9%;
+    --card-foreground: 270.0 13.9% 14.1%;
+    --popover: 40.0 46.2% 94.9%;
+    --popover-foreground: 270.0 13.9% 14.1%;
+    --primary: 274.5 39.4% 43.3%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 240 15% 93%;
-    --secondary-foreground: 240 10% 15%;
-    --muted: 240 15% 94%;
-    --muted-foreground: 240 5% 42%;
-    --accent: 155 75% 28%;
+    --secondary: 33.7 25.0% 87.5%;
+    --secondary-foreground: 272.3 13.7% 18.6%;
+    --muted: 33.7 25.0% 87.5%;
+    --muted-foreground: 282.0 5.2% 37.6%;
+    --accent: 151.4 46.7% 26.5%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 75% 50%;
     --destructive-foreground: 0 0% 100%;
-    --border: 240 15% 88%;
-    --input: 240 15% 90%;
-    --ring: 270 75% 42%;
+    --border: 31.4 17.9% 77.1%;
+    --input: 30.0 14.0% 66.3%;
+    --ring: 274.5 39.4% 43.3%;
     --radius: 1rem;
 
-    --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 240 10% 10%;
-    --sidebar-primary: 270 75% 42%;
+    --sidebar-background: 40.0 46.2% 94.9%;
+    --sidebar-foreground: 270.0 13.9% 14.1%;
+    --sidebar-primary: 274.5 39.4% 43.3%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 15% 93%;
-    --sidebar-accent-foreground: 240 10% 15%;
-    --sidebar-border: 240 15% 88%;
-    --sidebar-ring: 270 75% 42%;
+    --sidebar-accent: 33.7 25.0% 87.5%;
+    --sidebar-accent-foreground: 272.3 13.7% 18.6%;
+    --sidebar-border: 31.4 17.9% 77.1%;
+    --sidebar-ring: 274.5 39.4% 43.3%;
 
     /* ── Centralized design tokens — light mode (premium, restrained) ── */
     --hero-bg-top: rgba(0, 0, 0, 0.06);
@@ -56,29 +56,29 @@
     --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
     --card-shadow-live: 0 1px 3px rgba(0, 0, 0, 0.06);
     --fab-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.08);
-    --search-bg: hsl(240 15% 95%);
-    --search-border: hsl(240 15% 90%);
+    --search-bg: hsl(var(--secondary));
+    --search-border: hsl(var(--border));
     --gradient-btn-text: #ffffff;
   }
 
-  /* Light mode neon — deep, saturated brand colors that pop on warm white */
+  /* Brand inks remain readable on warm light surfaces. */
   :root {
-    --neon-green: #00994a;
-    --neon-cyan: #0084b8;
-    --neon-purple: #842bd4;
-    --neon-pink: #d11561;
-    --neon-yellow: #8f7a00;
-    --neon-orange: #cc6200;
-    --neon-cyan-light: #4d9ab8;
-    --neon-pink-light: #c44583;
-    --neon-green-rgb: 0, 153, 74;
-    --neon-cyan-rgb: 0, 132, 184;
-    --neon-purple-rgb: 132, 43, 212;
-    --neon-pink-rgb: 209, 21, 97;
-    --neon-yellow-rgb: 143, 122, 0;
-    --neon-orange-rgb: 204, 98, 0;
-    --neon-cyan-light-rgb: 77, 154, 184;
-    --neon-pink-light-rgb: 196, 69, 131;
+    --neon-green: #246345;
+    --neon-cyan: #17677b;
+    --neon-purple: #75439a;
+    --neon-pink: #a52b58;
+    --neon-yellow: #786112;
+    --neon-orange: #934913;
+    --neon-cyan-light: #17677b;
+    --neon-pink-light: #a52b58;
+    --neon-green-rgb: 36, 99, 69;
+    --neon-cyan-rgb: 23, 103, 123;
+    --neon-purple-rgb: 117, 67, 154;
+    --neon-pink-rgb: 165, 43, 88;
+    --neon-yellow-rgb: 120, 97, 18;
+    --neon-orange-rgb: 147, 73, 19;
+    --neon-cyan-light-rgb: 23, 103, 123;
+    --neon-pink-light-rgb: 165, 43, 88;
   }
 
   /* ── Event Mode visual tokens (dark, always on for event screens) ── */
@@ -257,40 +257,40 @@
   }
 }
 
-/* Light mode utility overrides — premium, restrained (Airbnb/Uber/Apple Wallet) */
+/* Theme-aware legacy surfaces. Photo overlays retain their own colors. */
 @layer utilities {
-  /* Explicit dark pages (Our Story) keep their own background and header. */
+  /* Explicit dark surfaces keep their own background and header. */
   /* Flat background — no radial gradients */
   :root:not(.dark) .rave-bg:not(.dark) {
-    background: hsl(240 20% 98%);
+    background: hsl(var(--background));
   }
 
-  /* Frosted white nav — clean, no tint */
+  /* Warm frosted chrome */
   :root:not(.dark) .frosted-bar:not(.dark .frosted-bar) {
-    background: rgba(255, 255, 255, 0.85);
+    background: hsl(var(--card) / 0.94);
     backdrop-filter: blur(30px) saturate(180%);
     -webkit-backdrop-filter: blur(30px) saturate(180%);
-    border-color: hsl(240 15% 90%);
+    border-color: hsl(var(--border));
   }
 
-  /* White glass — no purple tint */
+  /* Warm glass surfaces */
   :root:not(.dark) .glass {
-    background: rgba(255, 255, 255, 0.6);
+    background: hsl(var(--card) / 0.72);
     backdrop-filter: blur(20px) saturate(150%);
     -webkit-backdrop-filter: blur(20px) saturate(150%);
   }
 
   :root:not(.dark) .glass-strong {
-    background: rgba(255, 255, 255, 0.75);
+    background: hsl(var(--card) / 0.88);
     backdrop-filter: blur(24px) saturate(160%);
     -webkit-backdrop-filter: blur(24px) saturate(160%);
   }
 
   :root:not(.dark) .glass-card {
-    background: rgba(255, 255, 255, 0.8);
+    background: hsl(var(--card) / 0.94);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    border: 1px solid hsl(240 15% 90%);
+    border: 1px solid hsl(var(--border));
   }
 
   /* No glow — subtle elevation only */
@@ -301,7 +301,7 @@
   }
 
   :root:not(.dark) .neon-border-green {
-    border-color: hsl(240 15% 90%);
+    border-color: hsl(var(--border));
     box-shadow: none;
   }
 
@@ -315,7 +315,7 @@
   }
 
   :root:not(.dark) .gradient-border::before {
-    background: hsl(240 15% 90%);
+    background: hsl(var(--border));
   }
 }
 

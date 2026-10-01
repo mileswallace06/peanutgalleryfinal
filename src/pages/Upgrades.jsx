@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
-import { format } from 'date-fns';
 import { MapPin, ChevronRight, ChevronDown, LocateFixed, X, RefreshCw, HelpCircle, ArrowRight, Ticket, Radio, CalendarDays } from 'lucide-react';
 import LocationAutocomplete from '@/components/LocationAutocomplete';
 import { getUpgradeEventTiming, groupUpgradeEvents, loadOwnedUpgradeEvents } from '@/lib/upgradeDiscovery';
+import { formatUpgradeStartsIn, getUpgradeVenueDateParts } from '@/lib/upgradeEventState';
 import { logNavEvent } from '@/lib/navLogger';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useSellingDiscovery } from '@/hooks/useSellingDiscovery';
@@ -42,10 +42,10 @@ export default function Upgrades() {
   const ownedEvents = [...ownedGroups.live, ...ownedGroups.upcoming];
   const ticketPanelShown = canReadTickets && (ticketQuery.isPending || ticketQuery.isError || ownedEvents.length > 0 || ticketQuery.data?.unavailableCount > 0);
 
-  // Keep Live now accurate while the page remains open without refetching inventory.
+  // One clock updates every card's countdown and Live now without extra inventory calls.
   useEffect(() => {
     const updateClock = () => { if (!document.hidden) setNowMs(Date.now()); };
-    const timer = setInterval(updateClock, 30000);
+    const timer = setInterval(updateClock, 1000);
     document.addEventListener('visibilitychange', updateClock);
     return () => {
       clearInterval(timer);
@@ -138,7 +138,7 @@ export default function Upgrades() {
                 <p>{sourceError ? 'Try again before checking whether anything is live.' : result.limited ? 'More events may exist beyond these results. Try a nearby city.' : browseView === 'live' ? 'Find your next event in Upcoming. Available upgrades appear in its event hub.' : 'Try another city, or check back for more events.'}</p>
                 {browseView === 'live' && <button type="button" className="pg-action" onClick={() => setBrowseView('upcoming')}>See upcoming events <ArrowRight size={16} aria-hidden="true" /></button>}
               </div>
-                : <div className="pg-upgrades-stack">{visibleEvents.map(event => <EventCard key={event.id} event={event} mode={getUpgradeEventTiming(event, nowMs).status} />)}</div>}
+                : <div className="pg-upgrades-stack">{visibleEvents.map(event => <EventCard key={event.id} event={event} nowMs={nowMs} mode={getUpgradeEventTiming(event, nowMs).status} />)}</div>}
             </section>
           </>}
         <div className="pg-upgrades-founder"><FounderStoryCard /></div>
@@ -158,14 +158,14 @@ function OwnedTicketsPanel({ events, nowMs, loading, failed, unavailableCount, r
     <summary><Ticket size={17} aria-hidden="true" /><strong>Your tickets <span>{events.length}</span></strong><span className="pg-upgrades-owned-hint">Find upgrades</span><ChevronDown size={16} aria-hidden="true" /></summary>
     <div className="pg-upgrades-owned-body">
       <p>Choose a ticket you bought on PG. Upgrades are separate purchases, subject to availability.</p>
-      <div className="pg-upgrades-stack">{events.map(event => <EventCard key={event.id} event={event} mode={getUpgradeEventTiming(event, nowMs).status} owned />)}</div>
+      <div className="pg-upgrades-stack">{events.map(event => <EventCard key={event.id} event={event} nowMs={nowMs} mode={getUpgradeEventTiming(event, nowMs).status} owned />)}</div>
       {unavailableCount > 0 && <p>Some tickets couldn’t load. <button type="button" onClick={onRetry} disabled={retrying}>{retrying ? 'Retrying…' : 'Try again'}</button></p>}
       <Link className="pg-upgrades-wallet-link" to="/my-tickets">Manage all your tickets <ArrowRight size={16} aria-hidden="true" /></Link>
     </div>
   </details>;
 }
 
-function EventCard({ event, mode, owned = false }) {
+function EventCard({ event, mode, owned = false, nowMs = Date.now() }) {
   const isEstimated = mode === 'estimated_live';
   const isLive = mode === 'live' || isEstimated;
   const isSoon = mode === 'soon';
@@ -223,9 +223,10 @@ function EventCard({ event, mode, owned = false }) {
   };
 
   const linkLabel = syncing ? 'Loading…' : owned ? 'Find upgrades for your ticket' : isLive ? 'Open Live Hub' : isSoon ? 'Get Ready' : 'View Tickets';
-  const dateValue = event.event_start_utc || event.date;
-  const date = dateValue ? new Date(dateValue) : null;
-  const hasDate = mode !== 'unknown' && date && !Number.isNaN(date.getTime());
+  const timing = getUpgradeEventTiming(event, nowMs);
+  const venueDate = getUpgradeVenueDateParts(event, timing.start);
+  const hasDate = timing.status !== 'unknown' && venueDate !== null;
+  const startsIn = ['upcoming', 'soon'].includes(timing.status) ? formatUpgradeStartsIn(timing.start, nowMs) : null;
 
   return (
     <button type="button" onClick={handleClick} disabled={syncing || !hasValidLink}
@@ -235,13 +236,13 @@ function EventCard({ event, mode, owned = false }) {
         {event.category && <span className="sr-only">{event.category}</span>}
         <h3 className="pg-browse-ticket-title" title={event.title}>{event.title}</h3>
         <p className="pg-browse-ticket-venue" title={[event.venue, event.city].filter(Boolean).join(' · ')}>{event.venue}{event.city ? ` · ${event.city}` : ''}</p>
-        <p className="pg-browse-ticket-detail">{hasDate ? format(date, 'MMM d · h:mm a') : 'Date to be announced'}</p>
-        {owned ? <p className="pg-browse-ticket-detail"><strong>Find upgrades</strong></p> : !isLive && !isTM && <p className="pg-browse-ticket-detail">Upgrades open at showtime</p>}
+        <p className="pg-browse-ticket-detail">{hasDate ? venueDate.label : 'Date to be announced'}</p>
+        {(startsIn || owned) && <p className="pg-browse-ticket-detail"><strong>{startsIn || 'Find upgrades'}</strong></p>}
       </div>
       <span className="pg-browse-ticket-stub">
         {(isLive || isSoon) && <span className="pg-browse-ticket-status" title={isEstimated ? 'Estimated live window; the event may have ended' : undefined}>{isEstimated ? 'Live · est.' : isLive ? 'Live' : 'Soon'}</span>}
-        <span className="pg-browse-ticket-month">{hasDate ? format(date, 'MMM') : 'TBA'}</span>
-        <span className="pg-browse-ticket-day">{hasDate ? format(date, 'd') : '—'}</span>
+        <span className="pg-browse-ticket-month">{hasDate ? venueDate.month : 'TBA'}</span>
+        <span className="pg-browse-ticket-day">{hasDate ? venueDate.day : '—'}</span>
         <span className={hasValidLink ? 'sr-only' : 'pg-browse-ticket-status'}>{hasValidLink ? linkLabel : 'Unavailable'}</span>
         {syncing ? <RefreshCw size={18} className="pg-browse-ticket-arrow animate-spin" aria-hidden="true" /> : hasValidLink && <ArrowRight size={18} className="pg-browse-ticket-arrow" aria-hidden="true" />}
       </span>

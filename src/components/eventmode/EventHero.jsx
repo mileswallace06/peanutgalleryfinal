@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
-import { format } from 'date-fns';
-import { getEventLiveStatus } from '@/lib/eventTiming';
+import { getUpgradeEventState, getUpgradeShowtimeLabel } from '@/lib/upgradeEventState';
 import GeneratedHero from './GeneratedHero';
 
 /**
@@ -13,18 +12,16 @@ import GeneratedHero from './GeneratedHero';
  * resolves, or if the image fails to load, it renders the pure-CSS
  * GeneratedHero so there is never an empty hero.
  */
-export default function EventHero({ event }) {
+export default function EventHero({ event, nowMs }) {
   const heroUrl = event?.hero_image_url || event?.image_url;
   const [imgFailed, setImgFailed] = useState(false);
-  const isLive = event ? getEventLiveStatus(event).status === 'live' : false;
+  const timing = getUpgradeEventState(event, nowMs);
 
   if (!heroUrl || imgFailed) {
-    return <GeneratedHero event={event} />;
+    return <GeneratedHero event={event} nowMs={nowMs} />;
   }
 
-  const dateText = (event?.event_start_utc || event?.date)
-    ? format(new Date(event.event_start_utc || event.date), 'EEE, MMM d · h:mm a')
-    : null;
+  const dateText = getUpgradeShowtimeLabel(event);
 
   return (
     <header className="pg-live-hero">
@@ -32,7 +29,7 @@ export default function EventHero({ event }) {
       <div className="pg-live-hero-shade" />
       <Link to="/upgrades" aria-label="Back to upgrades" className="pg-live-back"><ArrowLeft size={18} />Upgrades</Link>
       <div className="pg-live-hero-copy">
-        {isLive && <span className="pg-live-badge">LIVE</span>}
+        {timing.isLive && <span className="pg-live-badge" title={timing.status === 'estimated_live' ? 'Estimated live window; the event may have ended' : undefined}>{timing.status === 'estimated_live' ? 'LIVE · EST.' : 'LIVE'}</span>}
         <h1>{event?.title || '—'}</h1>
         {event?.venue && <p>{event.venue}{event.city ? ` · ${event.city}` : ''}</p>}
         {dateText && <p className="pg-live-event-time">{dateText}</p>}

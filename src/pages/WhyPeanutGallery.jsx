@@ -4,10 +4,10 @@ import { Link } from 'react-router-dom';
 import { Shield, Zap, CheckCircle, X, Users, Lock, TrendingUp, Heart } from 'lucide-react';
 import FaqAccordion from '@/components/education/FaqAccordion';
 
-const GREEN = '#00FF87';
-const CYAN = '#00C8FF';
-const PURPLE = '#BF5FFF';
-const PINK = '#FF2D78';
+const GREEN = 'var(--neon-green)';
+const CYAN = 'var(--neon-cyan)';
+const PURPLE = 'var(--neon-purple)';
+const PINK = 'var(--neon-pink)';
 
 function SectionLabel({ children, color = PURPLE }) {
   return (
@@ -123,7 +123,7 @@ export default function WhyPeanutGallery() {
 
       {/* The problem */}
       <div className="mb-10 rounded-2xl p-5"
-        style={{ background: 'rgba(255,45,120,0.06)', border: '1px solid rgba(255,45,120,0.2)' }}>
+        style={{ background: 'rgba(var(--neon-pink-rgb), 0.06)', border: '1px solid rgba(var(--neon-pink-rgb), 0.2)' }}>
         <SectionLabel color={PINK}>The Problem With Ticket Resale</SectionLabel>
         <div className="space-y-3">
           {[
@@ -148,9 +148,9 @@ export default function WhyPeanutGallery() {
         <div className="space-y-3">
           {FEATURES.map((f, i) => (
             <div key={i} className="flex items-start gap-4 px-4 py-4 rounded-2xl"
-              style={{ background: 'var(--pg-surface)', border: `1px solid ${f.color}22` }}>
+              style={{ background: 'var(--pg-surface)', border: `1px solid color-mix(in srgb, ${f.color} 13%, transparent)` }}>
               <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{ background: `${f.color}12`, color: f.color }}>
+                style={{ background: `color-mix(in srgb, ${f.color} 7%, transparent)`, color: f.color }}>
                 {f.icon}
               </div>
               <div>
@@ -195,7 +195,7 @@ export default function WhyPeanutGallery() {
 
       {/* Season ticket holders */}
       <div className="mb-10 rounded-2xl p-5"
-        style={{ background: 'rgba(0,200,255,0.06)', border: '1px solid rgba(0,200,255,0.2)' }}>
+        style={{ background: 'rgba(var(--neon-cyan-rgb), 0.06)', border: '1px solid rgba(var(--neon-cyan-rgb), 0.2)' }}>
         <SectionLabel color={CYAN}>Perfect for Season Ticket Holders</SectionLabel>
         <p className="text-sm text-muted-foreground leading-relaxed mb-3">
           Got a handful of games you can't make this season? Peanut Gallery is built for you. List your seats, set your price, and walk away. Escrow handles everything — you don't need to be online when the ticket sells.
@@ -218,7 +218,7 @@ export default function WhyPeanutGallery() {
 
       {/* Fan-first callout */}
       <div className="mb-10 rounded-2xl p-5 text-center"
-        style={{ background: 'rgba(191,95,255,0.06)', border: '1px solid rgba(191,95,255,0.2)' }}>
+        style={{ background: 'rgba(var(--neon-purple-rgb), 0.06)', border: '1px solid rgba(var(--neon-purple-rgb), 0.2)' }}>
         <div className="text-4xl mb-3">🥜</div>
         <h2 className="font-display text-2xl mb-2" style={{ color: 'var(--neon-purple)' }}>Built by fans, for fans.</h2>
         <p className="text-sm text-muted-foreground leading-relaxed max-w-xs mx-auto">
@@ -236,7 +236,7 @@ export default function WhyPeanutGallery() {
       <div className="space-y-3">
         <Link to="/events"
           className="pg-guide-action flex items-center justify-center gap-2 w-full py-4 rounded-full font-black text-sm"
-          style={{ background: `linear-gradient(135deg, ${PURPLE}, ${PINK})`, color: '#fff', boxShadow: `0 0 18px rgba(191,95,255,0.25)` }}>
+          style={{ background: 'var(--pg-violet)', color: 'var(--pg-ink)', boxShadow: `0 0 18px rgba(var(--neon-purple-rgb), 0.25)` }}>
           Browse Events
         </Link>
         <Link to="/sell"

@@ -220,3 +220,9 @@
   .pg-event-detail .pg-event-empty { padding: 18px 16px; }
   .pg-event-detail .pg-event-hero-photo { height: 240px; }
 }
+
+/* Photo controls stay legible; informational accents use deeper daylight ink. */
+.pg-event-detail .pg-event-back { color: #f9f7f1; }
+:root:not(.dark) .pg-event-detail :is(.pg-event-hero, .pg-event-empty) { border-color: var(--pg-line); }
+:root:not(.dark) .pg-event-detail :is(.pg-event-photo-fallback, .pg-event-empty-icon, .pg-event-text-link, .pg-event-explainer > div > svg) { color: var(--neon-cyan); }
+:root:not(.dark) .pg-event-detail .pg-event-notice { color: var(--neon-yellow); border-color: color-mix(in srgb, var(--neon-yellow) 40%, var(--pg-line)); }

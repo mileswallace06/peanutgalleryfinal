@@ -92,7 +92,7 @@ export default function MySales() {
   if (loading) {
     return (
       <div className="pg-secondary-page pg-activity-page pg-sales-page">
-        <PageIntro eyebrow="Seller desk" title="My Sales" description="Manage listings and ticket transfers." />
+        <PageIntro eyebrow="Seller desk" title="My Sales" description="Manage listings and ticket transfers." backTo="/me" backLabel="Back to Me" />
         <div className="pg-state pg-activity-state" role="status">
           <RefreshCw className="w-6 h-6 animate-spin" aria-hidden="true" />
           <p>Loading your sales…</p>
@@ -104,7 +104,7 @@ export default function MySales() {
   if (error) {
     return (
       <div className="pg-secondary-page pg-activity-page pg-sales-page">
-        <PageIntro eyebrow="Seller desk" title="My Sales" description="Manage listings and ticket transfers." />
+        <PageIntro eyebrow="Seller desk" title="My Sales" description="Manage listings and ticket transfers." backTo="/me" backLabel="Back to Me" />
         <div className="pg-state pg-activity-state" role="alert">
           <AlertTriangle className="w-7 h-7" aria-hidden="true" />
           <h2>Failed to load sales</h2>
@@ -120,7 +120,7 @@ export default function MySales() {
   if (!user) {
     return (
       <div className="pg-secondary-page pg-activity-page pg-sales-page">
-        <PageIntro eyebrow="Seller desk" title="My Sales" description="Manage listings and ticket transfers." />
+        <PageIntro eyebrow="Seller desk" title="My Sales" description="Manage listings and ticket transfers." backTo="/me" backLabel="Back to Me" />
         <div className="pg-state pg-activity-state">
           <Ticket className="w-7 h-7" aria-hidden="true" />
           <h2>Sign in to view your sales</h2>
@@ -145,6 +145,8 @@ export default function MySales() {
       <PageIntro
         eyebrow="Seller desk"
         title="My Sales"
+        backTo="/me"
+        backLabel="Back to Me"
         description="Your listings, next steps, and completed sales."
         action={
           <Link to="/create-listing" className="pg-action">

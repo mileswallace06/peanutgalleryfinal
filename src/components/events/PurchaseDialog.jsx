@@ -15,6 +15,24 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onCheckoutCreated }
   const stripe = useStripe();
   const elements = useElements();
   const navigate = useNavigate();
+  // Stripe renders in an iframe, so resolve actual theme colors for its text.
+  const [cardColors, setCardColors] = useState({ text: '#f6f2e8', muted: '#b8b4c3', icon: '#bda5d5', error: '#f4a4bc' });
+  useEffect(() => {
+    const readCardColors = () => {
+      const style = getComputedStyle(document.documentElement);
+      const read = (token, fallback) => style.getPropertyValue(token).trim() || fallback;
+      setCardColors({
+        text: read('--pg-text', '#f6f2e8'),
+        muted: read('--pg-muted', '#b8b4c3'),
+        icon: read('--neon-purple', '#bda5d5'),
+        error: read('--neon-pink', '#f4a4bc'),
+      });
+    };
+    readCardColors();
+    const observer = new MutationObserver(readCardColors);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
 
   const isUpgrade = UPGRADE_LISTING_TYPES.includes(listing.listing_type);
   const isDemo = !!listing.is_demo_listing;
@@ -278,8 +296,8 @@ function CheckoutForm({ event, listing, buyerEmail, onClose, onCheckoutCreated }
             <CardElement options={{
               hidePostalCode: false,
               style: {
-                base: { fontSize: '16px', color: '#f6f2e8', '::placeholder': { color: '#b8b4c3' }, iconColor: '#bda5d5' },
-                invalid: { color: '#f4a4bc' }
+                base: { fontSize: '16px', color: cardColors.text, '::placeholder': { color: cardColors.muted }, iconColor: cardColors.icon },
+                invalid: { color: cardColors.error }
               }
             }} />
           </div>

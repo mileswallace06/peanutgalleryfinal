@@ -1,5 +1,6 @@
 import { Link, useLocation, useOutlet } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
+import { visibleNotifications } from '@/lib/notificationVisibility';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Ticket, TrendingUp, Tag, Users, User, Bell } from 'lucide-react';
@@ -44,11 +45,11 @@ function MountedTab({ tabKey, activeKey, direction, pathname, reducedMotion }) {
 }
 
 const NAV = [
-  { to: '/events', label: 'Tickets', icon: Ticket, color: '#BF5FFF', key: 'events' },
-  { to: '/upgrades', label: 'Upgrades', icon: TrendingUp, color: '#00FF87', key: 'upgrades' },
-  { to: '/sell', label: 'Sell', icon: Tag, color: '#FF8C00', key: 'sell' },
-  { to: '/fan-zone', label: 'Fan Zone', icon: Users, color: '#BF5FFF', key: 'fanzone' },
-  { to: '/me', label: 'Me', icon: User, color: '#00FF87', key: 'me' }
+  { to: '/events', label: 'Tickets', icon: Ticket, color: 'var(--pg-violet)', key: 'events' },
+  { to: '/upgrades', label: 'Upgrades', icon: TrendingUp, color: 'var(--pg-mint)', key: 'upgrades' },
+  { to: '/sell', label: 'Sell', icon: Tag, color: 'var(--pg-orange)', key: 'sell' },
+  { to: '/fan-zone', label: 'Fan Zone', icon: Users, color: 'var(--pg-violet)', key: 'fanzone' },
+  { to: '/me', label: 'Me', icon: User, color: 'var(--pg-mint)', key: 'me' }
 ];
 
 // Reuse the concert photography already featured in PG's onboarding.
@@ -136,7 +137,7 @@ export default function Layout() {
     if (!user?.email) return;
     const fetchUnread = () => {
       base44.entities.Notification.filter({ user_email: user.email, read: false }, '-created_date', 99)
-        .then(data => setUnreadCount(data.filter(n => n.dispatch_status !== 'superseded').length))
+        .then(data => setUnreadCount(visibleNotifications(data).length))
         .catch(() => {});
     };
     fetchUnread();

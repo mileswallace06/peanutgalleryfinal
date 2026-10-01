@@ -13,6 +13,8 @@
 .pg-guide-page .pg-guide-action:first-child { background: var(--pg-member-accent) !important; color: var(--pg-ink) !important; }
 .pg-guide-page .pg-leaderboard-tab { border-radius: 7px; }
 .pg-leaderboard-row { border-radius: 10px; }
+.pg-guide-leaderboard .pg-leaderboard-ink { color: var(--rank-color); }
+:root:not(.dark) .pg-guide-leaderboard .pg-leaderboard-ink { color: color-mix(in srgb, var(--rank-color) 40%, var(--pg-text)); }
 .pg-member-section :is(button, a) { min-height: 44px; }
 .pg-member-section :is(button, a):focus-visible { outline: 2px solid var(--pg-cyan); outline-offset: 3px; }
 .pg-member-section .pg-preference-toggle { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 7px; background: transparent; }

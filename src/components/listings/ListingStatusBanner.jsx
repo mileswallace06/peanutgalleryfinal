@@ -12,10 +12,10 @@ export default function ListingStatusBanner({ listing, event, onRefresh }) {
   if (listing.status === 'sold' || listing.status === 'pending_transfer') {
     return (
       <div className="rounded-2xl px-4 py-3 flex items-start gap-3"
-        style={{ background: 'rgba(0,255,135,0.07)', border: '1px solid rgba(0,255,135,0.25)' }}>
-        <CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: '#00FF87' }} />
+        style={{ background: 'rgba(var(--neon-green-rgb), 0.07)', border: '1px solid rgba(var(--neon-green-rgb), 0.25)' }}>
+        <CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: 'var(--neon-green)' }} />
         <div className="min-w-0">
-          <p className="font-bold text-sm" style={{ color: '#00FF87' }}>Sold 🎉</p>
+          <p className="font-bold text-sm" style={{ color: 'var(--neon-green)' }}>Sold 🎉</p>
           <p className="text-xs text-muted-foreground mt-0.5">
             This listing has been purchased. Transfer the tickets to the buyer to receive your payout.
           </p>
@@ -28,10 +28,10 @@ export default function ListingStatusBanner({ listing, event, onRefresh }) {
   if (listing.listing_mode === 'instant' && listing.status === 'pending_verification') {
     return (
       <div className="rounded-2xl px-4 py-3 flex items-start gap-3"
-        style={{ background: 'rgba(0,200,255,0.07)', border: '1px solid rgba(0,200,255,0.25)' }}>
-        <Clock className="w-4 h-4 mt-0.5 flex-shrink-0 animate-pulse" style={{ color: '#00C8FF' }} />
+        style={{ background: 'rgba(var(--neon-cyan-rgb), 0.07)', border: '1px solid rgba(var(--neon-cyan-rgb), 0.25)' }}>
+        <Clock className="w-4 h-4 mt-0.5 flex-shrink-0 animate-pulse" style={{ color: 'var(--neon-cyan)' }} />
         <div className="min-w-0">
-          <p className="font-bold text-sm" style={{ color: '#00C8FF' }}>⚡ Pending Custody Verification</p>
+          <p className="font-bold text-sm" style={{ color: 'var(--neon-cyan)' }}>⚡ Pending Custody Verification</p>
           <p className="text-xs text-muted-foreground mt-0.5">
             Our team is verifying that your ticket has been transferred to Peanut Gallery. Usually verified within a few hours. Once confirmed, your listing goes live with the Instant Transfer badge.
           </p>
@@ -44,10 +44,10 @@ export default function ListingStatusBanner({ listing, event, onRefresh }) {
   if (listing.proof_status === 'pending_review' && listing.status !== 'hidden') {
     return (
       <div className="rounded-2xl px-4 py-3 flex items-start gap-3"
-        style={{ background: 'rgba(255,230,0,0.07)', border: '1px solid rgba(255,230,0,0.25)' }}>
-        <Clock className="w-4 h-4 mt-0.5 flex-shrink-0 animate-pulse" style={{ color: '#FFE600' }} />
+        style={{ background: 'rgba(var(--neon-yellow-rgb), 0.07)', border: '1px solid rgba(var(--neon-yellow-rgb), 0.25)' }}>
+        <Clock className="w-4 h-4 mt-0.5 flex-shrink-0 animate-pulse" style={{ color: 'var(--neon-yellow)' }} />
         <div className="min-w-0">
-          <p className="font-bold text-sm" style={{ color: '#FFE600' }}>Pending Review</p>
+          <p className="font-bold text-sm" style={{ color: 'var(--neon-yellow)' }}>Pending Review</p>
           <p className="text-xs text-muted-foreground mt-0.5">
             Your listing is being reviewed by our team. This usually takes a few minutes. You'll be notified once it's approved and visible to buyers.
           </p>
@@ -60,10 +60,10 @@ export default function ListingStatusBanner({ listing, event, onRefresh }) {
   if (listing.proof_status === 'rejected') {
     return (
       <div className="rounded-2xl px-4 py-3 flex items-start gap-3"
-        style={{ background: 'rgba(255,45,120,0.07)', border: '1px solid rgba(255,45,120,0.3)' }}>
-        <XCircle className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: '#FF2D78' }} />
+        style={{ background: 'rgba(var(--neon-pink-rgb), 0.07)', border: '1px solid rgba(var(--neon-pink-rgb), 0.3)' }}>
+        <XCircle className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: 'var(--neon-pink)' }} />
         <div className="min-w-0">
-          <p className="font-bold text-sm" style={{ color: '#FF2D78' }}>Listing Rejected</p>
+          <p className="font-bold text-sm" style={{ color: 'var(--neon-pink)' }}>Listing Rejected</p>
           <p className="text-xs text-muted-foreground mt-0.5">
             {listing.proof_rejection_reason
               ? `Our team rejected this listing: "${listing.proof_rejection_reason}"`
@@ -78,11 +78,11 @@ export default function ListingStatusBanner({ listing, event, onRefresh }) {
   if (listing.status === 'hidden' && listing.hidden_reason === 'expired_verification') {
     return (
       <div className="rounded-2xl px-4 py-3 space-y-3"
-        style={{ background: 'rgba(255,140,0,0.07)', border: '1px solid rgba(255,140,0,0.3)' }}>
+        style={{ background: 'rgba(var(--neon-orange-rgb), 0.07)', border: '1px solid rgba(var(--neon-orange-rgb), 0.3)' }}>
         <div className="flex items-start gap-3">
-          <EyeOff className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: '#FF8C00' }} />
+          <EyeOff className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: 'var(--neon-orange)' }} />
           <div className="min-w-0">
-            <p className="font-bold text-sm" style={{ color: '#FF8C00' }}>Hidden — Transfer Verification Expired</p>
+            <p className="font-bold text-sm" style={{ color: 'var(--neon-orange)' }}>Hidden — Transfer Verification Expired</p>
             <p className="text-xs text-muted-foreground mt-0.5">
               Your transfer verification expired after 60 minutes, so this listing was hidden from buyers. Re-verify that transfers are still available to restore it immediately.
             </p>
@@ -99,10 +99,10 @@ export default function ListingStatusBanner({ listing, event, onRefresh }) {
   if (listing.status === 'hidden' && listing.hidden_reason === 'admin_disabled') {
     return (
       <div className="rounded-2xl px-4 py-3 flex items-start gap-3"
-        style={{ background: 'rgba(255,45,120,0.07)', border: '1px solid rgba(255,45,120,0.3)' }}>
-        <EyeOff className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: '#FF2D78' }} />
+        style={{ background: 'rgba(var(--neon-pink-rgb), 0.07)', border: '1px solid rgba(var(--neon-pink-rgb), 0.3)' }}>
+        <EyeOff className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: 'var(--neon-pink)' }} />
         <div className="min-w-0">
-          <p className="font-bold text-sm" style={{ color: '#FF2D78' }}>Hidden by Admin</p>
+          <p className="font-bold text-sm" style={{ color: 'var(--neon-pink)' }}>Hidden by Admin</p>
           <p className="text-xs text-muted-foreground mt-0.5">
             This listing has been temporarily hidden by our team. Please contact support for details.
           </p>
@@ -115,10 +115,10 @@ export default function ListingStatusBanner({ listing, event, onRefresh }) {
   if (listing.status === 'hidden') {
     return (
       <div className="rounded-2xl px-4 py-3 flex items-start gap-3"
-        style={{ background: 'rgba(255,140,0,0.07)', border: '1px solid rgba(255,140,0,0.25)' }}>
-        <EyeOff className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: '#FF8C00' }} />
+        style={{ background: 'rgba(var(--neon-orange-rgb), 0.07)', border: '1px solid rgba(var(--neon-orange-rgb), 0.25)' }}>
+        <EyeOff className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: 'var(--neon-orange)' }} />
         <div className="min-w-0">
-          <p className="font-bold text-sm" style={{ color: '#FF8C00' }}>Hidden from Buyers</p>
+          <p className="font-bold text-sm" style={{ color: 'var(--neon-orange)' }}>Hidden from Buyers</p>
           <p className="text-xs text-muted-foreground mt-0.5">
             This listing is not currently visible to buyers.{' '}
             {listing.hidden_reason === 'transfer_disabled'
@@ -137,11 +137,11 @@ export default function ListingStatusBanner({ listing, event, onRefresh }) {
   if (listing.status === 'active' && isVerificationExpired(listing)) {
     return (
       <div className="rounded-2xl px-4 py-3 space-y-3"
-        style={{ background: 'rgba(255,140,0,0.07)', border: '1px solid rgba(255,140,0,0.25)' }}>
+        style={{ background: 'rgba(var(--neon-orange-rgb), 0.07)', border: '1px solid rgba(var(--neon-orange-rgb), 0.25)' }}>
         <div className="flex items-start gap-3">
-          <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: '#FF8C00' }} />
+          <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: 'var(--neon-orange)' }} />
           <div className="min-w-0">
-            <p className="font-bold text-sm" style={{ color: '#FF8C00' }}>⚠️ Verification Expired</p>
+            <p className="font-bold text-sm" style={{ color: 'var(--neon-orange)' }}>⚠️ Verification Expired</p>
             <p className="text-xs text-muted-foreground mt-0.5">
               Your transfer verification has expired. Buyers see a low-confidence warning on your listing. Re-verify now to keep buyer trust high and avoid your listing being hidden.
             </p>
@@ -156,9 +156,9 @@ export default function ListingStatusBanner({ listing, event, onRefresh }) {
   if (listing.status === 'active') {
     return (
       <div className="rounded-2xl px-4 py-3 flex items-center gap-3"
-        style={{ background: 'rgba(0,255,135,0.06)', border: '1px solid rgba(0,255,135,0.2)' }}>
-        <div className="w-2 h-2 rounded-full flex-shrink-0 animate-pulse" style={{ background: '#00FF87' }} />
-        <p className="text-xs font-semibold" style={{ color: '#00FF87' }}>
+        style={{ background: 'rgba(var(--neon-green-rgb), 0.06)', border: '1px solid rgba(var(--neon-green-rgb), 0.2)' }}>
+        <div className="w-2 h-2 rounded-full flex-shrink-0 animate-pulse" style={{ background: 'var(--neon-green)' }} />
+        <p className="text-xs font-semibold" style={{ color: 'var(--neon-green)' }}>
           Live — Visible to buyers
         </p>
       </div>

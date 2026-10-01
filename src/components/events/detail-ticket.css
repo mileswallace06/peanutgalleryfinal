@@ -28,8 +28,8 @@
 .pg-checkout-summary > .font-black { border-top-style: dashed !important; border-color: #11121745 !important; }
 .pg-checkout-summary > .font-black > span:last-child { color: var(--pg-ink) !important; }
 .pg-checkout-summary .rounded-full { color: #593b72 !important; background: #bf5fff1a !important; }
-/* Stripe iframe colors are literal; its fixed dark field stays legible in both themes. */
-.pg-checkout-dialog .pg-checkout-card-field { background: #1a1822 !important; border-color: #5b5266 !important; }
+/* The Stripe iframe receives resolved theme colors from PurchaseDialog. */
+.pg-checkout-dialog .pg-checkout-card-field { background: var(--pg-surface-raised); border-color: var(--pg-line); }
 .pg-checkout-dialog button[type='submit'] { box-shadow: none; padding-inline: 12px; line-height: 1.45; }
 .pg-selling-summary { border-bottom: 1px dashed #11121745; }
 .pg-seller-attestation > div:first-child,

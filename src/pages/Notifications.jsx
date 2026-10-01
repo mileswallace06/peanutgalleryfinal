@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
+import { visibleNotifications } from '@/lib/notificationVisibility';
 import { formatDistanceToNow } from 'date-fns';
 import { Bell, CheckCheck, ArrowRight, RefreshCw } from 'lucide-react';
 import { PageIntro } from '@/components/ClarityUI';
@@ -78,7 +79,7 @@ export default function Notifications() {
       const data = await base44.entities.Notification.filter({ user_email: me.email },  '-created_date', 80).catch(() => []);
       // Superseded concurrent-duplicate records are hidden from the inbox
       // (they never dispatched); they remain in the DB for audit.
-      setNotifs(data.filter((n) => n.dispatch_status !== 'superseded'));
+      setNotifs(visibleNotifications(data));
     }
     setLoading(false);
   }, []);

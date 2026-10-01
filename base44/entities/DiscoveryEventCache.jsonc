@@ -1,0 +1,90 @@
+{
+  "name": "DiscoveryEventCache",
+  "type": "object",
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  },
+  "properties": {
+    "tm_id": {
+      "type": "string"
+    },
+    "tm_venue_id": {
+      "type": "string"
+    },
+    "attraction_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "title": {
+      "type": "string"
+    },
+    "venue": {
+      "type": "string"
+    },
+    "city": {
+      "type": "string"
+    },
+    "state": {
+      "type": "string"
+    },
+    "venue_lat": {
+      "type": "number"
+    },
+    "venue_lng": {
+      "type": "number"
+    },
+    "event_start_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "event_end_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "provider_status": {
+      "type": "string"
+    },
+    "date_tba": {
+      "type": "boolean"
+    },
+    "time_tba": {
+      "type": "boolean"
+    },
+    "no_specific_time": {
+      "type": "boolean"
+    },
+    "end_time_invalid": {
+      "type": "boolean"
+    },
+    "fetched_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "tm_id",
+    "fetched_at",
+    "provider_status"
+  ]
+}

@@ -14,7 +14,7 @@ function statusBadge(s) {
   const cfg = STATUS_CONFIG[s] || { label: (s || 'Unknown').replace(/_/g, ' '), color: 'var(--neon-purple)' };
   return (
     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full capitalize"
-      style={{ background: `${cfg.color}18`, color: cfg.color, border: `1px solid ${cfg.color}33` }}>
+      style={{ background: `color-mix(in srgb, ${cfg.color} 9%, transparent)`, color: cfg.color, border: `1px solid color-mix(in srgb, ${cfg.color} 20%, transparent)` }}>
       {cfg.label}
     </span>
   );
@@ -23,7 +23,7 @@ function statusBadge(s) {
 function PurchaseRow({ p, type }) {
   const label = type === 'purchase' ? `Bought · #${p.id?.slice(-6)}` : `Sold · #${p.id?.slice(-6)}`;
   const amount = type === 'purchase' ? p.amount : p.seller_payout;
-  const color = type === 'purchase' ? '#FF2D78' : '#00FF87';
+  const color = type === 'purchase' ? 'var(--neon-pink)' : 'var(--neon-green)';
   const sign = type === 'purchase' ? '-' : '+';
 
   return (
@@ -86,7 +86,7 @@ export default function TransactionHistorySection({ purchases, sales }) {
                   onClick={() => setTab(t)}
                   className="px-3 py-1.5 rounded-lg text-xs font-bold capitalize transition-all"
                   style={tab === t
-                    ? { background: 'rgba(191,95,255,0.15)', color: 'var(--neon-purple)', border: '1px solid rgba(191,95,255,0.3)' }
+                    ? { background: 'rgba(var(--neon-purple-rgb), 0.15)', color: 'var(--neon-purple)', border: '1px solid rgba(var(--neon-purple-rgb), 0.3)' }
                     : { background: 'var(--pg-surface-raised)', color: 'hsl(var(--muted-foreground))', border: '1px solid var(--pg-line)' }
                   }
                 >

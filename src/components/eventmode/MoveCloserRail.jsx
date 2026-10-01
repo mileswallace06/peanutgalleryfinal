@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom';
-import { Zap, Ticket, ChevronRight } from 'lucide-react';
+import { Zap, Ticket, ChevronRight, Clock3, RefreshCw } from 'lucide-react';
 import { UPGRADE_LISTING_TYPES, TICKET_LISTING_TYPES } from '@/lib/listingTypes';
 import { isListingVisible } from '@/lib/listingVisibility';
+import { getUpgradeEventState, getUpgradeShowtimeLabel } from '@/lib/upgradeEventState';
 import MoveCloserListing from './MoveCloserListing';
 
 /**
@@ -14,16 +15,16 @@ function Heading() {
   return <div className="pg-move-closer-heading"><h2 className="pg-page-title">Move closer</h2><p>Seat upgrades for this event.</p></div>;
 }
 
-export default function MoveCloserRail({ listings, event, currentUserEmail, loading, onView }) {
+export default function MoveCloserRail({ listings, event, currentUserEmail, loading, onView, nowMs, loadError, onRetry, refreshing, notifyControl }) {
   const visible = (listings || []).filter(l => isListingVisible(l, currentUserEmail));
   const upgrades = visible
     .filter(l => UPGRADE_LISTING_TYPES.includes(l.listing_type))
     .sort((a, b) => a.asking_price - b.asking_price);
   const admission = visible.filter(l => TICKET_LISTING_TYPES.includes(l.listing_type));
 
-  const eventStatus = event?.status;
-  const isEnded = eventStatus === 'ended';
-  const isLive = eventStatus === 'live';
+  const timing = getUpgradeEventState(event, nowMs);
+  const isEnded = timing.status === 'ended';
+  const isCancelled = [event?.status, event?.provider_status].some(status => ['cancelled', 'canceled'].includes(status));
 
   if (loading) {
     return (
@@ -44,27 +45,59 @@ export default function MoveCloserRail({ listings, event, currentUserEmail, load
       <section>
         <Heading />
         <div className="pg-state pg-live-empty">
-          <p className="text-sm font-semibold" style={{ color: 'var(--ev-text)' }}>Event has ended</p>
+          <p className="text-sm font-semibold" style={{ color: 'var(--ev-text)' }}>{isCancelled ? 'Event cancelled' : 'Event has ended'}</p>
           <p className="text-xs mt-1" style={{ color: 'var(--ev-text-muted)' }}>No more upgrades are available.</p>
         </div>
       </section>
     );
   }
 
-  if (upgrades.length === 0) {
+  if (timing.status === 'unknown') {
     return (
       <section>
         <Heading />
-        <div className="pg-state pg-live-empty">
-          <Zap className="w-5 h-5 mx-auto mb-2" style={{ color: 'var(--ev-teal)', opacity: 0.5 }} />
-          <p className="text-sm font-semibold" style={{ color: 'var(--ev-text)' }}>
-            {isLive ? 'No upgrades listed yet' : 'Upgrades open at showtime'}
+        <div className="pg-state pg-live-empty pg-upgrade-availability">
+          <Clock3 className="pg-upgrade-empty-icon" size={22} />
+          <p className="pg-upgrade-empty-title" role="status">Event time unconfirmed</p>
+          <p className="pg-upgrade-empty-detail">The event’s date and time must be confirmed before upgrades can be shown.</p>
+          {notifyControl}
+          {onRetry && <button type="button" className="pg-upgrade-refresh" onClick={onRetry} disabled={refreshing}>
+            <RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />{refreshing ? 'Checking…' : 'Check availability'}
+          </button>}
+        </div>
+      </section>
+    );
+  }
+
+  if (upgrades.length === 0) {
+    const countdown = timing.countdown;
+    return (
+      <section>
+        <Heading />
+        <div className="pg-state pg-live-empty pg-upgrade-availability">
+          {timing.beforeShowtime ? <Clock3 className="pg-upgrade-empty-icon" size={22} /> : <Zap className="pg-upgrade-empty-icon" size={22} />}
+          <p className="pg-upgrade-empty-title" role="status">
+            {loadError ? 'Unable to load upgrades' : timing.beforeShowtime ? 'Countdown to showtime' : 'No upgrades available right now'}
           </p>
-          <p className="text-xs mt-1" style={{ color: 'var(--ev-text-muted)' }}>
-            {isLive
-              ? 'Fans inside can list seat upgrades. Check back soon.'
-              : 'Seat upgrades will appear here once the event goes live.'}
+          <p className="pg-upgrade-empty-detail">
+            {loadError ? 'We couldn’t check the latest availability. Please try again.'
+              : timing.beforeShowtime ? 'No upgrades have been listed yet. Check back as fans settle in.'
+                : 'New seat upgrades will appear here as fans list them.'}
           </p>
+          {countdown && (
+            <>
+              <div className="pg-showtime-countdown" role="timer" aria-label="Time until showtime" aria-live="off">
+                {Object.entries(countdown).filter(([unit, value]) => unit !== 'days' || value > 0).map(([unit, value]) => (
+                  <div key={unit}><strong>{String(value).padStart(2, '0')}</strong><span>{unit}</span></div>
+                ))}
+              </div>
+              <p className="pg-showtime-date">{getUpgradeShowtimeLabel(event)}</p>
+            </>
+          )}
+          {!loadError && notifyControl}
+          {onRetry && <button type="button" className="pg-upgrade-refresh" onClick={onRetry} disabled={refreshing}>
+            <RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />{refreshing ? 'Checking…' : loadError ? 'Try again' : 'Check availability'}
+          </button>}
           {admission.length > 0 && (
             <Link to={`/events/${event?.id}`} className="pg-live-admission">
               <Ticket size={18} />View all tickets<ChevronRight size={16} />

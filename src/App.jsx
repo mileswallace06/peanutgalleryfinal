@@ -47,6 +47,7 @@ const Notifications = lazy(() => import('@/pages/Notifications'));
 const EventMode = lazy(() => import('@/pages/EventMode'));
 const BrandedAuth = lazy(() => import('@/pages/BrandedAuth'));
 const SharedListing = lazy(() => import('@/pages/SharedListing'));
+const HelpCenter = lazy(() => import('@/pages/HelpCenter'));
 
 const MemberRoute = () => {
   const auth = useAuth();
@@ -110,6 +111,7 @@ const AuthenticatedApp = () => {
           <Route path="/cookies" element={<CookiePolicy />} />
           <Route path="/our-story" element={<OurStory />} />
           <Route path="/listings/:listingId" element={<SharedListing />} />
+          <Route path="/help" element={<HelpCenter />} />
           <Route element={<MemberRoute />}>
            <Route element={<Layout />}>
             <Route path="/events" element={<Events />} />

@@ -29,3 +29,16 @@ Not completed: partner agreement, funded reward, redemption implementation, camp
 Next: authorize the specific partner inquiry if the proposed reward matches Miles's intention; secure actual terms; then implement and verify the guaranteed listing reward with no sale dependency. Do not substitute more points for a promised material benefit.
 
 Visual work remains separately preserved on codex/pg-rebrand-completeness-20260927. Do not merge these planning documents as an app release or conflate the outstanding visual pass with purchase-security status. No launch-readiness percentage is inferred from this work.
+
+
+## Screen refinement session — October 1, 2026
+
+Latest completed release: the combined rebrand/sharing work was merged and published as Main `ce49debb0d5d5a855b59b054b792dac1f12decc6`. The earlier session's genuine-listing test next action is now deferred at Miles's request until purchase security is confirmed in the separate workstream.
+
+Today's goal: address six screenshot issues—upgrade timing/alerts, Bucket List promotion, My tickets back navigation, My Sales back navigation, an actual Help Center, and coherent light mode.
+
+Completed locally on `codex/pg-screen-refinements-20261001`: all six implementations plus durable discovery-alert preferences/processor, default-off rollout, narrow account cleanup and notification visibility. 81 focused tests pass, production compilation and scoped lint pass. No real records, purchases, live notifications, backend setup, merge or publication. Visual rendering was blocked by environment policy and remains unverified.
+
+Next: upload/review the branch with fictional mobile states, inspect light mode and countdown transitions, review alert activation, then approve and publish a verified revision. Notification delivery remains inactive and bounded; native non-Ticketmaster watches are unsupported in this version. Details: [PG_SCREEN_REFINEMENTS_20261001.md](../../reviews/PG_SCREEN_REFINEMENTS_20261001.md).
+
+Session duration is not reliably measured. The December 17 target remains recorded; there are 77 calendar days from October 1, but this UI milestone does not establish that the separate purchase-security or overall launch gates are complete.

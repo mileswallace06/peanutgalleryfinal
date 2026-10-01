@@ -74,3 +74,10 @@
   .pg-transaction-actions { gap: 8px; }
   .pg-transaction-actions .pg-action { padding-inline: 11px; }
 }
+
+/* Informational ink remains readable on the pale form and purchase surfaces. */
+:root:not(.dark) .pg-transaction-page :is(.pg-transaction-kicker, .pg-purchase-proof-link, .pg-transaction-status > svg) { color: var(--neon-cyan); }
+:root:not(.dark) .pg-transaction-page .pg-listing-steps .is-reached svg { color: var(--neon-orange); }
+:root:not(.dark) .pg-purchase-complete .pg-transaction-kicker,
+:root:not(.dark) .pg-purchase-timeline li > .is-done { color: var(--neon-green); }
+:root:not(.dark) .pg-purchase-timeline li > .is-done { border-color: var(--neon-green); }

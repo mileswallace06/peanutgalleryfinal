@@ -101,6 +101,9 @@ Deno.serve(async (req) => {
     ];
 
     // ── 5. Delete user-owned records (non-financial) ─────────────────────
+    const discoveryOwner = targetUserId
+      ? { $or: [{ user_id: targetUserId }, { user_email: targetEmail }] }
+      : { user_email: targetEmail };
     const deletionTasks = [
       sr.entities.Listing.deleteMany({ seller_email: targetEmail }),
       sr.entities.Notification.deleteMany({ user_email: targetEmail }),
@@ -121,6 +124,8 @@ Deno.serve(async (req) => {
       sr.entities.Follow.deleteMany({ follower_email: targetEmail }),
       sr.entities.Follow.deleteMany({ following_email: targetEmail }),
       sr.entities.BucketListItem.deleteMany({ user_email: targetEmail }),
+      sr.entities.DiscoveryAlertSubscription.deleteMany(discoveryOwner),
+      sr.entities.DiscoveryAlertPreference.deleteMany(discoveryOwner),
       sr.entities.AdminAlert.deleteMany({ seller_email: targetEmail }),
       sr.entities.AdminAlert.deleteMany({ buyer_email: targetEmail }),
     ].map(p => p.catch(e => console.warn('[deleteAccount] entity delete error:', e?.message)));

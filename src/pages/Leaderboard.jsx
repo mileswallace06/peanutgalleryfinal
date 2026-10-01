@@ -116,7 +116,7 @@ export default function Leaderboard() {
 
                 {/* Avatar */}
                 <div className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center font-black text-sm overflow-hidden"
-                  style={{ background: 'linear-gradient(135deg, #BF5FFF, #FF2D78)', color: '#fff' }}>
+                  style={{ background: 'var(--pg-violet)', color: 'var(--pg-ink)' }}>
                   {u.avatar_url
                     ? <img src={u.avatar_url} alt="" className="w-full h-full object-cover" />
                     : (u.full_name || '?')[0].toUpperCase()
@@ -130,8 +130,8 @@ export default function Leaderboard() {
                       {u.full_name || 'Fan'}
                     </span>
                     {isHof && <span className="text-[10px]">🏆</span>}
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold flex-shrink-0"
-                      style={{ background: `${rankTier.color}15`, color: rankTier.color, border: `1px solid ${rankTier.color}40` }}>
+                    <span className="pg-leaderboard-ink text-[10px] px-1.5 py-0.5 rounded-full font-bold flex-shrink-0"
+                      style={{ '--rank-color': rankTier.color, background: `${rankTier.color}15`, border: `1px solid ${rankTier.color}40` }}>
                       {rankTier.emoji} {rankTier.rank}
                     </span>
                     {isMe && <span className="text-[9px] font-black text-primary">You</span>}
@@ -145,15 +145,15 @@ export default function Leaderboard() {
                         <span key={key} className="text-[9px]" title={def.label}>{def.emoji}</span>
                       ) : null;
                     })}
-                    <span className="text-[9px] font-bold" style={{ color: trustClr }}>
+                    <span className="pg-leaderboard-ink text-[9px] font-bold" style={{ '--rank-color': trustClr }}>
                       ⬡ {trustScore}
                     </span>
                   </div>
                 </div>
 
                 {/* Value */}
-                <span className="font-black text-sm flex-shrink-0"
-                  style={{ color: isHof ? '#FFE600' : i === 0 ? '#FFE600' : 'hsl(var(--foreground))' }}>
+                <span className="pg-leaderboard-ink font-black text-sm flex-shrink-0"
+                  style={{ '--rank-color': isHof ? '#FFE600' : i === 0 ? '#FFE600' : 'hsl(var(--foreground))' }}>
                   {val}
                 </span>
               </motion.div>

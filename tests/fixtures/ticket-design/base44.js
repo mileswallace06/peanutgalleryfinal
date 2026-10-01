@@ -8,7 +8,7 @@ export const fixtureSignedIn = params.get('auth') !== 'guest';
 export const fixtureUser = {
   id: 'fixture-user', email: 'reviewer@example.invalid', full_name: 'Alex Sample', role: params.get('page') === 'founder' ? 'admin' : 'user',
   has_seen_onboarding: true, has_seen_upgrades_onboarding: true,
-  stripe_onboarding_complete: true, peanut_points: 240, avatar_url: artwork,
+  stripe_onboarding_complete: true, peanut_points: 240, avatar_url: artwork, banner_url: artwork,
 };
 const event = (id, title, minutes, category, extra = {}) => ({
   id, tm_id: `tm-${id}`, title, category, city: 'Phoenix', state: 'AZ', venue: 'Imaginary Arena',
@@ -25,6 +25,14 @@ const events = [
   event('fixture-weekend', 'The Paper Lanterns', 1440 * 3, 'concert', { venue: 'Fictional Garden Theater' }),
   event('fixture-comedy', 'Riley Sample: Just Kidding', 1440 * 5, 'comedy', { venue: 'Imaginary Comedy Hall' }),
 ];
+const eventState = params.get('eventState');
+if (['upcoming', 'soon-live', 'stale-live', 'ended'].includes(eventState)) {
+  const start = { upcoming: 95, 'soon-live': 0.1, 'stale-live': -42, ended: -300 }[eventState];
+  Object.assign(events[0], { date: iso(start), event_start_utc: iso(start), event_end_utc: iso(start + 240), status: 'upcoming' });
+}
+let watchEnabled = false;
+let alertPreferences = { enabled: false, city_label: null, latitude: null, longitude: null, radius_miles: null, location_consent: false };
+const serviceActive = params.get('alerts') !== 'paused';
 const listing = (id, section, row, price, extra = {}) => ({
   id, event_id: 'fixture-live', event_title: 'The Aurora Waves', section, row, seats: '7–8', quantity: 2,
   asking_price: price, original_price: price + 45, listing_type: 'live_upgrade', tier: 'lower',
@@ -99,7 +107,7 @@ function matches(row, query = {}) {
 }
 const rowsByEntity = {
   Event: events, Listing: listings, Purchase: [...purchases, ...sales], FanPost: posts, Notification: [], SeatDonation: [],
-  BucketListItem: [{ id: 'fixture-bucket', user_email: fixtureUser.email, name: 'The Aurora Waves', type: 'artist' }],
+  BucketListItem: scenario === 'empty' ? [] : [{ id: 'fixture-bucket', user_email: fixtureUser.email, name: 'The Aurora Waves', type: 'attraction', tm_id: 'fixture-attraction' }],
   Follow: [{ id: 'fixture-follow', follower_email: fixtureUser.email, following_email: 'morgan@example.invalid' }],
   SeatInventory: [], FlashDropEntry: [],
   PointsActivity: [{ id: 'fixture-points', user_email: fixtureUser.email, reference_id: 'fixture-live', points: 100 }],
@@ -114,7 +122,7 @@ function read(entity, query = {}, sort, limit, offset = 0) {
   if (scenario === 'provider-error' && ['FanPost', 'Listing'].includes(entity)) throw failure(`Sample provider failure: ${entity}`);
   // Retain the event itself for an empty live-hub review, while collections are empty.
   const detailLookup = entity === 'Event' && (query.id || query.tm_id);
-  let rows = scenario === 'empty' && !detailLookup ? [] : rowsByEntity[entity];
+  let rows = scenario === 'empty' && !detailLookup && entity !== 'BucketListItem' ? [] : rowsByEntity[entity];
   rows = rows.filter(row => matches(row, query));
   if (sort) { const desc = sort.startsWith('-'); const field = desc ? sort.slice(1) : sort; rows = [...rows].sort((a,b) => String(a[field] || '').localeCompare(String(b[field] || '')) * (desc ? -1 : 1)); }
   return copy(rows.slice(offset, limit == null ? undefined : offset + limit));
@@ -127,6 +135,8 @@ const entities = new Proxy({}, { get(_, entity) {
     if (method === 'list') return async (sort, limit, offset) => { record(name, { sort, limit, offset }); return read(entity, {}, sort, limit, offset); };
     if (method === 'subscribe' && entity === 'SeatDonation') return () => { record(name, {}); return () => {}; };
     if (method === 'create' && entity === 'EventNavigationLog') return async payload => { record(name, payload); return { id: 'fixture-log-only', ...payload }; };
+    if (method === 'create' && entity === 'BucketListItem') return async payload => { record(name, payload); const saved = { id: `fixture-bucket-${rowsByEntity.BucketListItem.length}`, ...payload }; rowsByEntity.BucketListItem.push(saved); return copy(saved); };
+    if (method === 'delete' && entity === 'BucketListItem') return async id => { record(name, id); rowsByEntity.BucketListItem = rowsByEntity.BucketListItem.filter(item => item.id !== id); return {}; };
     if (['create','update','delete','bulkCreate'].includes(method)) return async (...args) => blocked(name, args);
     return async (...args) => unexpected(name, args);
   } });
@@ -157,7 +167,15 @@ const functions = { invoke: async (name, args = {}) => {
   }
   if (name === 'getFlashDropView') return { data: { drops: scenario === 'empty' ? [] : copy(drops), leaders: scenario === 'empty' ? [] : [{ name: 'A fictional fan', drops: 2 }] } };
   if (name === 'checkSellerOnboarding') return { data: { complete: true, details_submitted: true, charges_enabled: true, payouts_enabled: true } };
-  if (name === 'tmSuggest') return { data: { attractions: [], venues: [] } };
+  if (name === 'tmSuggest') return { data: { attractions: [{ type: 'attraction', tm_id: 'fixture-attraction', name: 'The Aurora Waves', image_url: artwork, genre: 'Alternative' }], venues: [{ type: 'venue', tm_id: 'fixture-venue', name: 'Imaginary Arena', image_url: artwork }] } };
+  if (name === 'manageDiscoveryAlerts') {
+    if (params.get('alerts') === 'error') throw failure('Fictional alert service unavailable');
+    if (args.action === 'get_event') return { data: { enabled: watchEnabled, service_active: serviceActive, supported: true } };
+    if (args.action === 'set_event') { watchEnabled = args.enabled; return { data: { enabled: watchEnabled, service_active: serviceActive, supported: true } }; }
+    if (args.action === 'get_preferences') return { data: { ...alertPreferences, service_active: serviceActive } };
+    if (args.action === 'set_preferences') { const { action, ...prefs } = args; alertPreferences = prefs; return { data: { ...alertPreferences, service_active: serviceActive } }; }
+    if (args.action === 'resolve_city') return { data: { city_label: `${args.city}, ${args.state}`, latitude: 33.45, longitude: -112.07, location_source: 'venue_area' } };
+  }
   if (name === 'syncTMEvent') return { data: { id: events.find(e => e.tm_id === args.tm_id)?.id || null } };
   if (['getStripeKey','reserveListing','releaseReservation','createCheckout','abortCheckout','confirmCheckoutAuthorized','createDemoUpgrade','flashDrop','seatDonation','submitFeedback','onboardSeller','submitListing','deleteAccount'].includes(name)) return blocked(`functions.${name}`, args);
   return unexpected(`functions.${name}`, args);

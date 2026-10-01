@@ -1,0 +1,76 @@
+{
+  "name": "DiscoveryAlertPreference",
+  "type": "object",
+  "rls": {
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "read": {
+      "$or": [
+        {
+          "data.user_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  },
+  "properties": {
+    "user_id": {
+      "type": "string"
+    },
+    "user_email": {
+      "type": "string"
+    },
+    "preference_updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "enabled": {
+      "type": "boolean",
+      "default": false
+    },
+    "location_consent": {
+      "type": "boolean",
+      "default": false
+    },
+    "city_label": {
+      "type": "string"
+    },
+    "latitude": {
+      "type": "number"
+    },
+    "longitude": {
+      "type": "number"
+    },
+    "radius_miles": {
+      "type": "number",
+      "enum": [
+        10,
+        25,
+        50,
+        100
+      ]
+    }
+  },
+  "required": [
+    "user_id",
+    "user_email",
+    "enabled"
+  ]
+}

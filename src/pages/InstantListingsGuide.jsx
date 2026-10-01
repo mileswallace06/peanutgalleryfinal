@@ -4,8 +4,8 @@ import { Link } from 'react-router-dom';
 import { Zap, Shield, Clock, ArrowRight, Lock, Star } from 'lucide-react';
 import FaqAccordion from '@/components/education/FaqAccordion';
 
-const CYAN = '#00C8FF';
-const GREEN = '#00FF87';
+const CYAN = 'var(--neon-cyan)';
+const GREEN = 'var(--neon-green)';
 
 function SectionLabel({ children, color = CYAN }) {
   return (
@@ -19,7 +19,7 @@ function SectionLabel({ children, color = CYAN }) {
 function TrustBadge({ icon, label }) {
   return (
     <div className="flex items-center gap-2 px-3 py-2 rounded-xl"
-      style={{ background: 'rgba(0,200,255,0.06)', border: '1px solid rgba(0,200,255,0.2)' }}>
+      style={{ background: 'rgba(var(--neon-cyan-rgb), 0.06)', border: '1px solid rgba(var(--neon-cyan-rgb), 0.2)' }}>
       <span className="text-lg flex-shrink-0">{icon}</span>
       <span className="text-xs font-semibold text-foreground">{label}</span>
     </div>
@@ -69,7 +69,7 @@ export default function InstantListingsGuide() {
 
       {/* What is Instant Transfer */}
       <div className="mb-10 rounded-2xl p-5"
-        style={{ background: 'rgba(0,200,255,0.06)', border: '1px solid rgba(0,200,255,0.2)' }}>
+        style={{ background: 'rgba(var(--neon-cyan-rgb), 0.06)', border: '1px solid rgba(var(--neon-cyan-rgb), 0.2)' }}>
         <SectionLabel>What Is Instant Transfer?</SectionLabel>
         <p className="text-sm text-foreground leading-relaxed mb-3">
           Instant Transfer is a listing mode where the seller gives their ticket to Peanut Gallery <strong>before</strong> listing it for sale.
@@ -92,7 +92,7 @@ export default function InstantListingsGuide() {
             <div key={i} className="flex items-start gap-4 px-4 py-4 rounded-2xl"
               style={{ background: 'var(--pg-surface)', border: '1px solid hsl(var(--border))' }}>
               <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{ background: 'rgba(0,200,255,0.08)' }}>
+                style={{ background: 'rgba(var(--neon-cyan-rgb), 0.08)' }}>
                 {item.icon}
               </div>
               <div>
@@ -106,13 +106,13 @@ export default function InstantListingsGuide() {
 
       {/* Seller flow */}
       <div className="mb-10">
-        <SectionLabel color="#BF5FFF">For Sellers — How It Works</SectionLabel>
+        <SectionLabel color="var(--neon-purple)">For Sellers — How It Works</SectionLabel>
         <div className="space-y-3 relative">
-          <div className="absolute left-[1.4rem] top-8 bottom-8 w-px" style={{ background: 'rgba(191,95,255,0.2)' }} />
+          <div className="absolute left-[1.4rem] top-8 bottom-8 w-px" style={{ background: 'rgba(var(--neon-purple-rgb), 0.2)' }} />
           {SELLER_STEPS.map((step, i) => (
             <div key={i} className="flex items-start gap-4 pl-2">
               <div className="w-9 h-9 rounded-full flex items-center justify-center text-xl flex-shrink-0 z-10"
-                style={{ background: 'var(--pg-surface)', border: '1px solid rgba(191,95,255,0.3)' }}>
+                style={{ background: 'var(--pg-surface)', border: '1px solid rgba(var(--neon-purple-rgb), 0.3)' }}>
                 {step.icon}
               </div>
               <div className="flex-1 pb-2">
@@ -128,11 +128,11 @@ export default function InstantListingsGuide() {
       <div className="mb-10">
         <SectionLabel color={CYAN}>For Buyers — How It Works</SectionLabel>
         <div className="space-y-3 relative">
-          <div className="absolute left-[1.4rem] top-8 bottom-8 w-px" style={{ background: 'rgba(0,200,255,0.2)' }} />
+          <div className="absolute left-[1.4rem] top-8 bottom-8 w-px" style={{ background: 'rgba(var(--neon-cyan-rgb), 0.2)' }} />
           {BUYER_STEPS.map((step, i) => (
             <div key={i} className="flex items-start gap-4 pl-2">
               <div className="w-9 h-9 rounded-full flex items-center justify-center text-xl flex-shrink-0 z-10"
-                style={{ background: 'var(--pg-surface)', border: '1px solid rgba(0,200,255,0.3)' }}>
+                style={{ background: 'var(--pg-surface)', border: '1px solid rgba(var(--neon-cyan-rgb), 0.3)' }}>
                 {step.icon}
               </div>
               <div className="flex-1 pb-2">
@@ -146,7 +146,7 @@ export default function InstantListingsGuide() {
 
       {/* Escrow callout */}
       <div className="mb-10 rounded-2xl p-5"
-        style={{ background: 'rgba(0,255,135,0.06)', border: '1px solid rgba(0,255,135,0.2)' }}>
+        style={{ background: 'rgba(var(--neon-green-rgb), 0.06)', border: '1px solid rgba(var(--neon-green-rgb), 0.2)' }}>
         <div className="flex items-center gap-3 mb-3">
           <Lock className="w-5 h-5 flex-shrink-0" style={{ color: 'var(--neon-green)' }} />
           <p className="font-black text-base text-foreground">Escrow + Payout Protection</p>
@@ -158,7 +158,7 @@ export default function InstantListingsGuide() {
 
       {/* Recommended Listing Timeline */}
       <div className="mb-10">
-        <SectionLabel color="#FFE600">When should you list?</SectionLabel>
+        <SectionLabel color="var(--neon-yellow)">When should you list?</SectionLabel>
         <p className="text-sm text-muted-foreground leading-relaxed mb-5">
           The earlier you list, the better your chances of selling. Here's what we've seen from real sales data:
         </p>
@@ -166,76 +166,76 @@ export default function InstantListingsGuide() {
         <div className="space-y-4">
 
           {/* 7+ days */}
-          <div className="rounded-2xl p-4" style={{ background: 'var(--pg-surface)', border: `1px solid rgba(0,255,135,0.25)` }}>
+          <div className="rounded-2xl p-4" style={{ background: 'var(--pg-surface)', border: `1px solid rgba(var(--neon-green-rgb), 0.25)` }}>
             <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
               <span className="font-black text-xs text-muted-foreground">7+ days before</span>
-              <span className="text-[10px] font-black px-2.5 py-1 rounded-full" style={{ background: 'rgba(0,255,135,0.12)', color: 'var(--neon-green)', border: '1px solid rgba(0,255,135,0.3)' }}>🟢 Prime Window</span>
+              <span className="text-[10px] font-black px-2.5 py-1 rounded-full" style={{ background: 'rgba(var(--neon-green-rgb), 0.12)', color: 'var(--neon-green)', border: '1px solid rgba(var(--neon-green-rgb), 0.3)' }}>🟢 Prime Window</span>
             </div>
             <p className="font-bold text-sm text-foreground mb-1">Maximum exposure + easiest hands-off experience</p>
             <p className="text-xs text-muted-foreground leading-relaxed mb-2">This is the best time to list if you already know you can't attend. Your ticket gets maximum visibility, buyers have more time to plan, and Instant Transfer inventory has plenty of time to be verified by PG before event day.</p>
             <p className="text-xs text-muted-foreground leading-relaxed mb-2">If you want the fully hands-off experience, use Instant Transfer and transfer your ticket to PG early. Once verified, PG can handle fulfillment for you automatically if your ticket sells.</p>
             <p className="text-xs text-muted-foreground leading-relaxed">If you'd rather keep the ticket yourself until it sells, that's completely fine too — tickets can still be sold all the way until the event ends. You'll just need to be available to manually transfer the ticket to the buyer after purchase in order to receive payout.</p>
-            <div className="mt-3 px-3 py-2 rounded-xl text-xs font-semibold" style={{ background: 'rgba(0,255,135,0.08)', border: '1px solid rgba(0,255,135,0.2)', color: 'var(--neon-green)' }}>
+            <div className="mt-3 px-3 py-2 rounded-xl text-xs font-semibold" style={{ background: 'rgba(var(--neon-green-rgb), 0.08)', border: '1px solid rgba(var(--neon-green-rgb), 0.2)', color: 'var(--neon-green)' }}>
               💡 Earlier Instant Transfer verification = smoother fulfillment later.
             </div>
           </div>
 
           {/* 2–6 days */}
-          <div className="rounded-2xl p-4" style={{ background: 'var(--pg-surface)', border: `1px solid rgba(0,255,135,0.2)` }}>
+          <div className="rounded-2xl p-4" style={{ background: 'var(--pg-surface)', border: `1px solid rgba(var(--neon-green-rgb), 0.2)` }}>
             <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
               <span className="font-black text-xs text-muted-foreground">2–6 days before</span>
-              <span className="text-[10px] font-black px-2.5 py-1 rounded-full" style={{ background: 'rgba(0,255,135,0.12)', color: 'var(--neon-green)', border: '1px solid rgba(0,255,135,0.3)' }}>🟢 Strong Window</span>
+              <span className="text-[10px] font-black px-2.5 py-1 rounded-full" style={{ background: 'rgba(var(--neon-green-rgb), 0.12)', color: 'var(--neon-green)', border: '1px solid rgba(var(--neon-green-rgb), 0.3)' }}>🟢 Strong Window</span>
             </div>
             <p className="font-bold text-sm text-foreground mb-1">High buyer activity + verification advantage</p>
             <p className="text-xs text-muted-foreground leading-relaxed mb-2">Demand starts accelerating quickly here. Buyers begin locking in plans and verified inventory becomes much more valuable.</p>
             <p className="text-xs text-muted-foreground leading-relaxed mb-2">Instant Transfer sellers have a major advantage because their inventory is already verified and ready for fast fulfillment.</p>
             <p className="text-xs text-muted-foreground leading-relaxed">Standard listings can still absolutely sell at any point before the event ends — including during the event itself — but sellers must remain available to manually transfer tickets after purchase.</p>
-            <div className="mt-3 px-3 py-2 rounded-xl text-xs font-semibold" style={{ background: 'rgba(0,255,135,0.08)', border: '1px solid rgba(0,255,135,0.2)', color: 'var(--neon-green)' }}>
+            <div className="mt-3 px-3 py-2 rounded-xl text-xs font-semibold" style={{ background: 'rgba(var(--neon-green-rgb), 0.08)', border: '1px solid rgba(var(--neon-green-rgb), 0.2)', color: 'var(--neon-green)' }}>
               💡 Want the easiest experience? Transfer inventory to PG early.
             </div>
           </div>
 
           {/* Day before */}
-          <div className="rounded-2xl p-4" style={{ background: 'var(--pg-surface)', border: `1px solid rgba(255,230,0,0.2)` }}>
+          <div className="rounded-2xl p-4" style={{ background: 'var(--pg-surface)', border: `1px solid rgba(var(--neon-yellow-rgb), 0.2)` }}>
             <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
               <span className="font-black text-xs text-muted-foreground">Day before the event</span>
-              <span className="text-[10px] font-black px-2.5 py-1 rounded-full" style={{ background: 'rgba(255,230,0,0.1)', color: 'var(--neon-yellow)', border: '1px solid rgba(255,230,0,0.3)' }}>🟡 High Demand</span>
+              <span className="text-[10px] font-black px-2.5 py-1 rounded-full" style={{ background: 'rgba(var(--neon-yellow-rgb), 0.1)', color: 'var(--neon-yellow)', border: '1px solid rgba(var(--neon-yellow-rgb), 0.3)' }}>🟡 High Demand</span>
             </div>
             <p className="font-bold text-sm text-foreground mb-1">Urgency starts taking over</p>
             <p className="text-xs text-muted-foreground leading-relaxed mb-2">A huge percentage of buyers shop the day before events. Buyers now heavily prioritize fast delivery, verified inventory, and trusted fulfillment.</p>
             <p className="text-xs text-muted-foreground leading-relaxed mb-2">Instant Transfer becomes especially valuable here because buyers do not want to risk slow seller response times.</p>
             <p className="text-xs text-muted-foreground leading-relaxed">Standard listings can still sell perfectly fine, but sellers should expect to stay near their phone/device in case a buyer purchases and needs immediate transfer.</p>
-            <div className="mt-3 px-3 py-2 rounded-xl text-xs font-semibold" style={{ background: 'rgba(255,230,0,0.08)', border: '1px solid rgba(255,230,0,0.2)', color: '#c8b800' }}>
+            <div className="mt-3 px-3 py-2 rounded-xl text-xs font-semibold" style={{ background: 'rgba(var(--neon-yellow-rgb), 0.08)', border: '1px solid rgba(var(--neon-yellow-rgb), 0.2)', color: 'var(--neon-yellow)' }}>
               💡 Instant Transfer removes the need to babysit your listings.
             </div>
           </div>
 
           {/* Day of */}
-          <div className="rounded-2xl p-4" style={{ background: 'var(--pg-surface)', border: `1px solid rgba(255,140,0,0.2)` }}>
+          <div className="rounded-2xl p-4" style={{ background: 'var(--pg-surface)', border: `1px solid rgba(var(--neon-orange-rgb), 0.2)` }}>
             <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
               <span className="font-black text-xs text-muted-foreground">Day of the event</span>
-              <span className="text-[10px] font-black px-2.5 py-1 rounded-full" style={{ background: 'rgba(255,140,0,0.1)', color: 'var(--neon-orange)', border: '1px solid rgba(255,140,0,0.3)' }}>🟠 Peak Urgency</span>
+              <span className="text-[10px] font-black px-2.5 py-1 rounded-full" style={{ background: 'rgba(var(--neon-orange-rgb), 0.1)', color: 'var(--neon-orange)', border: '1px solid rgba(var(--neon-orange-rgb), 0.3)' }}>🟠 Peak Urgency</span>
             </div>
             <p className="font-bold text-sm text-foreground mb-1">Fast fulfillment matters most</p>
             <p className="text-xs text-muted-foreground leading-relaxed mb-2">Day-of buyers are making fast decisions and want immediate fulfillment. This is where Peanut Gallery becomes very different from traditional resale marketplaces.</p>
             <p className="text-xs text-muted-foreground leading-relaxed mb-2">Tickets can still be sold throughout the event, including as live upgrades. However, Instant Transfer inventory is already verified and ready — standard listings still require the seller to manually transfer tickets after purchase.</p>
             <p className="text-xs text-muted-foreground leading-relaxed">If a seller cannot complete transfer, payout cannot be released.</p>
-            <div className="mt-3 px-3 py-2 rounded-xl text-xs font-semibold" style={{ background: 'rgba(255,140,0,0.08)', border: '1px solid rgba(255,140,0,0.2)', color: 'var(--neon-orange)' }}>
+            <div className="mt-3 px-3 py-2 rounded-xl text-xs font-semibold" style={{ background: 'rgba(var(--neon-orange-rgb), 0.08)', border: '1px solid rgba(var(--neon-orange-rgb), 0.2)', color: 'var(--neon-orange)' }}>
               💡 If you know you won't be available later, transfer inventory to PG early for the fully hands-off experience.
             </div>
           </div>
 
           {/* After event starts */}
-          <div className="rounded-2xl p-4" style={{ background: 'var(--pg-surface)', border: `1px solid rgba(0,200,255,0.2)` }}>
+          <div className="rounded-2xl p-4" style={{ background: 'var(--pg-surface)', border: `1px solid rgba(var(--neon-cyan-rgb), 0.2)` }}>
             <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
               <span className="font-black text-xs text-muted-foreground">After the event starts</span>
-              <span className="text-[10px] font-black px-2.5 py-1 rounded-full" style={{ background: 'rgba(0,200,255,0.1)', color: 'var(--neon-cyan)', border: '1px solid rgba(0,200,255,0.3)' }}>⚡ Live Upgrade Window</span>
+              <span className="text-[10px] font-black px-2.5 py-1 rounded-full" style={{ background: 'rgba(var(--neon-cyan-rgb), 0.1)', color: 'var(--neon-cyan)', border: '1px solid rgba(var(--neon-cyan-rgb), 0.3)' }}>⚡ Live Upgrade Window</span>
             </div>
             <p className="font-bold text-sm text-foreground mb-1">Where Peanut Gallery becomes different</p>
             <p className="text-xs text-muted-foreground leading-relaxed mb-2">Traditional resale marketplaces effectively stop once an event begins. Peanut Gallery is designed for live event demand.</p>
             <p className="text-xs text-muted-foreground leading-relaxed mb-2">Fans already inside the venue may move closer, upgrade sections, grab newly available seats, or improve their experience mid-event. Tickets can continue selling until the event ends.</p>
             <p className="text-xs text-muted-foreground leading-relaxed">Instant Transfer inventory becomes incredibly valuable here because PG already has custody and can begin fulfillment immediately. Standard listings can still sell too — sellers just need to remain available to manually transfer tickets to buyers after purchase in order to receive payout.</p>
-            <div className="mt-3 px-3 py-2 rounded-xl text-xs font-semibold" style={{ background: 'rgba(0,200,255,0.08)', border: '1px solid rgba(0,200,255,0.2)', color: 'var(--neon-cyan)' }}>
+            <div className="mt-3 px-3 py-2 rounded-xl text-xs font-semibold" style={{ background: 'rgba(var(--neon-cyan-rgb), 0.08)', border: '1px solid rgba(var(--neon-cyan-rgb), 0.2)', color: 'var(--neon-cyan)' }}>
               💡 Instant Transfer is the easiest way to participate in live upgrades without needing to monitor your phone during the event.
             </div>
           </div>
@@ -244,12 +244,12 @@ export default function InstantListingsGuide() {
 
         {/* CTA nudge */}
         <div className="mt-5 rounded-2xl p-4 text-center"
-          style={{ background: 'rgba(0,200,255,0.06)', border: '1px solid rgba(0,200,255,0.2)' }}>
+          style={{ background: 'rgba(var(--neon-cyan-rgb), 0.06)', border: '1px solid rgba(var(--neon-cyan-rgb), 0.2)' }}>
           <p className="font-black text-sm text-foreground mb-1">📅 Just found out you can't make it?</p>
           <p className="text-xs text-muted-foreground mb-3 leading-relaxed">List right now — every hour you wait is a potential buyer you miss.</p>
           <Link to="/create-listing"
             className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full font-black text-xs"
-            style={{ background: `linear-gradient(135deg, ${CYAN}, ${GREEN})`, color: '#0D0B14' }}>
+            style={{ background: 'var(--pg-mint)', color: 'var(--pg-ink)' }}>
             <Zap className="w-3.5 h-3.5" /> List My Tickets Now
           </Link>
         </div>
@@ -265,7 +265,7 @@ export default function InstantListingsGuide() {
       <div className="space-y-3">
         <Link to="/create-listing"
           className="pg-guide-action flex items-center justify-center gap-2 w-full py-4 rounded-full font-black text-sm"
-          style={{ background: `linear-gradient(135deg, ${CYAN}, ${GREEN})`, color: '#0D0B14', boxShadow: `0 0 18px rgba(0,200,255,0.25)` }}>
+          style={{ background: 'var(--pg-mint)', color: 'var(--pg-ink)', boxShadow: `0 0 18px rgba(var(--neon-cyan-rgb), 0.25)` }}>
           <Zap className="w-4 h-4" /> Create Instant Listing
         </Link>
         <Link to="/seller-payout-guide"
