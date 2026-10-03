@@ -92,3 +92,13 @@ Separate branch `codex/pg-audit-followup-20261003` repairs remaining shared timi
 This follow-up is local only until the delivery record says otherwise. Next: upload branch, inspect changed light/dark mobile/desktop states in Base44 preview, resolve any rendered defects, then approve and publish the verified revision. Do not confuse passing fixtures with TestFlight verification. The malformed provider title and duplicate identities still need source evidence; refund copy requires Miles's authoritative policy. Real listing/payment/security tests remain deferred to the separate purchase-security workstream.
 
 December 17 remains 75 calendar days away. Session duration is not reliably measured; no velocity or overall launch-readiness percentage is inferred. Preserve concrete results and avoid repeating already-passing broad tests without a new risk.
+
+### PR15 authorized hosted review — October 3, 2026
+
+Imported the approved `codex/pg-audit-followup-20261003` branch into Final preview. GitHub head remained `b680b26ecc1416f76c971d3122c14115215fbc6b`; the preview exposed its branch identity but no independently verifiable served commit SHA. No merge/publication occurred.
+
+Reviewed 373×665 mobile rendering in both themes and representative desktop Events. Verified auth/switch/paper-title contrast, manual city continuity through Phoenix and New York, upcoming versus live-empty hub states, transferability back recovery, FAQ keyboard hiding/focus, truthful Friends recovery, and Flash Drop stacking/scroll/focus return. Two omitted search/city input contrast markers were fixed locally; 10 focused tests and scoped lint passed. Existing broad tests were reused.
+
+The review exposed the existing provider-to-native catalog path dropping venue timezone metadata. A source-only follow-up confirmed browsing invokes catalog synchronization, so “no database writes” cannot be claimed despite no explicit record submission. No listing, gift, payment, notification subscription or purchase-security action was exercised. See `docs/reviews/PR15_PREVIEW_REVIEW_20261003.md` for evidence and limits.
+
+Next: push the narrow contrast follow-up to the same PR, verify those fields after sync, then separately review merge/publication. Scope catalog timezone persistence as the next data-quality task. Refund policy and provider identity/encoding questions remain open. Approximately 25 minutes for this continuation; December 17 remains 75 days away. No overall launch-readiness percentage inferred.
