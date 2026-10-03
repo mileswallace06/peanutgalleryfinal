@@ -15,11 +15,11 @@ export default function BucketListIntro({ onAdd, compact = false }) {
     <p className="pg-bucket-eyebrow">Your next live moment</p>
     <h2 id={titleId}>Build your bucket list.</h2>
     <p className="pg-bucket-intro-description">Start with the names and places you love. Find related fan posts and set up in-app event alerts.</p>
+    <button type="button" className="pg-bucket-primary" onClick={onAdd}><Plus size={18} aria-hidden="true" /> Add to my bucket list</button>
+    <p className="pg-bucket-intro-footnote">Make it yours. Start with one favorite.</p>
     <div className="pg-bucket-benefits">
       <div><Mic2 size={19} aria-hidden="true" /><span><strong>Artists & teams</strong><small>Find your favorites nearby, with alerts for your chosen area.</small></span></div>
       <div><MapPin size={19} aria-hidden="true" /><span><strong>Venues</strong><small>Follow event updates at the places you want to experience.</small></span></div>
     </div>
-    <button type="button" className="pg-bucket-primary" onClick={onAdd}><Plus size={18} aria-hidden="true" /> Add to my bucket list</button>
-    <p className="pg-bucket-intro-footnote">Make it yours. Start with one favorite.</p>
   </section>;
 }

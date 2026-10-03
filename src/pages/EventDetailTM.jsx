@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { format } from 'date-fns';
+import { getEventDateDisplay } from '@/lib/eventDateDisplay';
 import { MapPin, Calendar, ArrowLeft, Ticket, ExternalLink, Plus } from 'lucide-react';
 
 /** Infer vendor label + homepage from a ticket URL domain */
@@ -58,6 +58,11 @@ export default function EventDetailTM() {
           city: localEv.city,
           state: localEv.state,
           date: localEv.date || localEv.event_start_local,
+          event_start_utc: localEv.event_start_utc,
+          venue_timezone: localEv.venue_timezone,
+          date_tba: localEv.date_tba,
+          time_tba: localEv.time_tba,
+          no_specific_time: localEv.no_specific_time,
           image_url: localEv.image_url,
           tm_url: localEv.tm_url,
         };
@@ -94,6 +99,11 @@ export default function EventDetailTM() {
               city: localEv.city,
               state: localEv.state,
               date: localEv.date || localEv.event_start_local,
+              event_start_utc: localEv.event_start_utc,
+              venue_timezone: localEv.venue_timezone,
+              date_tba: localEv.date_tba,
+              time_tba: localEv.time_tba,
+              no_specific_time: localEv.no_specific_time,
               image_url: localEv.image_url,
               tm_url: localEv.tm_url,
             });
@@ -188,7 +198,7 @@ export default function EventDetailTM() {
           <p className="pg-event-eyebrow">Peanut Gallery / Event</p>
           <h1 className="font-display">{event.title}</h1>
           <div className="pg-event-facts">
-            <p><Calendar aria-hidden="true" /><span>{event.date ? format(new Date(event.date), 'EEEE, MMMM d, yyyy · h:mm a') : 'Date to be confirmed'}</span></p>
+            <p><Calendar aria-hidden="true" /><span>{getEventDateDisplay(event)?.detailLabel || 'Date to be confirmed'}</span></p>
             <p><MapPin aria-hidden="true" /><span>{event.venue}{event.city ? `, ${event.city}` : ''}{event.state ? `, ${event.state}` : ''}</span></p>
           </div>
           <div className="pg-event-primary">

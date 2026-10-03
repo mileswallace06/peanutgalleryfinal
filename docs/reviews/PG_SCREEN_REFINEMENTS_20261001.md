@@ -1,5 +1,7 @@
 # PG screen refinements — October 1, 2026
 
+October 3 update: the branch was imported for an authorized hosted mobile review. See [the review and two follow-up corrections](PR14_MOBILE_REVIEW_20261003.md). Statements below describe the original October 1 implementation milestone.
+
 ## Delivery state
 
 Local review branch: `codex/pg-screen-refinements-20261001`.

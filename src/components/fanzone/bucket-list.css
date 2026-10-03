@@ -4,6 +4,7 @@
 .pg-bucket-eyebrow { color: var(--pg-muted); font-size: 10px; line-height: 1.4; font-weight: 700; text-transform: uppercase; letter-spacing: .13em; }
 .pg-bucket-intro h2 { margin-top: 7px; font-family: var(--font-display); font-size: clamp(27px, 7.8vw, 34px); line-height: 1.1; letter-spacing: -.04em; }
 .pg-bucket-intro-description { max-width: 30rem; margin-top: 11px; font-size: 14px; line-height: 1.6; color: var(--pg-muted); }
+.pg-bucket-intro > .pg-bucket-primary { margin-top: 18px; }
 .pg-bucket-benefits { display: grid; gap: 17px; margin: 23px 0; padding: 20px 0; border-top: 1px solid var(--pg-line); border-bottom: 1px solid var(--pg-line); }
 .pg-bucket-benefits > div { display: flex; gap: 12px; align-items: flex-start; }
 .pg-bucket-benefits > div > svg { flex-shrink: 0; color: var(--neon-purple); margin-top: 2px; }

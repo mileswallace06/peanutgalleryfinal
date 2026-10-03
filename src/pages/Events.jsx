@@ -1,9 +1,9 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { format } from 'date-fns';
 import { MapPin, LocateFixed, ChevronDown, ArrowRight, RefreshCw, ShieldCheck, Search, ArrowUpDown, X } from 'lucide-react';
 import { getEventLiveStatus } from '@/lib/eventTiming';
+import { getEventDateDisplay } from '@/lib/eventDateDisplay';
 import { getEventUrl } from '@/lib/eventUrl';
 import { logNavEvent } from '@/lib/navLogger';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
@@ -486,9 +486,8 @@ function EventRow({ event }) {
   const minPrice = event.min_price || null;
   const isPGEvent = event.source === 'pg';
 
-  const date = event.date ? new Date(event.date) : null;
-  const hasDate = date && !Number.isNaN(date.getTime());
-  const dateLabel = hasDate ? format(date, 'EEE, MMM d · h:mm a') : 'Date to be announced';
+  const dateDisplay = getEventDateDisplay(event);
+  const dateLabel = dateDisplay?.label || 'Date to be announced';
 
   const content = (
     <>
@@ -498,7 +497,7 @@ function EventRow({ event }) {
         <p className="pg-browse-ticket-venue" title={[event.venue, event.city, event.state].filter(Boolean).join(', ')}>
           {event.venue}{event.city ? `, ${event.city}` : ''}{event.state ? `, ${event.state}` : ''}
         </p>
-        <p className="pg-browse-ticket-detail" title={dateLabel}>{hasDate ? format(date, 'h:mm a') : 'Time TBA'}</p>
+        <p className="pg-browse-ticket-detail" title={dateLabel}>{dateDisplay?.time || 'Time TBA'}</p>
         {isPGEvent && listingCount > 0 && (
           <p className="pg-browse-ticket-detail">
             {minPrice ? <>From <strong>${minPrice}</strong><span> · </span></> : null}
@@ -511,8 +510,8 @@ function EventRow({ event }) {
         {event.category && <span className="sr-only">{event.category}</span>}
       </div>
       <span className="pg-browse-ticket-stub">
-        <span className="pg-browse-ticket-month">{hasDate ? format(date, 'MMM') : 'TBD'}</span>
-        <span className="pg-browse-ticket-day">{hasDate ? format(date, 'd') : '—'}</span>
+        <span className="pg-browse-ticket-month">{dateDisplay?.month || 'TBD'}</span>
+        <span className="pg-browse-ticket-day">{dateDisplay?.day || '—'}</span>
         {isLive && <span className="pg-browse-ticket-status">LIVE</span>}
         {eventUrl ? <ArrowRight aria-hidden="true" className="pg-browse-ticket-arrow" /> : <span className="pg-browse-ticket-status">Unavailable</span>}
       </span>
