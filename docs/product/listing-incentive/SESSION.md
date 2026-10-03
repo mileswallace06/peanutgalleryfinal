@@ -73,3 +73,11 @@ Found and corrected two local issues: Events/Ticketmaster detail used viewer tim
 Next: update this same PR branch, recheck only the two corrected areas, then obtain merge/publication approval. Alerts remain off; genuine listing/payment tests and purchase security remain separate. Roughly 15–20 minutes of this continuation were spent on hosted review and bounded repairs; this is one session estimate, not enough evidence to infer overall launch velocity. December 17 remains 75 calendar days away.
 
 Direct GitHub update was attempted after the fixes were committed locally; the connector rejected create-tree with HTTP 403 `Resource not accessible by integration`. No remote tree/commit/ref update was acknowledged. Delivery therefore uses the existing bundle upload workflow. The imported preview remains on the earlier PR head until the owner pushes the follow-up.
+
+### Successful upload and targeted recheck — October 3, 2026, 13:54–14:05 Arizona time
+
+The owner pushed the review fixes. GitHub confirms PR #14 at `0186e53e9ba9c276a85374d59d4801511c2ba771`, open, mergeable and draft; Main remains `ce49debb0d5d5a855b59b054b792dac1f12decc6`. Base44 preview metadata exposed the same revision and the correct imported branch. Dark/light hosted checks passed for venue-local Events times/date stubs, three-card fit and the now-visible Bucket List primary action. The dialog still opens/closes and restores focus. Preview theme was restored to dark.
+
+The targeted detail check found one additional concrete case: an old saved Event lacks venue_timezone, overriding the complete data on the selected Events card. A render-only matching-card fallback is now prepared locally; it validates identity, instant and venue before using a missing zone. Seven focused tests and scoped lint passed; broad suites were not rerun. No real listing, purchase, favorite or alert-preference action was taken; no merge/publication or alert activation occurred. Purchase security remains separate.
+
+Next: upload this narrow follow-up, verify that same detail renders 3:00 PM MST like its card, then approve merge/publication. Other passed review areas do not need repeating. Roughly 10 minutes for this continuation is an estimate, not a launch velocity measurement. December 17 remains 75 calendar days away.

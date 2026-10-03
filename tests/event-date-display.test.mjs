@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import { transform } from 'esbuild';
 import { getEventDateDisplay } from '../src/lib/eventDateDisplay.js';
+import { reliableTime } from '../src/lib/sellingEventTiming.js';
 import { getEventLiveStatus } from '../src/lib/eventTiming.js';
 import { getEventUrl } from '../src/lib/eventUrl.js';
 
@@ -86,42 +87,107 @@ test('unavailable venue zones use explicitly labeled UTC without guessing from t
   }
 });
 
-test('Ticketmaster detail preserves local timing metadata and renders venue time or TBA without writes', async () => {
+async function renderDetail({ localEvent = event, passedEvent, tmId = 'fixture' } = {}) {
   const source = (await readFile(new URL('../src/pages/EventDetailTM.jsx', import.meta.url), 'utf8')).replace(/^import .+\n/gm, '');
+  const state = [];
+  const effects = [];
+  let cursor = 0;
+  let finishLoading;
+  const loaded = new Promise(resolve => { finishLoading = resolve; });
+  const calls = [];
+  const reads = [];
+  const { default: Detail } = await compile(source, {
+    getEventDateDisplay, reliableTime,
+    console: { info() {}, warn() {}, error() {} },
+    useParams: () => ({ tmId }), useNavigate: () => () => {}, useLocation: () => ({ state: { tmEvent: passedEvent } }),
+    useEffect: fn => effects.push(fn),
+    useState: initial => {
+      const index = cursor++;
+      if (!(index in state)) state[index] = initial;
+      return [state[index], value => { state[index] = value; if (index === 3 && value === false) finishLoading(); }];
+    },
+    base44: {
+      auth: { me: async () => null },
+      entities: { Event: { filter: async query => { reads.push(query); return [{ ...localEvent, id: 'local-fixture' }]; } } },
+      functions: { invoke: async (name, body) => { calls.push({ name, body }); return { data: { listings: [] } }; } },
+    },
+    Link: 'a', MapPin: 'pin', Calendar: 'calendar', ArrowLeft: 'back', Ticket: 'ticket',
+    ExternalLink: 'external', Plus: 'plus', ListingCard: 'listing', PurchaseDialog: 'purchase', Disclosure: 'details',
+  });
+  Detail();
+  effects[0]();
+  await loaded;
+  cursor = 0;
+  return { rendered: text(Detail()), state, calls, reads };
+}
+
+test('Ticketmaster detail preserves local timing metadata and renders venue time or TBA without writes', async () => {
   for (const time_tba of [false, true]) {
-    const state = [];
-    const effects = [];
-    let cursor = 0;
-    let finishLoading;
-    const loaded = new Promise(resolve => { finishLoading = resolve; });
-    const calls = [];
-    const { default: Detail } = await compile(source, {
-      getEventDateDisplay,
-      console: { info() {}, warn() {}, error() {} },
-      useParams: () => ({ tmId: 'fixture' }), useNavigate: () => () => {}, useLocation: () => ({}),
-      useEffect: fn => effects.push(fn),
-      useState: initial => {
-        const index = cursor++;
-        if (!(index in state)) state[index] = initial;
-        return [state[index], value => { state[index] = value; if (index === 3 && value === false) finishLoading(); }];
-      },
-      base44: {
-        auth: { me: async () => null },
-        entities: { Event: { filter: async () => [{ ...event, id: 'local-fixture', time_tba }] } },
-        functions: { invoke: async (name, body) => { calls.push({ name, body }); return { data: { listings: [] } }; } },
-      },
-      Link: 'a', MapPin: 'pin', Calendar: 'calendar', ArrowLeft: 'back', Ticket: 'ticket',
-      ExternalLink: 'external', Plus: 'plus', ListingCard: 'listing', PurchaseDialog: 'purchase', Disclosure: 'details',
-    });
-    Detail();
-    effects[0]();
-    await loaded;
-    cursor = 0;
-    const rendered = text(Detail());
+    const { rendered, state, calls } = await renderDetail({ localEvent: { ...event, time_tba } });
     assert.match(rendered, time_tba ? /Date to be confirmed/ : /Thursday, October 1, 2026 · 7:00 PM MST/);
     assert.equal(state[0].event_start_utc, event.event_start_utc);
     assert.equal(state[0].venue_timezone, event.venue_timezone);
     assert.equal(state[0].time_tba, time_tba);
+    assert.deepEqual(calls.map(call => call.name), ['getListingParticipantView']);
+  }
+});
+
+const missingZoneEvent = {
+  ...event, venue: 'The Rose Theatre', city: 'Phoenix', state: 'AZ',
+  event_start_utc: undefined, date: '2026-10-03T22:00:00Z', venue_timezone: undefined,
+};
+const matchingRouterEvent = {
+  ...missingZoneEvent, event_start_utc: '2026-10-03T15:00:00-07:00',
+  venue_timezone: 'America/Phoenix',
+};
+
+test('existing Ticketmaster record uses the matching Events card zone only for display', async () => {
+  for (const venue_timezone of [undefined, '', '  ']) {
+    const localEvent = { ...missingZoneEvent, venue_timezone };
+    const { rendered, state, calls, reads } = await renderDetail({ localEvent, passedEvent: matchingRouterEvent });
+    assert.match(rendered, /Saturday, October 3, 2026 · 3:00 PM MST/);
+    assert.doesNotMatch(rendered, /venue time unconfirmed/);
+    assert.equal(state[0].venue_timezone, venue_timezone, 'router zone must not modify the stored event state');
+    assert.equal(state[0].date, localEvent.date);
+    assert.equal(state[0].event_start_utc, undefined);
+    assert.deepEqual(reads.map(query => query.tm_id), ['fixture']);
+    assert.deepEqual(calls.map(call => call.name), ['getListingParticipantView']);
+    assert.equal(calls[0].body.event_id, 'local-fixture');
+  }
+  for (const field of ['date_tba', 'time_tba', 'no_specific_time']) {
+    const { rendered, state } = await renderDetail({
+      localEvent: { ...missingZoneEvent, [field]: true },
+      passedEvent: { ...matchingRouterEvent, [field]: false },
+    });
+    assert.match(rendered, /Date to be confirmed/);
+    assert.equal(state[0][field], true);
+  }
+  const { rendered } = await renderDetail({
+    localEvent: { ...missingZoneEvent, venue_timezone: 'America/New_York' }, passedEvent: matchingRouterEvent,
+  });
+  assert.match(rendered, /Saturday, October 3, 2026 · 6:00 PM EDT/);
+});
+
+test('Ticketmaster detail rejects conflicting or unconfirmed router timezone donors', async () => {
+  const cases = [
+    { passedEvent: undefined },
+    { tmId: 'different-route' },
+    { localEvent: { ...missingZoneEvent, tm_id: 'different-local-event' } },
+    ...[
+      { tm_id: 'different-provider-event' }, { venue: 'Different theatre' }, { venue: '' },
+      { city: 'New York' }, { state: 'NY' },
+      { event_start_utc: '2026-10-04T22:00:00Z' },
+      { event_start_utc: '2026-10-03T22:00:00' },
+      { event_start_utc: undefined, date: undefined },
+      { venue_timezone: 'Invalid/Zone' }, { venue_timezone: '' },
+    ].map(patch => ({ passedEvent: { ...matchingRouterEvent, ...patch } })),
+  ];
+  for (const scenario of cases) {
+    const { rendered, state, calls } = await renderDetail({
+      localEvent: missingZoneEvent, passedEvent: matchingRouterEvent, ...scenario,
+    });
+    assert.match(rendered, /Saturday, October 3, 2026 · 10:00 PM UTC · venue time unconfirmed/);
+    assert.equal(state[0].venue_timezone, undefined);
     assert.deepEqual(calls.map(call => call.name), ['getListingParticipantView']);
   }
 });
