@@ -69,7 +69,7 @@ export default function MoveCloserRail({ listings, event, currentUserEmail, load
     );
   }
 
-  if (upgrades.length === 0) {
+  if (timing.beforeShowtime || upgrades.length === 0) {
     const countdown = timing.countdown;
     return (
       <section>
@@ -77,11 +77,11 @@ export default function MoveCloserRail({ listings, event, currentUserEmail, load
         <div className="pg-state pg-live-empty pg-upgrade-availability">
           {timing.beforeShowtime ? <Clock3 className="pg-upgrade-empty-icon" size={22} /> : <Zap className="pg-upgrade-empty-icon" size={22} />}
           <p className="pg-upgrade-empty-title" role="status">
-            {loadError ? 'Unable to load upgrades' : timing.beforeShowtime ? 'Countdown to showtime' : 'No upgrades available right now'}
+            {loadError ? 'Unable to load upgrades' : timing.beforeShowtime ? 'Countdown to showtime' : 'No upgrades listed yet'}
           </p>
           <p className="pg-upgrade-empty-detail">
             {loadError ? 'We couldn’t check the latest availability. Please try again.'
-              : timing.beforeShowtime ? 'No upgrades have been listed yet. Check back as fans settle in.'
+              : timing.beforeShowtime ? 'Upgrades open at showtime. Check back when the event starts.'
                 : 'New seat upgrades will appear here as fans list them.'}
           </p>
           {countdown && (

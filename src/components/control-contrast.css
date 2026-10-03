@@ -1,0 +1,64 @@
+/* Active control boundaries are separate from decorative lines and input fills. */
+:root {
+  --pg-control-border: #786b80;
+  --pg-control-hover: #62506f;
+  --pg-control-focus: #75439a;
+  --pg-control-error: #a52b58;
+  --pg-control-fill: #eeeae3;
+  --pg-control-text: #241f29;
+  --pg-switch-off: #786b80;
+  --pg-switch-on: #75439a;
+  --pg-switch-thumb: #ffffff;
+}
+:root.dark {
+  --pg-control-border: #92869f;
+  --pg-control-hover: #b8a8c7;
+  --pg-control-focus: #00c8ff;
+  --pg-control-error: #ff6699;
+  --pg-control-fill: #0d0b14;
+  --pg-control-text: #f9f7f1;
+  --pg-switch-off: #92869f;
+  --pg-switch-on: #bf5fff;
+  --pg-switch-thumb: #111217;
+}
+
+input.pg-control-input, textarea.pg-control-input, select.pg-control-input,
+.pg-auth-ticket .pg-auth-input {
+  --pg-field-boundary: var(--pg-control-border);
+  border: 1px solid var(--pg-field-boundary);
+  background-color: var(--pg-control-fill);
+  color: var(--pg-control-text);
+}
+:is(.pg-control-input, .pg-auth-input):enabled:hover { --pg-field-boundary: var(--pg-control-hover); }
+:is(.pg-control-input, .pg-auth-input):enabled:focus-visible {
+  --pg-field-boundary: var(--pg-control-focus);
+  outline: 2px solid var(--pg-control-focus);
+  outline-offset: 3px;
+}
+:is(.pg-control-input, .pg-auth-input)[aria-invalid='true'],
+:is(.pg-control-input, .pg-auth-input):user-invalid { --pg-field-boundary: var(--pg-control-error); }
+/* Keep browser autofill legible without losing the active/error border. */
+:is(.pg-control-input, .pg-auth-input):autofill {
+  background-color: var(--pg-control-fill);
+  color: var(--pg-control-text);
+  box-shadow: inset 0 0 0 1000px var(--pg-control-fill);
+}
+:is(.pg-control-input, .pg-auth-input):-webkit-autofill {
+  -webkit-text-fill-color: var(--pg-control-text);
+  caret-color: var(--pg-control-text);
+  -webkit-box-shadow: inset 0 0 0 1000px var(--pg-control-fill);
+}
+/* Disabled controls remain visibly inactive; active-control contrast is not required. */
+:is(.pg-control-input, .pg-auth-input):disabled { cursor: not-allowed; opacity: .6; }
+
+.pg-preference-toggle .pg-preference-toggle-track,
+.pg-switch[data-state] { background: var(--pg-switch-off); box-shadow: inset 0 0 0 1px var(--pg-control-border); }
+.pg-preference-toggle[aria-checked='true'] .pg-preference-toggle-track,
+.pg-switch[data-state='checked'] { background: var(--pg-switch-on); box-shadow: inset 0 0 0 1px var(--pg-switch-on); }
+.pg-preference-toggle .pg-preference-toggle-thumb,
+.pg-switch .pg-switch-thumb { background: var(--pg-switch-thumb); }
+.pg-preference-toggle:enabled:hover .pg-preference-toggle-track,
+.pg-switch:enabled:hover { outline: 1px solid var(--pg-control-hover); outline-offset: 2px; }
+.pg-member-section .pg-preference-toggle:focus-visible,
+.pg-switch:focus-visible { outline: 2px solid var(--pg-control-focus); outline-offset: 3px; }
+.pg-preference-toggle:disabled { cursor: not-allowed; opacity: .55; }

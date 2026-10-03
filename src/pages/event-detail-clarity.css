@@ -39,6 +39,8 @@
 .pg-event-detail .pg-event-photo-fallback svg { width: 56px; height: 56px; }
 
 .pg-event-detail .pg-event-back {
+  --pg-overlay-ink: #f9f7f1;
+  --pg-overlay-surface: rgba(13, 11, 20, 0.86);
   position: absolute;
   top: 12px;
   left: 12px;
@@ -49,8 +51,8 @@
   padding: 9px 13px;
   border: 1px solid rgba(255, 255, 255, 0.22);
   border-radius: 7px;
-  background: rgba(13, 11, 20, 0.86);
-  color: var(--pg-text, #f7f5f9);
+  background: var(--pg-overlay-surface);
+  color: var(--pg-overlay-ink);
   font-size: 14px;
   font-weight: 700;
   text-decoration: none;
@@ -221,8 +223,9 @@
   .pg-event-detail .pg-event-hero-photo { height: 240px; }
 }
 
-/* Photo controls stay legible; informational accents use deeper daylight ink. */
-.pg-event-detail .pg-event-back { color: #f9f7f1; }
+/* Keep the focus indicator inside its known dark overlay, over any event image. */
+.pg-event-detail .pg-event-hero-photo a.pg-event-back:focus-visible { outline: 2px solid var(--pg-overlay-ink); outline-offset: -4px; }
+/* Informational accents use deeper daylight ink. */
 :root:not(.dark) .pg-event-detail :is(.pg-event-hero, .pg-event-empty) { border-color: var(--pg-line); }
 :root:not(.dark) .pg-event-detail :is(.pg-event-photo-fallback, .pg-event-empty-icon, .pg-event-text-link, .pg-event-explainer > div > svg) { color: var(--neon-cyan); }
 :root:not(.dark) .pg-event-detail .pg-event-notice { color: var(--neon-yellow); border-color: color-mix(in srgb, var(--neon-yellow) 40%, var(--pg-line)); }

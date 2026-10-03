@@ -2,7 +2,8 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { MapPin, LocateFixed, ChevronDown, ArrowRight, RefreshCw, ShieldCheck, Search, ArrowUpDown, X } from 'lucide-react';
-import { getEventLiveStatus } from '@/lib/eventTiming';
+import { getUpgradeEventState } from '@/lib/upgradeEventState';
+import { useEventClock } from '@/hooks/useEventClock';
 import { getEventDateDisplay } from '@/lib/eventDateDisplay';
 import { getEventUrl } from '@/lib/eventUrl';
 import { logNavEvent } from '@/lib/navLogger';
@@ -14,10 +15,11 @@ import LocationAutocomplete from '@/components/LocationAutocomplete';
 import { createEventSearchRequest, buildEventSearchParams } from '@/lib/eventSearchRequest';
 import EventThumbnail from '@/components/events/EventThumbnail';
 import BrowseHeaderTools from '@/components/BrowseHeaderTools';
-import { restoreEventLocation, saveEventLocation, cityFromSuggestion, validCoordinates } from '@/lib/eventLocation';
+import { restoreEventLocation, saveEventLocation, cityFromSuggestion, validCoordinates, sameEventLocation, subscribeEventLocation } from '@/lib/eventLocation';
 import './events-ticket.css';
 
 export default function Events() {
+  const nowMs = useEventClock(1000);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -194,6 +196,13 @@ export default function Events() {
     });
     return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => subscribeEventLocation(location => {
+    if (sameEventLocation(location, localAreaRef.current)) return;
+    locationIntent.current++; pendingNearMe.current = null; cancelRequest(); setRestoringLocation(false);
+    localAreaRef.current = location; setLocalArea(location); setCityError(''); setEditingLocation(false);
+    if (activeSearchRef.current.scope === 'local') fetchEvents(createEventSearchRequest(activeSearchRef.current.keyword, location));
+  }), [fetchEvents, cancelRequest]);
 
   const requestCurrentLocation = (text = activeSearchRef.current.keyword) => {
     locationIntent.current++;
@@ -397,9 +406,9 @@ export default function Events() {
       </div>
 
       {/* ── Live Event Mode Banner ── */}
-      {!loading && filtered.some(e => e.source !== 'ticketmaster' && getEventLiveStatus(e).status === 'live') && (
+      {!loading && filtered.some(e => e.source !== 'ticketmaster' && getUpgradeEventState(e, nowMs).isLive) && (
         <div className="mx-4 mb-4">
-          {filtered.filter(e => e.source !== 'ticketmaster' && getEventLiveStatus(e).status === 'live').map(e => (
+          {filtered.filter(e => e.source !== 'ticketmaster' && getUpgradeEventState(e, nowMs).isLive).map(e => (
             <Link
               key={e.id}
               to={`/upgrades/${e.id}`}
@@ -408,7 +417,7 @@ export default function Events() {
             >
               <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
               <div className="flex-1 min-w-0">
-                <p className="font-bold text-sm text-foreground leading-none">Live Now</p>
+                <p className="font-bold text-sm text-foreground leading-none">{getUpgradeEventState(e, nowMs).status === 'estimated_live' ? 'Live · estimated window' : 'Live Now'}</p>
                 <p className="text-xs text-muted-foreground mt-0.5 truncate">{e.title}</p>
               </div>
               <span className="text-xs font-bold px-3 py-1.5 rounded-full flex-shrink-0"
@@ -456,7 +465,7 @@ export default function Events() {
       ) : (
         <div className="pg-events-list">
           {filtered.map(event => (
-            <EventRow key={event.id} event={event} />
+            <EventRow key={event.id} event={event} nowMs={nowMs} />
           ))}
         </div>
       )}
@@ -464,10 +473,11 @@ export default function Events() {
   );
 }
 
-function EventRow({ event }) {
+function EventRow({ event, nowMs }) {
   const isTM = event.source === 'ticketmaster' || String(event.id || '').startsWith('tm_');
-  const timing = !isTM && event.id ? getEventLiveStatus(event) : null;
-  const isLive = timing?.status === 'live';
+  const timing = !isTM && event.id ? getUpgradeEventState(event, nowMs) : null;
+  const isLive = timing?.isLive;
+  const isEstimated = timing?.status === 'estimated_live';
   const eventUrl = getEventUrl(event);
 
   const handleCardClick = () => {
@@ -497,7 +507,7 @@ function EventRow({ event }) {
         <p className="pg-browse-ticket-venue" title={[event.venue, event.city, event.state].filter(Boolean).join(', ')}>
           {event.venue}{event.city ? `, ${event.city}` : ''}{event.state ? `, ${event.state}` : ''}
         </p>
-        <p className="pg-browse-ticket-detail" title={dateLabel}>{dateDisplay?.time || 'Time TBA'}</p>
+        <p className="pg-browse-ticket-detail" title={dateLabel}>{dateDisplay?.timeLabel || 'Time TBA'}</p>
         {isPGEvent && listingCount > 0 && (
           <p className="pg-browse-ticket-detail">
             {minPrice ? <>From <strong>${minPrice}</strong><span> · </span></> : null}
@@ -512,7 +522,7 @@ function EventRow({ event }) {
       <span className="pg-browse-ticket-stub">
         <span className="pg-browse-ticket-month">{dateDisplay?.month || 'TBD'}</span>
         <span className="pg-browse-ticket-day">{dateDisplay?.day || '—'}</span>
-        {isLive && <span className="pg-browse-ticket-status">LIVE</span>}
+        {isLive && <span className="pg-browse-ticket-status" title={isEstimated ? 'Estimated live window; the event may have ended' : undefined}>{isEstimated ? 'LIVE · EST.' : 'LIVE'}</span>}
         {eventUrl ? <ArrowRight aria-hidden="true" className="pg-browse-ticket-arrow" /> : <span className="pg-browse-ticket-status">Unavailable</span>}
       </span>
     </>

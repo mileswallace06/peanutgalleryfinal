@@ -28,6 +28,7 @@ export default function BrandedAuth({ mode = 'login', resetToken = '', providers
   const [otpCode, setOtpCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState(location.state?.authNotice ? { ok: true, message: location.state.authNotice } : null);
+  const [errorFields, setErrorFields] = useState([]);
   const submitOnce = useRef(createAuthSubmission());
   const origin = window.location.origin;
   const returnTo = safeAuthReturn(new URLSearchParams(location.search).get('from_url'), origin);
@@ -43,23 +44,40 @@ export default function BrandedAuth({ mode = 'login', resetToken = '', providers
     setPassword('');
     setConfirmPassword('');
     setOtpCode('');
+    setErrorFields([]);
     setNotice(location.state?.authNotice ? { ok: true, message: location.state.authNotice } : null);
   }, [mode, location.key]);
+
+  function fieldErrorProps(field) {
+    const invalid = !notice?.ok && errorFields.includes(field);
+    return { 'aria-invalid': invalid || undefined, 'aria-describedby': invalid ? 'pg-auth-feedback' : undefined };
+  }
+
+  function editField(field, setter, value) {
+    setter(value);
+    if (errorFields.includes(field)) {
+      setErrorFields([]);
+      setNotice(null);
+    }
+  }
 
   async function run(action, provider) {
     return submitOnce.current(async () => {
       if (needsConfirmation && ['register', 'reset'].includes(action) && password !== confirmPassword) {
         setNotice({ ok: false, message: 'The passwords don’t match. Please enter them again.' });
+        setErrorFields(['password', 'confirm']);
         return;
       }
       setBusy(true);
       setNotice(null);
+      setErrorFields([]);
       try {
         const result = await performBrandedAuth({
           action, auth: base44.auth, input: { email, password, otpCode, resetToken, provider },
           checkUserAuth, navigate, returnTo, origin,
         });
         setNotice(result);
+        if (!result.ok) setErrorFields({ login: ['email', 'password'], register: ['email', 'password'], verify: ['code'], reset: ['password', 'confirm'] }[action] || []);
         if (result.ok && result.nextStep === 'verify') {
           setPassword('');
           setConfirmPassword('');
@@ -83,22 +101,22 @@ export default function BrandedAuth({ mode = 'login', resetToken = '', providers
         <fieldset disabled={busy || resetUnavailable} className="space-y-5 min-w-0">
           {isEmailStep && <label className="block text-sm font-semibold" htmlFor="pg-auth-email">Email
             <input id="pg-auth-email" type="email" autoComplete="email" autoCapitalize="none" spellCheck={false} required
-              value={email} onChange={(event) => setEmail(event.target.value)} className={INPUT_CLASS} />
+              {...fieldErrorProps('email')} value={email} onChange={(event) => editField('email', setEmail, event.target.value)} className={INPUT_CLASS} />
           </label>}
           {step === 'verify' && <>
             <p className="text-sm pg-public-muted break-words">Sent to {email}</p>
             <label className="block text-sm font-semibold" htmlFor="pg-auth-code">Verification code
               <input id="pg-auth-code" type="text" inputMode="numeric" autoComplete="one-time-code" required
-                value={otpCode} onChange={(event) => setOtpCode(event.target.value)} className={INPUT_CLASS} />
+                {...fieldErrorProps('code')} value={otpCode} onChange={(event) => editField('code', setOtpCode, event.target.value)} className={INPUT_CLASS} />
             </label>
           </>}
           {isPasswordStep && <label className="block text-sm font-semibold" htmlFor="pg-auth-password">{step === 'reset' ? 'New password' : 'Password'}
             <input id="pg-auth-password" type="password" autoComplete={step === 'login' ? 'current-password' : 'new-password'} required
-              value={password} onChange={(event) => setPassword(event.target.value)} className={INPUT_CLASS} />
+              {...fieldErrorProps('password')} value={password} onChange={(event) => editField('password', setPassword, event.target.value)} className={INPUT_CLASS} />
           </label>}
           {needsConfirmation && <label className="block text-sm font-semibold" htmlFor="pg-auth-confirm">Confirm password
             <input id="pg-auth-confirm" type="password" autoComplete="new-password" required
-              value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} className={INPUT_CLASS} />
+              {...fieldErrorProps('confirm')} value={confirmPassword} onChange={(event) => editField('confirm', setConfirmPassword, event.target.value)} className={INPUT_CLASS} />
           </label>}
           {step === 'login' && <Link className="pg-public-link text-sm" to={authPageHref('/forgot-password', returnTo)}>Forgot password?</Link>}
           <button type="submit" className="pg-public-action w-full min-h-12 text-base">
@@ -108,7 +126,7 @@ export default function BrandedAuth({ mode = 'login', resetToken = '', providers
         {resetUnavailable && <div role="alert" className="text-sm leading-relaxed pg-auth-notice--error">
           This reset link could not be opened. <Link className="underline underline-offset-4" to={authPageHref('/forgot-password', returnTo)}>Request a new reset link.</Link>
         </div>}
-        {notice?.message && <p role={notice.ok ? 'status' : 'alert'} aria-live="polite" className={`text-sm leading-relaxed ${notice.ok ? 'pg-auth-notice--success' : 'pg-auth-notice--error'}`}>{notice.message}</p>}
+        {notice?.message && <p id="pg-auth-feedback" role={notice.ok ? 'status' : 'alert'} aria-live="polite" className={`text-sm leading-relaxed ${notice.ok ? 'pg-auth-notice--success' : 'pg-auth-notice--error'}`}>{notice.message}</p>}
       </form>
 
       {['login', 'register'].includes(step) && <>
@@ -125,7 +143,7 @@ export default function BrandedAuth({ mode = 'login', resetToken = '', providers
       </>}
       {step === 'verify' && <div className="mt-5 space-y-3">
         <button type="button" disabled={busy} onClick={() => run('resend')} className={SECONDARY_CLASS}>Send another code</button>
-        <button type="button" disabled={busy} onClick={() => { setStep('register'); setOtpCode(''); setNotice(null); }} className="pg-public-link text-sm">Use a different email</button>
+        <button type="button" disabled={busy} onClick={() => { setStep('register'); setOtpCode(''); setNotice(null); setErrorFields([]); }} className="pg-public-link text-sm">Use a different email</button>
       </div>}
       {['forgot', 'reset'].includes(step) && <Link className="pg-public-link mt-5 text-sm" to={authPageHref('/login', returnTo)}>Back to sign in</Link>}
     </PGAuthShell>

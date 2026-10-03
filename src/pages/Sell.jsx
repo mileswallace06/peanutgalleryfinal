@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { format } from 'date-fns';
-import { Plus, Ticket, LogIn, ExternalLink, Loader2, AlertCircle, MapPin, ChevronRight, ArrowRight } from 'lucide-react';
-import { fetchTMEvents } from '@/lib/tmCache';
+import { getEventDateDisplay } from '@/lib/eventDateDisplay';
+import { Plus, Ticket, LogIn, ExternalLink, Loader2, AlertCircle, MapPin, ChevronRight, ArrowRight, X } from 'lucide-react';
+import { useSellingDiscovery } from '@/hooks/useSellingDiscovery';
+import LocationAutocomplete from '@/components/LocationAutocomplete';
+import { sellingEventList } from '@/lib/sellingEventTiming';
+import { useEventClock } from '@/hooks/useEventClock';
 import { isAdmin } from '@/lib/isAdmin';
 import './sell-ticket.css';
 
@@ -15,9 +18,12 @@ export default function Sell() {
   const [onboardingChecking, setOnboardingChecking] = useState(false);
   const [searchParams] = useSearchParams();
 
-  // Nearby events state
-  const [nearbyEvents, setNearbyEvents] = useState([]);
-  const [nearbyLoading, setNearbyLoading] = useState(true);
+  // A browsing market never grants venue eligibility or replaces purchase checks.
+  const discovery = useSellingDiscovery();
+  const now = useEventClock();
+  const nearbyEvents = sellingEventList(discovery.result.events, 'all', now).slice(0, 8).map(row => row.event);
+  const nearbyLoading = discovery.loading || discovery.restoring;
+  const nearbyError = discovery.result.pgError || discovery.result.tmError;
 
   const loadUser = async () => {
     // Pass { fresh: true } to bypass any SDK-level cache
@@ -25,47 +31,6 @@ export default function Sell() {
     setUser(me);
     return me;
   };
-
-  // Fetch nearby events via geolocation — same logic as Events page
-  useEffect(() => {
-    setNearbyLoading(true);
-    const now = Date.now();
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const ll = `${pos.coords.latitude},${pos.coords.longitude}`;
-        try {
-          const [localData, { events: tmEventsRaw }] = await Promise.all([
-            base44.entities.Event.list('date', 50),
-            fetchTMEvents(base44, { latlong: ll, radius: '50', size: 40 }),
-          ]);
-
-          const tmCities = new Set(tmEventsRaw.map(e => e.city?.toLowerCase()).filter(Boolean));
-
-          let pgFiltered = localData
-            .filter(e => e.status !== 'ended')
-            .filter(e => !e.date || now < new Date(e.date).getTime())
-            .filter(e => !e.is_beta_live);
-
-          if (tmCities.size > 0) {
-            pgFiltered = pgFiltered.filter(e => !e.city || tmCities.has(e.city.toLowerCase()));
-          } else {
-            pgFiltered = [];
-          }
-
-          const pgEvents = pgFiltered.map(e => ({ ...e, source: 'pg' }));
-          const pgTmIds = new Set(pgEvents.map(e => e.tm_id).filter(Boolean));
-          const tmEvents = tmEventsRaw
-            .filter(e => !pgTmIds.has(e.tm_id))
-            .map(e => ({ ...e, id: `tm_${e.tm_id}`, source: 'ticketmaster' }));
-
-          setNearbyEvents([...pgEvents, ...tmEvents].slice(0, 8));
-        } catch (_) {}
-        setNearbyLoading(false);
-      },
-      () => setNearbyLoading(false),
-      { timeout: 8000, enableHighAccuracy: false, maximumAge: 60000 }
-    );
-  }, []);
 
   useEffect(() => {
     loadUser()
@@ -241,13 +206,23 @@ export default function Sell() {
 
         {/* Nearby event links retain their existing search and event destinations. */}
         <section className="pg-sell-nearby">
-          <h2 className="pg-section-title"><MapPin size={19} aria-hidden="true" /> Events near you</h2>
+          <h2 className="pg-section-title"><MapPin size={19} aria-hidden="true" /> Nearby events</h2>
+          <button type="button" className="pg-action pg-sell-guide" onClick={discovery.openLocation} aria-expanded={discovery.editingLocation} aria-controls="sell-location-filter">
+            <MapPin size={16} aria-hidden="true" />{discovery.area?.label || 'Choose city'}<ChevronRight size={16} aria-hidden="true" />
+          </button>
+          {discovery.editingLocation && <section id="sell-location-filter" aria-label="Browsing location" className="rounded-xl border border-border bg-card p-4 space-y-3 mb-3">
+            <div className="flex items-center justify-between gap-2"><h3 className="font-bold">Choose your local area</h3><button type="button" onClick={discovery.closeLocation} aria-label="Close location picker" className="pg-action min-h-11 min-w-11 flex items-center justify-center"><X size={18} aria-hidden="true" /></button></div>
+            <LocationAutocomplete value={discovery.locationInput} onChange={discovery.changeLocationInput} onSelect={discovery.selectCity} onSubmit={discovery.rejectCity} onNearMe={null} autoFocus placeholder="Find a city" />
+            {discovery.cityError && <p role="alert" className="text-sm text-muted-foreground">{discovery.cityError}</p>}
+            <button type="button" onClick={() => discovery.locate()} disabled={discovery.locationStatus === 'requesting'} className="pg-action pg-sell-guide disabled:opacity-50">{discovery.locationStatus === 'requesting' ? 'Locating…' : 'Use my location'}</button>
+          </section>}
+          {nearbyError && <div className="pg-state pg-sell-location-state" role="status"><p>Event results are incomplete. Try loading them again.</p><button type="button" className="pg-action pg-sell-guide" onClick={discovery.refresh}>Try again</button></div>}
           {nearbyLoading ? (
             <div className="pg-sell-nearby-list" aria-label="Loading nearby events" role="status">
               {[1, 2, 3].map(i => <div key={i} className="pg-sell-nearby-skeleton" />)}
             </div>
           ) : nearbyEvents.length === 0 ? (
-            <div className="pg-state pg-sell-location-state"><MapPin size={20} aria-hidden="true" /><p>Allow location access to see events near you.</p></div>
+            <div className="pg-state pg-sell-location-state"><MapPin size={20} aria-hidden="true" /><div><p>{!discovery.area ? 'Choose a city or use your location to browse nearby events.' : nearbyError ? 'Nearby events could not be fully loaded.' : `No events found near ${discovery.area.label}. Try another city.`}</p><button type="button" className="pg-action pg-sell-guide" onClick={discovery.openLocation}>Choose city</button></div></div>
           ) : (
             <div className="pg-sell-nearby-list">
               {nearbyEvents.map(ev => {
@@ -262,7 +237,7 @@ export default function Sell() {
                       : <span className="pg-sell-nearby-placeholder"><Ticket size={22} aria-hidden="true" /></span>}
                     <div className="pg-sell-nearby-details">
                       <h3>{ev.title}</h3>
-                      <p>{ev.venue}{ev.city ? `, ${ev.city}` : ''}{ev.date ? ` · ${format(new Date(ev.date), 'MMM d')}` : ''}</p>
+                      <p>{ev.venue}{ev.city ? `, ${ev.city}` : ''}{` · ${getEventDateDisplay(ev)?.compactLabel || 'Date to be confirmed'}`}</p>
                     </div>
                     {isTM ? <span className="pg-sell-search-label">Search <ChevronRight size={14} aria-hidden="true" /></span> : <ChevronRight size={19} aria-hidden="true" />}
                   </Link>
@@ -294,7 +269,7 @@ function ListingRow({ listing, event }) {
       </div>
       <div className="pg-sell-listing-details">
         <h3>{event?.title || `Section ${listing.section}`}</h3>
-        {event?.date && <p className="pg-sell-listing-date">{format(new Date(event.date), 'MMM d · h:mm a')}</p>}
+        {event && <p className="pg-sell-listing-date">{getEventDateDisplay(event)?.compactLabel || 'Date to be confirmed'}</p>}
         <p className="pg-sell-seat-details">
           {event?.title ? `Sec ${listing.section}` : ''}
           {listing.row ? `${event?.title ? ' · ' : ''}Row ${listing.row}` : ''}

@@ -40,7 +40,7 @@ test('countdown uses canonical UTC, rounds the last fraction upward, and flips a
   const atStart = getUpgradeEventState(event, start);
   assert.equal(atStart.status, 'live');
   assert.equal(atStart.countdown, null);
-  assert.match(text(renderState(start)), /No upgrades available right now/);
+  assert.match(text(renderState(start)), /No upgrades listed yet/);
   assert.ok(!renderState(start).some(value => value?.props?.role === 'timer'));
   assert.match(text(renderState(start)), /Alert control/);
 });
@@ -114,7 +114,7 @@ test('missing, TBA, naive, postponed and invalid timing never create a countdown
     const rail = renderState(start, { event: sample, listings: [listing] });
     assert.ok(!rail.some(value => value?.props?.listing));
     assert.match(text(rail), /Event time unconfirmed/);
-    assert.doesNotMatch(text(rail), /No upgrades available|Countdown/);
+    assert.doesNotMatch(text(rail), /No upgrades listed|Countdown/);
   }
 });
 
@@ -136,11 +136,26 @@ test('new visible upgrades replace the empty state while existing proof and rese
   const listing = { id: 'upgrade-1', listing_type: 'live_upgrade', status: 'active', is_verified: true, reservation_state: 'available', asking_price: 50 };
   const available = renderState(start, { listings: [listing] });
   assert.ok(available.some(value => value?.props?.listing?.id === listing.id));
-  assert.doesNotMatch(text(available), /No upgrades available/);
+  assert.doesNotMatch(text(available), /No upgrades listed/);
   for (const unavailable of [{ is_verified: false }, { status: 'sold' }, { reservation_state: 'reserved_by_other' }]) {
     const filtered = renderState(start, { listings: [{ ...listing, ...unavailable }] });
     assert.ok(!filtered.some(value => value?.props?.listing));
-    assert.match(text(filtered), /No upgrades available right now/);
+    assert.match(text(filtered), /No upgrades listed yet/);
+  }
+});
+
+test('upcoming listed offers wait for the same showtime boundary as the hero and countdown', () => {
+  const listing = { id: 'future-offer', listing_type: 'live_upgrade', status: 'active', is_verified: true, reservation_state: 'available', asking_price: 50 };
+  for (const sample of [event, JSON.parse(JSON.stringify(event))]) {
+    const before = renderState(start - 1, { event: sample, listings: [listing] });
+    assert.match(text(before), /Upgrades open at showtime/);
+    assert.ok(before.some(value => value?.props?.role === 'timer'));
+    assert.ok(!before.some(value => value?.props?.listing));
+    assert.doesNotMatch(text(nodes(GeneratedHero({ event: sample, nowMs: start - 1 }))), /LIVE/);
+    const opened = renderState(start, { event: sample, listings: [listing] });
+    assert.ok(opened.some(value => value?.props?.listing?.id === listing.id));
+    assert.ok(!opened.some(value => value?.props?.role === 'timer'));
+    assert.match(text(nodes(GeneratedHero({ event: sample, nowMs: start }))), /LIVE/);
   }
 });
 
@@ -148,7 +163,7 @@ test('a failed availability read reports the failure instead of asserting that i
   const failed = renderState(start, { loadError: true, onRetry: () => {}, refreshing: false });
   assert.match(text(failed), /Unable to load upgrades/);
   assert.match(text(failed), /Try again/);
-  assert.doesNotMatch(text(failed), /No upgrades available right now|Alert control/);
+  assert.doesNotMatch(text(failed), /No upgrades listed yet|Alert control/);
 });
 
 test('compact browse countdowns cover days through the final second without negative or stale labels', () => {

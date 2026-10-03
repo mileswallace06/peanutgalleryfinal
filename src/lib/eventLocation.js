@@ -1,5 +1,16 @@
 const LOCATION_KEY = 'pg_events_local_area_v1';
 const GPS_TTL = 60 * 60 * 1000;
+const marketListeners = new Set();
+
+export function sameEventLocation(a, b) {
+  return (a?.city || '') === (b?.city || '') && (a?.state || '') === (b?.state || '') && (a?.ll || '') === (b?.ll || '');
+}
+
+// Retained tabs share only their browsing market. This is never venue proof.
+export function subscribeEventLocation(listener) {
+  marketListeners.add(listener);
+  return () => { marketListeners.delete(listener); };
+}
 
 export function validCoordinates(value) {
   if (typeof value !== 'string') return null;
@@ -24,7 +35,12 @@ function readJSON(storage, key) {
 
 export function saveEventLocation(location, storage = localStorage, now = Date.now()) {
   const saved = { ...location, validated: true, savedAt: location.savedAt || now };
+  const previous = readJSON(storage, LOCATION_KEY);
   try { storage.setItem(LOCATION_KEY, JSON.stringify(saved)); } catch { /* Browsing still works without storage. */ }
+  if (!sameEventLocation(previous, saved)) {
+    // Let the originating page finish its own update before notifying retained tabs.
+    queueMicrotask(() => marketListeners.forEach(listener => listener(saved)));
+  }
   return saved;
 }
 

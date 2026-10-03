@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
-export function useEventClock() {
+export function useEventClock(intervalMs = 60000) {
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
     const update = () => setNow(Date.now());
     const visible = () => { if (document.visibilityState === 'visible') update(); };
-    const timer = setInterval(update, 60000);
+    const timer = setInterval(update, intervalMs);
     document.addEventListener('visibilitychange', visible);
     window.addEventListener('focus', update);
     return () => { clearInterval(timer); document.removeEventListener('visibilitychange', visible); window.removeEventListener('focus', update); };
-  }, []);
+  }, [intervalMs]);
   return now;
 }

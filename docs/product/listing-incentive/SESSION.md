@@ -81,3 +81,14 @@ The owner pushed the review fixes. GitHub confirms PR #14 at `0186e53e9ba9c276a8
 The targeted detail check found one additional concrete case: an old saved Event lacks venue_timezone, overriding the complete data on the selected Events card. A render-only matching-card fallback is now prepared locally; it validates identity, instant and venue before using a missing zone. Seven focused tests and scoped lint passed; broad suites were not rerun. No real listing, purchase, favorite or alert-preference action was taken; no merge/publication or alert activation occurred. Purchase security remains separate.
 
 Next: upload this narrow follow-up, verify that same detail renders 3:00 PM MST like its card, then approve merge/publication. Other passed review areas do not need repeating. Roughly 10 minutes for this continuation is an estimate, not a launch velocity measurement. December 17 remains 75 calendar days away.
+
+
+## UI audit follow-up — October 3, 2026
+
+Today's baseline is published Main `07d4031c816c7540b91ebff03671092abb1b265c` (PR14). Its release evidence remains in the preceding worktree and saved review package. The October 1 audit was reconciled against this baseline before new edits.
+
+Separate branch `codex/pg-audit-followup-20261003` repairs remaining shared timing/venue labels, retained city selection and Sell recovery, paper-title contrast, auth/switch controls, landing/onboarding semantics, FAQ hiding/focus, native upgrade-alert wording, truthful fan-discovery guidance and Flash Drop dialog access. Focused evidence and all finding dispositions are recorded in `docs/reviews/AUDIT_FOLLOWUP_20261003.md` and its linked checks.
+
+This follow-up is local only until the delivery record says otherwise. Next: upload branch, inspect changed light/dark mobile/desktop states in Base44 preview, resolve any rendered defects, then approve and publish the verified revision. Do not confuse passing fixtures with TestFlight verification. The malformed provider title and duplicate identities still need source evidence; refund copy requires Miles's authoritative policy. Real listing/payment/security tests remain deferred to the separate purchase-security workstream.
+
+December 17 remains 75 calendar days away. Session duration is not reliably measured; no velocity or overall launch-readiness percentage is inferred. Preserve concrete results and avoid repeating already-passing broad tests without a new risk.
