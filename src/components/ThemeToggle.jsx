@@ -9,21 +9,7 @@ export default function ThemeToggle() {
   return (
     <button
       onClick={toggleTheme}
-      className="w-11 h-11 rounded-xl flex items-center justify-center transition-all font-bold"
-      style={{
-        background: theme === 'dark' 
-          ? 'rgba(191,95,255,0.3)' 
-          : 'rgba(255,255,255,0.95)',
-        color: theme === 'dark' 
-          ? '#FF99FF' 
-          : '#1a1a1a',
-        border: theme === 'dark'
-          ? '1.5px solid rgba(191,95,255,0.6)'
-          : '1.5px solid rgba(255,255,255,0.8)',
-        boxShadow: theme === 'dark'
-          ? '0 0 16px rgba(191,95,255,0.25)'
-          : '0 0 12px rgba(255,255,255,0.5)'
-      }}
+      className="pg-theme-toggle w-11 h-11 rounded-xl flex items-center justify-center transition-all font-bold"
       aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
       title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
     >

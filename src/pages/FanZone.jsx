@@ -7,6 +7,8 @@ import { Plus, X, Star, MapPin, Users, ChevronDown, RefreshCw, ArrowUpDown, Chec
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import FanPostComposer from '@/components/fanzone/FanPostComposer';
 import BucketListSheet from '@/components/fanzone/BucketListSheet';
+import BucketListIntro from '@/components/fanzone/BucketListIntro';
+import { filterBucketListPosts } from '@/components/fanzone/bucketListFeed';
 import './community-ticket.css';
 
 const REACTIONS = [
@@ -43,7 +45,7 @@ export default function FanZone() {
 
   // Close the composer when this retained tab is no longer visible.
   useEffect(() => {
-    if (!isTabActive && fab) setFab(null);
+    if (!isTabActive) { setFab(null); setShowBucketList(null); setSortSheetOpen(false); }
   }, [isTabActive]);
   const [posts, setPosts] = useState([]);
   const [events, setEvents] = useState([]);
@@ -61,7 +63,7 @@ export default function FanZone() {
   const createPostButton = useRef(null);
 
   // Filter state
-  const [feedTab, setFeedTab] = useState('trending'); // 'trending' | 'bucket' | 'nearby' | 'friends'
+  const [feedTab, setFeedTab] = useState(() => new URLSearchParams(location.search).get('tab') === 'bucket_list' ? 'bucket' : 'trending'); // 'trending' | 'bucket' | 'nearby' | 'friends'
   // Date sort/filter — Fan Zone supports both upcoming activity AND retrospective posts
   // dateSort: 'upcoming' | 'newest_posted' | 'oldest_event' | 'past'
   // dateFilter: 'all' | 'upcoming' | 'past' | 'recent'
@@ -69,21 +71,30 @@ export default function FanZone() {
   const [dateFilter, setDateFilter] = useState('all');
   const [sortSheetOpen, setSortSheetOpen] = useState(false);
   const [bucketList, setBucketList] = useState([]);
-  const [showBucketList, setShowBucketList] = useState(false);
+  const [showBucketList, setShowBucketList] = useState(null);
+  const [bucketLoading, setBucketLoading] = useState(true);
+  const [bucketError, setBucketError] = useState(false);
+  const bucketTrigger = useRef(null);
   const [userLocation, setUserLocation] = useState(null);
   const [followingEmails, setFollowingEmails] = useState([]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('tab') === 'bucket_list') setFeedTab('bucket');
+    if (params.get('bucket') === 'edit' && user?.email) setShowBucketList('list');
+  }, [location.search, user?.email]);
 
   useEffect(() => {
     base44.auth.me().then(u => {
       setUser(u);
       if (u?.email) {
-        base44.entities.BucketListItem.filter({ user_email: u.email })
-          .then(setBucketList).catch((err) => console.warn('[FanZone] BucketListItem.filter failed:', err?.message || err));
+        loadBucketList(u.email);
         base44.entities.Follow.filter({ follower_email: u.email })
           .then(rows => setFollowingEmails(rows.map(r => r.following_email)))
           .catch((err) => console.warn('[FanZone] Follow.filter failed:', err?.message || err));
-      }
+      } else { setBucketLoading(false); }
     }).catch((err) => {
+      setBucketLoading(false);
       console.warn('[FanZone] auth.me failed:', err?.message || err);
     }).finally(() => setAuthLoading(false));
     loadPosts();
@@ -169,8 +180,25 @@ export default function FanZone() {
     setReactingId(null);
   };
 
-  // Bucket list names for matching
-  const bucketNames = bucketList.map(b => b.name.toLowerCase());
+  const loadBucketList = async email => {
+    setBucketLoading(true);
+    setBucketError(false);
+    try {
+      const rows = await base44.entities.BucketListItem.filter({ user_email: email });
+      setBucketList(Array.isArray(rows) ? rows : []);
+    } catch {
+      setBucketError(true);
+    } finally {
+      setBucketLoading(false);
+    }
+  };
+
+  const openBucketList = (tab = 'search', event) => {
+    if (!user?.email) { base44.auth.redirectToLogin(); return; }
+    bucketTrigger.current = event?.currentTarget || document.activeElement;
+    setShowBucketList(tab);
+  };
+  const bucketNeedsSetup = !authLoading && !bucketLoading && !bucketError && bucketList.length === 0;
 
   // Trending: sort by total reaction count
   const withScore = posts.map(p => {
@@ -187,10 +215,7 @@ export default function FanZone() {
       // Trending: pre-sort by reaction score as base, then date sort overrides ordering
       base = [...withScore].sort((a, b) => b._score - a._score);
     } else if (feedTab === 'bucket') {
-      base = bucketNames.length === 0 ? posts : posts.filter(p => {
-        const haystack = [p.event_title, p.text].join(' ').toLowerCase();
-        return bucketNames.some(name => haystack.includes(name));
-      });
+      base = filterBucketListPosts(posts, bucketList, events);
     } else if (feedTab === 'nearby') {
       if (!userLocation) {
         base = posts.filter(p => !!p.event_city);
@@ -359,10 +384,10 @@ export default function FanZone() {
           <FeedTab id="friends" active={feedTab} label="Friends" onClick={setFeedTab} />
           <FeedTab id="bucket" active={feedTab} label="Bucket List" badge={bucketList.length || null} onClick={setFeedTab} />
         </div>
-        {feedTab === 'bucket' && (
+        {feedTab === 'bucket' && !bucketLoading && !bucketError && bucketList.length > 0 && (
           <div className="pg-feed-context">
-            <p>{bucketList.length === 0 && !loading ? 'Add artists and venues to filter your feed.' : `${bucketList.length} saved to your bucket list`}</p>
-            <button onClick={() => setShowBucketList(true)}>Edit list <Pencil size={14} aria-hidden="true" /></button>
+            <p>{bucketList.length} saved to your bucket list</p>
+            <button onClick={event => openBucketList('list', event)}>Manage list <Pencil size={14} aria-hidden="true" /></button>
           </div>
         )}
         {feedTab === 'nearby' && (
@@ -373,7 +398,9 @@ export default function FanZone() {
         )}
       </div>
 
-      <details className="pg-feed-filter-menu">
+      {feedTab !== 'bucket' && bucketNeedsSetup && <BucketListIntro compact onAdd={event => openBucketList('search', event)} />}
+
+      {!(feedTab === 'bucket' && bucketNeedsSetup) && <details className="pg-feed-filter-menu">
         <summary>
           <strong>Filters</strong>
           <span>{currentDateLabel} · {currentSortLabel}</span>
@@ -400,12 +427,16 @@ export default function FanZone() {
             <ChevronDown size={14} aria-hidden="true" />
           </button>
         </div>
-      </details>
+      </details>}
 
       {/* Feed */}
       <div className="pg-feed">
         {postedAt > 0 && <p className="pg-post-shared" role="status"><Check size={16} aria-hidden="true" /> Post shared.</p>}
-        {loadError && !authLoading ? (
+        {feedTab === 'bucket' && bucketNeedsSetup ? (
+          <BucketListIntro onAdd={event => openBucketList('search', event)} />
+        ) : feedTab === 'bucket' && bucketError ? (
+          <div className="pg-state pg-community-state"><AlertCircle size={30} aria-hidden="true" /><h2>Couldn’t load your bucket list</h2><p>Your saved favorites are still yours. Try loading them again.</p><button className="pg-bucket-primary" onClick={() => loadBucketList(user.email)}>Try again</button></div>
+        ) : loadError && !authLoading ? (
           <div className="pg-state pg-community-state">
             <AlertCircle size={32} aria-hidden="true" />
             <p className="font-bold text-foreground">Couldn't load posts</p>
@@ -418,7 +449,7 @@ export default function FanZone() {
               <RefreshCw className="w-4 h-4" /> Retry
             </button>
           </div>
-        ) : (loading || authLoading) ? (
+        ) : (loading || authLoading || (feedTab === 'bucket' && bucketLoading)) ? (
           [...Array(3)].map((_, i) => (
             <div key={i} className="pg-post-skeleton animate-pulse" aria-label="Loading posts" />
           ))
@@ -433,12 +464,14 @@ export default function FanZone() {
                'No fan posts yet'}
             </p>
             <p className="text-sm text-muted-foreground">
-              {feedTab === 'bucket' ? 'Try adding more artists or venues to your list' :
+              {feedTab === 'bucket' ? 'Posts about your saved artists, teams and venues will show up here. Add more favorites to find more conversations.' :
                feedTab === 'nearby' ? 'Allow location access or try another area' :
                feedTab === 'friends' ? 'Follow fans from your profile to see their posts here' :
                'Be the first to share a moment from an event.'}
             </p>
-            {feedTab !== 'friends' && (
+            {feedTab === 'bucket' ? (
+              <button onClick={event => openBucketList('search', event)} className="pg-bucket-primary"><Plus size={17} aria-hidden="true" /> Add artists, teams & venues</button>
+            ) : feedTab !== 'friends' && (
               <button
                 onClick={() => user?.email ? setFab('post') : base44.auth.redirectToLogin()}
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-sm"
@@ -498,24 +531,8 @@ export default function FanZone() {
         </div>
       )}
 
-      {/* Bucket List sheet */}
-      {showBucketList && (
-        <div className="fixed inset-0 z-50 flex flex-col justify-end">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowBucketList(false)} />
-          <BucketListSheet
-            user={user}
-            onClose={() => {
-              setShowBucketList(false);
-              // Refresh bucket list after editing
-              if (user?.email) {
-                base44.entities.BucketListItem.filter({ user_email: user.email })
-                  .then(setBucketList).catch(() => {});
-              }
-            }}
-          />
-        </div>
-      )}
       </div>, document.body)}
+      {isTabActive && showBucketList && <BucketListSheet user={user} initialTab={showBucketList} initialItems={bucketList} triggerRef={bucketTrigger} onChange={setBucketList} onClose={() => setShowBucketList(null)} />}
     </>
   );
 }

@@ -289,7 +289,7 @@ export default function PurchaseSuccess() {
 
       {isExpired && (
         <div className="flex items-center gap-3 rounded-2xl p-4 mb-5"
-          style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
+          style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
           <XCircle className="w-6 h-6 text-muted-foreground flex-shrink-0" />
           <div>
             <div className="font-semibold text-foreground">Purchase Cancelled</div>
@@ -301,7 +301,7 @@ export default function PurchaseSuccess() {
       {isDisputed && (
         <div className="flex items-center gap-3 rounded-2xl p-4 mb-5"
           style={{ background: 'rgba(255,200,0,0.1)', border: '1px solid rgba(255,200,0,0.3)' }}>
-          <AlertTriangle className="w-6 h-6 flex-shrink-0" style={{ color: '#FFE600' }} />
+          <AlertTriangle className="w-6 h-6 flex-shrink-0" style={{ color: 'var(--neon-yellow)' }} />
           <div>
             <div className="font-bold text-foreground">Dispute Open</div>
             <div className="text-sm text-muted-foreground">Payment frozen. Our team will review and resolve.</div>

@@ -336,16 +336,16 @@ export default function CreateListing() {
 
       {step === 1 && attestationBlocked && (
         <div className="mt-6 rounded-2xl px-4 py-4 text-center space-y-3"
-          style={{ background: 'rgba(255,45,120,0.08)', border: '1px solid rgba(255,45,120,0.3)' }}>
+          style={{ background: 'rgba(var(--neon-pink-rgb), 0.08)', border: '1px solid rgba(var(--neon-pink-rgb), 0.3)' }}>
           <div className="text-2xl">🚫</div>
-          <div className="font-bold text-sm" style={{ color: '#FF2D78' }}>Listing not allowed</div>
+          <div className="font-bold text-sm" style={{ color: 'var(--neon-pink)' }}>Listing not allowed</div>
           <p className="text-xs text-muted-foreground leading-relaxed">
             You indicated you cannot transfer this ticket. Only transferable tickets can be listed on Peanut Gallery.
           </p>
           <button
             onClick={() => setAttestationBlocked(false)}
             className="text-xs font-semibold px-4 py-2 rounded-lg"
-            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: 'hsl(var(--foreground))' }}>
+            style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)', color: 'hsl(var(--foreground))' }}>
             Go back
           </button>
         </div>
@@ -353,9 +353,9 @@ export default function CreateListing() {
 
       {step === 1 && attestationDone && (
         <div className="mt-4 flex items-center gap-2 px-3 py-2 rounded-xl"
-          style={{ background: 'rgba(0,255,135,0.06)', border: '1px solid rgba(0,255,135,0.25)' }}>
-          <CheckCircle className="w-4 h-4 flex-shrink-0" style={{ color: '#00FF87' }} />
-          <span className="text-xs font-semibold" style={{ color: '#00FF87' }}>Transfer ability confirmed · Ready to continue</span>
+          style={{ background: 'rgba(var(--neon-green-rgb), 0.06)', border: '1px solid rgba(var(--neon-green-rgb), 0.25)' }}>
+          <CheckCircle className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--neon-green)' }} />
+          <span className="text-xs font-semibold" style={{ color: 'var(--neon-green)' }}>Transfer ability confirmed · Ready to continue</span>
         </div>
       )}
 
@@ -373,8 +373,8 @@ export default function CreateListing() {
                 onClick={() => { setListingMode('standard'); setItrAgreementDone(false); }}
                 className="p-4 rounded-2xl text-left transition-all"
                 style={{
-                  background: listingMode === 'standard' ? 'rgba(191,95,255,0.08)' : 'hsl(var(--card))',
-                  border: listingMode === 'standard' ? '1px solid rgba(191,95,255,0.35)' : '1px solid hsl(var(--border))',
+                  background: listingMode === 'standard' ? 'rgba(var(--neon-purple-rgb), 0.08)' : 'hsl(var(--card))',
+                  border: listingMode === 'standard' ? '1px solid rgba(var(--neon-purple-rgb), 0.35)' : '1px solid hsl(var(--border))',
                 }}
               >
                 <div className="font-bold text-sm text-foreground mb-1">{listingMode === 'standard' && '✓ '}Standard</div>
@@ -386,11 +386,11 @@ export default function CreateListing() {
                 onClick={() => { setListingMode('instant_transfer_ready'); setItrAgreementDone(false); }}
                 className="p-4 rounded-2xl text-left transition-all"
                 style={{
-                  background: listingMode === 'instant_transfer_ready' ? 'rgba(0,200,255,0.08)' : 'hsl(var(--card))',
-                  border: listingMode === 'instant_transfer_ready' ? '1px solid rgba(0,200,255,0.35)' : '1px solid hsl(var(--border))',
+                  background: listingMode === 'instant_transfer_ready' ? 'rgba(var(--neon-cyan-rgb), 0.08)' : 'hsl(var(--card))',
+                  border: listingMode === 'instant_transfer_ready' ? '1px solid rgba(var(--neon-cyan-rgb), 0.35)' : '1px solid hsl(var(--border))',
                 }}
               >
-                <div className="font-bold text-sm flex items-center gap-1.5" style={{ color: listingMode === 'instant_transfer_ready' ? '#00C8FF' : 'hsl(var(--foreground))' }}>
+                <div className="font-bold text-sm flex items-center gap-1.5" style={{ color: listingMode === 'instant_transfer_ready' ? 'var(--neon-cyan)' : 'hsl(var(--foreground))' }}>
                   <Shield className="w-3.5 h-3.5" /> {listingMode === 'instant_transfer_ready' && '✓ '}Instant Transfer Ready
                 </div>
                 <div className="text-[11px] text-muted-foreground leading-relaxed mt-1">Send your tickets to PG first. After custody is verified, PG handles delivery when they sell.</div>
@@ -405,23 +405,23 @@ export default function CreateListing() {
 
           {listingMode === 'instant_transfer_ready' && itrAgreementDone && (
             <div className="rounded-2xl p-4 space-y-4"
-              style={{ background: 'rgba(0,200,255,0.06)', border: '1px solid rgba(0,200,255,0.25)' }}>
+              style={{ background: 'rgba(var(--neon-cyan-rgb), 0.06)', border: '1px solid rgba(var(--neon-cyan-rgb), 0.25)' }}>
               <div className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 flex-shrink-0" style={{ color: '#00C8FF' }} />
-                <span className="text-sm font-bold" style={{ color: '#00C8FF' }}>Transfer Agent Agreement Signed</span>
+                <CheckCircle className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--neon-cyan)' }} />
+                <span className="text-sm font-bold" style={{ color: 'var(--neon-cyan)' }}>Transfer Agent Agreement Signed</span>
                 <button type="button" onClick={() => setItrAgreementDone(false)}
                   className="ml-auto text-[11px] text-muted-foreground underline">Review</button>
               </div>
 
               <div className="space-y-2 text-xs text-muted-foreground">
                 <p className="font-semibold text-foreground">Next: Submit your ticket for delivery custody</p>
-                <div className="flex items-start gap-2"><span style={{ color: '#00C8FF' }}>1.</span><span>Transfer your ticket to <strong className="text-foreground">experience@peanutgallery.store</strong> via Ticketmaster, SeatGeek, or email transfer.</span></div>
-                <div className="flex items-start gap-2"><span style={{ color: '#00C8FF' }}>2.</span><span>Upload proof below. Our team verifies receipt (usually within hours).</span></div>
-                <div className="flex items-start gap-2"><span style={{ color: '#00C8FF' }}>3.</span><span>Once confirmed, your listing goes live with the <strong style={{ color: '#00C8FF' }}>⚡ Instant Transfer Ready</strong> badge. If it doesn't sell, we return the ticket to you.</span></div>
+                <div className="flex items-start gap-2"><span style={{ color: 'var(--neon-cyan)' }}>1.</span><span>Transfer your ticket to <strong className="text-foreground">experience@peanutgallery.store</strong> via Ticketmaster, SeatGeek, or email transfer.</span></div>
+                <div className="flex items-start gap-2"><span style={{ color: 'var(--neon-cyan)' }}>2.</span><span>Upload proof below. Our team verifies receipt (usually within hours).</span></div>
+                <div className="flex items-start gap-2"><span style={{ color: 'var(--neon-cyan)' }}>3.</span><span>Once confirmed, your listing goes live with the <strong style={{ color: 'var(--neon-cyan)' }}>⚡ Instant Transfer Ready</strong> badge. If it doesn't sell, we return the ticket to you.</span></div>
               </div>
 
               <p className="text-[10px] text-muted-foreground px-1 leading-relaxed"
-                style={{ borderLeft: '2px solid rgba(0,200,255,0.3)', paddingLeft: '8px' }}>
+                style={{ borderLeft: '2px solid rgba(var(--neon-cyan-rgb), 0.3)', paddingLeft: '8px' }}>
                 Peanut Gallery does not own your ticket. We hold it temporarily as your authorized delivery agent only.
               </p>
 
@@ -433,17 +433,17 @@ export default function CreateListing() {
                 <p className="text-xs text-muted-foreground mb-3">Provide a screenshot or transfer notes below to continue.</p>
                 {pgTransferProofUrl ? (
                   <div className="flex items-center gap-3 px-4 py-3 rounded-2xl"
-                    style={{ background: 'rgba(0,200,255,0.08)', border: '1px solid rgba(0,200,255,0.25)' }}>
-                    <CheckCircle className="w-4 h-4 flex-shrink-0" style={{ color: '#00C8FF' }} />
-                    <span className="text-sm font-semibold" style={{ color: '#00C8FF' }}>Proof uploaded ✓</span>
+                    style={{ background: 'rgba(var(--neon-cyan-rgb), 0.08)', border: '1px solid rgba(var(--neon-cyan-rgb), 0.25)' }}>
+                    <CheckCircle className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--neon-cyan)' }} />
+                    <span className="text-sm font-semibold" style={{ color: 'var(--neon-cyan)' }}>Proof uploaded ✓</span>
                     <button onClick={() => setPgTransferProofUrl('')} className="ml-auto text-xs text-muted-foreground hover:text-foreground">Remove</button>
                   </div>
                 ) : (
                   <label className={`flex flex-col items-center justify-center gap-2 rounded-2xl px-4 py-6 cursor-pointer ${uploadingPgProof ? 'opacity-70' : ''}`}
-                    style={{ border: '1.5px dashed rgba(0,200,255,0.35)', background: 'rgba(0,200,255,0.04)' }}>
+                    style={{ border: '1.5px dashed rgba(var(--neon-cyan-rgb), 0.35)', background: 'rgba(var(--neon-cyan-rgb), 0.04)' }}>
                     {uploadingPgProof
-                      ? <span className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" style={{ color: '#00C8FF' }} />
-                      : <Upload className="w-5 h-5" style={{ color: '#00C8FF' }} />}
+                      ? <span className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" style={{ color: 'var(--neon-cyan)' }} />
+                      : <Upload className="w-5 h-5" style={{ color: 'var(--neon-cyan)' }} />}
                     <span className="text-xs text-muted-foreground">{uploadingPgProof ? 'Uploading…' : 'Tap to upload transfer screenshot'}</span>
                     <input type="file" accept="image/*,.pdf" className="hidden" onChange={handlePgProofUpload} disabled={uploadingPgProof} />
                   </label>
@@ -460,7 +460,7 @@ export default function CreateListing() {
                   placeholder="e.g. Transferred via Ticketmaster to experience@peanutgallery.store at 3:45 PM"
                   rows={2}
                   className="w-full px-3 py-2.5 rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
-                  style={{ background: 'rgba(0,200,255,0.05)', border: '1px solid rgba(0,200,255,0.2)' }}
+                  style={{ background: 'rgba(var(--neon-cyan-rgb), 0.05)', border: '1px solid rgba(var(--neon-cyan-rgb), 0.2)' }}
                 />
               </div>
             </div>
@@ -470,7 +470,7 @@ export default function CreateListing() {
           <div>
             <p className="text-xs text-muted-foreground mb-2">Set your price per ticket</p>
             <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-2xl" style={{ color: '#00FF87' }}>$</span>
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-2xl" style={{ color: 'var(--neon-green)' }}>$</span>
               <input
                 aria-label="Price per ticket" inputMode="decimal" type="number" min="1" step="1"
                 value={form.asking_price}
@@ -480,8 +480,8 @@ export default function CreateListing() {
                 style={{
                   fontSize: 'clamp(2rem, 10vw, 2.8rem)',
                   paddingTop: '1rem', paddingBottom: '1rem',
-                  background: 'rgba(0,255,135,0.05)',
-                  border: '1px solid rgba(0,255,135,0.25)',
+                  background: 'rgba(var(--neon-green-rgb), 0.05)',
+                  border: '1px solid rgba(var(--neon-green-rgb), 0.25)',
                   color: 'hsl(var(--foreground))',
                   letterSpacing: '-0.02em',
                 }}
@@ -489,14 +489,14 @@ export default function CreateListing() {
             </div>
             {priceTooLow && (
               <div className="mt-2 flex items-start gap-2 px-3 py-2.5 rounded-xl text-xs font-medium"
-                style={{ background: 'rgba(255,45,120,0.08)', border: '1px solid rgba(255,45,120,0.25)', color: '#FF2D78' }}>
+                style={{ background: 'rgba(var(--neon-pink-rgb), 0.08)', border: '1px solid rgba(var(--neon-pink-rgb), 0.25)', color: 'var(--neon-pink)' }}>
                 <span className="flex-shrink-0 mt-0.5">🚫</span>
                 Listings must be at least ${minPrice} to ensure secure transfers and payment processing.
               </div>
             )}
             {feePreview && !priceTooLow && (
               <div className="mt-2 px-3 py-2.5 rounded-xl text-xs space-y-1"
-                style={{ background: 'rgba(0,255,135,0.05)', border: '1px solid rgba(0,255,135,0.15)' }}>
+                style={{ background: 'rgba(var(--neon-green-rgb), 0.05)', border: '1px solid rgba(var(--neon-green-rgb), 0.15)' }}>
                 <div className="flex justify-between text-muted-foreground">
                   <span>{feePreview.subtotalLabel}</span>
                   <span>${feePreview.subtotal.toFixed(2)}</span>
@@ -505,7 +505,7 @@ export default function CreateListing() {
                   <span>Service fee ({FEE_MODELS[ACTIVE_FEE_MODEL_ID]?.shortLabel})</span>
                   <span>${feePreview.fee.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between font-bold pt-1 border-t" style={{ borderColor: 'rgba(0,255,135,0.15)', color: '#00FF87' }}>
+                <div className="flex justify-between font-bold pt-1 border-t" style={{ borderColor: 'rgba(var(--neon-green-rgb), 0.15)', color: 'var(--neon-green)' }}>
                   <span>Buyer pays</span>
                   <span>${feePreview.total.toFixed(2)}</span>
                 </div>
@@ -532,9 +532,9 @@ export default function CreateListing() {
             </label>
             {form.proof_url ? (
               <div className="flex items-center gap-3 px-4 py-3 rounded-2xl"
-                style={{ background: 'rgba(0,255,135,0.08)', border: '1px solid rgba(0,255,135,0.25)' }}>
-                <CheckCircle className="w-4 h-4 flex-shrink-0" style={{ color: '#00FF87' }} />
-                <span className="text-sm font-semibold" style={{ color: '#00FF87' }}>Uploaded ✓</span>
+                style={{ background: 'rgba(var(--neon-green-rgb), 0.08)', border: '1px solid rgba(var(--neon-green-rgb), 0.25)' }}>
+                <CheckCircle className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--neon-green)' }} />
+                <span className="text-sm font-semibold" style={{ color: 'var(--neon-green)' }}>Uploaded ✓</span>
                 <button onClick={() => set('proof_url', '')} className="ml-auto text-xs text-muted-foreground hover:text-foreground">Remove</button>
               </div>
             ) : (
@@ -561,8 +561,8 @@ export default function CreateListing() {
                 <button key={opt.value} type="button" onClick={() => set('transfer_method', opt.value)} aria-pressed={form.transfer_method === opt.value}
                   className="w-full text-left px-4 py-3.5 rounded-2xl transition-all"
                   style={{
-                    background: form.transfer_method === opt.value ? 'rgba(191,95,255,0.1)' : 'hsl(var(--card))',
-                    border: form.transfer_method === opt.value ? '1px solid rgba(191,95,255,0.35)' : '1px solid hsl(var(--border))',
+                    background: form.transfer_method === opt.value ? 'rgba(var(--neon-purple-rgb), 0.1)' : 'hsl(var(--card))',
+                    border: form.transfer_method === opt.value ? '1px solid rgba(var(--neon-purple-rgb), 0.35)' : '1px solid hsl(var(--border))',
                     color: form.transfer_method === opt.value ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))',
                   }}
                 >

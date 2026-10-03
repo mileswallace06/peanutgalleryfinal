@@ -16,7 +16,7 @@ export default function OurStory() {
 
   return (
     <PublicPage
-      className="dark pg-public-page--story"
+      className="pg-public-page--story"
       style={{ height: '100dvh', overflowY: 'auto', overflowX: 'hidden' }}
     >
       {/* ── Sticky header ── */}

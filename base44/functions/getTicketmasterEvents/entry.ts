@@ -1,5 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import { classifyTMResponse, normalizeTMEvent } from '../../shared/tmResponseHandler.js';
+import { cacheProviderDiscoveryEvents } from '../../shared/discoveryEventCache.js';
 import { buildTMDiscoveryRequest, ongoingCoverage } from '../../shared/tmDiscoveryRequest.js';
 /* global AbortController, fetch */
 
@@ -21,7 +22,7 @@ const TIMEOUT_MS = 8000;
 
 Deno.serve(async (req) => {
   try {
-    createClientFromRequest(req);
+    const base44 = createClientFromRequest(req);
     const body = await req.json().catch(() => null);
     const query = buildTMDiscoveryRequest(body);
     if (query.error) return Response.json({ error: query.error }, { status: 400 });
@@ -72,6 +73,13 @@ Deno.serve(async (req) => {
 
     const candidates = classified.events.slice(0, query.limit);
     const events = candidates.map(normalizeTMEvent);
+    // Default-off rollout preserves the original discovery path. Cache warms
+    // only after activation; at most eight lookups/writes add bounded work.
+    if (Deno.env.get('DISCOVERY_ALERTS_ENABLED') === 'true') {
+      try {
+        await cacheProviderDiscoveryEvents(base44.asServiceRole.entities, candidates);
+      } catch { /* Cache or service-client failure must not change search results. */ }
+    }
     const coverage = ongoingCoverage(query, data, events.length);
     return Response.json(coverage ? { events, coverage } : { events });
   } catch {

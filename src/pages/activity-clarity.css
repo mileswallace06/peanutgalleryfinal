@@ -46,17 +46,10 @@
 .pg-activity-page .pg-sales-view { border: 1px solid #11121730; background: transparent; color: var(--pg-ink); }
 .pg-sale-ticket-summary :is(a, button):focus-visible { outline-color: var(--pg-ink); outline-offset: -4px; }
 .pg-sale-ticket-body {
-  --pg-text: #f9f7f1;
-  --pg-muted: #b8b4c3;
-  --pg-line: #383341;
-  --pg-surface: #1a1822;
-  --pg-surface-raised: #24212d;
-  --foreground: 45 40% 96%;
-  --muted-foreground: 252 12% 74%;
   padding: 14px;
-  border-top: 1px dashed #11121740;
-  background: #1a1822;
-  color: #f9f7f1;
+  border-top: 1px dashed var(--pg-line);
+  background: var(--pg-surface);
+  color: var(--pg-text);
 }
 .pg-sale-ticket-body > div:first-child { border-radius: 8px; }
 .pg-sale-ticket-body .pg-sale-management { margin: 12px 0 0; }
@@ -88,6 +81,7 @@
 .pg-notification-loading { display: grid; gap: 10px; }
 .pg-notification-skeleton { height: 128px; border: 1px solid var(--pg-line); border-radius: 10px; background: var(--pg-surface); }
 :root:not(.dark) .pg-activity-page .pg-activity-error-text { color: #a91349; }
+:root:not(.dark) .pg-activity-page .pg-activity-danger { color: #a91349; }
 :root:not(.dark) .pg-activity-page .pg-activity-icon-warning { color: #925000; }
 :root:not(.dark) .pg-activity-page .pg-activity-icon-danger { color: #a91349; }
 @media (max-width: 380px) {

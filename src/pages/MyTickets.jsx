@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 import { Ticket, AlertTriangle, RefreshCw, LockKeyhole, ArrowRight, Info } from 'lucide-react';
 import DonateSeatSheet from '@/components/donations/DonateSeatSheet';
 import EventThumbnail from '@/components/events/EventThumbnail';
+import { PageIntro } from '@/components/ClarityUI';
 import './community-ticket.css';
 
 export default function MyTickets() {
@@ -87,10 +88,7 @@ export default function MyTickets() {
           onDonated={() => setDonatingPurchase(null)}
         />
       )}
-      <header className="pg-wallet-heading">
-        <h1 className="pg-page-title">My tickets</h1>
-        <p className="pg-community-subtitle">Your tickets and upgrades.</p>
-      </header>
+      <PageIntro title="My tickets" description="Your tickets and upgrades." backTo="/me" backLabel="Back to Me" />
 
       {loading ? (
         <div className="pg-state pg-community-state" role="status">

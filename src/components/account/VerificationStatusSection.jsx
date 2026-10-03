@@ -24,7 +24,7 @@ export default function VerificationStatusSection({ user, stripeStatus }) {
         <div className="px-4 pt-4 pb-3">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-bold text-foreground">Account Health</span>
-            <span className="text-xs font-black" style={{ color: pct === 100 ? '#00FF87' : '#BF5FFF' }}>{pct}%</span>
+            <span className="text-xs font-black" style={{ color: pct === 100 ? 'var(--neon-green)' : 'var(--neon-purple)' }}>{pct}%</span>
           </div>
           <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--pg-surface-raised)' }}>
             <div
@@ -32,8 +32,8 @@ export default function VerificationStatusSection({ user, stripeStatus }) {
               style={{
                 width: `${pct}%`,
                 background: pct === 100
-                  ? 'linear-gradient(90deg, #00FF87, #00C8FF)'
-                  : 'linear-gradient(90deg, #BF5FFF, #FF2D78)',
+                  ? 'linear-gradient(90deg, var(--neon-green), var(--neon-cyan))'
+                  : 'linear-gradient(90deg, var(--neon-purple), var(--neon-pink))',
               }}
             />
           </div>
@@ -52,7 +52,7 @@ export default function VerificationStatusSection({ user, stripeStatus }) {
               </div>
               {done && (
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                  style={{ background: 'rgba(0,255,135,0.1)', color: 'var(--neon-green)', border: '1px solid rgba(0,255,135,0.2)' }}>
+                  style={{ background: 'rgba(var(--neon-green-rgb), 0.1)', color: 'var(--neon-green)', border: '1px solid rgba(var(--neon-green-rgb), 0.2)' }}>
                   Done
                 </span>
               )}
@@ -62,7 +62,7 @@ export default function VerificationStatusSection({ user, stripeStatus }) {
 
         {pct === 100 && (
           <div className="mx-4 mb-4 mt-1 flex items-center gap-2 px-3 py-2.5 rounded-xl"
-            style={{ background: 'rgba(0,255,135,0.07)', border: '1px solid rgba(0,255,135,0.2)' }}>
+            style={{ background: 'rgba(var(--neon-green-rgb), 0.07)', border: '1px solid rgba(var(--neon-green-rgb), 0.2)' }}>
             <ShieldCheck className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--neon-green)' }} />
             <p className="text-xs text-muted-foreground">
               <span className="font-bold text-foreground">Fully verified.</span> Buyers see a trust badge on your listings.

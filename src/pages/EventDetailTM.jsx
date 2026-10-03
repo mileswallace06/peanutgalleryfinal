@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { format } from 'date-fns';
+import { getEventDateDisplay } from '@/lib/eventDateDisplay';
+import { reliableTime } from '@/lib/sellingEventTiming';
 import { MapPin, Calendar, ArrowLeft, Ticket, ExternalLink, Plus } from 'lucide-react';
 
 /** Infer vendor label + homepage from a ticket URL domain */
@@ -23,6 +24,32 @@ import ListingCard from '@/components/events/ListingCard';
 import PurchaseDialog from '@/components/events/PurchaseDialog';
 import { Disclosure } from '@/components/ClarityUI';
 import './event-detail-clarity.css';
+
+// Older synced records can lack the zone carried by the selected provider card.
+// Use it only for display when identity, start instant and venue agree; local
+// timing/TBA fields and the Event object used by listing actions remain intact.
+function withMatchingRouterTimezone(event, passedEvent, tmId) {
+  const normalize = value => typeof value === 'string' ? value.trim().toLowerCase() : '';
+  const localZone = typeof event.venue_timezone === 'string' ? event.venue_timezone.trim() : event.venue_timezone;
+  if (localZone || !tmId || event.tm_id !== tmId || passedEvent?.tm_id !== tmId) return event;
+  const start = reliableTime(event.event_start_utc || event.date);
+  if (start === null || start !== reliableTime(passedEvent.event_start_utc || passedEvent.date)) return event;
+  if (!normalize(event.venue) || normalize(event.venue) !== normalize(passedEvent.venue)) return event;
+  for (const field of ['city', 'state']) {
+    const localValue = normalize(event[field]);
+    const passedValue = normalize(passedEvent[field]);
+    if (localValue && passedValue && localValue !== passedValue) return event;
+  }
+  const timeZone = typeof passedEvent.venue_timezone === 'string' ? passedEvent.venue_timezone.trim() : '';
+  if (!timeZone) return event;
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone });
+  } catch {
+    return event;
+  }
+  return { ...event, venue_timezone: timeZone };
+}
+
 export default function EventDetailTM() {
   const { tmId } = useParams();
   const navigate = useNavigate();
@@ -58,6 +85,11 @@ export default function EventDetailTM() {
           city: localEv.city,
           state: localEv.state,
           date: localEv.date || localEv.event_start_local,
+          event_start_utc: localEv.event_start_utc,
+          venue_timezone: localEv.venue_timezone,
+          date_tba: localEv.date_tba,
+          time_tba: localEv.time_tba,
+          no_specific_time: localEv.no_specific_time,
           image_url: localEv.image_url,
           tm_url: localEv.tm_url,
         };
@@ -94,6 +126,11 @@ export default function EventDetailTM() {
               city: localEv.city,
               state: localEv.state,
               date: localEv.date || localEv.event_start_local,
+              event_start_utc: localEv.event_start_utc,
+              venue_timezone: localEv.venue_timezone,
+              date_tba: localEv.date_tba,
+              time_tba: localEv.time_tba,
+              no_specific_time: localEv.no_specific_time,
               image_url: localEv.image_url,
               tm_url: localEv.tm_url,
             });
@@ -172,6 +209,7 @@ export default function EventDetailTM() {
   const sorted = [...listings].sort((a, b) => a.asking_price - b.asking_price);
   const cheapest = sorted[0]?.asking_price;
   const vendor = inferVendor(event.tm_url);
+  const displayEvent = withMatchingRouterTimezone(event, passedEvent, tmId);
 
   return (
     <div className="pg-secondary-page pg-event-detail">
@@ -188,7 +226,7 @@ export default function EventDetailTM() {
           <p className="pg-event-eyebrow">Peanut Gallery / Event</p>
           <h1 className="font-display">{event.title}</h1>
           <div className="pg-event-facts">
-            <p><Calendar aria-hidden="true" /><span>{event.date ? format(new Date(event.date), 'EEEE, MMMM d, yyyy · h:mm a') : 'Date to be confirmed'}</span></p>
+            <p><Calendar aria-hidden="true" /><span>{getEventDateDisplay(displayEvent)?.detailLabel || 'Date to be confirmed'}</span></p>
             <p><MapPin aria-hidden="true" /><span>{event.venue}{event.city ? `, ${event.city}` : ''}{event.state ? `, ${event.state}` : ''}</span></p>
           </div>
           <div className="pg-event-primary">

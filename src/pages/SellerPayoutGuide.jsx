@@ -4,10 +4,10 @@ import { Link } from 'react-router-dom';
 import { ArrowLeft, Shield, CreditCard, CheckCircle, Banknote, Lock, Eye, EyeOff, User, Building2 } from 'lucide-react';
 import FaqAccordion from '@/components/education/FaqAccordion';
 
-const ORANGE = '#FF8C00';
-const GREEN = '#00FF87';
-const PURPLE = '#BF5FFF';
-const CYAN = '#00C8FF';
+const ORANGE = 'var(--neon-orange)';
+const GREEN = 'var(--neon-green)';
+const PURPLE = 'var(--neon-purple)';
+const CYAN = 'var(--neon-cyan)';
 
 function SectionLabel({ children, color = ORANGE }) {
   return (
@@ -163,7 +163,7 @@ export default function SellerPayoutGuide() {
         description="You don't need a business, a website, or an LLC. You're just a fan connecting a bank account so we can send you money after you sell." />
 
       <div className="mb-8 rounded-2xl p-5"
-        style={{ background: 'rgba(0,255,135,0.06)', border: '1px solid rgba(0,255,135,0.25)' }}>
+        style={{ background: 'rgba(var(--neon-green-rgb), 0.06)', border: '1px solid rgba(var(--neon-green-rgb), 0.25)' }}>
         <div className="flex items-center gap-2 mb-4">
           <CheckCircle className="w-5 h-5 flex-shrink-0" style={{ color: 'var(--neon-green)' }} />
           <p className="font-black text-sm text-foreground">You do NOT need any of this:</p>
@@ -178,7 +178,7 @@ export default function SellerPayoutGuide() {
           ))}
         </div>
         <div className="mt-4 pt-4 text-sm font-semibold text-foreground"
-          style={{ borderTop: '1px solid rgba(0,255,135,0.2)' }}>
+          style={{ borderTop: '1px solid rgba(var(--neon-green-rgb), 0.2)' }}>
           ✅ You just need: <span style={{ color: 'var(--neon-green)' }}>your name, bank account, and 2 minutes.</span>
         </div>
       </div>
@@ -203,7 +203,7 @@ export default function SellerPayoutGuide() {
 
       {/* ── Why Stripe ───────────────────────────────────── */}
       <div className="mb-8 rounded-2xl p-5"
-        style={{ background: 'rgba(191,95,255,0.06)', border: '1px solid rgba(191,95,255,0.2)' }}>
+        style={{ background: 'rgba(var(--neon-purple-rgb), 0.06)', border: '1px solid rgba(var(--neon-purple-rgb), 0.2)' }}>
         <SectionLabel color={PURPLE}>Why we use Stripe</SectionLabel>
         <p className="text-sm text-muted-foreground leading-relaxed mb-4">
           We can't just send you money via email — US law requires a licensed payment company to handle that. Stripe is that company. They're the same platform behind Shopify, DoorDash, and millions of other apps. Think of them as the secure middleman that moves your money safely.
@@ -234,20 +234,20 @@ export default function SellerPayoutGuide() {
         <div className="relative">
           {/* Vertical timeline line */}
           <div className="absolute left-5 top-6 bottom-6 w-px"
-            style={{ background: 'linear-gradient(to bottom, rgba(255,140,0,0.4), rgba(0,255,135,0.4))' }} />
+            style={{ background: 'linear-gradient(to bottom, rgba(var(--neon-orange-rgb), 0.4), rgba(var(--neon-green-rgb), 0.4))' }} />
 
           <div className="space-y-4">
             {STEPS.map((step, i) => (
               <div key={i} className="flex gap-4">
                 {/* Circle */}
                 <div className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center font-black text-sm z-10"
-                  style={{ background: `${step.color}18`, border: `2px solid ${step.color}50`, color: step.color }}>
+                  style={{ background: `color-mix(in srgb, ${step.color} 9%, transparent)`, border: `2px solid color-mix(in srgb, ${step.color} 31%, transparent)`, color: step.color }}>
                   {step.num}
                 </div>
 
                 {/* Card */}
                 <div className="flex-1 rounded-2xl p-4 mb-1"
-                  style={{ background: 'var(--pg-surface)', border: `1px solid ${step.color}20` }}>
+                  style={{ background: 'var(--pg-surface)', border: `1px solid color-mix(in srgb, ${step.color} 13%, transparent)` }}>
                   <div className="flex items-center gap-2 mb-1.5">
                     <span className="text-lg">{step.emoji}</span>
                     <p className="font-bold text-sm text-foreground">{step.title}</p>
@@ -257,7 +257,7 @@ export default function SellerPayoutGuide() {
                   {/* Highlighted instruction */}
                   {step.highlight && (
                     <div className="mt-3 px-3 py-2.5 rounded-xl text-xs font-semibold leading-relaxed"
-                      style={{ background: `${step.color}12`, border: `1px solid ${step.color}35`, color: step.color }}>
+                      style={{ background: `color-mix(in srgb, ${step.color} 7%, transparent)`, border: `1px solid color-mix(in srgb, ${step.color} 21%, transparent)`, color: step.color }}>
                       👉 {step.highlight}
                     </div>
                   )}
@@ -281,7 +281,7 @@ export default function SellerPayoutGuide() {
         <SectionLabel color={ORANGE}>What gets shared — and with who</SectionLabel>
         <div className="grid grid-cols-1 gap-3">
 
-          <div className="rounded-2xl p-4" style={{ background: 'rgba(255,140,0,0.06)', border: '1px solid rgba(255,140,0,0.2)' }}>
+          <div className="rounded-2xl p-4" style={{ background: 'rgba(var(--neon-orange-rgb), 0.06)', border: '1px solid rgba(var(--neon-orange-rgb), 0.2)' }}>
             <div className="flex items-center gap-2 mb-3">
               <Building2 className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--neon-orange)' }} />
               <p className="font-bold text-sm text-foreground">What Stripe verifies</p>
@@ -295,12 +295,12 @@ export default function SellerPayoutGuide() {
               ))}
             </div>
             <p className="text-[11px] text-muted-foreground mt-3 leading-relaxed"
-              style={{ paddingTop: '0.75rem', borderTop: '1px solid rgba(255,140,0,0.15)' }}>
+              style={{ paddingTop: '0.75rem', borderTop: '1px solid rgba(var(--neon-orange-rgb), 0.15)' }}>
               Stripe uses this to confirm you're a real person eligible to receive payouts. Required by US law.
             </p>
           </div>
 
-          <div className="rounded-2xl p-4" style={{ background: 'rgba(0,255,135,0.05)', border: '1px solid rgba(0,255,135,0.2)' }}>
+          <div className="rounded-2xl p-4" style={{ background: 'rgba(var(--neon-green-rgb), 0.05)', border: '1px solid rgba(var(--neon-green-rgb), 0.2)' }}>
             <div className="flex items-center gap-2 mb-3">
               <User className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--neon-green)' }} />
               <p className="font-bold text-sm text-foreground">What Peanut Gallery sees</p>
@@ -314,7 +314,7 @@ export default function SellerPayoutGuide() {
               ))}
             </div>
             <p className="text-[11px] text-muted-foreground mt-3 leading-relaxed"
-              style={{ paddingTop: '0.75rem', borderTop: '1px solid rgba(0,255,135,0.15)' }}>
+              style={{ paddingTop: '0.75rem', borderTop: '1px solid rgba(var(--neon-green-rgb), 0.15)' }}>
               We receive a Stripe account ID — a unique token — nothing else. Your real banking data never touches our servers.
             </p>
           </div>
@@ -340,7 +340,7 @@ export default function SellerPayoutGuide() {
 
       {/* ── "Why Stripe asks for this" explainer ─────────── */}
       <div className="mb-8 rounded-2xl p-5"
-        style={{ background: 'rgba(0,200,255,0.05)', border: '1px solid rgba(0,200,255,0.2)' }}>
+        style={{ background: 'rgba(var(--neon-cyan-rgb), 0.05)', border: '1px solid rgba(var(--neon-cyan-rgb), 0.2)' }}>
         <SectionLabel color={CYAN}>Why Stripe asks for personal info</SectionLabel>
         <div className="space-y-4">
           {[
@@ -368,7 +368,7 @@ export default function SellerPayoutGuide() {
 
       {/* ── Final reassurance ─────────────────────────────── */}
       <div className="mb-10 rounded-2xl p-5 text-center"
-        style={{ background: 'rgba(0,255,135,0.05)', border: '1px solid rgba(0,255,135,0.2)' }}>
+        style={{ background: 'rgba(var(--neon-green-rgb), 0.05)', border: '1px solid rgba(var(--neon-green-rgb), 0.2)' }}>
         <div className="text-3xl mb-3">🥜</div>
         <p className="font-black text-sm text-foreground mb-2">You're just a fan selling tickets.</p>
         <p className="text-xs text-muted-foreground leading-relaxed max-w-xs mx-auto">
@@ -380,7 +380,7 @@ export default function SellerPayoutGuide() {
       <div className="space-y-3">
         <Link to="/sell"
           className="pg-guide-action flex items-center justify-center gap-2 w-full py-4 rounded-full font-black text-sm"
-          style={{ background: `linear-gradient(135deg, ${ORANGE}, #FF2D78)`, color: '#fff', boxShadow: `0 0 18px rgba(255,140,0,0.25)` }}>
+          style={{ background: 'var(--pg-orange)', color: 'var(--pg-ink)', boxShadow: `0 0 18px rgba(var(--neon-orange-rgb), 0.25)` }}>
           <Banknote className="w-4 h-4" /> Set Up My Payouts →
         </Link>
         <Link to="/sell"

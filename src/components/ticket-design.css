@@ -16,15 +16,28 @@
   --pg-pink: #ff2d78;
   --pg-yellow: #ffe600;
   --pg-orange: #ff8c00;
+  --pg-mint-ink: var(--neon-green);
+  --pg-cyan-ink: var(--neon-cyan);
+  --pg-violet-ink: var(--neon-purple);
+  --pg-pink-ink: var(--neon-pink);
+  --pg-yellow-ink: var(--neon-yellow);
+  --pg-orange-ink: var(--neon-orange);
 }
 :root:not(.dark) {
   color-scheme: light;
-  --pg-canvas: #efede7;
-  --pg-surface: #fffdf8;
-  --pg-surface-raised: #e6e2da;
-  --pg-text: #17141c;
-  --pg-muted: #605966;
-  --pg-line: #d4cfc6;
+  --pg-canvas: #eeeae3;
+  --pg-surface: #f8f4ec;
+  --pg-surface-raised: #e7e0d7;
+  --pg-text: #241f29;
+  --pg-muted: #625b65;
+  --pg-line: #cfc5ba;
+  /* Fills carry the brand softly; use the ink tokens for text and fine icons. */
+  --pg-mint: #8ccca7;
+  --pg-cyan: #90c2d0;
+  --pg-violet: #c6a4de;
+  --pg-pink: #e99cb7;
+  --pg-yellow: #ddca76;
+  --pg-orange: #eab77d;
 }
 .pg-ticket-app--browse { --pg-browse-hero-height: clamp(112px, 20dvh, 180px); --pg-browse-header-height: calc(var(--pg-browse-hero-height) + 52px); }
 .pg-ticket-app--designed { background: var(--pg-canvas); color: var(--pg-text); }
@@ -96,15 +109,27 @@
 .pg-nav-icon { position: relative; display: flex; align-items: center; justify-content: center; width: 30px; height: 23px; }
 .pg-nav-label { font-size: 11px; line-height: 1.2; font-weight: 700; white-space: nowrap; }
 .pg-nav-live { position: absolute; top: -2px; right: -3px; width: 7px; height: 7px; border-radius: 50%; background: var(--pg-pink); }
-/* Neon stays bright in printed fills; small text uses darker inks on light surfaces. */
-:root:not(.dark) .pg-ticket-app :is(.pg-upgrades-explainer, .pg-live-admission, .pg-feed-tab.pg-bucket-tab, .pg-feed-context button) { color: #00677e; }
-:root:not(.dark) .pg-ticket-app :is(.pg-upgrades-refresh, .pg-upgrades-intro > svg) { color: #00713b; }
-:root:not(.dark) .pg-ticket-app :is(.pg-karma-heading > span, .pg-karma-points strong) { color: #766000; }
-:root:not(.dark) .pg-ticket-app .pg-karma-points div:nth-child(2) strong { color: #925000; }
-:root:not(.dark) .pg-ticket-app .pg-karma-points div:nth-child(3) strong { color: #762b9f; }
-:root:not(.dark) .pg-ticket-app .pg-feed-hint a { color: #762b9f; }
+/* Small text uses darker inks on light surfaces. */
+:root:not(.dark) .pg-ticket-app :is(.pg-upgrades-explainer, .pg-live-admission, .pg-feed-tab.pg-bucket-tab, .pg-feed-context button) { color: var(--neon-cyan); }
+:root:not(.dark) .pg-ticket-app :is(.pg-upgrades-refresh, .pg-upgrades-intro > svg) { color: var(--neon-green); }
+:root:not(.dark) .pg-ticket-app :is(.pg-karma-heading > span, .pg-karma-points strong) { color: var(--neon-yellow); }
+:root:not(.dark) .pg-ticket-app .pg-karma-points div:nth-child(2) strong { color: var(--neon-orange); }
+:root:not(.dark) .pg-ticket-app .pg-karma-points div:nth-child(3) strong { color: var(--neon-purple); }
+:root:not(.dark) .pg-ticket-app .pg-feed-hint a { color: var(--neon-purple); }
 :root:not(.dark) .pg-ticket-app :is(.pg-live-tabs, .pg-live-sell, .pg-upgrades-city, .pg-upgrades-close) { border-color: var(--pg-line); }
 @media (min-width: 600px) { .pg-page-title { font-size: 2.4rem; } }
 @media (prefers-reduced-motion: reduce) { .pg-action, .pg-nav-item { transition: none; } }
 
-:root:not(.dark) .pg-ticket-app :is(.pg-events-nearby, .pg-events-text-action, .pg-events-search-submit) { color: #762b9f; }
+:root:not(.dark) .pg-ticket-app :is(.pg-events-nearby, .pg-events-text-action, .pg-events-search-submit) { color: var(--neon-purple); }
+
+/* Light chrome uses colored stock and deep ink; photograph captions stay white. */
+:root:not(.dark) .pg-bottom-nav { background: var(--pg-surface); }
+:root:not(.dark) .pg-nav-item.is-active { background: color-mix(in srgb, var(--nav-accent) 38%, var(--pg-surface)); box-shadow: inset 0 -3px color-mix(in srgb, var(--nav-accent) 62%, var(--pg-ink)); }
+:root:not(.dark) .pg-browse-header-tools :is(.pg-events-location, .pg-upgrades-location) svg:first-child { color: var(--neon-purple); }
+:root:not(.dark) [data-browse-page='upgrades'] .pg-browse-header-tools .pg-upgrades-location svg:first-child { color: var(--neon-green); }
+:root:not(.dark) .pg-brandbar--browse { --pg-page-accent: var(--pg-violet); }
+:root:not(.dark) .pg-brandbar--browse[data-browse-page='upgrades'] { --pg-page-accent: var(--pg-mint); }
+:root:not(.dark) .pg-design-page :is(button, a, input, select, textarea):focus-visible,
+:root:not(.dark) .pg-secondary-page :is(a, button, summary, input, select, textarea):focus-visible { outline-color: var(--neon-purple); }
+.pg-theme-toggle { background: var(--pg-surface); color: var(--pg-text); border: 1px solid var(--pg-line); box-shadow: 0 2px 8px #1112170a; }
+.dark .pg-theme-toggle { background: rgba(191,95,255,.3); color: #ff99ff; border-color: rgba(191,95,255,.6); box-shadow: 0 0 16px rgba(191,95,255,.25); }

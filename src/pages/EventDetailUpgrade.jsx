@@ -6,7 +6,7 @@
  * upgrade listings) → sell-your-seats module. Flash Drops and Fan Karma remain
  * accessible via the preserved hub tabs so no existing behavior is lost.
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useLocation, Link } from 'react-router-dom';
 import { Zap } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
@@ -16,6 +16,7 @@ import CreateFlashDropSheet from '@/components/flashdrops/CreateFlashDropSheet';
 import EventLookupDebugPanel from '@/components/debug/EventLookupDebugPanel';
 import { logNavEvent } from '@/lib/navLogger';
 import UpgradeEligibilityGate from '@/components/upgrades/UpgradeEligibilityGate.jsx';
+import DiscoveryAlertControl from '@/components/upgrades/DiscoveryAlertControl.jsx';
 import { UPGRADE_LISTING_TYPES } from '@/lib/listingTypes';
 import EventHero from '@/components/eventmode/EventHero';
 import CurrentTicketModule from '@/components/eventmode/CurrentTicketModule';
@@ -24,6 +25,8 @@ import SellSeatsModule from '@/components/eventmode/SellSeatsModule';
 import PurchaseDialog from '@/components/events/PurchaseDialog';
 import { loadFanGifts } from '@/lib/fanGiftRead';
 import { sharedListingSelection } from '@/lib/sharedListingDestination';
+import { getUpgradeEventState } from '@/lib/upgradeEventState';
+import { useUpgradeClock } from '@/hooks/useUpgradeClock';
 import '@/components/eventmode/ticket-upgrades.css';
 import './shared-listing.css';
 
@@ -49,6 +52,49 @@ export default function EventDetailUpgrade() {
   const [lookupError, setLookupError] = useState(false);
   const [hubEligibilityPassed, setHubEligibilityPassed] = useState(false);
   const [selectedListing, setSelectedListing] = useState(null);
+  const [listingLoadError, setListingLoadError] = useState(false);
+  const [refreshingListings, setRefreshingListings] = useState(false);
+  const listingRequest = useRef(0);
+  const previousInventoryPhase = useRef(null);
+  const nowMs = useUpgradeClock(event);
+  const timing = getUpgradeEventState(event, nowMs);
+
+  const refreshListings = useCallback(async () => {
+    if (!event?.id) return;
+    const requestId = ++listingRequest.current;
+    setRefreshingListings(true);
+    try {
+      const result = await base44.functions.invoke('getListingParticipantView', {
+        action: 'list_active_by_event', event_id: event.id,
+      });
+      if (!Array.isArray(result?.data?.listings)) throw new Error('Invalid listings response');
+      if (listingRequest.current !== requestId) return;
+      setListings(result.data.listings);
+      setListingLoadError(false);
+    } catch {
+      if (listingRequest.current === requestId) setListingLoadError(true);
+    } finally {
+      if (listingRequest.current === requestId) setRefreshingListings(false);
+    }
+  }, [event?.id]);
+
+  useEffect(() => {
+    if (!event?.id || loading || timing.status === 'ended') return;
+    const refreshIfVisible = () => { if (!document.hidden) refreshListings(); };
+    // Initial load already read inventory; check again when the event changes phase.
+    if (previousInventoryPhase.current?.eventId === event.id
+      && previousInventoryPhase.current.status !== timing.status) refreshIfVisible();
+    previousInventoryPhase.current = { eventId: event.id, status: timing.status };
+    const timer = setInterval(refreshIfVisible, 30000);
+    window.addEventListener('focus', refreshIfVisible);
+    document.addEventListener('visibilitychange', refreshIfVisible);
+    return () => {
+      clearInterval(timer);
+      listingRequest.current += 1;
+      window.removeEventListener('focus', refreshIfVisible);
+      document.removeEventListener('visibilitychange', refreshIfVisible);
+    };
+  }, [event?.id, loading, timing.status, refreshListings]);
 
   const refreshDrops = async (eventId) => {
     setDropsLoading(true);
@@ -65,6 +111,17 @@ export default function EventDetailUpgrade() {
 
   useEffect(() => {
     if (!id) return;
+    let cancelled = false;
+    setLoading(true);
+    setEvent(null);
+    setListings([]);
+    setUser(null);
+    setActiveTab('Upgrades');
+    setShowDropSheet(false);
+    setSelectedListing(null);
+    setHubEligibilityPassed(false);
+    setListingLoadError(false);
+    setRefreshingListings(false);
     setLookupError(false);
     setLookupTrace(null);
     setDrops([]);
@@ -96,6 +153,7 @@ export default function EventDetailUpgrade() {
 
         trace.finalCount = events.length;
         trace.finalId = events[0]?.id || null;
+        if (cancelled) return;
         setLookupTrace({ ...trace });
 
         const resolvedEvent = events[0] || null;
@@ -123,19 +181,24 @@ export default function EventDetailUpgrade() {
 
         // Phase 1B-2: fetch listings through the safe participant view function.
         let safeListings = [];
+        let listingReadFailed = false;
         try {
           const res = await base44.functions.invoke('getListingParticipantView', {
             action: 'list_active_by_event',
             event_id: resolvedId,
           });
-          safeListings = res?.data?.listings || [];
+          if (!Array.isArray(res?.data?.listings)) throw new Error('Invalid listings response');
+          safeListings = res.data.listings;
         } catch (fnErr) {
           console.error('[EventDetailUpgrade] listing fetch failed:', fnErr);
           safeListings = [];
+          listingReadFailed = true;
         }
 
+        if (cancelled) return;
         setEvent(resolvedEvent);
         setListings(safeListings);
+        setListingLoadError(listingReadFailed);
         setDrops(dropData?.drops || []);
         setDropLoadError(dropData === null);
         setUser(me);
@@ -149,6 +212,7 @@ export default function EventDetailUpgrade() {
           lookupTrace: { ...trace },
         });
       } catch (err) {
+        if (cancelled) return;
         console.error('[EventDetailUpgrade] load error:', err);
         setLookupError(true);
         logNavEvent({
@@ -161,9 +225,10 @@ export default function EventDetailUpgrade() {
           lookupTrace: { ...trace },
         });
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
+    return () => { cancelled = true; listingRequest.current += 1; };
   }, [id]);
 
   const handleWinnerSelected = (dropId) => {
@@ -184,7 +249,7 @@ export default function EventDetailUpgrade() {
           <div className="flex flex-col gap-2 items-center">
             <button onClick={() => window.location.reload()}
               className="px-5 py-2.5 rounded-full font-bold text-sm"
-              style={{ background: 'var(--ev-teal)', color: '#021018' }}>
+              style={{ background: 'var(--pg-cyan)', color: 'var(--pg-ink)' }}>
               Retry
             </button>
             <Link to="/upgrades" className="text-sm underline" style={{ color: 'var(--ev-text-2)' }}>← Back to Upgrades</Link>
@@ -199,7 +264,7 @@ export default function EventDetailUpgrade() {
 
   return (
     <div className="pg-design-page pg-live-page">
-      <EventHero event={event} />
+      <EventHero event={event} nowMs={nowMs} />
       <CurrentTicketModule event={event} user={user} />
 
       {/* Tab bar */}
@@ -253,6 +318,11 @@ export default function EventDetailUpgrade() {
               currentUserEmail={user?.email}
               loading={loading}
               onView={setSelectedListing}
+              nowMs={nowMs}
+              loadError={listingLoadError}
+              refreshing={refreshingListings}
+              onRetry={refreshListings}
+              notifyControl={!shared.requested && event && <DiscoveryAlertControl eventId={event.id} user={user} />}
             />}
             <SellSeatsModule event={event} />
           </>

@@ -256,3 +256,8 @@
 .pg-events-page button:disabled {
   opacity: 0.5;
 }
+
+:root:not(.dark) .pg-events-page { --pg-events-accent: var(--neon-purple); }
+:root:not(.dark) .pg-events-page .pg-events-past-control input { accent-color: var(--neon-purple); }
+
+:root:not(.dark) .pg-events-page :is(.pg-events-search-input, .pg-events-search-submit, .pg-events-location-panel) { border-color: var(--pg-line); }

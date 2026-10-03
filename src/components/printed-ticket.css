@@ -90,3 +90,56 @@
   --font-ticket-title: 'Barlow Semi Condensed', var(--font-editorial);
   --font-ticket-date: 'IBM Plex Mono', var(--font-mono-label);
 }
+
+/* In daylight, printed stock stays pale and tactile so artwork holds the contrast. */
+:root:not(.dark) .pg-design-page:is(.pg-events-page, .pg-upgrades-page, .pg-sell-page) {
+  --pg-page-accent: var(--pg-violet);
+  --pg-page-accent-soft: #d6bee6;
+  --pg-stock: #dfd2e7;
+  --pg-stock-light: #e7ddee;
+  --pg-stock-dark: #d8c9e1;
+  --pg-stock-ink: #302439;
+  --pg-stock-muted: #594664;
+  --pg-stock-line: #8c73944f;
+  --pg-stock-highlight: #f7f0fbb3;
+  --pg-stock-edge: #a08aa9;
+  --pg-stock-grain-light: #fffbffb3;
+  --pg-stock-grain-dark: #77618252;
+  --pg-stock-fiber: #85699012;
+  --pg-stock-art-tint: #60476e0d;
+  --pg-stock-art-border: #5b486b30;
+}
+:root:not(.dark) .pg-design-page.pg-upgrades-page {
+  --pg-page-accent: var(--pg-mint);
+  --pg-page-accent-soft: #aed8bc;
+  --pg-stock: #d7e2d8;
+  --pg-stock-light: #e1eadf;
+  --pg-stock-dark: #cfdcd0;
+  --pg-stock-ink: #24382b;
+  --pg-stock-muted: #455e4b;
+  --pg-stock-line: #6c8b754f;
+  --pg-stock-highlight: #f1f8eeb3;
+  --pg-stock-edge: #91a695;
+  --pg-stock-grain-light: #f8fff3b3;
+  --pg-stock-grain-dark: #49655352;
+  --pg-stock-fiber: #66826b12;
+  --pg-stock-art-tint: #3854430d;
+  --pg-stock-art-border: #475c4e30;
+}
+:root:not(.dark) .pg-design-page.pg-sell-page {
+  --pg-page-accent: var(--pg-orange);
+  --pg-page-accent-soft: #f0cda3;
+  --pg-stock: #e8d9c8;
+  --pg-stock-light: #f0e2d0;
+  --pg-stock-dark: #dfcebb;
+  --pg-stock-ink: #422d20;
+  --pg-stock-muted: #6c503c;
+  --pg-stock-line: #9976524f;
+  --pg-stock-highlight: #fff5e5b3;
+  --pg-stock-edge: #b39678;
+  --pg-stock-grain-light: #fff9edb3;
+  --pg-stock-grain-dark: #8c664652;
+  --pg-stock-fiber: #9b795612;
+  --pg-stock-art-tint: #67472d0d;
+  --pg-stock-art-border: #67534630;
+}

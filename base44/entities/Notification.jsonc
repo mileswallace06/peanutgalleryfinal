@@ -64,7 +64,9 @@
         "sale_created",
         "ai_verified",
         "ai_rejected",
-        "admin_message"
+        "admin_message",
+        "upgrade_available",
+        "bucket_list_event"
       ]
     },
     "title": {

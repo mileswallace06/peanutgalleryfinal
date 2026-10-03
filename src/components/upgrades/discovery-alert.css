@@ -1,0 +1,5 @@
+.pg-discovery-alert { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 17px; }
+.pg-discovery-alert > .pg-action { max-width: 100%; min-height: 44px; }
+.pg-discovery-alert > p { margin: 0; color: var(--pg-muted); font-size: 12px; line-height: 1.45; max-width: 290px; text-align: center; }
+.pg-discovery-alert > p[role="alert"] { color: var(--pg-text); }
+.pg-discovery-alert .pg-action:focus-visible { outline: 2px solid var(--pg-text); outline-offset: 3px; }

@@ -11,7 +11,8 @@ const start = source.indexOf('\nfunction EventCard(');
 assert.ok(start > 0);
 const bundle = await build({
   stdin: {
-    contents: `import { format } from 'date-fns';
+    contents: `import { formatUpgradeStartsIn, getUpgradeVenueDateParts } from './src/lib/upgradeEventState.js';
+      import { getUpgradeEventTiming } from './src/lib/upgradeDiscovery.js';
       import { ArrowRight, RefreshCw } from 'lucide-react';
       const useState = () => [false, () => {}];
       const calls = [];
