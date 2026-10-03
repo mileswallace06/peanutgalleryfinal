@@ -40,6 +40,8 @@ const result = await build({
   platform: 'node',
   packages: 'external',
   jsx: 'automatic',
+  // Route semantics only; this server-render fixture does not inspect styles.
+  loader: { '.css': 'empty' },
   plugins: [{
     name: 'public-access-fixtures',
     setup(builder) {

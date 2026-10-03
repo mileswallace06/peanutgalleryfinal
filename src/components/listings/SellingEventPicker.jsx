@@ -11,7 +11,7 @@ import { resolveSellingEvent } from '@/lib/resolveSellingEvent';
 
 export default function SellingEventPicker({ initialKeyword = '', initialEventId, onSelect }) {
   const search = useSellingDiscovery(initialKeyword);
-  const now = useEventClock();
+  const now = useEventClock(1000);
   const [mode, setMode] = useState('all');
   const [selecting, setSelecting] = useState(null), [selectionError, setSelectionError] = useState('');
   const busy = useRef(false), selectionGeneration = useRef(0), retryCandidate = useRef(null);

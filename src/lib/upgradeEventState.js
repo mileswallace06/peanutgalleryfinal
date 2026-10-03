@@ -1,4 +1,4 @@
-import { formatInVenueTimezone, resolveTimezone } from './eventTiming.js';
+import { getEventDateDisplay } from './eventDateDisplay.js';
 import { getUpgradeEventTiming } from './upgradeDiscovery.js';
 
 /** Display-only state: purchase and listing eligibility remain authoritative elsewhere. */
@@ -31,22 +31,14 @@ export function getUpgradeShowtimeLabel(event) {
   // A beta override changes live presentation, not the advertised venue time.
   const { start: startMs } = getUpgradeEventTiming({ ...event, is_beta_live: false });
   if (startMs === null) return null;
-  return formatInVenueTimezone(startMs, resolveTimezone(event).timezone);
+  return getEventDateDisplay(event)?.showtimeLabel || null;
 }
 
 /** Date/stub parts share the canonical timestamp and venue timezone, never the viewer's. */
 export function getUpgradeVenueDateParts(event, startMs) {
   if (!Number.isFinite(startMs)) return null;
-  const options = { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' };
-  let formatter;
-  try {
-    formatter = new Intl.DateTimeFormat('en-US', { ...options, timeZone: resolveTimezone(event).timezone });
-  } catch {
-    formatter = new Intl.DateTimeFormat('en-US', { ...options, timeZone: 'UTC' });
-  }
-  const parts = Object.fromEntries(formatter.formatToParts(startMs).map(part => [part.type, part.value]));
-  return { month: parts.month, day: parts.day,
-    label: `${parts.month} ${parts.day} · ${parts.hour}:${parts.minute} ${parts.dayPeriod} ${parts.timeZoneName}` };
+  const display = getEventDateDisplay(event);
+  return display ? { month: display.month, day: display.day, label: display.compactLabel } : null;
 }
 
 /** Compact label for a fixed-height browse ticket; never claims inventory availability. */

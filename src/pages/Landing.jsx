@@ -14,7 +14,7 @@ export default function Landing() {
   };
 
   return (
-    <PublicPage className="pg-public-page--photo relative h-[100dvh] flex flex-col overflow-y-auto overflow-x-hidden">
+    <PublicPage as="main" aria-labelledby="landing-title" className="pg-public-page--photo relative h-[100dvh] flex flex-col overflow-y-auto overflow-x-hidden">
       {/* Background image */}
       <div
         className="absolute inset-0"
@@ -62,17 +62,18 @@ export default function Landing() {
         <div className="flex-1" style={{ minHeight: '6vh', maxHeight: '14vh' }} />
 
         {/* Headline */}
-        <div className="font-display leading-[0.95] mb-4" style={{ fontSize: 'clamp(2rem, 9vw, 3rem)' }}>
+        <h1 id="landing-title" aria-label="Find. Upgrade. Experience." className="font-display leading-[0.95] mb-4" style={{ fontSize: 'clamp(2rem, 9vw, 3rem)' }}>
           {[
             { text: 'Find.', grad: 'linear-gradient(90deg, #00FF87, #00C8FF)' },
             { text: 'Upgrade.', grad: 'linear-gradient(90deg, #BF5FFF, #FF2D78)' },
             { text: 'Experience.', grad: 'linear-gradient(90deg, #FFE600, #FF2D78)' },
           ].map(({ text, grad }, i) => (
-            <motion.div
+            <motion.span
               key={i}
               initial={{ opacity: 0, x: -30 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.15 + i * 0.1 }}
+              className="block"
               style={{
                 background: grad,
                 WebkitBackgroundClip: 'text',
@@ -81,9 +82,9 @@ export default function Landing() {
               }}
             >
               {text}
-            </motion.div>
+            </motion.span>
           ))}
-        </div>
+        </h1>
 
         {/* Subheadline */}
         <motion.p

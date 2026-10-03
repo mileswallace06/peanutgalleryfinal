@@ -178,7 +178,7 @@ export default function Me() {
             <button type="button" onClick={() => setSocialTab('followers')} aria-pressed={socialTab === 'followers'}>Followers <span>{followers.length}</span></button>
           </div>
           {socialTab === 'following' && (
-            following.length === 0 ? <p className="pg-account-empty">You’re not following anyone yet.</p> : <div className="pg-account-people">
+            following.length === 0 ? <div className="pg-account-empty"><p>You’re not following anyone yet. Browse community posts in Fan Zone, or check Followers to follow someone back.</p><AccountLink to="/fan-zone?tab=trending" icon={MessageSquare} title="Explore fan posts" description="Open the Trending feed" /></div> : <div className="pg-account-people">
               {following.map(f => (
                 <div key={f.id} className="pg-account-person">
                   <div className="pg-account-person-avatar">{f.following_avatar_url ? <img src={f.following_avatar_url} alt="" /> : (f.following_name || f.following_email || '?')[0].toUpperCase()}</div>

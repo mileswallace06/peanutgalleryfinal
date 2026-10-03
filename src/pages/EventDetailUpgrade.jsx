@@ -288,8 +288,8 @@ export default function EventDetailUpgrade() {
                 <Link to={`/upgrades/${encodeURIComponent(event.id)}`}>View all upgrades for this event</Link>
               </div>
             )}
-            {/* Hub-level eligibility gate — preserved as-is */}
-            {!loading && (() => {
+            {/* Timing only controls when the existing eligibility UI is shown. */}
+            {!loading && timing.isLive && (() => {
               const upgradeListings = listings.filter(l => UPGRADE_LISTING_TYPES.includes(l.listing_type));
               const anyHasGate = upgradeListings.some(l => l.requires_location || l.requires_existing_ticket);
               const isDemo = upgradeListings.some(l => l.is_demo_listing);
@@ -336,7 +336,10 @@ export default function EventDetailUpgrade() {
             loading={loading || dropsLoading}
             loadError={dropLoadError}
             onRetry={() => refreshDrops(event.id)}
-            onDropSeats={() => setShowDropSheet(true)}
+            onDropSeats={clickEvent => {
+              clickEvent.currentTarget.focus({ preventScroll: true });
+              setShowDropSheet(true);
+            }}
             onWinnerSelected={handleWinnerSelected}
           />
         )}

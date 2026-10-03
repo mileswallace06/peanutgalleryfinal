@@ -1,4 +1,4 @@
-import { reliableTime } from './sellingEventTiming.js';
+import { reliableTime } from './eventTimestamp.js';
 
 /** Display one confirmed instant in the venue's zone, independent of the viewer. */
 export function getEventDateDisplay(event) {
@@ -30,6 +30,9 @@ export function getEventDateDisplay(event) {
     month: parts.month,
     day: parts.day,
     time,
+    timeLabel: `${time}${uncertainty}`,
+    compactLabel: `${parts.month} ${parts.day} · ${time}${uncertainty}`,
+    showtimeLabel: `${parts.month} ${parts.day}, ${parts.year}, ${time}${uncertainty}`,
     label: `${parts.weekday}, ${parts.month} ${parts.day} · ${time}${uncertainty}`,
     detailLabel: `${detailParts.weekday}, ${detailParts.month} ${detailParts.day}, ${detailParts.year} · ${time}${uncertainty}`,
   };

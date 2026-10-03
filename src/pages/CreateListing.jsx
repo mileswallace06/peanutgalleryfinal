@@ -24,10 +24,10 @@ function StepBar({ current }) {
   </ol>;
 }
 
-const inputClass = `w-full px-4 py-3.5 rounded-2xl text-base font-medium text-foreground scroll-mb-40 placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40`;
+const inputClass = `pg-control-input w-full px-4 py-3.5 rounded-2xl text-base font-medium text-foreground scroll-mb-40 placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40`;
 const inputStyle = {
-  background: 'hsl(var(--input))',
-  border: '1px solid hsl(var(--border))',
+  background: 'var(--pg-control-fill)',
+  border: '1px solid var(--pg-field-boundary)',
 };
 
 export default function CreateListing() {
@@ -459,8 +459,8 @@ export default function CreateListing() {
                   onChange={e => setPgTransferNotes(e.target.value)}
                   placeholder="e.g. Transferred via Ticketmaster to experience@peanutgallery.store at 3:45 PM"
                   rows={2}
-                  className="w-full px-3 py-2.5 rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
-                  style={{ background: 'rgba(var(--neon-cyan-rgb), 0.05)', border: '1px solid rgba(var(--neon-cyan-rgb), 0.2)' }}
+                  className="pg-control-input w-full px-3 py-2.5 rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
+                  style={{ background: 'rgba(var(--neon-cyan-rgb), 0.05)', border: '1px solid var(--pg-field-boundary)' }}
                 />
               </div>
             </div>
@@ -476,12 +476,12 @@ export default function CreateListing() {
                 value={form.asking_price}
                 onChange={e => set('asking_price', e.target.value)}
                 placeholder="0"
-                className="w-full pl-10 pr-4 rounded-2xl font-black focus:outline-none focus:ring-2 focus:ring-primary/40"
+                className="pg-control-input w-full pl-10 pr-4 rounded-2xl font-black focus:outline-none focus:ring-2 focus:ring-primary/40"
                 style={{
                   fontSize: 'clamp(2rem, 10vw, 2.8rem)',
                   paddingTop: '1rem', paddingBottom: '1rem',
                   background: 'rgba(var(--neon-green-rgb), 0.05)',
-                  border: '1px solid rgba(var(--neon-green-rgb), 0.25)',
+                  border: '1px solid var(--pg-field-boundary)',
                   color: 'hsl(var(--foreground))',
                   letterSpacing: '-0.02em',
                 }}

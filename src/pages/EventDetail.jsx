@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useParams, useLocation, Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { format } from 'date-fns';
-import { MapPin, Calendar, ArrowLeft, Ticket, Zap, Plus, Bell, ShieldCheck } from 'lucide-react';
+import { getEventDateDisplay } from '@/lib/eventDateDisplay';
+import { MapPin, Calendar, ArrowLeft, Ticket, Zap, Plus, ShieldCheck } from 'lucide-react';
 import ListingCard from '@/components/events/ListingCard';
 import PurchaseDialog from '@/components/events/PurchaseDialog';
-import { getEventLiveStatus } from '@/lib/eventTiming';
+import DiscoveryAlertControl from '@/components/upgrades/DiscoveryAlertControl';
+import { getUpgradeEventState, getUpgradeShowtimeLabel } from '@/lib/upgradeEventState';
+import { useUpgradeClock } from '@/hooks/useUpgradeClock';
 import { logNavEvent } from '@/lib/navLogger';
 import EventLookupDebugPanel from '@/components/debug/EventLookupDebugPanel';
 import { Disclosure } from '@/components/ClarityUI';
@@ -23,6 +25,7 @@ export default function EventDetail() {
   const [user, setUser] = useState(null);
   const [lookupError, setLookupError] = useState(false);
   const [lookupTrace, setLookupTrace] = useState(null);
+  const nowMs = useUpgradeClock(event);
 
   useEffect(() => {
     let cancelled = false;
@@ -105,7 +108,6 @@ export default function EventDetail() {
         if (cancelled) return;
 
         const adminUnlocked = me?.role === 'admin' || sessionStorage.getItem('pg_admin_unlocked') === '1';
-        const timing = getEventLiveStatus(ev);
         const real = safeListings.filter(l => !l.is_demo_listing);
         setListings(real.length > 0 ? real : safeListings);
 
@@ -158,9 +160,10 @@ export default function EventDetail() {
   }
 
   const adminUnlocked = user?.role === 'admin' || sessionStorage.getItem('pg_admin_unlocked') === '1';
-  const timing = getEventLiveStatus(event);
-  const isLive = timing.status === 'live';
-  const isLiveMode = timing.status === 'live' || timing.status === 'ended';
+  const timing = getUpgradeEventState(event, nowMs);
+  const isLive = timing.isLive;
+  const isEstimated = timing.status === 'estimated_live';
+  const isLiveMode = isLive || timing.status === 'ended';
   const isDemoOnly = listings.length > 0 && listings.some(l => l.is_demo_listing);
   const shared = sharedListingSelection(listings, event, search, TICKET_LISTING_TYPES);
   const sorted = [...shared.listings].sort((a, b) => a.asking_price - b.asking_price);
@@ -176,7 +179,7 @@ export default function EventDetail() {
             <div className="pg-event-photo-fallback"><Ticket aria-hidden="true" /><span>Peanut Gallery</span></div>
           )}
           <Link to="/events" className="pg-event-back"><ArrowLeft aria-hidden="true" /> Events</Link>
-          {isLive && <span className="pg-event-status">Live now</span>}
+          {isLive && <span className="pg-event-status" title={isEstimated ? 'Estimated live window; the event may have ended' : undefined}>{isEstimated ? 'Live · estimated window' : 'Live now'}</span>}
           {timing.status === 'soon' && <span className="pg-event-status">Starting soon</span>}
           {timing.status === 'ended' && <span className="pg-event-status">Event ended</span>}
         </div>
@@ -184,7 +187,7 @@ export default function EventDetail() {
           <p className="pg-event-eyebrow">Peanut Gallery / Event</p>
           <h1 className="font-display">{event.title}</h1>
           <div className="pg-event-facts">
-            <p><Calendar aria-hidden="true" /><span>{(event.event_start_utc || event.date) ? format(new Date(event.event_start_utc || event.date), 'EEEE, MMMM d, yyyy · h:mm a') : 'Date to be confirmed'}</span></p>
+            <p><Calendar aria-hidden="true" /><span>{getEventDateDisplay(event)?.detailLabel || 'Date to be confirmed'}</span></p>
             <p><MapPin aria-hidden="true" /><span>{event.venue}{event.city ? `, ${event.city}` : ''}</span></p>
           </div>
           <div className="pg-event-primary">
@@ -221,10 +224,11 @@ export default function EventDetail() {
           {shared.requested && sorted.length === 0 ? null : sorted.length === 0 ? (
             isLiveMode && !adminUnlocked ? (
               <div className="pg-event-empty">
-                <h3>{timing.status === 'ended' ? 'Pre-event ticket sales have closed' : 'Event is live — check Upgrades'}</h3>
+                <h3>{timing.status === 'ended' ? 'Pre-event ticket sales have closed' : isEstimated ? 'Estimated live window — check Upgrades' : 'Event is live — check Upgrades'}</h3>
                 <p>{timing.status === 'ended'
                   ? 'This event has ended. Visit the Live Hub for this event.'
-                  : 'Pre-event ticket sales have closed. Fans inside are listing seat upgrades right now.'}</p>
+                  : isEstimated ? 'The event may still be running. Check the Live Hub for available seat upgrades.'
+                  : 'Pre-event ticket sales have closed. Check the Live Hub for available seat upgrades.'}</p>
                 <Link to={`/upgrades/${event.id}`} className="pg-event-text-link"><Zap aria-hidden="true" /> Open Live Hub</Link>
               </div>
             ) : (
@@ -252,17 +256,19 @@ export default function EventDetail() {
 
         <div className="pg-event-secondary">
           <Disclosure
-            title={isLive ? 'Live Hub — open now' : timing.status === 'soon' ? 'Live Hub — starting soon' : 'Upgrades & Live Hub'}
+            title={isLive ? isEstimated ? 'Live Hub — estimated live window' : 'Live Hub — open now' : timing.status === 'soon' ? 'Live Hub — starting soon' : 'Upgrades & Live Hub'}
             description="Seat upgrades and live fan activity"
             defaultOpen={isLive || timing.status === 'soon'}
           >
             <p>{isLive
-              ? 'Flash Drops, seat upgrades & live fan activity'
+              ? isEstimated ? 'Estimated live window; the event may have ended. Check available upgrades in the Live Hub.' : 'Flash Drops, seat upgrades & live fan activity'
               : timing.status === 'soon'
               ? 'Flash Drops & upgrades open when the event starts'
               : timing.status === 'ended'
               ? 'This event has ended.'
+              : timing.status === 'unknown' ? 'Event time is unconfirmed. Check back for the confirmed start time.'
               : 'Flash Drops & upgrades unlock at showtime'}</p>
+            {timing.beforeShowtime && <p>Upgrades open {getUpgradeShowtimeLabel(event)}.</p>}
             <Link to={`/upgrades/${event.id}`} className="pg-event-text-link"><Zap aria-hidden="true" /> {isLive ? 'Open Live Hub' : timing.status === 'soon' ? 'Get ready in Live Hub' : 'View Live Hub'}</Link>
           </Disclosure>
 
@@ -279,9 +285,9 @@ export default function EventDetail() {
                   ))}
                 </div>
               </Disclosure>
-              <Disclosure title="Ticket alerts" description="Get notified when tickets drop">
-                <p>We'll alert you the moment a listing goes live.</p>
-                <Link to="/account-settings" className="pg-event-text-link"><Bell aria-hidden="true" /> Manage alerts</Link>
+              <Disclosure title="Upgrade alerts" description="Check alert availability for this event">
+                <p>These preferences cover seat upgrades, not general ticket listings.</p>
+                <DiscoveryAlertControl eventId={event.id} user={user} />
               </Disclosure>
             </>
           )}

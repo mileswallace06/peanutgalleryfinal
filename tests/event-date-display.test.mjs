@@ -4,9 +4,12 @@ import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import { transform } from 'esbuild';
 import { getEventDateDisplay } from '../src/lib/eventDateDisplay.js';
-import { reliableTime } from '../src/lib/sellingEventTiming.js';
-import { getEventLiveStatus } from '../src/lib/eventTiming.js';
+import { reliableTime, sellingEventDate, sellingEventTiming, SELLING_STATUS_LABELS } from '../src/lib/sellingEventTiming.js';
+import { getUpgradeEventState, getUpgradeShowtimeLabel, getUpgradeVenueDateParts } from '../src/lib/upgradeEventState.js';
 import { getEventUrl } from '../src/lib/eventUrl.js';
+import { sharedListingSelection } from '../src/lib/sharedListingDestination.js';
+import { TICKET_LISTING_TYPES } from '../src/lib/listingTypes.js';
+import { normalizeTMEvent } from '../base44/shared/tmResponseHandler.js';
 
 const event = {
   id: 'tm_fixture', tm_id: 'fixture', source: 'ticketmaster', title: 'Fixture show',
@@ -25,7 +28,7 @@ async function compile(source, globals) {
 }
 const eventsSource = await readFile(new URL('../src/pages/Events.jsx', import.meta.url), 'utf8');
 const { EventRow } = await compile(`${eventsSource.slice(eventsSource.indexOf('function EventRow('))}\nexport { EventRow };`, {
-  getEventDateDisplay, getEventLiveStatus, getEventUrl, logNavEvent() {},
+  getEventDateDisplay, getUpgradeEventState, getEventUrl, logNavEvent() {},
   Link: 'a', EventThumbnail: 'thumbnail', ShieldCheck: 'shield', ArrowRight: 'arrow',
 });
 
@@ -46,6 +49,16 @@ test('Events card time, accessible label and date stub use canonical venue time 
   } finally {
     if (previous === undefined) delete process.env.TZ;
     else process.env.TZ = previous;
+  }
+});
+
+test('provider titles survive normalization, JSON storage and Events card display without guessed repairs', () => {
+  for (const title of ['Lotería Thursdays', "O'Connor’s show", '東京の音楽 · حفلة موسيقية', 'Loterã­A Thursdays']) {
+    const normalized = normalizeTMEvent({ id: 'unicode-fixture', name: title, dates: { start: { dateTime: event.event_start_utc } } });
+    const restored = JSON.parse(JSON.stringify(normalized));
+    assert.equal(restored.title, title);
+    const rendered = nodes(EventRow({ event: { ...restored, id: 'tm_unicode-fixture', source: 'ticketmaster' } }));
+    assert.equal(text(rendered.find(node => node?.props?.className === 'pg-browse-ticket-title')), title);
   }
 });
 
@@ -84,7 +97,111 @@ test('unavailable venue zones use explicitly labeled UTC without guessing from t
     assert.equal(display.day, '2');
     assert.match(display.label, /venue time unconfirmed$/);
     assert.match(display.detailLabel, /venue time unconfirmed$/);
+    assert.match(text(EventRow({ event: { ...event, venue_timezone } })), /UTC · venue time unconfirmed/);
   }
+});
+
+// Exercise the existing route and selected-event JSX with deterministic hook state;
+// no listing, location, notification or purchase action is invoked.
+const nativeSource = (await readFile(new URL('../src/pages/EventDetail.jsx', import.meta.url), 'utf8')).replace(/^import .+\n/gm, '');
+const nativeFixture = { event, now: Date.parse(event.event_start_utc), cursor: 0 };
+const { default: NativeDetail } = await compile(nativeSource, {
+  getEventDateDisplay, getUpgradeEventState, getUpgradeShowtimeLabel, sharedListingSelection, TICKET_LISTING_TYPES,
+  useParams: () => ({ id: nativeFixture.event.id }), useLocation: () => ({ search: '' }),
+  useUpgradeClock: () => nativeFixture.now, useEffect() {},
+  useState: () => [[nativeFixture.event, [], false, null, null, false, null][nativeFixture.cursor++], () => {}],
+  sessionStorage: { getItem: () => null },
+  Link: 'a', MapPin: 'pin', Calendar: 'calendar', ArrowLeft: 'back', Ticket: 'ticket',
+  Zap: 'zap', Plus: 'plus', Bell: 'bell', ShieldCheck: 'shield', ListingCard: 'listing',
+  PurchaseDialog: 'purchase', Disclosure: 'details', DiscoveryAlertControl: 'upgrade-alert-control',
+});
+function renderNative(event, now = Date.parse(event.event_start_utc || event.date)) {
+  Object.assign(nativeFixture, { event, now, cursor: 0 });
+  return NativeDetail();
+}
+const summarySource = (await readFile(new URL('../src/components/listings/SellingEventSummary.jsx', import.meta.url), 'utf8')).replace(/^import .+\n/gm, '');
+const { default: SellingSummary } = await compile(summarySource, {
+  useEventClock: () => nativeFixture.now, sellingEventDate, sellingEventTiming, SELLING_STATUS_LABELS,
+  EventThumbnail: 'thumbnail',
+});
+
+test('native detail, seller summary, discovery and hub describe the same instant through DST transitions in every viewer zone', () => {
+  const previous = process.env.TZ;
+  const scenarios = [
+    ['2026-07-02T00:00:00Z', 'America/New_York', '8:00 PM EDT', '1'],
+    ['2026-03-08T06:30:00Z', 'America/New_York', '1:30 AM EST', '8'],
+    ['2026-03-08T07:30:00Z', 'America/New_York', '3:30 AM EDT', '8'],
+    ['2026-11-01T05:30:00Z', 'America/New_York', '1:30 AM EDT', '1'],
+    ['2026-11-01T06:30:00Z', 'America/New_York', '1:30 AM EST', '1'],
+    ['2026-10-02T02:00:00Z', 'America/Phoenix', '7:00 PM MST', '1'],
+  ];
+  try {
+    for (const viewer of ['UTC', 'America/Los_Angeles', 'Asia/Tokyo']) {
+      process.env.TZ = viewer;
+      for (const [event_start_utc, venue_timezone, expectedTime, expectedDay] of scenarios) {
+        const sample = { ...event, source: 'pg', event_start_utc, venue_timezone };
+        const display = getEventDateDisplay(sample);
+        const now = Date.parse(event_start_utc) - 1;
+        assert.equal(display.time, expectedTime);
+        assert.equal(display.day, expectedDay);
+        assert.ok(text(renderNative(sample, now)).includes(display.detailLabel));
+        assert.ok(text(SellingSummary({ event: sample })).includes(display.showtimeLabel));
+        assert.equal(sellingEventDate(sample, now), getUpgradeShowtimeLabel(sample));
+        assert.equal(getUpgradeVenueDateParts(sample, now + 1).label, display.compactLabel);
+        assert.ok(text(EventRow({ event: sample, nowMs: now })).includes(expectedTime));
+      }
+    }
+  } finally {
+    if (previous === undefined) delete process.env.TZ;
+    else process.env.TZ = previous;
+  }
+});
+
+test('missing venue zones and unconfirmed starts remain explicit across native, seller and hub displays', () => {
+  for (const venue_timezone of [undefined, '', 'Invalid/Zone']) {
+    const sample = { ...event, venue_timezone, state: 'AZ' };
+    assert.match(text(renderNative(sample)), /2:00 AM UTC · venue time unconfirmed/);
+    assert.match(text(SellingSummary({ event: sample })), /2:00 AM UTC · venue time unconfirmed/);
+    assert.match(getUpgradeShowtimeLabel(sample), /2:00 AM UTC · venue time unconfirmed/);
+    assert.match(getUpgradeVenueDateParts(sample, Date.parse(sample.event_start_utc)).label, /2:00 AM UTC · venue time unconfirmed/);
+  }
+  for (const patch of [{ date_tba: true }, { time_tba: true }, { no_specific_time: true },
+    { event_start_utc: '2026-10-02T02:00:00' }, { event_start_utc: undefined, date: undefined }]) {
+    const sample = { ...event, ...patch };
+    assert.match(text(renderNative(sample)), /Date to be confirmed/);
+    assert.match(text(SellingSummary({ event: sample })), /Date and time to be confirmed/);
+    assert.equal(getUpgradeShowtimeLabel(sample), null);
+  }
+});
+
+test('native detail and Events badges agree with shared timing through start, explicit end and estimated windows after reload', () => {
+  const start = Date.parse(event.event_start_utc);
+  const sample = { ...event, id: 'native-fixture', source: 'pg', status: 'upcoming', event_end_utc: new Date(start + 8 * 3600000).toISOString() };
+  for (const reload of [false, true]) {
+    const record = reload ? JSON.parse(JSON.stringify(sample)) : sample;
+    for (const now of [start - 1, start, start + 5 * 3600000, start + 8 * 3600000]) {
+      const timing = getUpgradeEventState(record, now);
+      const native = nodes(renderNative(record, now));
+      const badges = native.filter(node => node?.props?.className === 'pg-event-status');
+      const card = text(EventRow({ event: record, nowMs: now }));
+      assert.equal(text(badges), timing.beforeShowtime ? 'Starting soon' : timing.isLive ? 'Live now' : 'Event ended');
+      assert.equal(card.includes('LIVE'), timing.isLive);
+      if (timing.beforeShowtime) assert.ok(text(native).replace(/\s+/g, ' ').includes(`Upgrades open ${getUpgradeShowtimeLabel(record)}`));
+    }
+  }
+  const estimated = { ...sample, event_end_utc: undefined };
+  assert.match(text(renderNative(estimated, start)), /Live · estimated window/);
+  assert.match(text(EventRow({ event: estimated, nowMs: start })), /LIVE · EST\./);
+  assert.match(text(SellingSummary({ event: estimated })), /Live · estimated window/);
+});
+
+test('the native empty-event alert control stays scoped to this event and describes upgrades', () => {
+  const rendered = nodes(renderNative(event, Date.parse(event.event_start_utc) - 1));
+  const control = rendered.find(node => node?.type === 'upgrade-alert-control');
+  assert.equal(control.props.eventId, event.id);
+  assert.equal(control.props.user, null);
+  assert.ok(rendered.some(node => node?.type === 'details' && node.props.title === 'Upgrade alerts'));
+  assert.doesNotMatch(text(rendered), /alert you the moment a listing goes live|Manage alerts/);
 });
 
 async function renderDetail({ localEvent = event, passedEvent, tmId = 'fixture' } = {}) {
