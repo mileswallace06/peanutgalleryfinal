@@ -60,8 +60,10 @@
 .pg-fan-sort-sheet h2 { font-family: var(--font-display); font-size: 25px; font-weight: 400; }
 .pg-fan-sort-sheet > .flex { padding-bottom: 14px; border-bottom: 1px dashed var(--pg-line); }
 .pg-selling-picker > article { border-radius: 8px; background: var(--pg-paper); color: var(--pg-ink); border-color: #11121726; }
-.pg-selling-picker > article h2 { color: var(--pg-ink); font-family: var(--font-display); font-size: 21px; font-weight: 400; }
+/* :is(.text-foreground, h2, h3) above has class specificity even for h2. */
+.pg-selling-picker.pg-detail-surface > article h2 { color: var(--pg-ink); font-family: var(--font-display); font-size: 21px; font-weight: 400; }
 .pg-selling-picker > article .text-muted-foreground { color: var(--pg-paper-muted); }
 .pg-selling-picker > article :is(.text-primary, .text-green-400) { color: #356249; }
 .pg-selling-picker > article > .border-t { border-top: 1px dashed #11121745; }
 .pg-selling-picker > article button { background: var(--pg-mint); color: var(--pg-ink); border-color: #11121726; }
+.pg-selling-picker > article button:focus-visible { outline-color: var(--pg-ink); outline-offset: -4px; }

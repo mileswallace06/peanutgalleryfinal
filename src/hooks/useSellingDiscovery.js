@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useLocationDetect } from './useLocationDetect';
 import { createEventSearchRequest } from '@/lib/eventSearchRequest';
-import { restoreEventLocation, saveEventLocation, cityFromSuggestion, validCoordinates } from '@/lib/eventLocation';
+import { restoreEventLocation, saveEventLocation, cityFromSuggestion, validCoordinates, sameEventLocation, subscribeEventLocation } from '@/lib/eventLocation';
 import { fetchSellingEvents } from '@/lib/sellingEventDiscovery';
 
 export function useSellingDiscovery(initialKeyword = '') {
@@ -55,6 +55,13 @@ export function useSellingDiscovery(initialKeyword = '') {
     }).catch(() => { if (!cancelled) setRestoring(false); });
     return () => { cancelled = true; generation.current++; pendingGPS.current = null; };
   }, []);
+  useEffect(() => subscribeEventLocation(localArea => {
+    if (sameEventLocation(localArea, areaRef.current)) return;
+    intent.current++; pendingGPS.current = null; cancelRequest(); setRestoring(false);
+    areaRef.current = localArea; setArea(localArea); setCityError(''); setEditingLocation(false);
+    // Keep an explicit nationwide search; update the retained nearby market.
+    if (requestRef.current.scope === 'local') load(createEventSearchRequest(requestRef.current.keyword, localArea));
+  }), [load, cancelRequest]);
   const locate = (text = requestRef.current.keyword) => { intent.current++; setRestoring(false); pendingGPS.current = { keyword: text }; setCityError(''); requestLocation(); };
   return { keyword, setKeyword, area, request, result, loading, restoring, editingLocation, locationInput, cityError, locationStatus,
     submit: () => run(keyword), nationwide: () => run(requestRef.current.keyword, null, 'nationwide'),

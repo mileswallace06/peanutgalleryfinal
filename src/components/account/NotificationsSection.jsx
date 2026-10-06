@@ -14,15 +14,16 @@ const PREFS = [
 function Toggle({ on, onToggle, label }) {
   return (
     <button
+      type="button"
       onClick={onToggle}
       role="switch"
       aria-checked={on}
       aria-label={label}
       className="pg-preference-toggle flex-shrink-0"
     >
-      <span className="pg-preference-toggle-track" style={{ background: on ? 'var(--pg-violet)' : 'var(--pg-surface-raised)' }}>
+      <span aria-hidden="true" className="pg-preference-toggle-track">
         <span
-          className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform"
+          className="pg-preference-toggle-thumb absolute top-0.5 left-0.5 w-5 h-5 rounded-full shadow transition-transform"
           style={{ transform: on ? 'translateX(20px)' : 'translateX(0)' }}
         />
       </span>

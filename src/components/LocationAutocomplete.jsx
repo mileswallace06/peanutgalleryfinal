@@ -222,8 +222,8 @@ export default function LocationAutocomplete({
             aria-expanded={isDropdownVisible || false}
             role="combobox"
             autoComplete="off"
-            className="w-full pl-9 pr-10 py-3 rounded-lg text-sm font-medium text-foreground placeholder:text-muted-foreground focus:outline-none"
-            style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}
+            className="pg-control-input w-full pl-9 pr-10 py-3 rounded-lg text-sm font-medium text-foreground placeholder:text-muted-foreground focus:outline-none"
+            style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-field-boundary)' }}
           />
           {suggestLoading && (
             <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-muted-foreground" />

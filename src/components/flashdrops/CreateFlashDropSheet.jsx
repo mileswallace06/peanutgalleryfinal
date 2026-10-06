@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
+import * as Dialog from '@radix-ui/react-dialog';
 import { X, Zap, Clock } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import './fan-gifts-ticket.css';
 
 const DELIVERY_METHODS = [
@@ -49,6 +50,19 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated }
   const [userListings, setUserListings] = useState([]);
   const [loading, setLoading] = useState(false);
   const [createdDrop, setCreatedDrop] = useState(null);
+  const fieldId = useId();
+  const closeButton = useRef(null);
+  const returnFocusTo = useRef(null);
+  const sheet = useRef(null);
+  const heading = useRef(null);
+  const previousStep = useRef(step);
+
+  useEffect(() => {
+    if (previousStep.current === step) return;
+    previousStep.current = step;
+    sheet.current?.scrollTo({ top: 0 });
+    heading.current?.focus({ preventScroll: true });
+  }, [step]);
 
   // Load user's existing listings for this event (ownership verification)
   const loadUserListings = async () => {
@@ -97,29 +111,34 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated }
   };
 
   return (
-    <AnimatePresence>
-      <motion.div className="pg-fan-gifts pg-gift-sheet-layer fixed inset-0 z-50 flex flex-col justify-end"
-        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-        <div className="pg-gift-sheet-backdrop absolute inset-0" onClick={onClose} />
-        <motion.div
-          className="pg-gift-sheet relative"
-          initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-          transition={{ type: 'spring', damping: 28, stiffness: 300 }}>
+    <Dialog.Root open onOpenChange={open => { if (!open) onClose(); }}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="pg-gift-sheet-backdrop" />
+        <Dialog.Content ref={sheet} className="pg-ticket-app pg-fan-gifts pg-gift-sheet"
+          onOpenAutoFocus={focusEvent => {
+            focusEvent.preventDefault();
+            returnFocusTo.current = document.activeElement;
+            closeButton.current?.focus({ preventScroll: true });
+          }}
+          onCloseAutoFocus={focusEvent => {
+            focusEvent.preventDefault();
+            if (returnFocusTo.current?.isConnected) returnFocusTo.current.focus({ preventScroll: true });
+          }}>
 
           <div className="flex justify-center pt-3 pb-2">
             <div className="pg-gift-sheet-handle w-10 h-1" />
           </div>
-          <button onClick={onClose} className="pg-gift-button pg-gift-sheet-close absolute top-4 right-4 p-2" aria-label="Close fan gift form">
+          <Dialog.Close ref={closeButton} className="pg-gift-button pg-gift-sheet-close absolute top-4 right-4 p-2" aria-label="Close fan gift form">
             <X className="w-4 h-4 text-muted-foreground" />
-          </button>
+          </Dialog.Close>
 
           <div className="px-5 pt-1 pb-4">
             {/* Top accent */}
             <div className="pg-gift-sheet-heading flex items-center gap-2 mb-4">
               <span className="text-2xl">⚡</span>
               <div>
-                <h2 className="font-black text-lg text-foreground leading-none">Create Flash Drop</h2>
-                <p className="text-xs text-muted-foreground">{event?.title}</p>
+                <Dialog.Title ref={heading} tabIndex={-1} className="font-black text-lg text-foreground leading-none">Create Flash Drop<span className="sr-only"> — {step === 'type' ? 'Choose drop type' : step === 'details' ? 'Seat details' : step === 'schedule' ? 'Schedule' : 'Complete'}</span></Dialog.Title>
+                <Dialog.Description className="text-xs text-muted-foreground">{event?.title}</Dialog.Description>
               </div>
             </div>
 
@@ -150,50 +169,48 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated }
                 <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide">Seat Details</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block mb-1">Section *</label>
-                    <input value={section} onChange={e => setSection(e.target.value)} placeholder="e.g. 118"
-                      className="w-full px-3 py-2.5 rounded-xl text-sm text-foreground bg-input border border-border outline-none focus:border-primary" />
+                    <label htmlFor={`${fieldId}-section`} className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block mb-1">Section *</label>
+                    <input id={`${fieldId}-section`} aria-required="true" value={section} onChange={e => setSection(e.target.value)} placeholder="e.g. 118"
+                      className="pg-control-input w-full px-3 py-2.5 rounded-xl text-sm outline-none" />
                   </div>
                   <div>
-                    <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block mb-1">Row</label>
-                    <input value={row} onChange={e => setRow(e.target.value)} placeholder="e.g. G"
-                      className="w-full px-3 py-2.5 rounded-xl text-sm text-foreground bg-input border border-border outline-none focus:border-primary" />
+                    <label htmlFor={`${fieldId}-row`} className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block mb-1">Row</label>
+                    <input id={`${fieldId}-row`} value={row} onChange={e => setRow(e.target.value)} placeholder="e.g. G"
+                      className="pg-control-input w-full px-3 py-2.5 rounded-xl text-sm outline-none" />
                   </div>
                   <div>
-                    <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block mb-1">Seats</label>
-                    <input value={seats} onChange={e => setSeats(e.target.value)} placeholder="e.g. 12, 13"
-                      className="w-full px-3 py-2.5 rounded-xl text-sm text-foreground bg-input border border-border outline-none focus:border-primary" />
+                    <label htmlFor={`${fieldId}-seats`} className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block mb-1">Seats</label>
+                    <input id={`${fieldId}-seats`} value={seats} onChange={e => setSeats(e.target.value)} placeholder="e.g. 12, 13"
+                      className="pg-control-input w-full px-3 py-2.5 rounded-xl text-sm outline-none" />
                   </div>
                   <div>
-                    <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block mb-1">Quantity</label>
-                    <input type="number" min="1" max="10" value={quantity} onChange={e => setQuantity(+e.target.value)}
-                      className="w-full px-3 py-2.5 rounded-xl text-sm text-foreground bg-input border border-border outline-none focus:border-primary" />
+                    <label htmlFor={`${fieldId}-quantity`} className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block mb-1">Quantity</label>
+                    <input id={`${fieldId}-quantity`} type="number" min="1" max="10" value={quantity} onChange={e => setQuantity(+e.target.value)}
+                      className="pg-control-input w-full px-3 py-2.5 rounded-xl text-sm outline-none" />
                   </div>
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block mb-1">Message (optional)</label>
-                  <input value={message} onChange={e => setMessage(e.target.value)} placeholder="Enjoy the show! 🎶"
-                    className="w-full px-3 py-2.5 rounded-xl text-sm text-foreground bg-input border border-border outline-none focus:border-primary" />
+                  <label htmlFor={`${fieldId}-message`} className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block mb-1">Message (optional)</label>
+                  <input id={`${fieldId}-message`} value={message} onChange={e => setMessage(e.target.value)} placeholder="Enjoy the show! 🎶"
+                    className="pg-control-input w-full px-3 py-2.5 rounded-xl text-sm outline-none" />
                 </div>
 
-                <div>
-                  <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block mb-1">Entry Window</label>
+                <fieldset>
+                  <legend className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block mb-1">Entry Window</legend>
                   <div className="flex gap-2">
                     {WINDOW_OPTIONS.map(o => (
-                      <button key={o.value} onClick={() => setWindowSecs(o.value)}
+                      <button key={o.value} onClick={() => setWindowSecs(o.value)} aria-pressed={windowSecs === o.value}
                         className={`pg-gift-choice pg-gift-choice-yellow flex-1 py-2 text-xs font-bold transition-all${windowSecs === o.value ? ' is-selected' : ''}`}>
                         {o.label}
                       </button>
                     ))}
                   </div>
-                </div>
+                </fieldset>
 
                 <label className="pg-gift-choice flex items-center gap-3 px-4 py-3 cursor-pointer">
-                  <div className={`pg-gift-checkbox w-5 h-5 flex items-center justify-center flex-shrink-0${isAnonymous ? ' is-selected' : ''}`}
-                    onClick={() => setIsAnonymous(v => !v)}>
-                    {isAnonymous && <span className="text-[10px] font-black">✓</span>}
-                  </div>
+                  <input type="checkbox" className="pg-gift-checkbox w-5 h-5 flex-shrink-0"
+                    checked={isAnonymous} onChange={e => setIsAnonymous(e.target.checked)} />
                   <div>
                     <p className="text-sm font-bold text-foreground">Drop anonymously</p>
                     <p className="text-[10px] text-muted-foreground">Shown as "A generous fan"</p>
@@ -201,8 +218,8 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated }
                 </label>
 
                 {/* Ownership Verification */}
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block">Verify You Own This Seat</label>
+                <fieldset className="space-y-2">
+                  <legend className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block">Verify You Own This Seat</legend>
                   {userListings.length === 0 && (
                     <button type="button" onClick={loadUserListings}
                       className="pg-gift-link text-xs underline">
@@ -213,7 +230,7 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated }
                     <div className="space-y-1">
                       <p className="text-[10px] text-muted-foreground">Link an existing listing:</p>
                       {userListings.map(l => (
-                        <button key={l.id} onClick={() => setOwnershipListingId(l.id)}
+                        <button key={l.id} onClick={() => setOwnershipListingId(l.id)} aria-pressed={ownershipListingId === l.id}
                           className={`pg-gift-choice pg-gift-choice-mint w-full flex items-center justify-between px-3 py-2 text-xs transition-all${ownershipListingId === l.id ? ' is-selected' : ''}`}>
                           <span>Sec {l.section}{l.row ? ` Row ${l.row}` : ''}</span>
                           <span className="font-bold">${l.asking_price}</span>
@@ -231,17 +248,17 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated }
                     <label className="pg-gift-upload flex items-center gap-2 px-3 py-2 cursor-pointer text-xs text-muted-foreground">
                       {ownershipProofUploading ? <span className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" /> : '📎'}
                       {ownershipProofUploading ? 'Uploading…' : 'Upload ticket screenshot'}
-                      <input type="file" accept="image/*" className="hidden" onChange={handleProofUpload} disabled={ownershipProofUploading} />
+                      <input type="file" accept="image/*" className="sr-only" onChange={handleProofUpload} disabled={ownershipProofUploading} />
                     </label>
                   )}
-                </div>
+                </fieldset>
 
                 {/* Delivery Method */}
-                <div>
-                  <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block mb-1">How Will Winner Receive Seat?</label>
+                <fieldset>
+                  <legend className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block mb-1">How Will Winner Receive Seat?</legend>
                   <div className="space-y-1.5">
                     {DELIVERY_METHODS.map(m => (
-                      <button key={m.value} onClick={() => setDeliveryMethod(m.value)}
+                      <button key={m.value} onClick={() => setDeliveryMethod(m.value)} aria-pressed={deliveryMethod === m.value}
                         className={`pg-gift-choice w-full flex items-start gap-3 px-3 py-2.5 text-left transition-all${deliveryMethod === m.value ? ' is-selected' : ''}`}>
                         <div>
                           <p className="text-xs font-bold text-foreground">{m.label}</p>
@@ -250,7 +267,7 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated }
                       </button>
                     ))}
                   </div>
-                </div>
+                </fieldset>
 
                 <div className="flex gap-3 pt-1">
                   <button onClick={() => setStep('type')} className="pg-gift-button flex-1 py-3 text-sm font-bold">Back</button>
@@ -275,7 +292,7 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated }
                 <p className="text-sm text-muted-foreground">When should this Flash Drop go live?</p>
                 <div className="grid grid-cols-2 gap-2 max-h-56 overflow-y-auto">
                   {SCHEDULE_OPTIONS.map(o => (
-                    <button key={o.value} onClick={() => setScheduledLabel(o.label)}
+                    <button key={o.value} onClick={() => setScheduledLabel(o.label)} aria-pressed={scheduledLabel === o.label}
                       className={`pg-gift-choice px-3 py-2.5 text-xs font-semibold text-left transition-all${scheduledLabel === o.label ? ' is-selected' : ''}`}>
                       <Clock className="w-3 h-3 inline mr-1.5 opacity-60" />{o.label}
                     </button>
@@ -310,8 +327,8 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated }
               </motion.div>
             )}
           </div>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }

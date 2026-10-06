@@ -199,6 +199,8 @@ export default function Onboarding({ onDone }) {
 
   return (
     <PublicPage
+      as="main"
+      aria-label="Welcome to Peanut Gallery"
       className="pg-public-page--photo fixed inset-0 z-[100] flex flex-col overflow-y-auto overflow-x-hidden"
       style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
       onTouchStart={handleTouchStart}
@@ -280,12 +282,15 @@ export default function Onboarding({ onDone }) {
 
       {/* Content — bottom */}
       <div className="pg-onboarding-content relative z-10 flex-1 shrink-0 flex flex-col justify-end px-5 pb-4">
-        <AnimatePresence mode="wait">
-          <motion.div
+          <motion.section
             key={index}
+            role="group"
+            aria-roledescription="slide"
+            aria-label={`Slide ${index + 1} of ${SLIDES.length}`}
+            aria-live="polite"
+            aria-atomic="true"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0, y: -12 }}
             transition={{ duration: 0.3 }}
             className="space-y-4"
           >
@@ -304,9 +309,9 @@ export default function Onboarding({ onDone }) {
             </motion.div>
 
             {/* Headline — word by word stagger */}
-            <div className="font-display leading-[1.0] whitespace-pre-line" style={{ fontSize: 'clamp(2.8rem, 13vw, 4.2rem)' }}>
+            <h1 aria-label={slide.headlineWords.map(word => word.text).join(" ")} className="font-display leading-[1.0] whitespace-pre-line" style={{ fontSize: 'clamp(2.8rem, 13vw, 4.2rem)' }}>
               {slide.headlineWords.map((word, wi) => (
-                <motion.div
+                <motion.span
                   key={`${index}-w${wi}`}
                   initial={{ opacity: 0, y: 30, skewX: -4 }}
                   animate={{ opacity: 1, y: 0, skewX: 0 }}
@@ -318,9 +323,9 @@ export default function Onboarding({ onDone }) {
                   }}
                 >
                   {word.text}
-                </motion.div>
+                </motion.span>
               ))}
-            </div>
+            </h1>
 
             {/* Body */}
             <motion.p
@@ -332,8 +337,7 @@ export default function Onboarding({ onDone }) {
             >
               {slide.body}
             </motion.p>
-          </motion.div>
-        </AnimatePresence>
+          </motion.section>
 
         {/* Progress dots */}
         <div className="flex gap-1 mt-3 mb-1">

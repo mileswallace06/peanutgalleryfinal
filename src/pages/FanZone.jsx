@@ -81,8 +81,9 @@ export default function FanZone() {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     if (params.get('tab') === 'bucket_list') setFeedTab('bucket');
+    if (isTabActive && params.get('tab') === 'trending') { setFeedTab('trending'); setDateFilter('all'); }
     if (params.get('bucket') === 'edit' && user?.email) setShowBucketList('list');
-  }, [location.search, user?.email]);
+  }, [location.search, isTabActive, user?.email]);
 
   useEffect(() => {
     base44.auth.me().then(u => {
@@ -394,7 +395,7 @@ export default function FanZone() {
           <p className="pg-feed-hint"><MapPin size={14} aria-hidden="true" />{userLocation ? 'Showing posts within 80 km of your location' : 'Allow location access to see posts near you.'}</p>
         )}
         {feedTab === 'friends' && followingEmails.length === 0 && (
-          <p className="pg-feed-hint">Follow people from your <Link to="/me">profile</Link> to see their posts here.</p>
+          <p className="pg-feed-hint">Friends shows posts from people you follow. Explore Trending for community posts, or check <Link to="/me">Followers on your profile</Link> to follow someone back.</p>
         )}
       </div>
 
@@ -466,12 +467,14 @@ export default function FanZone() {
             <p className="text-sm text-muted-foreground">
               {feedTab === 'bucket' ? 'Posts about your saved artists, teams and venues will show up here. Add more favorites to find more conversations.' :
                feedTab === 'nearby' ? 'Allow location access or try another area' :
-               feedTab === 'friends' ? 'Follow fans from your profile to see their posts here' :
+               feedTab === 'friends' ? 'Browse community posts in Trending. People search is not available yet.' :
                'Be the first to share a moment from an event.'}
             </p>
             {feedTab === 'bucket' ? (
               <button onClick={event => openBucketList('search', event)} className="pg-bucket-primary"><Plus size={17} aria-hidden="true" /> Add artists, teams & venues</button>
-            ) : feedTab !== 'friends' && (
+            ) : feedTab === 'friends' ? (
+              <button type="button" onClick={() => { setFeedTab('trending'); setDateFilter('all'); }} className="pg-bucket-primary">Explore Trending</button>
+            ) : (
               <button
                 onClick={() => user?.email ? setFab('post') : base44.auth.redirectToLogin()}
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-sm"

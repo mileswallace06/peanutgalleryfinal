@@ -1,3 +1,5 @@
+@import './control-contrast.css';
+
 /* Shared inks also reach public pages and dialogs portalled outside Layout. */
 :root, .dark {
   color-scheme: dark;

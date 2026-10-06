@@ -5,7 +5,7 @@
  */
 import FlashDropCard from '@/components/flashdrops/FlashDropCard';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, Gift, Clock, CheckCircle2 } from 'lucide-react';
+import { Gift, Clock, CheckCircle2 } from 'lucide-react';
 import '@/components/flashdrops/fan-gifts-ticket.css';
 
 export default function FlashDropCenter({ drops, user, listings, loading, loadError, onRetry, onDropSeats, onWinnerSelected }) {
@@ -59,11 +59,7 @@ export default function FlashDropCenter({ drops, user, listings, loading, loadEr
             </p>
           </div>
           <div className="flex flex-col gap-2 items-center">
-            <button
-              className="pg-gift-button flex items-center gap-2 px-5 py-2.5 font-medium text-sm transition-all active:scale-95">
-              <Bell className="w-3.5 h-3.5" />
-              Notify me
-            </button>
+            <p className="text-xs text-muted-foreground">Check back here for new fan gifts. Fan gift alerts aren’t available yet.</p>
             <button onClick={onDropSeats}
               className="pg-gift-button text-xs px-4 py-2 font-medium transition-all active:scale-95">
               Offer your seats
