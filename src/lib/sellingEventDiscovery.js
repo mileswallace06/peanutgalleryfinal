@@ -30,7 +30,7 @@ export async function fetchSellingEvents(base44, request, refresh = false, now =
   const providerById = new Map(providerEvents.map(e => [e.tm_id, e]));
   const enrichedPG = pgRows.map(e => {
     const current = e.tm_id && providerById.get(e.tm_id);
-    return current ? { ...applyProviderTiming(e, current._providerTiming), _providerTiming: current._providerTiming } : e;
+    return current ? { ...applyProviderTiming(e, current._providerTiming, current), _providerTiming: current._providerTiming } : e;
   });
   const tmResult = { status: 'fulfilled', value: { events: [...providerById.values()] } };
   const merged = mergeEventSources({ localResult: { status: 'fulfilled', value: enrichedPG }, tmResult,

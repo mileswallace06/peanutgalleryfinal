@@ -9,6 +9,7 @@
  * source failure (defense in depth — fetchTMEvents also throws on non-array).
  */
 import { normalizeSearch, eventMatchesKeyword, eventWithinRadius } from './searchNormalize.js';
+import { withMatchingProviderTimezone } from './providerVenueTimezone.js';
 
 /**
  * Merge PG and TM event sources with safe contract handling.
@@ -83,8 +84,12 @@ export function mergeEventSources({ localResult, tmResult, filters }) {
   // syncTMEvent persists provider records in PG. Keep their local route and
   // show each provider identity once, including duplicate persisted copies.
   // Titles are not identities: separate performances must remain separate.
+  // Legacy PG copies may predate timezone persistence. Recover only that field
+  // from matching provider metadata; keep all PG timing, identity and status.
+  const providerById = new Map(tmEvents.filter(event => event.tm_id).map(event => [event.tm_id, event]));
+  const pgWithTimezone = pgMapped.map(event => withMatchingProviderTimezone(event, providerById.get(event.tm_id)));
   const seen = new Set();
-  const events = [...pgMapped, ...tmEvents].filter(event => {
+  const events = [...pgWithTimezone, ...tmEvents].filter(event => {
     const key = event.tm_id ? `tm:${event.tm_id}` : event.id ? `pg:${event.id}` : null;
     if (!key) return true;
     if (seen.has(key)) return false;

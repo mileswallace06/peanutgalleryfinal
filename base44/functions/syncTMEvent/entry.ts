@@ -6,12 +6,13 @@
  * and preserves venue_lat/venue_lng for near-me geospatial filtering.
  *
  * Body: { tm_id, title, venue, city, state, date, image_url, tm_url, category,
- *         tm_venue_id, venue_lat, venue_lng }
+ *         tm_venue_id, venue_lat, venue_lng, venue_timezone }
  */
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import { resolveEventHero } from '../../shared/eventHero.js';
 import { generateSearchTextNormalized } from '../../shared/searchNormalize.js';
 import { coerceCoordinate } from '../../shared/tmResponseHandler.js';
+import { tmEventTimezonePatch } from '../../shared/tmEventTimezone.js';
 
 const CATEGORY_TO_IDENTITY = {
   concert: 'concert',
@@ -85,6 +86,7 @@ Deno.serve(async (req) => {
         }
         const effectiveImage = image_url || canonical.image_url || '';
         await base44.asServiceRole.entities.Event.update(canonical.id, {
+          ...tmEventTimezonePatch(canonical, body),
           image_url: effectiveImage,
           tm_url: tm_url || canonical.tm_url,
           tm_venue_id: tm_venue_id || canonical.tm_venue_id,
@@ -98,6 +100,7 @@ Deno.serve(async (req) => {
 
       const effectiveImage = image_url || existing[0].image_url || '';
       await base44.asServiceRole.entities.Event.update(existing[0].id, {
+        ...tmEventTimezonePatch(existing[0], body),
         image_url: effectiveImage,
         tm_url: tm_url || existing[0].tm_url,
         tm_venue_id: tm_venue_id || existing[0].tm_venue_id,
@@ -111,6 +114,7 @@ Deno.serve(async (req) => {
 
     // ── Create new local Event ─────────────────────────────────────────────
     const created = await base44.asServiceRole.entities.Event.create({
+      ...tmEventTimezonePatch(null, body),
       tm_id,
       title,
       venue: venue || '',
