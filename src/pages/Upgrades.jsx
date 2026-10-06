@@ -206,6 +206,7 @@ function EventCard({ event, mode, owned = false, nowMs = Date.now() }) {
         tm_url: event.tm_url,
         category: event.category,
         tm_venue_id: event.tm_venue_id,
+        venue_timezone: event.venue_timezone,
       });
       const internalId = res?.data?.id;
       if (internalId) {

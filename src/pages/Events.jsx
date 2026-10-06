@@ -122,6 +122,7 @@ export default function Events() {
             state: e.state, date: e.date, image_url: e.image_url,
             tm_url: e.tm_url, category: e.category || null,
             tm_venue_id: e.tm_venue_id || '',
+            venue_timezone: e.venue_timezone,
             venue_lat: e.venue_lat ?? null, venue_lng: e.venue_lng ?? null,
           }).catch(syncErr => console.warn('[Events] syncTMEvent failed for', e.tm_id, syncErr?.message));
         }, i * 200);
