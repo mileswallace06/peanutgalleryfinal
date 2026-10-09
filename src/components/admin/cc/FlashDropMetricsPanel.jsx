@@ -1,3 +1,4 @@
+import { adminEventIdentity } from '@/lib/salesPresentation';
 /**
  * FlashDropMetricsPanel — Full founder metrics + per-event health dashboard.
  */
@@ -266,7 +267,7 @@ export default function FlashDropMetricsPanel() {
                       style={{ background: 'var(--pg-surface)' }}
                       onClick={() => setExpandedEvent(isExpanded ? null : ev.event_id)}>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-foreground truncate">{eventObj?.title || ev.event_id.slice(0, 12)}</p>
+                        <p className="text-sm font-bold text-foreground break-words">{adminEventIdentity(eventObj, ev.event_id)}</p>
                         <p className="text-xs text-muted-foreground">{eventObj?.venue} · {eventObj?.city}</p>
                       </div>
                       <div className="flex items-center gap-3 flex-shrink-0 text-xs">
@@ -325,7 +326,7 @@ export default function FlashDropMetricsPanel() {
                       <div key={d.id} className="pg-operations-card rounded-xl px-3 py-2.5 text-xs"
                         style={{ background: 'color-mix(in srgb, rgb(255 45 120) 5%, var(--pg-surface))', border: '1px solid rgba(255,45,120,0.2)' }}>
                         <div className="flex items-center justify-between">
-                          <span className="font-semibold text-foreground">{d.event_title || d.event_id?.slice(0, 8)} · Sec {d.section}</span>
+                          <span className="font-semibold text-foreground">{adminEventIdentity({ title: d.event_title }, d.event_id)} · Sec {d.section}</span>
                           <span className="text-muted-foreground">{d.donor_email?.split('@')[0]}</span>
                         </div>
                         <div className="flex flex-wrap gap-1 mt-1">

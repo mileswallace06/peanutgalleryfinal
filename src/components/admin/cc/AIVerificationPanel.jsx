@@ -1,6 +1,7 @@
+import { adminEventIdentity } from '@/lib/salesPresentation';
 import { useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Brain, CheckCircle, XCircle, AlertTriangle, ExternalLink, Flag, ChevronDown, ChevronUp } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 import { format } from 'date-fns';
 
 const STATUS_CONFIG = {
@@ -45,7 +46,7 @@ function AICard({ purchase, event, onOverride }) {
     <div className="pg-operations-card rounded-xl p-4 text-sm space-y-3" style={{ background: cfg.bg, border: `1px solid ${cfg.border}` }}>
       <div className="flex items-start justify-between gap-2 flex-wrap">
         <div className="flex-1 min-w-0">
-          <div className="font-semibold text-foreground truncate">{event?.title || purchase.event_id}</div>
+          <div className="font-semibold text-foreground break-words">{adminEventIdentity(event, purchase.event_id)}</div>
           <div className="text-xs text-muted-foreground">Seller: {purchase.seller_email}</div>
           <div className="text-xs text-muted-foreground">${purchase.amount?.toFixed(2)} · {purchase.ai_processed_at ? format(new Date(purchase.ai_processed_at), 'MMM d h:mm a') : '—'}</div>
         </div>

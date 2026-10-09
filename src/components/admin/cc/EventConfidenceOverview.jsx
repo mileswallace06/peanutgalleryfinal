@@ -1,3 +1,4 @@
+import { adminEventIdentity } from '@/lib/salesPresentation';
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { formatDistanceToNow } from 'date-fns';
@@ -218,7 +219,7 @@ export default function EventConfidenceOverview() {
                 style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-xs text-foreground truncate">{ev.title || ev.id}</div>
+                    <div className="font-semibold text-xs text-foreground break-words">{adminEventIdentity(ev, ev.id)}</div>
                     <div className="text-[10px] text-muted-foreground truncate">{ev.venue}{ev.city ? ` · ${ev.city}` : ''}</div>
                   </div>
                   <span className="pg-operations-status text-[9px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"

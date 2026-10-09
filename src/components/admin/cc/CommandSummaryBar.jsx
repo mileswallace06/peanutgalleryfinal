@@ -27,9 +27,9 @@ export default function CommandSummaryBar({ purchases, listings, donations, stri
 
   const cards = [
     {
-      label: 'Urgent',
+      label: 'Urgent transactions',
       value: urgentCount,
-      detail: [disputes && `${disputes} dispute${disputes !== 1 ? 's' : ''}`, failedCaptures && `${failedCaptures} failed capture${failedCaptures !== 1 ? 's' : ''}`, suspicious && `${suspicious} suspicious`].filter(Boolean).join(' · ') || 'None',
+      detail: [disputes && `${disputes} dispute${disputes !== 1 ? 's' : ''}`, failedCaptures && `${failedCaptures} failed capture${failedCaptures !== 1 ? 's' : ''}`, suspicious && `${suspicious} suspicious`].filter(Boolean).join(' · ') || 'None in loaded feed',
       color: urgentCount > 0 ? '#FF2D78' : '#00FF87',
       bg: urgentCount > 0 ? 'color-mix(in srgb, rgb(255 45 120) 12%, var(--pg-surface))' : 'color-mix(in srgb, rgb(0 255 135) 8%, var(--pg-surface))',
       border: urgentCount > 0 ? 'rgba(255,45,120,0.4)' : 'rgba(0,255,135,0.25)',
@@ -37,9 +37,9 @@ export default function CommandSummaryBar({ purchases, listings, donations, stri
       emoji: urgentCount > 0 ? '🚨' : '✅',
     },
     {
-      label: 'Needs Review',
+      label: 'Transaction & custody review',
       value: reviewCount,
-      detail: [aiNeedsReview && `${aiNeedsReview} AI review`, autoReview && `${autoReview} inactive buyer`, instantNeedsReview && `${instantNeedsReview} instant custody`].filter(Boolean).join(' · ') || 'None',
+      detail: [aiNeedsReview && `${aiNeedsReview} AI review`, autoReview && `${autoReview} inactive buyer`, instantNeedsReview && `${instantNeedsReview} instant custody`].filter(Boolean).join(' · ') || 'None in loaded feed',
       color: reviewCount > 0 ? '#FF8C00' : '#00FF87',
       bg: reviewCount > 0 ? 'color-mix(in srgb, rgb(255 140 0) 10%, var(--pg-surface))' : 'color-mix(in srgb, rgb(0 255 135) 8%, var(--pg-surface))',
       border: reviewCount > 0 ? 'rgba(255,140,0,0.35)' : 'rgba(0,255,135,0.25)',
@@ -69,7 +69,9 @@ export default function CommandSummaryBar({ purchases, listings, donations, stri
   ];
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+    <section aria-label="Loaded transaction summary">
+      <p className="text-xs text-muted-foreground mb-2">Transaction and custody summary: newest 100 purchases, 100 listings and 50 donations. Separate alert, listing-review and reverification queues are below.</p>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
       {cards.map(card => (
         <button key={card.label}
           onClick={() => onJump(card.section)}
@@ -83,6 +85,7 @@ export default function CommandSummaryBar({ purchases, listings, donations, stri
           <div className="text-[10px] text-muted-foreground mt-1 leading-tight">{card.detail}</div>
         </button>
       ))}
-    </div>
+      </div>
+    </section>
   );
 }

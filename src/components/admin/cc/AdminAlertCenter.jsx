@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { AlertTriangle, CheckCircle, RefreshCw, Bell } from 'lucide-react';
-import { format, formatDistanceToNow } from 'date-fns';
+import { CheckCircle, RefreshCw, Bell } from 'lucide-react';
+import { format, formatDistanceToNow, isValid } from 'date-fns';
 
 const PRIORITY_CONFIG = {
   critical: { color: '#FF2D78', bg: 'color-mix(in srgb, rgb(255 45 120) 10%, var(--pg-surface))', border: 'rgba(255,45,120,0.35)', dot: 'bg-red-500' },
@@ -23,17 +23,22 @@ const ALERT_ICONS = {
   admin_action_required:           '🔔',
 };
 
-export default function AdminAlertCenter() {
+export default function AdminAlertCenter({ onRefresh }) {
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [resolving, setResolving] = useState('');
   const [filter, setFilter] = useState('open');
 
   const load = async () => {
     setLoading(true);
-    const all = await base44.entities.AdminAlert.list('-created_date', 100);
-    setAlerts(all);
-    setLoading(false);
+    setError(false);
+    try {
+      const all = await base44.entities.AdminAlert.list('-created_date', 100);
+      if (!Array.isArray(all)) throw new Error('Alerts unavailable');
+      setAlerts(all);
+    } catch { setError(true); }
+    finally { setLoading(false); }
   };
 
   useEffect(() => { load(); }, []);
@@ -52,6 +57,7 @@ export default function AdminAlertCenter() {
       metadata: { alert_id: alert.id, alert_type: alert.alert_type },
     }).catch(() => {});
     await load();
+    onRefresh?.();
     setResolving('');
   };
 
@@ -69,29 +75,29 @@ export default function AdminAlertCenter() {
           <h2 className="font-bold text-lg text-foreground flex items-center gap-2">
             <Bell className="pg-operations-status w-5 h-5" style={{ '--pg-status-ink': criticalCount > 0 ? '#FF2D78' : '#BF5FFF' }} />
             Alert Center
-            {open.length > 0 && (
+            {!loading && !error && open.length > 0 && (
               <span className="pg-operations-status text-xs font-black px-2 py-0.5 rounded-full"
                 style={{ background: criticalCount > 0 ? 'color-mix(in srgb, rgb(255 45 120) 15%, var(--pg-surface))' : 'color-mix(in srgb, rgb(191 95 255) 15%, var(--pg-surface))', '--pg-status-ink': criticalCount > 0 ? '#FF2D78' : '#BF5FFF' }}>
-                {open.length} open
+                {open.length} open in loaded records
               </span>
             )}
           </h2>
-          <p className="text-xs text-muted-foreground">Operational alerts requiring admin attention</p>
+          <p className="text-xs text-muted-foreground">Newest 100 alerts, filtered after loading. Counts are not global totals.</p>
         </div>
-        <button onClick={load} disabled={loading} className="p-1.5 rounded-lg hover:bg-muted">
+        <button aria-label="Refresh Alert Center" onClick={load} disabled={loading} className="p-1.5 rounded-lg hover:bg-muted">
           <RefreshCw className={`w-4 h-4 text-muted-foreground ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
       {/* Summary pills */}
       <div className="flex gap-2 flex-wrap">
-        {criticalCount > 0 && (
+        {!loading && !error && criticalCount > 0 && (
           <span className="pg-operations-status flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full animate-pulse"
             style={{ background: 'color-mix(in srgb, rgb(255 45 120) 12%, var(--pg-surface))', '--pg-status-ink': '#FF2D78', border: '1px solid rgba(255,45,120,0.35)' }}>
             🚨 {criticalCount} Critical
           </span>
         )}
-        {highCount > 0 && (
+        {!loading && !error && highCount > 0 && (
           <span className="pg-operations-status flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full"
             style={{ background: 'color-mix(in srgb, rgb(255 140 0) 10%, var(--pg-surface))', '--pg-status-ink': '#FF8C00', border: '1px solid rgba(255,140,0,0.3)' }}>
             ⚠️ {highCount} High
@@ -102,8 +108,8 @@ export default function AdminAlertCenter() {
       {/* Filter */}
       <div className="flex gap-2">
         {[
-          { key: 'open', label: `Open (${open.length})` },
-          { key: 'resolved', label: `Resolved (${resolved.length})` },
+          { key: 'open', label: `Open (${loading ? '…' : error ? '?' : open.length} loaded)` },
+          { key: 'resolved', label: `Resolved (${loading ? '…' : error ? '?' : resolved.length} loaded)` },
         ].map(tab => (
           <button key={tab.key} onClick={() => setFilter(tab.key)}
             className="pg-operations-status text-xs px-3 py-1.5 rounded-lg transition-all"
@@ -117,12 +123,12 @@ export default function AdminAlertCenter() {
 
       {loading ? (
         <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="pg-operations-card h-20 rounded-xl pg-operations-skeleton animate-pulse" />)}</div>
-      ) : shown.length === 0 ? (
+      ) : error ? <p role="alert">Alerts could not be loaded. <button type="button" className="underline" onClick={load}>Retry alerts</button></p> : shown.length === 0 ? (
         <div className="pg-operations-card text-center py-12 rounded-2xl"
           style={{ background: 'color-mix(in srgb, rgb(0 255 135) 4%, var(--pg-surface))', border: '1px solid rgba(0,255,135,0.15)' }}>
           <CheckCircle className="pg-operations-status w-10 h-10 mx-auto mb-2" style={{ '--pg-status-ink': '#00FF87' }} />
-          <p className="font-semibold text-foreground text-sm">All clear!</p>
-          <p className="text-xs text-muted-foreground mt-1">No {filter} alerts.</p>
+          <p className="font-semibold text-foreground text-sm">No matching alerts in the loaded window.</p>
+          <p className="text-xs text-muted-foreground mt-1">No {filter} alerts among the newest {alerts.length} loaded records. Older alerts may exist; other queues are separate.</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -147,7 +153,7 @@ export default function AdminAlertCenter() {
                         <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{alert.description}</p>
                       )}
                       <div className="flex flex-wrap gap-3 mt-1 text-[10px] text-muted-foreground">
-                        {alert.created_date && (
+                        {alert.created_date && isValid(new Date(alert.created_date)) && (
                           <span>{formatDistanceToNow(new Date(alert.created_date), { addSuffix: true })}</span>
                         )}
                         {alert.seller_email && <span>Seller: {alert.seller_email}</span>}
@@ -168,7 +174,7 @@ export default function AdminAlertCenter() {
                   )}
                   {alert.resolved && (
                     <span className="text-[10px] text-muted-foreground flex-shrink-0">
-                      ✓ {alert.resolved_by} · {alert.resolved_at ? format(new Date(alert.resolved_at), 'MMM d h:mm a') : ''}
+                      ✓ {alert.resolved_by} · {alert.resolved_at && isValid(new Date(alert.resolved_at)) ? format(new Date(alert.resolved_at), 'MMM d h:mm a') : ''}
                     </span>
                   )}
                 </div>

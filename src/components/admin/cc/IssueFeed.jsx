@@ -1,7 +1,8 @@
 import { useState } from 'react';
+import { adminEventIdentity } from '@/lib/salesPresentation';
 import { base44 } from '@/api/base44Client';
 import { format } from 'date-fns';
-import { AlertTriangle, CheckCircle, XCircle, ExternalLink, FileText, Flag, Eye, ChevronDown, ChevronUp, MessageSquare } from 'lucide-react';
+import { ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
 
 // Build the issue list from raw data
 function buildIssues(purchases, listings, donations, events) {
@@ -281,12 +282,12 @@ function IssueCard({ issue, onRefresh }) {
           <div className="flex-1 min-w-0">
             <div className="font-bold text-sm text-foreground">{issue.title}</div>
             <div className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{issue.description}</div>
-            {issue.event && <div className="pg-operations-status text-xs font-medium mt-0.5" style={{ '--pg-status-ink': '#BF5FFF' }}>{issue.event.title}</div>}
+            <div className="pg-operations-status text-xs font-medium mt-0.5" style={{ '--pg-status-ink': '#BF5FFF', overflowWrap: 'anywhere' }}>{adminEventIdentity(issue.event, issue.purchase?.event_id || issue.listing?.event_id || issue.donation?.event_id)}</div>
             <div className="text-[10px] text-muted-foreground mt-1">
               {issue.timestamp ? formatRelative(issue.timestamp) : ''}
             </div>
           </div>
-          <button onClick={() => setExpanded(e => !e)} className="text-muted-foreground hover:text-foreground p-1 flex-shrink-0">
+          <button aria-label={`${expanded ? 'Hide' : 'Show'} details for ${issue.title}`} aria-expanded={expanded} onClick={() => setExpanded(e => !e)} className="text-muted-foreground hover:text-foreground p-1 flex-shrink-0">
             {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
         </div>
@@ -379,7 +380,7 @@ const SEV_FILTERS = [
   { key: 'low',      label: '🔵 Low' },
 ];
 
-export default function IssueFeed({ purchases, listings, events, donations, onRefresh }) {
+export default function IssueFeed({ purchases, listings, events, donations, onRefresh, loading = false, error = false }) {
   const [sevFilter, setSevFilter] = useState('all');
   const issues = buildIssues(purchases, listings, donations, events);
   const filtered = sevFilter === 'all' ? issues : issues.filter(i => i.severity === sevFilter);
@@ -389,7 +390,8 @@ export default function IssueFeed({ purchases, listings, events, donations, onRe
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="font-bold text-foreground text-lg">Live Issue Feed</h2>
-          <p className="text-xs text-muted-foreground">{issues.length} total · {issues.filter(i => i.severity === 'critical').length} critical</p>
+          <p className="text-xs text-muted-foreground">{loading ? 'Loading…' : error ? 'Unavailable' : `${issues.length} issues in loaded records · ${issues.filter(i => i.severity === 'critical').length} critical`}</p>
+          <p className="text-xs text-muted-foreground">Newest 100 purchases, 100 listings and 50 donations. Alerts, review and reverification queues are tracked separately above.</p>
         </div>
       </div>
 
@@ -406,11 +408,11 @@ export default function IssueFeed({ purchases, listings, events, donations, onRe
         ))}
       </div>
 
-      {filtered.length === 0 ? (
+      {loading ? <p role="status">Loading transaction issues…</p> : error ? <p role="alert">Transaction issues could not be loaded. <button type="button" className="underline" onClick={onRefresh}>Retry transaction feed</button></p> : filtered.length === 0 ? (
         <div className="pg-operations-card text-center py-16 rounded-2xl" style={{ background: 'color-mix(in srgb, rgb(0 255 135) 5%, var(--pg-surface))', border: '1px solid rgba(0,255,135,0.2)' }}>
           <div className="text-3xl mb-3">✅</div>
-          <div className="font-bold text-foreground">Everything looks healthy right now.</div>
-          <div className="text-sm text-muted-foreground mt-1">No {sevFilter !== 'all' ? sevFilter + ' ' : ''}issues detected.</div>
+          <div className="font-bold text-foreground">No matching issues in the loaded transaction feed.</div>
+          <div className="text-sm text-muted-foreground mt-1">This does not clear the separate alert, review or transfer intelligence queues.</div>
         </div>
       ) : (
         <div className="space-y-3">

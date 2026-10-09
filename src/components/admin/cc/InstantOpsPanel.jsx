@@ -1,7 +1,7 @@
+import { adminEventIdentity } from '@/lib/salesPresentation';
 import { useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Zap, CheckCircle, XCircle, ExternalLink } from 'lucide-react';
-import { format } from 'date-fns';
+import { CheckCircle, XCircle, ExternalLink } from 'lucide-react';
 
 function StatCard({ label, value, color }) {
   return (
@@ -113,7 +113,7 @@ export default function InstantOpsPanel({ purchases, listings, events, onRefresh
               return (
                 <div key={p.id} className="pg-operations-card rounded-xl p-4 text-sm space-y-2"
                   style={{ background: 'color-mix(in srgb, rgb(0 200 255) 6%, var(--pg-surface))', border: '1px solid rgba(0,200,255,0.2)' }}>
-                  <div className="font-semibold text-foreground">{ev?.title || 'Event'}</div>
+                  <div className="font-semibold text-foreground">{adminEventIdentity(ev, p.event_id)}</div>
                   <div className="text-xs text-muted-foreground">
                     Buyer: {p.buyer_email} · ${p.amount?.toFixed(2)}
                   </div>
