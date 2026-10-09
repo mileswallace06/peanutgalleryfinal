@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
-import { safeDiscoveryReturnTo } from '@/lib/eventDiscoveryState';
+import { discoveryBackLink } from '@/lib/eventDiscoveryState';
 import { base44 } from '@/api/base44Client';
 import { getEventDateDisplay } from '@/lib/eventDateDisplay';
+import { eventIdentityLabel } from '@/lib/eventIdentity';
 import { reliableTime } from '@/lib/sellingEventTiming';
+import { useUpgradeClock } from '@/hooks/useUpgradeClock';
+import { checkListingEvent, listingEventEligibility } from '../../base44/shared/listingEventEligibility.js';
 import { MapPin, Calendar, ArrowLeft, Ticket, ExternalLink, Plus } from 'lucide-react';
 
 /** Infer vendor label + homepage from a ticket URL domain */
@@ -55,6 +58,7 @@ export default function EventDetailTM() {
   const { tmId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const backLink = discoveryBackLink(location.state);
   // Full TM event data passed from the Events list — avoids the broken
   // syncTMEvent(tm_id-only) fallback when the event hasn't synced to DB yet.
   const passedEvent = location.state?.tmEvent;
@@ -65,6 +69,9 @@ export default function EventDetailTM() {
   const [selectedListing, setSelectedListing] = useState(null);
   const [creatingEvent, setCreatingEvent] = useState(false);
   const [user, setUser] = useState(null);
+  const [listingError, setListingError] = useState('');
+  const nowMs = useUpgradeClock(event);
+  const listingsClosed = event && !listingEventEligibility(event, nowMs).allowed;
 
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => {});
@@ -80,6 +87,7 @@ export default function EventDetailTM() {
         eventId = localEv.id;
         console.info('[EventDetailTM] lookup=db_tm_id success | localId:', eventId, logCtx);
         eventData = {
+          ...localEv,
           tm_id: localEv.tm_id,
           title: localEv.title,
           venue: localEv.venue,
@@ -121,6 +129,7 @@ export default function EventDetailTM() {
             const localEv = synced[0];
             setLocalEventId(localEv.id);
             setEvent({
+              ...localEv,
               tm_id: localEv.tm_id,
               title: localEv.title,
               venue: localEv.venue,
@@ -162,8 +171,16 @@ export default function EventDetailTM() {
 
   // Upsert a local Event record from TM data, then navigate to CreateListing
   const handleListTickets = async () => {
+    if (creatingEvent || !listingEventEligibility(event, Date.now()).allowed) return;
     setCreatingEvent(true);
+    setListingError('');
+    try {
     let eventId = localEventId;
+    if (eventId) {
+      const fresh = await checkListingEvent(base44, eventId);
+      if (fresh.event) setEvent(fresh.event);
+      if (!fresh.allowed) { setListingError(fresh.message); return; }
+    }
     if (!eventId) {
       // Create a local Event record from TM data
       const created = await base44.entities.Event.create({
@@ -172,6 +189,12 @@ export default function EventDetailTM() {
         city: event.city,
         state: event.state,
         date: event.date,
+        event_start_utc: event.event_start_utc,
+        event_end_utc: event.event_end_utc,
+        venue_timezone: event.venue_timezone,
+        date_tba: event.date_tba,
+        time_tba: event.time_tba,
+        no_specific_time: event.no_specific_time,
         image_url: event.image_url,
         tm_id: event.tm_id,
         tm_url: event.tm_url,
@@ -180,8 +203,9 @@ export default function EventDetailTM() {
       eventId = created.id;
       setLocalEventId(eventId);
     }
-    setCreatingEvent(false);
     navigate(`/create-listing?event_id=${eventId}`);
+    } catch { setListingError('We could not check this event or prepare your listing. Please retry.'); }
+    finally { setCreatingEvent(false); }
   };
 
   if (loading) {
@@ -201,7 +225,7 @@ export default function EventDetailTM() {
           <Ticket aria-hidden="true" className="pg-event-empty-icon" />
           <h1 className="font-display">Event not found</h1>
           <p>Return to events to choose another show.</p>
-          <Link to={safeDiscoveryReturnTo(location.state?.discoveryReturnTo)} className="pg-event-text-link"><ArrowLeft aria-hidden="true" /> Back to events</Link>
+          <Link to={backLink.to} state={backLink.state} className="pg-event-text-link"><ArrowLeft aria-hidden="true" /> Back to {backLink.label.toLowerCase()}</Link>
         </div>
       </div>
     );
@@ -221,11 +245,12 @@ export default function EventDetailTM() {
           ) : (
             <div className="pg-event-photo-fallback"><Ticket aria-hidden="true" /><span>Peanut Gallery</span></div>
           )}
-          <Link to={safeDiscoveryReturnTo(location.state?.discoveryReturnTo)} className="pg-event-back"><ArrowLeft aria-hidden="true" /> Events</Link>
+          <Link to={backLink.to} state={backLink.state} className="pg-event-back"><ArrowLeft aria-hidden="true" /> {backLink.label}</Link>
         </div>
         <div className="pg-event-summary">
           <p className="pg-event-eyebrow">Peanut Gallery / Event</p>
           <h1 className="font-display">{event.title}</h1>
+          <p className="text-sm text-muted-foreground break-words">{eventIdentityLabel(event, { alwaysReference: true })}</p>
           <div className="pg-event-facts">
             <p><Calendar aria-hidden="true" /><span>{getEventDateDisplay(displayEvent)?.detailLabel || 'Date to be confirmed'}</span></p>
             <p><MapPin aria-hidden="true" /><span>{event.venue}{event.city ? `, ${event.city}` : ''}{event.state ? `, ${event.state}` : ''}</span></p>
@@ -254,7 +279,13 @@ export default function EventDetailTM() {
             <h2 id="event-tickets-heading" className="font-display">Peanut Gallery listings <span>({listings.length})</span></h2>
             <p>Fan-to-fan tickets listed directly inside Peanut Gallery.</p>
           </div>
-          {listings.length === 0 ? (
+          {listingsClosed ? (
+            <div className="pg-event-empty">
+              <h3>Listings are closed for this event</h3>
+              <p>This event has ended or is no longer open for listings.</p>
+              {localEventId && <Link to={`/upgrades/${localEventId}`} state={location.state} className="pg-event-text-link">View event history</Link>}
+            </div>
+          ) : listings.length === 0 ? (
             <div className="pg-event-empty">
               <h3>No Peanut Gallery listings yet</h3>
               <p>Be the first to list your tickets for this event inside Peanut Gallery.</p>
@@ -275,7 +306,8 @@ export default function EventDetailTM() {
           )}
         </section>
 
-        <Disclosure title="Sell tickets for this event" description="Create a Peanut Gallery listing">
+        {listingError && <p role="alert">{listingError}</p>}
+        {!listingsClosed && <Disclosure title="Sell tickets for this event" description="Create a Peanut Gallery listing">
           <p>List your tickets for this event inside Peanut Gallery.</p>
           <button onClick={handleListTickets} disabled={creatingEvent} className="pg-event-button pg-event-button-secondary">
             {creatingEvent
@@ -283,7 +315,7 @@ export default function EventDetailTM() {
               : <Plus aria-hidden="true" />}
             {creatingEvent ? 'Preparing your listing…' : 'List tickets for this event'}
           </button>
-        </Disclosure>
+        </Disclosure>}
       </div>
 
       {selectedListing && (

@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useParams, useLocation, Link } from 'react-router-dom';
-import { safeDiscoveryReturnTo } from '@/lib/eventDiscoveryState';
+import { discoveryBackLink } from '@/lib/eventDiscoveryState';
 import { base44 } from '@/api/base44Client';
 import { getEventDateDisplay } from '@/lib/eventDateDisplay';
+import { eventIdentityLabel } from '@/lib/eventIdentity';
 import { MapPin, Calendar, ArrowLeft, Ticket, Zap, Plus, ShieldCheck } from 'lucide-react';
 import ListingCard from '@/components/events/ListingCard';
 import PurchaseDialog from '@/components/events/PurchaseDialog';
 import DiscoveryAlertControl from '@/components/upgrades/DiscoveryAlertControl';
 import { getUpgradeEventState, getUpgradeShowtimeLabel } from '@/lib/upgradeEventState';
 import { useUpgradeClock } from '@/hooks/useUpgradeClock';
+import { listingEventEligibility } from '../../base44/shared/listingEventEligibility.js';
 import { logNavEvent } from '@/lib/navLogger';
 import EventLookupDebugPanel from '@/components/debug/EventLookupDebugPanel';
 import { Disclosure } from '@/components/ClarityUI';
@@ -19,7 +21,7 @@ import './shared-listing.css';
 export default function EventDetail() {
   const { id } = useParams();
   const { search, state: routeState } = useLocation();
-  const discoveryReturnTo = safeDiscoveryReturnTo(routeState?.discoveryReturnTo);
+  const backLink = discoveryBackLink(routeState);
   const [event, setEvent] = useState(null);
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -154,7 +156,7 @@ export default function EventDetail() {
           <h1 className="font-display">Event not found</h1>
           <p>This event may still be syncing. Try refreshing or go back to find it.</p>
           <button onClick={() => window.location.reload()} className="pg-event-button">Retry</button>
-          <Link to={discoveryReturnTo} className="pg-event-text-link"><ArrowLeft aria-hidden="true" /> Back to events</Link>
+          <Link to={backLink.to} state={backLink.state} className="pg-event-text-link"><ArrowLeft aria-hidden="true" /> Back to {backLink.label.toLowerCase()}</Link>
         </div>
         {user?.role === 'admin' && <EventLookupDebugPanel routeId={id} lookupTrace={lookupTrace} />}
       </div>
@@ -163,6 +165,7 @@ export default function EventDetail() {
 
   const adminUnlocked = user?.role === 'admin' || sessionStorage.getItem('pg_admin_unlocked') === '1';
   const timing = getUpgradeEventState(event, nowMs);
+  const listingsClosed = !listingEventEligibility(event, nowMs).allowed;
   const isLive = timing.isLive;
   const isEstimated = timing.status === 'estimated_live';
   const isLiveMode = isLive || timing.status === 'ended';
@@ -180,7 +183,7 @@ export default function EventDetail() {
           ) : (
             <div className="pg-event-photo-fallback"><Ticket aria-hidden="true" /><span>Peanut Gallery</span></div>
           )}
-          <Link to={discoveryReturnTo} className="pg-event-back"><ArrowLeft aria-hidden="true" /> Events</Link>
+          <Link to={backLink.to} state={backLink.state} className="pg-event-back"><ArrowLeft aria-hidden="true" /> {backLink.label}</Link>
           {isLive && <span className="pg-event-status" title={isEstimated ? 'Estimated live window; the event may have ended' : undefined}>{isEstimated ? 'Live · estimated window' : 'Live now'}</span>}
           {timing.status === 'soon' && <span className="pg-event-status">Starting soon</span>}
           {timing.status === 'ended' && <span className="pg-event-status">Event ended</span>}
@@ -188,19 +191,22 @@ export default function EventDetail() {
         <div className="pg-event-summary">
           <p className="pg-event-eyebrow">Peanut Gallery / Event</p>
           <h1 className="font-display">{event.title}</h1>
+          <p className="text-sm text-muted-foreground break-words">{eventIdentityLabel(event, { alwaysReference: true })}</p>
           <div className="pg-event-facts">
             <p><Calendar aria-hidden="true" /><span>{getEventDateDisplay(event)?.detailLabel || 'Date to be confirmed'}</span></p>
             <p><MapPin aria-hidden="true" /><span>{event.venue}{event.city ? `, ${event.city}` : ''}</span></p>
           </div>
           <div className="pg-event-primary">
-            {listings.length > 0 ? (
+            {listingsClosed ? (
+              <Link to={`/upgrades/${event.id}`} state={routeState} className="pg-event-button"><Zap aria-hidden="true" /> View event history</Link>
+            ) : listings.length > 0 ? (
               <a href="#event-tickets" className="pg-event-button"><Ticket aria-hidden="true" /> View ticket listings</a>
             ) : isLiveMode && !adminUnlocked ? (
-              <Link to={`/upgrades/${event.id}`} className="pg-event-button"><Zap aria-hidden="true" /> {timing.status === 'ended' ? 'Open Live Hub' : 'Find seat upgrades'}</Link>
+              <Link to={`/upgrades/${event.id}`} state={routeState} className="pg-event-button"><Zap aria-hidden="true" /> {timing.status === 'ended' ? 'Open Live Hub' : 'Find seat upgrades'}</Link>
             ) : (
               <a href="#event-tickets" className="pg-event-button"><Ticket aria-hidden="true" /> Check ticket availability</a>
             )}
-            <p>Fan-to-fan tickets inside Peanut Gallery.</p>
+            <p>{listingsClosed ? 'This event is closed to new listings.' : 'Fan-to-fan tickets inside Peanut Gallery.'}</p>
           </div>
         </div>
       </header>
@@ -216,14 +222,20 @@ export default function EventDetail() {
           )}
           <div className="pg-event-section-heading">
             <h2 id="event-tickets-heading" className="font-display">{shared.requested ? 'Shared ticket' : 'Ticket listings'} <span>({sorted.length})</span></h2>
-            <p>Choose a listing to see its seats and purchase details.</p>
+            <p>{listingsClosed ? 'New listings are closed for this event.' : 'Choose a listing to see its seats and purchase details.'}</p>
             <div className="pg-event-badges">
               {adminUnlocked && <span className="pg-event-notice">Admin</span>}
               {isDemoOnly && <span className="pg-event-notice">Demo upgrades for testing</span>}
             </div>
           </div>
 
-          {shared.requested && sorted.length === 0 ? null : sorted.length === 0 ? (
+          {listingsClosed ? (
+            <div className="pg-event-empty">
+              <h3>Listings are closed for this event</h3>
+              <p>This event has ended or is no longer open for listings. Its event history remains available.</p>
+              <Link to={`/upgrades/${event.id}`} state={routeState} className="pg-event-text-link">View event history</Link>
+            </div>
+          ) : shared.requested && sorted.length === 0 ? null : sorted.length === 0 ? (
             isLiveMode && !adminUnlocked ? (
               <div className="pg-event-empty">
                 <h3>{timing.status === 'ended' ? 'Pre-event ticket sales have closed' : isEstimated ? 'Estimated live window — check Upgrades' : 'Event is live — check Upgrades'}</h3>
@@ -231,7 +243,7 @@ export default function EventDetail() {
                   ? 'This event has ended. Visit the Live Hub for this event.'
                   : isEstimated ? 'The event may still be running. Check the Live Hub for available seat upgrades.'
                   : 'Pre-event ticket sales have closed. Check the Live Hub for available seat upgrades.'}</p>
-                <Link to={`/upgrades/${event.id}`} className="pg-event-text-link"><Zap aria-hidden="true" /> Open Live Hub</Link>
+                <Link to={`/upgrades/${event.id}`} state={routeState} className="pg-event-text-link"><Zap aria-hidden="true" /> Open Live Hub</Link>
               </div>
             ) : (
               <div className="pg-event-empty">
@@ -271,7 +283,7 @@ export default function EventDetail() {
               : timing.status === 'unknown' ? 'Event time is unconfirmed. Check back for the confirmed start time.'
               : 'Flash Drops & upgrades unlock at showtime'}</p>
             {timing.beforeShowtime && <p>Upgrades open {getUpgradeShowtimeLabel(event)}.</p>}
-            <Link to={`/upgrades/${event.id}`} className="pg-event-text-link"><Zap aria-hidden="true" /> {isLive ? 'Open Live Hub' : timing.status === 'soon' ? 'Get ready in Live Hub' : 'View Live Hub'}</Link>
+            <Link to={`/upgrades/${event.id}`} state={routeState} className="pg-event-text-link"><Zap aria-hidden="true" /> {isLive ? 'Open Live Hub' : timing.status === 'soon' ? 'Get ready in Live Hub' : 'View Live Hub'}</Link>
           </Disclosure>
 
           {listings.length === 0 && !(isLiveMode && !adminUnlocked) && (

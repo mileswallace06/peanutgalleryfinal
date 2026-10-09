@@ -1,15 +1,16 @@
-import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { Link, useNavigate, useLocation, useNavigationType } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { MapPin, ChevronRight, ChevronDown, LocateFixed, X, RefreshCw, HelpCircle, ArrowRight, Ticket, Radio, CalendarDays } from 'lucide-react';
 import LocationAutocomplete from '@/components/LocationAutocomplete';
 import { getUpgradeEventTiming, groupUpgradeEvents, loadOwnedUpgradeEvents } from '@/lib/upgradeDiscovery';
 import { formatUpgradeStartsIn, getUpgradeVenueDateParts } from '@/lib/upgradeEventState';
-import { eventVariantLabel } from '@/lib/eventIdentity';
+import { eventIdentityLabel } from '@/lib/eventIdentity';
 import { logNavEvent } from '@/lib/navLogger';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useSellingDiscovery } from '@/hooks/useSellingDiscovery';
+import { discoveryReturnContext, saveDiscoveryReturn, readDiscoveryReturn, discoverySearchFromRequest, upgradeViewFromSearch, upgradeSearchFromView } from '@/lib/eventDiscoveryState';
 import { useAuth } from '@/lib/AuthContext';
 import WhatIsPGOverlay, { shouldShowOverlay } from '@/components/WhatIsPGOverlay';
 import FounderStoryCard from '@/components/founder/FounderStoryCard';
@@ -19,15 +20,20 @@ import '@/components/eventmode/ticket-upgrades.css';
 
 export default function Upgrades() {
   const { user, isAuthenticated, isLoadingAuth } = useAuth();
+  const route = useLocation(), navigate = useNavigate(), navigationType = useNavigationType();
+  const returnContext = discoveryReturnContext(route, navigationType);
+  const restoreRef = useRef(readDiscoveryReturn(returnContext));
+  const routeKeyRef = useRef(route.key);
+  const restoreGeneration = useRef(0);
   // Reuse Sell's bounded future + ongoing requests and validated location.
-  const discovery = useSellingDiscovery();
+  const discovery = useSellingDiscovery('', { initialRequest: restoreRef.current?.request });
   const { result, editingLocation, locationInput, locationStatus, cityError } = discovery;
   const allEvents = result.events;
   const loading = discovery.loading || discovery.restoring;
   const locationLabel = discovery.area?.label || '';
   const sourceError = result.pgError || result.tmError;
   const [showOverlay, setShowOverlay] = useState(() => shouldShowOverlay(user));
-  const [browseView, setBrowseView] = useState('upcoming');
+  const browseView = upgradeViewFromSearch(route.search);
   const [nowMs, setNowMs] = useState(Date.now);
 
   const canReadTickets = Boolean(user?.id && isAuthenticated && !isLoadingAuth);
@@ -62,6 +68,50 @@ export default function Upgrades() {
     if (canReadTickets) ticketQuery.refetch();
   });
 
+  const scrollHost = () => {
+    for (let node = containerRef.current; node; node = node.parentElement) {
+      if (node.scrollHeight > node.clientHeight && /auto|scroll/.test(getComputedStyle(node).overflowY)) return node;
+    }
+    return document.scrollingElement;
+  };
+  const saveReturn = (event, options = {}) => saveDiscoveryReturn(returnContext, {
+    eventId: event?.id, owned: !!options.owned, request: discovery.request, scrollTop: scrollHost()?.scrollTop || window.scrollY,
+    pages: Object.values(result.pager?.streams || {}).reduce((max, stream) => Math.max(max, stream.pagesLoaded || 0), 0),
+  });
+  const setBrowseView = view => {
+    const search = upgradeSearchFromView(route.search, view);
+    if (search === route.search) return;
+    saveReturn(); restoreRef.current = null; restoreGeneration.current++;
+    navigate({ pathname: '/upgrades', search });
+  };
+  const cardNavigation = {
+    returnState: { upgradesReturnTo: `/upgrades${route.search}`, upgradesReturnKey: returnContext.entryKey },
+    onOpen: saveReturn,
+  };
+  useEffect(() => {
+    if (route.pathname !== '/upgrades') { routeKeyRef.current = null; restoreGeneration.current++; return; }
+    if (route.key === routeKeyRef.current) return;
+    routeKeyRef.current = route.key; restoreGeneration.current++;
+    const restore = readDiscoveryReturn(returnContext); restoreRef.current = restore;
+    if (restore?.request && discoverySearchFromRequest(restore.request) !== discoverySearchFromRequest(discovery.request)) discovery.restoreRequest(restore.request);
+  }, [route.pathname, route.search, route.key]);
+  useEffect(() => {
+    const restore = restoreRef.current, id = restoreGeneration.current;
+    if (!restore || route.pathname !== '/upgrades' || loading || discovery.loadingMore || !result.pager || (restore.owned && ticketQuery.isPending)) return;
+    if (restore.request && discoverySearchFromRequest(restore.request) !== discoverySearchFromRequest(discovery.request)) { restoreRef.current = null; return; }
+    const target = (restore.owned ? ownedEvents : visibleEvents).find(event => event.id === restore.eventId || event._eventAliases?.includes(restore.eventId));
+    const row = target && document.getElementById(`${restore.owned ? 'upgrade-owned-event' : 'upgrade-event'}-${target.id}`);
+    const pages = Object.values(result.pager.streams).reduce((max, stream) => Math.max(max, stream.pagesLoaded || 0), 0);
+    if (!row && !restore.owned && result.hasMore && pages < Math.max(restore.pages || 1, 1)) { discovery.loadMore(); return; }
+    restoreRef.current = null;
+    requestAnimationFrame(() => {
+      if (id !== restoreGeneration.current) return;
+      if (row?.isConnected) { const disclosure = row.closest('details'); if (disclosure) disclosure.open = true; row.scrollIntoView({ block: 'center', behavior: 'instant' }); row.focus({ preventScroll: true }); }
+      else scrollHost()?.scrollTo({ top: restore.scrollTop || 0, behavior: 'instant' });
+    });
+  }, [loading, discovery.loadingMore, result, browseView, route.pathname, route.key, ticketQuery.data]);
+  useEffect(() => () => { restoreGeneration.current++; }, []);
+
   return (
     <div ref={containerRef} className="pg-design-page pg-upgrades-page" style={{ '--pg-upgrade-wallet-space': ticketPanelShown ? '48px' : '0px' }}>
       {showOverlay && <WhatIsPGOverlay onDismiss={() => setShowOverlay(false)} user={user} />}
@@ -77,7 +127,7 @@ export default function Upgrades() {
       </BrowseHeaderTools>
 
       {ticketPanelShown && <OwnedTicketsPanel
-        events={ownedEvents} nowMs={nowMs} loading={ticketQuery.isPending}
+        events={ownedEvents} nowMs={nowMs} cardNavigation={cardNavigation} loading={ticketQuery.isPending}
         failed={ticketQuery.isError} unavailableCount={ticketQuery.data?.unavailableCount || 0}
         retrying={ticketQuery.isFetching} onRetry={() => ticketQuery.refetch()} />}
 
@@ -139,7 +189,7 @@ export default function Upgrades() {
                 <p>{sourceError ? 'Try again before checking whether anything is live.' : result.limited ? 'More events may exist beyond these results. Load more events below.' : browseView === 'live' ? 'Find your next event in Upcoming. Available upgrades appear in its event hub.' : 'Try another city, or check back for more events.'}</p>
                 {browseView === 'live' && <button type="button" className="pg-action" onClick={() => setBrowseView('upcoming')}>See upcoming events <ArrowRight size={16} aria-hidden="true" /></button>}
               </div>
-                : <div className="pg-upgrades-stack">{visibleEvents.map(event => <EventCard key={event.id} event={event} nowMs={nowMs} mode={getUpgradeEventTiming(event, nowMs).status} />)}</div>}
+                : <div className="pg-upgrades-stack">{visibleEvents.map(event => <EventCard key={event.id} event={event} nowMs={nowMs} mode={getUpgradeEventTiming(event, nowMs).status} {...cardNavigation} />)}</div>}
               {result.hasMore && <button type="button" onClick={discovery.loadMore} disabled={discovery.loadingMore} className="pg-action my-4 min-h-11 rounded-full bg-primary px-5 py-3 font-bold text-primary-foreground">{discovery.loadingMore ? 'Loading more…' : 'Load more events'}</button>}
               <p role="status" className="my-3 text-sm text-muted-foreground">{discovery.loadingMore ? 'Loading more events…' : result.exhausted ? 'All available results loaded.' : result.truncated ? 'Provider search limit reached. Refine the location or search.' : `${allEvents.length} events loaded. More results may be available.`}</p>
             </section>
@@ -150,7 +200,7 @@ export default function Upgrades() {
   );
 }
 
-function OwnedTicketsPanel({ events, nowMs, loading, failed, unavailableCount, retrying, onRetry }) {
+function OwnedTicketsPanel({ events, nowMs, cardNavigation, loading, failed, unavailableCount, retrying, onRetry }) {
   if (loading) return <div className="pg-upgrades-wallet-status" role="status"><Ticket size={17} aria-hidden="true" /> Checking your tickets…</div>;
   if (failed || (events.length === 0 && unavailableCount > 0)) return <div className="pg-upgrades-wallet-status" role="status">
     <Link to="/my-tickets">Your tickets couldn’t load</Link>
@@ -161,14 +211,14 @@ function OwnedTicketsPanel({ events, nowMs, loading, failed, unavailableCount, r
     <summary><Ticket size={17} aria-hidden="true" /><strong>Your tickets <span>{events.length}</span></strong><span className="pg-upgrades-owned-hint">Find upgrades</span><ChevronDown size={16} aria-hidden="true" /></summary>
     <div className="pg-upgrades-owned-body">
       <p>Choose a ticket you bought on PG. Upgrades are separate purchases, subject to availability.</p>
-      <div className="pg-upgrades-stack">{events.map(event => <EventCard key={event.id} event={event} nowMs={nowMs} mode={getUpgradeEventTiming(event, nowMs).status} owned />)}</div>
+      <div className="pg-upgrades-stack">{events.map(event => <EventCard key={event.id} event={event} nowMs={nowMs} mode={getUpgradeEventTiming(event, nowMs).status} owned {...cardNavigation} />)}</div>
       {unavailableCount > 0 && <p>Some tickets couldn’t load. <button type="button" onClick={onRetry} disabled={retrying}>{retrying ? 'Retrying…' : 'Try again'}</button></p>}
       <Link className="pg-upgrades-wallet-link" to="/my-tickets">Manage all your tickets <ArrowRight size={16} aria-hidden="true" /></Link>
     </div>
   </details>;
 }
 
-function EventCard({ event, mode, owned = false, nowMs = Date.now() }) {
+function EventCard({ event, mode, owned = false, nowMs = Date.now(), returnState, onOpen }) {
   const isEstimated = mode === 'estimated_live';
   const isLive = mode === 'live' || isEstimated;
   const isSoon = mode === 'soon';
@@ -186,11 +236,12 @@ function EventCard({ event, mode, owned = false, nowMs = Date.now() }) {
   const [syncing, setSyncing] = useState(false);
 
   const handleClick = async (e) => {
+    onOpen?.(event, { owned });
     if (pgId) {
       // Real PG event — for live/soon go to upgrade hub; for upcoming go to event detail where tickets are listed
       const dest = (owned || isLive || isSoon) ? `/upgrades/${pgId}` : `/events/${pgId}`;
       logNavEvent({ result: 'success', event, sourcePage: 'Upgrades', generatedHref: dest, lookupMethod: 'direct_id' });
-      navigate(dest);
+      navigate(dest, { state: returnState });
       return;
     }
     if (!tmId) return;
@@ -214,13 +265,13 @@ function EventCard({ event, mode, owned = false, nowMs = Date.now() }) {
       const internalId = res?.data?.id;
       if (internalId) {
         logNavEvent({ result: 'success', event, sourcePage: 'Upgrades', generatedHref: `/upgrades/${internalId}`, lookupMethod: 'sync_then_navigate' });
-        navigate(`/upgrades/${internalId}`);
+        navigate(`/upgrades/${internalId}`, { state: returnState });
       } else {
         // Sync returned no id — fall back to TM detail page
-        navigate(`/events/tm/${tmId}`);
+        navigate(`/events/tm/${tmId}`, { state: returnState });
       }
     } catch {
-      navigate(`/events/tm/${tmId}`);
+      navigate(`/events/tm/${tmId}`, { state: returnState });
     } finally {
       setSyncing(false);
     }
@@ -233,12 +284,12 @@ function EventCard({ event, mode, owned = false, nowMs = Date.now() }) {
   const startsIn = ['upcoming', 'soon'].includes(timing.status) ? formatUpgradeStartsIn(timing.start, nowMs) : null;
 
   return (
-    <button type="button" onClick={handleClick} disabled={syncing || !hasValidLink}
+    <button id={`${owned ? 'upgrade-owned-event' : 'upgrade-event'}-${event.id}`} type="button" onClick={handleClick} disabled={syncing || !hasValidLink}
       className={`pg-ticket pg-browse-ticket pg-printed-ticket pg-upgrade-ticket pg-upgrade-ticket-${isLive ? 'live' : mode}`}>
       <EventThumbnail event={event} className="pg-browse-ticket-art" />
       <div className="pg-browse-ticket-copy">
         {event.category && <span className="sr-only">{event.category}</span>}
-        <h3 className="pg-browse-ticket-title" title={event.title}>{event.title}</h3>{eventVariantLabel(event) && <p className="text-sm text-muted-foreground">{eventVariantLabel(event)}</p>}
+        <h3 className="pg-browse-ticket-title" title={event.title}>{event.title}</h3>{eventIdentityLabel(event) && <p className="pg-event-identity text-sm text-muted-foreground">{eventIdentityLabel(event)}</p>}
         <p className="pg-browse-ticket-venue" title={[event.venue, event.city].filter(Boolean).join(' · ')}>{event.venue}{event.city ? ` · ${event.city}` : ''}</p>
         <p className="pg-browse-ticket-detail">{hasDate ? venueDate.label : 'Date to be announced'}</p>
         {(startsIn || owned) && <p className="pg-browse-ticket-detail"><strong>{startsIn || 'Find upgrades'}</strong></p>}

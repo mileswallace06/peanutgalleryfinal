@@ -5,12 +5,12 @@ import { MapPin, LocateFixed, ChevronDown, ArrowRight, RefreshCw, ShieldCheck, S
 import { getUpgradeEventState } from '@/lib/upgradeEventState';
 import { useEventClock } from '@/hooks/useEventClock';
 import { getEventDateDisplay } from '@/lib/eventDateDisplay';
-import { eventVariantLabel } from '@/lib/eventIdentity';
+import { eventIdentityLabel } from '@/lib/eventIdentity';
 import { getEventUrl } from '@/lib/eventUrl';
 import { logNavEvent } from '@/lib/navLogger';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { createDiscoveryPager, advanceDiscoveryPager, discoveryPagerResult } from '@/lib/eventDiscoveryPager';
-import { discoveryRequestFromSearch, discoverySearchFromRequest, requestLocation as areaFromRequest, saveDiscoveryReturn, readDiscoveryReturn } from '@/lib/eventDiscoveryState';
+import { discoveryRequestFromSearch, discoverySearchFromRequest, requestLocation as areaFromRequest, discoveryReturnContext, saveDiscoveryReturn, readDiscoveryReturn, clearDiscoveryReturn } from '@/lib/eventDiscoveryState';
 import { useLocationDetect } from '@/hooks/useLocationDetect';
 import LocationAutocomplete from '@/components/LocationAutocomplete';
 import { createEventSearchRequest } from '@/lib/eventSearchRequest';
@@ -22,11 +22,12 @@ import './events-ticket.css';
 export default function Events() {
   const nowMs = useEventClock(1000);
   const route = useLocation(), navigate = useNavigate(), navigationType = useNavigationType();
+  const returnContext = discoveryReturnContext(route, navigationType);
   const restoredRequest = discoveryRequestFromSearch(route.search);
   const pagerRef = useRef(null), loadingRef = useRef(false);
   const [progress, setProgress] = useState(null);
   const [loadingMore, setLoadingMore] = useState(false);
-  const restoreRef = useRef(readDiscoveryReturn(route.search));
+  const restoreRef = useRef(readDiscoveryReturn(returnContext));
 
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -90,14 +91,17 @@ export default function Events() {
   };
 
   const submitRequest = (request, replace = false, preserveDraft = false) => {
+    restoreRef.current = null;
+    generation.current++;
     const search = discoverySearchFromRequest(request);
+    if (route.search === search) clearDiscoveryReturn(returnContext);
     // Same request still supports an explicit retry, without a duplicate history entry.
     if (route.search === search) fetchEvents(request, true);
     else navigate({ pathname: '/events', search }, { replace, state: preserveDraft ? { preserveDiscoveryDraft: true } : null });
   };
 
   useEffect(() => {
-    if (route.pathname !== '/events') return;
+    if (route.pathname !== '/events') { generation.current++; restoreRef.current = null; return; }
     const request = discoveryRequestFromSearch(route.search);
     if (!request) {
       if (localAreaRef.current) submitRequest({ ...createEventSearchRequest('', localAreaRef.current), sort: 'soonest', includePast: false }, true);
@@ -107,10 +111,10 @@ export default function Events() {
     setRestoringLocation(false); if (!route.state?.preserveDiscoveryDraft || navigationType === 'POP') setKeyword(request.keyword); setSortMode(request.sort); setShowPast(request.includePast);
     const area = areaFromRequest(request);
     if (area) { localAreaRef.current = area; setLocalArea(area); }
-    restoreRef.current = readDiscoveryReturn(route.search);
+    restoreRef.current = readDiscoveryReturn(returnContext);
     if (request.keyword || restoreRef.current?.toolsOpen) setShowSearchTools(true);
     fetchEvents(request);
-  }, [route.pathname, route.search, fetchEvents]);
+  }, [route.pathname, route.search, route.key, fetchEvents]);
 
 
 
@@ -210,22 +214,24 @@ export default function Events() {
   };
   const saveReturn = event => {
     const scroller = scrollHost();
-    saveDiscoveryReturn(route.search, { eventId: event.id, toolsOpen: showSearchTools, scrollTop: scroller?.scrollTop || window.scrollY, pages: Object.values(pagerRef.current?.streams || {}).reduce((max, stream) => Math.max(max, stream.pagesLoaded || 0), 0) });
+    saveDiscoveryReturn(returnContext, { eventId: event.id, toolsOpen: showSearchTools, scrollTop: scroller?.scrollTop || window.scrollY, pages: Object.values(pagerRef.current?.streams || {}).reduce((max, stream) => Math.max(max, stream.pagesLoaded || 0), 0) });
   };
   useEffect(() => {
     const restore = restoreRef.current;
+    const restoringGeneration = generation.current;
+    if (route.pathname !== '/events') return;
     if (!restore || loading || loadingMore || !progress) return;
     const target = events.find(event => event.id === restore.eventId || event._eventAliases?.includes(restore.eventId));
     const row = target && document.getElementById(`event-row-${target.id}`);
     if (row) {
       restoreRef.current = null;
-      requestAnimationFrame(() => { row.scrollIntoView({ block: 'center', behavior: 'instant' }); row.querySelector('a')?.focus({ preventScroll: true }); });
+      requestAnimationFrame(() => { if (generation.current !== restoringGeneration || !row.isConnected) return; row.scrollIntoView({ block: 'center', behavior: 'instant' }); row.querySelector('a')?.focus({ preventScroll: true }); });
     } else if (progress.hasMore && (restore.attempts || 0) < Math.max(restore.pages || 1, 1)) {
       restore.attempts = (restore.attempts || 0) + 1;
       continueSearch();
     } else {
       restoreRef.current = null;
-      requestAnimationFrame(() => scrollHost()?.scrollTo({ top: restore.scrollTop || 0, behavior: 'instant' }));
+      requestAnimationFrame(() => { if (generation.current === restoringGeneration) scrollHost()?.scrollTo({ top: restore.scrollTop || 0, behavior: 'instant' }); });
     }
   }, [loading, loadingMore, progress]);
 
@@ -378,7 +384,7 @@ export default function Events() {
             <Link
               key={e.id}
               to={`/upgrades/${e.id}`}
-              state={{ discoveryReturnTo: `/events${route.search}` }}
+              state={{ discoveryReturnTo: `/events${route.search}`, discoveryReturnKey: returnContext.entryKey }}
               onClick={() => saveReturn(e)}
               aria-label={`Open live hub for ${e.title}`}
               className="pg-events-live-link pg-action flex items-center gap-3 px-4 py-3 mb-2"
@@ -435,7 +441,7 @@ export default function Events() {
       ) : (
         <div className="pg-events-list">
           {filtered.map(event => (
-            <EventRow key={event.id} event={event} nowMs={nowMs} returnTo={`/events${route.search}`} onOpen={() => saveReturn(event)} />
+            <EventRow key={event.id} event={event} nowMs={nowMs} returnTo={`/events${route.search}`} returnKey={returnContext.entryKey} onOpen={() => saveReturn(event)} />
           ))}
         </div>
       )}
@@ -448,7 +454,7 @@ export default function Events() {
   );
 }
 
-function EventRow({ event, nowMs, returnTo, onOpen }) {
+function EventRow({ event, nowMs, returnTo, returnKey, onOpen }) {
   const isTM = event.source === 'ticketmaster' || String(event.id || '').startsWith('tm_');
   const timing = !isTM && event.id ? getUpgradeEventState(event, nowMs) : null;
   const isLive = timing?.isLive;
@@ -483,7 +489,7 @@ function EventRow({ event, nowMs, returnTo, onOpen }) {
         <p className="pg-browse-ticket-venue" title={[event.venue, event.city, event.state].filter(Boolean).join(', ')}>
           {event.venue}{event.city ? `, ${event.city}` : ''}{event.state ? `, ${event.state}` : ''}
         </p>
-        {eventVariantLabel(event) && <p className="pg-browse-ticket-detail">{eventVariantLabel(event)}</p>}
+        {eventIdentityLabel(event) && <p className="pg-browse-ticket-detail pg-event-identity">{eventIdentityLabel(event)}</p>}
         <p className="pg-browse-ticket-detail" title={dateLabel}>{dateDisplay?.timeLabel || 'Time TBA'}</p>
         {isPGEvent && listingCount > 0 && (
           <p className="pg-browse-ticket-detail">
@@ -510,9 +516,9 @@ function EventRow({ event, nowMs, returnTo, onOpen }) {
     <article id={`event-row-${event.id}`} className="pg-event-row">
       {eventUrl ? (
         <Link to={isLive ? `/upgrades/${event.id}` : eventUrl}
-          state={{ discoveryReturnTo: returnTo, ...(!isLive && isTM ? { tmEvent: event } : {}) }}
+          state={{ discoveryReturnTo: returnTo, ...(returnKey ? { discoveryReturnKey: returnKey } : {}), ...(!isLive && isTM ? { tmEvent: event } : {}) }}
           className={cardClass}
-          aria-label={`${isLive ? 'Open live hub for' : 'View'} ${event.title}, ${dateLabel}${eventVariantLabel(event) ? `, ${eventVariantLabel(event)}` : ''}`}
+          aria-label={`${isLive ? 'Open live hub for' : 'View'} ${event.title}, ${dateLabel}${eventIdentityLabel(event) ? `, ${eventIdentityLabel(event)}` : ''}`}
           onClick={isLive ? e => { onOpen?.(); e.stopPropagation(); } : handleCardClick}>
           {content}
         </Link>

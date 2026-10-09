@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { CheckCircle, Clock, XCircle, AlertTriangle, Ticket, FileText, RefreshCw } from 'lucide-react';
@@ -9,6 +9,9 @@ import { createOptimisticPurchaseUpdate } from '@/lib/optimisticUI';
 import NotificationPermissionPrompt from '@/components/NotificationPermissionPrompt';
 import { UPGRADE_LISTING_TYPES } from '@/lib/listingTypes';
 import { PageIntro, Disclosure } from '@/components/ClarityUI';
+import { readAuthorizedPurchase, readPurchaseContext, purchaseViewerRole } from '@/lib/purchaseDetailRead';
+import { formatRecordedAmount, salePaymentStatus } from '@/lib/salesPresentation';
+import { getEventDateDisplay } from '@/lib/eventDateDisplay';
 import './transaction-clarity.css';
 
 // Status history is secondary to the action needed to finish the transfer.
@@ -74,12 +77,12 @@ function BuyerPanel({ purchase, onConfirm, onDispute, onCancel, actionLoading, i
   </section>;
 }
 
-function CompletedBanner({ isSeller, isUpgrade }) {
+function CompletedBanner({ isSeller, isUpgrade, isAdminViewer }) {
   return <section className="pg-transaction-card pg-purchase-complete">
     <p className="pg-transaction-kicker"><CheckCircle size={16} aria-hidden="true" /> Transfer complete</p>
-    <h2>{isSeller ? 'Your sale is complete.' : 'Receipt confirmed.'}</h2>
-    <p>{isSeller ? 'The buyer has confirmed receipt of the tickets. Check My sales for your payout details.' : isUpgrade ? 'Your upgrade transfer is complete. You still need valid event admission.' : 'Your transfer is complete. Open your ticket provider’s app to access your tickets.'}</p>
-    {isSeller ? <Link to="/my-sales" className="pg-action pg-transaction-primary">View my sales</Link> : <Link to="/my-tickets" className="pg-action pg-transaction-primary">{isUpgrade ? 'View my upgrade' : 'View my tickets'}</Link>}
+    <h2>{isSeller ? 'Your sale is complete.' : isAdminViewer ? 'Transfer complete.' : 'Receipt confirmed.'}</h2>
+    <p>{isSeller ? 'The buyer has confirmed receipt of the tickets. Check My sales for your payout details.' : isAdminViewer ? 'This record reports a completed transfer. Bank payout status is not established by transfer completion.' : isUpgrade ? 'Your upgrade transfer is complete. You still need valid event admission.' : 'Your transfer is complete. Open your ticket provider’s app to access your tickets.'}</p>
+    {isSeller ? <Link to="/my-sales" className="pg-action pg-transaction-primary">View my sales</Link> : !isAdminViewer && <Link to="/my-tickets" className="pg-action pg-transaction-primary">{isUpgrade ? 'View my upgrade' : 'View my tickets'}</Link>}
     {isSeller && <p className="pg-transaction-note">Stripe typically deposits in 2–7 business days. First payouts may take up to 14 days while Stripe verifies your account.</p>}
   </section>;
 }
@@ -92,43 +95,54 @@ export default function PurchaseSuccess() {
   const [event, setEvent] = useState(null);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [readStatus, setReadStatus] = useState('loading');
+  const [contextState, setContextState] = useState({ event: 'loading', listing: 'loading', transfer: 'loading' });
+  const [legacyTransfer, setLegacyTransfer] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState('');
   const [showDisputeModal, setShowDisputeModal] = useState(false);
   const autoRefreshRef = useRef(null);
+  const generation = useRef(0);
 
-  const load = async () => {
-    const [me, purchases] = await Promise.all([
-      base44.auth.me().catch(() => null),
-      base44.entities.Purchase.filter({ id }),
-    ]);
-    setUser(me);
-    const p = purchases[0];
-    if (p) {
-      setPurchase(p);
-      const [listings, events] = await Promise.all([
-        base44.entities.Listing.filter({ id: p.listing_id }),
-        base44.entities.Event.filter({ id: p.event_id }),
-      ]);
-      setListing(listings[0] || null);
-      setEvent(events[0] || null);
+  const load = useCallback(async () => {
+    const request = ++generation.current;
+    setReadStatus('loading');
+    try {
+      const result = await readAuthorizedPurchase(base44, id);
+      if (request !== generation.current) return;
+      setUser(result.user); setPurchase(result.purchase); setReadStatus(result.status);
+      setLoading(false);
+      if (result.status !== 'ready') return;
+      setContextState({ event: 'loading', listing: 'loading', transfer: 'loading' });
+      setEvent(null); setListing(null); setLegacyTransfer(null);
+      const context = await readPurchaseContext(base44, result.purchase, result.role);
+      if (request !== generation.current) return;
+      setEvent(context.event.value); setListing(context.listing.value); setLegacyTransfer(context.transfer.value);
+      setContextState(Object.fromEntries(Object.entries(context).map(([key, value]) => [key, value.status])));
+    } catch (error) {
+      if (request !== generation.current) return;
+      const status = error?.response?.status || error?.status;
+      setPurchase(null); setEvent(null); setListing(null); setLegacyTransfer(null);
+      setReadStatus(status === 401 ? 'signed-out' : [403, 404].includes(status) ? 'unavailable' : 'error');
+      setLoading(false);
     }
-  };
+  }, [id]);
 
   useEffect(() => {
-    load().catch(console.error).finally(() => setLoading(false));
-  }, [id]);
+    setLoading(true); load();
+    return () => { generation.current++; };
+  }, [load]);
 
   // Auto-refresh every 15s for buyer while pending
   useEffect(() => {
     if (!purchase) return;
-    const isBuyerView = user?.email === purchase.buyer_email;
+    const isBuyerView = purchaseViewerRole(purchase, user) === 'buyer';
     const isPending = purchase.transfer_status === 'pending_transfer';
     if (isBuyerView && isPending) {
       autoRefreshRef.current = setInterval(() => load().catch(console.error), 15000);
     }
     return () => clearInterval(autoRefreshRef.current);
-  }, [purchase?.transfer_status, user?.email]);
+  }, [purchase?.transfer_status, purchase?.viewer_is_buyer, user, load]);
 
   const handleSellerConfirm = async ({ proofUrl, proofNote }) => {
     setActionLoading(true);
@@ -224,7 +238,7 @@ export default function PurchaseSuccess() {
     setActionLoading(false);
   };
 
-  if (loading) {
+  if (loading || (!purchase && readStatus === 'loading')) {
     return (
       <div className="pg-secondary-page pg-transaction-page pg-transaction-empty">
         <span className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin inline-block" />
@@ -233,10 +247,24 @@ export default function PurchaseSuccess() {
     );
   }
 
+  if (readStatus === 'error') {
+    return <div className="pg-secondary-page pg-transaction-page pg-transaction-empty" role="alert">
+      <p>Transaction details could not be loaded.</p>
+      <button type="button" className="pg-action pg-transaction-secondary" onClick={load}>Retry transaction details</button>
+    </div>;
+  }
+
+  if (readStatus === 'signed-out') {
+    return <div className="pg-secondary-page pg-transaction-page pg-transaction-empty">
+      <p>Sign in to view this transaction.</p>
+      <button type="button" onClick={() => base44.auth.redirectToLogin()} className="pg-action pg-transaction-primary">Sign In</button>
+    </div>;
+  }
+
   if (!purchase) {
     return (
       <div className="pg-secondary-page pg-transaction-page pg-transaction-empty">
-        <p>Purchase not found.</p>
+        <p>This transaction is unavailable or you do not have access.</p>
         <Link to="/events" className="text-primary text-sm mt-3 inline-block">← Browse events</Link>
       </div>
     );
@@ -256,9 +284,10 @@ export default function PurchaseSuccess() {
     );
   }
 
-  const isSeller = user.email === purchase.seller_email;
-  const isBuyer = !isSeller && (user.email === purchase.buyer_email || user.email === purchase.created_by);
-  const isAdminViewer = user.role === 'admin';
+  const viewerRole = purchaseViewerRole(purchase, user);
+  const isSeller = viewerRole === 'seller';
+  const isBuyer = viewerRole === 'buyer';
+  const isAdminViewer = viewerRole === 'admin';
   const isUpgrade = listing && UPGRADE_LISTING_TYPES.includes(listing.listing_type);
 
   if (!isSeller && !isBuyer && !isAdminViewer) {
@@ -273,19 +302,26 @@ export default function PurchaseSuccess() {
   const isExpired = purchase.transfer_status === 'expired';
   const isDisputed = purchase.transfer_status === 'disputed';
   const isPending = purchase.transfer_status === 'pending_transfer';
+  const transferPurchase = { ...legacyTransfer, ...purchase };
+  const transferReady = contextState.transfer === 'ready' && contextState.listing === 'ready'
+    && (!isSeller || purchase.seller_confirmed || typeof legacyTransfer?.buyer_email === 'string' && legacyTransfer.buyer_email.trim().length > 0);
+  const metadataLoading = contextState.event === 'loading' || contextState.listing === 'loading';
+  const metadataFailed = contextState.event === 'error' || contextState.listing === 'error';
+  const eventDate = getEventDateDisplay(event)?.detailLabel;
+  const summaryLabel = isSeller ? 'Sale summary' : isAdminViewer ? 'Transaction summary' : 'Order summary';
 
   return (
     <div className="pg-secondary-page pg-transaction-page pg-purchase-page">
       <PageIntro
-        eyebrow="Your order"
-        title={isSeller ? 'Sale details.' : 'Purchase details.'}
+        eyebrow={isSeller ? 'Your sale' : isAdminViewer ? 'Transaction record' : 'Your order'}
+        title={isSeller ? 'Sale details.' : isAdminViewer ? 'Transaction details.' : 'Purchase details.'}
         description={isCompleted ? 'The transfer is complete.' : isExpired ? 'This purchase has been cancelled.' : isDisputed ? 'Your dispute is under review.' : isPending ? 'Follow your transfer and see what to do next.' : 'Review the current details of your order.'}
         backTo={isSeller ? '/my-sales' : isAdminViewer ? '/admin' : '/my-tickets'}
         backLabel={isSeller ? 'My sales' : isAdminViewer ? 'Admin' : 'My tickets'}
       />
 
       {/* Terminal status banners */}
-      {isCompleted && <CompletedBanner isSeller={isSeller} isUpgrade={isUpgrade} />}
+      {isCompleted && <CompletedBanner isSeller={isSeller} isUpgrade={isUpgrade} isAdminViewer={isAdminViewer} />}
 
       {isExpired && (
         <div className="flex items-center gap-3 rounded-2xl p-4 mb-5"
@@ -310,18 +346,22 @@ export default function PurchaseSuccess() {
       )}
 
       {/* Role-specific panels */}
-      {isPending && isSeller && listing?.listing_mode !== 'instant' && (
+      {isPending && !isAdminViewer && !transferReady && <section className="pg-transaction-card" role="status">
+        <p>{metadataLoading || contextState.transfer === 'loading' ? 'Loading transfer context…' : 'Transfer context is unavailable. Your transaction reference remains available below.'}</p>
+        {!metadataLoading && contextState.transfer !== 'loading' && <button type="button" className="pg-action pg-transaction-secondary" onClick={load}>Retry transfer context</button>}
+      </section>}
+      {isPending && transferReady && isSeller && listing?.listing_mode !== 'instant' && (
         <TransferAssistant
-          purchase={purchase}
+          purchase={transferPurchase}
           listing={listing}
           onConfirm={handleSellerConfirm}
           actionLoading={actionLoading}
           error={error}
           setError={setError}
-          sellerPayout={purchase.seller_payout ?? purchase.amount}
+          sellerPayout={Number.isFinite(purchase.seller_payout) ? purchase.seller_payout : null}
         />
       )}
-      {isPending && isSeller && listing?.listing_mode === 'instant' && (
+      {isPending && transferReady && isSeller && listing?.listing_mode === 'instant' && (
         <section className="pg-transaction-card pg-purchase-next">
           <p className="pg-transaction-kicker"><Clock size={15} aria-hidden="true" /> PG-managed transfer</p>
           <h2>We’re handling delivery.</h2>
@@ -329,7 +369,7 @@ export default function PurchaseSuccess() {
           <p className="pg-transaction-note">Your payout will be released once the buyer confirms receipt.</p>
         </section>
       )}
-      {isPending && isBuyer && listing?.listing_mode === 'instant' && !purchase.seller_confirmed && (
+      {isPending && transferReady && isBuyer && listing?.listing_mode === 'instant' && !purchase.seller_confirmed && (
         <section className="pg-transaction-card pg-purchase-next">
           <p className="pg-transaction-kicker"><Clock size={15} aria-hidden="true" /> PG-managed transfer</p>
           <h2>{purchase.fulfillment_status === 'fulfilled' ? 'Check for your transfer invite.' : purchase.fulfillment_status === 'transfer_in_progress' ? 'Your transfer is in progress.' : 'We’re preparing your transfer.'}</h2>
@@ -342,9 +382,9 @@ export default function PurchaseSuccess() {
           <button onClick={handleCancel} disabled={actionLoading} className="pg-action pg-transaction-secondary pg-purchase-cancel">Cancel purchase & refund</button>
         </section>
       )}
-      {isPending && isBuyer && !(listing?.listing_mode === 'instant' && !purchase.seller_confirmed) && (
+      {isPending && transferReady && isBuyer && !(listing?.listing_mode === 'instant' && !purchase.seller_confirmed) && (
         <BuyerPanel
-          purchase={purchase}
+          purchase={transferPurchase}
           onConfirm={handleConfirm}
           onDispute={() => setShowDisputeModal(true)}
           onCancel={handleCancel}
@@ -353,18 +393,30 @@ export default function PurchaseSuccess() {
         />
       )}
 
-      <section className="pg-purchase-ticket" aria-label="Order summary">
+      <section className="pg-purchase-ticket" aria-label={summaryLabel}>
         <div className="pg-purchase-ticket-heading">
-          <p><Ticket size={16} aria-hidden="true" /> Order summary</p>
-          <h2>{event?.title || (isUpgrade ? 'Your upgrade' : 'Your purchase')}</h2>
+          <p><Ticket size={16} aria-hidden="true" /> {summaryLabel}</p>
+          <h2>{event?.title || (isSeller ? 'Your sale' : isAdminViewer ? 'Transaction record' : isUpgrade ? 'Your upgrade' : 'Your purchase')}</h2>
         </div>
+        <p className="pg-purchase-ticket-note" style={{ overflowWrap: 'anywhere' }}>{isSeller ? 'Sale' : 'Transaction'} reference: {purchase.id}</p>
+        {eventDate && <p className="pg-purchase-ticket-note">{eventDate}</p>}
+        {(event?.venue_name || event?.venue) && <p className="pg-purchase-ticket-note">{event.venue_name || event.venue}</p>}
+        {metadataLoading && <p className="pg-purchase-ticket-note" role="status">Loading event and seat details…</p>}
+        {!metadataLoading && !event && <p className="pg-purchase-ticket-note">{contextState.event === 'error' ? 'Event details could not be loaded.' : 'Event metadata is missing or no longer accessible.'}</p>}
+        {!metadataLoading && !listing && <p className="pg-purchase-ticket-note">{contextState.listing === 'error' ? 'Seat details could not be loaded.' : 'Seat metadata is missing or no longer accessible.'}</p>}
+        {metadataFailed && <button type="button" className="pg-action pg-transaction-secondary" onClick={load} disabled={readStatus === 'loading'}>Retry event and seat details</button>}
         {listing && <dl className="pg-purchase-seats">
-          <div><dt>Section</dt><dd>{listing.section}</dd></div>
-          <div><dt>Row</dt><dd>{listing.row}</dd></div>
-          <div><dt>Quantity</dt><dd>{purchase.quantity}</dd></div>
+          <div><dt>Section</dt><dd>{listing.section || 'Unavailable'}</dd></div>
+          <div><dt>Row</dt><dd>{listing.row || 'Unavailable'}</dd></div>
+          <div><dt>Seats</dt><dd>{listing.seats || 'Unavailable'}</dd></div>
+          <div><dt>Quantity</dt><dd>{Number.isFinite(purchase.quantity) ? purchase.quantity : 'Unavailable'}</dd></div>
         </dl>}
-        <div className="pg-purchase-total"><span>Order total</span><strong>${purchase.amount?.toFixed(2)}</strong></div>
-        <p className="pg-purchase-ticket-note">{isUpgrade ? 'Seat upgrade only. Valid event admission is required.' : 'Purchase record. Use your ticket provider’s app for entry.'}</p>
+        <div className="pg-purchase-total"><span>Order total</span><strong>{formatRecordedAmount(purchase.amount)}</strong></div>
+        {isSeller && <>
+          <div className="pg-purchase-total"><span>Recorded seller amount</span><strong>{formatRecordedAmount(purchase.seller_payout)}</strong></div>
+          <p className="pg-purchase-ticket-note">{salePaymentStatus(purchase).label}. Bank payout unconfirmed. The order total is the buyer’s order amount; the recorded seller amount is not confirmation of a bank deposit.</p>
+        </>}
+        <p className="pg-purchase-ticket-note">{isSeller ? 'Sale record. Keep this reference when contacting support about your transfer.' : isAdminViewer ? 'Authorized transaction record.' : isUpgrade ? 'Seat upgrade only. Valid event admission is required.' : 'Purchase record. Use your ticket provider’s app for entry.'}</p>
       </section>
 
       {(isPending || isCompleted) && !isExpired && <Disclosure title="Transfer history" description="See each step of your transfer.">
