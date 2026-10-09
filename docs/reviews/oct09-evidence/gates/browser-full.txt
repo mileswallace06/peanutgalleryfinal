@@ -1,0 +1,203 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> base44-app@0.0.0 test:audit-browser
+> node tests/run-audit-browser.mjs
+
+{"status":"PASS","negativeAttempts":6,"persistAfterNavigation":true,"fixtureOverrideCannotBypass":true,"serverRequests":[["GET","/fixture.html"],["GET","/tests/helpers/fixtureSdkGuard.js"],["GET","/fixture.html"]]}
+Browserslist: browsers data (caniuse-lite) is 8 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+PASS Events: continuation; conservative dedupe; submitted URL/history/reload/in-app Back; draft isolation; latest/past provider queries; stale response rejection; failed source retry; 320/375/390/430/1280 light/dark overflow. Isolated browser emulation only.
+Browserslist: browsers data (caniuse-lite) is 8 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+{
+  "fixtureOnly": true,
+  "checks": [
+    "Privacy 320×844 light: five visible-width columns, no page overflow, keyboard/pointer scroll, final link focus, main/h1/table semantics",
+    "Privacy 320×844 light: delayed two-stage content, direct/reload fragment, Back/Forward, reduced motion and exact target focus",
+    "Terms 320×844 light: direct/reloaded refund fragment, heading/body below header, focus, reduced motion",
+    "Privacy 320×844 dark: five visible-width columns, no page overflow, keyboard/pointer scroll, final link focus, main/h1/table semantics",
+    "Privacy 320×844 dark: delayed two-stage content, direct/reload fragment, Back/Forward, reduced motion and exact target focus",
+    "Terms 320×844 dark: direct/reloaded refund fragment, heading/body below header, focus, reduced motion",
+    "Privacy 375×844 light: five visible-width columns, no page overflow, keyboard/pointer scroll, final link focus, main/h1/table semantics",
+    "Privacy 375×844 light: delayed two-stage content, direct/reload fragment, Back/Forward, reduced motion and exact target focus",
+    "Terms 375×844 light: direct/reloaded refund fragment, heading/body below header, focus, reduced motion",
+    "Privacy 375×844 dark: five visible-width columns, no page overflow, keyboard/pointer scroll, final link focus, main/h1/table semantics",
+    "Privacy 375×844 dark: delayed two-stage content, direct/reload fragment, Back/Forward, reduced motion and exact target focus",
+    "Terms 375×844 dark: direct/reloaded refund fragment, heading/body below header, focus, reduced motion",
+    "Privacy 390×844 light: five visible-width columns, no page overflow, keyboard/pointer scroll, final link focus, main/h1/table semantics",
+    "Privacy 390×844 light: delayed two-stage content, direct/reload fragment, Back/Forward, reduced motion and exact target focus",
+    "Terms 390×844 light: direct/reloaded refund fragment, heading/body below header, focus, reduced motion",
+    "Privacy 390×844 dark: five visible-width columns, no page overflow, keyboard/pointer scroll, final link focus, main/h1/table semantics",
+    "Privacy 390×844 dark: delayed two-stage content, direct/reload fragment, Back/Forward, reduced motion and exact target focus",
+    "Terms 390×844 dark: direct/reloaded refund fragment, heading/body below header, focus, reduced motion",
+    "Privacy 430×844 light: five visible-width columns, no page overflow, keyboard/pointer scroll, final link focus, main/h1/table semantics",
+    "Privacy 430×844 light: delayed two-stage content, direct/reload fragment, Back/Forward, reduced motion and exact target focus",
+    "Terms 430×844 light: direct/reloaded refund fragment, heading/body below header, focus, reduced motion",
+    "Privacy 430×844 dark: five visible-width columns, no page overflow, keyboard/pointer scroll, final link focus, main/h1/table semantics",
+    "Privacy 430×844 dark: delayed two-stage content, direct/reload fragment, Back/Forward, reduced motion and exact target focus",
+    "Terms 430×844 dark: direct/reloaded refund fragment, heading/body below header, focus, reduced motion",
+    "Privacy 1280×900 light: five visible-width columns, no page overflow, keyboard/pointer scroll, final link focus, main/h1/table semantics",
+    "Privacy 1280×900 light: delayed two-stage content, direct/reload fragment, Back/Forward, reduced motion and exact target focus",
+    "Terms 1280×900 light: direct/reloaded refund fragment, heading/body below header, focus, reduced motion",
+    "Privacy 1280×900 dark: five visible-width columns, no page overflow, keyboard/pointer scroll, final link focus, main/h1/table semantics",
+    "Privacy 1280×900 dark: delayed two-stage content, direct/reload fragment, Back/Forward, reduced motion and exact target focus",
+    "Terms 1280×900 dark: direct/reloaded refund fragment, heading/body below header, focus, reduced motion",
+    "Privacy 844×390 light: five visible-width columns, no page overflow, keyboard/pointer scroll, final link focus, main/h1/table semantics",
+    "Privacy 844×390 light: delayed two-stage content, direct/reload fragment, Back/Forward, reduced motion and exact target focus",
+    "Terms 844×390 light: direct/reloaded refund fragment, heading/body below header, focus, reduced motion",
+    "Privacy 844×390 dark: five visible-width columns, no page overflow, keyboard/pointer scroll, final link focus, main/h1/table semantics",
+    "Privacy 844×390 dark: delayed two-stage content, direct/reload fragment, Back/Forward, reduced motion and exact target focus",
+    "Terms 844×390 dark: direct/reloaded refund fragment, heading/body below header, focus, reduced motion",
+    "Terms light: every 31 ToC target and MemoryRouter Back/Forward keeps heading visible and focused",
+    "Privacy light: direct/reloaded fragment restored after asynchronous policy mount",
+    "Cookies light: named main, one h1 and seven h2 sections",
+    "Privacy light: 200% CSS zoom emulation, all columns retained with no page overflow",
+    "Privacy light: 400% CSS zoom emulation, all columns retained with no page overflow",
+    "Terms dark: every 31 ToC target and MemoryRouter Back/Forward keeps heading visible and focused",
+    "Privacy dark: direct/reloaded fragment restored after asynchronous policy mount",
+    "Cookies dark: named main, one h1 and seven h2 sections",
+    "Privacy dark: 200% CSS zoom emulation, all columns retained with no page overflow",
+    "Privacy dark: 400% CSS zoom emulation, all columns retained with no page overflow"
+  ],
+  "screenshots": [
+    "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct09/legal/privacy-375-light.png",
+    "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct09/legal/privacy-375-light-last-column.png",
+    "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct09/legal/terms-refund-375-light.png",
+    "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct09/legal/privacy-375-dark.png",
+    "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct09/legal/privacy-375-dark-last-column.png",
+    "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct09/legal/terms-refund-375-dark.png",
+    "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct09/legal/privacy-1280-light.png",
+    "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct09/legal/privacy-1280-light-last-column.png",
+    "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct09/legal/privacy-1280-dark.png",
+    "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct09/legal/privacy-1280-dark-last-column.png"
+  ],
+  "errors": [],
+  "externalRequests": [],
+  "limits": [
+    "Synthetic policy-provider content",
+    "MemoryRouter navigation history; no production browser session",
+    "Zoom uses CSS zoom emulation; no physical device or assistive-technology test"
+  ],
+  "status": "PASSED"
+}
+PASS 19 isolated Fan Zone browser scenarios (R09/R15/R16); no API mutations or outbound requests
+{
+  "status": "PASSED",
+  "checks": 21,
+  "screenshots": 20,
+  "evidence": "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct09/profile"
+}
+Browserslist: browsers data (caniuse-lite) is 8 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+PASS listing workflows: 18 rendered checks, 28 safety checks, 5 screenshots; Chromium 153.0.8010.0; fixture-only.
+{
+  "status": "PASSED",
+  "checks": 56,
+  "screenshots": 29,
+  "evidence": "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct09/sales-admin"
+}
+Route inventory guest/light: 39 route states recorded
+Route inventory admin/light: 39 route states recorded
+Route inventory member/light: 39 route states recorded
+Route inventory guest/dark: 39 route states recorded
+Route inventory member/dark: 39 route states recorded
+Route inventory admin/dark: 39 route states recorded
+{
+  "status": "COMPLETED_WITH_FIXTURE_BLOCKERS",
+  "summary": {
+    "cases": 254,
+    "tested": 252,
+    "fixtureBlocked": 2,
+    "unexpectedFixtureBlockers": 0,
+    "failed": 0,
+    "titleMismatches": 0,
+    "historyFailures": 0,
+    "overflowCases": []
+  },
+  "evidence": "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct09/routes/result.json"
+}
+Browserslist: browsers data (caniuse-lite) is 8 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+PASS R02 repeated fresh query focus and N01 Live Back/reload, dark/light, pointer/keyboard; explicit Back, Forward, same-query refresh, direct visits, invalid defaults, local continuation depth; isolated 390x844
+Browserslist: browsers data (caniuse-lite) is 8 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+Event identity regressions passed: 14 surface cases, both themes; no mutation calls or outbound requests.
+Browserslist: browsers data (caniuse-lite) is 8 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+{"status":"PASSED","phase":"after","checks":45,"screenshots":10,"output":"/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct09/lifecycle/after"}
+Browserslist: browsers data (caniuse-lite) is 8 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+36 isolated Founder/admin/Beta checks passed; 14 screenshots; no external requests. Synthetic expected alert writes only.
+Browserslist: browsers data (caniuse-lite) is 8 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+{"status":"PASSED","baseline":false,"checks":62,"errors":0,"blocked":0,"screenshots":18}
+Browserslist: browsers data (caniuse-lite) is 8 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+PASS 42 controlled Fan behavior scenarios; historical R09 remains unresolved; no service mutations or external requests
+[
+  {
+    "name": "fixture-isolation-browser",
+    "exit": 0
+  },
+  {
+    "name": "events-search-browser",
+    "exit": 0
+  },
+  {
+    "name": "legal-document-browser",
+    "exit": 0
+  },
+  {
+    "name": "fan-zone-browser",
+    "exit": 0
+  },
+  {
+    "name": "profile-beta-browser",
+    "exit": 0
+  },
+  {
+    "name": "listing-workflows-browser",
+    "exit": 0
+  },
+  {
+    "name": "sales-admin-browser",
+    "exit": 0
+  },
+  {
+    "name": "route-inventory-browser",
+    "exit": 0
+  },
+  {
+    "name": "oct09-discovery-navigation-browser",
+    "exit": 0
+  },
+  {
+    "name": "event-identity-browser",
+    "exit": 0
+  },
+  {
+    "name": "oct09-lifecycle-browser",
+    "exit": 0
+  },
+  {
+    "name": "founder-recovery-browser",
+    "exit": 0
+  },
+  {
+    "name": "purchase-detail-browser",
+    "exit": 0
+  },
+  {
+    "name": "fan-behavior-browser",
+    "exit": 0
+  }
+]

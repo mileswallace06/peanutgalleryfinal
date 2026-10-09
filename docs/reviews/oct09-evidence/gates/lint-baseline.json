@@ -1,0 +1,20 @@
+{
+  "command": "npm run lint",
+  "exit": 1,
+  "errors": 23,
+  "allFailingFilesUnchangedFromComparisonBase": true,
+  "files": [
+    "src/components/admin/FeeComparisonReport.jsx",
+    "src/components/admin/FeeSimulator.jsx",
+    "src/components/admin/MinListingPriceConfig.jsx",
+    "src/components/admin/TransactionAnalytics.jsx",
+    "src/components/admin/cc/StripePanel.jsx",
+    "src/components/beta/BugTracker.jsx",
+    "src/components/eventmode/LiveActivityBar.jsx",
+    "src/components/eventmode/UpgradeFeed.jsx",
+    "src/components/flashdrops/FlashDropAlertBanner.jsx",
+    "src/components/me/AccountSettings.jsx",
+    "src/components/purchase/AIVerificationStatus.jsx",
+    "src/pages/FounderBetaChecklist.jsx"
+  ]
+}
