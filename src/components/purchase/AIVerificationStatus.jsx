@@ -4,7 +4,7 @@
  * Seller sees a bit more context.
  */
 
-import { Brain, CheckCircle, Clock, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { Brain, Clock, ShieldCheck } from 'lucide-react';
 
 const SELLER_STATUS_MAP = {
   pending:                    { label: 'Proof queued for review',                          color: '#888',    bg: 'rgba(255,255,255,0.05)', icon: Clock,       pulse: false },
