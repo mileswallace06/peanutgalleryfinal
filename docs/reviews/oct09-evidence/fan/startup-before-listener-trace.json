@@ -1,0 +1,552 @@
+{
+  "fixtureOnly": true,
+  "nativeTimersUnchanged": true,
+  "nativeListenerCallbacksUnchanged": true,
+  "documentListenerMethodsInstrumented": true,
+  "historicalCauseEstablished": false,
+  "cases": [
+    {
+      "theme": "light",
+      "viewport": {
+        "width": 320,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0,
+      "trace": [
+        {
+          "time": 1470.4000000003725,
+          "action": "cycle-0-start",
+          "dialog": false,
+          "active": null,
+          "listenerCount": 0
+        },
+        {
+          "time": 1534.9000000003725,
+          "action": "pointerdown",
+          "target": "pg-sort-control",
+          "trusted": true,
+          "x": 54.779998779296875,
+          "y": 84,
+          "dialog": false,
+          "active": null,
+          "listenerCount": 0
+        },
+        {
+          "time": 1535.300000000745,
+          "action": "focusin",
+          "target": "pg-sort-control",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 1555.4000000003725,
+          "action": "focusin",
+          "target": "",
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 0
+        },
+        {
+          "time": 1559.300000000745,
+          "action": "listener-added",
+          "listener": "handlePointerDown",
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 1
+        },
+        {
+          "time": 1569.300000000745,
+          "action": "pointerdown",
+          "target": "pg-fan-sort-backdrop",
+          "trusted": true,
+          "x": 2,
+          "y": 2,
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 1
+        },
+        {
+          "time": 1571.199999999255,
+          "action": "listener-removed",
+          "listener": "handlePointerDown",
+          "dialog": false,
+          "active": null,
+          "listenerCount": 0
+        },
+        {
+          "time": 1578.699999999255,
+          "action": "focusin",
+          "target": "pg-sort-control",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 1606.4000000003725,
+          "action": "cycle-1-start",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 1641.5,
+          "action": "pointerdown",
+          "target": "pg-sort-control",
+          "trusted": true,
+          "x": 54.779998779296875,
+          "y": 84,
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 1650.5999999996275,
+          "action": "focusin",
+          "target": "",
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 0
+        },
+        {
+          "time": 1653.199999999255,
+          "action": "listener-added",
+          "listener": "handlePointerDown",
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 1
+        },
+        {
+          "time": 1666.0999999996275,
+          "action": "pointerdown",
+          "target": "pg-fan-sort-backdrop",
+          "trusted": true,
+          "x": 2,
+          "y": 2,
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 1
+        },
+        {
+          "time": 1667.5999999996275,
+          "action": "listener-removed",
+          "listener": "handlePointerDown",
+          "dialog": false,
+          "active": null,
+          "listenerCount": 0
+        },
+        {
+          "time": 1679.199999999255,
+          "action": "focusin",
+          "target": "pg-sort-control",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 1706.199999999255,
+          "action": "cycle-2-start",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 1734,
+          "action": "pointerdown",
+          "target": "pg-sort-control",
+          "trusted": true,
+          "x": 54.779998779296875,
+          "y": 84,
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 1740.9000000003725,
+          "action": "focusin",
+          "target": "",
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 0
+        },
+        {
+          "time": 1746.0999999996275,
+          "action": "listener-added",
+          "listener": "handlePointerDown",
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 1
+        },
+        {
+          "time": 1749.9000000003725,
+          "action": "pointerdown",
+          "target": "pg-fan-sort-backdrop",
+          "trusted": true,
+          "x": 2,
+          "y": 2,
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 1
+        },
+        {
+          "time": 1750.800000000745,
+          "action": "listener-removed",
+          "listener": "handlePointerDown",
+          "dialog": false,
+          "active": null,
+          "listenerCount": 0
+        },
+        {
+          "time": 1762.0999999996275,
+          "action": "focusin",
+          "target": "pg-sort-control",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        }
+      ]
+    },
+    {
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0,
+      "trace": [
+        {
+          "time": 149.39999999850988,
+          "action": "cycle-0-start",
+          "dialog": false,
+          "active": null,
+          "listenerCount": 0
+        },
+        {
+          "time": 180.39999999850988,
+          "action": "pointerdown",
+          "target": "pg-sort-control",
+          "trusted": true,
+          "x": 54.779998779296875,
+          "y": 84,
+          "dialog": false,
+          "active": null,
+          "listenerCount": 0
+        },
+        {
+          "time": 180.69999999925494,
+          "action": "focusin",
+          "target": "pg-sort-control",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 202.89999999850988,
+          "action": "focusin",
+          "target": "",
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 0
+        },
+        {
+          "time": 211.39999999850988,
+          "action": "listener-added",
+          "listener": "handlePointerDown",
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 1
+        },
+        {
+          "time": 225.5,
+          "action": "pointerdown",
+          "target": "pg-fan-sort-backdrop",
+          "trusted": true,
+          "x": 2,
+          "y": 2,
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 1
+        },
+        {
+          "time": 228.89999999850988,
+          "action": "listener-removed",
+          "listener": "handlePointerDown",
+          "dialog": false,
+          "active": null,
+          "listenerCount": 0
+        },
+        {
+          "time": 231.89999999850988,
+          "action": "focusin",
+          "target": "pg-sort-control",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 252.69999999925494,
+          "action": "cycle-1-start",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 287.2999999988824,
+          "action": "pointerdown",
+          "target": "pg-sort-control",
+          "trusted": true,
+          "x": 54.779998779296875,
+          "y": 84,
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 295,
+          "action": "focusin",
+          "target": "",
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 0
+        },
+        {
+          "time": 297.8999999985099,
+          "action": "listener-added",
+          "listener": "handlePointerDown",
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 1
+        },
+        {
+          "time": 307.8999999985099,
+          "action": "pointerdown",
+          "target": "pg-fan-sort-backdrop",
+          "trusted": true,
+          "x": 2,
+          "y": 2,
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 1
+        },
+        {
+          "time": 310.5,
+          "action": "listener-removed",
+          "listener": "handlePointerDown",
+          "dialog": false,
+          "active": null,
+          "listenerCount": 0
+        },
+        {
+          "time": 314.3999999985099,
+          "action": "focusin",
+          "target": "pg-sort-control",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 332.7999999988824,
+          "action": "cycle-2-start",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 364.59999999962747,
+          "action": "pointerdown",
+          "target": "pg-sort-control",
+          "trusted": true,
+          "x": 54.779998779296875,
+          "y": 84,
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 373.3999999985099,
+          "action": "focusin",
+          "target": "",
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 0
+        },
+        {
+          "time": 377.19999999925494,
+          "action": "listener-added",
+          "listener": "handlePointerDown",
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 1
+        },
+        {
+          "time": 386.09999999962747,
+          "action": "pointerdown",
+          "target": "pg-fan-sort-backdrop",
+          "trusted": true,
+          "x": 2,
+          "y": 2,
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 1
+        },
+        {
+          "time": 387.5,
+          "action": "listener-removed",
+          "listener": "handlePointerDown",
+          "dialog": false,
+          "active": null,
+          "listenerCount": 0
+        },
+        {
+          "time": 392.7999999988824,
+          "action": "focusin",
+          "target": "pg-sort-control",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        }
+      ]
+    },
+    {
+      "theme": "light",
+      "viewport": {
+        "width": 844,
+        "height": 390
+      },
+      "status": "failed",
+      "failure": "locator.waitFor: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('dialog', { name: 'Sort posts', exact: true }) to be hidden\u001b[22m\n\u001b[2m    63 × locator resolved to visible <div role=\"dialog\" tabindex=\"-1\" id=\"radix-:r3:\" data-state=\"open\" aria-modal=\"true\" aria-labelledby=\"radix-:r4:\" aria-describedby=\"radix-:r5:\" class=\"pg-ticket-app pg-fan-sort-dialog\">…</div>\u001b[22m\n",
+      "state": {
+        "trace": [
+          {
+            "time": 184.5,
+            "action": "cycle-0-start",
+            "dialog": false,
+            "active": null,
+            "listenerCount": 0
+          },
+          {
+            "time": 240.30000000074506,
+            "action": "pointerdown",
+            "target": "pg-sort-control",
+            "trusted": true,
+            "x": 54.779998779296875,
+            "y": 84,
+            "dialog": false,
+            "active": null,
+            "listenerCount": 0
+          },
+          {
+            "time": 240.90000000037253,
+            "action": "focusin",
+            "target": "pg-sort-control",
+            "dialog": false,
+            "active": "Sort posts. Current: upcoming",
+            "listenerCount": 0
+          },
+          {
+            "time": 262.59999999962747,
+            "action": "focusin",
+            "target": "",
+            "dialog": true,
+            "active": "Close sort sheet",
+            "listenerCount": 0
+          },
+          {
+            "time": 267,
+            "action": "listener-added",
+            "listener": "handlePointerDown",
+            "dialog": true,
+            "active": "Close sort sheet",
+            "listenerCount": 1
+          },
+          {
+            "time": 275.7000000011176,
+            "action": "pointerdown",
+            "target": "pg-fan-sort-backdrop",
+            "trusted": true,
+            "x": 2,
+            "y": 2,
+            "dialog": true,
+            "active": "Close sort sheet",
+            "listenerCount": 1
+          },
+          {
+            "time": 277.7000000011176,
+            "action": "listener-removed",
+            "listener": "handlePointerDown",
+            "dialog": false,
+            "active": null,
+            "listenerCount": 0
+          },
+          {
+            "time": 281.90000000037253,
+            "action": "focusin",
+            "target": "pg-sort-control",
+            "dialog": false,
+            "active": "Sort posts. Current: upcoming",
+            "listenerCount": 0
+          },
+          {
+            "time": 290.80000000074506,
+            "action": "cycle-1-start",
+            "dialog": false,
+            "active": "Sort posts. Current: upcoming",
+            "listenerCount": 0
+          },
+          {
+            "time": 318,
+            "action": "pointerdown",
+            "target": "pg-sort-control",
+            "trusted": true,
+            "x": 54.779998779296875,
+            "y": 84,
+            "dialog": false,
+            "active": "Sort posts. Current: upcoming",
+            "listenerCount": 0
+          },
+          {
+            "time": 324.80000000074506,
+            "action": "focusin",
+            "target": "",
+            "dialog": true,
+            "active": "Close sort sheet",
+            "listenerCount": 0
+          },
+          {
+            "time": 330.09999999962747,
+            "action": "pointerdown",
+            "target": "pg-fan-sort-backdrop",
+            "trusted": true,
+            "x": 2,
+            "y": 2,
+            "dialog": true,
+            "active": "Close sort sheet",
+            "listenerCount": 0
+          },
+          {
+            "time": 332.7000000011176,
+            "action": "listener-added",
+            "listener": "handlePointerDown",
+            "dialog": true,
+            "active": null,
+            "listenerCount": 1
+          }
+        ],
+        "dialog": true,
+        "active": "<body style=\"pointer-events: none;\" data-scroll-locked=\"1\"><span data-radix-focus-guard=\"\" tabindex=\"0\" data-aria-hidden=\"true\" aria-hidden=\"true\" style=\"outline: none; opacity: 0; position: fixed; pointer-events: none;\"></span><div id=\"root\" data-aria-hidden=\"true\" aria-hidden=\"true\"><main class=\"pg-ticket-app pg-community-page\" style=\"padding: 20px; min-height: 100vh;\"><h1>Isolated Fan behavior</h1><p>Fictional local fixture · revision 0</p><button class=\"pg-sort-control\" aria-haspopup=\"dialog\" aria-expanded=\"true\" aria-label=\"Sort posts. Current: upcoming\">Sort posts</button><section class=\"pg-fan-location\" aria-label=\"Nearby post location\"><p role=\"status\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"lucide lucide-map-pin\" aria-hidden=\"true\"><path d=\"M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0\"></path><circle cx=\"12\" cy=\"10\" r=\"3\"></circle></svg>Choose a city or enable location to see nearby posts.</p><button type=\"button\" class=\"pg-fan-location-enable\">Enable location</button><p class=\"pg-fan-location-label\">Or choose a city</p><div class=\"pg-location-picker relative flex-1 min-w-0\"><div class=\"flex gap-2\"><div class=\"relative flex-1\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"lucide lucide-map-pin absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none\" style=\"color: var(--neon-cyan);\"><path d=\"M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0\"></path><circle cx=\"12\" cy=\"10\" r=\"3\"></circle></svg><input type=\"text\" placeholder=\"Search city for nearby posts\" aria-label=\"Search city for nearby posts\" aria-autocomplete=\"list\" aria-expanded=\"false\" role=\"combobox\" autocomplete=\"off\" class=\"pg-control-input w-full pl-9 pr-10 py-3 rounded-lg text-sm font-medium text-foreground placeholder:text-muted-foreground focus:outline-none\" value=\"\" style=\"background: var(--pg-surface); border: 1px solid var(--pg-field-boundary);\"></div></div></div></section><output aria-label=\"Location fixture state\">{\"area\":null,\"status\":\"idle\"}</output></main></div><script type=\"module\" src=\"./main.jsx\"></script>\n<div data-state=\"open\" class=\"pg-fan-sort-backdrop\" style=\"pointer-events: auto;\" data-aria-hidden=\"true\" aria-hidden=\"true\"></div><div role=\"dialog\" id=\"radix-:r3:\" aria-describedby=\"radix-:r5:\" aria-labelledby=\"radix-:r4:\" data-state=\"open\" aria-modal=\"true\" class=\"pg-ticket-app pg-fan-sort-dialog\" tabindex=\"-1\" style=\"pointer-events: auto;\"><header><h2 id=\"radix-:r4:\">Sort posts</h2><button type=\"button\" aria-label=\"Close sort sheet\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"21\" height=\"21\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"lucide lucide-x\" aria-hidden=\"true\"><path d=\"M18 6 6 18\"></path><path d=\"m6 6 12 12\"></path></svg></button></header><p id=\"radix-:r5:\">Choose how to order the posts in this feed.</p><div class=\"pg-fan-sort-options\" role=\"group\" aria-label=\"Post sort order\"><button type=\"button\" aria-pressed=\"true\"><span>Upcoming Soonest</span><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"17\" height=\"17\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"lucide lucide-check\" aria-hidden=\"true\"><path d=\"M20 6 9 17l-5-5\"></path></svg></button><button type=\"button\" aria-pressed=\"false\"><span>Newest Posted</span></button><button type=\"button\" aria-pressed=\"false\"><span>Most Recent Activity</span></button><button type=\"button\" aria-pressed=\"false\"><span>Most Liked</span></button><button type=\"button\" aria-pressed=\"false\"><span>Most Commented</span></button><button type=\"button\" aria-pressed=\"false\"><span>Oldest</span></button></div></div><span data-radix-focus-guard=\"\" tabindex=\"0\" data-aria-hidden=\"true\" aria-hidden=\"true\" style=\"outline: none; opacity: 0; position: fixed; pointer-events: none;\"></span></body>",
+        "triggerConnected": true
+      }
+    }
+  ],
+  "attempts": [],
+  "errors": [],
+  "browser": "153.0.8010.0",
+  "status": "FAILED",
+  "failure": "locator.waitFor: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('dialog', { name: 'Sort posts', exact: true }) to be hidden\u001b[22m\n\u001b[2m    63 × locator resolved to visible <div role=\"dialog\" tabindex=\"-1\" id=\"radix-:r3:\" data-state=\"open\" aria-modal=\"true\" aria-labelledby=\"radix-:r4:\" aria-describedby=\"radix-:r5:\" class=\"pg-ticket-app pg-fan-sort-dialog\">…</div>\u001b[22m\n"
+}

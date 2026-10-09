@@ -1,0 +1,1257 @@
+{
+  "fixtureOnly": true,
+  "beforeSource": false,
+  "historicalR09CauseEstablished": false,
+  "cases": [
+    {
+      "theme": "light",
+      "action": "mouse",
+      "hold": true,
+      "status": "passed",
+      "closeCalls": 1,
+      "listeners": {
+        "pending": 0,
+        "active": 0
+      },
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0,
+      "trace": [
+        {
+          "action": "pointerdown",
+          "time": 1553.8999999985099,
+          "pending": 0,
+          "active": 0,
+          "target": "pg-sort-control",
+          "pointerType": "mouse",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "click",
+          "time": 1554.7999999988824,
+          "pending": 0,
+          "active": 0,
+          "target": "pg-sort-control",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "withheld",
+          "time": 1585.0999999996275,
+          "pending": 1,
+          "active": 0
+        },
+        {
+          "action": "pointerdown",
+          "time": 1594.7999999988824,
+          "pending": 1,
+          "active": 0,
+          "target": "pg-fan-sort-backdrop",
+          "pointerType": "mouse",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "click",
+          "time": 1595.8999999985099,
+          "pending": 1,
+          "active": 0,
+          "target": "pg-fan-sort-backdrop",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "removed",
+          "time": 1597.5999999996275,
+          "pending": 0,
+          "active": 0
+        },
+        {
+          "action": "released",
+          "time": 1633.2999999988824,
+          "pending": 0,
+          "active": 0
+        }
+      ]
+    },
+    {
+      "theme": "light",
+      "action": "touch",
+      "hold": true,
+      "status": "passed",
+      "closeCalls": 1,
+      "listeners": {
+        "pending": 0,
+        "active": 0
+      },
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0,
+      "trace": [
+        {
+          "action": "pointerdown",
+          "time": 214.90000000037253,
+          "pending": 0,
+          "active": 0,
+          "target": "pg-sort-control",
+          "pointerType": "mouse",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "click",
+          "time": 215.69999999925494,
+          "pending": 0,
+          "active": 0,
+          "target": "pg-sort-control",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "withheld",
+          "time": 251.90000000037253,
+          "pending": 1,
+          "active": 0
+        },
+        {
+          "action": "pointerdown",
+          "time": 270.2999999988824,
+          "pending": 1,
+          "active": 0,
+          "target": "pg-fan-sort-backdrop",
+          "pointerType": "touch",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "click",
+          "time": 271.69999999925494,
+          "pending": 1,
+          "active": 0,
+          "target": "pg-fan-sort-backdrop",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "removed",
+          "time": 273.40000000037253,
+          "pending": 0,
+          "active": 0
+        },
+        {
+          "action": "released",
+          "time": 308.2999999988824,
+          "pending": 0,
+          "active": 0
+        }
+      ]
+    },
+    {
+      "theme": "light",
+      "action": "right and control click",
+      "hold": true,
+      "status": "passed",
+      "closeCalls": 1,
+      "listeners": {
+        "pending": 0,
+        "active": 0
+      },
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0,
+      "trace": [
+        {
+          "action": "pointerdown",
+          "time": 217.7000000011176,
+          "pending": 0,
+          "active": 0,
+          "target": "pg-sort-control",
+          "pointerType": "mouse",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "click",
+          "time": 218.30000000074506,
+          "pending": 0,
+          "active": 0,
+          "target": "pg-sort-control",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "withheld",
+          "time": 245.2000000011176,
+          "pending": 1,
+          "active": 0
+        },
+        {
+          "action": "pointerdown",
+          "time": 259,
+          "pending": 1,
+          "active": 0,
+          "target": "pg-fan-sort-backdrop",
+          "pointerType": "mouse",
+          "button": 2,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "pointerdown",
+          "time": 265.2000000011176,
+          "pending": 1,
+          "active": 0,
+          "target": "pg-fan-sort-backdrop",
+          "pointerType": "mouse",
+          "button": 0,
+          "ctrlKey": true,
+          "trusted": true
+        },
+        {
+          "action": "click",
+          "time": 265.30000000074506,
+          "pending": 1,
+          "active": 0,
+          "target": "pg-fan-sort-backdrop",
+          "button": 0,
+          "ctrlKey": true,
+          "trusted": true
+        },
+        {
+          "action": "released",
+          "time": 269.2000000011176,
+          "pending": 0,
+          "active": 1
+        },
+        {
+          "action": "removed",
+          "time": 272.09999999962747,
+          "pending": 0,
+          "active": 0
+        },
+        {
+          "action": "released",
+          "time": 287.09999999962747,
+          "pending": 0,
+          "active": 0
+        }
+      ]
+    },
+    {
+      "theme": "light",
+      "action": "inside",
+      "hold": true,
+      "status": "passed",
+      "closeCalls": 1,
+      "listeners": {
+        "pending": 0,
+        "active": 0
+      },
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0,
+      "trace": [
+        {
+          "action": "pointerdown",
+          "time": 205.90000000037253,
+          "pending": 0,
+          "active": 0,
+          "target": "pg-sort-control",
+          "pointerType": "mouse",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "click",
+          "time": 206.5,
+          "pending": 0,
+          "active": 0,
+          "target": "pg-sort-control",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "withheld",
+          "time": 231.40000000037253,
+          "pending": 1,
+          "active": 0
+        },
+        {
+          "action": "pointerdown",
+          "time": 272.40000000037253,
+          "pending": 1,
+          "active": 0,
+          "target": "",
+          "pointerType": "mouse",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "click",
+          "time": 273.5,
+          "pending": 1,
+          "active": 0,
+          "target": "",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "released",
+          "time": 280.90000000037253,
+          "pending": 0,
+          "active": 1
+        },
+        {
+          "action": "removed",
+          "time": 285,
+          "pending": 0,
+          "active": 0
+        },
+        {
+          "action": "released",
+          "time": 297.59999999962747,
+          "pending": 0,
+          "active": 0
+        }
+      ]
+    },
+    {
+      "theme": "light",
+      "action": "mouse drag",
+      "hold": true,
+      "status": "passed",
+      "closeCalls": 1,
+      "listeners": {
+        "pending": 0,
+        "active": 0
+      },
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0,
+      "trace": [
+        {
+          "action": "pointerdown",
+          "time": 214.09999999962747,
+          "pending": 0,
+          "active": 0,
+          "target": "pg-sort-control",
+          "pointerType": "mouse",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "click",
+          "time": 214.7000000011176,
+          "pending": 0,
+          "active": 0,
+          "target": "pg-sort-control",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "withheld",
+          "time": 236.09999999962747,
+          "pending": 1,
+          "active": 0
+        },
+        {
+          "action": "pointerdown",
+          "time": 260.30000000074506,
+          "pending": 1,
+          "active": 0,
+          "target": "pg-fan-sort-backdrop",
+          "pointerType": "mouse",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "click",
+          "time": 277.7000000011176,
+          "pending": 1,
+          "active": 0,
+          "target": "",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "released",
+          "time": 280,
+          "pending": 0,
+          "active": 1
+        },
+        {
+          "action": "removed",
+          "time": 282.2000000011176,
+          "pending": 0,
+          "active": 0
+        },
+        {
+          "action": "released",
+          "time": 327.2000000011176,
+          "pending": 0,
+          "active": 0
+        }
+      ]
+    },
+    {
+      "theme": "light",
+      "action": "touch drag",
+      "hold": true,
+      "status": "passed",
+      "closeCalls": 1,
+      "listeners": {
+        "pending": 0,
+        "active": 0
+      },
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0,
+      "trace": [
+        {
+          "action": "pointerdown",
+          "time": 195.5,
+          "pending": 0,
+          "active": 0,
+          "target": "pg-sort-control",
+          "pointerType": "mouse",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "click",
+          "time": 196.30000000074506,
+          "pending": 0,
+          "active": 0,
+          "target": "pg-sort-control",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "withheld",
+          "time": 230.2000000011176,
+          "pending": 1,
+          "active": 0
+        },
+        {
+          "action": "pointerdown",
+          "time": 257.90000000037253,
+          "pending": 1,
+          "active": 0,
+          "target": "pg-fan-sort-backdrop",
+          "pointerType": "touch",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "released",
+          "time": 332.59999999962747,
+          "pending": 0,
+          "active": 1
+        },
+        {
+          "action": "removed",
+          "time": 335.80000000074506,
+          "pending": 0,
+          "active": 0
+        },
+        {
+          "action": "released",
+          "time": 370.09999999962747,
+          "pending": 0,
+          "active": 0
+        }
+      ]
+    },
+    {
+      "theme": "light",
+      "action": "normal mouse",
+      "hold": false,
+      "status": "passed",
+      "closeCalls": 1,
+      "listeners": {
+        "pending": 0,
+        "active": 0
+      },
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0,
+      "trace": [
+        {
+          "action": "pointerdown",
+          "time": 205.7999999988824,
+          "pending": 0,
+          "active": 0,
+          "target": "pg-sort-control",
+          "pointerType": "mouse",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "click",
+          "time": 206.69999999925494,
+          "pending": 0,
+          "active": 0,
+          "target": "pg-sort-control",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "installed",
+          "time": 231.59999999962747,
+          "pending": 0,
+          "active": 1
+        },
+        {
+          "action": "pointerdown",
+          "time": 241.7999999988824,
+          "pending": 0,
+          "active": 1,
+          "target": "pg-fan-sort-backdrop",
+          "pointerType": "mouse",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "removed",
+          "time": 244,
+          "pending": 0,
+          "active": 0
+        },
+        {
+          "action": "released",
+          "time": 274.40000000037253,
+          "pending": 0,
+          "active": 0
+        }
+      ]
+    },
+    {
+      "theme": "light",
+      "action": "normal touch",
+      "hold": false,
+      "status": "passed",
+      "closeCalls": 1,
+      "listeners": {
+        "pending": 0,
+        "active": 0
+      },
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0,
+      "trace": [
+        {
+          "action": "pointerdown",
+          "time": 240.90000000037253,
+          "pending": 0,
+          "active": 0,
+          "target": "pg-sort-control",
+          "pointerType": "mouse",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "click",
+          "time": 241.69999999925494,
+          "pending": 0,
+          "active": 0,
+          "target": "pg-sort-control",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "installed",
+          "time": 265.40000000037253,
+          "pending": 0,
+          "active": 1
+        },
+        {
+          "action": "pointerdown",
+          "time": 285.40000000037253,
+          "pending": 0,
+          "active": 1,
+          "target": "pg-fan-sort-backdrop",
+          "pointerType": "touch",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "click",
+          "time": 286.90000000037253,
+          "pending": 0,
+          "active": 1,
+          "target": "pg-fan-sort-backdrop",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "removed",
+          "time": 288.59999999962747,
+          "pending": 0,
+          "active": 0
+        },
+        {
+          "action": "released",
+          "time": 323.90000000037253,
+          "pending": 0,
+          "active": 0
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "action": "mouse",
+      "hold": true,
+      "status": "passed",
+      "closeCalls": 1,
+      "listeners": {
+        "pending": 0,
+        "active": 0
+      },
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0,
+      "trace": [
+        {
+          "action": "pointerdown",
+          "time": 218.7999999988824,
+          "pending": 0,
+          "active": 0,
+          "target": "pg-sort-control",
+          "pointerType": "mouse",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "click",
+          "time": 219.59999999962747,
+          "pending": 0,
+          "active": 0,
+          "target": "pg-sort-control",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "withheld",
+          "time": 247.09999999962747,
+          "pending": 1,
+          "active": 0
+        },
+        {
+          "action": "pointerdown",
+          "time": 254.09999999962747,
+          "pending": 1,
+          "active": 0,
+          "target": "pg-fan-sort-backdrop",
+          "pointerType": "mouse",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "click",
+          "time": 254.7999999988824,
+          "pending": 1,
+          "active": 0,
+          "target": "pg-fan-sort-backdrop",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "removed",
+          "time": 256.2999999988824,
+          "pending": 0,
+          "active": 0
+        },
+        {
+          "action": "released",
+          "time": 284.69999999925494,
+          "pending": 0,
+          "active": 0
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "action": "touch",
+      "hold": true,
+      "status": "passed",
+      "closeCalls": 1,
+      "listeners": {
+        "pending": 0,
+        "active": 0
+      },
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0,
+      "trace": [
+        {
+          "action": "pointerdown",
+          "time": 218.19999999925494,
+          "pending": 0,
+          "active": 0,
+          "target": "pg-sort-control",
+          "pointerType": "mouse",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "click",
+          "time": 218.7999999988824,
+          "pending": 0,
+          "active": 0,
+          "target": "pg-sort-control",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "withheld",
+          "time": 241.89999999850988,
+          "pending": 1,
+          "active": 0
+        },
+        {
+          "action": "pointerdown",
+          "time": 262.3999999985099,
+          "pending": 1,
+          "active": 0,
+          "target": "pg-fan-sort-backdrop",
+          "pointerType": "touch",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "click",
+          "time": 263.3999999985099,
+          "pending": 1,
+          "active": 0,
+          "target": "pg-fan-sort-backdrop",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "removed",
+          "time": 265.2999999988824,
+          "pending": 0,
+          "active": 0
+        },
+        {
+          "action": "released",
+          "time": 303.19999999925494,
+          "pending": 0,
+          "active": 0
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "action": "right and control click",
+      "hold": true,
+      "status": "passed",
+      "closeCalls": 1,
+      "listeners": {
+        "pending": 0,
+        "active": 0
+      },
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0,
+      "trace": [
+        {
+          "action": "pointerdown",
+          "time": 199.90000000037253,
+          "pending": 0,
+          "active": 0,
+          "target": "pg-sort-control",
+          "pointerType": "mouse",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "click",
+          "time": 200.40000000037253,
+          "pending": 0,
+          "active": 0,
+          "target": "pg-sort-control",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "withheld",
+          "time": 227.80000000074506,
+          "pending": 1,
+          "active": 0
+        },
+        {
+          "action": "pointerdown",
+          "time": 237.80000000074506,
+          "pending": 1,
+          "active": 0,
+          "target": "pg-fan-sort-backdrop",
+          "pointerType": "mouse",
+          "button": 2,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "pointerdown",
+          "time": 246.90000000037253,
+          "pending": 1,
+          "active": 0,
+          "target": "pg-fan-sort-backdrop",
+          "pointerType": "mouse",
+          "button": 0,
+          "ctrlKey": true,
+          "trusted": true
+        },
+        {
+          "action": "click",
+          "time": 247.7000000011176,
+          "pending": 1,
+          "active": 0,
+          "target": "pg-fan-sort-backdrop",
+          "button": 0,
+          "ctrlKey": true,
+          "trusted": true
+        },
+        {
+          "action": "released",
+          "time": 253.5,
+          "pending": 0,
+          "active": 1
+        },
+        {
+          "action": "removed",
+          "time": 256.40000000037253,
+          "pending": 0,
+          "active": 0
+        },
+        {
+          "action": "released",
+          "time": 275.1000000014901,
+          "pending": 0,
+          "active": 0
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "action": "inside",
+      "hold": true,
+      "status": "passed",
+      "closeCalls": 1,
+      "listeners": {
+        "pending": 0,
+        "active": 0
+      },
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0,
+      "trace": [
+        {
+          "action": "pointerdown",
+          "time": 188.2000000011176,
+          "pending": 0,
+          "active": 0,
+          "target": "pg-sort-control",
+          "pointerType": "mouse",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "click",
+          "time": 189,
+          "pending": 0,
+          "active": 0,
+          "target": "pg-sort-control",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "withheld",
+          "time": 221.90000000037253,
+          "pending": 1,
+          "active": 0
+        },
+        {
+          "action": "pointerdown",
+          "time": 269.5,
+          "pending": 1,
+          "active": 0,
+          "target": "",
+          "pointerType": "mouse",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "click",
+          "time": 270.80000000074506,
+          "pending": 1,
+          "active": 0,
+          "target": "",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "released",
+          "time": 278.40000000037253,
+          "pending": 0,
+          "active": 1
+        },
+        {
+          "action": "removed",
+          "time": 282.30000000074506,
+          "pending": 0,
+          "active": 0
+        },
+        {
+          "action": "released",
+          "time": 293,
+          "pending": 0,
+          "active": 0
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "action": "mouse drag",
+      "hold": true,
+      "status": "passed",
+      "closeCalls": 1,
+      "listeners": {
+        "pending": 0,
+        "active": 0
+      },
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0,
+      "trace": [
+        {
+          "action": "pointerdown",
+          "time": 206.2000000011176,
+          "pending": 0,
+          "active": 0,
+          "target": "pg-sort-control",
+          "pointerType": "mouse",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "click",
+          "time": 207.30000000074506,
+          "pending": 0,
+          "active": 0,
+          "target": "pg-sort-control",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "withheld",
+          "time": 236.80000000074506,
+          "pending": 1,
+          "active": 0
+        },
+        {
+          "action": "pointerdown",
+          "time": 248.30000000074506,
+          "pending": 1,
+          "active": 0,
+          "target": "pg-fan-sort-backdrop",
+          "pointerType": "mouse",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "click",
+          "time": 266.7000000011176,
+          "pending": 1,
+          "active": 0,
+          "target": "",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "released",
+          "time": 269.90000000037253,
+          "pending": 0,
+          "active": 1
+        },
+        {
+          "action": "removed",
+          "time": 273.40000000037253,
+          "pending": 0,
+          "active": 0
+        },
+        {
+          "action": "released",
+          "time": 305.2000000011176,
+          "pending": 0,
+          "active": 0
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "action": "touch drag",
+      "hold": true,
+      "status": "passed",
+      "closeCalls": 1,
+      "listeners": {
+        "pending": 0,
+        "active": 0
+      },
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0,
+      "trace": [
+        {
+          "action": "pointerdown",
+          "time": 215.90000000037253,
+          "pending": 0,
+          "active": 0,
+          "target": "pg-sort-control",
+          "pointerType": "mouse",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "click",
+          "time": 216.40000000037253,
+          "pending": 0,
+          "active": 0,
+          "target": "pg-sort-control",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "withheld",
+          "time": 242.30000000074506,
+          "pending": 1,
+          "active": 0
+        },
+        {
+          "action": "pointerdown",
+          "time": 260.7000000011176,
+          "pending": 1,
+          "active": 0,
+          "target": "pg-fan-sort-backdrop",
+          "pointerType": "touch",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "released",
+          "time": 334.30000000074506,
+          "pending": 0,
+          "active": 1
+        },
+        {
+          "action": "removed",
+          "time": 338.30000000074506,
+          "pending": 0,
+          "active": 0
+        },
+        {
+          "action": "released",
+          "time": 362,
+          "pending": 0,
+          "active": 0
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "action": "normal mouse",
+      "hold": false,
+      "status": "passed",
+      "closeCalls": 1,
+      "listeners": {
+        "pending": 0,
+        "active": 0
+      },
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0,
+      "trace": [
+        {
+          "action": "pointerdown",
+          "time": 198.7999999988824,
+          "pending": 0,
+          "active": 0,
+          "target": "pg-sort-control",
+          "pointerType": "mouse",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "click",
+          "time": 199.40000000037253,
+          "pending": 0,
+          "active": 0,
+          "target": "pg-sort-control",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "installed",
+          "time": 223.90000000037253,
+          "pending": 0,
+          "active": 1
+        },
+        {
+          "action": "pointerdown",
+          "time": 234.59999999962747,
+          "pending": 0,
+          "active": 1,
+          "target": "pg-fan-sort-backdrop",
+          "pointerType": "mouse",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "removed",
+          "time": 237.40000000037253,
+          "pending": 0,
+          "active": 0
+        },
+        {
+          "action": "released",
+          "time": 250.19999999925494,
+          "pending": 0,
+          "active": 0
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "action": "normal touch",
+      "hold": false,
+      "status": "passed",
+      "closeCalls": 1,
+      "listeners": {
+        "pending": 0,
+        "active": 0
+      },
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0,
+      "trace": [
+        {
+          "action": "pointerdown",
+          "time": 193.90000000037253,
+          "pending": 0,
+          "active": 0,
+          "target": "pg-sort-control",
+          "pointerType": "mouse",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "click",
+          "time": 194.59999999962747,
+          "pending": 0,
+          "active": 0,
+          "target": "pg-sort-control",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "installed",
+          "time": 230.09999999962747,
+          "pending": 0,
+          "active": 1
+        },
+        {
+          "action": "pointerdown",
+          "time": 256.2999999988824,
+          "pending": 0,
+          "active": 1,
+          "target": "pg-fan-sort-backdrop",
+          "pointerType": "touch",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "click",
+          "time": 261.90000000037253,
+          "pending": 0,
+          "active": 1,
+          "target": "pg-fan-sort-backdrop",
+          "button": 0,
+          "ctrlKey": false,
+          "trusted": true
+        },
+        {
+          "action": "removed",
+          "time": 263.69999999925494,
+          "pending": 0,
+          "active": 0
+        },
+        {
+          "action": "released",
+          "time": 296.40000000037253,
+          "pending": 0,
+          "active": 0
+        }
+      ]
+    }
+  ],
+  "attempts": [],
+  "errors": [],
+  "browser": "153.0.8010.0",
+  "status": "PASSED"
+}

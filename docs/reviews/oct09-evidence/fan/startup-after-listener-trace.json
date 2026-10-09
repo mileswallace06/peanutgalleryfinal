@@ -1,0 +1,1165 @@
+{
+  "fixtureOnly": true,
+  "nativeTimersUnchanged": true,
+  "nativeListenerCallbacksUnchanged": true,
+  "documentListenerMethodsInstrumented": true,
+  "historicalCauseEstablished": false,
+  "cases": [
+    {
+      "theme": "light",
+      "viewport": {
+        "width": 320,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0,
+      "trace": [
+        {
+          "time": 1591.800000000745,
+          "action": "cycle-0-start",
+          "dialog": false,
+          "active": null,
+          "listenerCount": 0
+        },
+        {
+          "time": 1646.1000000014901,
+          "action": "pointerdown",
+          "target": "pg-sort-control",
+          "trusted": true,
+          "x": 54.779998779296875,
+          "y": 84,
+          "dialog": false,
+          "active": null,
+          "listenerCount": 0
+        },
+        {
+          "time": 1646.5,
+          "action": "focusin",
+          "target": "pg-sort-control",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 1666.1000000014901,
+          "action": "focusin",
+          "target": "",
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 0
+        },
+        {
+          "time": 1671.2000000011176,
+          "action": "listener-added",
+          "listener": "handlePointerDown",
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 1
+        },
+        {
+          "time": 1677,
+          "action": "pointerdown",
+          "target": "pg-fan-sort-backdrop",
+          "trusted": true,
+          "x": 2,
+          "y": 2,
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 1
+        },
+        {
+          "time": 1680.2000000011176,
+          "action": "listener-removed",
+          "listener": "handlePointerDown",
+          "dialog": false,
+          "active": null,
+          "listenerCount": 0
+        },
+        {
+          "time": 1689.6000000014901,
+          "action": "focusin",
+          "target": "pg-sort-control",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 1712.800000000745,
+          "action": "cycle-1-start",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 1742.1000000014901,
+          "action": "pointerdown",
+          "target": "pg-sort-control",
+          "trusted": true,
+          "x": 54.779998779296875,
+          "y": 84,
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 1756.4000000003725,
+          "action": "focusin",
+          "target": "",
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 0
+        },
+        {
+          "time": 1758.2000000011176,
+          "action": "listener-added",
+          "listener": "handlePointerDown",
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 1
+        },
+        {
+          "time": 1764.9000000003725,
+          "action": "pointerdown",
+          "target": "pg-fan-sort-backdrop",
+          "trusted": true,
+          "x": 2,
+          "y": 2,
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 1
+        },
+        {
+          "time": 1766.7000000011176,
+          "action": "listener-removed",
+          "listener": "handlePointerDown",
+          "dialog": false,
+          "active": null,
+          "listenerCount": 0
+        },
+        {
+          "time": 1772.800000000745,
+          "action": "focusin",
+          "target": "pg-sort-control",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 1826.7000000011176,
+          "action": "cycle-2-start",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 1861,
+          "action": "pointerdown",
+          "target": "pg-sort-control",
+          "trusted": true,
+          "x": 54.779998779296875,
+          "y": 84,
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 1868.2000000011176,
+          "action": "focusin",
+          "target": "",
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 0
+        },
+        {
+          "time": 1874.300000000745,
+          "action": "listener-added",
+          "listener": "handlePointerDown",
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 1
+        },
+        {
+          "time": 1880.800000000745,
+          "action": "pointerdown",
+          "target": "pg-fan-sort-backdrop",
+          "trusted": true,
+          "x": 2,
+          "y": 2,
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 1
+        },
+        {
+          "time": 1882.9000000003725,
+          "action": "listener-removed",
+          "listener": "handlePointerDown",
+          "dialog": false,
+          "active": null,
+          "listenerCount": 0
+        },
+        {
+          "time": 1890,
+          "action": "focusin",
+          "target": "pg-sort-control",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        }
+      ]
+    },
+    {
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0,
+      "trace": [
+        {
+          "time": 157.40000000037253,
+          "action": "cycle-0-start",
+          "dialog": false,
+          "active": null,
+          "listenerCount": 0
+        },
+        {
+          "time": 203.30000000074506,
+          "action": "pointerdown",
+          "target": "pg-sort-control",
+          "trusted": true,
+          "x": 54.779998779296875,
+          "y": 84,
+          "dialog": false,
+          "active": null,
+          "listenerCount": 0
+        },
+        {
+          "time": 203.69999999925494,
+          "action": "focusin",
+          "target": "pg-sort-control",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 220,
+          "action": "focusin",
+          "target": "",
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 0
+        },
+        {
+          "time": 222.90000000037253,
+          "action": "listener-added",
+          "listener": "handlePointerDown",
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 1
+        },
+        {
+          "time": 228.40000000037253,
+          "action": "pointerdown",
+          "target": "pg-fan-sort-backdrop",
+          "trusted": true,
+          "x": 2,
+          "y": 2,
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 1
+        },
+        {
+          "time": 230.19999999925494,
+          "action": "listener-removed",
+          "listener": "handlePointerDown",
+          "dialog": false,
+          "active": null,
+          "listenerCount": 0
+        },
+        {
+          "time": 232.40000000037253,
+          "action": "focusin",
+          "target": "pg-sort-control",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 245,
+          "action": "cycle-1-start",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 282.30000000074506,
+          "action": "pointerdown",
+          "target": "pg-sort-control",
+          "trusted": true,
+          "x": 54.779998779296875,
+          "y": 84,
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 289.09999999962747,
+          "action": "focusin",
+          "target": "",
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 0
+        },
+        {
+          "time": 295,
+          "action": "pointerdown",
+          "target": "pg-fan-sort-backdrop",
+          "trusted": true,
+          "x": 2,
+          "y": 2,
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 0
+        },
+        {
+          "time": 297,
+          "action": "listener-removed",
+          "listener": "handlePointerDown",
+          "dialog": false,
+          "active": null,
+          "listenerCount": 0
+        },
+        {
+          "time": 298.80000000074506,
+          "action": "focusin",
+          "target": "pg-sort-control",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 305.69999999925494,
+          "action": "cycle-2-start",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 331.69999999925494,
+          "action": "pointerdown",
+          "target": "pg-sort-control",
+          "trusted": true,
+          "x": 54.779998779296875,
+          "y": 84,
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 337.5,
+          "action": "focusin",
+          "target": "",
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 0
+        },
+        {
+          "time": 343.30000000074506,
+          "action": "pointerdown",
+          "target": "pg-fan-sort-backdrop",
+          "trusted": true,
+          "x": 2,
+          "y": 2,
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 0
+        },
+        {
+          "time": 344.19999999925494,
+          "action": "listener-removed",
+          "listener": "handlePointerDown",
+          "dialog": false,
+          "active": null,
+          "listenerCount": 0
+        },
+        {
+          "time": 345.90000000037253,
+          "action": "focusin",
+          "target": "pg-sort-control",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        }
+      ]
+    },
+    {
+      "theme": "light",
+      "viewport": {
+        "width": 844,
+        "height": 390
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0,
+      "trace": [
+        {
+          "time": 133.5,
+          "action": "cycle-0-start",
+          "dialog": false,
+          "active": null,
+          "listenerCount": 0
+        },
+        {
+          "time": 175.69999999925494,
+          "action": "pointerdown",
+          "target": "pg-sort-control",
+          "trusted": true,
+          "x": 54.779998779296875,
+          "y": 84,
+          "dialog": false,
+          "active": null,
+          "listenerCount": 0
+        },
+        {
+          "time": 176.09999999962747,
+          "action": "focusin",
+          "target": "pg-sort-control",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 192.59999999962747,
+          "action": "focusin",
+          "target": "",
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 0
+        },
+        {
+          "time": 195.5,
+          "action": "listener-added",
+          "listener": "handlePointerDown",
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 1
+        },
+        {
+          "time": 201,
+          "action": "pointerdown",
+          "target": "pg-fan-sort-backdrop",
+          "trusted": true,
+          "x": 2,
+          "y": 2,
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 1
+        },
+        {
+          "time": 202.7999999988824,
+          "action": "listener-removed",
+          "listener": "handlePointerDown",
+          "dialog": false,
+          "active": null,
+          "listenerCount": 0
+        },
+        {
+          "time": 205.40000000037253,
+          "action": "focusin",
+          "target": "pg-sort-control",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 211,
+          "action": "cycle-1-start",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 241.40000000037253,
+          "action": "pointerdown",
+          "target": "pg-sort-control",
+          "trusted": true,
+          "x": 54.779998779296875,
+          "y": 84,
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 247.69999999925494,
+          "action": "focusin",
+          "target": "",
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 0
+        },
+        {
+          "time": 251.69999999925494,
+          "action": "pointerdown",
+          "target": "pg-fan-sort-backdrop",
+          "trusted": true,
+          "x": 2,
+          "y": 2,
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 0
+        },
+        {
+          "time": 253.19999999925494,
+          "action": "listener-removed",
+          "listener": "handlePointerDown",
+          "dialog": false,
+          "active": null,
+          "listenerCount": 0
+        },
+        {
+          "time": 255.69999999925494,
+          "action": "focusin",
+          "target": "pg-sort-control",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 260.5,
+          "action": "cycle-2-start",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 291.5,
+          "action": "pointerdown",
+          "target": "pg-sort-control",
+          "trusted": true,
+          "x": 54.779998779296875,
+          "y": 84,
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 297.19999999925494,
+          "action": "focusin",
+          "target": "",
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 0
+        },
+        {
+          "time": 301.59999999962747,
+          "action": "pointerdown",
+          "target": "pg-fan-sort-backdrop",
+          "trusted": true,
+          "x": 2,
+          "y": 2,
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 0
+        },
+        {
+          "time": 302.59999999962747,
+          "action": "listener-removed",
+          "listener": "handlePointerDown",
+          "dialog": false,
+          "active": null,
+          "listenerCount": 0
+        },
+        {
+          "time": 305.69999999925494,
+          "action": "focusin",
+          "target": "pg-sort-control",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "viewport": {
+        "width": 320,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0,
+      "trace": [
+        {
+          "time": 136.59999999962747,
+          "action": "cycle-0-start",
+          "dialog": false,
+          "active": null,
+          "listenerCount": 0
+        },
+        {
+          "time": 186.69999999925494,
+          "action": "pointerdown",
+          "target": "pg-sort-control",
+          "trusted": true,
+          "x": 54.779998779296875,
+          "y": 84,
+          "dialog": false,
+          "active": null,
+          "listenerCount": 0
+        },
+        {
+          "time": 187.09999999962747,
+          "action": "focusin",
+          "target": "pg-sort-control",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 205.59999999962747,
+          "action": "focusin",
+          "target": "",
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 0
+        },
+        {
+          "time": 209.7999999988824,
+          "action": "listener-added",
+          "listener": "handlePointerDown",
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 1
+        },
+        {
+          "time": 217.19999999925494,
+          "action": "pointerdown",
+          "target": "pg-fan-sort-backdrop",
+          "trusted": true,
+          "x": 2,
+          "y": 2,
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 1
+        },
+        {
+          "time": 220,
+          "action": "listener-removed",
+          "listener": "handlePointerDown",
+          "dialog": false,
+          "active": null,
+          "listenerCount": 0
+        },
+        {
+          "time": 232.2999999988824,
+          "action": "focusin",
+          "target": "pg-sort-control",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 253.7999999988824,
+          "action": "cycle-1-start",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 285.59999999962747,
+          "action": "pointerdown",
+          "target": "pg-sort-control",
+          "trusted": true,
+          "x": 54.779998779296875,
+          "y": 84,
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 292.8999999985099,
+          "action": "focusin",
+          "target": "",
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 0
+        },
+        {
+          "time": 299.7999999988824,
+          "action": "pointerdown",
+          "target": "pg-fan-sort-backdrop",
+          "trusted": true,
+          "x": 2,
+          "y": 2,
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 0
+        },
+        {
+          "time": 302.09999999962747,
+          "action": "listener-removed",
+          "listener": "handlePointerDown",
+          "dialog": false,
+          "active": null,
+          "listenerCount": 0
+        },
+        {
+          "time": 317.09999999962747,
+          "action": "focusin",
+          "target": "pg-sort-control",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 346,
+          "action": "cycle-2-start",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 372.7999999988824,
+          "action": "pointerdown",
+          "target": "pg-sort-control",
+          "trusted": true,
+          "x": 54.779998779296875,
+          "y": 84,
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 380.19999999925494,
+          "action": "focusin",
+          "target": "",
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 0
+        },
+        {
+          "time": 383.59999999962747,
+          "action": "listener-added",
+          "listener": "handlePointerDown",
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 1
+        },
+        {
+          "time": 394.09999999962747,
+          "action": "pointerdown",
+          "target": "pg-fan-sort-backdrop",
+          "trusted": true,
+          "x": 2,
+          "y": 2,
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 1
+        },
+        {
+          "time": 397.19999999925494,
+          "action": "listener-removed",
+          "listener": "handlePointerDown",
+          "dialog": false,
+          "active": null,
+          "listenerCount": 0
+        },
+        {
+          "time": 403.19999999925494,
+          "action": "focusin",
+          "target": "pg-sort-control",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0,
+      "trace": [
+        {
+          "time": 151.5,
+          "action": "cycle-0-start",
+          "dialog": false,
+          "active": null,
+          "listenerCount": 0
+        },
+        {
+          "time": 182.40000000037253,
+          "action": "pointerdown",
+          "target": "pg-sort-control",
+          "trusted": true,
+          "x": 54.779998779296875,
+          "y": 84,
+          "dialog": false,
+          "active": null,
+          "listenerCount": 0
+        },
+        {
+          "time": 182.80000000074506,
+          "action": "focusin",
+          "target": "pg-sort-control",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 198.90000000037253,
+          "action": "focusin",
+          "target": "",
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 0
+        },
+        {
+          "time": 202.7000000011176,
+          "action": "listener-added",
+          "listener": "handlePointerDown",
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 1
+        },
+        {
+          "time": 207.80000000074506,
+          "action": "pointerdown",
+          "target": "pg-fan-sort-backdrop",
+          "trusted": true,
+          "x": 2,
+          "y": 2,
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 1
+        },
+        {
+          "time": 209.60000000149012,
+          "action": "listener-removed",
+          "listener": "handlePointerDown",
+          "dialog": false,
+          "active": null,
+          "listenerCount": 0
+        },
+        {
+          "time": 212.7000000011176,
+          "action": "focusin",
+          "target": "pg-sort-control",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 218.40000000037253,
+          "action": "cycle-1-start",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 248.2000000011176,
+          "action": "pointerdown",
+          "target": "pg-sort-control",
+          "trusted": true,
+          "x": 54.779998779296875,
+          "y": 84,
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 254.40000000037253,
+          "action": "focusin",
+          "target": "",
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 0
+        },
+        {
+          "time": 258.7000000011176,
+          "action": "pointerdown",
+          "target": "pg-fan-sort-backdrop",
+          "trusted": true,
+          "x": 2,
+          "y": 2,
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 0
+        },
+        {
+          "time": 260,
+          "action": "listener-removed",
+          "listener": "handlePointerDown",
+          "dialog": false,
+          "active": null,
+          "listenerCount": 0
+        },
+        {
+          "time": 262.90000000037253,
+          "action": "focusin",
+          "target": "pg-sort-control",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 267.2000000011176,
+          "action": "cycle-2-start",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 298.30000000074506,
+          "action": "pointerdown",
+          "target": "pg-sort-control",
+          "trusted": true,
+          "x": 54.779998779296875,
+          "y": 84,
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 303.80000000074506,
+          "action": "focusin",
+          "target": "",
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 0
+        },
+        {
+          "time": 308,
+          "action": "pointerdown",
+          "target": "pg-fan-sort-backdrop",
+          "trusted": true,
+          "x": 2,
+          "y": 2,
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 0
+        },
+        {
+          "time": 309,
+          "action": "listener-removed",
+          "listener": "handlePointerDown",
+          "dialog": false,
+          "active": null,
+          "listenerCount": 0
+        },
+        {
+          "time": 313.5,
+          "action": "focusin",
+          "target": "pg-sort-control",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        }
+      ]
+    },
+    {
+      "theme": "dark",
+      "viewport": {
+        "width": 844,
+        "height": 390
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0,
+      "trace": [
+        {
+          "time": 136.90000000037253,
+          "action": "cycle-0-start",
+          "dialog": false,
+          "active": null,
+          "listenerCount": 0
+        },
+        {
+          "time": 167.80000000074506,
+          "action": "pointerdown",
+          "target": "pg-sort-control",
+          "trusted": true,
+          "x": 54.779998779296875,
+          "y": 84,
+          "dialog": false,
+          "active": null,
+          "listenerCount": 0
+        },
+        {
+          "time": 168.40000000037253,
+          "action": "focusin",
+          "target": "pg-sort-control",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 191.2000000011176,
+          "action": "focusin",
+          "target": "",
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 0
+        },
+        {
+          "time": 195.09999999962747,
+          "action": "listener-added",
+          "listener": "handlePointerDown",
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 1
+        },
+        {
+          "time": 201.7000000011176,
+          "action": "pointerdown",
+          "target": "pg-fan-sort-backdrop",
+          "trusted": true,
+          "x": 2,
+          "y": 2,
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 1
+        },
+        {
+          "time": 203.7000000011176,
+          "action": "listener-removed",
+          "listener": "handlePointerDown",
+          "dialog": false,
+          "active": null,
+          "listenerCount": 0
+        },
+        {
+          "time": 213.7000000011176,
+          "action": "focusin",
+          "target": "pg-sort-control",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 235.2000000011176,
+          "action": "cycle-1-start",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 266.80000000074506,
+          "action": "pointerdown",
+          "target": "pg-sort-control",
+          "trusted": true,
+          "x": 54.779998779296875,
+          "y": 84,
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 273.5,
+          "action": "focusin",
+          "target": "",
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 0
+        },
+        {
+          "time": 280.7000000011176,
+          "action": "pointerdown",
+          "target": "pg-fan-sort-backdrop",
+          "trusted": true,
+          "x": 2,
+          "y": 2,
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 0
+        },
+        {
+          "time": 282.5,
+          "action": "listener-removed",
+          "listener": "handlePointerDown",
+          "dialog": false,
+          "active": null,
+          "listenerCount": 0
+        },
+        {
+          "time": 297.7000000011176,
+          "action": "focusin",
+          "target": "pg-sort-control",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 322.30000000074506,
+          "action": "cycle-2-start",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 349.90000000037253,
+          "action": "pointerdown",
+          "target": "pg-sort-control",
+          "trusted": true,
+          "x": 54.779998779296875,
+          "y": 84,
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        },
+        {
+          "time": 356.5,
+          "action": "focusin",
+          "target": "",
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 0
+        },
+        {
+          "time": 361.59999999962747,
+          "action": "pointerdown",
+          "target": "pg-fan-sort-backdrop",
+          "trusted": true,
+          "x": 2,
+          "y": 2,
+          "dialog": true,
+          "active": "Close sort sheet",
+          "listenerCount": 0
+        },
+        {
+          "time": 362.90000000037253,
+          "action": "listener-removed",
+          "listener": "handlePointerDown",
+          "dialog": false,
+          "active": null,
+          "listenerCount": 0
+        },
+        {
+          "time": 364.5,
+          "action": "focusin",
+          "target": "pg-sort-control",
+          "dialog": false,
+          "active": "Sort posts. Current: upcoming",
+          "listenerCount": 0
+        }
+      ]
+    }
+  ],
+  "attempts": [],
+  "errors": [],
+  "browser": "153.0.8010.0",
+  "status": "PASSED"
+}
