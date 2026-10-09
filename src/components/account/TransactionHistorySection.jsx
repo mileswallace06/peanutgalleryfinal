@@ -1,7 +1,8 @@
 import '@/components/member-surfaces.css';
 import { useState } from 'react';
 import { CreditCard, TrendingUp, ChevronDown, ChevronUp } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, isValid } from 'date-fns';
+import { summarizeSellerHistory, formatRecordedAmount, salePaymentStatus, SELLER_HISTORY_SCOPE } from '@/lib/salesPresentation';
 
 const STATUS_CONFIG = {
   completed:        { label: 'Transfer Complete', color: 'var(--neon-green)' },
@@ -24,7 +25,7 @@ function PurchaseRow({ p, type }) {
   const label = type === 'purchase' ? `Bought · #${p.id?.slice(-6)}` : `Sold · #${p.id?.slice(-6)}`;
   const amount = type === 'purchase' ? p.amount : p.seller_payout;
   const color = type === 'purchase' ? 'var(--neon-pink)' : 'var(--neon-green)';
-  const sign = type === 'purchase' ? '-' : '+';
+  const sign = type === 'purchase' ? '-' : '';
 
   return (
     <div className="flex items-center gap-3 px-4 py-3.5">
@@ -36,47 +37,53 @@ function PurchaseRow({ p, type }) {
         <p className="text-sm font-medium text-foreground truncate">{label}</p>
         <div className="flex items-center gap-2 mt-0.5 flex-wrap">
           {statusBadge(p.transfer_status)}
-          {p.created_date && <span className="text-[10px] text-muted-foreground">{format(new Date(p.created_date), 'MMM d')}</span>}
+          {type === 'sale' && <span className="text-[10px] text-muted-foreground">{salePaymentStatus(p).label} · Bank payout unconfirmed</span>}
+          {p.created_date && isValid(new Date(p.created_date)) && <span className="text-[10px] text-muted-foreground">{format(new Date(p.created_date), 'MMM d')}</span>}
         </div>
       </div>
       <span className="text-sm font-bold" style={{ color }}>
-        {sign}${(amount || 0).toFixed(2)}
+        {typeof amount === 'number' ? sign : ''}{formatRecordedAmount(amount)}
       </span>
     </div>
   );
 }
 
-export default function TransactionHistorySection({ purchases, sales }) {
+export default function TransactionHistorySection({ purchases = [], sales = [], status = 'loading', onRetry }) {
   const [tab, setTab] = useState('purchases');
   const [open, setOpen] = useState(false);
 
-  const totalPurchased = purchases.reduce((s, p) => s + (p.amount || 0), 0);
-  const totalEarned = sales.reduce((s, p) => s + (p.seller_payout || 0), 0);
+  const totalPurchased = purchases.filter(p => !p.is_demo).reduce((sum, p) => sum + (typeof p.amount === 'number' ? p.amount : 0), 0);
+  const purchaseAmountMissing = purchases.some(p => !p.is_demo && typeof p.amount !== 'number');
+  const summary = summarizeSellerHistory(sales);
+  const unavailable = status === 'loading' ? 'Loading…' : 'Unavailable';
 
   return (
     <section className="pg-member-section">
-      <h3 className="text-xs font-black tracking-widest uppercase text-muted-foreground mb-3">Purchases, Sales &amp; Payouts</h3>
+      <h3 className="text-xs font-black tracking-widest uppercase text-muted-foreground mb-3">Purchases &amp; Sales</h3>
+      <p className="text-xs text-muted-foreground mb-3">{SELLER_HISTORY_SCOPE} Seller amounts are recorded amounts owed for completed transfers, not confirmed bank payouts. Order amounts include pending, expired and disputed orders; they are not verified spending.</p>
+      {status === 'error' && <p role="alert">Transaction history could not be loaded. <button type="button" className="underline" onClick={onRetry}>Retry transaction history</button></p>}
       <div className="rounded-xl overflow-hidden" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
         {/* Summary row */}
         <button
           className="flex items-center gap-3 px-4 py-3.5 w-full text-left"
+          aria-expanded={open}
           onClick={() => setOpen(o => !o)}
         >
           <CreditCard className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
           <div className="flex-1 flex gap-5">
             <div>
-              <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide">Spent</p>
-              <p className="text-sm font-bold" style={{ color: 'var(--neon-pink)' }}>${totalPurchased.toFixed(2)}</p>
+              <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide">Recorded order amounts</p>
+              <p className="text-sm font-bold" style={{ color: 'var(--neon-pink)' }}>{status !== 'ready' ? unavailable : purchaseAmountMissing ? 'Amount incomplete' : formatRecordedAmount(totalPurchased)}</p>
             </div>
             <div>
-              <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide">Earned</p>
-              <p className="text-sm font-bold" style={{ color: 'var(--neon-green)' }}>${totalEarned.toFixed(2)}</p>
+              <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide">Completed seller amounts</p>
+              <p className="text-sm font-bold" style={{ color: 'var(--neon-green)' }}>{status !== 'ready' ? unavailable : summary.missingAmounts ? 'Amount incomplete' : formatRecordedAmount(summary.recordedAmount)}</p>
             </div>
           </div>
           {open ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
         </button>
 
-        {open && (
+        {open && status === 'ready' && (
           <div className="border-t border-border">
             {/* Tab switcher */}
             <div className="flex px-4 pt-3 pb-1 gap-2">
