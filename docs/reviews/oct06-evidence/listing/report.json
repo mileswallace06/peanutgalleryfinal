@@ -1,0 +1,208 @@
+{
+  "fixtureOnly": true,
+  "browser": "153.0.8010.0",
+  "checks": [
+    "R02 real live-hub return link preserves submitted keyword, city, sort and include-past URL/state: light",
+    "R02 real live-hub return link preserves submitted keyword, city, sort and include-past URL/state: dark",
+    "R04 ended hub and direct form, current-event recovery, no transfer/upload prompts: light 320px",
+    "R04 ended hub and direct form, current-event recovery, no transfer/upload prompts: light 375px",
+    "R04 ended hub and direct form, current-event recovery, no transfer/upload prompts: light 390px",
+    "R04 ended hub and direct form, current-event recovery, no transfer/upload prompts: light 430px",
+    "R04 ended hub and direct form, current-event recovery, no transfer/upload prompts: light 1280px",
+    "R04 ended hub and direct form, current-event recovery, no transfer/upload prompts: dark 320px",
+    "R04 ended hub and direct form, current-event recovery, no transfer/upload prompts: dark 375px",
+    "R04 ended hub and direct form, current-event recovery, no transfer/upload prompts: dark 390px",
+    "R04 ended hub and direct form, current-event recovery, no transfer/upload prompts: dark 430px",
+    "R04 ended hub and direct form, current-event recovery, no transfer/upload prompts: dark 1280px",
+    "R04 open draft closes at exact explicit end after simulated foreground clock update",
+    "R04 unknown timing is disclosed without fabricated end",
+    "R04 stale server timing reread stops submission before analytics or writes",
+    "R05 failure/retry/populated selection, accessible live status, alternate proof, Escape/trigger focus: light",
+    "R05 failure/retry/populated selection, accessible live status, alternate proof, Escape/trigger focus: dark",
+    "R05 successful empty response distinct from failure; proof upload retained;320px no overflow"
+  ],
+  "screenshots": [
+    "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct06/listing/R04-ended-form-light-390.png",
+    "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct06/listing/R04-ended-form-dark-390.png",
+    "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct06/listing/R05-lookup-error-light-390.png",
+    "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct06/listing/R05-lookup-retry-populated-dark-390.png",
+    "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct06/listing/R05-lookup-empty-light-320.png"
+  ],
+  "externalRequests": [],
+  "errors": [],
+  "safetyChecks": [
+    {
+      "label": "real hub discovery return light",
+      "blocked": [],
+      "unexpected": [],
+      "mutations": []
+    },
+    {
+      "label": "real hub discovery return dark",
+      "blocked": [],
+      "unexpected": [],
+      "mutations": []
+    },
+    {
+      "label": "ended hub light 320",
+      "blocked": [],
+      "unexpected": [],
+      "mutations": []
+    },
+    {
+      "label": "ended direct form light 320",
+      "blocked": [],
+      "unexpected": [],
+      "mutations": []
+    },
+    {
+      "label": "ended hub light 375",
+      "blocked": [],
+      "unexpected": [],
+      "mutations": []
+    },
+    {
+      "label": "ended direct form light 375",
+      "blocked": [],
+      "unexpected": [],
+      "mutations": []
+    },
+    {
+      "label": "ended hub light 390",
+      "blocked": [],
+      "unexpected": [],
+      "mutations": []
+    },
+    {
+      "label": "ended direct form light 390",
+      "blocked": [],
+      "unexpected": [],
+      "mutations": []
+    },
+    {
+      "label": "ended hub light 430",
+      "blocked": [],
+      "unexpected": [],
+      "mutations": []
+    },
+    {
+      "label": "ended direct form light 430",
+      "blocked": [],
+      "unexpected": [],
+      "mutations": []
+    },
+    {
+      "label": "ended hub light 1280",
+      "blocked": [],
+      "unexpected": [],
+      "mutations": []
+    },
+    {
+      "label": "ended direct form light 1280",
+      "blocked": [],
+      "unexpected": [],
+      "mutations": []
+    },
+    {
+      "label": "ended hub dark 320",
+      "blocked": [],
+      "unexpected": [],
+      "mutations": []
+    },
+    {
+      "label": "ended direct form dark 320",
+      "blocked": [],
+      "unexpected": [],
+      "mutations": []
+    },
+    {
+      "label": "ended hub dark 375",
+      "blocked": [],
+      "unexpected": [],
+      "mutations": []
+    },
+    {
+      "label": "ended direct form dark 375",
+      "blocked": [],
+      "unexpected": [],
+      "mutations": []
+    },
+    {
+      "label": "ended hub dark 390",
+      "blocked": [],
+      "unexpected": [],
+      "mutations": []
+    },
+    {
+      "label": "ended direct form dark 390",
+      "blocked": [],
+      "unexpected": [],
+      "mutations": []
+    },
+    {
+      "label": "ended hub dark 430",
+      "blocked": [],
+      "unexpected": [],
+      "mutations": []
+    },
+    {
+      "label": "ended direct form dark 430",
+      "blocked": [],
+      "unexpected": [],
+      "mutations": []
+    },
+    {
+      "label": "ended hub dark 1280",
+      "blocked": [],
+      "unexpected": [],
+      "mutations": []
+    },
+    {
+      "label": "ended direct form dark 1280",
+      "blocked": [],
+      "unexpected": [],
+      "mutations": []
+    },
+    {
+      "label": "draft ends at explicit boundary",
+      "blocked": [],
+      "unexpected": [],
+      "mutations": []
+    },
+    {
+      "label": "unknown timing stays unknown",
+      "blocked": [],
+      "unexpected": [],
+      "mutations": []
+    },
+    {
+      "label": "fresh ended read before submit",
+      "blocked": [],
+      "unexpected": [],
+      "mutations": []
+    },
+    {
+      "label": "lookup retry light",
+      "blocked": [],
+      "unexpected": [],
+      "mutations": []
+    },
+    {
+      "label": "lookup retry dark",
+      "blocked": [],
+      "unexpected": [],
+      "mutations": []
+    },
+    {
+      "label": "lookup empty320",
+      "blocked": [],
+      "unexpected": [],
+      "mutations": []
+    }
+  ],
+  "evidenceNote": "Final seven-suite aggregate, October 9 2026 UTC. Full local runner results; only selected screenshots are committed. Original absolute paths may identify artifacts retained only in the full local evidence set.",
+  "committedScreenshots": [
+    "R04-ended-form-light-390.png",
+    "R05-lookup-retry-populated-dark-390.png"
+  ]
+}
