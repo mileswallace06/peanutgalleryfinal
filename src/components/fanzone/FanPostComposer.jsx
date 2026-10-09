@@ -4,6 +4,7 @@ import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import { Armchair, ArrowLeft, Check, ChevronDown, ChevronRight, ImagePlus, Loader2, Search, Ticket, X } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { createFanPostTasks, fanPostProblem, hasFanPostDraft } from './fanPostDraft';
+import { fanEventChoices, fanEventHasTicket, fanEventOccurrence } from './fanEventChoice';
 import './fan-post-composer.css';
 
 const emptyDraft = { type: 'post', text: '', event: null, photo: '', before: '', after: '', fromSection: '', fromRow: '', toSection: '', toRow: '' };
@@ -81,9 +82,7 @@ export default function FanPostComposer({ user, events, eventsLoading = false, e
     }
     if (mounted.current) setSharing(false);
   };
-  const eventMatches = events.filter(event => !query.trim() || [event.title, event.venue, event.city]
-    .some(value => value?.toLowerCase().includes(query.trim().toLowerCase())))
-    .sort((left, right) => Number(myEventIds.includes(right.id)) - Number(myEventIds.includes(left.id)));
+  const eventMatches = fanEventChoices(events, query, myEventIds);
 
   return <>
     <Dialog.Root open onOpenChange={open => { if (!open) requestClose(); }}>
@@ -113,8 +112,8 @@ export default function FanPostComposer({ user, events, eventsLoading = false, e
                 {eventsLoading ? <p className="pg-composer-empty" role="status">Loading events…</p> : eventsError ? <div className="pg-composer-empty"><p role="alert">We couldn’t load events.</p><button type="button" className="pg-composer-keep" onClick={onReloadEvents}>Try again</button></div> : eventMatches.length ? <div className="pg-composer-event-list">{eventMatches.map(event => <button type="button" key={event.id} className="pg-composer-event-option"
                   onClick={() => { patch({ event }); setView('compose'); setQuery(''); }}>
                   {event.image_url ? <img src={event.image_url} alt="" /> : <span className="pg-composer-event-placeholder"><Ticket size={20} /></span>}
-                  <span><strong>{event.title}</strong><small>{[event.venue, event.city].filter(Boolean).join(' · ')}{myEventIds.includes(event.id) ? ' · Your ticket' : ''}</small></span>
-                  {draft.event?.id === event.id ? <Check size={17} /> : <ChevronRight size={17} />}
+                  <span><strong>{event.title}</strong><small>{[event.venue, event.city].filter(Boolean).join(' · ')}{fanEventHasTicket(event, myEventIds) ? ' · Your ticket' : ''}</small><small className="pg-composer-event-occurrence">{fanEventOccurrence(event)}</small></span>
+                  {[event.id, ...(event._eventAliases || [])].includes(draft.event?.id) ? <Check size={17} /> : <ChevronRight size={17} />}
                 </button>)}</div> : <p className="pg-composer-empty">{query.trim() ? 'No matching events. Try an artist, venue or city.' : 'No events are available to tag right now.'}</p>}
               </> : <>
                 <div className="pg-composer-kind" role="group" aria-label="Post type">
@@ -134,7 +133,7 @@ export default function FanPostComposer({ user, events, eventsLoading = false, e
                   <span>{draft.text.length}/280</span>
                 </div>
                 <div className="pg-composer-event-tag">
-                  <button type="button" disabled={sharing} onClick={() => setView('events')}><Ticket size={18} /><span><strong>{draft.event?.title || 'Tag an event'}</strong><small>{draft.event ? [draft.event.venue, draft.event.city].filter(Boolean).join(' · ') : isFlex ? 'Required for Seat Flex' : 'Optional'}</small></span><ChevronRight size={17} /></button>
+                  <button type="button" disabled={sharing} onClick={() => setView('events')}><Ticket size={18} /><span><strong>{draft.event?.title || 'Tag an event'}</strong><small>{draft.event ? [draft.event.venue, draft.event.city].filter(Boolean).join(' · ') : isFlex ? 'Required for Seat Flex' : 'Optional'}</small>{draft.event && <small className="pg-composer-event-occurrence">{fanEventOccurrence(draft.event)}</small>}</span><ChevronRight size={17} /></button>
                   {draft.event && <button type="button" className="pg-composer-icon-button" disabled={sharing} onClick={() => patch({ event: null })} aria-label="Remove tagged event"><X size={17} /></button>}
                 </div>
                 {isFlex && <details className="pg-composer-seat-details"><summary>Seat details <span>Optional</span><ChevronDown size={16} /></summary>
