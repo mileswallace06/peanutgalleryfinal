@@ -1,0 +1,4 @@
+Browserslist: browsers data (caniuse-lite) is 8 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+PASS R02 repeated fresh query focus and N01 Live Back/reload, dark/light, pointer/keyboard; explicit Back, Forward, same-query refresh, direct visits, invalid defaults, local continuation depth; isolated 390x844
