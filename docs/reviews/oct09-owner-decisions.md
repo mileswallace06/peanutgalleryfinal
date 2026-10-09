@@ -11,4 +11,4 @@ These questions remain outside the regression repair. No legal wording, payout t
 
 A future managed-selling/consignment feature, custody, reimbursement promise, or expanded marketplace responsibility is not included.
 
-Other explicit limits: the historical R09 focus failure has no established cause; Founder alert deduplication is not atomic across clients; pending transfers retain an existing user-scoped legacy Purchase dependency; exact deployed versions and real transaction behavior were not verified. None is resolved by a local green test result.
+Other explicit limits: the historical R09 focus failure remains unproven even though a subsequently reproduced startup race is repaired; Founder alert deduplication is not atomic across clients; pending transfers retain an existing user-scoped legacy Purchase dependency; exact deployed versions and real transaction behavior were not verified. None is resolved by a local green test result.

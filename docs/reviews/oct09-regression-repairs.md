@@ -14,7 +14,7 @@ Draft review only. No merge, publication, deployment, or production mutation. [A
 | R06 | Working repair preserved; coverage expanded. | legal renderer unchanged, legal browser/fixture | Actual 320/375/390/430/1280 widths +844×390, both themes; keyboard final-column reach, table semantics, no overflow |
 | R07 | Working fragments preserved; coverage expanded. | legal navigation unchanged, staged synthetic hosted content | All 31 Terms anchors; direct/reload/Back/Forward Privacy fragments after two async insertions, reduced motion, focus/header offset |
 | R08 | **Owner-blocked.** Refund contradiction intentionally remains. | Policy strings unchanged | No policy reconciliation or refund operation; exact decisions in linked owner document |
-| R09 | **Unresolved historical failure.** Original full runner passed before modifications; no cause established. | Fan production code unchanged; runner diagnostics and controlled fixture added | Original and diagnostic gates each19; controlled suite42, including72 async modal-close cycles; exact trigger assertion/raw backdrop unchanged |
+| R09 | **Reproduced startup race repaired; historical CI cause remains unproven.** A trusted backdrop click arrived before Radix registered its outside-pointer listener. | `FanSortSheet` guarded overlay click fallback; original runner unchanged in intent; new startup runner | Deterministic before-source fails; fixed16cases and18 native-timing cycles pass, including9 before listener installation. Exact original focus, single dismissal, mouse/touch/context-menu/drag behavior and cleanup covered. [Diagnosis and evidence](oct09-fan-startup-repair.md) |
 | R10 | Previously verified repair preserved. | Profile/rank design unchanged | Existing profile/Beta browser and contrast unit coverage; no new live measurement claimed |
 | R11 / N02 | Remaining four refresh names repaired, with loading/error/retry/focus behavior. | TransferWindowAdminPanel, FlashDropMetricsPanel, LiveUpgradeControlPanel, InstantTransferReadyPanel | Async loaded accessibility names, keyboard activation and focus in both themes; prior five-radio/disclosure tests retained |
 | R12 | Sparse list repair preserved; hydration failure/retry coverage added. | MySales unchanged; purchase-review fixture | Two same-date/amount sale references remain distinct across hydration failure and recovery |
@@ -43,8 +43,14 @@ Completed transaction details hydrate only after authorized participant projecti
 
 The optional unsaved-persona warning, alert timestamp correctness, LIVE/LIVE EST classification, physical device behavior and deployed transaction flows remain outside this repair. No guessed time offset or dependency upgrade was introduced.
 
-## Verification and review
+## Continuation: full lint and Fan sort startup
+
+After the user requested continuation, 23 unused import bindings were removed from the 12 files identified in the original lint baseline. These edits change no runtime logic; relevant module initialization remains reachable. `npm run lint` now exits 0, and CI explicitly runs it before the existing scoped audit lint. The original failing lint log below remains historical evidence.
+
+The Fan Zone startup repair is documented separately in [the focused report](oct09-fan-startup-repair.md). Refund/payout/tracking/Account Transfer owner decisions remain unchanged. The current-head CI run and reviewed SHA are recorded in [draft PR18](https://github.com/mileswallace06/peanutgalleryfinal/pull/18); a prior green run never stands in for a changed head.
+
+## Original implementation verification and review
 
 Combined local results and exact source provenance are recorded in the evidence index: 384 safe tests, 14 browser runners, scoped lint and build pass. Fresh route smoke has 252 passes and 2 known fixture blockers; global lint retains 23 errors in unchanged files. Repository-wide `npm run lint` reports 23 unused-import errors in unchanged files; scoped `npm run lint:audit` is separately reported. The safe unit list is explicit and network-denied; the live financial canary runner `npm test` was not invoked.
 
-Historical CI is not used as proof for this branch. Draft PR CI is pending until an actual new run is observed. Review the final diff for policy/auth changes, removed assertions and unrelated edits; no production SDK is available to isolated fixtures.
+Initial repair HEAD `27d1c58f17a3d3bf0b677023967b4306e0ae42bf` passed [CI 37995007108](https://github.com/mileswallace06/peanutgalleryfinal/actions/runs/37995007108). This result belongs to that commit; subsequent continuation evidence and the current-head CI are recorded separately. Historical PR17 CI is not used as proof for this branch. Review the final diff for policy/auth changes, removed assertions and unrelated edits; no production SDK is available to isolated fixtures.
