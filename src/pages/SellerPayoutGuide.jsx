@@ -1,3 +1,4 @@
+import { PAYOUT_TIMING_COPY } from '@/lib/payoutPolicyCopy';
 import { PageIntro } from '@/components/ClarityUI';
 import '@/components/member-surfaces.css';
 import { Link } from 'react-router-dom';
@@ -23,8 +24,8 @@ const STEPS = [
   {
     num: '1',
     emoji: '📱',
-    title: 'Tap "Set Up Payouts"',
-    desc: 'On the Sell tab, tap the orange "Set Up Payouts with Stripe" button. You\'ll be redirected to Stripe\'s secure site.',
+    title: 'Open your payout account settings',
+    desc: 'Open Account Settings, then Payouts & transactions and Payout Account. Once the status check finishes, choose Continue Stripe Setup or Review Stripe Setup to continue on Stripe\'s secure site.',
     tip: 'Look for "stripe.com" in your browser bar — that\'s how you know you\'re on their official page.',
     color: 'var(--neon-orange)',
   },
@@ -106,8 +107,8 @@ const PG_SEES = [
 ];
 
 const PAYOUT_FACTS = [
-  { icon: '⏱️', title: '2–7 Business Days', desc: 'After a sale, your money moves from escrow to your bank within 2–7 business days. This is Stripe\'s standard timeline — not something PG controls.' },
-  { icon: '🐢', title: 'First Payout Is a Bit Slower', desc: 'Stripe holds your very first payout for up to 7 days. This is normal for ALL new accounts — it\'s their anti-fraud protection. Every seller goes through it.' },
+  { icon: '⏱️', title: PAYOUT_TIMING_COPY.standardTitle, desc: PAYOUT_TIMING_COPY.standard },
+  { icon: '🐢', title: 'First Payout Is a Bit Slower', desc: PAYOUT_TIMING_COPY.first },
   { icon: '💸', title: 'You Keep 95%', desc: 'Peanut Gallery takes a 5% service fee (minimum $1). The rest goes straight to your bank. No invoices. No paperwork.' },
   { icon: '🔁', title: 'Multiple Sales = One Transfer', desc: 'If you sell multiple tickets, Stripe batches them into one bank deposit — keeping things clean.' },
 ];
@@ -139,7 +140,7 @@ const FAQS = [
   },
   {
     q: 'How long do payouts take?',
-    a: 'Your first payout takes up to 7 days (Stripe\'s standard new-account hold). After that, payouts typically arrive in 2–5 business days. You\'ll get a Stripe summary email each month.',
+    a: PAYOUT_TIMING_COPY.faq,
   },
   {
     q: 'Why might my balance show $0 at first?',
@@ -378,10 +379,10 @@ export default function SellerPayoutGuide() {
 
       {/* ── CTAs ─────────────────────────────────────────── */}
       <div className="space-y-3">
-        <Link to="/sell"
+        <Link to="/account-settings#payouts"
           className="pg-guide-action flex items-center justify-center gap-2 w-full py-4 rounded-full font-black text-sm"
           style={{ background: 'var(--pg-orange)', color: 'var(--pg-ink)', boxShadow: `0 0 18px rgba(var(--neon-orange-rgb), 0.25)` }}>
-          <Banknote className="w-4 h-4" /> Set Up My Payouts →
+          <Banknote className="w-4 h-4" /> Open Payout Account Settings →
         </Link>
         <Link to="/sell"
           className="pg-guide-action flex items-center justify-center gap-2 w-full py-3.5 rounded-full font-semibold text-sm"

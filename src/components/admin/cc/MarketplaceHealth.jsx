@@ -1,4 +1,4 @@
-import { format } from 'date-fns';
+import { adminEventIdentity } from '@/lib/salesPresentation';
 
 function StatCard({ label, value, sub, color }) {
   return (
@@ -33,7 +33,7 @@ export default function MarketplaceHealth({ purchases, listings, events }) {
   const topEvents = Object.entries(eventVolume)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3)
-    .map(([eid, vol]) => ({ event: events[eid], vol }));
+    .map(([eid, vol]) => ({ eid, event: events[eid], vol }));
 
   return (
     <div className="space-y-6">
@@ -71,11 +71,11 @@ export default function MarketplaceHealth({ purchases, listings, events }) {
           <>
             <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Top Events by GMV</h3>
             <div className="space-y-2">
-              {topEvents.map(({ event, vol }, i) => (
+              {topEvents.map(({ eid, event, vol }, i) => (
                 <div key={i} className="pg-operations-card flex items-center justify-between px-4 py-3 rounded-xl"
                   style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
                   <div>
-                    <div className="font-semibold text-foreground text-sm">{event?.title || 'Unknown Event'}</div>
+                    <div className="font-semibold text-foreground text-sm">{adminEventIdentity(event, eid)}</div>
                     <div className="text-xs text-muted-foreground">{event?.venue}</div>
                   </div>
                   <div className="pg-operations-status font-black text-sm" style={{ '--pg-status-ink': '#00FF87' }}>${vol.toFixed(0)}</div>

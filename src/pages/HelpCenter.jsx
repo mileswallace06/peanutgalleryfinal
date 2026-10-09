@@ -4,6 +4,7 @@ import { Search, ArrowRight, Mail, Ticket, Sparkles, Store, UserRound, Bookmark 
 import PublicPage from '@/components/PublicPage';
 import { PageIntro } from '@/components/ClarityUI';
 import './help-center.css';
+import { helpQuerySummary } from '@/lib/helpQuerySummary';
 
 const TOPICS = [
   { id: 'tickets', title: 'Tickets & orders', icon: Ticket, items: [
@@ -61,7 +62,7 @@ export default function HelpCenter() {
             {TOPICS.map(group => <option key={group.id} value={group.id}>{group.title}</option>)}
           </select>
         </label>
-        <p className="pg-help-count" role="status">{resultCount} {resultCount === 1 ? 'answer' : 'answers'}{query.trim() ? ` for “${query.trim()}”` : ' to get you moving'}</p>
+        <p className="pg-help-count" role="status">{resultCount} {resultCount === 1 ? 'answer' : 'answers'}{query.trim() ? ` for “${helpQuerySummary(query)}”` : ' to get you moving'}</p>
         <div className="pg-help-results">
           {results.map(({ id, title, icon: Icon, items }) => (
             <section key={id} aria-labelledby={`help-${id}`}>

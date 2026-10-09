@@ -6,7 +6,7 @@ const iso = (minutes) => new Date(now + minutes * 60000).toISOString();
 const artwork = new URL('./fixture-arena.svg', import.meta.url).href;
 export const fixtureSignedIn = params.get('auth') !== 'guest';
 export const fixtureUser = {
-  id: 'fixture-user', email: 'reviewer@example.invalid', full_name: 'Alex Sample', role: params.get('page') === 'founder' ? 'admin' : 'user',
+  id: 'fixture-user', email: 'reviewer@example.invalid', full_name: 'Alex Sample', role: params.get('role') === 'admin' || ['founder','admin','beta-qa'].includes(params.get('page')) ? 'admin' : 'user',
   has_seen_onboarding: true, has_seen_upgrades_onboarding: true,
   stripe_onboarding_complete: true, peanut_points: 240, avatar_url: artwork, banner_url: artwork,
 };
@@ -25,7 +25,17 @@ const events = [
   event('fixture-weekend', 'The Paper Lanterns', 1440 * 3, 'concert', { venue: 'Fictional Garden Theater' }),
   event('fixture-comedy', 'Riley Sample: Just Kidding', 1440 * 5, 'comedy', { venue: 'Imaginary Comedy Hall' }),
 ];
+if (params.get('catalog') === 'recurring') events.push(
+  event('fixture-recurring-one', 'Midnight Carousel', 1440, 'concert'),
+  event('fixture-recurring-two', 'Midnight Carousel', 2880, 'concert'),
+  event('fixture-recurring-one-alias', 'Midnight Carousel', 1440, 'concert', { tm_id: 'tm-fixture-recurring-one' }),
+  event('fixture-recurring-vip', 'Midnight Carousel VIP Package', 1440, 'concert'),
+);
+if (params.get('catalog') === 'large') {
+  for (let i = 0; i < 135; i++) events.push(event(`fixture-page-${String(i).padStart(3,'0')}`, `Fictional Festival ${i}`, 2000 + i * 60, 'concert'));
+}
 const eventState = params.get('eventState');
+if (eventState === 'unknown') Object.assign(events[0], { date: null, event_start_utc: null, event_end_utc: null, time_tba: true, status: 'upcoming' });
 if (['upcoming', 'soon-live', 'stale-live', 'ended'].includes(eventState)) {
   const start = { upcoming: 95, 'soon-live': 0.1, 'stale-live': -42, ended: -300 }[eventState];
   Object.assign(events[0], { date: iso(start), event_start_utc: iso(start), event_end_utc: iso(start + 240), status: 'upcoming' });
@@ -68,6 +78,8 @@ const posts = [
   { id: 'fixture-post-1', author_email: 'morgan@example.invalid', author_name: 'Morgan Sample', event_id: 'fixture-live', event_title: 'The Aurora Waves', event_city: 'Phoenix', text: 'Fictional fan moment: the lights just came up. Who else is here tonight?', post_type: 'post', photo_url: artwork, created_date: iso(-8), updated_date: iso(-3), reactions: { fire: ['sample1@example.invalid','sample2@example.invalid','sample3@example.invalid'], eyes: ['sample4@example.invalid'], peanut: [] } },
   { id: 'fixture-post-2', author_email: 'jamie@example.invalid', author_name: 'Jamie Example', event_id: 'fixture-soon', event_title: 'Phoenix Comets vs Desert Foxes', event_city: 'Phoenix', text: 'Sample seat flex — moved a little closer for the opening pitch.', post_type: 'seat_flex', from_section: '312', from_row: 'M', to_section: '108', to_row: 'D', created_date: iso(-22), updated_date: iso(-5), reactions: { fire: ['sample5@example.invalid'], eyes: [], peanut: ['sample6@example.invalid'] } },
 ];
+posts.push({ id: 'fixture-boston-post', author_email: 'boston@example.invalid', author_name: 'Boston Sample', event_id: 'fixture-night', event_title: 'Neon Orchard: After Hours', event_city: 'Boston', text: 'Fictional Boston fan moment.', post_type: 'post', created_date: iso(-12), reactions: {} });
+if (params.get('salesState') === 'sparse') sales.push(...['a','b'].map(id => ({ id: `fixture-missing-sale-${id}`, event_id: `fixture-deleted-${id}`, listing_id: `fixture-deleted-listing-${id}`, transfer_status: 'completed', seller_confirmed: true, buyer_confirmed: true, amount: 60, quantity: 2, created_date: iso(-1440) })));
 const drops = [{ id: 'fixture-drop', event_id: 'fixture-live', status: 'pending', section: '112', row: 'F', quantity: 2, scheduled_label: 'Sample gift at the next intermission' }];
 export const fixture = window.ticketDesignFixture = {
   scenario, startedAt: new Date(now).toISOString(), calls: [], blocked: [], unexpected: [],
@@ -113,13 +125,19 @@ const rowsByEntity = {
   PointsActivity: [{ id: 'fixture-points', user_email: fixtureUser.email, reference_id: 'fixture-live', points: 100 }],
   EventNavigationLog: navigationLogs,
   AdminAlert: [{ id: 'fixture-alert', resolved: false, priority: 'critical', title: 'Fictional transfer review requires attention', created_date: iso(-25) }],
+  User: [fixtureUser], BetaFeedback: [], BetaTester: [{ id: 'fixture-beta-tester', name: 'Sample Tester', email: 'tester@example.invalid', status: 'active', fan_type: 'both' }], BetaFeedbackEvent: [], QAChecklistItem: [], TransferReport: [], TransferIntelligence: [], EventModeSession: [],
   TransferOutcome: [
     { id: 'fixture-outcome-ok', transfer_successful: true, minutes_to_transfer: 5, created_date: iso(-60) },
     { id: 'fixture-outcome-failed', transfer_successful: false, created_date: iso(-30) },
   ],
 };
+if (params.get('queueState') === 'open-only') {
+  rowsByEntity.Purchase = [];
+  rowsByEntity.SeatDonation = [];
+  rowsByEntity.Listing = [listing('fixture-admin-review', '104', 'B', 50, { proof_status: 'pending_review', status: 'active', listing_mode: 'standard', custody_status: null, last_transfer_verification: null })];
+}
 function read(entity, query = {}, sort, limit, offset = 0) {
-  if (scenario === 'provider-error' && ['FanPost', 'Listing'].includes(entity)) throw failure(`Sample provider failure: ${entity}`);
+  if ((scenario === 'provider-error' && ['FanPost', 'Listing'].includes(entity)) || (params.get('queueState') === 'error' && ['AdminAlert','Listing'].includes(entity)) || (params.get('hydrationState') === 'error' && entity === 'Event')) throw failure(`Sample provider failure: ${entity}`);
   // Retain the event itself for an empty live-hub review, while collections are empty.
   const detailLookup = entity === 'Event' && (query.id || query.tm_id);
   let rows = scenario === 'empty' && !detailLookup && entity !== 'BucketListItem' ? [] : rowsByEntity[entity];
@@ -131,6 +149,7 @@ const entities = new Proxy({}, { get(_, entity) {
   if (!(entity in rowsByEntity)) return new Proxy({}, { get: (_, method) => async (...args) => unexpected(`entities.${String(entity)}.${String(method)}`, args) });
   return new Proxy({}, { get(_, method) {
     const name = `entities.${entity}.${String(method)}`;
+    if (method === 'get' && entity === 'Event') return async id => { record(name, { id }); return read(entity, { id })[0] || null; };
     if (method === 'filter') return async (query, sort, limit, offset) => { record(name, { query, sort, limit, offset }); return read(entity, query, sort, limit, offset); };
     if (method === 'list') return async (sort, limit, offset) => { record(name, { sort, limit, offset }); return read(entity, {}, sort, limit, offset); };
     if (method === 'subscribe' && entity === 'SeatDonation') return () => { record(name, {}); return () => {}; };
@@ -151,22 +170,39 @@ const functions = { invoke: async (name, args = {}) => {
     const coverage = args.discoveryWindow === 'ongoing'
       ? { discoveryWindow: 'ongoing', lookbackHours: 12, limit: 40, startDateTime: iso(-720), endDateTime: iso(0), truncated: false }
       : { truncated: false };
-    return { data: { events: copy(result), coverage } };
+    if (args.startDateTime) result = result.filter(e => e.event_start_utc >= args.startDateTime);
+    if (args.endDateTime) result = result.filter(e => e.event_start_utc <= args.endDateTime);
+    result = [...result].sort((a,b) => String(a.event_start_utc || '').localeCompare(String(b.event_start_utc || '')) * (String(args.sort).includes('desc') ? -1 : 1));
+    const page = Number(args.page) || 0, size = Number(args.size) || 40, hasMore = (page + 1) * size < result.length;
+    return { data: { events: copy(result.slice(page*size, (page+1)*size)), coverage, pagination: { page, size, hasMore, nextPage: hasMore ? page+1 : null, truncated: false } } };
   }
   if (name === 'suggestCities') return { data: { cities: [{ city: 'Phoenix', state: 'AZ', label: 'Phoenix, AZ' }, { city: 'Boston', state: 'MA', label: 'Boston, MA' }].filter(c => c.label.toLowerCase().includes((args.keyword || '').toLowerCase())) } };
   if (['getPurchaseParticipantView','getListingParticipantView','getFlashDropView'].includes(name) && scenario === 'provider-error') throw failure(`Sample provider failure: ${name}`);
-  if (name === 'getPurchaseParticipantView') return { data: { purchases: scenario === 'empty' ? [] : copy(purchases.filter(p => !args.event_id || p.event_id === args.event_id)), sales: scenario === 'empty' ? [] : copy(sales.filter(p => !args.event_id || p.event_id === args.event_id)) } };
+  if (name === 'getPurchaseParticipantView') return { data: { purchases: scenario === 'empty' ? [] : copy(purchases.filter(p => !args.event_id || p.event_id === args.event_id)), sales: scenario === 'empty' ? [] : copy(sales.filter(p => !args.event_id || p.event_id === args.event_id).map(p => ({ ...p, payment_captured: !!p.payment_captured, payment_capture_failed: !!p.payment_capture_failed }))) } };
   if (name === 'getListingParticipantView') {
+    if (args.action === 'list_mine' && params.get('flashLookupDelay')) await new Promise(resolve => setTimeout(resolve, Number(params.get('flashLookupDelay')) || 0));
     if (scenario === 'auth-denied') throw failure('FICTIONAL_AUTH_RESPONSE_MUST_NOT_APPEAR', 403);
     // Mimic a listing becoming unavailable between the seller list and fresh public read.
     const available = scenario !== 'empty' && scenario !== 'share-unavailable';
     if (args.listing_id) return { data: { listing: available ? copy(listings.find(l => l.id === args.listing_id) || null) : null } };
-    if (args.action === 'list_mine') return { data: { listings: scenario === 'empty' ? [] : copy(listings.filter(l => l.seller_email === fixtureUser.email)) } };
+    if (args.action === 'list_mine' && ['error','retry'].includes(params.get('flashLookup')) && (params.get('flashLookup') === 'error' || fixture.calls.filter(c => c.name === 'functions.getListingParticipantView' && c.params.action === 'list_mine').length === 1)) throw failure('Fictional listing lookup failure');
+    if (args.action === 'list_mine') return { data: { listings: scenario === 'empty' || params.get('flashLookup') === 'empty' ? [] : copy(listings.filter(l => l.seller_email === fixtureUser.email)) } };
     if (args.action === 'list_active_by_event') return { data: { listings: available ? copy(listings.filter(l => l.event_id === args.event_id && l.status === 'active')) : [] } };
     return unexpected(`functions.${name}.${args.action || 'missing-action'}`, args);
   }
   if (name === 'getFlashDropView') return { data: { drops: scenario === 'empty' ? [] : copy(drops), leaders: scenario === 'empty' ? [] : [{ name: 'A fictional fan', drops: 2 }] } };
-  if (name === 'checkSellerOnboarding') return { data: { complete: true, details_submitted: true, charges_enabled: true, payouts_enabled: true } };
+  if (name === 'checkSellerOnboarding') {
+    const stripeState = params.get('stripeState');
+    if (stripeState === 'checking') await new Promise(resolve => { fixture.resolveStripeCheck = resolve; });
+    if (stripeState === 'error' || (stripeState === 'retry' && fixture.calls.filter(c => c.name === 'functions.checkSellerOnboarding').length === 1)) throw failure('Fictional Stripe status check failure');
+    if (stripeState === 'malformed') return { data: {} };
+    if (stripeState === 'incomplete') return { data: { complete: false, details_submitted: false, charges_enabled: false } };
+    // Mirror the deployed endpoint: charge readiness is returned, payout
+    // readiness is absent. Explicit payout variants test future-safe display.
+    return { data: { complete: true, details_submitted: true, charges_enabled: true, ...(stripeState === 'payouts-enabled' ? { payouts_enabled: true } : stripeState === 'payouts-disabled' ? { payouts_enabled: false } : {}) } };
+  }
+  if (name === 'getStripeMode') return { data: { consistent: true, overallMode: 'test' } };
+  if (name === 'getBetaMetrics') return { data: { feedback: [], testers: [], events: [], metrics: {} } };
   if (name === 'tmSuggest') return { data: { attractions: [{ type: 'attraction', tm_id: 'fixture-attraction', name: 'The Aurora Waves', image_url: artwork, genre: 'Alternative' }], venues: [{ type: 'venue', tm_id: 'fixture-venue', name: 'Imaginary Arena', image_url: artwork }] } };
   if (name === 'manageDiscoveryAlerts') {
     if (params.get('alerts') === 'error') throw failure('Fictional alert service unavailable');

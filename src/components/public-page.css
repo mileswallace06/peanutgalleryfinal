@@ -37,3 +37,16 @@
 .pg-public-page--story .stub-perf-h::before,
 .pg-public-page--story .stub-perf-h::after { background: var(--pg-canvas); border-color: var(--pg-line); }
 @media (max-width: 360px) { .pg-auth-ticket { padding: 20px 16px; } }
+
+/* Legal documents scroll inside PublicPage, below its sticky header. */
+.pg-legal-page { scroll-padding-top: var(--pg-public-scroll-offset, 88px); overflow-x: hidden; }
+.pg-legal-page main { min-width: 0; width: 100%; }
+.pg-legal-page :is([id], a[name]) { scroll-margin-top: var(--pg-public-scroll-offset, 88px); }
+.pg-legal-page :is(h1, h2, h3, h4, h5, h6, [tabindex='-1']):focus-visible { outline: 2px solid var(--neon-cyan); outline-offset: 4px; }
+.pg-legal-source-title { font-size: 1.3rem; font-weight: 800; }
+.uc-privacy-policy { min-width: 0; max-width: 100%; }
+.uc-privacy-policy :is(div, section, article) { box-sizing: border-box; max-width: 100% !important; }
+.pg-legal-table-scroll { display: block; width: 100%; max-width: 100%; overflow-x: auto !important; overscroll-behavior-x: contain; margin-block: 1rem; border: 1px solid var(--pg-line); border-radius: 6px; }
+.pg-legal-table-scroll:focus-visible { outline: 2px solid var(--neon-cyan); outline-offset: 3px; }
+.uc-privacy-policy .pg-legal-table-scroll table { margin-bottom: 0; }
+.uc-privacy-policy .pg-legal-table-scroll col { width: auto !important; }

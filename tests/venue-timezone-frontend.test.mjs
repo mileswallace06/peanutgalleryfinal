@@ -20,9 +20,9 @@ const merge = (pg, tm) => mergeEventSources({ localResult: ok(pg), tmResult: ok(
 
 test('browse merge fills a legacy zone while preserving PG identity, all timing/status and both input objects', () => {
   const before = structuredClone({ local, provider });
-  const result = merge([local, { ...local, id: 'pg-duplicate' }], [provider]);
+  const result = merge([local, { ...local, id: 'zz-pg-duplicate' }], [provider]);
   assert.equal(result.events.length, 1);
-  assert.deepEqual(result.events[0], { ...local, source: 'pg', venue_timezone: 'America/New_York' });
+  assert.deepEqual(Object.fromEntries(Object.entries(result.events[0]).filter(([key]) => key !== '_eventAliases')), { ...local, source: 'pg', venue_timezone: 'America/New_York' });
   assert.deepEqual({ local, provider }, before);
   assert.equal(getEventDateDisplay(result.events[0]).time, '7:00 PM EDT');
   assert.deepEqual(result.tmEventsRaw, [provider]);
@@ -90,7 +90,7 @@ test('seller discovery and canonical reread retain the matching venue timezone w
   } }, functions: { invoke: async (name, params) => {
     calls.push(name);
     assert.equal(name, 'getTicketmasterEvents');
-    return { data: { events: [provider], ...(params.discoveryWindow ? { coverage: {
+    return { data: { pagination: {page:0,size:40,hasMore:false,nextPage:null,truncated:false}, events: [provider], ...(params.discoveryWindow ? { coverage: {
       discoveryWindow: 'ongoing', lookbackHours: 12, limit: 40,
       startDateTime: '2026-10-06T08:00:00Z', endDateTime: '2026-10-06T20:00:00Z', truncated: false,
     } } : {}) } };

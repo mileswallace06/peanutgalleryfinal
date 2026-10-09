@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
+import { adminEventIdentity } from '@/lib/salesPresentation';
 import { base44 } from '@/api/base44Client';
-import { RefreshCw, ShieldCheck, XCircle, AlertTriangle, ExternalLink, Clock } from 'lucide-react';
-import { computeTransferConfidence, getTransferStatusBadge, formatVerificationAge, isVerificationExpired } from '@/lib/transferConfidence';
+import { RefreshCw, ShieldCheck, XCircle, AlertTriangle, ExternalLink } from 'lucide-react';
+import { getTransferStatusBadge, formatVerificationAge, isVerificationExpired } from '@/lib/transferConfidence';
 import EventConfidenceOverview from '@/components/admin/cc/EventConfidenceOverview';
 
 function ListingRow({ listing, event, onAdminVerify, onDisable, onOverride, onRestore }) {
@@ -17,8 +18,8 @@ function ListingRow({ listing, event, onAdminVerify, onDisable, onOverride, onRe
       style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
       <div className="flex items-start justify-between gap-2 flex-wrap">
         <div className="flex-1 min-w-0">
-          <div className="font-semibold text-foreground truncate">
-            {event?.title || listing.event_id} · Sec {listing.section} Row {listing.row}
+          <div className="font-semibold text-foreground break-words">
+            {adminEventIdentity(event, listing.event_id)} · Sec {listing.section} Row {listing.row}
           </div>
           <div className="text-muted-foreground">{listing.seller_email}</div>
         </div>
@@ -92,19 +93,33 @@ export default function TransferIntelligencePanel({ events: eventsMap, onRefresh
   const [listings, setListings] = useState([]);
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [localEvents, setLocalEvents] = useState({});
+  const resolvedEvents = { ...eventsMap, ...localEvents };
   const [filter, setFilter] = useState('needs_attention');
   const [actionLoading, setActionLoading] = useState('');
 
   const loadData = async () => {
     setLoading(true);
-    const [allListings, allReports] = await Promise.all([
-      base44.entities.Listing.list('-updated_date', 200),
-      base44.entities.TransferReport.list('-created_date', 500),
-    ]);
-    // Include hidden listings so admin can restore them — never exclude from intelligence view
-    setListings(allListings.filter(l => ['active', 'pending_transfer', 'hidden'].includes(l.status)));
-    setReports(allReports);
-    setLoading(false);
+    setError(false);
+    try {
+      const [allListings, allReports] = await Promise.all([
+        base44.entities.Listing.list('-updated_date', 200),
+        base44.entities.TransferReport.list('-created_date', 500),
+      ]);
+      if (!Array.isArray(allListings) || !Array.isArray(allReports)) throw new Error('Transfer intelligence unavailable');
+      const eligible = allListings.filter(l => ['active', 'pending_transfer', 'hidden'].includes(l.status));
+      setListings(eligible);
+      setReports(allReports);
+      const missing = [...new Set([...eligible, ...allReports].map(row => row.event_id).filter(id => id && !eventsMap?.[id]))];
+      const eventMap = {};
+      await Promise.all(missing.map(async id => {
+        const rows = await base44.entities.Event.filter({ id }).catch(() => []);
+        if (rows[0]) eventMap[id] = rows[0];
+      }));
+      setLocalEvents(eventMap);
+    } catch { setError(true); }
+    finally { setLoading(false); }
   };
 
   useEffect(() => { loadData(); }, []);
@@ -203,6 +218,8 @@ export default function TransferIntelligencePanel({ events: eventsMap, onRefresh
     : filter === 'low_confidence' ? lowConf
     : listings;
 
+  const visibleCount = value => loading ? '…' : error ? '?' : value;
+
   const topEventsByOpen = Object.entries(eventReportMap)
     .sort((a, b) => b[1].open - a[1].open)
     .slice(0, 3);
@@ -215,9 +232,9 @@ export default function TransferIntelligencePanel({ events: eventsMap, onRefresh
       <div className="flex items-center justify-between">
         <div>
           <h2 className="font-bold text-lg text-foreground">Transfer Intelligence</h2>
-          <p className="text-xs text-muted-foreground">Listing-level transfer verification status across all active listings</p>
+          <p className="text-xs text-muted-foreground">Loaded window: newest 200 updated listings and 500 reports. Eligibility filters apply after loading; counts are not global totals.</p>
         </div>
-        <button onClick={loadData} disabled={loading} className="p-1.5 rounded-lg hover:bg-muted">
+        <button aria-label="Refresh transfer intelligence" onClick={loadData} disabled={loading} className="p-1.5 rounded-lg hover:bg-muted">
           <RefreshCw className={`w-4 h-4 text-muted-foreground ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
@@ -234,14 +251,14 @@ export default function TransferIntelligencePanel({ events: eventsMap, onRefresh
         ].map(s => (
           <div key={s.label} className="pg-operations-card rounded-xl p-3 text-center"
             style={{ background: 'var(--pg-surface)', border: `1px solid ${s.value > 0 ? s.color + '30' : 'var(--pg-line)'}` }}>
-            <div className="pg-operations-status text-xl font-black" style={{ '--pg-status-ink': s.color }}>{s.value}</div>
+            <div className="pg-operations-status text-xl font-black" style={{ '--pg-status-ink': s.color }}>{loading ? '…' : error ? '?' : s.value}</div>
             <div className="text-[10px] text-muted-foreground">{s.label}</div>
           </div>
         ))}
       </div>
 
       {/* ⚡ Conflict detection banner */}
-      {conflictingEvents.length > 0 && (
+      {!loading && !error && conflictingEvents.length > 0 && (
         <div className="pg-operations-card rounded-xl p-3 space-y-2"
           style={{ background: 'color-mix(in srgb, rgb(255 230 0) 8%, var(--pg-surface))', border: '1px solid rgba(255,230,0,0.35)' }}>
           <div className="flex items-center gap-2">
@@ -252,7 +269,7 @@ export default function TransferIntelligencePanel({ events: eventsMap, onRefresh
           </div>
           {conflictingEvents.map(({ eid, open, closed }) => (
             <div key={eid} className="text-xs text-foreground flex justify-between pl-6">
-              <span className="text-muted-foreground truncate">{eventsMap?.[eid]?.title || eid.slice(0, 12)}</span>
+              <span className="text-muted-foreground truncate">{adminEventIdentity(resolvedEvents[eid], eid)}</span>
               <span><span className="pg-operations-status" style={{ '--pg-status-ink': '#00FF87' }}>{open} open</span> vs <span className="pg-operations-status" style={{ '--pg-status-ink': '#FF2D78' }}>{closed} closed</span></span>
             </div>
           ))}
@@ -260,14 +277,14 @@ export default function TransferIntelligencePanel({ events: eventsMap, onRefresh
       )}
 
       {/* Community report summaries */}
-      {(topEventsByOpen.length > 0 || topEventsByClosed.length > 0) && (
+      {!loading && !error && (topEventsByOpen.length > 0 || topEventsByClosed.length > 0) && (
         <div className="grid grid-cols-2 gap-3">
           <div className="pg-operations-card rounded-xl p-3 space-y-2"
             style={{ background: 'color-mix(in srgb, rgb(0 255 135) 4%, var(--pg-surface))', border: '1px solid rgba(0,255,135,0.15)' }}>
             <div className="pg-operations-status text-xs font-bold" style={{ '--pg-status-ink': '#00FF87' }}>Most Open Reports</div>
             {topEventsByOpen.map(([eid, data]) => (
               <div key={eid} className="text-xs text-foreground flex justify-between">
-                <span className="truncate text-muted-foreground">{eventsMap?.[eid]?.title || eid.slice(0, 8)}</span>
+                <span className="truncate text-muted-foreground">{adminEventIdentity(resolvedEvents[eid], eid)}</span>
                 <span className="pg-operations-status" style={{ '--pg-status-ink': '#00FF87' }}>+{data.open}</span>
               </div>
             ))}
@@ -277,7 +294,7 @@ export default function TransferIntelligencePanel({ events: eventsMap, onRefresh
             <div className="pg-operations-status text-xs font-bold" style={{ '--pg-status-ink': '#FF2D78' }}>Most Closed Reports</div>
             {topEventsByClosed.map(([eid, data]) => (
               <div key={eid} className="text-xs text-foreground flex justify-between">
-                <span className="truncate text-muted-foreground">{eventsMap?.[eid]?.title || eid.slice(0, 8)}</span>
+                <span className="truncate text-muted-foreground">{adminEventIdentity(resolvedEvents[eid], eid)}</span>
                 <span className="pg-operations-status" style={{ '--pg-status-ink': '#FF2D78' }}>+{data.closed}</span>
               </div>
             ))}
@@ -288,11 +305,11 @@ export default function TransferIntelligencePanel({ events: eventsMap, onRefresh
       {/* Filter tabs */}
       <div className="flex gap-2 flex-wrap">
         {[
-          { key: 'needs_attention', label: `Needs Attention (${needsReverify.length})` },
-          { key: 'hidden', label: `Hidden (${hidden.length})` },
-          { key: 'low_confidence', label: `Low Confidence (${lowConf.length})` },
-          { key: 'disabled', label: `Disabled (${disabled.length})` },
-          { key: 'all', label: `All (${listings.length})` },
+          { key: 'needs_attention', label: `Needs Attention (${visibleCount(needsReverify.length)} loaded)` },
+          { key: 'hidden', label: `Hidden (${visibleCount(hidden.length)} loaded)` },
+          { key: 'low_confidence', label: `Low Confidence (${visibleCount(lowConf.length)} loaded)` },
+          { key: 'disabled', label: `Disabled (${visibleCount(disabled.length)} loaded)` },
+          { key: 'all', label: `All (${visibleCount(listings.length)} loaded)` },
         ].map(tab => (
           <button key={tab.key} onClick={() => setFilter(tab.key)}
             className="pg-operations-status text-xs px-2.5 py-1 rounded-lg transition-all"
@@ -307,15 +324,15 @@ export default function TransferIntelligencePanel({ events: eventsMap, onRefresh
       {/* Listing rows */}
       {loading ? (
         <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="pg-operations-card h-20 rounded-xl pg-operations-skeleton animate-pulse" />)}</div>
-      ) : filteredListings.length === 0 ? (
-        <p className="text-sm text-muted-foreground text-center py-8">No listings in this category.</p>
+      ) : error ? <p role="alert">Transfer intelligence could not be loaded. <button type="button" className="underline" onClick={loadData}>Retry transfer intelligence</button></p> : filteredListings.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-center py-8">No matching listings in the loaded window. Older listings may exist.</p>
       ) : (
         <div className="space-y-2">
           {filteredListings.map(listing => (
             <ListingRow
               key={listing.id}
               listing={listing}
-              event={eventsMap?.[listing.event_id]}
+              event={resolvedEvents[listing.event_id]}
               onAdminVerify={handleAdminVerify}
               onDisable={handleDisable}
               onOverride={handleOverride}

@@ -1,11 +1,13 @@
 import { Link } from 'react-router-dom';
 import { Tag, ArrowRight } from 'lucide-react';
+import { listingEventEligibility } from '../../../base44/shared/listingEventEligibility.js';
 
 /**
  * SellSeatsModule — calm invitation to list seats through the existing
  * create-listing flow. No time promises.
  */
-export default function SellSeatsModule({ event }) {
+export default function SellSeatsModule({ event, nowMs = Date.now() }) {
+  if (!listingEventEligibility(event, nowMs).allowed) return null;
   return (
     <section className="pg-live-sell">
       <Tag size={22} aria-hidden="true" />

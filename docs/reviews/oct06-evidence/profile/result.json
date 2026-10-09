@@ -1,0 +1,668 @@
+{
+  "fixtureOnly": true,
+  "checks": [
+    "Me 320px light: rank disclosure Enter/Space state/target, computed gradient inks >=4.5:1",
+    "Beta feedback 320px light: native Tab/Shift+Tab/Space/all Arrow keys, all five values, selected state, field labels, visible focus; no submission",
+    "Me 320px dark: rank disclosure Enter/Space state/target, computed gradient inks >=4.5:1",
+    "Beta feedback 320px dark: native Tab/Shift+Tab/Space/all Arrow keys, all five values, selected state, field labels, visible focus; no submission",
+    "Me 375px light: rank disclosure Enter/Space state/target, computed gradient inks >=4.5:1",
+    "Beta feedback 375px light: native Tab/Shift+Tab/Space/all Arrow keys, all five values, selected state, field labels, visible focus; no submission",
+    "Me 375px dark: rank disclosure Enter/Space state/target, computed gradient inks >=4.5:1",
+    "Beta feedback 375px dark: native Tab/Shift+Tab/Space/all Arrow keys, all five values, selected state, field labels, visible focus; no submission",
+    "Me 390px light: rank disclosure Enter/Space state/target, computed gradient inks >=4.5:1",
+    "Beta feedback 390px light: native Tab/Shift+Tab/Space/all Arrow keys, all five values, selected state, field labels, visible focus; no submission",
+    "Me 390px dark: rank disclosure Enter/Space state/target, computed gradient inks >=4.5:1",
+    "Beta feedback 390px dark: native Tab/Shift+Tab/Space/all Arrow keys, all five values, selected state, field labels, visible focus; no submission",
+    "Me 430px light: rank disclosure Enter/Space state/target, computed gradient inks >=4.5:1",
+    "Beta feedback 430px light: native Tab/Shift+Tab/Space/all Arrow keys, all five values, selected state, field labels, visible focus; no submission",
+    "Me 430px dark: rank disclosure Enter/Space state/target, computed gradient inks >=4.5:1",
+    "Beta feedback 430px dark: native Tab/Shift+Tab/Space/all Arrow keys, all five values, selected state, field labels, visible focus; no submission",
+    "Me 1280px light: rank disclosure Enter/Space state/target, computed gradient inks >=4.5:1",
+    "Beta feedback 1280px light: native Tab/Shift+Tab/Space/all Arrow keys, all five values, selected state, field labels, visible focus; no submission",
+    "Me 1280px dark: rank disclosure Enter/Space state/target, computed gradient inks >=4.5:1",
+    "Beta feedback 1280px dark: native Tab/Shift+Tab/Space/all Arrow keys, all five values, selected state, field labels, visible focus; no submission",
+    "Help 320px light: 1000-character input intact, bounded summary, recovery reachable"
+  ],
+  "screenshots": [
+    "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct06/profile/profile-320-light.png",
+    "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct06/profile/beta-rating-320-light.png",
+    "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct06/profile/profile-320-dark.png",
+    "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct06/profile/beta-rating-320-dark.png",
+    "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct06/profile/profile-375-light.png",
+    "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct06/profile/beta-rating-375-light.png",
+    "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct06/profile/profile-375-dark.png",
+    "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct06/profile/beta-rating-375-dark.png",
+    "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct06/profile/profile-390-light.png",
+    "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct06/profile/beta-rating-390-light.png",
+    "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct06/profile/profile-390-dark.png",
+    "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct06/profile/beta-rating-390-dark.png",
+    "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct06/profile/profile-430-light.png",
+    "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct06/profile/beta-rating-430-light.png",
+    "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct06/profile/profile-430-dark.png",
+    "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct06/profile/beta-rating-430-dark.png",
+    "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct06/profile/profile-1280-light.png",
+    "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct06/profile/beta-rating-1280-light.png",
+    "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct06/profile/profile-1280-dark.png",
+    "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct06/profile/beta-rating-1280-dark.png"
+  ],
+  "externalRequests": [],
+  "errors": [],
+  "computedContrast": [
+    {
+      "width": 320,
+      "theme": "light",
+      "measures": [
+        {
+          "text": "Rookie Fan",
+          "ink": "rgb(66, 67, 76)",
+          "minimumRatio": 7.89,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            248,
+            244,
+            236
+          ]
+        },
+        {
+          "text": "240",
+          "ink": "rgb(66, 67, 76)",
+          "minimumRatio": 7.89,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            248,
+            244,
+            236
+          ]
+        },
+        {
+          "text": "Crowd Member",
+          "ink": "rgb(0, 81, 107)",
+          "minimumRatio": 7.063,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            248,
+            244,
+            236
+          ]
+        },
+        {
+          "text": "Unlocks at Crowd Member:",
+          "ink": "rgb(0, 81, 107)",
+          "minimumRatio": 6.779,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            248,
+            244,
+            236
+          ]
+        },
+        {
+          "text": "50/100",
+          "ink": "rgb(87, 73, 0)",
+          "minimumRatio": 7.156,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            248,
+            244,
+            236
+          ]
+        }
+      ]
+    },
+    {
+      "width": 320,
+      "theme": "dark",
+      "measures": [
+        {
+          "text": "Rookie Fan",
+          "ink": "rgb(182, 182, 191)",
+          "minimumRatio": 7.485,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            26,
+            24,
+            34
+          ]
+        },
+        {
+          "text": "240",
+          "ink": "rgb(182, 182, 191)",
+          "minimumRatio": 7.485,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            26,
+            24,
+            34
+          ]
+        },
+        {
+          "text": "Crowd Member",
+          "ink": "rgb(0, 200, 255)",
+          "minimumRatio": 7.681,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            26,
+            24,
+            34
+          ]
+        },
+        {
+          "text": "Unlocks at Crowd Member:",
+          "ink": "rgb(0, 200, 255)",
+          "minimumRatio": 6.931,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            26,
+            24,
+            34
+          ]
+        },
+        {
+          "text": "50/100",
+          "ink": "rgb(255, 230, 0)",
+          "minimumRatio": 11.888,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            26,
+            24,
+            34
+          ]
+        }
+      ]
+    },
+    {
+      "width": 375,
+      "theme": "light",
+      "measures": [
+        {
+          "text": "Rookie Fan",
+          "ink": "rgb(66, 67, 76)",
+          "minimumRatio": 7.89,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            248,
+            244,
+            236
+          ]
+        },
+        {
+          "text": "240",
+          "ink": "rgb(66, 67, 76)",
+          "minimumRatio": 7.89,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            248,
+            244,
+            236
+          ]
+        },
+        {
+          "text": "Crowd Member",
+          "ink": "rgb(0, 81, 107)",
+          "minimumRatio": 7.063,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            248,
+            244,
+            236
+          ]
+        },
+        {
+          "text": "Unlocks at Crowd Member:",
+          "ink": "rgb(0, 81, 107)",
+          "minimumRatio": 6.779,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            248,
+            244,
+            236
+          ]
+        },
+        {
+          "text": "50/100",
+          "ink": "rgb(87, 73, 0)",
+          "minimumRatio": 7.156,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            248,
+            244,
+            236
+          ]
+        }
+      ]
+    },
+    {
+      "width": 375,
+      "theme": "dark",
+      "measures": [
+        {
+          "text": "Rookie Fan",
+          "ink": "rgb(182, 182, 191)",
+          "minimumRatio": 7.485,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            26,
+            24,
+            34
+          ]
+        },
+        {
+          "text": "240",
+          "ink": "rgb(182, 182, 191)",
+          "minimumRatio": 7.485,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            26,
+            24,
+            34
+          ]
+        },
+        {
+          "text": "Crowd Member",
+          "ink": "rgb(0, 200, 255)",
+          "minimumRatio": 7.681,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            26,
+            24,
+            34
+          ]
+        },
+        {
+          "text": "Unlocks at Crowd Member:",
+          "ink": "rgb(0, 200, 255)",
+          "minimumRatio": 6.931,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            26,
+            24,
+            34
+          ]
+        },
+        {
+          "text": "50/100",
+          "ink": "rgb(255, 230, 0)",
+          "minimumRatio": 11.888,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            26,
+            24,
+            34
+          ]
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "measures": [
+        {
+          "text": "Rookie Fan",
+          "ink": "rgb(66, 67, 76)",
+          "minimumRatio": 7.89,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            248,
+            244,
+            236
+          ]
+        },
+        {
+          "text": "240",
+          "ink": "rgb(66, 67, 76)",
+          "minimumRatio": 7.89,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            248,
+            244,
+            236
+          ]
+        },
+        {
+          "text": "Crowd Member",
+          "ink": "rgb(0, 81, 107)",
+          "minimumRatio": 7.063,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            248,
+            244,
+            236
+          ]
+        },
+        {
+          "text": "Unlocks at Crowd Member:",
+          "ink": "rgb(0, 81, 107)",
+          "minimumRatio": 6.779,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            248,
+            244,
+            236
+          ]
+        },
+        {
+          "text": "50/100",
+          "ink": "rgb(87, 73, 0)",
+          "minimumRatio": 7.156,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            248,
+            244,
+            236
+          ]
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "measures": [
+        {
+          "text": "Rookie Fan",
+          "ink": "rgb(182, 182, 191)",
+          "minimumRatio": 7.485,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            26,
+            24,
+            34
+          ]
+        },
+        {
+          "text": "240",
+          "ink": "rgb(182, 182, 191)",
+          "minimumRatio": 7.485,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            26,
+            24,
+            34
+          ]
+        },
+        {
+          "text": "Crowd Member",
+          "ink": "rgb(0, 200, 255)",
+          "minimumRatio": 7.681,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            26,
+            24,
+            34
+          ]
+        },
+        {
+          "text": "Unlocks at Crowd Member:",
+          "ink": "rgb(0, 200, 255)",
+          "minimumRatio": 6.931,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            26,
+            24,
+            34
+          ]
+        },
+        {
+          "text": "50/100",
+          "ink": "rgb(255, 230, 0)",
+          "minimumRatio": 11.888,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            26,
+            24,
+            34
+          ]
+        }
+      ]
+    },
+    {
+      "width": 430,
+      "theme": "light",
+      "measures": [
+        {
+          "text": "Rookie Fan",
+          "ink": "rgb(66, 67, 76)",
+          "minimumRatio": 7.89,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            248,
+            244,
+            236
+          ]
+        },
+        {
+          "text": "240",
+          "ink": "rgb(66, 67, 76)",
+          "minimumRatio": 7.89,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            248,
+            244,
+            236
+          ]
+        },
+        {
+          "text": "Crowd Member",
+          "ink": "rgb(0, 81, 107)",
+          "minimumRatio": 7.063,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            248,
+            244,
+            236
+          ]
+        },
+        {
+          "text": "Unlocks at Crowd Member:",
+          "ink": "rgb(0, 81, 107)",
+          "minimumRatio": 6.779,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            248,
+            244,
+            236
+          ]
+        },
+        {
+          "text": "50/100",
+          "ink": "rgb(87, 73, 0)",
+          "minimumRatio": 7.156,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            248,
+            244,
+            236
+          ]
+        }
+      ]
+    },
+    {
+      "width": 430,
+      "theme": "dark",
+      "measures": [
+        {
+          "text": "Rookie Fan",
+          "ink": "rgb(182, 182, 191)",
+          "minimumRatio": 7.485,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            26,
+            24,
+            34
+          ]
+        },
+        {
+          "text": "240",
+          "ink": "rgb(182, 182, 191)",
+          "minimumRatio": 7.485,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            26,
+            24,
+            34
+          ]
+        },
+        {
+          "text": "Crowd Member",
+          "ink": "rgb(0, 200, 255)",
+          "minimumRatio": 7.681,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            26,
+            24,
+            34
+          ]
+        },
+        {
+          "text": "Unlocks at Crowd Member:",
+          "ink": "rgb(0, 200, 255)",
+          "minimumRatio": 6.931,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            26,
+            24,
+            34
+          ]
+        },
+        {
+          "text": "50/100",
+          "ink": "rgb(255, 230, 0)",
+          "minimumRatio": 11.888,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            26,
+            24,
+            34
+          ]
+        }
+      ]
+    },
+    {
+      "width": 1280,
+      "theme": "light",
+      "measures": [
+        {
+          "text": "Rookie Fan",
+          "ink": "rgb(66, 67, 76)",
+          "minimumRatio": 7.89,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            248,
+            244,
+            236
+          ]
+        },
+        {
+          "text": "240",
+          "ink": "rgb(66, 67, 76)",
+          "minimumRatio": 7.89,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            248,
+            244,
+            236
+          ]
+        },
+        {
+          "text": "Crowd Member",
+          "ink": "rgb(0, 81, 107)",
+          "minimumRatio": 7.063,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            248,
+            244,
+            236
+          ]
+        },
+        {
+          "text": "Unlocks at Crowd Member:",
+          "ink": "rgb(0, 81, 107)",
+          "minimumRatio": 6.779,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            248,
+            244,
+            236
+          ]
+        },
+        {
+          "text": "50/100",
+          "ink": "rgb(87, 73, 0)",
+          "minimumRatio": 7.156,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            248,
+            244,
+            236
+          ]
+        }
+      ]
+    },
+    {
+      "width": 1280,
+      "theme": "dark",
+      "measures": [
+        {
+          "text": "Rookie Fan",
+          "ink": "rgb(182, 182, 191)",
+          "minimumRatio": 7.485,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            26,
+            24,
+            34
+          ]
+        },
+        {
+          "text": "240",
+          "ink": "rgb(182, 182, 191)",
+          "minimumRatio": 7.485,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            26,
+            24,
+            34
+          ]
+        },
+        {
+          "text": "Crowd Member",
+          "ink": "rgb(0, 200, 255)",
+          "minimumRatio": 7.681,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            26,
+            24,
+            34
+          ]
+        },
+        {
+          "text": "Unlocks at Crowd Member:",
+          "ink": "rgb(0, 200, 255)",
+          "minimumRatio": 6.931,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            26,
+            24,
+            34
+          ]
+        },
+        {
+          "text": "50/100",
+          "ink": "rgb(255, 230, 0)",
+          "minimumRatio": 11.888,
+          "gradient": "linear-gradient(135deg, rgba(191, 95, 255, 0.12) 0%, rgba(0, 200, 255, 0.08) 100%)",
+          "background": [
+            26,
+            24,
+            34
+          ]
+        }
+      ]
+    }
+  ],
+  "status": "PASSED",
+  "evidenceNote": "Final seven-suite aggregate, October 9 2026 UTC. Full local runner results; only selected screenshots are committed. Original absolute paths may identify artifacts retained only in the full local evidence set.",
+  "committedScreenshots": [
+    "beta-rating-320-light.png",
+    "profile-320-light.png"
+  ]
+}

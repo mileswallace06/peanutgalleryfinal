@@ -6,6 +6,8 @@ import { transform } from 'esbuild';
 import { getEventDateDisplay } from '../src/lib/eventDateDisplay.js';
 import { reliableTime, sellingEventDate, sellingEventTiming, SELLING_STATUS_LABELS } from '../src/lib/sellingEventTiming.js';
 import { getUpgradeEventState, getUpgradeShowtimeLabel, getUpgradeVenueDateParts } from '../src/lib/upgradeEventState.js';
+import { safeDiscoveryReturnTo } from '../src/lib/eventDiscoveryState.js';
+import { eventVariantLabel } from '../src/lib/eventIdentity.js';
 import { getEventUrl } from '../src/lib/eventUrl.js';
 import { sharedListingSelection } from '../src/lib/sharedListingDestination.js';
 import { TICKET_LISTING_TYPES } from '../src/lib/listingTypes.js';
@@ -28,7 +30,7 @@ async function compile(source, globals) {
 }
 const eventsSource = await readFile(new URL('../src/pages/Events.jsx', import.meta.url), 'utf8');
 const { EventRow } = await compile(`${eventsSource.slice(eventsSource.indexOf('function EventRow('))}\nexport { EventRow };`, {
-  getEventDateDisplay, getUpgradeEventState, getEventUrl, logNavEvent() {},
+  getEventDateDisplay, eventVariantLabel, getUpgradeEventState, getEventUrl, logNavEvent() {},
   Link: 'a', EventThumbnail: 'thumbnail', ShieldCheck: 'shield', ArrowRight: 'arrow',
 });
 
@@ -106,7 +108,7 @@ test('unavailable venue zones use explicitly labeled UTC without guessing from t
 const nativeSource = (await readFile(new URL('../src/pages/EventDetail.jsx', import.meta.url), 'utf8')).replace(/^import .+\n/gm, '');
 const nativeFixture = { event, now: Date.parse(event.event_start_utc), cursor: 0 };
 const { default: NativeDetail } = await compile(nativeSource, {
-  getEventDateDisplay, getUpgradeEventState, getUpgradeShowtimeLabel, sharedListingSelection, TICKET_LISTING_TYPES,
+  getEventDateDisplay, safeDiscoveryReturnTo, getUpgradeEventState, getUpgradeShowtimeLabel, sharedListingSelection, TICKET_LISTING_TYPES,
   useParams: () => ({ id: nativeFixture.event.id }), useLocation: () => ({ search: '' }),
   useUpgradeClock: () => nativeFixture.now, useEffect() {},
   useState: () => [[nativeFixture.event, [], false, null, null, false, null][nativeFixture.cursor++], () => {}],
@@ -214,7 +216,7 @@ async function renderDetail({ localEvent = event, passedEvent, tmId = 'fixture' 
   const calls = [];
   const reads = [];
   const { default: Detail } = await compile(source, {
-    getEventDateDisplay, reliableTime,
+    getEventDateDisplay, safeDiscoveryReturnTo, reliableTime,
     console: { info() {}, warn() {}, error() {} },
     useParams: () => ({ tmId }), useNavigate: () => () => {}, useLocation: () => ({ state: { tmEvent: passedEvent } }),
     useEffect: fn => effects.push(fn),

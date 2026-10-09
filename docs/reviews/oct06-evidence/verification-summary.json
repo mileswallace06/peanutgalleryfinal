@@ -1,0 +1,67 @@
+{
+  "fixtureOnly": true,
+  "verificationDateUTC": "2026-10-09",
+  "auditDate": "2026-10-06",
+  "testedCommit": "1e605d303b711c39b9c3cc7464701421402f8129",
+  "testedCommitNote": "Source, configuration and test files in this checkpoint were compared byte-for-byte with the locally tested working tree. Later changes include a CI checkout-history fix and documentation updates.",
+  "safeUnitSuites": 33,
+  "safeUnitResults": {
+    "tests": 320,
+    "pass": 320,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 0,
+    "todo": 0
+  },
+  "lint": {
+    "files": 77,
+    "errors": 0,
+    "warnings": 23,
+    "exit": 0
+  },
+  "build": {
+    "exit": 0,
+    "scope": "Compile-only without Base44 application environment, no deployment"
+  },
+  "browser": {
+    "suiteCount": 7,
+    "allExitZero": true,
+    "legalChecks": 34,
+    "fanZoneScenarios": 19,
+    "profileChecks": 21,
+    "listingRenderedChecks": 18,
+    "listingSafetyChecks": 28,
+    "salesAdminChecks": 40,
+    "routeCases": 254,
+    "routeTested": 252,
+    "routeFixtureBlocked": 2,
+    "routeUnexpectedBlockers": 0,
+    "routeFailures": 0,
+    "discovery": "Passed; runner reports named scenarios instead of numeric assertion total"
+  },
+  "ci": {
+    "initialRun": "Initial attempts failed: shallow checkout excluded the historical baseline required by the selling-event-picker preservation test. An initial configuration upload did not carry the changed bytes.",
+    "fix": "Workflow checkout fetch-depth: 0 verified at 94d5869b42d0a94f1bf0c5bdd01cab07efd29dc6. Application source and assertions unchanged.",
+    "targetedLocalTestsAfterFix": {
+      "passed": 13,
+      "testSourceChanged": false
+    },
+    "repairedRerun": "Install, lint, offline suites and build passed; browser CI pending at this report checkpoint.",
+    "authoritativeChecks": "https://github.com/mileswallace06/peanutgalleryfinal/pull/17/checks",
+    "successfulRunClaimed": false
+  },
+  "environment": {
+    "platform": "Linux x86_64",
+    "node": "24.19.0",
+    "npm": "11.9.0",
+    "playwright": "1.62.1",
+    "chromium": "153.0.8010.0"
+  },
+  "remoteEvidenceCheckpoint": {
+    "commit": "c1d36fb",
+    "tree": "526aa6703d2acd7fefce606c8f2deb5d61705b64",
+    "verified": true,
+    "note": "Complete uploaded evidence tree before the later CI checkout-history fix and documentation update."
+  },
+  "pullRequest": "https://github.com/mileswallace06/peanutgalleryfinal/pull/17"
+}

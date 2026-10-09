@@ -3,6 +3,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { X, Zap, Clock } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { motion } from 'framer-motion';
+import { loadEligibleFlashDropListings, ownershipLookupMessage } from '@/lib/flashDropOwnership';
 import './fan-gifts-ticket.css';
 
 const DELIVERY_METHODS = [
@@ -48,6 +49,9 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated }
   const [ownershipProofUploading, setOwnershipProofUploading] = useState(false);
   const [deliveryMethod, setDeliveryMethod] = useState('ticket_transfer');
   const [userListings, setUserListings] = useState([]);
+  const [ownershipLookup, setOwnershipLookup] = useState('idle');
+  const lookupRequest = useRef(0);
+  const lookupInFlight = useRef(false);
   const [loading, setLoading] = useState(false);
   const [createdDrop, setCreatedDrop] = useState(null);
   const fieldId = useId();
@@ -64,14 +68,35 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated }
     heading.current?.focus({ preventScroll: true });
   }, [step]);
 
-  // Load user's existing listings for this event (ownership verification)
+  useEffect(() => {
+    lookupRequest.current += 1;
+    lookupInFlight.current = false;
+    setUserListings([]);
+    setOwnershipListingId('');
+    setOwnershipLookup('idle');
+    return () => { lookupRequest.current += 1; lookupInFlight.current = false; };
+  }, [event?.id, user?.email]);
+
+  // Failures and empty results are different. The participant view authorizes
+  // the current user's records; matching a listing is not ownership approval.
   const loadUserListings = async () => {
-    if (!event?.id || !user?.email) return;
-    const listings = await base44.entities.Listing.filter({ event_id: event.id, seller_email: user.email, status: 'active' }).catch(() => []);
-    setUserListings(listings);
-    // Auto-select if there's one matching section
-    const match = listings.find(l => l.section === section);
-    if (match) setOwnershipListingId(match.id);
+    if (lookupInFlight.current) return;
+    if (!event?.id || !user?.email) { setOwnershipLookup('error'); return; }
+    const requestId = ++lookupRequest.current;
+    lookupInFlight.current = true;
+    setOwnershipLookup('loading');
+    setOwnershipListingId('');
+    setUserListings([]);
+    try {
+      const listings = await loadEligibleFlashDropListings(base44, event.id);
+      if (requestId !== lookupRequest.current) return;
+      setUserListings(listings);
+      setOwnershipLookup(listings.length ? 'populated' : 'empty');
+    } catch {
+      if (requestId === lookupRequest.current) setOwnershipLookup('error');
+    } finally {
+      if (requestId === lookupRequest.current) lookupInFlight.current = false;
+    }
   };
 
   const handleProofUpload = async (e) => {
@@ -220,19 +245,20 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated }
                 {/* Ownership Verification */}
                 <fieldset className="space-y-2">
                   <legend className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block">Verify You Own This Seat</legend>
-                  {userListings.length === 0 && (
-                    <button type="button" onClick={loadUserListings}
-                      className="pg-gift-link text-xs underline">
-                      Check my listings for this event
-                    </button>
-                  )}
+                  <button type="button" onClick={loadUserListings} disabled={ownershipLookup === 'loading'}
+                    aria-describedby={`${fieldId}-ownership-status`} className="pg-gift-link min-h-11 text-xs underline disabled:opacity-60">
+                    {ownershipLookup === 'loading' ? 'Checking listings…' : ownershipLookup === 'error' ? 'Retry listing check' : ownershipLookup === 'idle' ? 'Check my listings for this event' : 'Check listings again'}
+                  </button>
+                  <p id={`${fieldId}-ownership-status`} role="status" aria-live="polite" aria-atomic="true" className="text-xs text-muted-foreground">
+                    {ownershipLookupMessage(ownershipLookup, userListings.length)}
+                  </p>
                   {userListings.length > 0 && (
                     <div className="space-y-1">
                       <p className="text-[10px] text-muted-foreground">Link an existing listing:</p>
                       {userListings.map(l => (
                         <button key={l.id} onClick={() => setOwnershipListingId(l.id)} aria-pressed={ownershipListingId === l.id}
                           className={`pg-gift-choice pg-gift-choice-mint w-full flex items-center justify-between px-3 py-2 text-xs transition-all${ownershipListingId === l.id ? ' is-selected' : ''}`}>
-                          <span>Sec {l.section}{l.row ? ` Row ${l.row}` : ''}</span>
+                          <span>Sec {l.section}{l.row ? ` Row ${l.row}` : ''}{l.seats ? ` · Seats ${l.seats}` : ''}</span>
                           <span className="font-bold">${l.asking_price}</span>
                         </button>
                       ))}

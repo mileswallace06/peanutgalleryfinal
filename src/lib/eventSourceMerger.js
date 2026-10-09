@@ -9,6 +9,8 @@
  * source failure (defense in depth — fetchTMEvents also throws on non-array).
  */
 import { normalizeSearch, eventMatchesKeyword, eventWithinRadius } from './searchNormalize.js';
+import { reliableTime } from './eventTimestamp.js';
+import { dedupeEventIdentities } from './eventIdentity.js';
 import { withMatchingProviderTimezone } from './providerVenueTimezone.js';
 
 /**
@@ -21,7 +23,7 @@ import { withMatchingProviderTimezone } from './providerVenueTimezone.js';
  * @returns {{ events: array, pgError: boolean, tmError: boolean, partialData: boolean, tmFailed: boolean, tmEventsRaw: array }}
  */
 export function mergeEventSources({ localResult, tmResult, filters }) {
-  const { cityOverride, stateOverride, ll, keyword, isAdmin, now, tmKeywordApplied = false, includeStarted = false } = filters;
+  const { cityOverride, stateOverride, ll, keyword, isAdmin, now, tmKeywordApplied = false, includeStarted = false, includePast = false } = filters;
 
   // ── PG source ──────────────────────────────────────────────────────────
   const localData = localResult.status === 'fulfilled' ? localResult.value : [];
@@ -42,10 +44,10 @@ export function mergeEventSources({ localResult, tmResult, filters }) {
   const partialData = tmFailed && !tmError && localResult.status === 'fulfilled';
 
   // ── Filter PG events ────────────────────────────────────────────────────
-  const eligible = localData.filter(e => e.status !== 'ended');
-  const pgEvents = isAdmin || includeStarted
+  const eligible = localData.filter(e => includePast || e.status !== 'ended');
+  const pgEvents = isAdmin || includeStarted || includePast
     ? eligible
-    : eligible.filter(e => !e.date || now < new Date(e.date).getTime());
+    : eligible.filter(e => reliableTime(e.event_start_utc || e.date) === null || now <= reliableTime(e.event_start_utc || e.date));
   let pgFiltered = pgEvents.filter(e => !e.is_beta_live);
 
   if (cityOverride) {
@@ -88,14 +90,7 @@ export function mergeEventSources({ localResult, tmResult, filters }) {
   // from matching provider metadata; keep all PG timing, identity and status.
   const providerById = new Map(tmEvents.filter(event => event.tm_id).map(event => [event.tm_id, event]));
   const pgWithTimezone = pgMapped.map(event => withMatchingProviderTimezone(event, providerById.get(event.tm_id)));
-  const seen = new Set();
-  const events = [...pgWithTimezone, ...tmEvents].filter(event => {
-    const key = event.tm_id ? `tm:${event.tm_id}` : event.id ? `pg:${event.id}` : null;
-    if (!key) return true;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  const events = dedupeEventIdentities([...pgWithTimezone, ...tmEvents]);
 
   return {
     events,

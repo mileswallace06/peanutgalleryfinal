@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useId } from 'react';
+import './beta-accessibility.css';
 import { base44 } from '@/api/base44Client';
 import { Star, Send, ChevronDown, ChevronUp } from 'lucide-react';
 
@@ -12,44 +13,47 @@ const QUESTIONS = [
 
 const empty = { tester_name: '', device: '', confusing: '', trust: '', blocker: '', coolest: '', extra: '', overall_rating: 0 };
 
-function StarRating({ value, onChange }) {
-  const [hover, setHover] = useState(0);
+export function StarRating({ value, onChange }) {
+  const groupId = useId();
   return (
-    <div className="flex gap-1">
-      {[1,2,3,4,5].map(n => (
-        <button key={n} type="button"
-          onMouseEnter={() => setHover(n)} onMouseLeave={() => setHover(0)}
-          onClick={() => onChange(n)}
-          className="inline-flex items-center justify-center transition-transform active:scale-90">
-          <Star className="w-7 h-7" fill={(hover || value) >= n ? '#FFE600' : 'none'}
-            style={{ color: (hover || value) >= n ? 'var(--neon-yellow)' : 'var(--pg-line)' }} />
-        </button>
-      ))}
-    </div>
+    <fieldset className="pg-feedback-rating" role="radiogroup" aria-labelledby={`${groupId}-label`}>
+      <legend id={`${groupId}-label`} className="text-[10px] font-bold text-muted-foreground uppercase mb-2">Overall rating</legend>
+      <div className="pg-feedback-stars">
+        {[1, 2, 3, 4, 5].map(n => (
+          <label key={n} className="pg-feedback-star">
+            <input type="radio" name={`${groupId}-rating`} value={n}
+              checked={value === n} onChange={() => onChange(n)}
+              aria-label={`${n} ${n === 1 ? 'star' : 'stars'} out of 5`} />
+            <Star aria-hidden="true" className={`w-7 h-7 ${value >= n ? 'is-filled' : ''}`} />
+          </label>
+        ))}
+      </div>
+      <p className="text-xs text-muted-foreground mt-1" aria-live="polite">{value ? `${value} of 5 stars selected` : 'No rating selected'}</p>
+    </fieldset>
   );
 }
 
 function FeedbackRow({ feedback, expanded, onToggle }) {
+  const detailsId = useId();
   return (
     <div className="pg-operations-card rounded-xl overflow-hidden" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
-      <button onClick={onToggle} className="w-full flex items-center gap-3 px-4 py-3 text-left">
+      <button type="button" onClick={onToggle} aria-expanded={expanded} aria-controls={detailsId} className="w-full flex items-center gap-3 px-4 py-3 text-left">
         <div className="flex-1">
           <span className="text-sm font-bold text-foreground">{feedback.tester_name || 'Anonymous'}</span>
           {feedback.device && <span className="ml-2 text-xs text-muted-foreground">· {feedback.device}</span>}
         </div>
         {feedback.overall_rating > 0 && (
-          <div className="flex gap-0.5">
+          <div className="pg-feedback-history-rating flex gap-0.5" role="img" aria-label={`${feedback.overall_rating} out of 5 stars`}>
             {[1,2,3,4,5].map(n => (
-              <Star key={n} className="w-3 h-3" fill={feedback.overall_rating >= n ? '#FFE600' : 'none'}
-                style={{ color: feedback.overall_rating >= n ? 'var(--neon-yellow)' : 'var(--pg-line)' }} />
+              <Star key={n} aria-hidden="true" className={`w-3 h-3 ${feedback.overall_rating >= n ? 'is-filled' : ''}`} />
             ))}
           </div>
         )}
         <span className="text-[10px] text-muted-foreground">{new Date(feedback.created_date).toLocaleDateString()}</span>
         {expanded ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
       </button>
-      {expanded && (
-        <div className="px-4 pb-4 border-t border-border space-y-3 pt-3">
+      {(
+        <div id={detailsId} hidden={!expanded} className="px-4 pb-4 border-t border-border space-y-3 pt-3">
           {QUESTIONS.filter(q => feedback[q.key]).map(q => (
             <div key={q.key}>
               <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">{q.label}</p>
@@ -63,6 +67,7 @@ function FeedbackRow({ feedback, expanded, onToggle }) {
 }
 
 export default function BetaFeedbackForm() {
+  const formId = useId();
   const [form, setForm] = useState(empty);
   const [submitted, setSubmitted] = useState(false);
   const [allFeedback, setAllFeedback] = useState([]);
@@ -94,7 +99,7 @@ export default function BetaFeedbackForm() {
 
   if (submitted) {
     return (
-      <div className="space-y-4">
+      <div className="pg-beta-feedback space-y-4">
         <div className="pg-operations-card rounded-xl px-6 py-10 text-center" style={{ background: 'var(--pg-surface)', border: '1px solid rgba(0,255,135,0.25)' }}>
           <p className="text-4xl mb-3">🥜</p>
           <p className="font-display text-2xl text-foreground mb-2">Thanks for the feedback!</p>
@@ -111,21 +116,21 @@ export default function BetaFeedbackForm() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="pg-beta-feedback space-y-4">
       <div className="pg-operations-card rounded-xl p-5 space-y-4" style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
         <p className="text-xs font-black tracking-widest uppercase text-muted-foreground">Beta Tester Feedback</p>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Your Name *</label>
-            <input value={form.tester_name} onChange={e => setForm(f => ({ ...f, tester_name: e.target.value }))}
+            <label htmlFor={`${formId}-name`} className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Your Name *</label>
+            <input id={`${formId}-name`} required value={form.tester_name} onChange={e => setForm(f => ({ ...f, tester_name: e.target.value }))}
               placeholder="Tester name"
               className="w-full px-3 py-2.5 rounded-xl text-sm focus:outline-none"
               style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)', color: 'var(--pg-text)' }} />
           </div>
           <div>
-            <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Device</label>
-            <input value={form.device} onChange={e => setForm(f => ({ ...f, device: e.target.value }))}
+            <label htmlFor={`${formId}-device`} className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Device</label>
+            <input id={`${formId}-device`} value={form.device} onChange={e => setForm(f => ({ ...f, device: e.target.value }))}
               placeholder="iPhone 15 / Android…"
               className="w-full px-3 py-2.5 rounded-xl text-sm focus:outline-none"
               style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)', color: 'var(--pg-text)' }} />
@@ -133,14 +138,13 @@ export default function BetaFeedbackForm() {
         </div>
 
         <div>
-          <label className="text-[10px] font-bold text-muted-foreground uppercase mb-2 block">Overall Rating</label>
           <StarRating value={form.overall_rating} onChange={v => setForm(f => ({ ...f, overall_rating: v }))} />
         </div>
 
         {QUESTIONS.map(q => (
           <div key={q.key}>
-            <label className="text-xs font-bold text-foreground mb-1.5 block">{q.label}</label>
-            <textarea value={form[q.key]} onChange={e => setForm(f => ({ ...f, [q.key]: e.target.value }))}
+            <label htmlFor={`${formId}-${q.key}`} className="text-xs font-bold text-foreground mb-1.5 block">{q.label}</label>
+            <textarea id={`${formId}-${q.key}`} value={form[q.key]} onChange={e => setForm(f => ({ ...f, [q.key]: e.target.value }))}
               placeholder={q.placeholder} rows={2}
               className="w-full px-3 py-2.5 rounded-xl text-sm focus:outline-none resize-none"
               style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)', color: 'var(--pg-text)' }} />
@@ -162,17 +166,18 @@ export default function BetaFeedbackForm() {
 
 function FeedbackHistory({ allFeedback, expandedId, setExpandedId }) {
   const [open, setOpen] = useState(false);
+  const historyId = useId();
   if (allFeedback.length === 0) return null;
   return (
     <div>
-      <button onClick={() => setOpen(v => !v)}
+      <button type="button" onClick={() => setOpen(v => !v)} aria-expanded={open} aria-controls={historyId}
         className="w-full flex items-center justify-between px-4 py-3 rounded-xl mb-3"
         style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
         <span className="text-xs font-black text-muted-foreground uppercase tracking-widest">Previous Feedback ({allFeedback.length})</span>
         {open ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
       </button>
-      {open && (
-        <div className="space-y-2">
+      {(
+        <div id={historyId} hidden={!open} className="space-y-2">
           {allFeedback.map(fb => (
             <FeedbackRow key={fb.id} feedback={fb}
               expanded={expandedId === fb.id}

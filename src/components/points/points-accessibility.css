@@ -1,0 +1,24 @@
+/* These inks are tested over the full purple/cyan card gradient and badges. */
+.pg-points-card {
+  --pg-points-neutral: #b6b6bf;
+  --pg-points-cyan: #00c8ff;
+  --pg-points-green: #00ff87;
+  --pg-points-purple: #cf8aff;
+  --pg-points-orange: #ffad55;
+  --pg-points-pink: #ff8bb5;
+  --pg-points-yellow: #ffe600;
+}
+:root:not(.dark) .pg-points-card {
+  --pg-points-neutral: #42434c;
+  --pg-points-cyan: #00516b;
+  --pg-points-green: #005c36;
+  --pg-points-purple: #62258c;
+  --pg-points-orange: #733700;
+  --pg-points-pink: #891740;
+  --pg-points-yellow: #574900;
+}
+.pg-points-card .pg-member-mini-action:focus-visible {
+  outline: 2px solid var(--pg-points-cyan);
+  outline-offset: 2px;
+}
+.pg-points-card .pg-points-unlocks[hidden] { display: none; }

@@ -3,6 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { useLocationDetect } from './useLocationDetect';
 import { createEventSearchRequest } from '@/lib/eventSearchRequest';
 import { restoreEventLocation, saveEventLocation, cityFromSuggestion, validCoordinates, sameEventLocation, subscribeEventLocation } from '@/lib/eventLocation';
+import { advanceDiscoveryPager, discoveryPagerResult } from '@/lib/eventDiscoveryPager';
 import { fetchSellingEvents } from '@/lib/sellingEventDiscovery';
 
 export function useSellingDiscovery(initialKeyword = '') {
@@ -13,18 +14,30 @@ export function useSellingDiscovery(initialKeyword = '') {
   const [result, setResult] = useState({ events: [], pgError: false, tmError: false });
   const [loading, setLoading] = useState(false), [restoring, setRestoring] = useState(true);
   const [editingLocation, setEditingLocation] = useState(false), [locationInput, setLocationInput] = useState(''), [cityError, setCityError] = useState('');
+  const pagerRef = useRef(null), moreBusy = useRef(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const generation = useRef(0), intent = useRef(0), pendingGPS = useRef(null);
   const load = useCallback(async (next, refresh = false) => {
     const id = ++generation.current;
+    pagerRef.current = null; moreBusy.current = false; setLoadingMore(false);
     requestRef.current = next; setRequest(next);
     const ready = next.scope === 'nationwide' ? !!next.keyword : !!(next.cityOverride || next.ll);
     setResult({ events: [], pgError: false, tmError: false });
     if (!ready) { setLoading(false); return; }
     setLoading(true);
-    try { const data = await fetchSellingEvents(base44, next, refresh); if (generation.current === id) setResult(data); }
+    try { const data = await fetchSellingEvents(base44, next, refresh); if (generation.current === id) { pagerRef.current = data.pager; setResult(data); } }
     catch { if (generation.current === id) setResult({ events: [], pgError: true, tmError: true }); }
     finally { if (generation.current === id) setLoading(false); }
   }, []);
+  const continueLoad = async (retryFailed = false) => {
+    if (!pagerRef.current || moreBusy.current) return;
+    const id = generation.current;
+    moreBusy.current = true; setLoadingMore(true);
+    try {
+      const pager = await advanceDiscoveryPager(base44, pagerRef.current, { retryFailed });
+      if (generation.current === id) { pagerRef.current = pager; setResult({ ...discoveryPagerResult(pager), pager }); }
+    } finally { if (generation.current === id) { moreBusy.current = false; setLoadingMore(false); } }
+  };
   const run = (text, localArea = areaRef.current, scope = 'local') => {
     intent.current++; pendingGPS.current = null; cancelRequest(); setRestoring(false);
     const next = createEventSearchRequest(text, localArea, scope);
@@ -63,10 +76,10 @@ export function useSellingDiscovery(initialKeyword = '') {
     if (requestRef.current.scope === 'local') load(createEventSearchRequest(requestRef.current.keyword, localArea));
   }), [load, cancelRequest]);
   const locate = (text = requestRef.current.keyword) => { intent.current++; setRestoring(false); pendingGPS.current = { keyword: text }; setCityError(''); requestLocation(); };
-  return { keyword, setKeyword, area, request, result, loading, restoring, editingLocation, locationInput, cityError, locationStatus,
+  return { keyword, setKeyword, area, request, result, loading, loadingMore, restoring, editingLocation, locationInput, cityError, locationStatus,
     submit: () => run(keyword), nationwide: () => run(requestRef.current.keyword, null, 'nationwide'),
     nearMe: () => { run(''); if (!areaRef.current) locate(''); }, locate,
-    refresh: () => load(requestRef.current, true),
+    refresh: () => load(requestRef.current, true), loadMore: () => continueLoad(), retryFailed: () => continueLoad(true),
     openLocation: () => { setLocationInput(''); setCityError(''); setEditingLocation(true); },
     closeLocation: () => { pendingGPS.current = null; cancelRequest(); setEditingLocation(false); },
     changeLocationInput: text => { setLocationInput(text); setCityError(''); },

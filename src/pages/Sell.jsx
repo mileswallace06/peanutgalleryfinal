@@ -9,9 +9,13 @@ import { sellingEventList } from '@/lib/sellingEventTiming';
 import { useEventClock } from '@/hooks/useEventClock';
 import { isAdmin } from '@/lib/isAdmin';
 import './sell-ticket.css';
+import { useSellerSummary } from '@/hooks/useSellerSummary';
+import { SELLER_HISTORY_SCOPE } from '@/lib/salesPresentation';
 
 export default function Sell() {
   const [user, setUser] = useState(null);
+  const sellerHistory = useSellerSummary(user);
+  const [listingsError, setListingsError] = useState(false);
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [onboardingLoading, setOnboardingLoading] = useState(false);
@@ -35,7 +39,7 @@ export default function Sell() {
   useEffect(() => {
     loadUser()
       .then(async (me) => {
-        const myListings = await base44.entities.Listing.filter({ seller_email: me.email });
+        const myListings = await base44.entities.Listing.filter({ seller_email: me.email }).catch(error => { setListingsError(true); throw error; });
         setListings(myListings.sort((a, b) => new Date(b.created_date) - new Date(a.created_date)));
 
         const param = searchParams.get('onboarding');
@@ -154,11 +158,11 @@ export default function Sell() {
           <p className="pg-sell-draft-note">Save your listing now. It will go live once payout setup is complete.</p>
         )}
 
-        <div className="pg-sell-stats" aria-label="Your listing totals">
+        <div className="pg-sell-stats" aria-label="Your listings and sales">
           {[
-            { label: 'Active', value: active.length },
-            { label: 'Sold', value: sold.length },
-            { label: 'Total', value: listings.length },
+            { label: 'Active listings', value: listingsError ? 'Unavailable' : active.length },
+            { label: 'Completed sales', value: sellerHistory.status === 'ready' ? sellerHistory.summary.completedCount : sellerHistory.status === 'loading' ? '…' : 'Unavailable' },
+            { label: 'Loaded listings', value: listingsError ? 'Unavailable' : listings.length },
           ].map(({ label, value }) => (
             <div key={label}>
               <strong>{value}</strong>
@@ -176,6 +180,10 @@ export default function Sell() {
           </section>
         )}
 
+        <p className="pg-sell-draft-note">Completed sales: completed transfers in {SELLER_HISTORY_SCOPE.toLowerCase()}</p>
+        {sellerHistory.status === 'error' && <button type="button" className="pg-action" onClick={sellerHistory.reload}>Retry sales total</button>}
+        {listingsError && <p role="alert">Your listing summary could not be loaded. Refresh to try again.</p>}
+
         {active.length > 0 && (
           <section className="pg-sell-listing-section">
             <h2 className="pg-section-title">Active <span>{active.length}</span></h2>
@@ -187,7 +195,7 @@ export default function Sell() {
 
         {sold.length > 0 && (
           <section className="pg-sell-listing-section">
-            <h2 className="pg-section-title">Sold <span>{sold.length}</span></h2>
+            <h2 className="pg-section-title">Listings marked sold <span>{sold.length}</span></h2>
             <div className="pg-sell-listings">
               {sold.map(l => <ListingRow key={l.id} listing={l} event={nearbyEvents.find(ev => ev.id === l.event_id)} />)}
             </div>

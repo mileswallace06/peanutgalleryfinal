@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
+import { safeDiscoveryReturnTo } from '@/lib/eventDiscoveryState';
 import { base44 } from '@/api/base44Client';
 import { getEventDateDisplay } from '@/lib/eventDateDisplay';
 import { reliableTime } from '@/lib/sellingEventTiming';
@@ -200,7 +201,7 @@ export default function EventDetailTM() {
           <Ticket aria-hidden="true" className="pg-event-empty-icon" />
           <h1 className="font-display">Event not found</h1>
           <p>Return to events to choose another show.</p>
-          <Link to="/events" className="pg-event-text-link"><ArrowLeft aria-hidden="true" /> Back to events</Link>
+          <Link to={safeDiscoveryReturnTo(location.state?.discoveryReturnTo)} className="pg-event-text-link"><ArrowLeft aria-hidden="true" /> Back to events</Link>
         </div>
       </div>
     );
@@ -220,7 +221,7 @@ export default function EventDetailTM() {
           ) : (
             <div className="pg-event-photo-fallback"><Ticket aria-hidden="true" /><span>Peanut Gallery</span></div>
           )}
-          <Link to="/events" className="pg-event-back"><ArrowLeft aria-hidden="true" /> Events</Link>
+          <Link to={safeDiscoveryReturnTo(location.state?.discoveryReturnTo)} className="pg-event-back"><ArrowLeft aria-hidden="true" /> Events</Link>
         </div>
         <div className="pg-event-summary">
           <p className="pg-event-eyebrow">Peanut Gallery / Event</p>

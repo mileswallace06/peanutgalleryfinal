@@ -20,7 +20,10 @@
     "lint:backend": "eslint base44/functions/createCheckout/entry.ts base44/functions/submitListing/entry.ts base44/functions/cleanupAbandonedCheckouts/entry.ts base44/functions/stripeWebhook/entry.ts base44/functions/capturePayment/entry.ts base44/functions/confirmCheckoutAuthorized/entry.ts base44/functions/dispatchSaleNotifications/entry.ts base44/shared/privateData.ts base44/shared/saleNotification.ts base44/shared/checkoutLogic.js base44/shared/orchestratorHelpers.js base44/shared/checkoutOrchestrator.js base44/shared/cleanupOrchestrator.js base44/shared/captureOrchestrator.js base44/shared/confirmCheckoutOrchestrator.js base44/shared/webhookOrchestrator.js base44/shared/webhookNotifications.js base44/shared/captureReconciliation.js base44/shared/saleDispatch.js base44/shared/resumeOrchestrator.js base44/shared/tupleTransition.js base44/shared/reserveOrchestrator.js base44/shared/releaseOrchestrator.js base44/shared/abortOrchestrator.js base44/shared/cancelOrchestrator.js base44/shared/remindersOrchestrator.js",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc -p ./jsconfig.json",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:audit-safe": "node tests/run-audit-safe.mjs",
+    "test:audit-browser": "node tests/run-audit-browser.mjs",
+    "lint:audit": "node tests/run-audit-lint.mjs"
   },
   "dependencies": {
     "@base44/sdk": "^0.8.53",
@@ -108,6 +111,7 @@
     "eslint-plugin-react-refresh": "^0.4.18",
     "eslint-plugin-unused-imports": "^4.3.0",
     "globals": "^15.14.0",
+    "playwright": "1.62.1",
     "postcss": "^8.5.3",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.8.2",

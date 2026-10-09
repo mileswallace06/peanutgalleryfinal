@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { adminEventIdentity } from '@/lib/salesPresentation';
 import { base44 } from '@/api/base44Client';
 import { CheckCircle, XCircle, RefreshCw, ExternalLink, MessageSquare } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
@@ -17,8 +18,8 @@ function ReviewCard({ listing, event, onApprove, onReject, onMessage, loading })
       <div className="px-4 py-3 flex items-start justify-between gap-3"
         style={{ background: 'color-mix(in srgb, rgb(255 230 0) 6%, var(--pg-surface))', borderBottom: '1px solid var(--pg-line)' }}>
         <div className="min-w-0">
-          <p className="font-bold text-foreground truncate">
-            {event?.title || listing.event_id?.slice(0, 16)}
+          <p className="font-bold text-foreground break-words">
+            {adminEventIdentity(event, listing.event_id)}
           </p>
           <p className="text-xs text-muted-foreground mt-0.5">
             Sec {listing.section} · Row {listing.row} · {listing.quantity} seat{listing.quantity !== 1 ? 's' : ''} · ${listing.asking_price}/ea
@@ -91,7 +92,7 @@ function ReviewCard({ listing, event, onApprove, onReject, onMessage, loading })
               style={{ background: 'color-mix(in srgb, rgb(255 45 120) 8%, var(--pg-surface))', '--pg-status-ink': '#FF2D78', border: '1px solid rgba(255,45,120,0.25)' }}>
               <XCircle className="w-3.5 h-3.5" /> Reject
             </button>
-            <button onClick={() => setShowMessage(true)}
+            <button aria-label={`Message seller about listing ${listing.id}`} onClick={() => setShowMessage(true)}
               className="pg-operations-status flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold"
               style={{ background: 'color-mix(in srgb, rgb(255 230 0) 8%, var(--pg-surface))', '--pg-status-ink': '#FFE600', border: '1px solid rgba(255,230,0,0.2)' }}>
               <MessageSquare className="w-3.5 h-3.5" />
@@ -152,21 +153,25 @@ export default function PendingReviewQueue({ onRefresh }) {
   const [listings, setListings] = useState([]);
   const [events, setEvents] = useState({});
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [actionLoading, setActionLoading] = useState('');
 
   const loadData = async () => {
     setLoading(true);
-    const pending = await base44.entities.Listing.filter({ proof_status: 'pending_review' }, '-created_date', 50).catch(() => []);
-    setListings(pending);
-
-    const eids = [...new Set(pending.map(l => l.event_id).filter(Boolean))];
-    const eMap = {};
-    await Promise.all(eids.map(async eid => {
-      const res = await base44.entities.Event.filter({ id: eid }).catch(() => []);
-      if (res[0]) eMap[eid] = res[0];
-    }));
-    setEvents(eMap);
-    setLoading(false);
+    setError(false);
+    try {
+      const pending = await base44.entities.Listing.filter({ proof_status: 'pending_review' }, '-created_date', 50);
+      if (!Array.isArray(pending)) throw new Error('Review queue unavailable');
+      setListings(pending);
+      const eids = [...new Set(pending.map(l => l.event_id).filter(Boolean))];
+      const eMap = {};
+      await Promise.all(eids.map(async eid => {
+        const res = await base44.entities.Event.filter({ id: eid }).catch(() => []);
+        if (res[0]) eMap[eid] = res[0];
+      }));
+      setEvents(eMap);
+    } catch { setError(true); }
+    finally { setLoading(false); }
   };
 
   useEffect(() => { loadData(); }, []);
@@ -216,10 +221,10 @@ export default function PendingReviewQueue({ onRefresh }) {
         <div>
           <h2 className="font-bold text-lg text-foreground">Pending Review Queue</h2>
           <p className="text-xs text-muted-foreground">
-            {listings.length} listing{listings.length !== 1 ? 's' : ''} awaiting approval
+            {loading ? 'Loading…' : error ? 'Queue unavailable' : `${listings.length} loaded listings awaiting approval (up to 50); not a global total`}
           </p>
         </div>
-        <button onClick={loadData} disabled={loading} className="p-1.5 rounded-lg hover:bg-muted">
+        <button aria-label="Refresh pending review queue" onClick={loadData} disabled={loading} className="p-1.5 rounded-lg hover:bg-muted">
           <RefreshCw className={`w-4 h-4 text-muted-foreground ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
@@ -228,12 +233,12 @@ export default function PendingReviewQueue({ onRefresh }) {
         <div className="space-y-3">
           {[1, 2].map(i => <div key={i} className="pg-operations-card h-40 rounded-2xl pg-operations-skeleton animate-pulse" />)}
         </div>
-      ) : listings.length === 0 ? (
+      ) : error ? <p role="alert">Review queue could not be loaded. <button type="button" className="underline" onClick={loadData}>Retry review queue</button></p> : listings.length === 0 ? (
         <div className="pg-operations-card text-center py-12 rounded-2xl"
           style={{ background: 'color-mix(in srgb, rgb(0 255 135) 5%, var(--pg-surface))', border: '1px solid rgba(0,255,135,0.15)' }}>
           <p className="text-2xl mb-2">✅</p>
           <p className="text-sm font-semibold text-foreground">No listings pending review</p>
-          <p className="text-xs text-muted-foreground mt-1">All caught up!</p>
+          <p className="text-xs text-muted-foreground mt-1">No matching records returned. Other operational queues are separate.</p>
         </div>
       ) : (
         <div className="space-y-3">

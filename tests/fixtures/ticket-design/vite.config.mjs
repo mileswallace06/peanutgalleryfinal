@@ -5,6 +5,10 @@ const root = fileURLToPath(new URL('../../../', import.meta.url));
 const fixture = fileURLToPath(new URL('./', import.meta.url));
 export default defineConfig({
   root,
+  // Fixture SDK/auth aliases differ from the Events fixture. Sharing Vite's
+  // default cache lets one running server invalidate the other's prebundles.
+  cacheDir: `${root}node_modules/.vite-ticket-design`,
+  optimizeDeps: { entries: [`${fixture}app.html`, `${fixture}index.html`] },
   plugins: [react(), {
     name: 'isolate-review-documents',
     configureServer(server) {

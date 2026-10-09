@@ -9,6 +9,7 @@ import { Disclosure, PageIntro } from '@/components/ClarityUI';
 import { isAdmin } from '@/lib/isAdmin';
 import { useAuth } from '@/lib/AuthContext';
 import { feedbackAccess } from '@/lib/feedbackInbox';
+import { useSellerSummary } from '@/hooks/useSellerSummary';
 import './account-clarity.css';
 
 /** Email stays private until the member chooses to reveal it. */
@@ -51,6 +52,7 @@ export default function Me() {
   const [followers, setFollowers] = useState([]);
   const [following, setFollowing] = useState([]);
   const [socialTab, setSocialTab] = useState('following');
+  const sellerSummary = useSellerSummary(user);
 
   useEffect(() => {
     if (authUser) setUser(current => current || authUser);
@@ -165,7 +167,7 @@ export default function Me() {
       <div className="pg-account-disclosures">
         <Disclosure title="Fan activity" description="Your points, community impact and recent activity">
           <div className="pg-account-fan-cards">
-            <PeanutPointsCard user={user} />
+            <PeanutPointsCard user={user} sellerSummary={sellerSummary} />
             <CommunityImpactCard userEmail={user.email} />
             <h3 className="pg-account-section-label">Recent activity</h3>
             <RecentPointsActivity userEmail={user.email} />

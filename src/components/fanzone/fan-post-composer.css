@@ -57,6 +57,8 @@
 .pg-composer-event-option strong { font-size: 12px; line-height: 1.4; }
 .pg-composer-event-option small { font-size: 10px; line-height: 1.4; color: var(--pg-muted); }
 .pg-composer-event-option > svg { flex-shrink: 0; }
+.pg-composer-event-option, .pg-composer-event-tag > button:first-child { padding-block: 10px; }
+.pg-composer-event-option .pg-composer-event-occurrence, .pg-composer-event-tag .pg-composer-event-occurrence { white-space: normal; overflow-wrap: anywhere; line-height: 1.5; }
 .pg-composer-empty > button { min-height: 44px; padding: 0 16px; margin-top: 12px; border-radius: 8px; color: var(--pg-text); }
 .pg-composer-empty { margin: 30px 0; font-size: 13px; line-height: 1.5; color: var(--pg-muted); text-align: center; }
 .pg-composer-discard-backdrop { z-index: 152; background: #080710b8; }

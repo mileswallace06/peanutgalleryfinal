@@ -9,7 +9,7 @@
 .pg-help-search input::placeholder { color: var(--pg-muted); font-size: 14px; }
 .pg-help-topic { display: grid; gap: 6px; margin-top: 16px; font-size: 12px; font-weight: 700; color: var(--pg-muted); }
 .pg-help-topic select { width: 100%; min-height: 46px; border: 1px solid var(--pg-line); border-radius: 8px; padding: 10px; background: var(--pg-surface); color: var(--pg-text); }
-.pg-help-count { margin: 14px 0 24px; font-size: 12px; color: var(--pg-muted); }
+.pg-help-count { overflow-wrap: anywhere; margin: 14px 0 24px; font-size: 12px; color: var(--pg-muted); }
 .pg-help-results { display: grid; gap: 26px; }
 .pg-help-results section h2 { display: flex; align-items: center; gap: 9px; font-family: var(--font-editorial); font-size: 19px; font-weight: 800; margin-bottom: 10px; }
 .pg-help-results section h2 svg { color: var(--neon-purple); flex: none; }

@@ -17,7 +17,7 @@ function getSellerTier(avgMinutes) {
 }
 
 export default function SellerMetrics({ purchases }) {
-  const completed = purchases.filter(p => p.transfer_status === 'completed' && p.seller_confirmed);
+  const completed = purchases.filter(p => !p.is_demo && p.transfer_status === 'completed');
   const expired = purchases.filter(p => p.transfer_status === 'expired' && !p.seller_confirmed);
 
   // Time from purchase created → seller_confirmed_at (actual seller confirmation timestamp)
@@ -79,7 +79,7 @@ export default function SellerMetrics({ purchases }) {
           icon={<CheckCircle2 className="w-4 h-4 text-primary" />}
           label="Completed Sales"
           value={completed.length}
-          sub="fully confirmed"
+          sub="available seller history"
         />
         <MetricTile
           icon={<XCircle className="w-4 h-4 text-destructive" />}

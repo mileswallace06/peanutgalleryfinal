@@ -20,7 +20,7 @@ Examples:
 - `?page=fan-zone&width=390&scenario=provider-error&theme=light`
 - `?page=my-tickets&width=390&scenario=provider-error&theme=light`
 
-The real source Layout wraps the real source pages with a MemoryRouter. Real bottom navigation works within each frame. `/me` is mapped to the MyTickets screen for this review; other destinations display an explicit scope notice instead of contacting the application. The parent review banner labels all data as fictional without changing the app viewport layout. Direct `app.html` exists for debugging, but use the gallery for labeled review.
+The real source App route map and Layout render inside a MemoryRouter. Real bottom navigation works within each frame. The `route` query parameter selects any actual route; `page` aliases remain supported. Unimplemented SDK methods fail closed and are recorded as fixture coverage gaps. The parent review banner labels all data as fictional without changing the app viewport layout. Direct `app.html` exists for debugging, but use the gallery for labeled review.
 
 The fixture API and AuthContext replace the production imports only in this dedicated Vite configuration. Vite's production configuration, source pages, and dependencies are untouched. Test-only browser state marks onboarding complete, picks the requested theme, and provides a fictional Phoenix location. All event times are generated relative to the actual preview session time: one live event, one starting soon, and three upcoming events. Identities and data are deterministic; timestamps intentionally track real time.
 
@@ -47,7 +47,7 @@ This narrow extension loads the current production components with fictional par
 
 Example: `http://127.0.0.1:4174/tests/fixtures/ticket-design/?page=account-settings&scenario=populated&width=320&theme=light`.
 
-Only a frame initially requested as `page=founder` receives the fictional admin role. All APIs remain the local alias, including `checkSellerOnboarding`, which does not call its potentially mutating backend implementation. Read response shapes explicitly include buyer purchases, seller sales, owned listings, Purchase, TransferOutcome, and navigation logs. Unknown API access still fails closed.
+Use `role=admin` for a fictional admin; legacy page aliases founder/admin/beta-qa also select that role. All APIs remain the local alias, including `checkSellerOnboarding`, which does not call its potentially mutating backend implementation. Read response shapes explicitly include buyer purchases, seller sales, owned listings, Purchase, TransferOutcome, and navigation logs. Unknown API access still fails closed.
 
 **Rendered verification: NOT RUN for these added fixture states.** The cloud browser rejected the local preview URL with `ERR_BLOCKED_BY_CLIENT`; compile validation is separate from a visual pass. Review locally at 320px and 390px in both themes, including account disclosures, founder spike rows, guide footer and overlay scrolling/focus. Full admin panels, purchase/checkout outcomes and physical TestFlight remain outside this extension.
 
@@ -71,3 +71,12 @@ For the narrow modal/auth recheck only, use `PG_SHARE_RECHECK=modal-auth`. If ex
 ```sh
 node --input-type=module -e "import { createServer } from 'vite'; const server = await createServer({ configFile: 'tests/fixtures/ticket-design/vite.config.mjs' }); await server.listen(); try { await import('./tests/listing-share-browser.mjs'); } finally { await server.close(); }"
 ```
+
+
+## October 6 audit extension
+
+Run `npm run test:audit-safe` for the explicit offline unit/component allowlist. Run `npx playwright install chromium` once and `npm run test:audit-browser` for local fixture browser checks. The browser runner starts its own isolated servers and blocks external network requests. It never uses production sessions. Evidence is written to `tests/artifacts/oct06` (ignored; CI uploads artifacts).
+
+The fixture now mounts the actual App route map rather than maintaining a duplicate list. `route=/terms%23returnno`, `role=admin`, `auth=guest`, `theme=dark`, `eventState=ended|unknown`, `catalog=large|recurring`, `flashLookup=error|retry|empty`, `flashLookupDelay=150`, `locationMode=denied|timeout|unavailable|none|success`, `salesState=sparse`, `hydrationState=error`, and `queueState=open-only|error` cover audit states. Usercentrics is replaced at its exact script-injection boundary with synthetic five-column content; no policy-provider request occurs. MemoryRouter navigation/focus tests use test-only `__PG_REVIEW_NAVIGATE__`/`__PG_REVIEW_LOCATION__`; the separate Events fixture uses BrowserRouter for actual address-bar reload/Back/Forward tests.
+
+See `docs/reviews/oct06-audit-repairs.md` for current results, route inventory, screenshots and blocked decisions. Older sections above describe their dated scope, not today's verification status.

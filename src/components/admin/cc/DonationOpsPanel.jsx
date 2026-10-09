@@ -1,3 +1,4 @@
+import { adminEventIdentity } from '@/lib/salesPresentation';
 import { format } from 'date-fns';
 
 function StatCard({ label, value, color }) {
@@ -51,7 +52,7 @@ export default function DonationOpsPanel({ donations, events, onRefresh }) {
             {stale.map(d => (
               <div key={d.id} className="pg-operations-card rounded-xl px-4 py-3 text-sm"
                 style={{ background: 'color-mix(in srgb, rgb(255 45 120) 6%, var(--pg-surface))', border: '1px solid rgba(255,45,120,0.2)' }}>
-                <div className="font-semibold text-foreground">{d.event_title || 'Event'}</div>
+                <div className="font-semibold text-foreground">{adminEventIdentity({ title: d.event_title }, d.event_id)}</div>
                 <div className="text-xs text-muted-foreground">From: {d.donor_name || d.donor_email} · Sec {d.section} Row {d.row}</div>
                 <div className="text-xs text-muted-foreground">Expired: {d.expires_at ? format(new Date(d.expires_at), 'MMM d h:mm a') : '—'}</div>
               </div>
@@ -91,7 +92,7 @@ export default function DonationOpsPanel({ donations, events, onRefresh }) {
             {active.slice(0, 10).map(d => (
               <div key={d.id} className="pg-operations-card rounded-xl px-4 py-3 text-sm"
                 style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
-                <div className="font-semibold text-foreground">{d.event_title || 'Event'}</div>
+                <div className="font-semibold text-foreground">{adminEventIdentity({ title: d.event_title }, d.event_id)}</div>
                 <div className="text-xs text-muted-foreground">
                   From: {d.is_anonymous ? 'Anonymous' : (d.donor_name || d.donor_email)} · Sec {d.section} Row {d.row}
                   {d.expires_at && ` · Expires ${format(new Date(d.expires_at), 'MMM d')}`}

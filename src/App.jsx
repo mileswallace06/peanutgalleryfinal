@@ -1,4 +1,4 @@
-import { Suspense, lazy, useLayoutEffect, useState } from 'react'
+import { Suspense, lazy, useLayoutEffect, useEffect, useState } from 'react'
 import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
@@ -10,6 +10,7 @@ import Layout from '@/components/Layout';
 import Landing from '@/pages/Landing';
 import RouteFallback from '@/components/RouteFallback';
 import { memberAccess } from '@/lib/memberAccess';
+import { titleForRoute } from '@/lib/routeMetadata';
 
 // ── Route-based code splitting ────────────────────────────────────────────
 // All authenticated routes are lazily loaded to reduce the initial bundle.
@@ -95,7 +96,9 @@ const ResetPasswordRoute = () => {
   return <BrandedAuth key="reset" mode="reset" resetToken={resetToken} />;
 };
 
-const AuthenticatedApp = () => {
+export const AuthenticatedApp = () => {
+  const location = useLocation();
+  useEffect(() => { document.title = titleForRoute(location.pathname); }, [location.pathname]);
   return (
         <Suspense fallback={<RouteFallback />}>
         <Routes>

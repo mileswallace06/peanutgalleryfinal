@@ -59,7 +59,8 @@ export async function fetchTMEvents(base44, params) {
       if (params.discoveryWindow === 'ongoing' && (coverage?.discoveryWindow !== 'ongoing' || coverage.lookbackHours !== 12 || !Number.isInteger(coverage.limit) || coverage.limit < 1 || coverage.limit > 40 || !Number.isFinite(Date.parse(coverage.startDateTime)) || !Number.isFinite(Date.parse(coverage.endDateTime)) || Date.parse(coverage.endDateTime) - Date.parse(coverage.startDateTime) !== 12 * 3600000)) {
         throw { status: 502, message: 'unsupported_ongoing_response' };
       }
-      const data = coverage ? { events, coverage } : { events };
+      const pagination = res?.data?.pagination;
+      const data = { events, ...(coverage ? { coverage } : {}), ...(pagination ? { pagination } : {}) };
       cache.set(key, { data, ts: Date.now() });
       inFlight.delete(key);
       return data;
