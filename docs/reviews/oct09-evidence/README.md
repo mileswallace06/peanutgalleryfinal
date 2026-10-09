@@ -14,7 +14,11 @@ All new captures use synthetic identities and local fixtures. They are not live 
 | R14 queue recovery | [56 check results](sales-admin/result.json), includes each independent source fault/retry |
 | I2 tracking characterization | [Seven offline probes](tracking/offline-probe.txt), [interpretation and unknowns](../oct09-tracking-investigation.md) |
 
-## Combined local results
+## Continuation evidence
+
+See [Fan startup repair](../oct09-fan-startup-repair.md) for the reproduced timing window and before/after evidence. Full repository lint now passes after removing 23 unused imports; CI now enforces full lint and includes a fifteenth browser runner for startup dismissal. The original combined results below retain their original provenance. Current-head CI is recorded in [PR18](https://github.com/mileswallace06/peanutgalleryfinal/pull/18).
+
+## Original combined local results
 
 | Command | Actual result |
 | --- | --- |
