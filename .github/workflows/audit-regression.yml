@@ -28,5 +28,5 @@ jobs:
         if: always()
         with:
           name: isolated-audit-evidence
-          path: tests/artifacts/oct06
+          path: tests/artifacts/oct09
           if-no-files-found: ignore
