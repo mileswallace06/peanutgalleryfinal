@@ -37,6 +37,7 @@ function Harness() {
     controls.rerender = () => Promise.resolve().then(() => setRevision(value => value + 1));
     controls.mountLocation = setMounted;
     controls.originalTrigger = trigger.current;
+    controls.closeCalls = 0;
   }, []);
   useEffect(() => { controls.revision = revision; }, [revision]);
   return <main className="pg-ticket-app pg-community-page" style={{ padding: 20, minHeight: '100vh' }}>
@@ -44,7 +45,7 @@ function Harness() {
     <p>Fictional local fixture · revision {revision}</p>
     <button ref={trigger} className="pg-sort-control" aria-haspopup="dialog" aria-expanded={open}
       aria-label={`Sort posts. Current: ${sort}`} onClick={() => setOpen(true)}>Sort posts</button>
-    {open && <FanSortSheet value={sort} allowDistance={false} onChange={setSort} onClose={() => setOpen(false)} triggerRef={trigger} />}
+    {open && <FanSortSheet value={sort} allowDistance={false} onChange={setSort} onClose={() => { controls.closeCalls++; setOpen(false); }} triggerRef={trigger} />}
     {mounted && <LocationHarness />}
   </main>;
 }
