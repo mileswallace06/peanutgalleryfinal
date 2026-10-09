@@ -1,7 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import { classifyTMResponse, normalizeTMEvent } from '../../shared/tmResponseHandler.js';
 import { cacheProviderDiscoveryEvents } from '../../shared/discoveryEventCache.js';
-import { buildTMDiscoveryRequest, ongoingCoverage } from '../../shared/tmDiscoveryRequest.js';
+import { buildTMDiscoveryRequest, ongoingCoverage, discoveryPagination } from '../../shared/tmDiscoveryRequest.js';
 /* global AbortController, fetch */
 
 /**
@@ -81,7 +81,8 @@ Deno.serve(async (req) => {
       } catch { /* Cache or service-client failure must not change search results. */ }
     }
     const coverage = ongoingCoverage(query, data, events.length);
-    return Response.json(coverage ? { events, coverage } : { events });
+    const pagination = query.paginated ? discoveryPagination(query, data, events.length) : undefined;
+    return Response.json({ events, ...(pagination ? { pagination } : {}), ...(coverage ? { coverage } : {}) });
   } catch {
     // Never return raw internal exception messages
     return Response.json({ error: 'internal_error' }, { status: 500 });
