@@ -5,11 +5,13 @@ import { createEventSearchRequest } from '@/lib/eventSearchRequest';
 import { restoreEventLocation, saveEventLocation, cityFromSuggestion, validCoordinates, sameEventLocation, subscribeEventLocation } from '@/lib/eventLocation';
 import { advanceDiscoveryPager, discoveryPagerResult } from '@/lib/eventDiscoveryPager';
 import { fetchSellingEvents } from '@/lib/sellingEventDiscovery';
+import { discoveryRequestFromSearch, discoverySearchFromRequest, requestLocation as areaFromRequest } from '@/lib/eventDiscoveryState';
 
-export function useSellingDiscovery(initialKeyword = '') {
-  const [keyword, setKeyword] = useState(initialKeyword.slice(0, 100));
-  const [area, setArea] = useState(null), areaRef = useRef(null);
-  const [request, setRequest] = useState(() => createEventSearchRequest(initialKeyword));
+export function useSellingDiscovery(initialKeyword = '', { initialRequest = null } = {}) {
+  const restoredRequest = initialRequest ? discoveryRequestFromSearch(discoverySearchFromRequest(initialRequest)) : null;
+  const [keyword, setKeyword] = useState(restoredRequest?.keyword || initialKeyword.slice(0, 100));
+  const [area, setArea] = useState(() => restoredRequest ? areaFromRequest(restoredRequest) : null), areaRef = useRef(area);
+  const [request, setRequest] = useState(() => restoredRequest || createEventSearchRequest(initialKeyword));
   const requestRef = useRef(request);
   const [result, setResult] = useState({ events: [], pgError: false, tmError: false });
   const [loading, setLoading] = useState(false), [restoring, setRestoring] = useState(true);
@@ -61,6 +63,10 @@ export function useSellingDiscovery(initialKeyword = '') {
   });
   useEffect(() => {
     let cancelled = false; const originalIntent = intent.current;
+    if (restoredRequest) {
+      setRestoring(false); load(restoredRequest);
+      return () => { cancelled = true; generation.current++; pendingGPS.current = null; };
+    }
     restoreEventLocation(base44).then(localArea => {
       if (cancelled || originalIntent !== intent.current) return;
       setRestoring(false);
@@ -79,6 +85,12 @@ export function useSellingDiscovery(initialKeyword = '') {
   return { keyword, setKeyword, area, request, result, loading, loadingMore, restoring, editingLocation, locationInput, cityError, locationStatus,
     submit: () => run(keyword), nationwide: () => run(requestRef.current.keyword, null, 'nationwide'),
     nearMe: () => { run(''); if (!areaRef.current) locate(''); }, locate,
+    restoreRequest: value => {
+      const restored = discoveryRequestFromSearch(discoverySearchFromRequest(value));
+      intent.current++; pendingGPS.current = null; cancelRequest(); setRestoring(false);
+      const localArea = areaFromRequest(restored); areaRef.current = localArea; setArea(localArea); setKeyword(restored.keyword);
+      load(restored);
+    },
     refresh: () => load(requestRef.current, true), loadMore: () => continueLoad(), retryFailed: () => continueLoad(true),
     openLocation: () => { setLocationInput(''); setCityError(''); setEditingLocation(true); },
     closeLocation: () => { pendingGPS.current = null; cancelRequest(); setEditingLocation(false); },
