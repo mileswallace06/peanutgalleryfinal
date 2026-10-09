@@ -3,7 +3,7 @@
   "verificationDateUTC": "2026-10-09",
   "auditDate": "2026-10-06",
   "testedCommit": "1e605d303b711c39b9c3cc7464701421402f8129",
-  "testedCommitNote": "All source, configuration and test files at this GitHub checkpoint matched the locally tested working tree byte-for-byte. Later commits add documentation/evidence only.",
+  "testedCommitNote": "Source, configuration and test files in this checkpoint were compared byte-for-byte with the locally tested working tree. Later changes include a CI checkout-history fix and documentation updates.",
   "safeUnitSuites": 33,
   "safeUnitResults": {
     "tests": 320,
@@ -39,12 +39,29 @@
     "routeFailures": 0,
     "discovery": "Passed; runner reports named scenarios instead of numeric assertion total"
   },
-  "ci": "No GitHub run claimed",
+  "ci": {
+    "initialRun": "Initial attempts failed: shallow checkout excluded the historical baseline required by the selling-event-picker preservation test. An initial configuration upload did not carry the changed bytes.",
+    "fix": "Local workflow checkout corrected to fetch-depth: 0. The subsequent configuration upload and rerun await verification. This is a later CI configuration change, not an evidence-only change.",
+    "targetedLocalTestsAfterFix": {
+      "passed": 13,
+      "testSourceChanged": false
+    },
+    "repairedRerun": "Verified completion with the corrected checkout configuration is pending at this report checkpoint.",
+    "authoritativeChecks": "https://github.com/mileswallace06/peanutgalleryfinal/pull/17/checks",
+    "successfulRunClaimed": false
+  },
   "environment": {
     "platform": "Linux x86_64",
     "node": "24.19.0",
     "npm": "11.9.0",
     "playwright": "1.62.1",
     "chromium": "153.0.8010.0"
-  }
+  },
+  "remoteEvidenceCheckpoint": {
+    "commit": "c1d36fb",
+    "tree": "526aa6703d2acd7fefce606c8f2deb5d61705b64",
+    "verified": true,
+    "note": "Complete uploaded evidence tree before the later CI checkout-history fix and documentation update."
+  },
+  "pullRequest": "https://github.com/mileswallace06/peanutgalleryfinal/pull/17"
 }
