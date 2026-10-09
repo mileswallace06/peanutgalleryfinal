@@ -1,0 +1,33 @@
+{
+  "fixtureOnly": true,
+  "results": [
+    {
+      "name": "events-search-browser",
+      "exit": 0
+    },
+    {
+      "name": "legal-document-browser",
+      "exit": 0
+    },
+    {
+      "name": "fan-zone-browser",
+      "exit": 0
+    },
+    {
+      "name": "profile-beta-browser",
+      "exit": 0
+    },
+    {
+      "name": "listing-workflows-browser",
+      "exit": 0
+    },
+    {
+      "name": "sales-admin-browser",
+      "exit": 0
+    },
+    {
+      "name": "route-inventory-browser",
+      "exit": 0
+    }
+  ]
+}
