@@ -29,3 +29,7 @@ dist-ssr
 
 .env
 .vite
+
+# Reproducible local audit output
+tests/artifacts/
+.public-access-render-*/
