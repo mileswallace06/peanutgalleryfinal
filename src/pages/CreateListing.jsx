@@ -12,6 +12,8 @@ import SellingEventPicker from '@/components/listings/SellingEventPicker';
 import SellingEventSummary from '@/components/listings/SellingEventSummary';
 import { isCanonicalEventId } from '@/lib/resolveSellingEvent';
 import { PageIntro, Disclosure } from '@/components/ClarityUI';
+import { useUpgradeClock } from '@/hooks/useUpgradeClock';
+import { listingEventEligibility, checkListingEvent } from '../../base44/shared/listingEventEligibility.js';
 import './transaction-clarity.css';
 
 const STEPS = ['Event', 'Seats', 'Price & review'];
@@ -52,6 +54,10 @@ export default function CreateListing() {
   const [pgTransferProofUrl, setPgTransferProofUrl] = useState('');
   const [pgTransferNotes, setPgTransferNotes] = useState('');
   const [uploadingPgProof, setUploadingPgProof] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const submittingRef = useRef(false);
+  const nowMs = useUpgradeClock(selectedEvent);
+  const eventEligibility = listingEventEligibility(selectedEvent, nowMs);
 
   const [form, setForm] = useState({
     event_id: '',
@@ -79,6 +85,7 @@ export default function CreateListing() {
       setAttestationDone(false); setAttestationData(null); setAttestationBlocked(false);
       setListingMode('standard'); setItrAgreementDone(false); setPgTransferProofUrl(''); setPgTransferNotes('');
     } else setForm(previous => ({ ...previous, event_id: event.id }));
+    setSubmitError('');
     selectedEventRef.current = event;
     setSelectedEvent(event);
     setStep(1);
@@ -105,11 +112,25 @@ export default function CreateListing() {
   };
 
   const handleSubmit = async () => {
+    if (submittingRef.current) return;
     if (!user) {
       base44.auth.redirectToLogin();
       return;
     }
+    const localEligibility = listingEventEligibility(selectedEventRef.current, Date.now());
+    if (!localEligibility.allowed) { setSubmitError(localEligibility.message); return; }
+    submittingRef.current = true;
     setSubmitting(true);
+    setSubmitError('');
+    try {
+      // A draft may have stayed open while the event ended or its timing changed.
+      // Recheck authorized event data before every existing submission path.
+      const current = await checkListingEvent(base44, form.event_id);
+      if (current.event) {
+        selectedEventRef.current = current.event;
+        setSelectedEvent(current.event);
+      }
+      if (!current.allowed) { setSubmitError(current.message); return; }
     // Rollout logging — fee model + listing economics
     base44.analytics.track({
       eventName: 'listing_submitted',
@@ -195,6 +216,12 @@ export default function CreateListing() {
 
     setSubmitting(false);
     setDone(true);
+    } catch {
+      setSubmitError('We could not verify the event or save your listing. Your form is still here; please retry.');
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
+    }
   };
 
   // ── Onboarding state (non-blocking) ──────────────────────────────────────
@@ -248,11 +275,11 @@ export default function CreateListing() {
   }
 
   const canonicalSelected = isCanonicalEventId(form.event_id) && selectedEvent?.id === form.event_id;
-  const canNext1 = canonicalSelected && !!form.section && !!form.row && attestationDone;
+  const canNext1 = canonicalSelected && eventEligibility.allowed && !!form.section && !!form.row && attestationDone;
   const priceVal = parseFloat(form.asking_price) || 0;
   const minPrice = MIN_LISTING_PRICE_CONFIG.enabled ? MIN_LISTING_PRICE_CONFIG.threshold : 0;
   const priceTooLow = MIN_LISTING_PRICE_CONFIG.enabled && priceVal > 0 && priceVal < minPrice;
-  const canSubmit = canonicalSelected && !!form.asking_price && priceVal >= (minPrice || 1)
+  const canSubmit = canonicalSelected && eventEligibility.allowed && !!form.asking_price && priceVal >= (minPrice || 1)
     && (listingMode === 'standard' || (itrAgreementDone && (pgTransferProofUrl || pgTransferNotes.trim())));
 
   // Fee preview for step 2
@@ -262,21 +289,30 @@ export default function CreateListing() {
     <div className="pg-secondary-page pg-transaction-page pg-listing-page selling-flow">
       <div ref={stepHeading} tabIndex={-1} className="outline-none scroll-mt-20">
         <PageIntro
-          eyebrow={`Sell tickets · Step ${step + 1} of 3`}
-          title={step === 0 ? 'Sell your tickets.' : step === 1 ? 'Add your seats.' : 'Price & review.'}
-          description={step === 0 ? 'Choose the event for the tickets you want to sell.' : step === 1 ? 'Add your seat details, then confirm you can transfer the tickets.' : 'Choose how to deliver, set your price, and review the buyer’s total.'}
+          eyebrow={step > 0 && !eventEligibility.allowed ? 'Sell tickets · Event closed' : `Sell tickets · Step ${step + 1} of 3`}
+          title={step > 0 && !eventEligibility.allowed ? 'Listings are closed.' : step === 0 ? 'Sell your tickets.' : step === 1 ? 'Add your seats.' : 'Price & review.'}
+          description={step > 0 && !eventEligibility.allowed ? 'Choose a current event to list your seats. You can still view this event’s history.' : step === 0 ? 'Choose the event for the tickets you want to sell.' : step === 1 ? 'Add your seat details, then confirm you can transfer the tickets.' : 'Choose how to deliver, set your price, and review the buyer’s total.'}
           backTo="/my-sales"
           backLabel="My sales"
         />
       </div>
-      <StepBar current={step} />
+      {(step === 0 || eventEligibility.allowed) && <StepBar current={step} />}
       <div hidden={step !== 0}>
         <SellingEventPicker initialKeyword={preselectedQuery} initialEventId={preselectedEventId} onSelect={acceptEvent} />
       </div>
       {step > 0 && <div className="mb-6"><SellingEventSummary event={selectedEvent} onChange={() => setStep(0)} disabled={uploadingProof || uploadingPgProof || submitting} /></div>}
 
+      {step > 0 && !eventEligibility.allowed && <section role="status" className="pg-transaction-card space-y-3" aria-label="Event listings closed">
+        <h2 className="text-lg font-bold">Listings are closed for this event</h2>
+        <p>{eventEligibility.message}</p>
+        <button type="button" className="pg-action pg-transaction-primary" onClick={() => { setStep(0); setSubmitError(''); }}>Choose a current event</button>
+        <Link className="block underline" to={`/upgrades/${encodeURIComponent(selectedEvent?.id || '')}`}>View this event’s history</Link>
+      </section>}
+      {step > 0 && eventEligibility.timing?.status === 'unknown' && <p role="status" className="pg-transaction-note">The event time is unconfirmed. Check the event details before listing your seats.</p>}
+      {submitError && <p role="alert" className="pg-transaction-note">{submitError}</p>}
+
       {/* ── Step 1: Seat Info ── */}
-      {step === 1 && (
+      {step === 1 && eventEligibility.allowed && (
         <section className="pg-transaction-card space-y-4" aria-label="Seat details">
           <p className="pg-transaction-kicker">Your seats</p>
           <div className="grid grid-cols-2 gap-3">
@@ -321,7 +357,7 @@ export default function CreateListing() {
       )}
 
       {/* ── Attestation gate (shown at bottom of step 1) ── */}
-      {step === 1 && !attestationDone && !attestationBlocked && (
+      {step === 1 && eventEligibility.allowed && !attestationDone && !attestationBlocked && (
         <div className="mt-6 pg-listing-attestation">
           <SellerTransferAttestation key={selectedEvent?.id}
             onConfirm={(data) => { setAttestationData(data); setAttestationDone(true); }}
@@ -334,7 +370,7 @@ export default function CreateListing() {
         </div>
       )}
 
-      {step === 1 && attestationBlocked && (
+      {step === 1 && eventEligibility.allowed && attestationBlocked && (
         <div className="mt-6 rounded-2xl px-4 py-4 text-center space-y-3"
           style={{ background: 'rgba(var(--neon-pink-rgb), 0.08)', border: '1px solid rgba(var(--neon-pink-rgb), 0.3)' }}>
           <div className="text-2xl">🚫</div>
@@ -351,7 +387,7 @@ export default function CreateListing() {
         </div>
       )}
 
-      {step === 1 && attestationDone && (
+      {step === 1 && eventEligibility.allowed && attestationDone && (
         <div className="mt-4 flex items-center gap-2 px-3 py-2 rounded-xl"
           style={{ background: 'rgba(var(--neon-green-rgb), 0.06)', border: '1px solid rgba(var(--neon-green-rgb), 0.25)' }}>
           <CheckCircle className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--neon-green)' }} />
@@ -360,7 +396,7 @@ export default function CreateListing() {
       )}
 
       {/* ── Step 2: Price & Proof ── */}
-      {step === 2 && (
+      {step === 2 && eventEligibility.allowed && (
         <div className="space-y-5">
 
           {/* Listing mode selector */}
@@ -574,12 +610,12 @@ export default function CreateListing() {
         </div>
       )}
 
-      {step === 2 && <div className="pg-listing-submit-note">
+      {step === 2 && eventEligibility.allowed && <div className="pg-listing-submit-note">
         {!onboardingComplete && <p>Your listing will be saved as a draft. Complete payout setup to make it live.</p>}
         <p>PG upgrades are separately priced add-on purchases.</p>
       </div>}
       {/* Navigation remains in flow so the keyboard cannot cover a fixed action bar. */}
-      {step > 0 && <div className="pg-transaction-actions">
+      {step > 0 && eventEligibility.allowed && <div className="pg-transaction-actions">
         {step > 0 && (
           <button
             onClick={() => setStep(s => s - 1)}
@@ -590,7 +626,7 @@ export default function CreateListing() {
             <ArrowLeft className="w-4 h-4" /> Back
           </button>
         )}
-        {step === 1 && (
+        {step === 1 && eventEligibility.allowed && (
           <button
             onClick={() => setStep(s => s + 1)}
             disabled={!canNext1}
@@ -599,7 +635,7 @@ export default function CreateListing() {
             Price & review <ArrowRight className="w-4 h-4" />
           </button>
         )}
-        {step === 2 && (
+        {step === 2 && eventEligibility.allowed && (
           <button
             onClick={handleSubmit}
             disabled={!canSubmit || submitting || uploadingProof}

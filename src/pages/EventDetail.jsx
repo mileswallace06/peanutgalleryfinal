@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useLocation, Link } from 'react-router-dom';
+import { safeDiscoveryReturnTo } from '@/lib/eventDiscoveryState';
 import { base44 } from '@/api/base44Client';
 import { getEventDateDisplay } from '@/lib/eventDateDisplay';
 import { MapPin, Calendar, ArrowLeft, Ticket, Zap, Plus, ShieldCheck } from 'lucide-react';
@@ -17,7 +18,8 @@ import './event-detail-clarity.css';
 import './shared-listing.css';
 export default function EventDetail() {
   const { id } = useParams();
-  const { search } = useLocation();
+  const { search, state: routeState } = useLocation();
+  const discoveryReturnTo = safeDiscoveryReturnTo(routeState?.discoveryReturnTo);
   const [event, setEvent] = useState(null);
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -152,7 +154,7 @@ export default function EventDetail() {
           <h1 className="font-display">Event not found</h1>
           <p>This event may still be syncing. Try refreshing or go back to find it.</p>
           <button onClick={() => window.location.reload()} className="pg-event-button">Retry</button>
-          <Link to="/events" className="pg-event-text-link"><ArrowLeft aria-hidden="true" /> Back to events</Link>
+          <Link to={discoveryReturnTo} className="pg-event-text-link"><ArrowLeft aria-hidden="true" /> Back to events</Link>
         </div>
         {user?.role === 'admin' && <EventLookupDebugPanel routeId={id} lookupTrace={lookupTrace} />}
       </div>
@@ -178,7 +180,7 @@ export default function EventDetail() {
           ) : (
             <div className="pg-event-photo-fallback"><Ticket aria-hidden="true" /><span>Peanut Gallery</span></div>
           )}
-          <Link to="/events" className="pg-event-back"><ArrowLeft aria-hidden="true" /> Events</Link>
+          <Link to={discoveryReturnTo} className="pg-event-back"><ArrowLeft aria-hidden="true" /> Events</Link>
           {isLive && <span className="pg-event-status" title={isEstimated ? 'Estimated live window; the event may have ended' : undefined}>{isEstimated ? 'Live · estimated window' : 'Live now'}</span>}
           {timing.status === 'soon' && <span className="pg-event-status">Starting soon</span>}
           {timing.status === 'ended' && <span className="pg-event-status">Event ended</span>}

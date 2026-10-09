@@ -107,11 +107,11 @@ export default function CookiePolicy() {
             aria-label="Go back">
             <ChevronLeft className="w-5 h-5" />
           </button>
-          <h1 className="font-display text-xl text-foreground">Cookie Policy</h1>
+          <h1 id="cookies-title" className="font-display text-xl text-foreground">Cookie Policy</h1>
         </div>
       </div>
 
-      <div className="px-5 py-6 pb-32 max-w-2xl mx-auto space-y-6 text-sm text-foreground leading-relaxed">
+      <main aria-labelledby="cookies-title" className="px-5 py-6 pb-32 max-w-2xl mx-auto space-y-6 text-sm text-foreground leading-relaxed">
 
         <p className="text-muted-foreground text-xs">Last Updated: June 26, 2026</p>
 
@@ -127,7 +127,7 @@ export default function CookiePolicy() {
         ))}
 
 
-      </div>
+      </main>
     </PublicPage>
   );
 }

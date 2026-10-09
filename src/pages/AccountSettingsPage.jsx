@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { useTheme } from '@/hooks/useTheme';
@@ -17,12 +17,45 @@ import './account-clarity.css';
 
 export default function AccountSettingsPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const showPayouts = location.hash === '#payouts';
+  useEffect(() => {
+    if (showPayouts) requestAnimationFrame(() => {
+      const target = document.getElementById('payouts');
+      target?.scrollIntoView({ block: 'start' });
+      target?.focus({ preventScroll: true });
+    });
+  }, [showPayouts]);
   const { theme, toggleTheme } = useTheme();
   const [user, setUser] = useState(null);
   const [purchases, setPurchases] = useState([]);
   const [sales, setSales] = useState([]);
+  const [historyStatus, setHistoryStatus] = useState('loading');
+  const loadHistory = useCallback(async () => {
+    setHistoryStatus('loading');
+    try {
+      const res = await base44.functions.invoke('getPurchaseParticipantView', { action: 'list_mine', perspective: 'both' });
+      if (!Array.isArray(res?.data?.purchases) || !Array.isArray(res?.data?.sales)) throw new Error('History unavailable');
+      setPurchases(res.data.purchases);
+      setSales(res.data.sales);
+      setHistoryStatus('ready');
+    } catch { setHistoryStatus('error'); }
+  }, []);
   const [stripeStatus, setStripeStatus] = useState(null);
-  const [loadingStripe, setLoadingStripe] = useState(false);
+  const [loadingStripe, setLoadingStripe] = useState(true);
+  const [stripeError, setStripeError] = useState(false);
+  const loadStripe = useCallback(async () => {
+    setLoadingStripe(true);
+    setStripeError(false);
+    try {
+      const res = await base44.functions.invoke('checkSellerOnboarding', {});
+      if (typeof res?.data?.details_submitted !== 'boolean' || typeof res?.data?.charges_enabled !== 'boolean') throw new Error('Stripe status unavailable');
+      setStripeStatus(res.data);
+    } catch {
+      setStripeStatus(null);
+      setStripeError(true);
+    } finally { setLoadingStripe(false); }
+  }, []);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   useEffect(() => {
@@ -30,22 +63,21 @@ export default function AccountSettingsPage() {
       setUser(u);
       if (u?.email) {
         // Phase 1B-2: fetch purchases and sales through the safe participant view
-        base44.functions.invoke('getPurchaseParticipantView', {
-          action: 'list_mine', perspective: 'both',
-        }).then(res => {
-          setPurchases(res?.data?.purchases || []);
-          setSales(res?.data?.sales || []);
-        }).catch(() => {});
+        loadHistory();
 
         // Always obtain Stripe onboarding state through checkSellerOnboarding
-        setLoadingStripe(true);
-        base44.functions.invoke('checkSellerOnboarding', {})
-          .then(res => setStripeStatus(res?.data))
-          .catch(() => {})
-          .finally(() => setLoadingStripe(false));
+        loadStripe();
+      } else {
+        setHistoryStatus('error');
+        setStripeError(true);
+        setLoadingStripe(false);
       }
-    }).catch(() => {});
-  }, []);
+    }).catch(() => {
+      setHistoryStatus('error');
+      setStripeError(true);
+      setLoadingStripe(false);
+    });
+  }, [loadHistory, loadStripe]);
 
   return (
     <div className="pg-secondary-page pg-account-page pg-account-settings-page">
@@ -61,10 +93,10 @@ export default function AccountSettingsPage() {
             <VerificationStatusSection user={user} stripeStatus={stripeStatus} />
           </div>
         </Disclosure>
-        <Disclosure title="Payouts & transactions" description="Seller payouts, purchases and sales history">
+        <Disclosure defaultOpen={showPayouts} title="Payouts & transactions" description="Seller payouts, purchases and sales history">
           <div className="pg-account-settings-group">
-            <StripePayoutSection user={user} stripeStatus={stripeStatus} loading={loadingStripe} />
-            <TransactionHistorySection purchases={purchases} sales={sales} />
+            <StripePayoutSection defaultOpen={showPayouts} stripeStatus={stripeStatus} loading={loadingStripe} error={stripeError} onRetry={loadStripe} />
+            <TransactionHistorySection purchases={purchases} sales={sales} status={historyStatus} onRetry={loadHistory} />
           </div>
         </Disclosure>
         <Disclosure title="Notifications" description="Choose the updates you want to receive">

@@ -8,6 +8,7 @@
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useLocation, Link } from 'react-router-dom';
+import { safeDiscoveryReturnTo } from '@/lib/eventDiscoveryState';
 import { Zap } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import FlashDropCenter from '@/components/eventmode/FlashDropCenter';
@@ -38,7 +39,8 @@ const TABS = [
 
 export default function EventDetailUpgrade() {
   const { id } = useParams();
-  const { search } = useLocation();
+  const { search, state: routeState } = useLocation();
+  const discoveryReturnTo = routeState?.discoveryReturnTo ? safeDiscoveryReturnTo(routeState.discoveryReturnTo) : null;
   const [event, setEvent] = useState(null);
   const [listings, setListings] = useState([]);
   const [drops, setDrops] = useState([]);
@@ -252,7 +254,7 @@ export default function EventDetailUpgrade() {
               style={{ background: 'var(--pg-cyan)', color: 'var(--pg-ink)' }}>
               Retry
             </button>
-            <Link to="/upgrades" className="text-sm underline" style={{ color: 'var(--ev-text-2)' }}>← Back to Upgrades</Link>
+            <Link to={discoveryReturnTo || "/upgrades"} className="text-sm underline" style={{ color: 'var(--ev-text-2)' }}>← Back to {discoveryReturnTo ? "events" : "Upgrades"}</Link>
           </div>
         </div>
         {user?.role === 'admin' && <EventLookupDebugPanel routeId={id} lookupTrace={lookupTrace} />}
@@ -265,6 +267,7 @@ export default function EventDetailUpgrade() {
   return (
     <div className="pg-design-page pg-live-page">
       <EventHero event={event} nowMs={nowMs} />
+      {discoveryReturnTo && <Link to={discoveryReturnTo} className="pg-action mx-4 inline-flex min-h-11 items-center text-sm underline">← Back to events</Link>}
       <CurrentTicketModule event={event} user={user} />
 
       {/* Tab bar */}
@@ -324,7 +327,7 @@ export default function EventDetailUpgrade() {
               onRetry={refreshListings}
               notifyControl={!shared.requested && event && <DiscoveryAlertControl eventId={event.id} user={user} />}
             />}
-            <SellSeatsModule event={event} />
+            <SellSeatsModule event={event} nowMs={nowMs} />
           </>
         )}
 

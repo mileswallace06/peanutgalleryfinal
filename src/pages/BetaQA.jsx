@@ -60,7 +60,7 @@ function BetaQAWorkspace() {
       <div className="pg-operations-header sticky top-0 z-20 border-b"
         style={{ paddingTop: '10px' }}>
         <div className="flex items-center gap-3 px-4 pb-3">
-          <button onClick={() => navigate(-1)}
+          <button type="button" aria-label="Back from Beta QA" onClick={() => navigate(-1)}
             className="w-11 h-11 shrink-0 rounded-lg flex items-center justify-center"
             style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)' }}>
             <ChevronLeft className="w-5 h-5" />
@@ -77,11 +77,11 @@ function BetaQAWorkspace() {
 
         {/* Tester identity */}
         <div className="flex gap-2 px-4 pb-3">
-          <input value={testerName} onChange={e => saveTesterName(e.target.value)}
+          <input aria-label="QA tester name" value={testerName} onChange={e => saveTesterName(e.target.value)}
             placeholder="Your name"
             className="flex-1 min-w-0 px-3 py-1.5 rounded-xl text-xs focus:outline-none"
             style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)', color: 'var(--pg-text)' }} />
-          <input value={device} onChange={e => saveDevice(e.target.value)}
+          <input aria-label="QA tester device" value={device} onChange={e => saveDevice(e.target.value)}
             placeholder="Device"
             className="flex-1 min-w-0 px-3 py-1.5 rounded-xl text-xs focus:outline-none"
             style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)', color: 'var(--pg-text)' }} />
@@ -90,7 +90,7 @@ function BetaQAWorkspace() {
         {/* Tab bar */}
         <div className="pg-operations-tabs flex overflow-x-auto scrollbar-hide px-4 pb-2 gap-2" style={{ WebkitOverflowScrolling: 'touch' }}>
           {TABS.map(({ key, label, Icon, color }) => (
-            <button key={key} onClick={() => setTab(key)}
+            <button key={key} type="button" aria-pressed={tab === key} onClick={() => setTab(key)}
               className="pg-operations-status flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap flex-shrink-0 transition-all"
               style={tab === key
                 ? { background: `${color}18`, '--pg-status-ink': color, border: `1px solid ${color}40` }

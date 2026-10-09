@@ -1,5 +1,5 @@
 import '@/components/admin/operations-theme.css';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useAuth } from '@/lib/AuthContext';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
@@ -45,16 +45,27 @@ function BetaMetrics() {
   const [testers, setTesters] = useState([]);
   const [feedback, setFeedback] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const loadInFlight = useRef(false);
 
   const load = async () => {
-    const [t, f] = await Promise.all([
-      base44.entities.BetaTester.list('-created_date', 200),
-      base44.entities.BetaFeedbackEvent.list('-created_date', 500),
-    ]);
-    setTesters(t);
-    setFeedback(f);
-    setLoading(false);
-    setRefreshing(false);
+    if (loadInFlight.current) return;
+    loadInFlight.current = true;
+    setLoadError('');
+    try {
+      const [t, f] = await Promise.all([
+        base44.entities.BetaTester.list('-created_date', 200),
+        base44.entities.BetaFeedbackEvent.list('-created_date', 500),
+      ]);
+      setTesters(t);
+      setFeedback(f);
+    } catch {
+      setLoadError('Beta metrics could not be loaded. Use Refresh beta metrics to try again.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+      loadInFlight.current = false;
+    }
   };
 
   useEffect(() => { load(); }, []);
@@ -95,13 +106,13 @@ function BetaMetrics() {
         style={{ paddingTop: '16px' }}>
         <div className="flex items-center justify-between max-w-2xl mx-auto">
           <div className="flex items-center gap-3">
-            <Link to="/founder" className="inline-flex min-h-11 min-w-11 items-center justify-center text-muted-foreground"><ArrowLeft className="w-5 h-5" /></Link>
+            <Link to="/founder" aria-label="Back to Founder dashboard" className="inline-flex min-h-11 min-w-11 items-center justify-center text-muted-foreground"><ArrowLeft className="w-5 h-5" /></Link>
             <div>
               <h1 className="font-display text-2xl text-foreground leading-none">Beta Dashboard</h1>
               <p className="text-[10px] text-muted-foreground mt-0.5">Real user validation metrics</p>
             </div>
           </div>
-          <button onClick={() => { setRefreshing(true); load(); }}
+          <button type="button" aria-label="Refresh beta metrics" aria-busy={refreshing} disabled={refreshing || loading} onClick={() => { setRefreshing(true); load(); }}
             className="inline-flex items-center justify-center p-2 rounded-lg text-muted-foreground transition-all"
             style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)' }}>
             <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
@@ -109,11 +120,12 @@ function BetaMetrics() {
         </div>
       </div>
 
+      {loadError && <p role="alert" className="mx-4 mt-4 text-sm text-destructive">{loadError}</p>}
       {loading ? (
         <div className="px-4 pt-6 grid grid-cols-2 gap-3 max-w-2xl mx-auto">
           {[...Array(8)].map((_, i) => <div key={i} className="h-20 rounded-xl animate-pulse bg-muted" />)}
         </div>
-      ) : (
+      ) : loadError ? null : (
         <div className="px-4 pt-5 max-w-2xl mx-auto space-y-6">
 
           {/* Tester overview */}

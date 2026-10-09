@@ -6,6 +6,7 @@ import { MapPin, ChevronRight, ChevronDown, LocateFixed, X, RefreshCw, HelpCircl
 import LocationAutocomplete from '@/components/LocationAutocomplete';
 import { getUpgradeEventTiming, groupUpgradeEvents, loadOwnedUpgradeEvents } from '@/lib/upgradeDiscovery';
 import { formatUpgradeStartsIn, getUpgradeVenueDateParts } from '@/lib/upgradeEventState';
+import { eventVariantLabel } from '@/lib/eventIdentity';
 import { logNavEvent } from '@/lib/navLogger';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useSellingDiscovery } from '@/hooks/useSellingDiscovery';
@@ -114,10 +115,10 @@ export default function Upgrades() {
 
       {sourceError && <div className="pg-state pg-upgrades-notice" role="alert">
         {result.rateLimited ? 'Some events could not load because the provider is busy.' : 'Some events could not load. These results may be incomplete.'}
-        {' '}<button type="button" onClick={discovery.refresh} disabled={loading}>Try again</button>
+        {' '}<button type="button" onClick={discovery.retryFailed} disabled={loading || discovery.loadingMore}>Try again</button>
       </div>}
       <div aria-live="polite" aria-atomic="true" className="sr-only">
-        {!loading && locationLabel && (sourceError ? 'Event results are incomplete' : allEvents.length === 0 ? `No events found near ${locationLabel}` : `${allEvents.length} event${allEvents.length !== 1 ? 's' : ''} found near ${locationLabel}`)}
+        {!loading && locationLabel && (sourceError ? 'Event results are incomplete' : allEvents.length === 0 ? `No events found near ${locationLabel}` : `${allEvents.length} event${allEvents.length !== 1 ? 's' : ''} loaded near ${locationLabel}`)}
       </div>
 
       <div className="pg-upgrades-feed">
@@ -135,10 +136,12 @@ export default function Upgrades() {
               <p className="sr-only" role="status">{visibleEvents.length} {browseView === 'live' ? 'live' : 'upcoming'} events</p>
               {visibleEvents.length === 0 ? <div className="pg-state pg-upgrades-view-empty">
                 <h2>{sourceError ? 'Events couldn’t fully load.' : result.limited ? 'No matching events in these results.' : browseView === 'live' ? 'Nothing live nearby right now.' : 'No upcoming events nearby.'}</h2>
-                <p>{sourceError ? 'Try again before checking whether anything is live.' : result.limited ? 'More events may exist beyond these results. Try a nearby city.' : browseView === 'live' ? 'Find your next event in Upcoming. Available upgrades appear in its event hub.' : 'Try another city, or check back for more events.'}</p>
+                <p>{sourceError ? 'Try again before checking whether anything is live.' : result.limited ? 'More events may exist beyond these results. Load more events below.' : browseView === 'live' ? 'Find your next event in Upcoming. Available upgrades appear in its event hub.' : 'Try another city, or check back for more events.'}</p>
                 {browseView === 'live' && <button type="button" className="pg-action" onClick={() => setBrowseView('upcoming')}>See upcoming events <ArrowRight size={16} aria-hidden="true" /></button>}
               </div>
                 : <div className="pg-upgrades-stack">{visibleEvents.map(event => <EventCard key={event.id} event={event} nowMs={nowMs} mode={getUpgradeEventTiming(event, nowMs).status} />)}</div>}
+              {result.hasMore && <button type="button" onClick={discovery.loadMore} disabled={discovery.loadingMore} className="pg-action my-4 min-h-11 rounded-full bg-primary px-5 py-3 font-bold text-primary-foreground">{discovery.loadingMore ? 'Loading more…' : 'Load more events'}</button>}
+              <p role="status" className="my-3 text-sm text-muted-foreground">{discovery.loadingMore ? 'Loading more events…' : result.exhausted ? 'All available results loaded.' : result.truncated ? 'Provider search limit reached. Refine the location or search.' : `${allEvents.length} events loaded. More results may be available.`}</p>
             </section>
           </>}
         <div className="pg-upgrades-founder"><FounderStoryCard /></div>
@@ -235,7 +238,7 @@ function EventCard({ event, mode, owned = false, nowMs = Date.now() }) {
       <EventThumbnail event={event} className="pg-browse-ticket-art" />
       <div className="pg-browse-ticket-copy">
         {event.category && <span className="sr-only">{event.category}</span>}
-        <h3 className="pg-browse-ticket-title" title={event.title}>{event.title}</h3>
+        <h3 className="pg-browse-ticket-title" title={event.title}>{event.title}</h3>{eventVariantLabel(event) && <p className="text-sm text-muted-foreground">{eventVariantLabel(event)}</p>}
         <p className="pg-browse-ticket-venue" title={[event.venue, event.city].filter(Boolean).join(' · ')}>{event.venue}{event.city ? ` · ${event.city}` : ''}</p>
         <p className="pg-browse-ticket-detail">{hasDate ? venueDate.label : 'Date to be announced'}</p>
         {(startsIn || owned) && <p className="pg-browse-ticket-detail"><strong>{startsIn || 'Find upgrades'}</strong></p>}

@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { format } from 'date-fns';
+import { format, isValid } from 'date-fns';
+import { saleIdentity, salePaymentStatus, formatRecordedAmount, SELLER_HISTORY_SCOPE } from '@/lib/salesPresentation';
 import { Ticket, Clock, CheckCircle, AlertTriangle, ArrowRight, Plus, RefreshCw, Zap } from 'lucide-react';
 import SellerMetrics from '@/components/sales/SellerMetrics';
 import ListingStatusBanner from '@/components/listings/ListingStatusBanner';
@@ -10,11 +11,25 @@ import { isVerificationExpired } from '@/lib/transferConfidence';
 import { PageIntro, Disclosure } from '@/components/ClarityUI';
 import './activity-clarity.css';
 
+function SaleIdentity({ sale, event, listing, metadataState, retry }) {
+  const identity = saleIdentity(sale, event, listing);
+  return <>
+    <h3>{identity.title}</h3>
+    <p style={{ overflowWrap: 'anywhere' }}>{identity.reference}</p>
+    {identity.eventLabel && <p>{identity.eventLabel}</p>}
+    {identity.venue && <p>{identity.venue}</p>}
+    {identity.seats && <p>{identity.seats}</p>}
+    {!event && <p>{metadataState === 'error' ? 'Event details could not be loaded.' : 'Event metadata is missing or no longer accessible. Your sale reference remains available.'}</p>}
+    {!event && metadataState === 'error' && <button type="button" onClick={retry} className="pg-action pg-activity-secondary">Retry event details</button>}
+  </>;
+}
+
 export default function MySales() {
   const [user, setUser] = useState(null);
   const [listings, setListings] = useState([]);
   const [purchases, setPurchases] = useState([]);
   const [events, setEvents] = useState({});
+  const [eventStates, setEventStates] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [actionError, setActionError] = useState(null);
@@ -32,8 +47,9 @@ export default function MySales() {
         base44.functions.invoke('getPurchaseParticipantView', { action: 'list_mine', perspective: 'seller' }),
       ]);
 
-      const myListings = listingRes?.data?.listings || [];
-      const mySales = purchaseRes?.data?.sales || [];
+      if (!Array.isArray(listingRes?.data?.listings) || !Array.isArray(purchaseRes?.data?.sales)) throw new Error('Sales history unavailable');
+      const myListings = listingRes.data.listings;
+      const mySales = purchaseRes.data.sales.filter(p => !p.is_demo);
 
       setListings(myListings);
       setPurchases(mySales);
@@ -43,12 +59,19 @@ export default function MySales() {
         ...mySales.map(p => p.event_id),
       ])].filter(Boolean);
 
-      const eventResults = await Promise.all(
-        eventIds.map(eid => base44.entities.Event.filter({ id: eid }).then(r => r[0]).catch(() => null))
+      const eventResults = await Promise.allSettled(
+        eventIds.map(eid => base44.entities.Event.filter({ id: eid }))
       );
       const eventMap = {};
-      eventIds.forEach((eid, i) => { if (eventResults[i]) eventMap[eid] = eventResults[i]; });
+      const states = {};
+      eventIds.forEach((eid, i) => {
+        const result = eventResults[i];
+        const event = result.status === 'fulfilled' ? result.value?.[0] : null;
+        states[eid] = result.status === 'rejected' ? 'error' : event ? 'ready' : 'missing';
+        if (event) eventMap[eid] = event;
+      });
       setEvents(eventMap);
+      setEventStates(states);
     } catch (err) {
       setError(err?.response?.data?.error || err?.message || 'Failed to load sales');
     } finally {
@@ -137,7 +160,7 @@ export default function MySales() {
   const hiddenOrRejectedListings = listings.filter(l =>
     l.status === 'hidden' || l.proof_status === 'rejected'
   );
-  const pendingPayouts = completedSales.filter(p => !p.payment_captured).length;
+  const unconfirmedCaptures = completedSales.filter(p => p.payment_captured !== true && !p.payment_capture_failed).length;
   const failedCaptures = completedSales.filter(p => p.payment_capture_failed).length;
 
   return (
@@ -179,7 +202,7 @@ export default function MySales() {
                   <div className="pg-sale-ticket-summary">
                     <div className="pg-sale-copy">
                       <span className="pg-sale-kicker">Ready for transfer</span>
-                      <h3>{ev?.title || 'Event'}</h3>
+                      <SaleIdentity sale={p} event={ev} listing={listings.find(l => l.id === p.listing_id && l.event_id === p.event_id)} metadataState={eventStates[p.event_id]} retry={load} />
                       <p>Amount: <strong>${p.amount?.toFixed(2)}</strong> · Qty: {p.quantity}</p>
                     </div>
                     <span className="pg-sale-status pg-sale-status-warning">Send tickets</span>
@@ -211,7 +234,7 @@ export default function MySales() {
                 <article key={p.id} className="pg-sale-ticket">
                   <div className="pg-sale-ticket-summary">
                     <div className="pg-sale-copy">
-                      <h3>{ev?.title || 'Event'}</h3>
+                      <SaleIdentity sale={p} event={ev} listing={listings.find(l => l.id === p.listing_id && l.event_id === p.event_id)} metadataState={eventStates[p.event_id]} retry={load} />
                       <p>${p.amount?.toFixed(2)} · Qty: {p.quantity}</p>
                     </div>
                     <Link to={`/purchase/${p.id}`} className="pg-action pg-sales-view">
@@ -372,11 +395,11 @@ export default function MySales() {
       <Disclosure
         title={`Completed sales (${completedSales.length})`}
         description={failedCaptures > 0
-          ? `${failedCaptures} capture failed — contact support. View sale and payout details.`
-          : pendingPayouts > 0
-            ? `${pendingPayouts} pending payout. View sale and payout details.`
-            : 'Sale history, payout status, and transaction details.'}
-        defaultOpen={pendingPayouts > 0 || failedCaptures > 0}
+          ? `${failedCaptures} capture failed — contact support. View payment capture details.`
+          : unconfirmedCaptures > 0
+            ? `Payment capture not confirmed for ${unconfirmedCaptures} sales. View sale details.`
+            : 'Sale history and payment capture status. Bank payout status is not available here.'}
+        defaultOpen={unconfirmedCaptures > 0 || failedCaptures > 0}
         className="pg-sales-history"
       >
         {completedSales.length === 0 ? (
@@ -386,26 +409,25 @@ export default function MySales() {
             <p>When a buyer confirms receipt, your sale appears here.</p>
           </div>
         ) : (
-          <div className="pg-activity-list">
+          <><p className="pg-activity-section-description">{SELLER_HISTORY_SCOPE}</p>
+        <div className="pg-activity-list">
             {completedSales.map(p => {
               const ev = events[p.event_id];
-              const eventDate = ev?.event_start_local || ev?.date;
-              const payoutState = p.payment_captured ? 'paid out' : 'pending payout';
+              const paymentState = salePaymentStatus(p);
               return (
                 <article key={p.id} className="pg-sale-ticket">
                   <div className="pg-sale-ticket-summary">
                     <div className="pg-sale-copy">
-                      <h3>{ev?.title || 'Event'}</h3>
-                      {eventDate && <p>{format(new Date(eventDate), 'EEE, MMM d, yyyy')}</p>}
-                      <p className="pg-sale-payout">${p.seller_payout != null ? p.seller_payout.toFixed(2) : p.amount?.toFixed(2)}</p>
+                      <SaleIdentity sale={p} event={ev} listing={listings.find(l => l.id === p.listing_id && l.event_id === p.event_id)} metadataState={eventStates[p.event_id]} retry={load} />
+                      <p className="pg-sale-payout">Recorded seller amount: {formatRecordedAmount(p.seller_payout)}</p>
                     </div>
-                    <span className={`pg-sale-status ${p.payment_captured ? 'pg-sale-status-active' : 'pg-sale-status-warning'}`}>{payoutState}</span>
+                    <span className={`pg-sale-status pg-sale-status-${paymentState.tone}`}>{paymentState.label}</span>
                   </div>
                   <div className="pg-sale-ticket-footer">
                     <div className="pg-sale-history-notes">
-                      {p.payment_captured && <p>Stripe deposits 2–7 days (up to 14 days first payout)</p>}
+                      <p>Bank payout status is unavailable here. Payment capture does not confirm a bank deposit.</p>
                       {p.payment_capture_failed && <p className="pg-activity-error-text"><AlertTriangle className="w-4 h-4" aria-hidden="true" /> Capture failed — contact support</p>}
-                      {p.created_date && <p>Sale date: {format(new Date(p.created_date), 'MMM d, yyyy')}</p>}
+                      {p.created_date && isValid(new Date(p.created_date)) && <p>Sale date: {format(new Date(p.created_date), 'MMM d, yyyy')}</p>}
                     </div>
                     <Link to={`/purchase/${p.id}`} className="pg-action pg-activity-secondary">
                       View sale <ArrowRight className="w-4 h-4" aria-hidden="true" />
@@ -414,7 +436,7 @@ export default function MySales() {
                 </article>
               );
             })}
-          </div>
+          </div></>
         )}
       </Disclosure>
     </div>

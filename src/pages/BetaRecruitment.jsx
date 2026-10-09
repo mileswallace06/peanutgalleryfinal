@@ -1,9 +1,9 @@
 import '@/components/admin/operations-theme.css';
-import { useState, useEffect } from 'react';
+import { useId, useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useAuth } from '@/lib/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
-import { Plus, User, ChevronDown, ChevronUp, Trash2, CheckCircle2, Clock, XCircle, ArrowLeft } from 'lucide-react';
+import { Plus, ChevronDown, ChevronUp, Trash2, ArrowLeft } from 'lucide-react';
 
 const PHASE_TARGETS = { phase_1: 10, phase_2: 25, phase_3: 50 };
 const PHASE_LABELS = { phase_1: 'Phase 1 — 10 testers', phase_2: 'Phase 2 — 25 testers', phase_3: 'Phase 3 — 50 testers' };
@@ -14,6 +14,7 @@ const EMPTY_FORM = { name: '', email: '', fan_type: 'sports', favorite_teams: ''
 
 function TesterCard({ tester, onUpdate, onDelete }) {
   const [expanded, setExpanded] = useState(false);
+  const detailsId = useId();
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState(tester);
   const statusColor = STATUS_COLORS[tester.status] || '#888';
@@ -44,21 +45,21 @@ function TesterCard({ tester, onUpdate, onDelete }) {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => onDelete(tester.id)} className="inline-flex items-center justify-center p-1.5 text-muted-foreground hover:text-destructive transition-colors">
+          <button type="button" aria-label={`Delete beta tester ${tester.name || 'record'}`} onClick={() => onDelete(tester.id)} className="inline-flex items-center justify-center p-1.5 text-muted-foreground hover:text-destructive transition-colors">
             <Trash2 className="w-3.5 h-3.5" />
           </button>
-          <button onClick={() => setExpanded(e => !e)} className="inline-flex items-center justify-center p-1.5 text-muted-foreground">
+          <button type="button" aria-label={`Details for beta tester ${tester.name || 'record'}`} aria-expanded={expanded} aria-controls={detailsId} onClick={() => setExpanded(e => !e)} className="inline-flex items-center justify-center p-1.5 text-muted-foreground">
             {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
         </div>
       </div>
 
-      {expanded && (
-        <div className="border-t px-4 pb-4 pt-3 space-y-3" style={{ borderColor: 'var(--pg-line)' }}>
+      {(
+        <div id={detailsId} hidden={!expanded} className="border-t px-4 pb-4 pt-3 space-y-3" style={{ borderColor: 'var(--pg-line)' }}>
           {/* Status buttons */}
           <div className="flex gap-2 flex-wrap">
             {Object.entries(STATUS_COLORS).map(([s, c]) => (
-              <button key={s} onClick={() => handleStatus(s)}
+              <button key={s} aria-pressed={tester.status === s} onClick={() => handleStatus(s)}
                 className="pg-operations-status px-3 py-1.5 rounded-lg text-[10px] font-black transition-all"
                 style={{
                   background: tester.status === s ? `${c}20` : 'var(--pg-surface-raised)',
@@ -106,12 +107,12 @@ function TesterCard({ tester, onUpdate, onDelete }) {
                 { key: 'notes', placeholder: 'Notes', textarea: true },
               ].map(f => f.textarea ? (
                 <textarea key={f.key} value={form[f.key] || ''} onChange={e => setForm(p => ({...p, [f.key]: e.target.value}))}
-                  placeholder={f.placeholder} rows={2}
+                  aria-label={f.placeholder} placeholder={f.placeholder} rows={2}
                   className="w-full px-3 py-2 rounded-xl text-xs text-foreground placeholder:text-muted-foreground focus:outline-none resize-none"
                   style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)' }} />
               ) : (
                 <input key={f.key} value={form[f.key] || ''} onChange={e => setForm(p => ({...p, [f.key]: e.target.value}))}
-                  placeholder={f.placeholder}
+                  aria-label={f.placeholder} placeholder={f.placeholder}
                   className="w-full px-3 py-2 rounded-xl text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
                   style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)' }} />
               ))}
@@ -193,7 +194,7 @@ export default function BetaRecruitment() {
         style={{ paddingTop: '16px' }}>
         <div className="flex flex-wrap items-center justify-between gap-3 max-w-2xl mx-auto">
           <div className="flex items-center gap-3">
-            <Link to="/beta-checklist" className="inline-flex min-h-11 min-w-11 items-center justify-center text-muted-foreground">
+            <Link to="/beta-checklist" aria-label="Back to beta checklist" className="inline-flex min-h-11 min-w-11 items-center justify-center text-muted-foreground">
               <ArrowLeft className="w-5 h-5" />
             </Link>
             <div>
@@ -280,7 +281,7 @@ export default function BetaRecruitment() {
                 { key: 'device', placeholder: 'Device' },
               ].map(f => (
                 <input key={f.key} value={form[f.key]} onChange={e => setForm(p => ({...p, [f.key]: e.target.value}))}
-                  placeholder={f.placeholder}
+                  aria-label={f.placeholder} placeholder={f.placeholder}
                   className="min-w-0 px-3 py-2.5 rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none col-span-1"
                   style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)' }} />
               ))}
@@ -288,7 +289,7 @@ export default function BetaRecruitment() {
             {/* Fan type */}
             <div className="flex gap-2">
               {['sports', 'concert', 'both'].map(ft => (
-                <button key={ft} onClick={() => setForm(p => ({...p, fan_type: ft}))}
+                <button key={ft} aria-pressed={form.fan_type === ft} onClick={() => setForm(p => ({...p, fan_type: ft}))}
                   className="flex-1 py-2 rounded-xl text-xs font-black transition-all"
                   style={{
                     background: form.fan_type === ft ? 'var(--pg-surface-raised)' : 'var(--pg-surface)',
@@ -299,7 +300,7 @@ export default function BetaRecruitment() {
                 </button>
               ))}
             </div>
-            <textarea value={form.notes} onChange={e => setForm(p => ({...p, notes: e.target.value}))}
+            <textarea aria-label="Tester notes" value={form.notes} onChange={e => setForm(p => ({...p, notes: e.target.value}))}
               placeholder="Notes"
               rows={2}
               className="w-full px-3 py-2.5 rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none resize-none"

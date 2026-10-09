@@ -1,18 +1,19 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { MapPin, LocateFixed, ChevronDown, ArrowRight, RefreshCw, ShieldCheck, Search, ArrowUpDown, X } from 'lucide-react';
 import { getUpgradeEventState } from '@/lib/upgradeEventState';
 import { useEventClock } from '@/hooks/useEventClock';
 import { getEventDateDisplay } from '@/lib/eventDateDisplay';
+import { eventVariantLabel } from '@/lib/eventIdentity';
 import { getEventUrl } from '@/lib/eventUrl';
 import { logNavEvent } from '@/lib/navLogger';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
-import { fetchTMEvents, bustTMCache } from '@/lib/tmCache';
-import { mergeEventSources } from '@/lib/eventSourceMerger';
+import { createDiscoveryPager, advanceDiscoveryPager, discoveryPagerResult } from '@/lib/eventDiscoveryPager';
+import { discoveryRequestFromSearch, discoverySearchFromRequest, requestLocation as areaFromRequest, saveDiscoveryReturn, readDiscoveryReturn } from '@/lib/eventDiscoveryState';
 import { useLocationDetect } from '@/hooks/useLocationDetect';
 import LocationAutocomplete from '@/components/LocationAutocomplete';
-import { createEventSearchRequest, buildEventSearchParams } from '@/lib/eventSearchRequest';
+import { createEventSearchRequest } from '@/lib/eventSearchRequest';
 import EventThumbnail from '@/components/events/EventThumbnail';
 import BrowseHeaderTools from '@/components/BrowseHeaderTools';
 import { restoreEventLocation, saveEventLocation, cityFromSuggestion, validCoordinates, sameEventLocation, subscribeEventLocation } from '@/lib/eventLocation';
@@ -20,12 +21,16 @@ import './events-ticket.css';
 
 export default function Events() {
   const nowMs = useEventClock(1000);
+  const route = useLocation(), navigate = useNavigate(), navigationType = useNavigationType();
+  const restoredRequest = discoveryRequestFromSearch(route.search);
+  const pagerRef = useRef(null), loadingRef = useRef(false);
+  const [progress, setProgress] = useState(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const restoreRef = useRef(readDiscoveryReturn(route.search));
+
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
-  useEffect(() => {
-    base44.auth.me().then(u => setIsAdmin(u?.role === 'admin')).catch(() => {});
-  }, []);
+
   const [locationInput, setLocationInput] = useState('');
   const [editingLocation, setEditingLocation] = useState(false);
   const [cityError, setCityError] = useState('');
@@ -33,7 +38,7 @@ export default function Events() {
   const localAreaRef = useRef(null);
   const [restoringLocation, setRestoringLocation] = useState(true);
   const locationIntent = useRef(0);
-  const [activeSearch, setActiveSearch] = useState(() => createEventSearchRequest());
+  const [activeSearch, setActiveSearch] = useState(() => restoredRequest || createEventSearchRequest());
   const activeSearchRef = useRef(activeSearch);
   const pendingNearMe = useRef(null);
 
@@ -41,117 +46,83 @@ export default function Events() {
   const [networkError, setNetworkError] = useState(false);
   const [pgError, setPgError] = useState(false);       // PG-source failure (distinct from TM)
   const [partialData, setPartialData] = useState(false); // TM failed, PG partial results shown
-  const [keyword, setKeyword] = useState('');
+  const [keyword, setKeyword] = useState(restoredRequest?.keyword || '');
   const [hasSearched, setHasSearched] = useState(false);
   // Sort: 'soonest' = upcoming soonest (default), 'latest' = latest upcoming
   // showPast: when false (default) hides past events; when true shows everything
-  const [sortMode, setSortMode] = useState('soonest');
-  const [showPast, setShowPast] = useState(false);
-  const [showSearchTools, setShowSearchTools] = useState(false);
-  // Track which TM IDs we've already synced this session to avoid duplicate calls
-  const syncedTmIds = useRef(new Set());
+  const [sortMode, setSortMode] = useState(restoredRequest?.sort || 'soonest');
+  const [showPast, setShowPast] = useState(!!restoredRequest?.includePast);
+  const [showSearchTools, setShowSearchTools] = useState(!!restoredRequest?.keyword || !!restoreRef.current?.toolsOpen);
+  const generation = useRef(0);
+  useEffect(() => () => { generation.current++; pendingNearMe.current = null; }, []);
 
-  const abortRef = useRef(null);
-  useEffect(() => () => { abortRef.current?.abort(); pendingNearMe.current = null; }, []);
+  const applyPager = useCallback(pager => {
+    pagerRef.current = pager;
+    const result = discoveryPagerResult(pager);
+    setProgress(result); setEvents(result.events);
+    setNetworkError(result.pgError && result.tmError);
+    setPgError(result.pgError); setTmError(result.rateLimited);
+    setPartialData(result.tmError && !result.rateLimited);
+  }, []);
 
   const fetchEvents = useCallback(async (request, bust = false) => {
-    activeSearchRef.current = request;
-    setActiveSearch(request);
-    const { keyword, cityOverride, stateOverride, ll, scope } = request;
-    const canSearch = scope === 'nationwide' ? Boolean(keyword) : Boolean(cityOverride || ll);
-    setHasSearched(canSearch);
-
-    // Cancel any previous in-flight fetch
-    abortRef.current?.abort();
-    abortRef.current = new AbortController();
-    const signal = abortRef.current.signal;
-
+    const id = ++generation.current;
+    activeSearchRef.current = request; setActiveSearch(request);
+    const canSearch = request.scope === 'nationwide' ? Boolean(request.keyword) : Boolean(request.cityOverride || request.ll);
+    setHasSearched(canSearch); setEvents([]); setProgress(null); pagerRef.current = null;
+    setTmError(false); setNetworkError(false); setPgError(false); setPartialData(false);
+    setLoadingMore(false); loadingRef.current = false;
+    if (!canSearch) { setLoading(false); return; }
     setLoading(true);
-    setTmError(false);
-    setNetworkError(false);
-    setPgError(false);
-    setPartialData(false);
-    const now = Date.now();
-    const { tmParams, pgQuery, pgLimit } = buildEventSearchParams(request);
-    if (!canSearch) {
-      setEvents([]);
-      setLoading(false);
+    const pager = await advanceDiscoveryPager(base44, createDiscoveryPager(request), { refresh: bust });
+    if (id !== generation.current) return;
+    applyPager(pager); setLoading(false);
+  }, [applyPager]);
+
+  const continueSearch = async (retryFailed = false) => {
+    if (!pagerRef.current || loadingRef.current) return;
+    const id = generation.current;
+    loadingRef.current = true; setLoadingMore(true);
+    try {
+      const pager = await advanceDiscoveryPager(base44, pagerRef.current, { retryFailed });
+      if (id === generation.current) applyPager(pager);
+    } finally { if (id === generation.current) { loadingRef.current = false; setLoadingMore(false); } }
+  };
+
+  const submitRequest = (request, replace = false, preserveDraft = false) => {
+    const search = discoverySearchFromRequest(request);
+    // Same request still supports an explicit retry, without a duplicate history entry.
+    if (route.search === search) fetchEvents(request, true);
+    else navigate({ pathname: '/events', search }, { replace, state: preserveDraft ? { preserveDiscoveryDraft: true } : null });
+  };
+
+  useEffect(() => {
+    if (route.pathname !== '/events') return;
+    const request = discoveryRequestFromSearch(route.search);
+    if (!request) {
+      if (localAreaRef.current) submitRequest({ ...createEventSearchRequest('', localAreaRef.current), sort: 'soonest', includePast: false }, true);
       return;
     }
-
-    if (bust) bustTMCache(tmParams);
-
-    try {
-      // Decouple PG and TM fetches — TM failure must not block PG results.
-      const [localResult, tmResult] = await Promise.allSettled([
-        base44.entities.Event.filter(pgQuery, 'date', pgLimit, 0),
-        fetchTMEvents(base44, tmParams),
-      ]);
-
-      if (signal.aborted) return;
-
-      // M0.2: Use the shared event-source merger — fixes the tmResult.value contract
-      // mismatch (fetchTMEvents returns { events, fromCache }, not an array).
-      const merged = mergeEventSources({
-        localResult, tmResult,
-        filters: { cityOverride, stateOverride, ll, keyword, isAdmin, now, tmKeywordApplied: true },
-      });
-
-      if (merged.pgError && merged.tmFailed) setNetworkError(true);
-      if (merged.pgError) {
-        console.error('[Events] PG fetch failed:', localResult.reason?.message);
-        setPgError(true);
-      }
-      if (merged.tmError) setTmError(true);
-      if (merged.partialData) {
-        console.warn('[Events] TM fetch failed — showing PG partial results');
-        setPartialData(true);
-      }
-
-      setEvents(merged.events);
-
-      // Persist TM events locally so they survive past start time.
-      // SESSION DEDUP: only sync each tm_id once per session to prevent duplicate DB records.
-      const toSync = merged.tmEventsRaw.filter(e => e.tm_id && !syncedTmIds.current.has(e.tm_id));
-      toSync.forEach(e => syncedTmIds.current.add(e.tm_id)); // mark BEFORE async call
-      // Serialize syncs to avoid write races — stagger by 200ms per event
-      toSync.forEach((e, i) => {
-        setTimeout(() => {
-          base44.functions.invoke('syncTMEvent', {
-            tm_id: e.tm_id, title: e.title, venue: e.venue, city: e.city,
-            state: e.state, date: e.date, image_url: e.image_url,
-            tm_url: e.tm_url, category: e.category || null,
-            tm_venue_id: e.tm_venue_id || '',
-            venue_timezone: e.venue_timezone,
-            venue_lat: e.venue_lat ?? null, venue_lng: e.venue_lng ?? null,
-          }).catch(syncErr => console.warn('[Events] syncTMEvent failed for', e.tm_id, syncErr?.message));
-        }, i * 200);
-      });
-    } catch (err) {
-      if (signal.aborted) return; // stale response — discard silently
-      const status = err?.response?.status || err?.status;
-      if (status === 429) {
-        setTmError(true);
-        console.warn('[Events] Ticketmaster rate-limited (429)');
-      } else {
-        console.error('[Events] fetchEvents failed:', status, err?.message, err);
-        setNetworkError(true);
-      }
-    } finally {
-      if (!signal.aborted) setLoading(false);
-    }
-  }, [isAdmin]);
+    locationIntent.current++;
+    setRestoringLocation(false); if (!route.state?.preserveDiscoveryDraft || navigationType === 'POP') setKeyword(request.keyword); setSortMode(request.sort); setShowPast(request.includePast);
+    const area = areaFromRequest(request);
+    if (area) { localAreaRef.current = area; setLocalArea(area); }
+    restoreRef.current = readDiscoveryReturn(route.search);
+    if (request.keyword || restoreRef.current?.toolsOpen) setShowSearchTools(true);
+    fetchEvents(request);
+  }, [route.pathname, route.search, fetchEvents]);
 
 
 
-  const runSearch = (text, location = localAreaRef.current, scope = 'local') => {
+  const runSearch = (text, location = localAreaRef.current, scope = 'local', options = {}) => {
     // A later submit/filter choice supersedes a pending geolocation request.
     locationIntent.current++;
     pendingNearMe.current = null;
     cancelRequest();
     setRestoringLocation(false);
-    const request = createEventSearchRequest(text, location, scope);
-    setKeyword(request.keyword);
+    const { preserveDraft = false, ...queryOptions } = options;
+    const request = { ...createEventSearchRequest(text, location, scope), sort: sortMode, includePast: showPast, ...queryOptions };
+    if (!preserveDraft) setKeyword(request.keyword);
     if (scope === 'local' && location) {
       const saved = saveEventLocation(location);
       localAreaRef.current = saved;
@@ -159,7 +130,7 @@ export default function Events() {
     }
     setEditingLocation(scope === 'local' && !location);
     setCityError('');
-    fetchEvents(request);
+    submitRequest(request, false, preserveDraft);
   };
 
   const { locationStatus, requestLocation, cancelRequest } = useLocationDetect({
@@ -181,6 +152,8 @@ export default function Events() {
   });
 
   useEffect(() => {
+    const submitted = discoveryRequestFromSearch(route.search);
+    if (submitted && submitted.scope !== 'nationwide') return;
     let cancelled = false;
     const intent = locationIntent.current;
     restoreEventLocation(base44).then(location => {
@@ -192,7 +165,7 @@ export default function Events() {
         setLocalArea(saved);
         // A saved-area lookup may finish while someone is typing a draft.
         // Start nearby browsing without replacing that unsubmitted input.
-        fetchEvents(createEventSearchRequest('', saved));
+        if (!submitted) submitRequest({ ...createEventSearchRequest('', saved), sort: 'soonest', includePast: false }, true, true);
       }
     });
     return () => { cancelled = true; };
@@ -202,7 +175,7 @@ export default function Events() {
     if (sameEventLocation(location, localAreaRef.current)) return;
     locationIntent.current++; pendingNearMe.current = null; cancelRequest(); setRestoringLocation(false);
     localAreaRef.current = location; setLocalArea(location); setCityError(''); setEditingLocation(false);
-    if (activeSearchRef.current.scope === 'local') fetchEvents(createEventSearchRequest(activeSearchRef.current.keyword, location));
+    if (activeSearchRef.current.scope === 'local') submitRequest({ ...createEventSearchRequest(activeSearchRef.current.keyword, location), sort: activeSearchRef.current.sort, includePast: activeSearchRef.current.includePast }, false, true);
   }), [fetchEvents, cancelRequest]);
 
   const requestCurrentLocation = (text = activeSearchRef.current.keyword) => {
@@ -214,10 +187,10 @@ export default function Events() {
   };
   const handleNearMe = () => {
     setShowPast(false);
-    runSearch('');
+    runSearch('', localAreaRef.current, 'local', { includePast: false });
     if (!localAreaRef.current) requestCurrentLocation('');
   };
-  const retrySearch = () => fetchEvents(activeSearchRef.current, true);
+  const retrySearch = () => continueSearch(true);
   const searchNationwide = () => runSearch(activeSearchRef.current.keyword, null, 'nationwide');
   const openLocationPicker = () => {
     setLocationInput('');
@@ -226,43 +199,35 @@ export default function Events() {
   };
   const sourceError = networkError || pgError || tmError || partialData;
 
-  // Date-aware sorting & filtering of events.
-  // Marketplaces prioritizes future, purchasable events.
-  const getEventDate = (e) => {
-    // Prefer canonical UTC start time, fall back to legacy date field
-    const d = e.event_start_utc || e.date;
-    return d ? new Date(d).getTime() : null;
-  };
+  const filtered = events;
+  const { containerRef, pulling } = usePullToRefresh(() => fetchEvents(activeSearchRef.current, true));
 
-  const filtered = (() => {
-    const now = Date.now();
-    let list = [...events];
-
-    // Default: hide past events (users buy tickets for upcoming shows)
-    // Toggle exposes past events for browsing
-    if (!showPast) {
-      list = list.filter(e => {
-        const t = getEventDate(e);
-        // Keep events with no parseable date (don't accidentally hide unknowns)
-        return t === null || t >= now;
-      });
+  const scrollHost = () => {
+    for (let node = containerRef.current; node; node = node.parentElement) {
+      if (node.scrollHeight > node.clientHeight && /auto|scroll/.test(getComputedStyle(node).overflowY)) return node;
     }
-
-    list.sort((a, b) => {
-      const ta = getEventDate(a);
-      const tb = getEventDate(b);
-      // Events without dates sink to the bottom regardless of mode
-      if (ta === null && tb === null) return 0;
-      if (ta === null) return 1;
-      if (tb === null) return -1;
-      // 'soonest' = ascending (nearest future first); 'latest' = descending
-      return sortMode === 'latest' ? tb - ta : ta - tb;
-    });
-
-    return list;
-  })();
-
-  const { containerRef, pulling } = usePullToRefresh(retrySearch);
+    return document.scrollingElement;
+  };
+  const saveReturn = event => {
+    const scroller = scrollHost();
+    saveDiscoveryReturn(route.search, { eventId: event.id, toolsOpen: showSearchTools, scrollTop: scroller?.scrollTop || window.scrollY, pages: Object.values(pagerRef.current?.streams || {}).reduce((max, stream) => Math.max(max, stream.pagesLoaded || 0), 0) });
+  };
+  useEffect(() => {
+    const restore = restoreRef.current;
+    if (!restore || loading || loadingMore || !progress) return;
+    const target = events.find(event => event.id === restore.eventId || event._eventAliases?.includes(restore.eventId));
+    const row = target && document.getElementById(`event-row-${target.id}`);
+    if (row) {
+      restoreRef.current = null;
+      requestAnimationFrame(() => { row.scrollIntoView({ block: 'center', behavior: 'instant' }); row.querySelector('a')?.focus({ preventScroll: true }); });
+    } else if (progress.hasMore && (restore.attempts || 0) < Math.max(restore.pages || 1, 1)) {
+      restore.attempts = (restore.attempts || 0) + 1;
+      continueSearch();
+    } else {
+      restoreRef.current = null;
+      requestAnimationFrame(() => scrollHost()?.scrollTo({ top: restore.scrollTop || 0, behavior: 'instant' }));
+    }
+  }, [loading, loadingMore, progress]);
 
   return (
     <div ref={containerRef} className="pg-design-page pg-events-page transition-transform duration-200">
@@ -321,13 +286,13 @@ export default function Events() {
               <label className="pg-events-sort-control">
                 <ArrowUpDown aria-hidden="true" className="pg-events-sort-icon" />
                 <span className="sr-only">Sort events by date</span>
-                <select value={sortMode} onChange={e => setSortMode(e.target.value)}>
+                <select value={sortMode} onChange={e => submitRequest({ ...activeSearchRef.current, sort: e.target.value }, false, true)}>
                   <option value="soonest">Soonest first</option>
                   <option value="latest">Latest first</option>
                 </select>
               </label>
               <label className="pg-events-past-control">
-                <input type="checkbox" checked={showPast} onChange={e => setShowPast(e.target.checked)} />
+                <input type="checkbox" checked={showPast} onChange={e => submitRequest({ ...activeSearchRef.current, includePast: e.target.checked }, false, true)} />
                 Include past
               </label>
             </div>
@@ -343,7 +308,7 @@ export default function Events() {
               onSelect={(city) => {
                 const location = cityFromSuggestion(city);
                 if (!location) { setCityError('Choose a city from the suggestions.'); return; }
-                runSearch(activeSearchRef.current.keyword, location);
+                runSearch(activeSearchRef.current.keyword, location, 'local', { preserveDraft: true });
               }}
               onSubmit={() => setCityError('Choose a city from the suggestions, or use your location.')}
               placeholder="Find a city" />
@@ -360,7 +325,7 @@ export default function Events() {
         <div className="pg-events-notice mx-4 mb-3 px-4 py-3 text-sm font-medium flex items-center justify-between gap-3"
           style={{ background: 'rgba(var(--neon-orange-rgb), 0.08)', border: '1px solid rgba(var(--neon-orange-rgb), 0.2)', color: 'var(--neon-orange)' }}>
           <span>Too many requests right now. Please wait a moment.</span>
-          <button onClick={retrySearch}
+          <button onClick={retrySearch} disabled={loadingMore}
             className="pg-action flex items-center gap-1 text-xs font-bold underline underline-offset-2 flex-shrink-0">
             <RefreshCw className="w-3 h-3" /> Retry
           </button>
@@ -370,7 +335,7 @@ export default function Events() {
         <div className="pg-events-notice mx-4 mb-3 px-4 py-3 text-sm font-medium flex items-center justify-between gap-3"
           style={{ background: 'rgba(var(--neon-pink-rgb), 0.08)', border: '1px solid rgba(var(--neon-pink-rgb), 0.2)', color: 'var(--neon-pink)' }}>
           <span>Failed to load events. Check your connection.</span>
-          <button onClick={retrySearch}
+          <button onClick={retrySearch} disabled={loadingMore}
             className="pg-action flex items-center gap-1 text-xs font-bold underline underline-offset-2 flex-shrink-0">
             <RefreshCw className="w-3 h-3" /> Retry
           </button>
@@ -381,7 +346,7 @@ export default function Events() {
         <div className="pg-events-notice mx-4 mb-3 px-4 py-3 text-sm font-medium flex items-center justify-between gap-3"
           style={{ background: 'rgba(var(--neon-pink-rgb), 0.08)', border: '1px solid rgba(var(--neon-pink-rgb), 0.2)', color: 'var(--neon-pink)' }}>
           <span>Could not load Peanut Gallery events. Results may be incomplete.</span>
-          <button onClick={retrySearch}
+          <button onClick={retrySearch} disabled={loadingMore}
             className="pg-action flex items-center gap-1 text-xs font-bold underline underline-offset-2 flex-shrink-0">
             <RefreshCw className="w-3 h-3" /> Retry
           </button>
@@ -402,7 +367,7 @@ export default function Events() {
           {activeSearch.scope === 'nationwide' ? 'Nationwide · United States' : `Nearby · ${activeSearch.locationLabel}`}
         </p>}
         {!loading && hasSearched && filtered.length > 0 && (
-          <p>{filtered.length} event{filtered.length !== 1 ? 's' : ''}</p>
+          <p>{filtered.length} event{filtered.length !== 1 ? 's' : ''} loaded{sourceError ? ' · Results incomplete' : ''}</p>
         )}
       </div>
 
@@ -413,6 +378,9 @@ export default function Events() {
             <Link
               key={e.id}
               to={`/upgrades/${e.id}`}
+              state={{ discoveryReturnTo: `/events${route.search}` }}
+              onClick={() => saveReturn(e)}
+              aria-label={`Open live hub for ${e.title}`}
               className="pg-events-live-link pg-action flex items-center gap-3 px-4 py-3 mb-2"
               style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
             >
@@ -450,31 +418,37 @@ export default function Events() {
       ) : filtered.length === 0 ? (
         <div className="pg-events-state pg-state mx-4 p-5 space-y-2" role="status">
           <p className="font-semibold">
-            {sourceError ? 'Some search results are unavailable' : activeSearch.keyword
+            {sourceError ? 'Some search results are unavailable' : progress?.limited ? 'No matching events in these results.' : activeSearch.keyword
               ? activeSearch.scope === 'local' ? `No matches for ‘${activeSearch.keyword}’ near ${activeSearch.locationLabel}` : `No matches for ‘${activeSearch.keyword}’ nationwide`
               : `No nearby events found near ${activeSearch.locationLabel}`}
           </p>
           <p className="text-sm text-muted-foreground">
             {sourceError
               ? 'A source could not be loaded. Retry this search before assuming there are no events.'
+              : progress?.limited ? progress.hasMore ? 'More events may match. Load more events below.' : 'Refine your location or search to check more events.'
               : activeSearch.scope === 'local' && activeSearch.keyword ? 'Try this search across the United States.'
                 : 'Try another search or choose a different local area.'}
           </p>
-          {!sourceError && activeSearch.scope === 'local' && activeSearch.keyword && <button type="button" onClick={searchNationwide} className="px-4 py-3 rounded-full text-sm font-bold bg-primary text-primary-foreground">Search nationwide</button>}
-          {sourceError && <button type="button" onClick={retrySearch} className="block text-sm font-semibold text-primary">Retry search</button>}
+          {!sourceError && !progress?.limited && activeSearch.scope === 'local' && activeSearch.keyword && <button type="button" onClick={searchNationwide} className="px-4 py-3 rounded-full text-sm font-bold bg-primary text-primary-foreground">Search nationwide</button>}
+          {sourceError && <button type="button" onClick={retrySearch} disabled={loadingMore} className="block text-sm font-semibold text-primary">Retry search</button>}
         </div>
       ) : (
         <div className="pg-events-list">
           {filtered.map(event => (
-            <EventRow key={event.id} event={event} nowMs={nowMs} />
+            <EventRow key={event.id} event={event} nowMs={nowMs} returnTo={`/events${route.search}`} onOpen={() => saveReturn(event)} />
           ))}
         </div>
       )}
+      {!loading && hasSearched && progress && <section className="mx-4 my-5 space-y-3" aria-label="More event results">
+        {progress.hasMore && <button type="button" onClick={() => continueSearch()} disabled={loadingMore} className="pg-action px-5 py-3 rounded-full bg-primary text-primary-foreground font-semibold">{loadingMore ? 'Loading more…' : 'Load more events'}</button>}
+        {sourceError && <button type="button" onClick={retrySearch} disabled={loadingMore} className="pg-action px-4 py-3 underline">Retry unavailable sources</button>}
+        <p role="status" className="text-sm text-muted-foreground">{loadingMore ? 'Loading the next results…' : progress.exhausted ? 'All available results loaded.' : progress.truncated ? 'The provider’s search limit was reached. Choose a city or a more specific search to explore further.' : sourceError ? 'Loaded results are preserved. Retry the unavailable sources to continue.' : 'More events are available.'}</p>
+      </section>}
     </div>
   );
 }
 
-function EventRow({ event, nowMs }) {
+function EventRow({ event, nowMs, returnTo, onOpen }) {
   const isTM = event.source === 'ticketmaster' || String(event.id || '').startsWith('tm_');
   const timing = !isTM && event.id ? getUpgradeEventState(event, nowMs) : null;
   const isLive = timing?.isLive;
@@ -482,6 +456,7 @@ function EventRow({ event, nowMs }) {
   const eventUrl = getEventUrl(event);
 
   const handleCardClick = () => {
+    onOpen?.();
     logNavEvent({
       result: eventUrl ? 'success' : 'navigation_error',
       event,
@@ -508,6 +483,7 @@ function EventRow({ event, nowMs }) {
         <p className="pg-browse-ticket-venue" title={[event.venue, event.city, event.state].filter(Boolean).join(', ')}>
           {event.venue}{event.city ? `, ${event.city}` : ''}{event.state ? `, ${event.state}` : ''}
         </p>
+        {eventVariantLabel(event) && <p className="pg-browse-ticket-detail">{eventVariantLabel(event)}</p>}
         <p className="pg-browse-ticket-detail" title={dateLabel}>{dateDisplay?.timeLabel || 'Time TBA'}</p>
         {isPGEvent && listingCount > 0 && (
           <p className="pg-browse-ticket-detail">
@@ -531,13 +507,13 @@ function EventRow({ event, nowMs }) {
   const cardClass = `pg-ticket pg-browse-ticket pg-printed-ticket pg-event-ticket ${isLive ? 'is-live' : ''}`;
 
   return (
-    <article className="pg-event-row">
+    <article id={`event-row-${event.id}`} className="pg-event-row">
       {eventUrl ? (
         <Link to={isLive ? `/upgrades/${event.id}` : eventUrl}
-          state={!isLive && isTM ? { tmEvent: event } : undefined}
+          state={{ discoveryReturnTo: returnTo, ...(!isLive && isTM ? { tmEvent: event } : {}) }}
           className={cardClass}
-          aria-label={`${isLive ? 'Open live hub for' : 'View'} ${event.title}, ${dateLabel}`}
-          onClick={isLive ? e => e.stopPropagation() : handleCardClick}>
+          aria-label={`${isLive ? 'Open live hub for' : 'View'} ${event.title}, ${dateLabel}${eventVariantLabel(event) ? `, ${eventVariantLabel(event)}` : ''}`}
+          onClick={isLive ? e => { onOpen?.(); e.stopPropagation(); } : handleCardClick}>
           {content}
         </Link>
       ) : <div className={cardClass} role="group" aria-disabled="true" aria-label={`${event.title}, event details unavailable`}>{content}</div>}

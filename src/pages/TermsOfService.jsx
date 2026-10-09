@@ -1,3 +1,6 @@
+import { useEffect, useRef } from 'react';
+import { prepareLegalDocument } from '@/lib/legalDocument';
+import { useLegalDocumentNavigation } from '@/hooks/useLegalDocumentNavigation';
 import PublicPage from '@/components/PublicPage';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
@@ -5,9 +8,13 @@ import { TOS_HTML } from '@/lib/tosHtml';
 
 export default function TermsOfService() {
   const navigate = useNavigate();
+  const pageRef = useRef(null);
+  const contentRef = useRef(null);
+  const onFragmentClick = useLegalDocumentNavigation(pageRef);
+  useEffect(() => { prepareLegalDocument(contentRef.current, { title: 'Terms of Service' }); }, []);
 
   return (
-    <PublicPage style={{ height: '100dvh', overflowY: 'auto' }}>
+    <PublicPage pageRef={pageRef} onClick={onFragmentClick} className="pg-legal-page" style={{ height: '100dvh', overflowY: 'auto' }}>
       {/* Header */}
       <div className="pg-public-header">
         <div className="flex items-center gap-3 px-4 pb-3">
@@ -16,13 +23,13 @@ export default function TermsOfService() {
             aria-label="Go back">
             <ChevronLeft className="w-5 h-5" />
           </button>
-          <h1 className="font-display text-xl text-foreground">Terms of Service</h1>
+          <h1 id="terms-title" className="font-display text-xl text-foreground">Terms of Service</h1>
         </div>
       </div>
 
-      <div className="px-5 py-6 pb-32 max-w-2xl mx-auto">
+      <main aria-labelledby="terms-title" className="px-5 py-6 pb-32 max-w-2xl mx-auto">
         {/* Render the Termly-generated TOS HTML */}
-        <div dangerouslySetInnerHTML={{ __html: TOS_HTML }} />
+        <div ref={contentRef} dangerouslySetInnerHTML={{ __html: TOS_HTML }} />
 
         {/* Scoped styles to make the injected TOS content readable in both light & dark mode */}
         <style>{`
@@ -156,7 +163,7 @@ export default function TermsOfService() {
             margin-bottom: 0;
           }
         `}</style>
-      </div>
+      </main>
     </PublicPage>
   );
 }

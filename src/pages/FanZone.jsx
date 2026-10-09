@@ -1,11 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import { Link, useLocation } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { formatDistanceToNow } from 'date-fns';
-import { Plus, X, Star, MapPin, Users, ChevronDown, RefreshCw, ArrowUpDown, Check, Pencil, Ticket, ArrowRight, MessageCircle, AlertCircle } from 'lucide-react';
+import { Plus, Star, MapPin, Users, ChevronDown, RefreshCw, ArrowUpDown, Check, Pencil, Ticket, ArrowRight, MessageCircle, AlertCircle } from 'lucide-react';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import FanPostComposer from '@/components/fanzone/FanPostComposer';
+import FanSortSheet, { FAN_SORT_OPTIONS } from '@/components/fanzone/FanSortSheet';
+import FanLocationFilter from '@/components/fanzone/FanLocationFilter';
+import { fanCoordinates, fanDistanceKm, nearbyFanPosts } from '@/components/fanzone/fanNearby';
+import { useFanLocation } from '@/hooks/useFanLocation';
+import { reliableTime } from '@/lib/eventTimestamp';
 import BucketListSheet from '@/components/fanzone/BucketListSheet';
 import BucketListIntro from '@/components/fanzone/BucketListIntro';
 import { filterBucketListPosts } from '@/components/fanzone/bucketListFeed';
@@ -16,27 +20,6 @@ const REACTIONS = [
   { key: 'eyes', emoji: '👀' },
   { key: 'peanut', emoji: '🥜' },
 ];
-
-// Sort options shown in the Fan Zone sort sheet — only the active one is ever
-// surfaced on the page itself (compact "⇅ <label> ▾" button).
-const SORT_OPTIONS = [
-  { id: 'upcoming', label: 'Upcoming Soonest' },
-  { id: 'newest_posted', label: 'Newest Posted' },
-  { id: 'recent_activity', label: 'Most Recent Activity' },
-  { id: 'most_liked', label: 'Most Liked' },
-  { id: 'most_commented', label: 'Most Commented' },
-  { id: 'closest', label: 'Closest Distance' },
-  { id: 'oldest_event', label: 'Oldest' },
-];
-
-const deg2rad = (d) => (d * Math.PI) / 180;
-function haversineKm(lat1, lng1, lat2, lng2) {
-  const R = 6371;
-  const dLat = deg2rad(lat2 - lat1);
-  const dLng = deg2rad(lng2 - lng1);
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
 
 export default function FanZone() {
   const location = useLocation();
@@ -70,12 +53,14 @@ export default function FanZone() {
   const [dateSort, setDateSort] = useState('upcoming');
   const [dateFilter, setDateFilter] = useState('all');
   const [sortSheetOpen, setSortSheetOpen] = useState(false);
+  const sortTrigger = useRef(null);
   const [bucketList, setBucketList] = useState([]);
   const [showBucketList, setShowBucketList] = useState(null);
   const [bucketLoading, setBucketLoading] = useState(true);
   const [bucketError, setBucketError] = useState(false);
   const bucketTrigger = useRef(null);
-  const [userLocation, setUserLocation] = useState(null);
+  const nearbyLocation = useFanLocation();
+  const userLocation = fanCoordinates(nearbyLocation.area?.ll);
   const [followingEmails, setFollowingEmails] = useState([]);
 
   useEffect(() => {
@@ -131,17 +116,6 @@ export default function FanZone() {
       setEventsLoading(false);
     }
   };
-
-  // Request geolocation when Near Me tab is selected
-  useEffect(() => {
-    if (feedTab !== 'nearby') return;
-    if (userLocation) return;
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(
-      pos => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => setUserLocation(null)
-    );
-  }, [feedTab]);
 
   const loadPosts = async () => {
     setLoading(true);
@@ -216,30 +190,11 @@ export default function FanZone() {
       // Trending: pre-sort by reaction score as base, then date sort overrides ordering
       base = [...withScore].sort((a, b) => b._score - a._score);
     } else if (feedTab === 'bucket') {
-      base = filterBucketListPosts(posts, bucketList, events);
+      base = filterBucketListPosts(withScore, bucketList, events);
     } else if (feedTab === 'nearby') {
-      if (!userLocation) {
-        base = posts.filter(p => !!p.event_city);
-      } else {
-        const RADIUS_KM = 80;
-        const deg2rad = d => d * Math.PI / 180;
-        const haversine = (lat1, lng1, lat2, lng2) => {
-          const R = 6371;
-          const dLat = deg2rad(lat2 - lat1);
-          const dLng = deg2rad(lng2 - lng1);
-          const a = Math.sin(dLat/2)**2 + Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.sin(dLng/2)**2;
-          return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        };
-        const nearbyEventIds = new Set(
-          events
-            .filter(e => e.venue_lat && e.venue_lng && haversine(userLocation.lat, userLocation.lng, e.venue_lat, e.venue_lng) <= RADIUS_KM)
-            .map(e => e.id)
-        );
-        const nearbyCities = new Set(events.filter(e => nearbyEventIds.has(e.id)).map(e => e.city).filter(Boolean));
-        base = posts.filter(p => nearbyEventIds.has(p.event_id) || (p.event_city && nearbyCities.has(p.event_city)));
-      }
+      base = nearbyFanPosts(withScore, events, nearbyLocation.area);
     } else if (feedTab === 'friends') {
-      base = (!user || followingEmails.length === 0) ? [] : posts.filter(p => followingEmails.includes(p.author_email));
+      base = (!user || followingEmails.length === 0) ? [] : withScore.filter(p => followingEmails.includes(p.author_email));
     } else {
       base = posts;
     }
@@ -251,7 +206,7 @@ export default function FanZone() {
       const ev = events.find(e => e.id === p.event_id);
       if (!ev) return null;
       const d = ev.event_start_utc || ev.date;
-      return d ? new Date(d).getTime() : null;
+      return reliableTime(d);
     };
     const getPostDate = (p) => p.created_date ? new Date(p.created_date).getTime() : null;
 
@@ -327,8 +282,7 @@ export default function FanZone() {
       if (userLocation) {
         const postDistance = (p) => {
           const ev = p.event_id ? events.find(e => e.id === p.event_id) : null;
-          if (ev && ev.venue_lat && ev.venue_lng) return haversineKm(userLocation.lat, userLocation.lng, ev.venue_lat, ev.venue_lng);
-          return null;
+          return fanDistanceKm(userLocation, ev);
         };
         base.sort((a, b) => {
           const da = postDistance(a), db = postDistance(b);
@@ -347,7 +301,7 @@ export default function FanZone() {
     loadPosts();
   });
 
-  const currentSortLabel = SORT_OPTIONS.find(o => o.id === dateSort)?.label || 'Sort';
+  const currentSortLabel = FAN_SORT_OPTIONS.find(o => o.id === dateSort)?.label || 'Sort';
   const currentDateLabel = { all: 'All dates', upcoming: 'Upcoming', past: 'Past', recent: 'Recent' }[dateFilter] || 'All dates';
 
   return (
@@ -391,9 +345,7 @@ export default function FanZone() {
             <button onClick={event => openBucketList('list', event)}>Manage list <Pencil size={14} aria-hidden="true" /></button>
           </div>
         )}
-        {feedTab === 'nearby' && (
-          <p className="pg-feed-hint"><MapPin size={14} aria-hidden="true" />{userLocation ? 'Showing posts within 80 km of your location' : 'Allow location access to see posts near you.'}</p>
-        )}
+        {feedTab === 'nearby' && <FanLocationFilter {...nearbyLocation} />}
         {feedTab === 'friends' && followingEmails.length === 0 && (
           <p className="pg-feed-hint">Friends shows posts from people you follow. Explore Trending for community posts, or check <Link to="/me">Followers on your profile</Link> to follow someone back.</p>
         )}
@@ -421,8 +373,8 @@ export default function FanZone() {
               </button>
             ))}
           </div>
-          <button onClick={() => setSortSheetOpen(true)} className="pg-sort-control"
-            aria-label={`Sort posts. Current: ${currentSortLabel}`}>
+          <button ref={sortTrigger} type="button" onClick={() => setSortSheetOpen(true)} className="pg-sort-control"
+            aria-haspopup="dialog" aria-expanded={sortSheetOpen} aria-label={`Sort posts. Current: ${currentSortLabel}`}>
             <ArrowUpDown size={16} aria-hidden="true" />
             <span>{currentSortLabel}</span>
             <ChevronDown size={14} aria-hidden="true" />
@@ -459,20 +411,20 @@ export default function FanZone() {
             {feedTab === 'bucket' ? <Star size={32} aria-hidden="true" /> : feedTab === 'nearby' ? <MapPin size={32} aria-hidden="true" /> : feedTab === 'friends' ? <Users size={32} aria-hidden="true" /> : <MessageCircle size={32} aria-hidden="true" />}
             <p className="font-bold text-foreground">
               {feedTab === 'bucket' ? 'No bucket list posts yet' :
-               feedTab === 'nearby' ? 'No nearby posts yet' :
+               feedTab === 'nearby' ? nearbyLocation.area ? 'No nearby posts yet' : 'Choose your nearby area' :
                feedTab === 'friends' ? 'No friend posts yet' :
                feedTab === 'trending' ? 'No trending posts yet' :
                'No fan posts yet'}
             </p>
             <p className="text-sm text-muted-foreground">
               {feedTab === 'bucket' ? 'Posts about your saved artists, teams and venues will show up here. Add more favorites to find more conversations.' :
-               feedTab === 'nearby' ? 'Allow location access or try another area' :
+               feedTab === 'nearby' ? nearbyLocation.area ? 'No posts match this area and your filters. Choose another city above or explore Trending.' : 'Use the location button or city search above to find nearby posts.' :
                feedTab === 'friends' ? 'Browse community posts in Trending. People search is not available yet.' :
                'Be the first to share a moment from an event.'}
             </p>
             {feedTab === 'bucket' ? (
               <button onClick={event => openBucketList('search', event)} className="pg-bucket-primary"><Plus size={17} aria-hidden="true" /> Add artists, teams & venues</button>
-            ) : feedTab === 'friends' ? (
+            ) : feedTab === 'friends' || feedTab === 'nearby' ? (
               <button type="button" onClick={() => { setFeedTab('trending'); setDateFilter('all'); }} className="pg-bucket-primary">Explore Trending</button>
             ) : (
               <button
@@ -504,37 +456,8 @@ export default function FanZone() {
         onClose={() => setFab(null)}
         onPosted={handlePosted}
       />}
-      {createPortal(<div className="pg-community-overlays">
-      {/* Sort bottom sheet */}
-      {sortSheetOpen && (
-        <div className="fixed inset-0 z-50 flex flex-col justify-end">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSortSheetOpen(false)} />
-          <div className="pg-fan-sort-sheet pg-detail-surface relative z-10 px-5 pt-5 overflow-y-auto"
-            style={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', paddingBottom: 'calc(7rem + env(safe-area-inset-bottom))' }}>
-            <div className="w-10 h-1 rounded-full mx-auto mb-5" style={{ background: 'hsl(var(--border))' }} />
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-bold text-base text-foreground">Sort by</h2>
-              <button onClick={() => setSortSheetOpen(false)} aria-label="Close sort sheet"><X className="w-5 h-5 text-muted-foreground" /></button>
-            </div>
-            <div className="space-y-1">
-              {SORT_OPTIONS.map(opt => {
-                if (opt.id === 'closest' && !(feedTab === 'nearby' && userLocation)) return null;
-                const active = dateSort === opt.id;
-                return (
-                  <button key={opt.id} onClick={() => { setDateSort(opt.id); setSortSheetOpen(false); }}
-                    className="w-full flex items-center justify-between px-3 py-3 rounded-xl text-left transition-all"
-                    style={{ background: active ? 'rgba(var(--neon-cyan-rgb),0.1)' : 'transparent' }}>
-                    <span className="text-sm font-semibold" style={{ color: active ? 'var(--neon-cyan)' : 'hsl(var(--foreground))' }}>{opt.label}</span>
-                    {active && <Check className="w-4 h-4" style={{ color: 'var(--neon-cyan)' }} />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
-
-      </div>, document.body)}
+      {isTabActive && sortSheetOpen && <FanSortSheet value={dateSort} allowDistance={feedTab === 'nearby' && Boolean(userLocation)}
+        onChange={setDateSort} onClose={() => setSortSheetOpen(false)} triggerRef={sortTrigger} />}
       {isTabActive && showBucketList && <BucketListSheet user={user} initialTab={showBucketList} initialItems={bucketList} triggerRef={bucketTrigger} onChange={setBucketList} onClose={() => setShowBucketList(null)} />}
     </>
   );

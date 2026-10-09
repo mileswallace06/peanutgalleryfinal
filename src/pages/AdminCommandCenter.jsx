@@ -4,8 +4,9 @@ import { base44 } from '@/api/base44Client';
 import { isAdmin } from '@/lib/isAdmin';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
-import { format, formatDistanceToNow } from 'date-fns';
-import { Shield, RefreshCw, AlertTriangle, CreditCard, Zap, Users, Activity, Brain, Radio, Database, Bell, ClipboardList, ArrowUpRight, Gauge } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
+import { summarizeAdminQueue, queueStatusLabel } from '@/lib/adminQueuePresentation';
+import { Shield, RefreshCw, AlertTriangle, CreditCard, Zap, Users, Activity, Brain, Radio, Database, Bell, ClipboardList, Gauge } from 'lucide-react';
 import TransferWindowAdminPanel from '@/components/admin/TransferWindowAdminPanel';
 import TransferIntelligencePanel from '@/components/admin/cc/TransferIntelligencePanel';
 import AdminAlertCenter from '@/components/admin/cc/AdminAlertCenter';
@@ -66,6 +67,8 @@ const SECTIONS = [
 export default function AdminCommandCenter() {
   const { user, isLoadingAuth } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [queueStates, setQueueStates] = useState({});
   const [lastRefresh, setLastRefresh] = useState(null);
   const [activeSection, setActiveSection] = useState('issues');
 
@@ -78,27 +81,51 @@ export default function AdminCommandCenter() {
 
   const loadAll = useCallback(async () => {
     setLoading(true);
-    const [p, l, d, sm] = await Promise.all([
-      base44.entities.Purchase.list('-created_date', 100),
-      base44.entities.Listing.list('-created_date', 100),
-      base44.entities.SeatDonation.list('-created_date', 50),
-      base44.functions.invoke('getStripeMode', {}).then(r => r.data).catch(() => null),
-    ]);
-    setPurchases(p || []);
-    setListings(l || []);
-    setDonations(d || []);
-    setStripeMode(sm);
-
-    // Load events for all purchases
-    const eids = [...new Set((p || []).map(x => x.event_id).filter(Boolean))];
-    const eMap = {};
-    await Promise.all(eids.map(async eid => {
-      const res = await base44.entities.Event.filter({ id: eid });
-      if (res[0]) eMap[eid] = res[0];
+    setLoadError(false);
+    setQueueStates({});
+    // Each operational queue has its own source and bounded read. A failed queue
+    // must never turn into an empty/all-clear queue or hide other loaded work.
+    const queueRequests = [
+      ['alerts', () => base44.entities.AdminAlert.list('-created_date', 100)],
+      ['reviews', () => base44.entities.Listing.filter({ proof_status: 'pending_review' }, '-created_date', 50)],
+      ['transfers', () => base44.entities.Listing.list('-updated_date', 200)],
+    ];
+    const queueLoad = Promise.all(queueRequests.map(async ([key, request]) => {
+      try {
+        const value = summarizeAdminQueue(key, await request());
+        setQueueStates(previous => ({ ...previous, [key]: value }));
+      } catch {
+        setQueueStates(previous => ({ ...previous, [key]: { status: 'error' } }));
+      }
     }));
-    setEvents(eMap);
-    setLastRefresh(new Date());
-    setLoading(false);
+    try {
+      const [p, l, d, sm] = await Promise.all([
+        base44.entities.Purchase.list('-created_date', 100),
+        base44.entities.Listing.list('-created_date', 100),
+        base44.entities.SeatDonation.list('-created_date', 50),
+        base44.functions.invoke('getStripeMode', {}).then(r => r.data).catch(() => null),
+      ]);
+      if (![p, l, d].every(Array.isArray)) throw new Error('Transaction feed unavailable');
+      setPurchases(p);
+      setListings(l);
+      setDonations(d);
+      setStripeMode(sm);
+      const eids = [...new Set([...p, ...l, ...d].map(x => x.event_id).filter(Boolean))];
+      const eMap = {};
+      await Promise.all(eids.map(async eid => {
+        try {
+          const res = await base44.entities.Event.filter({ id: eid });
+          if (res[0]) eMap[eid] = res[0];
+        } catch { /* Stable event references remain available when metadata cannot load. */ }
+      }));
+      setEvents(eMap);
+      setLastRefresh(new Date());
+    } catch {
+      setLoadError(true);
+    } finally {
+      await queueLoad;
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -135,7 +162,7 @@ export default function AdminCommandCenter() {
         </div>
         <a href="/founder" className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded hidden sm:block flex-shrink-0">Founder →</a>
         <a href="/admin-legacy" className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded hidden sm:block flex-shrink-0">Legacy →</a>
-        <button onClick={loadAll} disabled={loading}
+        <button aria-label="Refresh admin dashboard and queues" onClick={loadAll} disabled={loading}
           className="p-1.5 rounded-lg hover:bg-muted transition-colors flex-shrink-0">
           <RefreshCw className={`w-4 h-4 text-muted-foreground ${loading ? 'animate-spin' : ''}`} />
         </button>
@@ -143,13 +170,24 @@ export default function AdminCommandCenter() {
 
       {/* Summary bar */}
       <div className="px-4 pt-4">
-        <CommandSummaryBar
+        {loading ? <p role="status">Loading transaction summary…</p> : loadError ? <p role="alert">Transaction summary unavailable. Refresh to retry.</p> : <CommandSummaryBar
           purchases={purchases}
           listings={listings}
           donations={donations}
           stripeMode={stripeMode}
           onJump={setActiveSection}
-        />
+        />}
+        <section aria-label="Separate operational queues" className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3">
+          {[
+            { key: 'alerts', section: 'alerts', label: 'Open alerts', scope: 'Newest 100 alerts; resolved entries included in the window.' },
+            { key: 'reviews', section: 'review_queue', label: 'Listings pending review', scope: 'Up to 50 matching listings.' },
+            { key: 'transfers', section: 'transfer_intel', label: 'Listings needing reverification', scope: 'Newest 200 updated listings before eligibility filtering.' },
+          ].map(queue => <button key={queue.key} type="button" onClick={() => setActiveSection(queue.section)} className="pg-operations-card rounded-xl p-3 text-left">
+            <strong className="block text-sm">{queue.label}</strong>
+            <span role="status" className="block text-sm">{queueStatusLabel(queueStates[queue.key])}</span>
+            <span className="block text-xs text-muted-foreground">{queue.scope} Counts are not global totals.</span>
+          </button>)}
+        </section>
       </div>
 
       {/* Section nav */}
@@ -171,6 +209,7 @@ export default function AdminCommandCenter() {
 
       {/* Active section */}
       <div className="px-4 py-4 max-w-5xl mx-auto pb-20">
+        {['health', 'stripe', 'instant', 'ai', 'donations'].includes(activeSection) && (loading || loadError) && <p role={loadError ? 'alert' : 'status'}>{loadError ? 'This transaction-data section could not be loaded. Refresh the dashboard to retry.' : 'Loading this transaction-data section…'}</p>}
         {activeSection === 'issues' && (
           <IssueFeed
             purchases={purchases}
@@ -178,23 +217,25 @@ export default function AdminCommandCenter() {
             events={events}
             donations={donations}
             onRefresh={loadAll}
+            loading={loading}
+            error={loadError}
           />
         )}
-        {activeSection === 'health' && (
+        {activeSection === 'health' && !loading && !loadError && (
           <MarketplaceHealth
             purchases={purchases}
             listings={listings}
             events={events}
           />
         )}
-        {activeSection === 'stripe' && (
+        {activeSection === 'stripe' && !loading && !loadError && (
           <StripePanel
             purchases={purchases}
             stripeMode={stripeMode}
             onRefresh={loadAll}
           />
         )}
-        {activeSection === 'instant' && (
+        {activeSection === 'instant' && !loading && !loadError && (
           <InstantOpsPanel
             purchases={purchases}
             listings={listings}
@@ -202,7 +243,7 @@ export default function AdminCommandCenter() {
             onRefresh={loadAll}
           />
         )}
-        {activeSection === 'ai' && (
+        {activeSection === 'ai' && !loading && !loadError && (
           <AIVerificationPanel
             purchases={purchases}
             listings={listings}
@@ -210,7 +251,7 @@ export default function AdminCommandCenter() {
             onRefresh={loadAll}
           />
         )}
-        {activeSection === 'donations' && (
+        {activeSection === 'donations' && !loading && !loadError && (
           <DonationOpsPanel
             donations={donations}
             events={events}
@@ -218,7 +259,7 @@ export default function AdminCommandCenter() {
           />
         )}
         {activeSection === 'alerts' && (
-          <AdminAlertCenter />
+          <AdminAlertCenter onRefresh={loadAll} />
         )}
         {activeSection === 'transfers' && (
           <TransferWindowAdminPanel onRefresh={loadAll} />

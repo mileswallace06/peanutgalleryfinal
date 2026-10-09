@@ -1,3 +1,5 @@
+import { prepareLegalDocument } from '@/lib/legalDocument';
+import { useLegalDocumentNavigation } from '@/hooks/useLegalDocumentNavigation';
 import PublicPage from '@/components/PublicPage';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -9,6 +11,8 @@ const POLICY_SUPPORT_EMAIL = 'experience@peanutgallery.store';
 
 export default function PrivacyPolicy() {
   const navigate = useNavigate();
+  const pageRef = useRef(null);
+  const onFragmentClick = useLegalDocumentNavigation(pageRef);
   const policyContainerRef = useRef(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [loadState, setLoadState] = useState('loading');
@@ -42,19 +46,22 @@ export default function PrivacyPolicy() {
     );
 
     const observer = new MutationObserver(() => {
+      // The provider may append sections in more than one DOM update.
+      observer.disconnect();
+      prepareLegalDocument(policyContainer, { title: 'Privacy Policy', tableLabel: 'Privacy service providers' });
+      observer.observe(policyContainer, { childList: true, subtree: true, characterData: true });
       if (!finished && hasPolicyContent()) {
         finished = true;
         window.clearTimeout(timeoutId);
-        observer.disconnect();
         setLoadState('ready');
       }
     });
 
     const handleLoad = () => {
+      prepareLegalDocument(policyContainer, { title: 'Privacy Policy', tableLabel: 'Privacy service providers' });
       if (!finished && hasPolicyContent()) {
         finished = true;
         window.clearTimeout(timeoutId);
-        observer.disconnect();
         setLoadState('ready');
       }
     };
@@ -85,7 +92,7 @@ export default function PrivacyPolicy() {
   }, [loadAttempt]);
 
   return (
-    <PublicPage style={{ height: '100dvh', overflowY: 'auto' }}>
+    <PublicPage pageRef={pageRef} onClick={onFragmentClick} className="pg-legal-page" style={{ height: '100dvh', overflowY: 'auto' }}>
       {/* Header */}
       <div className="pg-public-header">
         <div className="flex items-center gap-3 px-4 pb-3">
@@ -94,11 +101,11 @@ export default function PrivacyPolicy() {
             aria-label="Go back">
             <ChevronLeft className="w-5 h-5" />
           </button>
-          <h1 className="font-display text-xl text-foreground">Privacy Policy</h1>
+          <h1 id="privacy-title" className="font-display text-xl text-foreground">Privacy Policy</h1>
         </div>
       </div>
 
-      <div className="px-5 py-6 pb-32 max-w-2xl mx-auto">
+      <main aria-labelledby="privacy-title" className="px-5 py-6 pb-32 max-w-2xl mx-auto">
         {loadState === 'loading' && (
           <div
             role="status"
@@ -189,7 +196,8 @@ export default function PrivacyPolicy() {
           .uc-privacy-policy a {
             color: var(--neon-cyan) !important;
             text-decoration: underline;
-            word-break: break-all;
+            word-break: normal;
+            overflow-wrap: anywhere;
           }
           .uc-privacy-policy a:hover {
             opacity: 0.8;
@@ -208,11 +216,12 @@ export default function PrivacyPolicy() {
             color: hsl(var(--muted-foreground));
           }
           .uc-privacy-policy table {
-            width: 100%;
+            width: max(100%, calc(var(--pg-legal-columns, 5) * 11rem)) !important;
+            max-width: none !important;
             border-collapse: collapse;
             margin: 0 0 1.5em 0;
             font-size: 13px;
-            table-layout: fixed;
+            table-layout: fixed !important;
             display: table;
           }
           .uc-privacy-policy thead {
@@ -222,6 +231,7 @@ export default function PrivacyPolicy() {
           .uc-privacy-policy td {
             border: 1px solid hsl(var(--border)) !important;
             padding: 10px 14px;
+            width: calc(100% / var(--pg-legal-columns, 5)) !important;
             text-align: left;
             vertical-align: top;
             white-space: normal !important;
@@ -259,7 +269,7 @@ export default function PrivacyPolicy() {
             margin-bottom: 0;
           }
         `}</style>
-      </div>
+      </main>
     </PublicPage>
   );
 }

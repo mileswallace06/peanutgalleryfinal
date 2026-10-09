@@ -34,6 +34,24 @@
 .pg-date-filters button.is-active { background: var(--pg-surface-raised); color: var(--pg-text); }
 .pg-sort-control { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 8px 0; font-size: 12px; font-weight: 600; color: var(--pg-muted); }
 .pg-sort-control > svg { flex-shrink: 0; }
+.pg-fan-sort-backdrop { position: fixed; inset: 0; z-index: 150; background: #080710b8; }
+.pg-fan-sort-dialog { position: fixed; z-index: 151; bottom: 0; left: 50%; transform: translateX(-50%); width: min(100%, 500px); max-height: calc(100dvh - 20px); overflow-y: auto; overscroll-behavior: contain; padding: 16px 20px max(24px, env(safe-area-inset-bottom)); border: 1px solid var(--pg-line); border-radius: 20px 20px 0 0; background: var(--pg-surface); color: var(--pg-text); }
+.pg-fan-sort-dialog > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.pg-fan-sort-dialog h2 { font-size: 18px; font-weight: 800; }
+.pg-fan-sort-dialog > header button { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 8px; flex-shrink: 0; }
+.pg-fan-sort-dialog > p { margin: 4px 0 12px; color: var(--pg-muted); font-size: 13px; line-height: 1.5; }
+.pg-fan-sort-options { display: grid; gap: 4px; }
+.pg-fan-sort-options > button { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 48px; padding: 12px; border-radius: 10px; text-align: left; font-size: 14px; font-weight: 650; }
+.pg-fan-sort-options > button[aria-pressed='true'] { background: var(--pg-surface-raised); color: var(--pg-text); }
+.pg-fan-sort-options > button > svg { flex-shrink: 0; }
+.pg-fan-sort-dialog button:focus-visible, .pg-fan-location button:focus-visible { outline: 3px solid var(--pg-cyan); outline-offset: -3px; }
+.pg-fan-location { padding: 12px 0; min-width: 0; }
+.pg-fan-location > p { display: flex; align-items: center; gap: 6px; color: var(--pg-text); font-size: 13px; line-height: 1.5; }
+.pg-fan-location > p > svg { flex-shrink: 0; }
+.pg-fan-location-enable { min-height: 44px; padding: 8px 14px; border: 1px solid var(--pg-field-boundary); border-radius: 9px; background: var(--pg-surface-raised); color: var(--pg-text); font-size: 13px; font-weight: 700; margin: 10px 0; }
+.pg-fan-location-enable:disabled { opacity: .65; }
+.pg-fan-location .pg-fan-location-label { margin-bottom: 6px; font-weight: 700; }
+.pg-fan-location .pg-fan-location-note, .pg-fan-location .pg-fan-location-current { font-size: 12px; color: var(--pg-muted); margin-top: 6px; }
 .pg-feed { min-width: 0; }
 .pg-fan-post { padding: 14px 0 9px; border-bottom: 1px solid var(--pg-line); min-width: 0; }
 .pg-post-author-row { display: flex; align-items: center; gap: 9px; margin-bottom: 9px; }
