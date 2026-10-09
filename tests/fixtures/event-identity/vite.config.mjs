@@ -7,7 +7,7 @@ const root = fileURLToPath(new URL('../../../', import.meta.url));
 const fixture = fileURLToPath(new URL('./', import.meta.url));
 const baseline = process.env.PG_IDENTITY_CAPTURE_BEFORE === '1';
 const sources = new Map();
-export default defineConfig({ root, cacheDir: `${root}node_modules/.vite-event-identity${baseline ? '-baseline' : ''}`, plugins: [fixtureSourceIsolation(), 
+export default defineConfig({ root, cacheDir: `${root}node_modules/.vite-event-identity${baseline ? '-baseline' : ''}`, plugins: [fixtureSourceIsolation(),
   // Read-only historical rendering: never rewrite the shared worktree to take
   // before screenshots while other agents are editing it.
   ...(baseline ? [{ name: 'identity-reviewed-baseline', enforce: 'pre', load(id) {
