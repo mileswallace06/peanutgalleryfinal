@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import { transform } from 'esbuild';
+import { loadEligibleFlashDropListings, ownershipLookupMessage } from '../src/lib/flashDropOwnership.js';
 
 const source = await readFile(new URL('../src/components/flashdrops/CreateFlashDropSheet.jsx', import.meta.url), 'utf8');
 const css = await readFile(new URL('../src/components/flashdrops/fan-gifts-ticket.css', import.meta.url), 'utf8');
@@ -17,17 +18,17 @@ const text = value => nodes(value).filter(node => typeof node === 'string').join
 // Execute the actual component and callbacks with isolated hook/API fixtures.
 // Radix primitives are structural markers here; browser focus trapping and
 // rendered layout require a separate UI check, not this Node fixture.
-function fixture() {
+function fixture({ lookup } = {}) {
   const state = [], refs = [];
-  const effects = [];
-  let stateCursor = 0, refCursor = 0, closeCount = 0, remoteCalls = 0;
+  const effects = [], effectDeps = [], cleanups = [];
+  let stateCursor = 0, refCursor = 0, effectCursor = 0, closeCount = 0, remoteCalls = 0;
   const focus = [];
   const trigger = { isConnected: true, focus: options => focus.push({ target: 'trigger', options }) };
   const document = { activeElement: trigger };
   const module = { exports: {} };
   const forbidden = () => { remoteCalls++; throw new Error('No API calls expected for dialog navigation'); };
   vm.runInNewContext(output.code, {
-    module, exports: module.exports, h, Fragment: 'fragment', document,
+    module, exports: module.exports, h, Fragment: 'fragment', document, loadEligibleFlashDropListings, ownershipLookupMessage,
     Dialog: Object.fromEntries(['Root', 'Portal', 'Overlay', 'Content', 'Close', 'Title', 'Description'].map(key => [key, `dialog-${key}`])),
     motion: { div: 'div' }, X: 'icon', Zap: 'icon', Clock: 'icon',
     useId: () => 'fixture-gift',
@@ -41,17 +42,22 @@ function fixture() {
       if (!(index in refs)) refs[index] = { current: initial };
       return refs[index];
     },
-    useEffect: effect => effects.push(effect),
+    useEffect: (effect, deps) => {
+      const index = effectCursor++;
+      if (effectDeps[index] && deps?.every((value, i) => Object.is(value, effectDeps[index][i]))) return;
+      effectDeps[index] = deps;
+      effects.push(() => { cleanups[index]?.(); cleanups[index] = effect(); });
+    },
     base44: {
       entities: { Listing: { filter: forbidden } },
-      functions: { invoke: forbidden }, integrations: { Core: { UploadFile: forbidden } },
+      functions: { invoke: lookup ? async (name, args) => { remoteCalls++; assert.equal(name, 'getListingParticipantView'); assert.equal(args.action, 'list_mine'); return lookup(remoteCalls); } : forbidden }, integrations: { Core: { UploadFile: forbidden } },
     },
   });
   const Sheet = module.exports.default;
   let tree;
   const find = (type, predicate = () => true) => nodes(tree).find(node => node?.type === type && predicate(node));
   const render = () => {
-    stateCursor = 0; refCursor = 0; effects.length = 0;
+    stateCursor = 0; refCursor = 0; effectCursor = 0; effects.length = 0;
     tree = Sheet({ event: { id: 'event-fixture', title: 'Fixture event' }, user: { email: 'fan@example.test' }, onClose: () => closeCount++ });
     find('dialog-Close').props.ref.current = { focus: options => focus.push({ target: 'close', options }) };
     find('dialog-Title').props.ref.current = { focus: options => focus.push({ target: 'heading', options }) };
@@ -160,4 +166,54 @@ test('portaled sheet stacking and scroll bounds explicitly clear navigation and 
   assert.match(sheet, /padding-bottom:.*safe-area-inset-bottom/);
   assert.match(css, /\.pg-gift-upload:focus-within/);
   assert.match(css, /prefers-reduced-motion: reduce/);
+});
+
+
+const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
+const openDetails = app => { app.find('button', node => text(node).includes('Immediate Drop')).props.onClick(); app.render(); };
+
+test('ownership lookup announces loading/empty and prevents duplicate in-flight calls', async () => {
+  const pending = deferred();
+  const app = fixture({ lookup: () => pending.promise });
+  openDetails(app);
+  const request = app.button('Check my listings for this event').props.onClick();
+  app.render();
+  assert.equal(app.button('Checking listings…').props.disabled, true);
+  assert.match(text(app.find('p', node => node.props.role === 'status')), /Checking your active listings/);
+  await app.button('Checking listings…').props.onClick();
+  assert.equal(app.calls, 1);
+  pending.resolve({ data: { listings: [] } });
+  await request; app.render();
+  assert.match(text(app.find('p', node => node.props.role === 'status')), /No eligible active listings/);
+  assert.match(text(app.tree), /does not confirm seat ownership/);
+  assert.ok(app.button('Check listings again'));
+  assert.ok(app.find('input', node => node.props.type === 'file'), 'alternate upload is retained');
+});
+
+test('permission and network errors remain recoverable errors, then retry reveals selectable eligible choices', async () => {
+  for (const status of [403, 503]) {
+    const app = fixture({ lookup: call => {
+      if (call === 1) throw Object.assign(new Error('fixture error'), { status });
+      return { data: { listings: [
+        { id: 'eligible', event_id: 'event-fixture', section: '104', row: 'B', seats: '1–2', asking_price: 20, status: 'active' },
+        { id: 'other-event', event_id: 'other', status: 'active' },
+        { id: 'sold', event_id: 'event-fixture', status: 'sold' },
+      ] } };
+    } });
+    openDetails(app);
+    await app.button('Check my listings for this event').props.onClick(); app.render();
+    assert.match(text(app.find('p', node => node.props.role === 'status')), /could not check your listings/);
+    assert.doesNotMatch(text(app.tree), /No eligible active listings/);
+    await app.button('Retry listing check').props.onClick(); app.render();
+    assert.match(text(app.find('p', node => node.props.role === 'status')), /1 active listing found/);
+    const choice = app.find('button', node => /Sec\s+104/.test(text(node)));
+    assert.equal(choice.props['aria-pressed'], false, 'no implicit ownership/seat selection');
+    choice.props.onClick(); app.render();
+    assert.equal(app.find('button', node => /Sec\s+104/.test(text(node))).props['aria-pressed'], true);
+    assert.equal(app.calls, 2);
+  }
+});
+
+test('malformed participant result is an error, never successful emptiness', async () => {
+  await assert.rejects(loadEligibleFlashDropListings({ functions: { invoke: async () => ({ data: {} }) } }, 'event-fixture'), /could not be checked/);
 });

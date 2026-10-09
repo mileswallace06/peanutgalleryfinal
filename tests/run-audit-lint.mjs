@@ -1,0 +1,11 @@
+import { ESLint } from 'eslint';
+import { readFile } from 'node:fs/promises';
+const files = JSON.parse(await readFile(new URL('./audit-source-files.json', import.meta.url), 'utf8'));
+const eslint = new ESLint({ overrideConfigFile: 'tests/eslint-audit.config.mjs' });
+const results = await eslint.lintFiles(files);
+const formatter = await eslint.loadFormatter('stylish');
+console.log(formatter.format(results));
+const errors = results.reduce((n,r) => n + r.errorCount, 0);
+const warnings = results.reduce((n,r) => n + r.warningCount, 0);
+console.log(JSON.stringify({ files: results.length, errors, warnings, mutating: false }));
+process.exitCode = errors ? 1 : 0;

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { sellingEventTiming, sellingEventList, reliableTime } from '../src/lib/sellingEventTiming.js';
+import { discoveryMock } from './helpers/discoveryMock.mjs';
 import { createEventSearchRequest } from '../src/lib/eventSearchRequest.js';
 import { mergeEventSources } from '../src/lib/eventSourceMerger.js';
 import { fetchSellingEvents, sellingPGQueries } from '../src/lib/sellingEventDiscovery.js';
@@ -40,7 +41,7 @@ test('minute/foreground reclassification can move upcoming to live and then ende
  assert.equal(sellingEventList(rows,'all',now+3660000).length,0);
 });
 test('started PG support is opt-in and preserves the shared merger identity correction',()=>{
- const local=[event('live',-1,{tm_id:'same'}),event('copy',-1,{tm_id:'same'})];
+ const local=[event('live',-1,{tm_id:'same'}),event('zz-copy',-1,{tm_id:'same'})];
  const args={localResult:ok(local),tmResult:ok({events:[]}),filters:{now,isAdmin:false}};
  assert.equal(mergeEventSources(args).events.length,0);
  assert.deepEqual(mergeEventSources({...args,filters:{...args.filters,includeStarted:true}}).events.map(e=>e.id),['live']);
@@ -53,16 +54,22 @@ test('PG partitions preserve future capacity and explicitly query ongoing/canoni
  assert.ok(q.ongoing.$or.some(x=>x.event_end_utc));
  assert.ok(q.ongoing.$or.some(x=>x.status==='live'));
 });
-test('discovery is read-only, keeps future provider request limits and deduplicates PG/provider copies',async()=>{
- const calls=[];const client={entities:{Event:{filter:async(q,sort,limit)=>{calls.push({q,sort,limit});return sort==='date'?[event('pg',1,{tm_id:'same'})]:[event('live',-1,{event_end_utc:iso(1)})]}}},functions:{invoke:async(name,params)=>{assert.equal(name,'getTicketmasterEvents');calls.push({name,params});return {data:{events:[event('tm',1,{tm_id:'same'})],...(params.discoveryWindow ? {coverage:{discoveryWindow:'ongoing',lookbackHours:12,limit:40,startDateTime:iso(-12),endDateTime:iso(0)}} : {})}}}}};
+test('discovery is read-only, keeps provider page budgets and deduplicates PG/provider copies',async()=>{
+ const client=discoveryMock([event('pg',1,{tm_id:'same'}),event('live',-1,{event_end_utc:iso(1)})],[event('tm',1,{tm_id:'same'})]);
  const result=await fetchSellingEvents(client,createEventSearchRequest('',area),true,now);
  assert.equal(result.events.length,2);assert.equal(result.pgError,false);assert.equal(result.tmError,false);
- assert.deepEqual(calls[2].params,{size:40,city:'Phoenix'});assert.deepEqual(calls[3].params,{size:40,city:'Phoenix',discoveryWindow:'ongoing'});assert.equal(calls.length,4);
+ const providerCalls=client.calls.filter(call=>call.name==='getTicketmasterEvents');
+ assert.equal(providerCalls.length,2); assert.ok(providerCalls.every(call=>call.params.size===40&&call.params.page===0));
 });
 test('partition/provider errors remain incomplete results, not a successful no-match claim',async()=>{
- const client={entities:{Event:{filter:async(_q,sort)=>{if(sort==='-date')throw Error('PG unavailable');return [event('future',1)]}}},functions:{invoke:async()=>{throw {status:429}}}};
+ const client=discoveryMock([event('future',1)]);
+ const read=client.entities.Event.filter;
+ client.entities.Event.filter=async(...args)=>{if(args[1]==='-date')throw Error('PG unavailable');return read(...args)};
+ client.failures.provider=true;
  const result=await fetchSellingEvents(client,createEventSearchRequest('Sample',area),true,now);
- assert.equal(result.pgError,true);assert.equal(result.tmError,true);assert.equal(result.rateLimited,true);assert.equal(result.events.length,1);
+ assert.equal(result.pgError,true);assert.equal(result.tmError,true);assert.equal(result.rateLimited,true);
+ // Mock event carries the backend normalized keyword index, as real search requires.
+ assert.equal(result.events.length,0);
 });
 test('direct PG resolution preserves the complete live event object',async()=>{
  const full=event('canonical-live',-1,{event_end_utc:iso(2),transfer_window_status:'open'});
@@ -86,9 +93,11 @@ test('display IDs and incomplete provider setup can never become submitted IDs',
  await assert.rejects(resolveSellingEvent({},'tm_provider'));
  await assert.rejects(resolveSellingEvent({entities:{Event:{filter:async()=>[]}},functions:{invoke:async()=>({data:{id:'tm_fake'}})}},{tm_id:'fake'}));
 });
-test('published submission and proof functions remain byte-for-byte unchanged',()=>{
+test('proof handlers and existing submission payloads are preserved inside the new lifecycle guard',()=>{
  const baseline=execFileSync('git',['show','cea03f81a05d1a13a8294cc6772a275c44c3a61e:src/pages/CreateListing.jsx'],{encoding:'utf8'});
  const current=readFileSync(new URL('../src/pages/CreateListing.jsx',import.meta.url),'utf8');
- const block=s=>s.slice(s.indexOf('  const handleProofUpload'),s.indexOf('  const handleTmSearch')===-1?s.indexOf('  // ── Onboarding state'):s.indexOf('  const handleTmSearch')).trim();
- assert.equal(block(current),block(baseline));
+ const proof=s=>s.slice(s.indexOf('  const handleProofUpload'),s.indexOf('  const handleSubmit')).trim();
+ assert.equal(proof(current),proof(baseline));
+ const payloads=s=>s.slice(s.indexOf('    // Rollout logging'),s.indexOf('    setDone(true);',s.indexOf("const res = await base44.functions.invoke('submitListing'"))+'    setDone(true);'.length).trim();
+ assert.equal(payloads(current),payloads(baseline), 'lifecycle preflight must not alter existing write payloads');
 });

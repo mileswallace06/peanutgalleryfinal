@@ -23,7 +23,8 @@ test('ongoing windows are server-owned, bounded, separate and descending',()=>{
 });
 test('server rejects invalid modes, numeric coercions and caller-controlled history',()=>{
  for(const body of [null,[],{discoveryWindow:null},{discoveryWindow:'all'},{keyword:{}},{city:'a'.repeat(101)},{latlong:',2'},{latlong:'91,0'},{latlong:'1,Infinity'},{radius:[]},{radius:501},{size:true},{size:1.2},{size:201}]) assert.ok(buildTMDiscoveryRequest(body,now).error,JSON.stringify(body));
- for(const key of ['startDateTime','endDateTime','lookbackHours','page','startEndDateTime']) assert.equal(buildTMDiscoveryRequest({[key]:'anything'},now).error,'unsupported_time_window');
+ assert.equal(buildTMDiscoveryRequest({page:'anything'},now).error,'invalid_page');
+ for(const key of ['startDateTime','endDateTime','lookbackHours','startEndDateTime']) assert.equal(buildTMDiscoveryRequest({[key]:'anything'},now).error,'unsupported_time_window');
 });
 test('normalization retains explicit start/end/timezone and does not manufacture midnight',()=>{
  const raw=sample(), e=normalizeTMEvent(raw);

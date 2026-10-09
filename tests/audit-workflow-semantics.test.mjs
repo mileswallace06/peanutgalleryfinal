@@ -5,6 +5,7 @@ import vm from 'node:vm';
 import { transform } from 'esbuild';
 import { restoreEventLocation, saveEventLocation, sameEventLocation, subscribeEventLocation, cityFromSuggestion, validCoordinates } from '../src/lib/eventLocation.js';
 import { getEventDateDisplay } from '../src/lib/eventDateDisplay.js';
+import { summarizeSellerHistory, SELLER_HISTORY_SCOPE } from '../src/lib/salesPresentation.js';
 import { sellingEventList } from '../src/lib/sellingEventTiming.js';
 import { createEventSearchRequest } from '../src/lib/eventSearchRequest.js';
 
@@ -220,6 +221,7 @@ test('Sell renders no-location, denied, empty, incomplete, and populated fixture
   const user = { email: 'fixture@example.invalid', stripe_onboarding_complete: true };
   const { default: Sell, ListingRow } = await compile(`${source}\nexport { ListingRow };`, {
     ...fixture.hooks, useSellingDiscovery: () => discovery, useEventClock: () => Date.parse('2099-10-01T00:00:00Z'),
+    useSellerSummary: () => ({ status: 'ready', summary: summarizeSellerHistory([]), reload() {} }), SELLER_HISTORY_SCOPE,
     sellingEventList, getEventDateDisplay, Link: 'a', useSearchParams: () => [new URLSearchParams()],
     LocationAutocomplete: 'city-picker', isAdmin: () => false,
     base44: { auth: { me: async () => user }, entities: { Listing: { filter: async () => [] } } },

@@ -26,7 +26,7 @@ test('timing merge preserves actual PG end when absent upstream, and clears it f
 });
 test('ongoing/upcoming caches are separate, stable, coalesced and retain coverage',async()=>{
  bustTMCache();let calls=0,release;const gate=new Promise(r=>release=r);
- const client={functions:{invoke:async(_name,p)=>{calls++;await gate;return {data:{events:[e(p.discoveryWindow||'future',1)],...(p.discoveryWindow?{coverage}:{})}}}}};
+ const client={functions:{invoke:async(_name,p)=>{calls++;await gate;return {data:{pagination:{page:0,size:40,hasMore:false,nextPage:null,truncated:false},events:[e(p.discoveryWindow||'future',1)],...(p.discoveryWindow?{coverage}:{})}}}}};
  const params={city:'Phoenix',size:40}, ongoing={...params,discoveryWindow:'ongoing'};
  const a=fetchTMEvents(client,ongoing),b=fetchTMEvents(client,ongoing),c=fetchTMEvents(client,params);assert.equal(calls,2);release();
  const results=await Promise.all([a,b,c]);assert.deepEqual(results[0].coverage,coverage);assert.equal(results[2].events[0].id,'future');
@@ -35,7 +35,7 @@ test('ongoing/upcoming caches are separate, stable, coalesced and retain coverag
  bustTMCache(ongoing);await fetchTMEvents(client,ongoing);assert.equal(calls,3);assert.equal((await fetchTMEvents(client,params)).fromCache,true);
 });
 test('cache key separators cannot collide and unsupported old handler is an error',async()=>{
- bustTMCache();let calls=0;const client={functions:{invoke:async()=>{calls++;return {data:{events:[]}}}}};
+ bustTMCache();let calls=0;const client={functions:{invoke:async()=>{calls++;return {data:{pagination:{page:0,size:40,hasMore:false,nextPage:null,truncated:false},events:[]}}}}};
  await fetchTMEvents(client,{keyword:'a&size=40'});await fetchTMEvents(client,{keyword:'a',size:40});assert.equal(calls,2);
  await assert.rejects(fetchTMEvents(client,{discoveryWindow:'ongoing',size:40}));
  await assert.rejects(fetchTMEvents(client,{discoveryWindow:'ongoing',size:40}));assert.equal(calls,4);
@@ -44,7 +44,7 @@ test('selling uses separate 40-result budgets, deduplicates identity and retains
  bustTMCache();const calls=[];
  const provider=e('identity',-1,{event_start_utc:iso(-1),event_end_utc:iso(1)});
  const pg=e('pg',-1,{tm_id:'identity',event_end_utc:null});
- const client={entities:{Event:{filter:async(_q,sort)=>sort==='-date'?[pg, {...pg,id:'duplicate'}]:[],get:async()=>pg}},functions:{invoke:async(name,p)=>{calls.push(p);return {data:{events:p.discoveryWindow?[provider]:[e('another-performance',2)],...(p.discoveryWindow?{coverage}:{})}}}}};
+ const client={entities:{Event:{filter:async(_q,sort)=>sort==='-date'?[pg, {...pg,id:'zz-duplicate'}]:[],get:async()=>pg}},functions:{invoke:async(name,p)=>{calls.push(p);return {data:{pagination:{page:0,size:40,hasMore:false,nextPage:null,truncated:false},events:p.discoveryWindow?[provider]:[e('another-performance',2)],...(p.discoveryWindow?{coverage}:{})}}}}};
  const result=await fetchSellingEvents(client,createEventSearchRequest('',{city:'Phoenix',state:'AZ'}),true,now);
  assert.equal(calls.length,2);assert.ok(calls.every(p=>p.size===40&&p.city==='Phoenix'));assert.equal(calls.filter(p=>p.discoveryWindow==='ongoing').length,1);
  assert.equal(result.events.length,2);const selected=result.events.find(x=>x.id==='pg');assert.equal(selected.event_end_utc,iso(1));assert.equal(sellingEventTiming(selected,now).status,'live');
@@ -53,12 +53,12 @@ test('selling uses separate 40-result budgets, deduplicates identity and retains
 });
 test('provider failure retains valid PG and future results without an empty-live proof',async()=>{
  bustTMCache();const pg=e('pg-live',-1,{event_end_utc:iso(1)});
- const client={entities:{Event:{filter:async(_q,sort)=>sort==='-date'?[pg]:[]}},functions:{invoke:async(_name,p)=>{if(p.discoveryWindow)throw {status:429};return {data:{events:[e('future',2)]}}}}};
+ const client={entities:{Event:{filter:async(_q,sort)=>sort==='-date'?[pg]:[]}},functions:{invoke:async(_name,p)=>{if(p.discoveryWindow)throw {status:429};return {data:{pagination:{page:0,size:40,hasMore:false,nextPage:null,truncated:false},events:[e('future',2)]}}}}};
  const r=await fetchSellingEvents(client,createEventSearchRequest('',{city:'Phoenix',state:'AZ'}),true,now);
  assert.equal(r.tmOngoingError,true);assert.equal(r.tmError,true);assert.equal(r.rateLimited,true);assert.equal(r.pgError,false);assert.equal(r.events.length,2);assert.equal(sellingEventList(r.events,'live',now).length,1);
 });
 test('both provider windows respect GPS/local keyword and nationwide removes all local restrictions',async()=>{
- const calls=[];const client={entities:{Event:{filter:async()=>[]}},functions:{invoke:async(_n,p)=>{calls.push(p);return {data:{events:[],...(p.discoveryWindow?{coverage}:{})}}}}};
+ const calls=[];const client={entities:{Event:{filter:async()=>[]}},functions:{invoke:async(_n,p)=>{calls.push(p);return {data:{pagination:{page:0,size:40,hasMore:false,nextPage:null,truncated:false},events:[],...(p.discoveryWindow?{coverage}:{})}}}}};
  for(const scope of ['local','nationwide']){
  bustTMCache();calls.length=0;await fetchSellingEvents(client,createEventSearchRequest('Artist',{ll:'33.45,-112.07'},scope),true,now);
  assert.equal(calls.length,2);for(const p of calls){assert.equal(p.keyword,'Artist');assert.equal(p.latlong,scope==='local'?'33.45,-112.07':undefined);assert.equal(p.radius,scope==='local'?'50':undefined);assert.equal(p.city,undefined);}

@@ -13,7 +13,7 @@ const eventsSource = await readFile(path.join(root, 'src/pages/Events.jsx'), 'ut
 const rowStart = eventsSource.indexOf('\nfunction EventRow(');
 assert.ok(rowStart >= 0, 'Expected the actual EventRow function in Events.jsx');
 const requiredImports = new Set([
-  'react-router-dom', 'date-fns', 'lucide-react', '@/lib/eventTiming',
+  'react-router-dom', 'lucide-react', '@/lib/upgradeEventState', '@/lib/eventDateDisplay', '@/lib/eventIdentity',
   '@/lib/eventUrl', '@/lib/navLogger', '@/components/events/EventThumbnail',
 ]);
 const rowImports = eventsSource.split('\n').filter(line => {
@@ -120,13 +120,15 @@ for (const [label, fields, expectedTo, expectTmState, isLive] of [
 ]) {
   test(`Events ${label}: one wrapping link preserves destination, state, and click behavior`, () => {
     const event = { ...baseEvent, ...fields };
-    const row = EventRow({ event });
+    const returnTo = '/events?browse=1&q=Fixture';
+    let opened = 0;
+    const row = EventRow({ event, returnTo, onOpen: () => { opened++; } });
     const links = nodes(row).filter(node => node.type === Link);
     assert.equal(links.length, 1);
     assert.equal(row.type, 'article');
     assert.equal(row.props.children, links[0]);
     assert.equal(links[0].props.to, expectedTo);
-    assert.deepEqual(links[0].props.state, expectTmState ? { tmEvent: event } : undefined);
+    assert.deepEqual(links[0].props.state, { discoveryReturnTo: returnTo, ...(expectTmState ? { tmEvent: event } : {}) });
     assert.equal(nodes(row).filter(node => node.type === 'button' || node.type === 'a').length, 0);
     const wrapped = nodes(links[0]);
     assert.ok(wrapped.some(node => node.props?.className === 'pg-browse-ticket-art'));
@@ -135,6 +137,7 @@ for (const [label, fields, expectedTo, expectTmState, isLive] of [
     navigationCalls.length = 0;
     let stopped = 0;
     links[0].props.onClick({ stopPropagation() { stopped += 1; } });
+    assert.equal(opened, 1, 'return position saved before navigation');
     assert.equal(stopped, isLive ? 1 : 0);
     assert.equal(navigationCalls.length, isLive ? 0 : 1);
     if (!isLive) {

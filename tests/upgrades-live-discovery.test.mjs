@@ -4,6 +4,7 @@ import { getUpgradeEventTiming, groupUpgradeEvents } from '../src/lib/upgradeDis
 import { fetchSellingEvents } from '../src/lib/sellingEventDiscovery.js';
 import { createEventSearchRequest } from '../src/lib/eventSearchRequest.js';
 import { sellingEventList } from '../src/lib/sellingEventTiming.js';
+import { matches } from './helpers/discoveryMock.mjs';
 import { bustTMCache } from '../src/lib/tmCache.js';
 
 const now = Date.parse('2026-09-28T01:30:00Z');
@@ -28,7 +29,7 @@ function discoveryClient({ pgFuture = [], pgOngoing = [], tmFuture = [], tmOngoi
       calls.pg.push({ query, sort, limit, skip });
       const key = sort === '-date' ? 'pgOngoing' : 'pgFuture';
       if (fail[key]) throw fail[key];
-      return key === 'pgOngoing' ? pgOngoing : pgFuture;
+      return (key === 'pgOngoing' ? pgOngoing : pgFuture).filter(row => matches(row, query));
     } } },
     functions: { invoke: async (name, params) => {
       assert.equal(name, 'getTicketmasterEvents');
@@ -36,6 +37,7 @@ function discoveryClient({ pgFuture = [], pgOngoing = [], tmFuture = [], tmOngoi
       const key = params.discoveryWindow === 'ongoing' ? 'tmOngoing' : 'tmFuture';
       if (fail[key]) throw fail[key];
       return { data: {
+        pagination: {page:params.page||0,size:40,hasMore:false,nextPage:null,truncated:false},
         events: key === 'tmOngoing' ? tmOngoing : tmFuture,
         ...(key === 'tmOngoing' ? { coverage } : {}),
       } };
@@ -58,14 +60,13 @@ test('Upgrades finds started provider events absent from upcoming results and ke
   assert.deepEqual(liveIds(groups.upcoming), ['tm_tomorrow']);
   assert.equal(groups.live.find(value => value.id === 'pg-canonical').event_end_utc, iso(1));
   assert.deepEqual(client.calls.tm, [
-    { size: 40, city: 'Phoenix' },
-    { size: 40, city: 'Phoenix', discoveryWindow: 'ongoing' },
+    { size: 40, city: 'Phoenix', page:0, sort:'soonest', includePast:false, asOf:iso(0), stateCode:'AZ' },
+    { size: 40, city: 'Phoenix', page:0, sort:'soonest', includePast:false, asOf:iso(0), stateCode:'AZ', discoveryWindow: 'ongoing' },
   ]);
-  assert.equal(client.calls.pg.length, 2);
-  assert.equal(client.calls.pg[0].sort, 'date');
-  assert.equal(client.calls.pg[1].sort, '-date');
-  assert.equal(client.calls.pg[0].query.city.$regex, '^Phoenix$');
-  assert.equal(client.calls.pg[0].query.state.$regex, '^AZ$');
+  assert.equal(client.calls.pg.length, 3);
+  assert.deepEqual(client.calls.pg.map(call => call.sort), ['event_start_utc', 'date', '-date']);
+  assert.equal(client.calls.pg[0].query.$and[0].city.$regex, '^Phoenix$');
+  assert.equal(client.calls.pg[0].query.$and[0].state.$regex, '^AZ$');
   assert.equal(result.tmError, false);
   assert.equal(result.pgError, false);
   assert.deepEqual(result.ongoingCoverage, coverage);
@@ -165,7 +166,7 @@ test('GPS discovery keeps nearby PG live events even when upcoming provider resu
 
   assert.deepEqual(liveIds(groupUpgradeEvents(result.events, now).live), ['nearby']);
   assert.deepEqual(client.calls.tm, [
-    { size: 40, latlong: '33.45,-112.07', radius: '50' },
-    { size: 40, latlong: '33.45,-112.07', radius: '50', discoveryWindow: 'ongoing' },
+    { size: 40, latlong: '33.45,-112.07', radius: '50', page:0, sort:'soonest', includePast:false, asOf:iso(0) },
+    { size: 40, latlong: '33.45,-112.07', radius: '50', page:0, sort:'soonest', includePast:false, asOf:iso(0), discoveryWindow: 'ongoing' },
   ]);
 });

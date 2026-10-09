@@ -13,6 +13,7 @@ const bundle = await build({
   stdin: {
     contents: `import { formatUpgradeStartsIn, getUpgradeVenueDateParts } from './src/lib/upgradeEventState.js';
       import { getUpgradeEventTiming } from './src/lib/upgradeDiscovery.js';
+      import { eventVariantLabel } from './src/lib/eventIdentity.js';
       import { ArrowRight, RefreshCw } from 'lucide-react';
       const useState = () => [false, () => {}];
       const calls = [];
