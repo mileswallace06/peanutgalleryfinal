@@ -19,6 +19,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --ignore-scripts
+      - run: npm run lint
       - run: npm run lint:audit
       - run: npm run test:audit-safe
       - run: npm run build
