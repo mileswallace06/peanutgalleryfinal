@@ -2,7 +2,7 @@
  * UpgradeFeed — live upgrades first, then resale/admission support.
  */
 import { Link } from 'react-router-dom';
-import { ArrowUpRight, TrendingDown, Bell, Zap, Ticket } from 'lucide-react';
+import { ArrowUpRight, TrendingDown, Zap, Ticket } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { motion } from 'framer-motion';
 import { UPGRADE_LISTING_TYPES, TICKET_LISTING_TYPES } from '@/lib/listingTypes';

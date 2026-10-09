@@ -2,7 +2,7 @@
  * LiveActivityBar — animated pulse of live stats.
  * Shows upgrades, drops, price drops, new listings.
  */
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
 
 export default function LiveActivityBar({ drops, listings }) {
