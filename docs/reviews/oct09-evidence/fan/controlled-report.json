@@ -1,0 +1,550 @@
+{
+  "fixtureOnly": true,
+  "productionChanges": false,
+  "historicalR09": "Unresolved: original gate has not reproduced the historical failure",
+  "cases": [
+    {
+      "label": "R09 repeated modal close after asynchronous parent render",
+      "theme": "light",
+      "viewport": {
+        "width": 320,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0
+    },
+    {
+      "label": "R09 repeated modal close after asynchronous parent render",
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0
+    },
+    {
+      "label": "R09 repeated modal close after asynchronous parent render",
+      "theme": "light",
+      "viewport": {
+        "width": 844,
+        "height": 390
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0
+    },
+    {
+      "label": "R15 deliberate location success and recovery",
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [
+        "suggestCities"
+      ],
+      "geoCalls": 1
+    },
+    {
+      "label": "R15 deliberate location denied and recovery",
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [
+        "suggestCities"
+      ],
+      "geoCalls": 2
+    },
+    {
+      "label": "R15 deliberate location timeout and recovery",
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [
+        "suggestCities"
+      ],
+      "geoCalls": 2
+    },
+    {
+      "label": "R15 deliberate location unavailable and recovery",
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [
+        "suggestCities"
+      ],
+      "geoCalls": 0
+    },
+    {
+      "label": "R15 deliberate location invalid and recovery",
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [
+        "suggestCities"
+      ],
+      "geoCalls": 2
+    },
+    {
+      "label": "R15 pending GPS cancelled by manual city",
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [
+        "suggestCities"
+      ],
+      "geoCalls": 1
+    },
+    {
+      "label": "R15 pending GPS cancelled by other tab",
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 1
+    },
+    {
+      "label": "R15 pending GPS cancelled by unmount",
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 1
+    },
+    {
+      "label": "R15 cache valid",
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0
+    },
+    {
+      "label": "R15 cache legacy-gps",
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0
+    },
+    {
+      "label": "R15 cache city",
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0
+    },
+    {
+      "label": "R15 cache expired",
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0
+    },
+    {
+      "label": "R15 cache future",
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0
+    },
+    {
+      "label": "R15 cache invalid",
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0
+    },
+    {
+      "label": "R15 cache malformed",
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0
+    },
+    {
+      "label": "R15 cache invalid-city",
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0
+    },
+    {
+      "label": "R15 late city migration cannot overwrite manual",
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [
+        "suggestCities",
+        "suggestCities"
+      ],
+      "geoCalls": 0
+    },
+    {
+      "label": "R15 late city migration cannot overwrite GPS",
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [
+        "suggestCities"
+      ],
+      "geoCalls": 1
+    },
+    {
+      "label": "R09 repeated modal close after asynchronous parent render",
+      "theme": "dark",
+      "viewport": {
+        "width": 320,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0
+    },
+    {
+      "label": "R09 repeated modal close after asynchronous parent render",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0
+    },
+    {
+      "label": "R09 repeated modal close after asynchronous parent render",
+      "theme": "dark",
+      "viewport": {
+        "width": 844,
+        "height": 390
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0
+    },
+    {
+      "label": "R15 deliberate location success and recovery",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [
+        "suggestCities"
+      ],
+      "geoCalls": 1
+    },
+    {
+      "label": "R15 deliberate location denied and recovery",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [
+        "suggestCities"
+      ],
+      "geoCalls": 2
+    },
+    {
+      "label": "R15 deliberate location timeout and recovery",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [
+        "suggestCities"
+      ],
+      "geoCalls": 2
+    },
+    {
+      "label": "R15 deliberate location unavailable and recovery",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [
+        "suggestCities"
+      ],
+      "geoCalls": 0
+    },
+    {
+      "label": "R15 deliberate location invalid and recovery",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [
+        "suggestCities"
+      ],
+      "geoCalls": 2
+    },
+    {
+      "label": "R15 pending GPS cancelled by manual city",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [
+        "suggestCities"
+      ],
+      "geoCalls": 1
+    },
+    {
+      "label": "R15 pending GPS cancelled by other tab",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 1
+    },
+    {
+      "label": "R15 pending GPS cancelled by unmount",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 1
+    },
+    {
+      "label": "R15 cache valid",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0
+    },
+    {
+      "label": "R15 cache legacy-gps",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0
+    },
+    {
+      "label": "R15 cache city",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0
+    },
+    {
+      "label": "R15 cache expired",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0
+    },
+    {
+      "label": "R15 cache future",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0
+    },
+    {
+      "label": "R15 cache invalid",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0
+    },
+    {
+      "label": "R15 cache malformed",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0
+    },
+    {
+      "label": "R15 cache invalid-city",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [],
+      "geoCalls": 0
+    },
+    {
+      "label": "R15 late city migration cannot overwrite manual",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [
+        "suggestCities",
+        "suggestCities"
+      ],
+      "geoCalls": 0
+    },
+    {
+      "label": "R15 late city migration cannot overwrite GPS",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "status": "passed",
+      "unexpected": [],
+      "calls": [
+        "suggestCities"
+      ],
+      "geoCalls": 1
+    }
+  ],
+  "screenshots": [],
+  "errors": [],
+  "external": [],
+  "browser": "153.0.8010.0",
+  "status": "PASSED"
+}

@@ -1,0 +1,4 @@
+Browserslist: browsers data (caniuse-lite) is 8 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+PASS 19 isolated Fan Zone browser scenarios (R09/R15/R16); no API mutations or outbound requests
