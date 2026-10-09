@@ -15,10 +15,11 @@ const env = { ...process.env,
   PG_IDENTITY_EVIDENCE_DIR: path.join(output, 'identity'), PG_FOUNDER_EVIDENCE_DIR: path.join(output, 'founder'),
   PG_PURCHASE_EVIDENCE_DIR: path.join(output, 'purchase'), PG_LIFECYCLE_EVIDENCE_DIR: path.join(output, 'lifecycle/after'),
   PG_FAN_BEHAVIOR_EVIDENCE_DIR: path.join(output, 'fan-behavior'),
+  PG_FAN_SORT_EVIDENCE_DIR: path.join(output, 'fan-sort-startup'),
 };
 const suites = ['fixture-isolation-browser', 'events-search-browser', 'legal-document-browser', 'fan-zone-browser', 'profile-beta-browser', 'listing-workflows-browser', 'sales-admin-browser', 'route-inventory-browser',
   'oct09-discovery-navigation-browser', 'event-identity-browser', 'oct09-lifecycle-browser',
-  'founder-recovery-browser', 'purchase-detail-browser', 'fan-behavior-browser'];
+  'founder-recovery-browser', 'purchase-detail-browser', 'fan-behavior-browser', 'fan-sort-startup-browser'];
 const server = await createServer({ configFile: 'tests/fixtures/ticket-design/vite.config.mjs', logLevel: 'error', server: { host: '127.0.0.1', port: 4174, strictPort: true, watch: null, hmr: false } });
 const results = [];
 try {
