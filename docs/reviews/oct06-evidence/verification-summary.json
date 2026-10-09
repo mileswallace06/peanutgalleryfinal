@@ -41,12 +41,12 @@
   },
   "ci": {
     "initialRun": "Initial attempts failed: shallow checkout excluded the historical baseline required by the selling-event-picker preservation test. An initial configuration upload did not carry the changed bytes.",
-    "fix": "Local workflow checkout corrected to fetch-depth: 0. The subsequent configuration upload and rerun await verification. This is a later CI configuration change, not an evidence-only change.",
+    "fix": "Workflow checkout fetch-depth: 0 verified at 94d5869b42d0a94f1bf0c5bdd01cab07efd29dc6. Application source and assertions unchanged.",
     "targetedLocalTestsAfterFix": {
       "passed": 13,
       "testSourceChanged": false
     },
-    "repairedRerun": "Verified completion with the corrected checkout configuration is pending at this report checkpoint.",
+    "repairedRerun": "Install, lint, offline suites and build passed; browser CI pending at this report checkpoint.",
     "authoritativeChecks": "https://github.com/mileswallace06/peanutgalleryfinal/pull/17/checks",
     "successfulRunClaimed": false
   },
