@@ -34,3 +34,28 @@ export function buildEventSearchParams({ keyword, cityOverride, stateOverride, l
   }
   return { tmParams, pgQuery, pgLimit: keyword ? 100 : 200 };
 }
+
+export const DISCOVERY_PAGE_SIZE = 40;
+
+export function buildDiscoveryStreams(request, now = Date.now(), selling = false) {
+  const { pgQuery, tmParams } = buildEventSearchParams(request);
+  const boundary = new Date(now).toISOString();
+  const missing = field => ({ $or: [{ [field]: { $exists: false } }, { [field]: null }, { [field]: '' }] });
+  const direction = request.sort === 'latest' ? '-' : '';
+  const eligibility = field => request.includePast ? { [field]: { $gt: '' } } : { [field]: { $gte: boundary } };
+  const combine = (...clauses) => ({ $and: clauses });
+  const streams = {
+    canonical: { kind: 'local', field: 'event_start_utc', direction, query: combine(pgQuery, eligibility('event_start_utc')) },
+    legacy: { kind: 'local', field: 'date', direction, query: combine(pgQuery, missing('event_start_utc'), eligibility('date')) },
+    provider: { kind: 'provider', params: { ...tmParams, page: 0, sort: request.sort || 'soonest', includePast: !!request.includePast, asOf: boundary, ...(request.stateOverride ? { stateCode: request.stateOverride } : {}) } },
+  };
+  if (selling) {
+    const since = new Date(now - 12 * 3600000).toISOString();
+    streams.ongoing = { kind: 'local', field: 'date', direction: '-', query: combine(pgQuery, { $or: [
+      { event_start_utc: { $gte: since, $lt: boundary } }, { date: { $gte: since, $lt: boundary } },
+      { event_end_utc: { $gt: boundary } }, { end_date: { $gt: boundary } }, { status: 'live' },
+    ] }) };
+    streams.providerOngoing = { kind: 'provider', params: { ...streams.provider.params, discoveryWindow: 'ongoing' } };
+  }
+  return streams;
+}
