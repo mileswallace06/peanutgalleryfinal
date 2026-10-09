@@ -1,5 +1,4 @@
-import { CreditCard, ExternalLink, AlertTriangle, CheckCircle, RefreshCw } from 'lucide-react';
-import { format } from 'date-fns';
+import { CreditCard, ExternalLink } from 'lucide-react';
 
 function StatCard({ label, value, color, sub }) {
   return (
