@@ -11,7 +11,7 @@ const now = Date.parse('2030-01-02T21:00:00Z');
 const event = { id: 'fixture-one', tm_id: 'provider-one', title: 'Recurring tour', venue: 'Fixture Arena', city: 'Phoenix', state: 'AZ', venue_timezone: 'America/Phoenix', event_start_utc: '2030-01-02T20:00:00Z', event_end_utc: '2030-01-02T23:00:00Z' };
 
 test('composer aliases deduplicate without losing recurring performances or ticket priority', () => {
-  const alias = { ...event, id: 'fixture-alias', tm_id: 'provider-alias' };
+  const alias = { ...event, id: 'fixture-alias', tm_id: 'provider-alias', provider_aliases_verified: true, provider_aliases: ['provider-one'] };
   const later = { ...event, id: 'fixture-later', tm_id: 'provider-later', event_start_utc: '2030-02-02T20:00:00Z', event_end_utc: '2030-02-02T23:00:00Z' };
   const choices = fanEventChoices([later, event, alias], '', [event.id]);
   assert.equal(choices.length, 2);

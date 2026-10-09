@@ -3,7 +3,7 @@ import { createServer } from 'vite';
 import { spawn } from 'node:child_process';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-const output = path.resolve('tests/artifacts/oct06');
+const output = path.resolve('tests/artifacts/oct09');
 await mkdir(output, { recursive: true });
 const base = 'http://127.0.0.1:4174';
 const env = { ...process.env,
@@ -12,8 +12,13 @@ const env = { ...process.env,
   PG_FAN_EVIDENCE_DIR: path.join(output, 'fan-zone'), PG_SALES_EVIDENCE_DIR: path.join(output, 'sales-admin'),
   PG_LISTING_EVIDENCE_DIR: path.join(output, 'listing'), PG_EVENTS_EVIDENCE_DIR: path.join(output, 'events'),
   PG_ROUTE_EVIDENCE_DIR: path.join(output, 'routes'),
+  PG_IDENTITY_EVIDENCE_DIR: path.join(output, 'identity'), PG_FOUNDER_EVIDENCE_DIR: path.join(output, 'founder'),
+  PG_PURCHASE_EVIDENCE_DIR: path.join(output, 'purchase'), PG_LIFECYCLE_EVIDENCE_DIR: path.join(output, 'lifecycle/after'),
+  PG_FAN_BEHAVIOR_EVIDENCE_DIR: path.join(output, 'fan-behavior'),
 };
-const suites = ['events-search-browser', 'legal-document-browser', 'fan-zone-browser', 'profile-beta-browser', 'listing-workflows-browser', 'sales-admin-browser', 'route-inventory-browser'];
+const suites = ['fixture-isolation-browser', 'events-search-browser', 'legal-document-browser', 'fan-zone-browser', 'profile-beta-browser', 'listing-workflows-browser', 'sales-admin-browser', 'route-inventory-browser',
+  'oct09-discovery-navigation-browser', 'event-identity-browser', 'oct09-lifecycle-browser',
+  'founder-recovery-browser', 'purchase-detail-browser', 'fan-behavior-browser'];
 const server = await createServer({ configFile: 'tests/fixtures/ticket-design/vite.config.mjs', logLevel: 'error', server: { host: '127.0.0.1', port: 4174, strictPort: true, watch: null, hmr: false } });
 const results = [];
 try {
