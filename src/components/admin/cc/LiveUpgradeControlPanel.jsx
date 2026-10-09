@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useId } from 'react';
 import { base44 } from '@/api/base44Client';
 import { ArrowUpRight, Play, Pause, Trash2, RefreshCw } from 'lucide-react';
 import { UPGRADE_LISTING_TYPES } from '@/lib/listingTypes';
+import { markEventIdentityAmbiguity } from '@/lib/eventIdentity';
+import { eventChoiceLabel } from '@/lib/eventChoiceLabel';
 
 function MetricCard({ label, value, sub, color = '#BF5FFF', isDemo = false }) {
   return (
@@ -23,6 +25,7 @@ function MetricCard({ label, value, sub, color = '#BF5FFF', isDemo = false }) {
 }
 
 export default function LiveUpgradeControlPanel() {
+  const eventSelectId = useId();
   const [events, setEvents] = useState([]);
   const [listings, setListings] = useState([]);
   const [purchases, setPurchases] = useState([]);
@@ -30,24 +33,33 @@ export default function LiveUpgradeControlPanel() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [actionMsg, setActionMsg] = useState(null);
+  const [loadError, setLoadError] = useState(false);
 
   const load = async () => {
     setLoading(true);
-    const [evList, lList, pList] = await Promise.all([
-      base44.entities.Event.list('date', 50),
-      base44.entities.Listing.list('-created_date', 200),
-      base44.entities.Purchase.list('-created_date', 200),
-    ]);
-    setEvents((evList || []).filter(e => e.status !== 'ended'));
-    setListings(lList || []);
-    setPurchases(pList || []);
-    setLoading(false);
+    setLoadError(false);
+    try {
+      const [evList, lList, pList] = await Promise.all([
+        base44.entities.Event.list('date', 50),
+        base44.entities.Listing.list('-created_date', 200),
+        base44.entities.Purchase.list('-created_date', 200),
+      ]);
+      // Operational actions target one exact local record. Keep alias records
+      // separate here: presentation equivalence must never retarget a release.
+      setEvents(markEventIdentityAmbiguity((evList || []).filter(e => e.status !== 'ended')));
+      setListings(lList || []);
+      setPurchases(pList || []);
+    } catch {
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { load(); }, []);
 
   const runAction = async (action) => {
-    if (!selectedEventId) return;
+    if (!selectedEventId || loading || loadError || actionLoading || !selectedEvent) return;
     if (action === 'reset') {
       if (!window.confirm('Delete ALL demo upgrade listings for this event?\n\nThis will permanently remove all demo listings. This action cannot be undone.')) return;
     } else if (action === 'pause') {
@@ -55,15 +67,21 @@ export default function LiveUpgradeControlPanel() {
     }
     setActionLoading(true);
     setActionMsg(null);
-    const res = await base44.functions.invoke('releaseDemoUpgrades', { action, event_id: selectedEventId });
-    const d = res.data;
-    if (d.success) {
-      setActionMsg({ type: 'success', text: `✓ ${action === 'released' ? `Released ${d.created} demo upgrade listings` : action === 'reactivated' ? `Reactivated ${d.count} listings` : action === 'paused' ? `Paused ${d.count} listings` : `Deleted ${d.deleted} listings`}` });
-    } else {
-      setActionMsg({ type: 'error', text: d.error || 'Action failed' });
+    try {
+      const res = await base44.functions.invoke('releaseDemoUpgrades', { action, event_id: selectedEventId });
+      const d = res.data;
+      if (d.success) {
+        setActionMsg({ type: 'success', text: `✓ ${action === 'released' ? `Released ${d.created} demo upgrade listings` : action === 'reactivated' ? `Reactivated ${d.count} listings` : action === 'paused' ? `Paused ${d.count} listings` : `Deleted ${d.deleted} listings`}` });
+      } else {
+        setActionMsg({ type: 'error', text: d.error || 'Action failed' });
+      }
+      await load();
+    } catch {
+      setActionMsg({ type: 'error', text: 'The action could not be confirmed. Refresh the event controls before trying again.' });
+      setLoadError(true);
+    } finally {
+      setActionLoading(false);
     }
-    await load();
-    setActionLoading(false);
   };
 
   // --- Metrics ---
@@ -107,8 +125,8 @@ export default function LiveUpgradeControlPanel() {
           <h2 className="font-bold text-sm text-foreground">Live Upgrade Control</h2>
           <p className="text-xs text-muted-foreground">Release, pause, or reset demo seat upgrades per event.</p>
         </div>
-        <button onClick={load} disabled={loading}
-          className="ml-auto p-1.5 rounded-lg hover:bg-muted transition-colors flex-shrink-0">
+        <button type="button" onClick={load} disabled={loading || actionLoading} aria-label="Refresh live upgrades" aria-busy={loading}
+          className="ml-auto p-1.5 rounded-lg hover:bg-muted transition-colors flex-shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 disabled:opacity-50">
           <RefreshCw className={`w-4 h-4 text-muted-foreground ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
@@ -120,7 +138,7 @@ export default function LiveUpgradeControlPanel() {
             <div key={i} className="pg-operations-card h-16 rounded-2xl animate-pulse" style={{ background: 'var(--pg-surface)' }} />
           ))}
         </div>
-      ) : (
+      ) : loadError ? <p role="alert" className="text-sm text-muted-foreground">Live upgrade data is unavailable. Refresh live upgrades to retry; controls are disabled until data loads.</p> : (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <MetricCard label="Active Upgrade Listings" value={activeUpgradeListings.length} color="#FF8C00" />
           <MetricCard label="Active Demo Upgrades" value={activeDemoUpgrades.length} color="#BF5FFF" isDemo />
@@ -139,18 +157,23 @@ export default function LiveUpgradeControlPanel() {
         <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Demo Upgrade Controls</p>
 
         <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1">Select Event</label>
+          <label htmlFor={eventSelectId} className="block text-xs font-medium text-muted-foreground mb-1">Select Event</label>
           <select
+            id={eventSelectId}
             value={selectedEventId}
+            disabled={loading || loadError || actionLoading}
+            aria-describedby="live-upgrade-event-help live-upgrade-event-context"
             onChange={e => { setSelectedEventId(e.target.value); setActionMsg(null); }}
-            className="w-full px-3 py-2.5 rounded-xl text-sm text-foreground focus:outline-none"
+            className="w-full px-3 py-2.5 rounded-xl text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 disabled:opacity-50"
             style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)' }}
           >
             <option value="">— choose an event —</option>
             {events.map(ev => (
-              <option key={ev.id} value={ev.id}>{ev.title} · {ev.venue}</option>
+              <option key={ev.id} value={ev.id}>{eventChoiceLabel(ev, Date.now(), { alwaysReference: true })}</option>
             ))}
           </select>
+          <p id="live-upgrade-event-help" className="mt-2 text-xs text-muted-foreground">Controls apply only to the selected event reference. Separate records are retained; matching names and times do not confirm they are the same occurrence.</p>
+          <p id="live-upgrade-event-context" className="mt-2 text-sm text-foreground break-words" role="status">{selectedEvent ? eventChoiceLabel(selectedEvent, Date.now(), { alwaysReference: true }) : 'Choose an event to review its occurrence and reference before using controls.'}</p>
         </div>
 
         {selectedEvent && (
@@ -164,7 +187,7 @@ export default function LiveUpgradeControlPanel() {
         <div className="flex gap-2 flex-wrap">
           <button
             onClick={() => runAction('released')}
-            disabled={!selectedEventId || actionLoading || hasActiveDemoUpgrades}
+            disabled={!selectedEvent || loading || loadError || actionLoading || hasActiveDemoUpgrades}
             className="flex items-center gap-1.5 px-4 py-2.5 rounded-full font-bold text-xs transition-all disabled:opacity-40"
             style={{ background: 'var(--pg-orange)', color: 'var(--pg-ink)' }}
           >
@@ -174,7 +197,7 @@ export default function LiveUpgradeControlPanel() {
 
           <button
             onClick={() => runAction('pause')}
-            disabled={!selectedEventId || actionLoading || !hasActiveDemoUpgrades}
+            disabled={!selectedEvent || loading || loadError || actionLoading || !hasActiveDemoUpgrades}
             className="pg-operations-status flex items-center gap-1.5 px-4 py-2.5 rounded-full font-bold text-xs transition-all disabled:opacity-40"
             style={{ background: 'color-mix(in srgb, rgb(255 200 0) 12%, var(--pg-surface))', border: '1px solid rgba(255,200,0,0.3)', '--pg-status-ink': '#FFE600' }}
           >
@@ -183,7 +206,7 @@ export default function LiveUpgradeControlPanel() {
 
           <button
             onClick={() => runAction('reset')}
-            disabled={!selectedEventId || actionLoading || !hasAnyDemoUpgrades}
+            disabled={!selectedEvent || loading || loadError || actionLoading || !hasAnyDemoUpgrades}
             className="pg-operations-status flex items-center gap-1.5 px-4 py-2.5 rounded-full font-bold text-xs transition-all disabled:opacity-40"
             style={{ background: 'color-mix(in srgb, rgb(255 45 120) 10%, var(--pg-surface))', border: '1px solid rgba(255,45,120,0.25)', '--pg-status-ink': '#FF2D78' }}
           >

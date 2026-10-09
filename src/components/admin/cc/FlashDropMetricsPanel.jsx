@@ -2,9 +2,16 @@ import { adminEventIdentity } from '@/lib/salesPresentation';
 /**
  * FlashDropMetricsPanel — Full founder metrics + per-event health dashboard.
  */
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { base44 } from '@/api/base44Client';
+import { useOperationalReads } from '@/hooks/useOperationalReads';
 import { RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
+const READS = {
+  drops: () => base44.entities.FlashDrop.list('-created_date', 500),
+  entries: () => base44.entities.FlashDropEntry.list('-created_date', 1000),
+  events: () => base44.entities.Event.list('-date', 100),
+};
+
 
 function Stat({ label, value, color, sub }) {
   return (
@@ -34,34 +41,18 @@ function colorForRate(rate) {
 }
 
 export default function FlashDropMetricsPanel() {
-  const [drops, setDrops] = useState([]);
-  const [entries, setEntries] = useState([]);
-  const [events, setEvents] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { sources, reload: load, loading } = useOperationalReads(READS);
+  const drops = sources.drops.rows;
+  const entries = sources.entries.rows;
+  const events = sources.events.rows;
+  const unavailable = Object.entries(sources).filter(([, source]) => ['error', 'unavailable'].includes(source.status)).map(([key]) => key);
   const [activeTab, setActiveTab] = useState('overview'); // overview | funnel | per_event | anti_abuse
   const [expandedEvent, setExpandedEvent] = useState(null);
-
-  const load = async () => {
-    setLoading(true);
-    const [d, e, ev] = await Promise.all([
-      base44.entities.FlashDrop.list('-created_date', 500),
-      base44.entities.FlashDropEntry.list('-created_date', 1000),
-      base44.entities.Event.list('-date', 100),
-    ]);
-    setDrops(d || []);
-    setEntries(e || []);
-    setEvents(ev || []);
-    setLoading(false);
-  };
-
-  useEffect(() => { load(); }, []);
 
   // ── Core aggregations ──────────────────────────────────────────────────────
   const totalDrops = drops.length;
   const activeDrops = drops.filter(d => d.status === 'active').length;
   const completedDrops = drops.filter(d => d.status === 'winner_selected').length;
-  const expiredNoEntry = drops.filter(d => d.status === 'expired').length;
-  const pendingDrops = drops.filter(d => d.status === 'pending').length;
 
   const totalEntries = entries.length;
   const winners = entries.filter(e => e.is_winner).length;
@@ -144,7 +135,7 @@ export default function FlashDropMetricsPanel() {
           <h3 className="font-bold text-base text-foreground">Flash Drop Metrics</h3>
           <p className="text-xs text-muted-foreground">Engagement, conversion, marketplace impact</p>
         </div>
-        <button onClick={load} disabled={loading} className="p-1.5 rounded-lg hover:bg-muted">
+        <button type="button" aria-label="Refresh flash drop metrics" aria-busy={loading} onClick={() => load()} disabled={loading} className="p-1.5 rounded-lg hover:bg-muted">
           <RefreshCw className={`w-4 h-4 text-muted-foreground ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
@@ -164,6 +155,8 @@ export default function FlashDropMetricsPanel() {
 
       {loading ? (
         <div className="grid grid-cols-4 gap-2">{[1,2,3,4].map(i => <div key={i} className="pg-operations-card h-16 rounded-xl animate-pulse bg-muted" />)}</div>
+      ) : unavailable.length ? (
+        <p role="status" className="text-sm text-muted-foreground py-6">Flash drop metrics unavailable: {unavailable.join(', ')}. Refresh to retry.</p>
       ) : (
         <>
           {/* ── OVERVIEW ── */}
