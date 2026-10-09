@@ -4,7 +4,7 @@
 .pg-operations-widget {
   color: var(--pg-text);
   color-scheme: inherit;
-  --pg-operations-accent: var(--pg-violet);
+  --pg-operations-accent: var(--pg-violet-ink);
   --pg-status-ink-strength: 100%;
 }
 .pg-operations-page { min-width: 0; background: var(--pg-canvas); }
