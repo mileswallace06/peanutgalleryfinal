@@ -5,8 +5,8 @@
  * Stored in localStorage for now (no backend needed until enforced).
  * Does NOT enforce the rule yet — wiring into CreateListing is a separate step.
  */
-import { useState, useEffect } from 'react';
-import { calculateFees, FEE_MODELS, ACTIVE_FEE_MODEL_ID } from '@/lib/feeEngine';
+import { useState } from 'react';
+import { calculateFees, ACTIVE_FEE_MODEL_ID } from '@/lib/feeEngine';
 
 const STORAGE_KEY = 'pg_min_listing_price_config';
 

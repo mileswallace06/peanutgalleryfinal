@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
-import { calculateFees, FEE_MODELS, BENCHMARK_PRICES, buildBenchmarkTable, findBreakeven, generateRecommendations, STRIPE_ASSUMPTIONS } from '@/lib/feeEngine';
-import { TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp } from 'lucide-react';
+import { calculateFees, FEE_MODELS, buildBenchmarkTable, findBreakeven, generateRecommendations, STRIPE_ASSUMPTIONS } from '@/lib/feeEngine';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 
 function ProfitBadge({ row }) {
   if (!row.profitable) {
