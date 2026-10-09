@@ -4,6 +4,8 @@ import { X, Zap, Clock } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { motion } from 'framer-motion';
 import { loadEligibleFlashDropListings, ownershipLookupMessage } from '@/lib/flashDropOwnership';
+import { useUpgradeClock } from '@/hooks/useUpgradeClock';
+import { checkListingEvent, listingEventEligibility } from '../../../base44/shared/listingEventEligibility.js';
 import './fan-gifts-ticket.css';
 
 const DELIVERY_METHODS = [
@@ -33,7 +35,7 @@ const WINDOW_OPTIONS = [
   { label: '90 seconds', value: 90 },
 ];
 
-export default function CreateFlashDropSheet({ event, user, onClose, onCreated }) {
+export default function CreateFlashDropSheet({ event, user, onClose, onCreated, onEventChecked }) {
   const [step, setStep] = useState('type'); // type | details | schedule | done
   const [dropType, setDropType] = useState('immediate');
   const [section, setSection] = useState('');
@@ -60,6 +62,12 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated }
   const sheet = useRef(null);
   const heading = useRef(null);
   const previousStep = useRef(step);
+  const submitting = useRef(false);
+  const [submitError, setSubmitError] = useState('');
+  const [checkedEvent, setCheckedEvent] = useState(null);
+  const currentEvent = checkedEvent?.id === event?.id ? checkedEvent : event;
+  const nowMs = useUpgradeClock(currentEvent);
+  const creationClosed = !listingEventEligibility(currentEvent, nowMs).allowed;
 
   useEffect(() => {
     if (previousStep.current === step) return;
@@ -109,8 +117,19 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated }
   };
 
   const handleCreate = async () => {
-    if (!section) return;
+    if (submitting.current || !section) return;
+    if (!user?.email) { setSubmitError('Sign in before creating a fan gift.'); return; }
+    if (!listingEventEligibility(currentEvent, Date.now()).allowed) {
+      setSubmitError('Fan gifts are closed for this event.');
+      return;
+    }
+    submitting.current = true;
     setLoading(true);
+    setSubmitError('');
+    try {
+    const fresh = await checkListingEvent(base44, event.id);
+    if (fresh.event) { setCheckedEvent(fresh.event); onEventChecked?.(fresh.event); }
+    if (!fresh.allowed) { setSubmitError(fresh.code === 'EVENT_ENDED' ? 'Fan gifts are closed for this event.' : fresh.message); return; }
     const res = await base44.functions.invoke('flashDrop', {
       action: 'create',
       event_id: event.id,
@@ -127,12 +146,13 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated }
       ownership_proof_url: ownershipProofUrl || null,
       ownership_delivery_method: deliveryMethod,
     });
-    setLoading(false);
     if (res?.data?.success) {
       setCreatedDrop(res.data.drop);
       setStep('done');
       onCreated?.(res.data.drop);
-    }
+    } else setSubmitError('The fan gift could not be created. Please retry.');
+    } catch { setSubmitError('We could not check this event or create the fan gift. Your form is still here; please retry.'); }
+    finally { submitting.current = false; setLoading(false); }
   };
 
   return (
@@ -167,8 +187,15 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated }
               </div>
             </div>
 
+            {submitError && <p role="alert" className="pg-gift-panel p-3 mb-3 text-sm">{submitError}</p>}
+            {creationClosed && step !== 'done' && <div role="status" className="pg-gift-panel p-4 space-y-2">
+              <h3 className="font-bold">Fan gifts are closed for this event.</h3>
+              <p className="text-sm">This event has ended or is no longer open for new fan gifts. Close this form to return to its history.</p>
+            </div>}
+            {!creationClosed && listingEventEligibility(currentEvent, nowMs).timing?.status === 'unknown' && <p role="status" className="text-sm text-muted-foreground mb-3">The event time is unconfirmed. Check the event details before offering your seats.</p>}
+
             {/* Step: Type */}
-            {step === 'type' && (
+            {step === 'type' && !creationClosed && (
               <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
                 <p className="text-sm text-muted-foreground">How do you want to drop these seats?</p>
                 <div className="grid grid-cols-2 gap-3">
@@ -189,7 +216,7 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated }
             )}
 
             {/* Step: Details */}
-            {step === 'details' && (
+            {step === 'details' && !creationClosed && (
               <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
                 <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide">Seat Details</p>
                 <div className="grid grid-cols-2 gap-3">
@@ -303,9 +330,10 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated }
                       Next: Schedule
                     </button>
                   ) : (
-                    <button onClick={handleCreate} disabled={!section || loading}
+                    <button onClick={handleCreate} disabled={!section || loading || ownershipProofUploading}
+                      aria-busy={loading}
                       className="pg-gift-button pg-gift-button-yellow flex-1 py-3 text-sm font-black disabled:opacity-40 flex items-center justify-center gap-2">
-                      {loading ? <span className="pg-gift-spinner w-4 h-4 border-2 rounded-full animate-spin" /> : <><Zap className="w-4 h-4" /> Drop Now</>}
+                      {loading ? <><span aria-hidden="true" className="pg-gift-spinner w-4 h-4 border-2 rounded-full animate-spin" /> Creating fan gift…</> : <><Zap className="w-4 h-4" /> Drop Now</>}
                     </button>
                   )}
                 </div>
@@ -313,7 +341,7 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated }
             )}
 
             {/* Step: Schedule */}
-            {step === 'schedule' && (
+            {step === 'schedule' && !creationClosed && (
               <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
                 <p className="text-sm text-muted-foreground">When should this Flash Drop go live?</p>
                 <div className="grid grid-cols-2 gap-2 max-h-56 overflow-y-auto">
@@ -327,9 +355,10 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated }
                 <p className="text-xs text-muted-foreground">You'll manually activate this drop when the moment arrives from your My Tickets page.</p>
                 <div className="flex gap-3">
                   <button onClick={() => setStep('details')} className="pg-gift-button flex-1 py-3 text-sm font-bold">Back</button>
-                  <button onClick={handleCreate} disabled={!scheduledLabel || loading}
+                  <button onClick={handleCreate} disabled={!scheduledLabel || loading || ownershipProofUploading}
+                    aria-busy={loading}
                     className="pg-gift-button pg-gift-button-primary flex-1 py-3 text-sm font-black disabled:opacity-40 flex items-center justify-center gap-2">
-                    {loading ? <span className="pg-gift-spinner w-4 h-4 border-2 rounded-full animate-spin" /> : <><Clock className="w-4 h-4" /> Schedule Drop</>}
+                    {loading ? <><span aria-hidden="true" className="pg-gift-spinner w-4 h-4 border-2 rounded-full animate-spin" /> Creating fan gift…</> : <><Clock className="w-4 h-4" /> Schedule Drop</>}
                   </button>
                 </div>
               </motion.div>
