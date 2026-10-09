@@ -1,5 +1,7 @@
 import '@/components/member-surfaces.css';
-import { useState } from 'react';
+import { useId, useState } from 'react';
+import './points-accessibility.css';
+import { pointTextColor } from '@/lib/pointsPresentation';
 import { motion } from 'framer-motion';
 import { Trophy, Star, ChevronRight, Shield, Info } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -43,8 +45,9 @@ function TrustBar({ score }) {
   );
 }
 
-export default function PeanutPointsCard({ user }) {
+export default function PeanutPointsCard({ user, sellerSummary }) {
   const [showUnlocks, setShowUnlocks] = useState(false);
+  const unlocksId = useId();
 
   const lifetimePts  = user?.lifetime_points || 0;
   const currentPts   = user?.peanut_points   || 0;
@@ -62,7 +65,7 @@ export default function PeanutPointsCard({ user }) {
   const isEmpty = achievements.length === 0 && currentPts === 0 && lifetimePts === 0;
 
   return (
-    <div className="rounded-2xl overflow-hidden mb-5"
+    <div className="pg-points-card rounded-2xl overflow-hidden mb-5"
       style={{
         background: 'linear-gradient(135deg, rgba(191,95,255,0.12) 0%, rgba(0,200,255,0.08) 100%)',
         border: '1px solid rgba(191,95,255,0.3)',
@@ -75,7 +78,7 @@ export default function PeanutPointsCard({ user }) {
             <span className="text-3xl">{currentRank.emoji}</span>
             <div>
               <p className="text-[10px] font-black tracking-widest uppercase text-muted-foreground">Fan Rank</p>
-              <p className="font-display text-xl leading-none" style={{ color: currentRank.color }}>
+              <p className="font-display text-xl leading-none" style={{ color: pointTextColor(currentRank.color) }}>
                 {currentRank.rank}
               </p>
               <p className="text-[10px] text-muted-foreground mt-0.5">Level {currentRank.level}</p>
@@ -89,7 +92,7 @@ export default function PeanutPointsCard({ user }) {
 
         {/* Points display */}
         <div className="flex items-baseline gap-1.5 mb-3">
-          <span className="font-display text-4xl leading-none" style={{ color: currentRank.color }}>
+          <span className="font-display text-4xl leading-none" style={{ color: pointTextColor(currentRank.color) }}>
             {currentPts.toLocaleString()}
           </span>
           <span className="text-sm font-bold text-muted-foreground">🥜 pts</span>
@@ -106,26 +109,26 @@ export default function PeanutPointsCard({ user }) {
               <span className="text-[10px] text-muted-foreground">Lv.{currentRank.level}</span>
               <div className="flex items-center gap-1">
                 <span className="text-[10px] text-muted-foreground">
-                  {ptsToNext.toLocaleString()} pts to <span style={{ color: nextRank.color }}>{nextRank.rank}</span>
+                  {ptsToNext.toLocaleString()} pts to <span style={{ color: pointTextColor(nextRank.color) }}>{nextRank.rank}</span>
                 </span>
                 {nextUnlocks.length > 0 && (
-                  <button onClick={() => setShowUnlocks(v => !v)} className="pg-member-mini-action text-muted-foreground hover:text-foreground">
-                    <Info className="w-3 h-3" />
+                  <button type="button" onClick={() => setShowUnlocks(v => !v)} aria-label={`About ${nextRank.rank} rank unlocks`} aria-expanded={showUnlocks} aria-controls={unlocksId} className="pg-member-mini-action text-muted-foreground hover:text-foreground">
+                    <Info className="w-3 h-3" aria-hidden="true" />
                   </button>
                 )}
               </div>
               <span className="text-[10px] text-muted-foreground">Lv.{nextRank.level}</span>
             </div>
-            {showUnlocks && nextUnlocks.length > 0 && (
-              <div className="mt-2 px-3 py-2 rounded-xl text-[10px] text-muted-foreground"
+            {nextUnlocks.length > 0 && (
+              <div id={unlocksId} hidden={!showUnlocks} className="pg-points-unlocks mt-2 px-3 py-2 rounded-xl text-[10px] text-muted-foreground"
                 style={{ background: `${nextRank.color}10`, border: `1px solid ${nextRank.color}25` }}>
-                <span className="font-bold" style={{ color: nextRank.color }}>Unlocks at {nextRank.rank}: </span>
+                <span className="font-bold" style={{ color: pointTextColor(nextRank.color) }}>Unlocks at {nextRank.rank}: </span>
                 {nextUnlocks.join(' · ')}
               </div>
             )}
           </>
         ) : (
-          <div className="text-[11px] font-bold mt-1" style={{ color: '#FFE600' }}>
+          <div className="text-[11px] font-bold mt-1" style={{ color: 'var(--pg-points-yellow)' }}>
             🏆 Hall of Fame — Max Rank Achieved
           </div>
         )}
@@ -135,29 +138,31 @@ export default function PeanutPointsCard({ user }) {
       <div className="h-px mx-5" style={{ background: 'var(--pg-surface-raised)' }} />
       <div className="grid grid-cols-3 divide-x" style={{ '--tw-divide-opacity': 1 }}>
         {[
-          { label: 'Sales',     val: user?.total_sales     || 0, emoji: '💸' },
+          { label: 'Completed sales', val: sellerSummary?.status === 'ready' ? sellerSummary.summary.completedCount : sellerSummary?.status === 'error' ? 'Unavailable' : '…', emoji: '💸' },
           { label: 'Purchases', val: user?.total_purchases  || 0, emoji: '🎟️' },
           { label: 'Instant',   val: user?.total_instant_listings || 0, emoji: '⚡' },
         ].map((s, i) => (
           <div key={i} className="flex flex-col items-center py-3 px-2"
             style={{ borderColor: 'rgba(255,255,255,0.08)', borderRightWidth: i < 2 ? '1px' : '0' }}>
             <span className="text-sm">{s.emoji}</span>
-            <span className="font-black text-base text-foreground leading-none mt-0.5">{s.val}</span>
+            <span className={`font-black ${typeof s.val === 'string' && s.val !== '…' ? 'text-xs' : 'text-base'} text-foreground leading-none mt-0.5`}>{s.val}</span>
             <span className="text-[9px] text-muted-foreground mt-0.5">{s.label}</span>
           </div>
         ))}
       </div>
+
+      <p className="px-5 pb-3 text-[10px] text-muted-foreground">Completed sales: completed transfers in available seller history (up to 500 records); excludes demos. {sellerSummary?.status === 'error' && <button type="button" onClick={sellerSummary.reload} className="pg-member-mini-action underline">Retry sales</button>}</p>
 
       {/* ── Trust score */}
       <div className="h-px mx-5" style={{ background: 'var(--pg-surface-raised)' }} />
       <div className="px-5 py-4">
         <div className="flex items-center justify-between mb-1.5">
           <div className="flex items-center gap-1.5">
-            <Shield className="w-3.5 h-3.5" style={{ color: trustColor }} />
+            <Shield className="w-3.5 h-3.5" style={{ color: pointTextColor(trustColor) }} />
             <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Trust Score</span>
           </div>
           <div className="text-right">
-            <span className="font-black text-sm" style={{ color: trustColor }}>{trustScore}/100</span>
+            <span className="font-black text-sm" style={{ color: pointTextColor(trustColor) }}>{trustScore}/100</span>
             <span className="text-[9px] text-muted-foreground ml-1.5">{trustLabel}</span>
           </div>
         </div>
@@ -172,7 +177,7 @@ export default function PeanutPointsCard({ user }) {
               return (
                 <span key={key} title={def.desc}
                   className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold cursor-default"
-                  style={{ background: `${def.color}15`, border: `1px solid ${def.color}40`, color: def.color }}>
+                  style={{ background: `${def.color}15`, border: `1px solid ${def.color}40`, color: pointTextColor(def.color) }}>
                   {def.emoji} {def.label}
                 </span>
               );
@@ -199,7 +204,7 @@ export default function PeanutPointsCard({ user }) {
                   return (
                     <span key={key} title={def.desc}
                       className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold cursor-default"
-                      style={{ background: 'rgba(255,230,0,0.08)', border: '1px solid rgba(255,230,0,0.25)', color: '#FFE600' }}>
+                      style={{ background: 'rgba(255,230,0,0.08)', border: '1px solid rgba(255,230,0,0.25)', color: 'var(--pg-points-yellow)' }}>
                       {def.emoji} {def.label}
                     </span>
                   );
