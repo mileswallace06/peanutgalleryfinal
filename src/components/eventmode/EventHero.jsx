@@ -12,13 +12,13 @@ import GeneratedHero from './GeneratedHero';
  * resolves, or if the image fails to load, it renders the pure-CSS
  * GeneratedHero so there is never an empty hero.
  */
-export default function EventHero({ event, nowMs }) {
+export default function EventHero({ event, nowMs, backLink = { to: '/upgrades', label: 'Upgrades' } }) {
   const heroUrl = event?.hero_image_url || event?.image_url;
   const [imgFailed, setImgFailed] = useState(false);
   const timing = getUpgradeEventState(event, nowMs);
 
   if (!heroUrl || imgFailed) {
-    return <GeneratedHero event={event} nowMs={nowMs} />;
+    return <GeneratedHero event={event} nowMs={nowMs} backLink={backLink} />;
   }
 
   const dateText = getUpgradeShowtimeLabel(event);
@@ -27,7 +27,7 @@ export default function EventHero({ event, nowMs }) {
     <header className="pg-live-hero">
       <img src={heroUrl} alt={event?.title || ''} className="pg-live-hero-image" onError={() => setImgFailed(true)} />
       <div className="pg-live-hero-shade" />
-      <Link to="/upgrades" aria-label="Back to upgrades" className="pg-live-back"><ArrowLeft size={18} />Upgrades</Link>
+      <Link to={backLink.to} state={backLink.state} aria-label={`Back to ${backLink.label.toLowerCase()}`} className="pg-live-back"><ArrowLeft size={18} />{backLink.label}</Link>
       <div className="pg-live-hero-copy">
         {timing.isLive && <span className="pg-live-badge" title={timing.status === 'estimated_live' ? 'Estimated live window; the event may have ended' : undefined}>{timing.status === 'estimated_live' ? 'LIVE · EST.' : 'LIVE'}</span>}
         <h1>{event?.title || '—'}</h1>
