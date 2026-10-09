@@ -7,7 +7,7 @@ import { installFixtureIsolation } from './helpers/fixtureIsolation.mjs';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const baseline = process.argv.includes('--baseline');
 process.env.PG_PURCHASE_BASELINE = baseline ? '1' : '0';
-const evidence = process.env.PG_PURCHASE_EVIDENCE_DIR || `${root}tests/artifacts/oct09/purchase`; 
+const evidence = process.env.PG_PURCHASE_EVIDENCE_DIR || `${root}tests/artifacts/oct09/purchase`;
 await mkdir(evidence, { recursive: true });
 const server = await createServer({ configFile: `${root}tests/fixtures/purchase-review/vite.config.mjs`, logLevel: 'error' });
 await server.listen();
