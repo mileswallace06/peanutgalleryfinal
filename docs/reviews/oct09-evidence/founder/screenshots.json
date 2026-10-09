@@ -1,0 +1,345 @@
+{
+  "fixtureOnly": true,
+  "screenshots": [
+    {
+      "id": "N06",
+      "screen": "Founder failed Purchase read",
+      "phase": "before",
+      "file": "before-founder-read-failure-light.png",
+      "theme": "light",
+      "role": "synthetic administrator",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "capture": "viewport screenshot",
+      "physicalDevice": false,
+      "source": "c31a2e1",
+      "fixture": "tests/fixtures/founder-recovery/index.html",
+      "productionConnection": false
+    },
+    {
+      "id": "N06",
+      "screen": "Founder failed Purchase read",
+      "phase": "after",
+      "file": "after-founder-failure-light.png",
+      "theme": "light",
+      "role": "synthetic administrator",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "capture": "viewport screenshot",
+      "physicalDevice": false,
+      "source": "codex/pg-oct09-regression-repairs working tree",
+      "fixture": "tests/fixtures/founder-recovery/index.html",
+      "productionConnection": false
+    },
+    {
+      "id": "N02",
+      "screen": "Transfer Windows refresh",
+      "phase": "before",
+      "file": "before-windows-refresh-light.png",
+      "theme": "light",
+      "role": "synthetic administrator",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "capture": "viewport screenshot",
+      "physicalDevice": false,
+      "source": "c31a2e1",
+      "fixture": "tests/fixtures/founder-recovery/index.html",
+      "productionConnection": false
+    },
+    {
+      "id": "N02",
+      "screen": "Transfer Windows refresh",
+      "phase": "after",
+      "file": "after-windows-refresh-focus-light.png",
+      "theme": "light",
+      "role": "synthetic administrator",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "capture": "viewport screenshot",
+      "physicalDevice": false,
+      "source": "codex/pg-oct09-regression-repairs working tree",
+      "fixture": "tests/fixtures/founder-recovery/index.html",
+      "productionConnection": false
+    },
+    {
+      "id": "N02",
+      "screen": "Flash Drop metrics refresh",
+      "phase": "before",
+      "file": "before-drops-refresh-light.png",
+      "theme": "light",
+      "role": "synthetic administrator",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "capture": "viewport screenshot",
+      "physicalDevice": false,
+      "source": "c31a2e1",
+      "fixture": "tests/fixtures/founder-recovery/index.html",
+      "productionConnection": false
+    },
+    {
+      "id": "N02",
+      "screen": "Flash Drop metrics refresh",
+      "phase": "after",
+      "file": "after-drops-refresh-focus-light.png",
+      "theme": "light",
+      "role": "synthetic administrator",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "capture": "viewport screenshot",
+      "physicalDevice": false,
+      "source": "codex/pg-oct09-regression-repairs working tree",
+      "fixture": "tests/fixtures/founder-recovery/index.html",
+      "productionConnection": false
+    },
+    {
+      "id": "N02",
+      "screen": "Instant Transfer Ready refresh",
+      "phase": "before",
+      "file": "before-instant-refresh-light.png",
+      "theme": "light",
+      "role": "synthetic administrator",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "capture": "viewport screenshot",
+      "physicalDevice": false,
+      "source": "c31a2e1",
+      "fixture": "tests/fixtures/founder-recovery/index.html",
+      "productionConnection": false
+    },
+    {
+      "id": "N02",
+      "screen": "Instant Transfer Ready refresh",
+      "phase": "after",
+      "file": "after-instant-refresh-focus-light.png",
+      "theme": "light",
+      "role": "synthetic administrator",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "capture": "viewport screenshot",
+      "physicalDevice": false,
+      "source": "codex/pg-oct09-regression-repairs working tree",
+      "fixture": "tests/fixtures/founder-recovery/index.html",
+      "productionConnection": false
+    },
+    {
+      "id": "N05",
+      "screen": "Beta Live Event field",
+      "phase": "before",
+      "file": "before-beta-event-label-light.png",
+      "theme": "light",
+      "role": "synthetic administrator",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "capture": "viewport screenshot",
+      "physicalDevice": false,
+      "source": "c31a2e1",
+      "fixture": "tests/fixtures/founder-recovery/index.html",
+      "productionConnection": false
+    },
+    {
+      "id": "N05",
+      "screen": "Beta Live Event field",
+      "phase": "after",
+      "file": "after-beta-event-label-light.png",
+      "theme": "light",
+      "role": "synthetic administrator",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "capture": "viewport screenshot",
+      "physicalDevice": false,
+      "source": "codex/pg-oct09-regression-repairs working tree",
+      "fixture": "tests/fixtures/founder-recovery/index.html",
+      "productionConnection": false
+    },
+    {
+      "id": "N06",
+      "screen": "Founder failed Purchase read",
+      "phase": "before",
+      "file": "before-founder-read-failure-dark.png",
+      "theme": "dark",
+      "role": "synthetic administrator",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "capture": "viewport screenshot",
+      "physicalDevice": false,
+      "source": "c31a2e1",
+      "fixture": "tests/fixtures/founder-recovery/index.html",
+      "productionConnection": false
+    },
+    {
+      "id": "N06",
+      "screen": "Founder failed Purchase read",
+      "phase": "after",
+      "file": "after-founder-failure-dark.png",
+      "theme": "dark",
+      "role": "synthetic administrator",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "capture": "viewport screenshot",
+      "physicalDevice": false,
+      "source": "codex/pg-oct09-regression-repairs working tree",
+      "fixture": "tests/fixtures/founder-recovery/index.html",
+      "productionConnection": false
+    },
+    {
+      "id": "N02",
+      "screen": "Transfer Windows refresh",
+      "phase": "before",
+      "file": "before-windows-refresh-dark.png",
+      "theme": "dark",
+      "role": "synthetic administrator",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "capture": "viewport screenshot",
+      "physicalDevice": false,
+      "source": "c31a2e1",
+      "fixture": "tests/fixtures/founder-recovery/index.html",
+      "productionConnection": false
+    },
+    {
+      "id": "N02",
+      "screen": "Transfer Windows refresh",
+      "phase": "after",
+      "file": "after-windows-refresh-focus-dark.png",
+      "theme": "dark",
+      "role": "synthetic administrator",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "capture": "viewport screenshot",
+      "physicalDevice": false,
+      "source": "codex/pg-oct09-regression-repairs working tree",
+      "fixture": "tests/fixtures/founder-recovery/index.html",
+      "productionConnection": false
+    },
+    {
+      "id": "N02",
+      "screen": "Flash Drop metrics refresh",
+      "phase": "before",
+      "file": "before-drops-refresh-dark.png",
+      "theme": "dark",
+      "role": "synthetic administrator",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "capture": "viewport screenshot",
+      "physicalDevice": false,
+      "source": "c31a2e1",
+      "fixture": "tests/fixtures/founder-recovery/index.html",
+      "productionConnection": false
+    },
+    {
+      "id": "N02",
+      "screen": "Flash Drop metrics refresh",
+      "phase": "after",
+      "file": "after-drops-refresh-focus-dark.png",
+      "theme": "dark",
+      "role": "synthetic administrator",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "capture": "viewport screenshot",
+      "physicalDevice": false,
+      "source": "codex/pg-oct09-regression-repairs working tree",
+      "fixture": "tests/fixtures/founder-recovery/index.html",
+      "productionConnection": false
+    },
+    {
+      "id": "N02",
+      "screen": "Instant Transfer Ready refresh",
+      "phase": "before",
+      "file": "before-instant-refresh-dark.png",
+      "theme": "dark",
+      "role": "synthetic administrator",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "capture": "viewport screenshot",
+      "physicalDevice": false,
+      "source": "c31a2e1",
+      "fixture": "tests/fixtures/founder-recovery/index.html",
+      "productionConnection": false
+    },
+    {
+      "id": "N02",
+      "screen": "Instant Transfer Ready refresh",
+      "phase": "after",
+      "file": "after-instant-refresh-focus-dark.png",
+      "theme": "dark",
+      "role": "synthetic administrator",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "capture": "viewport screenshot",
+      "physicalDevice": false,
+      "source": "codex/pg-oct09-regression-repairs working tree",
+      "fixture": "tests/fixtures/founder-recovery/index.html",
+      "productionConnection": false
+    },
+    {
+      "id": "N05",
+      "screen": "Beta Live Event field",
+      "phase": "before",
+      "file": "before-beta-event-label-dark.png",
+      "theme": "dark",
+      "role": "synthetic administrator",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "capture": "viewport screenshot",
+      "physicalDevice": false,
+      "source": "c31a2e1",
+      "fixture": "tests/fixtures/founder-recovery/index.html",
+      "productionConnection": false
+    },
+    {
+      "id": "N05",
+      "screen": "Beta Live Event field",
+      "phase": "after",
+      "file": "after-beta-event-label-dark.png",
+      "theme": "dark",
+      "role": "synthetic administrator",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "capture": "viewport screenshot",
+      "physicalDevice": false,
+      "source": "codex/pg-oct09-regression-repairs working tree",
+      "fixture": "tests/fixtures/founder-recovery/index.html",
+      "productionConnection": false
+    }
+  ]
+}
