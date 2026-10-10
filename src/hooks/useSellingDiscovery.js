@@ -82,7 +82,8 @@ export function useSellingDiscovery(initialKeyword = '', { initialRequest = null
     if (requestRef.current.scope === 'local') load(createEventSearchRequest(requestRef.current.keyword, localArea));
   }), [load, cancelRequest]);
   const locate = (text = requestRef.current.keyword) => { intent.current++; setRestoring(false); pendingGPS.current = { keyword: text }; setCityError(''); requestLocation(); };
-  return { keyword, setKeyword, area, request, result, loading, loadingMore, restoring, editingLocation, locationInput, cityError, locationStatus,
+  return { keyword, setKeyword, area, request, requestGeneration: generation.current, result, loading, loadingMore, restoring, editingLocation, locationInput, cityError, locationStatus,
+    isCurrentRequest: value => generation.current === value,
     submit: () => run(keyword), nationwide: () => run(requestRef.current.keyword, null, 'nationwide'),
     nearMe: () => { run(''); if (!areaRef.current) locate(''); }, locate,
     restoreRequest: value => {
@@ -90,6 +91,7 @@ export function useSellingDiscovery(initialKeyword = '', { initialRequest = null
       intent.current++; pendingGPS.current = null; cancelRequest(); setRestoring(false);
       const localArea = areaFromRequest(restored); areaRef.current = localArea; setArea(localArea); setKeyword(restored.keyword);
       load(restored);
+      return generation.current;
     },
     refresh: () => load(requestRef.current, true), loadMore: () => continueLoad(), retryFailed: () => continueLoad(true),
     openLocation: () => { setLocationInput(''); setCityError(''); setEditingLocation(true); },
