@@ -1,8 +1,9 @@
+import listingParticipantResponses from 'virtual:listing-participant-responses';
 import { guardFixtureSdk } from '../../helpers/fixtureSdkGuard.js';
 const query = new URLSearchParams(location.search);
 const role = query.get('role') || 'seller';
 export const fixture = window.purchaseReview = {
-  calls: [], blocked: [], role,
+  calls: [], blocked: [], role, listingResponses: [],
   metadata: query.get('metadata') || 'populated',
   readFailure: query.get('readFailure') === '1',
   stripe: query.get('stripe') || 'missing-readiness',
@@ -40,8 +41,12 @@ const sdk = {
       return { data: { purchase: p ? serialize(p) : null } };
     }
     if (name === 'getListingParticipantView') {
-      const rows = await metadata('listing', [listing]);
-      return { data: args.action === 'list_mine' ? { listings: rows } : { listing: rows[0] || null } };
+      const response = listingParticipantResponses[role][query.get('platform') || 'other'];
+      if (response.status !== 200) throw { status: response.status };
+      const rows = await metadata('listing', [response.body.listing]);
+      const data = args.action === 'list_mine' ? { listings: rows } : { listing: rows[0] || null };
+      fixture.listingResponses.push(data);
+      return { data };
     }
     if (name === 'checkSellerOnboarding') {
       if (fixture.stripe === 'loading') await new Promise(resolve => { fixture.releaseStripe = resolve; });
