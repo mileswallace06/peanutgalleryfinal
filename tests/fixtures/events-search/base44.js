@@ -3,6 +3,15 @@ import { matches } from '../../helpers/discoveryMock.mjs';
 // Test-only SDK boundary. Fail closed on unexpected functions or mutations.
 const fixture = window.searchFixture = { calls: [], unexpected: [], pg: [], tm: [], tmError: null, pgError: false, delays: {}, ...window.initialSearchFixture };
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+// A test can hold a particular market's response until after a newer request
+// settles. Capture the rows before waiting so this models a genuinely stale read.
+fixture.pendingCities = [];
+fixture.releaseCity = city => {
+  fixture.holdCities = (fixture.holdCities || []).filter(value => value !== city);
+  const released = fixture.pendingCities.filter(pending => pending.city === city);
+  fixture.pendingCities = fixture.pendingCities.filter(pending => pending.city !== city);
+  released.forEach(pending => pending.resolve());
+};
 const sdk = {
   auth: { me: async () => ({ role: 'user' }) },
   entities: { Event: { filter: async (query, sort = 'date', limit = 40, offset = 0) => {
@@ -20,6 +29,7 @@ const sdk = {
     if (name !== 'getTicketmasterEvents') { fixture.unexpected.push(name); window.__PG_RECORD_FIXTURE_BLOCK__?.({ kind: 'sdk', name }); throw new Error(`Unexpected fixture function: ${name}`); }
     const rows = fixture.tm.filter(event => (!params.city || event.city === params.city) && (!params.latlong || event.city === 'Phoenix') && (!params.keyword || event.title.toLowerCase().includes(params.keyword.toLowerCase()) || event.attraction === params.keyword) && (params.discoveryWindow === 'ongoing' ? event.date >= new Date(Date.parse(params.asOf)-12*3600000).toISOString() && event.date < params.asOf : params.includePast || event.date >= params.asOf)).sort((a, b) => (params.sort === 'latest' ? -1 : 1) * a.date.localeCompare(b.date) || a.tm_id.localeCompare(b.tm_id));
     const error = fixture.tmError;
+    if (fixture.holdCities?.includes(params.city)) await new Promise(resolve => fixture.pendingCities.push({ city: params.city, resolve }));
     await wait(fixture.delays[params.keyword] || 0);
     if (error) throw { status: error, message: 'fixture provider failure' };
     const page = params.page || 0, size = params.size || 40, hasMore = (page + 1) * size < rows.length;
