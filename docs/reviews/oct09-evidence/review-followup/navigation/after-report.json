@@ -1,0 +1,15 @@
+{
+  "baseline": "3a56073ba06f9f25b42844d2ca67068dafd4c554",
+  "mode": "repaired",
+  "checks": [
+    "dark: first-page target restores all 120 saved cards after detail reload and browser Back, then receives focus",
+    "dark: settled Boston to Phoenix Back restores original request, Upcoming view and all 120 cards across three pages",
+    "dark: newer Boston intent survives both late Phoenix reads without old results or restoration continuation",
+    "light: first-page target restores all 120 saved cards after detail reload and browser Back, then receives focus",
+    "light: settled Boston to Phoenix Back restores original request, Upcoming view and all 120 cards across three pages",
+    "light: newer Boston intent survives both late Phoenix reads without old results or restoration continuation"
+  ],
+  "outbound": [],
+  "errors": [],
+  "passed": true
+}
