@@ -1,0 +1,26 @@
+{
+  "baseline": false,
+  "comparisonBase": "3a56073ba06f9f25b42844d2ca67068dafd4c554",
+  "sourceMode": "working tree",
+  "fixtureOnly": true,
+  "browser": "153.0.8010.0",
+  "checks": [
+    "light/immediate/reject: busy blocks submission, failure clears busy, draft retained, same-file retry succeeds",
+    "light/immediate/malformed: busy blocks submission, failure clears busy, draft retained, same-file retry succeeds",
+    "light/scheduled/reject: busy blocks submission, failure clears busy, draft retained, same-file retry succeeds",
+    "light/scheduled/malformed: busy blocks submission, failure clears busy, draft retained, same-file retry succeeds",
+    "dark/immediate/reject: busy blocks submission, failure clears busy, draft retained, same-file retry succeeds",
+    "dark/immediate/malformed: busy blocks submission, failure clears busy, draft retained, same-file retry succeeds",
+    "dark/scheduled/reject: busy blocks submission, failure clears busy, draft retained, same-file retry succeeds",
+    "dark/scheduled/malformed: busy blocks submission, failure clears busy, draft retained, same-file retry succeeds",
+    "late reject after close/reopen cannot alter the new draft",
+    "late success after close/reopen cannot alter the new draft"
+  ],
+  "errors": [],
+  "blocked": [],
+  "screenshots": [
+    "after-rejected-light.png",
+    "after-rejected-dark.png"
+  ],
+  "status": "PASSED"
+}

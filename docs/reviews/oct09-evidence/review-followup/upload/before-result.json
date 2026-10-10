@@ -1,0 +1,32 @@
+{
+  "baseline": true,
+  "comparisonBase": "3a56073ba06f9f25b42844d2ca67068dafd4c554",
+  "sourceMode": "pinned baseline component",
+  "fixtureOnly": true,
+  "browser": "153.0.8010.0",
+  "checks": [],
+  "errors": [
+    "Synthetic upload failure"
+  ],
+  "blocked": [],
+  "screenshots": [
+    "failure.png"
+  ],
+  "status": "FAILED",
+  "failure": "locator.waitFor: Timeout 8000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('dialog', { name: /Create Flash Drop/ }).getByRole('alert').filter({ hasText: 'We could not upload your proof. Your seat details are saved in this form. Choose the same file or another image to retry.' }) to be visible\u001b[22m\n",
+  "observed": {
+    "uploadInputDisabled": true,
+    "submissionDisabled": true,
+    "uploadingText": true,
+    "errors": [],
+    "uploads": [
+      {
+        "name": "synthetic-proof.png",
+        "type": "image/png",
+        "size": 34,
+        "outcome": "reject"
+      }
+    ],
+    "forbiddenWrites": []
+  }
+}
