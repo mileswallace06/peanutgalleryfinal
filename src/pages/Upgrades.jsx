@@ -93,23 +93,32 @@ export default function Upgrades() {
     if (route.key === routeKeyRef.current) return;
     routeKeyRef.current = route.key; restoreGeneration.current++;
     const restore = readDiscoveryReturn(returnContext); restoreRef.current = restore;
-    if (restore?.request && discoverySearchFromRequest(restore.request) !== discoverySearchFromRequest(discovery.request)) discovery.restoreRequest(restore.request);
+    if (restore) {
+      restore.requestGeneration = restore.request && discoverySearchFromRequest(restore.request) !== discoverySearchFromRequest(discovery.request)
+        ? discovery.restoreRequest(restore.request) : discovery.requestGeneration;
+    }
   }, [route.pathname, route.search, route.key]);
   useEffect(() => {
-    const restore = restoreRef.current, id = restoreGeneration.current;
+    const restore = restoreRef.current, id = restoreGeneration.current, requestId = discovery.requestGeneration;
+    // restoreRequest starts a new generation before React renders that request.
+    // Wait through the old render, but abandon the snapshot if newer intent wins.
+    if (restore?.requestGeneration !== undefined) {
+      if (discovery.requestGeneration < restore.requestGeneration) return;
+      if (discovery.requestGeneration > restore.requestGeneration) { restoreRef.current = null; return; }
+    }
     if (!restore || route.pathname !== '/upgrades' || loading || discovery.loadingMore || !result.pager || (restore.owned && ticketQuery.isPending)) return;
     if (restore.request && discoverySearchFromRequest(restore.request) !== discoverySearchFromRequest(discovery.request)) { restoreRef.current = null; return; }
     const target = (restore.owned ? ownedEvents : visibleEvents).find(event => event.id === restore.eventId || event._eventAliases?.includes(restore.eventId));
     const row = target && document.getElementById(`${restore.owned ? 'upgrade-owned-event' : 'upgrade-event'}-${target.id}`);
     const pages = Object.values(result.pager.streams).reduce((max, stream) => Math.max(max, stream.pagesLoaded || 0), 0);
-    if (!row && !restore.owned && result.hasMore && pages < Math.max(restore.pages || 1, 1)) { discovery.loadMore(); return; }
+    if (!restore.owned && result.hasMore && pages < Math.max(restore.pages || 1, 1)) { discovery.loadMore(); return; }
     restoreRef.current = null;
     requestAnimationFrame(() => {
-      if (id !== restoreGeneration.current) return;
+      if (id !== restoreGeneration.current || !discovery.isCurrentRequest(requestId)) return;
       if (row?.isConnected) { const disclosure = row.closest('details'); if (disclosure) disclosure.open = true; row.scrollIntoView({ block: 'center', behavior: 'instant' }); row.focus({ preventScroll: true }); }
       else scrollHost()?.scrollTo({ top: restore.scrollTop || 0, behavior: 'instant' });
     });
-  }, [loading, discovery.loadingMore, result, browseView, route.pathname, route.key, ticketQuery.data]);
+  }, [loading, discovery.loadingMore, discovery.requestGeneration, result, browseView, route.pathname, route.key, ticketQuery.data]);
   useEffect(() => () => { restoreGeneration.current++; }, []);
 
   return (
