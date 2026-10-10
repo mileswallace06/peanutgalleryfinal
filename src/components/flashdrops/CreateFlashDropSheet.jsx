@@ -49,6 +49,9 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated, 
   const [ownershipListingId, setOwnershipListingId] = useState('');
   const [ownershipProofUrl, setOwnershipProofUrl] = useState('');
   const [ownershipProofUploading, setOwnershipProofUploading] = useState(false);
+  const [ownershipProofError, setOwnershipProofError] = useState('');
+  const proofUploadRequest = useRef(0);
+  const proofUploadInFlight = useRef(false);
   const [deliveryMethod, setDeliveryMethod] = useState('ticket_transfer');
   const [userListings, setUserListings] = useState([]);
   const [ownershipLookup, setOwnershipLookup] = useState('idle');
@@ -85,6 +88,18 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated, 
     return () => { lookupRequest.current += 1; lookupInFlight.current = false; };
   }, [event?.id, user?.email]);
 
+  useEffect(() => {
+    proofUploadRequest.current += 1;
+    proofUploadInFlight.current = false;
+    setOwnershipProofUrl('');
+    setOwnershipProofUploading(false);
+    setOwnershipProofError('');
+    return () => {
+      proofUploadRequest.current += 1;
+      proofUploadInFlight.current = false;
+    };
+  }, [event?.id, user?.email]);
+
   // Failures and empty results are different. The participant view authorizes
   // the current user's records; matching a listing is not ownership approval.
   const loadUserListings = async () => {
@@ -108,12 +123,27 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated, 
   };
 
   const handleProofUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+    const file = e.currentTarget.files?.[0];
+    // Clearing the native selection lets the same file trigger change on retry.
+    e.currentTarget.value = '';
+    if (!file || proofUploadInFlight.current) return;
+    const request = ++proofUploadRequest.current;
+    proofUploadInFlight.current = true;
+    setOwnershipProofError('');
     setOwnershipProofUploading(true);
-    const { file_url } = await base44.integrations.Core.UploadFile({ file });
-    setOwnershipProofUrl(file_url);
-    setOwnershipProofUploading(false);
+    try {
+      const result = await base44.integrations.Core.UploadFile({ file });
+      if (request !== proofUploadRequest.current) return;
+      if (typeof result?.file_url !== 'string' || !result.file_url.trim()) throw new Error('Upload response unavailable');
+      setOwnershipProofUrl(result.file_url);
+    } catch {
+      if (request === proofUploadRequest.current) setOwnershipProofError('We could not upload your proof. Your seat details are saved in this form. Choose the same file or another image to retry.');
+    } finally {
+      if (request === proofUploadRequest.current) {
+        proofUploadInFlight.current = false;
+        setOwnershipProofUploading(false);
+      }
+    }
   };
 
   const handleCreate = async () => {
@@ -304,6 +334,7 @@ export default function CreateFlashDropSheet({ event, user, onClose, onCreated, 
                       <input type="file" accept="image/*" className="sr-only" onChange={handleProofUpload} disabled={ownershipProofUploading} />
                     </label>
                   )}
+                  {ownershipProofError && <p role="alert" className="text-xs text-foreground">{ownershipProofError}</p>}
                 </fieldset>
 
                 {/* Delivery Method */}
