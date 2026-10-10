@@ -1,5 +1,6 @@
 [
   "base44/functions/flashDrop/entry.ts",
+  "base44/functions/getListingParticipantView/entry.ts",
   "base44/functions/getTicketmasterEvents/entry.ts",
   "base44/functions/submitListing/entry.ts",
   "base44/shared/eventLifecycle.js",

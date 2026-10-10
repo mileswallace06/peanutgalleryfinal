@@ -11,7 +11,7 @@ const suites = [
   'event-discovery-paging', 'listing-event-lifecycle', 'legal-document', 'fan-zone-recovery',
   'profile-beta-accessibility', 'sales-admin-presentation', 'route-metadata',
   'oct09-discovery-state', 'oct09-discovery-paging', 'event-identity-presentation',
-  'oct09-lifecycle', 'founder-read-recovery', 'purchase-detail',
+  'oct09-lifecycle', 'founder-read-recovery', 'purchase-detail', 'purchase-transfer-platform',
 ];
 const results = [];
 for (const suite of suites) {
