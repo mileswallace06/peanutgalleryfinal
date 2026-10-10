@@ -1,0 +1,28 @@
+{
+  "sourceRef": "working tree",
+  "checks": [
+    "light/ticketmaster: actual authorized projection reaches seller guidance, exact provider link, no extra private fields or mutation",
+    "light/axs: actual authorized projection reaches seller guidance, exact provider link, no extra private fields or mutation",
+    "light: unknown platform stays generic without copying arbitrary field contents",
+    "light/buyer: no seller transfer guidance or unauthorized context hydration",
+    "light/admin: no seller transfer guidance or unauthorized context hydration",
+    "light/unauthorized: no seller transfer guidance or unauthorized context hydration",
+    "light/guest: no seller transfer guidance or unauthorized context hydration",
+    "dark/ticketmaster: actual authorized projection reaches seller guidance, exact provider link, no extra private fields or mutation",
+    "dark/axs: actual authorized projection reaches seller guidance, exact provider link, no extra private fields or mutation",
+    "dark: unknown platform stays generic without copying arbitrary field contents",
+    "dark/buyer: no seller transfer guidance or unauthorized context hydration",
+    "dark/admin: no seller transfer guidance or unauthorized context hydration",
+    "dark/unauthorized: no seller transfer guidance or unauthorized context hydration",
+    "dark/guest: no seller transfer guidance or unauthorized context hydration"
+  ],
+  "errors": [],
+  "blocked": [],
+  "screenshots": [
+    "after-ticketmaster-light.png",
+    "after-axs-light.png",
+    "after-ticketmaster-dark.png",
+    "after-axs-dark.png"
+  ],
+  "status": "PASSED"
+}
