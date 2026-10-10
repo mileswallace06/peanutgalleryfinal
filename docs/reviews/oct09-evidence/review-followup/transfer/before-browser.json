@@ -1,0 +1,11 @@
+{
+  "sourceRef": "3a56073ba06f9f25b42844d2ca67068dafd4c554",
+  "checks": [],
+  "errors": [],
+  "blocked": [],
+  "screenshots": [
+    "before-ticketmaster-light.png"
+  ],
+  "status": "FAILED",
+  "failure": "Authorized ticketmaster listing must show Open Ticketmaster on actual PurchaseSuccess\n\n0 !== 1\n"
+}

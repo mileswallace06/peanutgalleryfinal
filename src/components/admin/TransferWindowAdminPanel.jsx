@@ -1,7 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { base44 } from '@/api/base44Client';
+import { useOperationalReads } from '@/hooks/useOperationalReads';
+import { operationalValue } from '@/lib/operationalReads';
 import { getTransferWindowInfo } from '@/lib/transferWindow';
-import { RefreshCw, Clock, CheckCircle, XCircle, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { RefreshCw, ShieldCheck } from 'lucide-react';
+const READS = { events: () => base44.entities.Event.list('-created_date', 100) };
+
 
 const STATUS_OPTIONS = [
   { value: 'unknown',                  label: '❓ Unknown',              color: '#BF5FFF' },
@@ -204,19 +208,11 @@ function EventTransferCard({ event, onUpdate }) {
 }
 
 export default function TransferWindowAdminPanel({ onRefresh }) {
-  const [events, setEvents] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { sources, reload: loadEvents, loading } = useOperationalReads(READS);
+  const source = sources.events;
+  const events = source.rows.filter(event => event.status !== 'ended');
   const [filter, setFilter] = useState('all');
-
-  const loadEvents = async () => {
-    setLoading(true);
-    const all = await base44.entities.Event.list('-created_date', 100);
-    // Show upcoming + live events
-    setEvents(all.filter(e => e.status !== 'ended'));
-    setLoading(false);
-  };
-
-  useEffect(() => { loadEvents(); }, []);
+  const metric = value => operationalValue(source, value);
 
   const handleUpdate = () => { loadEvents(); onRefresh?.(); };
 
@@ -239,7 +235,7 @@ export default function TransferWindowAdminPanel({ onRefresh }) {
           <h2 className="font-bold text-lg text-foreground">Transfer Window Manager</h2>
           <p className="text-xs text-muted-foreground">Set transfer status per event — controls buyer eligibility and warnings</p>
         </div>
-        <button onClick={loadEvents} disabled={loading}
+        <button type="button" aria-label="Refresh transfer windows" aria-busy={loading} onClick={() => loadEvents()} disabled={loading}
           className="p-1.5 rounded-lg hover:bg-muted transition-colors">
           <RefreshCw className={`w-4 h-4 text-muted-foreground ${loading ? 'animate-spin' : ''}`} />
         </button>
@@ -255,7 +251,7 @@ export default function TransferWindowAdminPanel({ onRefresh }) {
         ].map(s => (
           <div key={s.label} className="pg-operations-card rounded-xl p-3 text-center"
             style={{ background: 'var(--pg-surface)', border: `1px solid ${s.color}25` }}>
-            <div className="pg-operations-status text-xl font-black" style={{ '--pg-status-ink': s.color }}>{s.value}</div>
+            <div className="pg-operations-status text-xl font-black" style={{ '--pg-status-ink': s.color }}>{metric(s.value)}</div>
             <div className="text-[10px] text-muted-foreground">{s.label}</div>
           </div>
         ))}
@@ -264,11 +260,11 @@ export default function TransferWindowAdminPanel({ onRefresh }) {
       {/* Filter tabs */}
       <div className="flex gap-2 flex-wrap mb-4">
         {[
-          { key: 'all', label: `All (${events.length})` },
-          { key: 'unknown', label: `Unknown (${stats.unknown})` },
-          { key: 'open', label: `Open (${stats.open})` },
-          { key: 'closing_soon', label: `Closing (${stats.closing})` },
-          { key: 'closed', label: `Closed (${stats.closed})` },
+          { key: 'all', label: `All (${metric(events.length)})` },
+          { key: 'unknown', label: `Unknown (${metric(stats.unknown)})` },
+          { key: 'open', label: `Open (${metric(stats.open)})` },
+          { key: 'closing_soon', label: `Closing (${metric(stats.closing)})` },
+          { key: 'closed', label: `Closed (${metric(stats.closed)})` },
         ].map(tab => (
           <button key={tab.key} onClick={() => setFilter(tab.key)}
             className="pg-operations-status text-xs px-2.5 py-1 rounded-lg transition-all"
@@ -284,6 +280,8 @@ export default function TransferWindowAdminPanel({ onRefresh }) {
         <div className="space-y-3">
           {[1,2,3].map(i => <div key={i} className="pg-operations-card h-16 rounded-xl pg-operations-skeleton animate-pulse" />)}
         </div>
+      ) : source.status !== 'ready' ? (
+        <p role="status" className="text-sm text-muted-foreground py-6">Transfer windows unavailable. Refresh to retry.</p>
       ) : filtered.length === 0 ? (
         <p className="text-sm text-muted-foreground text-center py-8">No events in this category.</p>
       ) : (

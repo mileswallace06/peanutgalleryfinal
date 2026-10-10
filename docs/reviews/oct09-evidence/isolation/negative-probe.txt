@@ -1,0 +1,1 @@
+{"status":"PASS","negativeAttempts":6,"persistAfterNavigation":true,"fixtureOverrideCannotBypass":true,"serverRequests":[["GET","/fixture.html"],["GET","/tests/helpers/fixtureSdkGuard.js"],["GET","/fixture.html"]]}

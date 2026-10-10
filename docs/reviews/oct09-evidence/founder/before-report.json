@@ -1,0 +1,191 @@
+{
+  "fixtureOnly": true,
+  "results": [
+    {
+      "theme": "light",
+      "source": "Purchase",
+      "stuckDisabled": true,
+      "optimisticHealth": true,
+      "errors": [
+        "Synthetic Purchase read failure"
+      ]
+    },
+    {
+      "theme": "light",
+      "source": "Listing",
+      "stuckDisabled": true,
+      "optimisticHealth": true,
+      "errors": [
+        "Synthetic Purchase read failure",
+        "Synthetic Listing read failure"
+      ]
+    },
+    {
+      "theme": "light",
+      "source": "AdminAlert",
+      "stuckDisabled": true,
+      "optimisticHealth": true,
+      "errors": [
+        "Synthetic Purchase read failure",
+        "Synthetic Listing read failure",
+        "Synthetic AdminAlert read failure"
+      ]
+    },
+    {
+      "theme": "light",
+      "source": "SeatDonation",
+      "stuckDisabled": true,
+      "optimisticHealth": true,
+      "errors": [
+        "Synthetic Purchase read failure",
+        "Synthetic Listing read failure",
+        "Synthetic AdminAlert read failure",
+        "Synthetic SeatDonation read failure"
+      ]
+    },
+    {
+      "theme": "light",
+      "source": "TransferOutcome",
+      "stuckDisabled": true,
+      "optimisticHealth": true,
+      "errors": [
+        "Synthetic Purchase read failure",
+        "Synthetic Listing read failure",
+        "Synthetic AdminAlert read failure",
+        "Synthetic SeatDonation read failure",
+        "Synthetic TransferOutcome read failure"
+      ]
+    },
+    {
+      "theme": "light",
+      "source": "EventNavigationLog",
+      "stuckDisabled": true,
+      "optimisticHealth": true,
+      "errors": [
+        "Synthetic Purchase read failure",
+        "Synthetic Listing read failure",
+        "Synthetic AdminAlert read failure",
+        "Synthetic SeatDonation read failure",
+        "Synthetic TransferOutcome read failure",
+        "Synthetic EventNavigationLog read failure"
+      ]
+    },
+    {
+      "theme": "light",
+      "syntheticAlertCreatesAfterRemount": 2
+    },
+    {
+      "theme": "light",
+      "screen": "windows",
+      "refreshAccessibilitySnapshot": "- button:\n  - img"
+    },
+    {
+      "theme": "light",
+      "screen": "drops",
+      "refreshAccessibilitySnapshot": "- button:\n  - img"
+    },
+    {
+      "theme": "light",
+      "screen": "instant",
+      "refreshAccessibilitySnapshot": "- button:\n  - img"
+    },
+    {
+      "theme": "light",
+      "screen": "beta",
+      "associatedLabels": 0
+    },
+    {
+      "theme": "dark",
+      "source": "Purchase",
+      "stuckDisabled": true,
+      "optimisticHealth": true,
+      "errors": [
+        "Synthetic Purchase read failure"
+      ]
+    },
+    {
+      "theme": "dark",
+      "source": "Listing",
+      "stuckDisabled": true,
+      "optimisticHealth": true,
+      "errors": [
+        "Synthetic Purchase read failure",
+        "Synthetic Listing read failure"
+      ]
+    },
+    {
+      "theme": "dark",
+      "source": "AdminAlert",
+      "stuckDisabled": true,
+      "optimisticHealth": true,
+      "errors": [
+        "Synthetic Purchase read failure",
+        "Synthetic Listing read failure",
+        "Synthetic AdminAlert read failure"
+      ]
+    },
+    {
+      "theme": "dark",
+      "source": "SeatDonation",
+      "stuckDisabled": true,
+      "optimisticHealth": true,
+      "errors": [
+        "Synthetic Purchase read failure",
+        "Synthetic Listing read failure",
+        "Synthetic AdminAlert read failure",
+        "Synthetic SeatDonation read failure"
+      ]
+    },
+    {
+      "theme": "dark",
+      "source": "TransferOutcome",
+      "stuckDisabled": true,
+      "optimisticHealth": true,
+      "errors": [
+        "Synthetic Purchase read failure",
+        "Synthetic Listing read failure",
+        "Synthetic AdminAlert read failure",
+        "Synthetic SeatDonation read failure",
+        "Synthetic TransferOutcome read failure"
+      ]
+    },
+    {
+      "theme": "dark",
+      "source": "EventNavigationLog",
+      "stuckDisabled": true,
+      "optimisticHealth": true,
+      "errors": [
+        "Synthetic Purchase read failure",
+        "Synthetic Listing read failure",
+        "Synthetic AdminAlert read failure",
+        "Synthetic SeatDonation read failure",
+        "Synthetic TransferOutcome read failure",
+        "Synthetic EventNavigationLog read failure"
+      ]
+    },
+    {
+      "theme": "dark",
+      "syntheticAlertCreatesAfterRemount": 2
+    },
+    {
+      "theme": "dark",
+      "screen": "windows",
+      "refreshAccessibilitySnapshot": "- button:\n  - img"
+    },
+    {
+      "theme": "dark",
+      "screen": "drops",
+      "refreshAccessibilitySnapshot": "- button:\n  - img"
+    },
+    {
+      "theme": "dark",
+      "screen": "instant",
+      "refreshAccessibilitySnapshot": "- button:\n  - img"
+    },
+    {
+      "theme": "dark",
+      "screen": "beta",
+      "associatedLabels": 0
+    }
+  ]
+}

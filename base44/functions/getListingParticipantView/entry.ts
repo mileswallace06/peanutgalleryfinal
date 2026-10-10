@@ -23,6 +23,8 @@ import { getListingPrivate } from '../../shared/privateData.ts';
 import { isFailClosed } from '../../shared/checkoutLogic.js';
 
 const MAX_ID_LENGTH = 200;
+// Listing schema enum only: never copy arbitrary seller-supplied platform data.
+const TRANSFER_PLATFORMS = new Set(['ticketmaster', 'seatgeek', 'axs', 'stubhub', 'apple_wallet', 'other']);
 
 // ── Input validation ────────────────────────────────────────────────────────
 function validateId(value) {
@@ -88,6 +90,9 @@ function serializeListing(listing, lp, viewerEmail, role, isConfirmedBuyer) {
 
   if (isSeller || isConfirmedBuyer || isAdmin) {
     out.seats = authoritativeSeats;
+    // Transfer guidance belongs to an authorized participant's listing context.
+    // Public views and the separate list_mine contract remain unchanged.
+    out.transfer_platform = TRANSFER_PLATFORMS.has(listing.transfer_platform) ? listing.transfer_platform : null;
   }
 
   if (reservationState === 'reserved_for_you' || isSeller || isAdmin) {

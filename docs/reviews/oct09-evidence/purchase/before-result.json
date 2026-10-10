@@ -1,0 +1,16 @@
+{
+  "baseline": true,
+  "comparisonBase": "c31a2e1aa9f9c7d7916908ab948201cfad3243a8",
+  "sourceMode": "pinned baseline component",
+  "checks": [
+    "light: reproduced seller detail buyer heading/advice and missing body reference",
+    "dark: reproduced seller detail buyer heading/advice and missing body reference"
+  ],
+  "errors": [],
+  "blocked": [],
+  "screenshots": [
+    "before-seller-sparse-1180-light.png",
+    "before-seller-sparse-1180-dark.png"
+  ],
+  "status": "PASSED"
+}

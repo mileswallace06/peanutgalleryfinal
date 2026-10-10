@@ -1,0 +1,14 @@
+{
+  "comparisonBase": "c31a2e1aa9f9c7d7916908ab948201cfad3243a8",
+  "sourceCheckpoint": "5f02eb1a83279938cc079d08e773680b721c9e09",
+  "gitObjects": {
+    "src": "b25e1341cbcfeb2b1646eda24ae09b1883958236",
+    "base44": "0e07885ba4038acae304e313e22ee75cd3102753",
+    "tests": "40a09b9c68a36a83ee66276c631a7ae904329c29",
+    ".github": "7726606f62e1ef359660fc1be992e11678c67806",
+    "package.json": "314d1ee58f1b4c42ef7200b618d9580220be6367",
+    "package-lock.json": "2eb56950eb447a7df7a9e23ea9f332108aaf21b6",
+    "vite.config.js": "a1c59ad9c5b7f53bd10d1134a4a1d3bf7503e80a"
+  },
+  "limits": "Final GitHub CI must be read at the delivered head; these objects establish source equality across documentation-only commits."
+}

@@ -16,7 +16,15 @@ export default function FanSortSheet({ value, allowDistance, onChange, onClose, 
   const closeButton = useRef(null);
   return <Dialog.Root open onOpenChange={open => { if (!open) onClose(); }}>
     <Dialog.Portal>
-      <Dialog.Overlay className="pg-fan-sort-backdrop" />
+      <Dialog.Overlay className="pg-fan-sort-backdrop" onClick={event => {
+        // Radix installs its outside-pointer listener in a later timer task.
+        // A click during that gap still dismisses the visible backdrop. Keep
+        // touch dismissal on click, rather than closing at the start of a drag.
+        if (event.target !== event.currentTarget || event.button !== 0 || event.ctrlKey) return;
+        event.preventDefault();
+        event.stopPropagation();
+        onClose();
+      }} />
       <Dialog.Content aria-modal="true" className="pg-ticket-app pg-fan-sort-dialog"
         onOpenAutoFocus={event => { event.preventDefault(); closeButton.current?.focus(); }}
         onCloseAutoFocus={event => { event.preventDefault(); if (triggerRef?.current?.isConnected) triggerRef.current.focus({ preventScroll: true }); }}>

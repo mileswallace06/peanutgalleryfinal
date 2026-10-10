@@ -1,0 +1,55 @@
+{
+  "comparisonBase": "3a56073ba06f9f25b42844d2ca67068dafd4c554",
+  "runtime": "Node v24.19.0; local Chromium 153.0.8010.0",
+  "offline": true,
+  "endpoint": "base44/functions/getListingParticipantView/entry.ts",
+  "before": {
+    "tests": {
+      "tests": 21,
+      "pass": 5,
+      "fail": 16,
+      "cancelled": 0,
+      "skipped": 0
+    },
+    "failures": [
+      "actual authorized handler and purchase context preserve ticketmaster for seller only",
+      "actual authorized handler and purchase context preserve axs for seller only",
+      "actual authorized handler and purchase context preserve ticketmaster for buyer only",
+      "actual authorized handler and purchase context preserve axs for buyer only",
+      "actual authorized handler and purchase context preserve ticketmaster for admin only",
+      "actual authorized handler and purchase context preserve axs for admin only",
+      "schema platform seatgeek remains usable",
+      "schema platform stubhub remains usable",
+      "schema platform apple_wallet remains usable",
+      "schema platform other remains usable",
+      "unknown/malformed platform undefined is not copied through",
+      "unknown/malformed platform null is not copied through",
+      "unknown/malformed platform \"\" is not copied through",
+      "unknown/malformed platform \"PRIVATE_UNKNOWN_PLATFORM\" is not copied through",
+      "unknown/malformed platform {\"url\":\"PRIVATE_PROOF_URL\"} is not copied through",
+      "public event-list projection is unchanged; participant access remains explicit"
+    ]
+  },
+  "after": {
+    "tests": {
+      "tests": 21,
+      "pass": 21,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0
+    },
+    "failures": []
+  },
+  "checks": [
+    "Real endpoint auth + serialization with SDK/storage mocked and Node network denied",
+    "Same endpoint results used as browser responses for actual PurchaseSuccess / TransferAssistant",
+    "Public active listing exact key set unchanged",
+    "Guest / intruder sold listing 404 including legacy seller_email spoof",
+    "Reservation owner receives no platform or seats",
+    "Buyer lookup failure closed; missing ListingPrivate never uses legacy fields",
+    "Seller list_mine exact 26-key contract preserved",
+    "Known schema enum allowed only for seller / confirmed buyer / admin",
+    "Missing, unknown and malformed platform maps to null; no private sentinels survive serialization"
+  ],
+  "productionSha256": "2ae04929f5e54da4dba3c3e1bd7fe0629f821414894e9a23f366113252e388e8"
+}

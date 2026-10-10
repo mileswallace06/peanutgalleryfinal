@@ -50,6 +50,66 @@ async function capture(page, name) {
   await page.screenshot({ path }); report.screenshots.push(path);
 }
 try {
+  // Fail each independent operational queue without breaking the successful
+  // queues. The fixture exposes recovery, never a production mutation API.
+  for (const theme of report.themes) {
+    const { context, page } = await isolatedPage(390, theme);
+    for (const entry of [
+      { key: 'alerts', label: 'Open alerts', panel: 'Alert Center', retry: 'Retry alerts', loaded: '1 open in loaded records' },
+      { key: 'reviews', label: 'Listings pending review', panel: 'Review Queue', retry: 'Retry review queue', loaded: '1 loaded listings awaiting approval (up to 50); not a global total' },
+      { key: 'transfers', label: 'Listings needing reverification', panel: 'Transfer Intelligence', retry: 'Retry transfer intelligence', loaded: 'Needs Attention (1 loaded)' },
+    ]) {
+      await page.goto(fixtureUrl('admin', theme, { queueState: 'open-only', readFailure: entry.key }));
+      const queues = page.getByRole('region', { name: 'Separate operational queues' });
+      const failed = queues.getByRole('button').filter({ hasText: entry.label });
+      await failed.getByText('Unavailable — retry', { exact: true }).waitFor();
+      assert.equal(await queues.getByText('1 in loaded records', { exact: true }).count(), 2);
+      await page.getByRole('button', { name: entry.panel, exact: true }).click();
+      await page.getByRole('button', { name: entry.retry, exact: true }).waitFor();
+      await page.evaluate(() => window.ticketDesignFixture.recoverRead());
+      await page.getByRole('button', { name: entry.retry, exact: true }).focus();
+      await page.keyboard.press('Enter');
+      await page.getByText(entry.loaded, { exact: true }).waitFor();
+      await page.getByRole('button', { name: 'Refresh admin dashboard and queues', exact: true }).click();
+      await page.waitForFunction(() => [...document.querySelectorAll('section[aria-label="Separate operational queues"] [role="status"]')].every(node => node.textContent === '1 in loaded records'));
+      await assertSafe(page);
+      report.checks.push(`Admin ${theme}: independent ${entry.key} error preserves other queue counts; panel keyboard retry and dashboard refresh recover without writes`);
+    }
+    for (const key of ['purchases', 'transaction-listings', 'donations']) {
+      await page.goto(fixtureUrl('admin', theme, { queueState: 'open-only', readFailure: key }));
+      await page.getByText('Transaction summary unavailable. Refresh to retry.', { exact: true }).waitFor();
+      assert.equal(await page.getByText('No matching issues in the loaded transaction feed.', { exact: true }).count(), 0);
+      assert.equal(await page.getByRole('region', { name: 'Separate operational queues' }).getByText('1 in loaded records', { exact: true }).count(), 3);
+      const refresh = page.getByRole('button', { name: 'Refresh admin dashboard and queues', exact: true });
+      assert.equal(await refresh.isEnabled(), true);
+      await page.evaluate(() => window.ticketDesignFixture.recoverRead());
+      await refresh.focus(); await page.keyboard.press('Enter');
+      await page.getByText('No matching issues in the loaded transaction feed.', { exact: true }).waitFor();
+      await assertSafe(page);
+      report.checks.push(`Admin ${theme}: ${key} failure withholds transaction all-clear, preserves queue evidence, and recovers on keyboard refresh`);
+    }
+    await page.goto(fixtureUrl('admin', theme, { queueState: 'open-only', readFailure: 'transfer-reports' }));
+    await page.getByRole('button', { name: 'Transfer Intelligence', exact: true }).click();
+    await page.getByRole('button', { name: 'Retry transfer intelligence', exact: true }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Needs Attention (? loaded)', exact: true }).count(), 1);
+    await page.evaluate(() => window.ticketDesignFixture.recoverRead());
+    await page.getByRole('button', { name: 'Retry transfer intelligence', exact: true }).click();
+    await page.getByRole('button', { name: 'Needs Attention (1 loaded)', exact: true }).waitFor();
+    await assertSafe(page);
+    report.checks.push(`Admin ${theme}: separate transfer-report failure is unknown, with successful recovery`);
+
+    await page.goto(fixtureUrl('admin', theme, { queueState: 'open-only', readFailure: 'stripe' }));
+    const transactionSummary = page.getByRole('region', { name: 'Loaded transaction summary' });
+    await transactionSummary.getByText('Unknown', { exact: true }).waitFor();
+    assert.equal(await transactionSummary.getByText('Live mode', { exact: true }).count(), 0);
+    assert.equal(await transactionSummary.getByText('Test mode', { exact: true }).count(), 0);
+    await page.evaluate(() => window.ticketDesignFixture.recoverRead());
+    await page.getByRole('button', { name: 'Refresh admin dashboard and queues', exact: true }).click();
+    await transactionSummary.getByText('Test mode', { exact: true }).waitFor();
+    await assertSafe(page);
+    report.checks.push(`Admin ${theme}: failed Stripe-mode read stays unknown and recovers; no financial call is made`);
+    await context.close();
+  }
   for (const theme of report.themes) {
     const { context, page } = await isolatedPage(390, theme);
     const settings = extra => fixtureUrl('account-settings', theme, { route: '/account-settings#payouts', ...extra });

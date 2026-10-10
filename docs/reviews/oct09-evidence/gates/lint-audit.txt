@@ -1,0 +1,54 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> base44-app@0.0.0 lint:audit
+> node tests/run-audit-lint.mjs
+
+
+/workspace/scratch/580f2607a348/peanutgalleryfinal/base44/functions/submitListing/entry.ts
+  156:16  warning  'err' is defined but never used  no-unused-vars
+  332:14  warning  '_' is defined but never used    no-unused-vars
+
+/workspace/scratch/580f2607a348/peanutgalleryfinal/src/components/admin/cc/AIVerificationPanel.jsx
+  142:58  warning  'listings' is defined but never used. Allowed unused args must match /^_/u  unused-imports/no-unused-vars
+
+/workspace/scratch/580f2607a348/peanutgalleryfinal/src/components/admin/cc/CommandSummaryBar.jsx
+  26:9  warning  'infoCount' is assigned a value but never used. Allowed unused vars must match /^_/u  unused-imports/no-unused-vars
+
+/workspace/scratch/580f2607a348/peanutgalleryfinal/src/components/admin/cc/DonationOpsPanel.jsx
+  13:55  warning  'events' is defined but never used. Allowed unused args must match /^_/u     unused-imports/no-unused-vars
+  13:63  warning  'onRefresh' is defined but never used. Allowed unused args must match /^_/u  unused-imports/no-unused-vars
+
+/workspace/scratch/580f2607a348/peanutgalleryfinal/src/components/admin/cc/EventConfidenceOverview.jsx
+   89:14  warning  '_' is defined but never used  unused-imports/no-unused-vars
+  128:14  warning  '_' is defined but never used  unused-imports/no-unused-vars
+  141:14  warning  '_' is defined but never used  unused-imports/no-unused-vars
+
+/workspace/scratch/580f2607a348/peanutgalleryfinal/src/components/admin/cc/InstantOpsPanel.jsx
+  21:9  warning  'rejected' is assigned a value but never used. Allowed unused vars must match /^_/u  unused-imports/no-unused-vars
+
+/workspace/scratch/580f2607a348/peanutgalleryfinal/src/components/admin/cc/TransferIntelligencePanel.jsx
+  100:10  warning  'actionLoading' is assigned a value but never used. Allowed unused vars must match /^_/u  unused-imports/no-unused-vars
+  208:9   warning  'expired' is assigned a value but never used. Allowed unused vars must match /^_/u        unused-imports/no-unused-vars
+
+/workspace/scratch/580f2607a348/peanutgalleryfinal/src/components/flashdrops/CreateFlashDropSheet.jsx
+  58:10  warning  'createdDrop' is assigned a value but never used. Allowed unused vars must match /^_/u  unused-imports/no-unused-vars
+
+/workspace/scratch/580f2607a348/peanutgalleryfinal/src/pages/BetaDashboard.jsx
+  75:9  warning  'completed' is assigned a value but never used. Allowed unused vars must match /^_/u  unused-imports/no-unused-vars
+
+/workspace/scratch/580f2607a348/peanutgalleryfinal/src/pages/BetaRecruitment.jsx
+    9:7  warning  'PHASE_LABELS' is assigned a value but never used. Allowed unused vars must match /^_/u  unused-imports/no-unused-vars
+  183:9  warning  'active' is assigned a value but never used. Allowed unused vars must match /^_/u        unused-imports/no-unused-vars
+
+/workspace/scratch/580f2607a348/peanutgalleryfinal/src/pages/EventDetail.jsx
+   49:18  warning  'e' is defined but never used                                                             unused-imports/no-unused-vars
+   55:88  warning  'e' is defined but never used                                                             unused-imports/no-unused-vars
+   61:86  warning  'e' is defined but never used                                                             unused-imports/no-unused-vars
+  114:15  warning  'adminUnlocked' is assigned a value but never used. Allowed unused vars must match /^_/u  unused-imports/no-unused-vars
+
+/workspace/scratch/580f2607a348/peanutgalleryfinal/src/pages/Sell.jsx
+  104:9  warning  'other' is assigned a value but never used. Allowed unused vars must match /^_/u  unused-imports/no-unused-vars
+
+✖ 21 problems (0 errors, 21 warnings)
+
+{"files":94,"errors":0,"warnings":21,"mutating":false}

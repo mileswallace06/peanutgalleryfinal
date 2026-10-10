@@ -82,9 +82,9 @@ test('submitted request URL round-trips filters and does not accept off-site ret
   assert.equal(safeDiscoveryReturnTo('//attacker.example/events'), '/events');
   assert.equal(safeDiscoveryReturnTo('/events?browse=1&q=Artist'), '/events?browse=1&q=Artist');
 });
-test('equivalent provider occurrence aliases collapse deterministically without deleting old links', () => {
+test('explicitly verified provider aliases collapse deterministically without deleting old links', () => {
   const a = event('native-a', 10, { title: 'Knocked Loose', tm_id: 'provider-a', tm_venue_id: 'venue-1' });
-  const b = { ...a, id: 'native-b', tm_id: 'provider-b' };
+  const b = { ...a, id: 'native-b', tm_id: 'provider-b', provider_aliases_verified: true, provider_aliases: ['provider-a'] };
   const output = dedupeEventIdentities([b, a]);
   assert.equal(output.length, 1); assert.equal(output[0].id, a.id);
   for (const row of [a, b]) { assert.equal(getEventUrl(row), `/events/${row.id}`); assert.equal(resolveEventAlias(output, row.id).id, a.id); }

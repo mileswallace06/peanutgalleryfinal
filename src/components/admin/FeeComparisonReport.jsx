@@ -7,7 +7,7 @@
 import { useMemo, useState } from 'react';
 import {
   buildComparison, analyzeUXRisk, analyzeMinListingPriceImpact,
-  findBreakeven, FEE_MODELS, calculateFees,
+  findBreakeven, calculateFees,
 } from '@/lib/feeEngine';
 
 const RISK_COLORS = {

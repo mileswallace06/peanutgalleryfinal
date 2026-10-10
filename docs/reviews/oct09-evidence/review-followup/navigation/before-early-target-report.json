@@ -1,0 +1,15 @@
+{
+  "baseline": "3a56073ba06f9f25b42844d2ca67068dafd4c554",
+  "mode": "baseline",
+  "baselineCase": "early-target",
+  "checks": [],
+  "outbound": [],
+  "errors": [],
+  "observed": {
+    "count": 40,
+    "earlyTargetPresent": true,
+    "deepTargetPresent": false
+  },
+  "passed": false,
+  "failure": "A first-page focus target must not stop restoration before all three saved pages\n\n40 !== 120\n"
+}

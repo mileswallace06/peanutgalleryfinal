@@ -1,0 +1,18 @@
+Command: node --test tests/tracking-bootstrap-investigation.test.mjs
+Node: 24.19.0; providers stubbed; no network or real identities
+
+✔ I2: fresh inline bootstrap schedules Impact script and commands without a consent action (2.94115ms)
+✔ I2: guest auth mount calls OneSignal init before auth resolves, without requesting push permission (100.769431ms)
+✔ I2: authenticated mount forwards synthetic email to OneSignal and logout unlinks it (13.757537ms)
+✔ I2: wrapper requests push permission only when its explicit request function is invoked (3.090293ms)
+✔ I2: fresh bootstrap writes Base44 config and return URL to local storage (5.330434ms)
+✔ I2: synthetic access token is persisted then removed from URL; explicit clear removes stored tokens (10.418898ms)
+✔ I2: navigation diagnostic forwards synthetic session, route, user agent and optional email to Base44 boundary (6.239081ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 246.890661

@@ -1,0 +1,13 @@
+{
+  "baseline": "3a56073ba06f9f25b42844d2ca67068dafd4c554",
+  "mode": "baseline",
+  "checks": [],
+  "outbound": [],
+  "errors": [],
+  "observed": {
+    "count": 40,
+    "deepTargetPresent": false
+  },
+  "passed": false,
+  "failure": "Back must restore all three saved Phoenix pages after Boston has settled\n\n40 !== 120\n"
+}

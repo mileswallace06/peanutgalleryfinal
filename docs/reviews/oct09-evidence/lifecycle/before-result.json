@@ -1,0 +1,85 @@
+{
+  "phase": "before",
+  "fixtureOnly": true,
+  "browser": "153.0.8010.0",
+  "checks": [
+    "before native-ended admin light",
+    "before provider-ended user light",
+    "before hub-ended admin light",
+    "before native-ended admin dark",
+    "before provider-ended user dark",
+    "before hub-ended admin dark"
+  ],
+  "screenshots": [
+    {
+      "file": "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct09/lifecycle/before/native-ended-admin-light.png",
+      "route": "/events/fixture-live",
+      "role": "admin",
+      "theme": "light",
+      "viewport": {
+        "width": 1180,
+        "height": 757
+      },
+      "isolated": true
+    },
+    {
+      "file": "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct09/lifecycle/before/provider-ended-user-light.png",
+      "route": "/events/tm/tm-fixture-live",
+      "role": "user",
+      "theme": "light",
+      "viewport": {
+        "width": 1180,
+        "height": 757
+      },
+      "isolated": true
+    },
+    {
+      "file": "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct09/lifecycle/before/hub-ended-admin-light.png",
+      "route": "/upgrades/fixture-live",
+      "role": "admin",
+      "theme": "light",
+      "viewport": {
+        "width": 1180,
+        "height": 757
+      },
+      "isolated": true
+    },
+    {
+      "file": "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct09/lifecycle/before/native-ended-admin-dark.png",
+      "route": "/events/fixture-live",
+      "role": "admin",
+      "theme": "dark",
+      "viewport": {
+        "width": 1180,
+        "height": 757
+      },
+      "isolated": true
+    },
+    {
+      "file": "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct09/lifecycle/before/provider-ended-user-dark.png",
+      "route": "/events/tm/tm-fixture-live",
+      "role": "user",
+      "theme": "dark",
+      "viewport": {
+        "width": 1180,
+        "height": 757
+      },
+      "isolated": true
+    },
+    {
+      "file": "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct09/lifecycle/before/hub-ended-admin-dark.png",
+      "route": "/upgrades/fixture-live",
+      "role": "admin",
+      "theme": "dark",
+      "viewport": {
+        "width": 1180,
+        "height": 757
+      },
+      "isolated": true
+    }
+  ],
+  "errors": [],
+  "external": [],
+  "base": "c31a2e1aa9f9c7d7916908ab948201cfad3243a8",
+  "status": "PASSED"
+}

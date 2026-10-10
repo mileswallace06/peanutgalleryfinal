@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import { transform } from 'esbuild';
 import { loadEligibleFlashDropListings, ownershipLookupMessage } from '../src/lib/flashDropOwnership.js';
+import { listingEventEligibility, checkListingEvent } from '../base44/shared/listingEventEligibility.js';
 
 const source = await readFile(new URL('../src/components/flashdrops/CreateFlashDropSheet.jsx', import.meta.url), 'utf8');
 const css = await readFile(new URL('../src/components/flashdrops/fan-gifts-ticket.css', import.meta.url), 'utf8');
@@ -29,6 +30,7 @@ function fixture({ lookup } = {}) {
   const forbidden = () => { remoteCalls++; throw new Error('No API calls expected for dialog navigation'); };
   vm.runInNewContext(output.code, {
     module, exports: module.exports, h, Fragment: 'fragment', document, loadEligibleFlashDropListings, ownershipLookupMessage,
+    useUpgradeClock: () => Date.now(), listingEventEligibility, checkListingEvent,
     Dialog: Object.fromEntries(['Root', 'Portal', 'Overlay', 'Content', 'Close', 'Title', 'Description'].map(key => [key, `dialog-${key}`])),
     motion: { div: 'div' }, X: 'icon', Zap: 'icon', Clock: 'icon',
     useId: () => 'fixture-gift',
@@ -179,12 +181,12 @@ test('ownership lookup announces loading/empty and prevents duplicate in-flight 
   const request = app.button('Check my listings for this event').props.onClick();
   app.render();
   assert.equal(app.button('Checking listings…').props.disabled, true);
-  assert.match(text(app.find('p', node => node.props.role === 'status')), /Checking your active listings/);
+  assert.match(text(app.find('p', node => node.props.role === 'status' && node.props.id === 'fixture-gift-ownership-status')), /Checking your active listings/);
   await app.button('Checking listings…').props.onClick();
   assert.equal(app.calls, 1);
   pending.resolve({ data: { listings: [] } });
   await request; app.render();
-  assert.match(text(app.find('p', node => node.props.role === 'status')), /No eligible active listings/);
+  assert.match(text(app.find('p', node => node.props.role === 'status' && node.props.id === 'fixture-gift-ownership-status')), /No eligible active listings/);
   assert.match(text(app.tree), /does not confirm seat ownership/);
   assert.ok(app.button('Check listings again'));
   assert.ok(app.find('input', node => node.props.type === 'file'), 'alternate upload is retained');
@@ -202,10 +204,10 @@ test('permission and network errors remain recoverable errors, then retry reveal
     } });
     openDetails(app);
     await app.button('Check my listings for this event').props.onClick(); app.render();
-    assert.match(text(app.find('p', node => node.props.role === 'status')), /could not check your listings/);
+    assert.match(text(app.find('p', node => node.props.role === 'status' && node.props.id === 'fixture-gift-ownership-status')), /could not check your listings/);
     assert.doesNotMatch(text(app.tree), /No eligible active listings/);
     await app.button('Retry listing check').props.onClick(); app.render();
-    assert.match(text(app.find('p', node => node.props.role === 'status')), /1 active listing found/);
+    assert.match(text(app.find('p', node => node.props.role === 'status' && node.props.id === 'fixture-gift-ownership-status')), /1 active listing found/);
     const choice = app.find('button', node => /Sec\s+104/.test(text(node)));
     assert.equal(choice.props['aria-pressed'], false, 'no implicit ownership/seat selection');
     choice.props.onClick(); app.render();

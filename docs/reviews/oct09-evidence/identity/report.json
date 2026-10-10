@@ -1,0 +1,357 @@
+{
+  "findingIds": [
+    "R03",
+    "R16",
+    "N03",
+    "N02 (Live Upgrades refresh only)"
+  ],
+  "reviewedBaselineCommit": "c31a2e1aa9f9c7d7916908ab948201cfad3243a8",
+  "afterRevision": "October 9 repair worktree; screenshots were captured before commit/publish. No served production SHA is claimed.",
+  "environment": "Local isolated Playwright Chromium fixture, production components and styles, MemoryRouter; connected Layout shell omitted.",
+  "screenshots": [
+    {
+      "file": "after-admin-dark.png",
+      "stage": "after",
+      "surface": "admin",
+      "theme": "dark",
+      "route": "/admin",
+      "roleContext": "Admin panel mounted directly against local mocked reads; role/authorization gate not exercised.",
+      "viewport": {
+        "width": 1180,
+        "height": 757
+      },
+      "pngDimensions": {
+        "width": 1180,
+        "height": 757
+      },
+      "capturedAtUtc": "2026-10-09T21:16:13.933494+00:00",
+      "sha256": "4aad8c6d95ba47638eaec0defb58f126551b247f8399a37d3eadcfdc2c3211e9"
+    },
+    {
+      "file": "after-admin-light.png",
+      "stage": "after",
+      "surface": "admin",
+      "theme": "light",
+      "route": "/admin",
+      "roleContext": "Admin panel mounted directly against local mocked reads; role/authorization gate not exercised.",
+      "viewport": {
+        "width": 1180,
+        "height": 757
+      },
+      "pngDimensions": {
+        "width": 1180,
+        "height": 757
+      },
+      "capturedAtUtc": "2026-10-09T21:16:11.389521+00:00",
+      "sha256": "567183b67198219d644c83e2c059a4f7e5fd1ee4649457adcf245644f9bb489f"
+    },
+    {
+      "file": "after-cards-dark.png",
+      "stage": "after",
+      "surface": "cards",
+      "theme": "dark",
+      "route": "/events?browse=1&q=Fixture%20Knocked&past=1&scope=nationwide",
+      "roleContext": "Synthetic signed-in member returned by fixture SDK (role=user).",
+      "viewport": {
+        "width": 1180,
+        "height": 757
+      },
+      "pngDimensions": {
+        "width": 1180,
+        "height": 757
+      },
+      "capturedAtUtc": "2026-10-09T21:16:14.277490+00:00",
+      "sha256": "eac766b1b8f0640cd80474d8b5e512a9a4bce610983fcad3a379a10d9359d156"
+    },
+    {
+      "file": "after-cards-light.png",
+      "stage": "after",
+      "surface": "cards",
+      "theme": "light",
+      "route": "/events?browse=1&q=Fixture%20Knocked&past=1&scope=nationwide",
+      "roleContext": "Synthetic signed-in member returned by fixture SDK (role=user).",
+      "viewport": {
+        "width": 1180,
+        "height": 757
+      },
+      "pngDimensions": {
+        "width": 1180,
+        "height": 757
+      },
+      "capturedAtUtc": "2026-10-09T21:16:11.769517+00:00",
+      "sha256": "a92a513535b710d756b2c93b20bb9230f9f9ba8fef8542121ccbef0578160553"
+    },
+    {
+      "file": "after-composer-dark.png",
+      "stage": "after",
+      "surface": "composer",
+      "theme": "dark",
+      "route": "/composer",
+      "roleContext": "Synthetic fan user passed directly to composer; no real session.",
+      "viewport": {
+        "width": 1180,
+        "height": 757
+      },
+      "pngDimensions": {
+        "width": 1180,
+        "height": 757
+      },
+      "capturedAtUtc": "2026-10-09T21:16:13.393500+00:00",
+      "sha256": "f89b540687e4f6be267f9c17a7b485e63e86e763c093019ccbebc6782e635647"
+    },
+    {
+      "file": "after-composer-light.png",
+      "stage": "after",
+      "surface": "composer",
+      "theme": "light",
+      "route": "/composer",
+      "roleContext": "Synthetic fan user passed directly to composer; no real session.",
+      "viewport": {
+        "width": 1180,
+        "height": 757
+      },
+      "pngDimensions": {
+        "width": 1180,
+        "height": 757
+      },
+      "capturedAtUtc": "2026-10-09T21:16:10.829527+00:00",
+      "sha256": "1279ff3374c926ece48d550cc575b77d97b7613e4b946ff2e4693cf2c6d4eecb"
+    },
+    {
+      "file": "after-detail-dark.png",
+      "stage": "after",
+      "surface": "detail",
+      "theme": "dark",
+      "route": "/events/fixture-alias-b",
+      "roleContext": "Synthetic signed-in member returned by fixture SDK (role=user).",
+      "viewport": {
+        "width": 1180,
+        "height": 757
+      },
+      "pngDimensions": {
+        "width": 1180,
+        "height": 757
+      },
+      "capturedAtUtc": "2026-10-09T21:16:15.441477+00:00",
+      "sha256": "95a383d7e0e9343c6e85b988d6c598ad339d25b2c73dceefc41c19d2f2787645"
+    },
+    {
+      "file": "after-detail-light.png",
+      "stage": "after",
+      "surface": "detail",
+      "theme": "light",
+      "route": "/events/fixture-alias-b",
+      "roleContext": "Synthetic signed-in member returned by fixture SDK (role=user).",
+      "viewport": {
+        "width": 1180,
+        "height": 757
+      },
+      "pngDimensions": {
+        "width": 1180,
+        "height": 757
+      },
+      "capturedAtUtc": "2026-10-09T21:16:12.849505+00:00",
+      "sha256": "a742fbf5a68e4edffbb74dc61da9692c058e740f0e75c6f51f8c3a1e66a86be1"
+    },
+    {
+      "file": "before-admin-dark.png",
+      "stage": "before",
+      "surface": "admin",
+      "theme": "dark",
+      "route": "/admin",
+      "roleContext": "Admin panel mounted directly against local mocked reads; role/authorization gate not exercised.",
+      "viewport": {
+        "width": 1180,
+        "height": 757
+      },
+      "pngDimensions": {
+        "width": 1180,
+        "height": 757
+      },
+      "capturedAtUtc": "2026-10-09T21:13:17.771415+00:00",
+      "sha256": "c0106329ad72983ec3fdd04ef180ef4b4302490f3cf6d671ac616bab91712f54"
+    },
+    {
+      "file": "before-admin-light.png",
+      "stage": "before",
+      "surface": "admin",
+      "theme": "light",
+      "route": "/admin",
+      "roleContext": "Admin panel mounted directly against local mocked reads; role/authorization gate not exercised.",
+      "viewport": {
+        "width": 1180,
+        "height": 757
+      },
+      "pngDimensions": {
+        "width": 1180,
+        "height": 757
+      },
+      "capturedAtUtc": "2026-10-09T21:13:16.435429+00:00",
+      "sha256": "f1ab3d27b07cdacb878966a868dd60c6bca2c2bb0b3d548562564ce02e5a2d8f"
+    },
+    {
+      "file": "before-cards-dark.png",
+      "stage": "before",
+      "surface": "cards",
+      "theme": "dark",
+      "route": "/events?browse=1&q=Fixture%20Knocked&past=1&scope=nationwide",
+      "roleContext": "Synthetic signed-in member returned by fixture SDK (role=user).",
+      "viewport": {
+        "width": 1180,
+        "height": 757
+      },
+      "pngDimensions": {
+        "width": 1180,
+        "height": 757
+      },
+      "capturedAtUtc": "2026-10-09T21:13:18.180246+00:00",
+      "sha256": "df4d266903e2abcab554d400f5f7036df1cc1ba4db5c34589635e8d01685d2a7"
+    },
+    {
+      "file": "before-cards-light.png",
+      "stage": "before",
+      "surface": "cards",
+      "theme": "light",
+      "route": "/events?browse=1&q=Fixture%20Knocked&past=1&scope=nationwide",
+      "roleContext": "Synthetic signed-in member returned by fixture SDK (role=user).",
+      "viewport": {
+        "width": 1180,
+        "height": 757
+      },
+      "pngDimensions": {
+        "width": 1180,
+        "height": 757
+      },
+      "capturedAtUtc": "2026-10-09T21:13:16.807425+00:00",
+      "sha256": "033f73f2e8fac1f3df64b5714d39feebbd872bbf29bd8c3c7df0428432d1ed44"
+    },
+    {
+      "file": "before-composer-dark.png",
+      "stage": "before",
+      "surface": "composer",
+      "theme": "dark",
+      "route": "/composer",
+      "roleContext": "Synthetic fan user passed directly to composer; no real session.",
+      "viewport": {
+        "width": 1180,
+        "height": 757
+      },
+      "pngDimensions": {
+        "width": 1180,
+        "height": 757
+      },
+      "capturedAtUtc": "2026-10-09T21:13:17.303420+00:00",
+      "sha256": "1b9d84853a355f9c3b9a9ed6ca73937ec008d05ccb3e5ea80292d1583820c144"
+    },
+    {
+      "file": "before-composer-light.png",
+      "stage": "before",
+      "surface": "composer",
+      "theme": "light",
+      "route": "/composer",
+      "roleContext": "Synthetic fan user passed directly to composer; no real session.",
+      "viewport": {
+        "width": 1180,
+        "height": 757
+      },
+      "pngDimensions": {
+        "width": 1180,
+        "height": 757
+      },
+      "capturedAtUtc": "2026-10-09T21:13:15.959435+00:00",
+      "sha256": "1720bdda7dffd62ee1d170773092118a2fa9137ca8cc00ae1d9634b85d8e04d8"
+    }
+  ],
+  "validation": {
+    "unitTests": {
+      "command": "node --test tests/event-identity-presentation.test.mjs tests/event-discovery-paging.test.mjs tests/fan-zone-recovery.test.mjs tests/event-date-display.test.mjs tests/upgrades-owned-navigation.test.mjs tests/browse-ticket-interaction.test.mjs tests/venue-timezone-frontend.test.mjs",
+      "passed": 75,
+      "failed": 0,
+      "log": "unit-tests.txt",
+      "rerunDuringCuration": true,
+      "implementationHandoffPassed": 74,
+      "curationDifference": "Integrated suite adds native and provider details retain the originating list entry in their actual Back links; no prior test removed or weakened."
+    },
+    "browserBaseline": {
+      "surfaceCases": 6,
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "result": "Baseline reproduced",
+      "productionSource": "Read-only Vite git-show loader pinned to c31a2e1"
+    },
+    "browserAfter": {
+      "surfaceCases": 14,
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "result": "Passed",
+      "consoleErrors": 0,
+      "outboundRequests": 0,
+      "mutationCalls": 0,
+      "command": "node tests/event-identity-browser.mjs",
+      "readFailureRetry": "Loaded admin selection -> synthetic Event.list rejection -> selection/actions disabled -> refresh retry -> exact selection retained."
+    },
+    "targetedLint": "Passed before source freeze",
+    "diffCheck": "Passed before source freeze",
+    "assertionIntegrity": "No regression assertion skipped or removed. Existing inferred-alias samples were changed to explicitly verified aliases to match the stricter identity contract; new negative tests reject text/time-only merging. Date/zone/route/state preservation assertions remain. Unique rows omit unnecessary false ambiguity metadata; preservation deep-equality assertions were not loosened."
+  },
+  "collapsePolicy": {
+    "publicViews": "Only exact provider identity or explicitly verified provider aliases, subject to compatible occurrence/venue/session/inventory metadata. Original local route references retained.",
+    "fixtureCollapsedPairs": [
+      [
+        "fixture-alias-a",
+        "fixture-alias-b"
+      ],
+      [
+        "fixture-verified-a",
+        "fixture-verified-b"
+      ]
+    ],
+    "retained": "Providerless same-context pair/triple, recurring dates, distinct sessions, separately owned inventory, sparse metadata; uncertainty is shown without inventing distinct performances.",
+    "admin": "Every original target record remains selectable; no operational retargeting via display deduplication."
+  },
+  "metadataReadSummary": {
+    "provenance": "Targeted read-only metadata inspection performed by root agent and supplied to this agent; no production query or mutation performed by this fixture.",
+    "knockedLoose": [
+      {
+        "id": "6ac55d18a763c3a4dddbbf4a",
+        "tm_id": "Z7r9jZ1A70yAZ",
+        "tm_venue_id": "Z7r9jZadrI",
+        "tm_url": "https://www.ticketmaster.com/event/Z7r9jZ1A70yAZ"
+      },
+      {
+        "id": "6ac55d18bc452cf0f0bfaec3",
+        "tm_id": "k7vGF_5wSdRv6",
+        "tm_venue_id": "KovZpZAatEFA",
+        "tm_url": "https://www.axs.com/events/1459422/knocked-loose-tickets?skin=therooftopatpier17"
+      }
+    ],
+    "sharedKnockedContext": {
+      "startUtc": "2026-10-06T22:00:00Z",
+      "venue": "The Rooftop at Pier 17",
+      "venueTimezone": "unconfirmed",
+      "persistedStatus": "upcoming",
+      "relationship": "No verified alias or distinct-performance evidence; retain original records."
+    },
+    "hailSunAndDiamondbacksPirates": "Two Hail the Sun records and three Diamondbacks/Pirates records lack provider IDs/URLs and confirmed venue timezone/local-time/session context in the inspected metadata. Exact record IDs were not included in the summary supplied to this agent.",
+    "boundedListingRead": {
+      "eventCount": 7,
+      "rowLimit": 500,
+      "returnedRows": 0,
+      "scope": "Bounded public Listing read for the seven inspected IDs only; no private participant fields queried.",
+      "limitation": "Does not prove universal zero inventory, equivalent event identity, or absence of hidden, inaccessible, differently linked or future inventory."
+    }
+  },
+  "limitations": [
+    "No production posting, release, merge, deletion or deployment.",
+    "Synthetic panel mounting does not verify real admin/ordinary-member authorization or backend enforcement.",
+    "1180x757 desktop viewport is not mobile coverage.",
+    "Browser detail checks cover four exact native fixture URLs per theme; provider route timing is covered by focused unit tests, not a provider-detail screenshot.",
+    "Only the selected admin summary is captured; expanded native option text/context is asserted through DOM inspection.",
+    "Underlying production alias relationships remain unproven."
+  ],
+  "curatedAtUtc": "2026-10-09T21:18:54.776801+00:00"
+}

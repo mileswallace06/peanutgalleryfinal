@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { Zap, CheckCircle2, Circle, ChevronDown, ChevronUp } from 'lucide-react';
 
 const LIVE_CHECKS = [
@@ -77,8 +77,8 @@ function saveChecks(c) {
 }
 
 export default function LiveEventChecklist() {
+  const eventNameId = useId();
   const [checks, setChecks] = useState(loadChecks);
-  const [notes, setNotes] = useState({});
   const [openCats, setOpenCats] = useState({});
   const [eventName, setEventName] = useState(localStorage.getItem('pg_live_event_name') || '');
 
@@ -104,17 +104,21 @@ export default function LiveEventChecklist() {
   return (
     <div className="space-y-4">
       {/* Event name */}
-      <div className="flex gap-3 items-center">
-        <input value={eventName}
+      <div>
+        <label htmlFor={eventNameId} className="block text-sm font-bold text-foreground mb-1">Event name</label>
+        <div className="flex gap-3 items-center">
+        <input id={eventNameId} aria-describedby={`${eventNameId}-hint`} value={eventName}
           onChange={e => { setEventName(e.target.value); localStorage.setItem('pg_live_event_name', e.target.value); }}
-          placeholder="Event name (e.g. Taylor Swift @ MSG)"
-          className="flex-1 px-4 py-2.5 rounded-xl text-sm font-bold focus:outline-none"
+          placeholder="Enter an event name"
+          className="flex-1 min-w-0 px-4 py-2.5 rounded-xl text-sm font-bold focus:outline-none"
           style={{ background: 'var(--pg-surface)', border: '1px solid var(--pg-line)', color: 'var(--pg-text)' }} />
         <button onClick={reset}
           className="px-3 py-2.5 rounded-xl text-xs font-bold"
           style={{ background: 'var(--pg-surface-raised)', color: 'var(--pg-muted)', border: '1px solid var(--pg-line)' }}>
           Reset
         </button>
+        </div>
+        <p id={`${eventNameId}-hint`} className="text-xs text-muted-foreground mt-1">For example, Taylor Swift @ MSG.</p>
       </div>
 
       {/* Launch readiness */}

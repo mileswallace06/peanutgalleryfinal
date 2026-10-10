@@ -8,7 +8,7 @@
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useLocation, Link } from 'react-router-dom';
-import { safeDiscoveryReturnTo } from '@/lib/eventDiscoveryState';
+import { discoveryBackLink } from '@/lib/eventDiscoveryState';
 import { Zap } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import FlashDropCenter from '@/components/eventmode/FlashDropCenter';
@@ -27,7 +27,9 @@ import PurchaseDialog from '@/components/events/PurchaseDialog';
 import { loadFanGifts } from '@/lib/fanGiftRead';
 import { sharedListingSelection } from '@/lib/sharedListingDestination';
 import { getUpgradeEventState } from '@/lib/upgradeEventState';
+import { eventIdentityLabel } from '@/lib/eventIdentity';
 import { useUpgradeClock } from '@/hooks/useUpgradeClock';
+import { listingEventEligibility } from '../../base44/shared/listingEventEligibility.js';
 import '@/components/eventmode/ticket-upgrades.css';
 import './shared-listing.css';
 
@@ -40,7 +42,7 @@ const TABS = [
 export default function EventDetailUpgrade() {
   const { id } = useParams();
   const { search, state: routeState } = useLocation();
-  const discoveryReturnTo = routeState?.discoveryReturnTo ? safeDiscoveryReturnTo(routeState.discoveryReturnTo) : null;
+  const backLink = discoveryBackLink(routeState, 'upgrades');
   const [event, setEvent] = useState(null);
   const [listings, setListings] = useState([]);
   const [drops, setDrops] = useState([]);
@@ -254,7 +256,7 @@ export default function EventDetailUpgrade() {
               style={{ background: 'var(--pg-cyan)', color: 'var(--pg-ink)' }}>
               Retry
             </button>
-            <Link to={discoveryReturnTo || "/upgrades"} className="text-sm underline" style={{ color: 'var(--ev-text-2)' }}>← Back to {discoveryReturnTo ? "events" : "Upgrades"}</Link>
+            <Link to={backLink.to} state={backLink.state} className="text-sm underline" style={{ color: 'var(--ev-text-2)' }}>← Back to {backLink.label.toLowerCase()}</Link>
           </div>
         </div>
         {user?.role === 'admin' && <EventLookupDebugPanel routeId={id} lookupTrace={lookupTrace} />}
@@ -266,8 +268,8 @@ export default function EventDetailUpgrade() {
 
   return (
     <div className="pg-design-page pg-live-page">
-      <EventHero event={event} nowMs={nowMs} />
-      {discoveryReturnTo && <Link to={discoveryReturnTo} className="pg-action mx-4 inline-flex min-h-11 items-center text-sm underline">← Back to events</Link>}
+      <EventHero event={event} nowMs={nowMs} backLink={backLink} />
+      <p className="mx-4 text-sm text-muted-foreground break-words">{eventIdentityLabel(event, { alwaysReference: true })}</p>
       <CurrentTicketModule event={event} user={user} />
 
       {/* Tab bar */}
@@ -333,6 +335,7 @@ export default function EventDetailUpgrade() {
 
         {activeTab === 'Fan Gifts' && (
           <FlashDropCenter
+            creationClosed={!listingEventEligibility(event, nowMs).allowed}
             drops={drops}
             user={user}
             listings={listings}
@@ -340,6 +343,7 @@ export default function EventDetailUpgrade() {
             loadError={dropLoadError}
             onRetry={() => refreshDrops(event.id)}
             onDropSeats={clickEvent => {
+              if (!listingEventEligibility(event, Date.now()).allowed) return;
               clickEvent.currentTarget.focus({ preventScroll: true });
               setShowDropSheet(true);
             }}
@@ -357,6 +361,7 @@ export default function EventDetailUpgrade() {
         <CreateFlashDropSheet
           event={event}
           user={user}
+          onEventChecked={setEvent}
           onClose={() => setShowDropSheet(false)}
           onCreated={(drop) => {
             setDrops(prev => [drop, ...prev]);

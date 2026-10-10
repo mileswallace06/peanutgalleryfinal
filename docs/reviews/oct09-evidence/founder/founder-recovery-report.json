@@ -1,0 +1,118 @@
+{
+  "fixtureOnly": true,
+  "checks": [
+    "light: Purchase read rejection withholds health, preserves independent metrics and recovers with keyboard retry",
+    "light: Listing read rejection withholds health, preserves independent metrics and recovers with keyboard retry",
+    "light: AdminAlert read rejection withholds health, preserves independent metrics and recovers with keyboard retry",
+    "light: SeatDonation read rejection withholds health, preserves independent metrics and recovers with keyboard retry",
+    "light: TransferOutcome read rejection withholds health, preserves independent metrics and recovers with keyboard retry",
+    "light: navigation read rejection is unavailable, not empty/healthy, and recovers",
+    "light: delayed mixed sources settle independently; failed source remains unknown until full refresh recovery",
+    "light: each of 6 malformed/unavailable sources withholds unsupported health and cannot become an empty success",
+    "light: successfully empty sample never becomes 100% health",
+    "light: late failed read after unmount cannot overwrite remounted success",
+    "light: nav spike refresh twice plus remount creates exactly one synthetic alert",
+    "light: session fingerprint also prevents duplicate alert after reload",
+    "light: unavailable dedup lookup blocks alert creation; retry verifies then creates once",
+    "light: windows refresh has stable accessible name, loading/disabled/error/retry state and visible keyboard focus",
+    "light: drops refresh has stable accessible name, loading/disabled/error/retry state and visible keyboard focus",
+    "light: instant refresh has stable accessible name, loading/disabled/error/retry state and visible keyboard focus",
+    "light: persistent Beta event-name label and supplemental hint association survive typed input; focus visible",
+    "light: hanging read times out at 15 seconds; retry usable and late failed response cannot override recovery",
+    "dark: Purchase read rejection withholds health, preserves independent metrics and recovers with keyboard retry",
+    "dark: Listing read rejection withholds health, preserves independent metrics and recovers with keyboard retry",
+    "dark: AdminAlert read rejection withholds health, preserves independent metrics and recovers with keyboard retry",
+    "dark: SeatDonation read rejection withholds health, preserves independent metrics and recovers with keyboard retry",
+    "dark: TransferOutcome read rejection withholds health, preserves independent metrics and recovers with keyboard retry",
+    "dark: navigation read rejection is unavailable, not empty/healthy, and recovers",
+    "dark: delayed mixed sources settle independently; failed source remains unknown until full refresh recovery",
+    "dark: each of 6 malformed/unavailable sources withholds unsupported health and cannot become an empty success",
+    "dark: successfully empty sample never becomes 100% health",
+    "dark: late failed read after unmount cannot overwrite remounted success",
+    "dark: nav spike refresh twice plus remount creates exactly one synthetic alert",
+    "dark: session fingerprint also prevents duplicate alert after reload",
+    "dark: unavailable dedup lookup blocks alert creation; retry verifies then creates once",
+    "dark: windows refresh has stable accessible name, loading/disabled/error/retry state and visible keyboard focus",
+    "dark: drops refresh has stable accessible name, loading/disabled/error/retry state and visible keyboard focus",
+    "dark: instant refresh has stable accessible name, loading/disabled/error/retry state and visible keyboard focus",
+    "dark: persistent Beta event-name label and supplemental hint association survive typed input; focus visible",
+    "dark: hanging read times out at 15 seconds; retry usable and late failed response cannot override recovery"
+  ],
+  "screenshots": [
+    "after-founder-failure-light.png",
+    "after-windows-refresh-focus-light.png",
+    "after-drops-refresh-focus-light.png",
+    "after-instant-refresh-focus-light.png",
+    "after-beta-event-label-light.png",
+    "after-founder-failure-dark.png",
+    "after-windows-refresh-focus-dark.png",
+    "after-drops-refresh-focus-dark.png",
+    "after-instant-refresh-focus-dark.png",
+    "after-beta-event-label-dark.png"
+  ],
+  "externalRequests": [],
+  "errors": [],
+  "syntheticAlertWrites": [
+    {
+      "theme": "light",
+      "createsAfterRetriesAndRemount": 1
+    },
+    {
+      "theme": "dark",
+      "createsAfterRetriesAndRemount": 1
+    }
+  ],
+  "accessibilitySnapshots": [
+    {
+      "theme": "light",
+      "screen": "windows",
+      "snapshot": "- button \"Refresh transfer windows\":\n  - img"
+    },
+    {
+      "theme": "light",
+      "screen": "drops",
+      "snapshot": "- button \"Refresh flash drop metrics\":\n  - img"
+    },
+    {
+      "theme": "light",
+      "screen": "instant",
+      "snapshot": "- button \"Refresh instant transfer ready listings\":\n  - img"
+    },
+    {
+      "theme": "light",
+      "screen": "beta",
+      "association": {
+        "labels": [
+          "Event name"
+        ],
+        "hint": "For example, Taylor Swift @ MSG."
+      }
+    },
+    {
+      "theme": "dark",
+      "screen": "windows",
+      "snapshot": "- button \"Refresh transfer windows\":\n  - img"
+    },
+    {
+      "theme": "dark",
+      "screen": "drops",
+      "snapshot": "- button \"Refresh flash drop metrics\":\n  - img"
+    },
+    {
+      "theme": "dark",
+      "screen": "instant",
+      "snapshot": "- button \"Refresh instant transfer ready listings\":\n  - img"
+    },
+    {
+      "theme": "dark",
+      "screen": "beta",
+      "association": {
+        "labels": [
+          "Event name"
+        ],
+        "hint": "For example, Taylor Swift @ MSG."
+      }
+    }
+  ],
+  "curationNote": "Ten representative after captures are retained here; four additional loading/spike captures remain in the scratch execution evidence. Check results are unmodified."
+}
