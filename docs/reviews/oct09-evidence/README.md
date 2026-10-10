@@ -18,6 +18,18 @@ All new captures use synthetic identities and local fixtures. They are not live 
 
 See [Fan startup repair](../oct09-fan-startup-repair.md) for the reproduced timing window and before/after evidence. Full repository lint now passes after removing 23 unused imports; CI now enforces full lint and includes a fifteenth browser runner for startup dismissal. The original combined results below retain their original provenance. Current-head CI is recorded in [PR18](https://github.com/mileswallace06/peanutgalleryfinal/pull/18).
 
+## Merge-review follow-up evidence
+
+See [the central report](../oct09-review-followup.md) for the three repairs against reviewed head `3a56073ba06f9f25b42844d2ca67068dafd4c554`, review conclusions and unchanged owner decisions.
+
+| Area | Curated evidence |
+| --- | --- |
+| Fan Gift upload failure/retry and draft isolation | [Expected baseline failure, 10 repaired browser cases and commands](review-followup/upload/README.md) |
+| Upgrades full saved depth and request supersession | [Two 40-vs-120 baseline failures, 6 repaired browser cases and source hashes](review-followup/navigation/README.md) |
+| Authorized purchase transfer-platform hints | [Actual endpoint 16/21 failures before → 21/21 passes after; 14 browser checks](review-followup/transfer/README.md) |
+
+An earlier combined local checkpoint, before the final early-target page-depth condition, passed full lint, scoped lint (95 files, 0 errors, 23 warnings), 405 safe tests in 40 suites and build. These results do not certify the final changed source. The aggregate now has 18 browser runners. Final local gates and final-head CI remain pending in this report; use [PR18](https://github.com/mileswallace06/peanutgalleryfinal/pull/18) for the current candidate SHA and completed result. Focused red/green reports do not certify a later head. The Fan startup repair remains separate from the still-unattributed historical R09 failure.
+
 ## Original combined local results
 
 | Command | Actual result |
