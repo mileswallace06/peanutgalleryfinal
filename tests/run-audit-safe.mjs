@@ -12,6 +12,7 @@ const suites = [
   'profile-beta-accessibility', 'sales-admin-presentation', 'route-metadata',
   'oct09-discovery-state', 'oct09-discovery-paging', 'event-identity-presentation',
   'oct09-lifecycle', 'founder-read-recovery', 'purchase-detail', 'purchase-transfer-platform',
+  'purchase-cancellation-recovery',
 ];
 const results = [];
 for (const suite of suites) {
