@@ -1,14 +1,6 @@
-import { getEventDateDisplay } from '../../lib/eventDateDisplay.js';
-import { dedupeEventIdentities, eventVariantLabel } from '../../lib/eventIdentity.js';
-import { sellingEventTiming } from '../../lib/sellingEventTiming.js';
-
-export function fanEventOccurrence(event, now = Date.now()) {
-  const date = getEventDateDisplay(event)?.showtimeLabel || 'Date and time to be confirmed';
-  const timing = sellingEventTiming(event, now);
-  const context = ['cancelled', 'canceled'].includes(event.provider_status || event.status) ? 'Cancelled'
-    : { upcoming: 'Upcoming', live: 'Current', estimated_live: 'Started · end time unconfirmed', ended: 'Past', unknown: 'Timing unconfirmed' }[timing.status];
-  return [date, context, eventVariantLabel(event)].filter(Boolean).join(' · ');
-}
+import { dedupeEventIdentities } from '../../lib/eventIdentity.js';
+import { eventOccurrenceLabel } from '../../lib/eventChoiceLabel.js';
+export const fanEventOccurrence = eventOccurrenceLabel;
 
 export function fanEventHasTicket(event, myEventIds = []) {
   return [event.id, ...(event._eventAliases || [])].some(id => myEventIds.includes(id));

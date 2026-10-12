@@ -84,15 +84,19 @@ const drops = [{ id: 'fixture-drop', event_id: 'fixture-live', status: 'pending'
 export const fixture = window.ticketDesignFixture = {
   scenario, startedAt: new Date(now).toISOString(), calls: [], blocked: [], unexpected: [],
   events, listings, purchases, sales, posts, drops,
+  failedRead: params.get('readFailure') || null,
+  recoverRead() { this.failedRead = null; },
 };
 const copy = value => structuredClone(value);
 const record = (name, params) => fixture.calls.push({ name, params, at: new Date().toISOString() });
 const failure = (message, status = 503) => Object.assign(new Error(message), { status, response: { status, data: { error: message } } });
 function blocked(name, params) {
+  window.__PG_RECORD_FIXTURE_BLOCK__?.({ kind: 'sdk', name });
   record(name, params); fixture.blocked.push(name);
   throw failure(`Visual review only: ${name} is blocked. No live action was performed.`, 403);
 }
 function unexpected(name, params) {
+  window.__PG_RECORD_FIXTURE_BLOCK__?.({ kind: 'sdk', name });
   record(name, params); fixture.unexpected.push(name);
   const error = failure(`Unexpected visual-review API: ${name}. Add an explicit fixture stub.`, 500);
   console.error(error.message); throw error;
@@ -137,6 +141,14 @@ if (params.get('queueState') === 'open-only') {
   rowsByEntity.Listing = [listing('fixture-admin-review', '104', 'B', 50, { proof_status: 'pending_review', status: 'active', listing_mode: 'standard', custody_status: null, last_transfer_verification: null })];
 }
 function read(entity, query = {}, sort, limit, offset = 0) {
+  const readKey = entity === 'AdminAlert' ? 'alerts'
+    : entity === 'Listing' && query.proof_status === 'pending_review' ? 'reviews'
+    : entity === 'Listing' && sort === '-updated_date' ? 'transfers'
+    : entity === 'Listing' && sort === '-created_date' && limit === 100 ? 'transaction-listings'
+    : entity === 'Purchase' ? 'purchases'
+    : entity === 'SeatDonation' ? 'donations'
+    : entity === 'TransferReport' ? 'transfer-reports' : null;
+  if (readKey && fixture.failedRead === readKey) throw failure(`Fictional independent read failure: ${readKey}`);
   if ((scenario === 'provider-error' && ['FanPost', 'Listing'].includes(entity)) || (params.get('queueState') === 'error' && ['AdminAlert','Listing'].includes(entity)) || (params.get('hydrationState') === 'error' && entity === 'Event')) throw failure(`Sample provider failure: ${entity}`);
   // Retain the event itself for an empty live-hub review, while collections are empty.
   const detailLookup = entity === 'Event' && (query.id || query.tm_id);
@@ -178,7 +190,15 @@ const functions = { invoke: async (name, args = {}) => {
   }
   if (name === 'suggestCities') return { data: { cities: [{ city: 'Phoenix', state: 'AZ', label: 'Phoenix, AZ' }, { city: 'Boston', state: 'MA', label: 'Boston, MA' }].filter(c => c.label.toLowerCase().includes((args.keyword || '').toLowerCase())) } };
   if (['getPurchaseParticipantView','getListingParticipantView','getFlashDropView'].includes(name) && scenario === 'provider-error') throw failure(`Sample provider failure: ${name}`);
-  if (name === 'getPurchaseParticipantView') return { data: { purchases: scenario === 'empty' ? [] : copy(purchases.filter(p => !args.event_id || p.event_id === args.event_id)), sales: scenario === 'empty' ? [] : copy(sales.filter(p => !args.event_id || p.event_id === args.event_id).map(p => ({ ...p, payment_captured: !!p.payment_captured, payment_capture_failed: !!p.payment_capture_failed }))) } };
+  if (name === 'getPurchaseParticipantView') {
+    if (args.purchase_id) {
+      const buyerRecord = purchases.find(p => p.id === args.purchase_id);
+      const sellerRecord = sales.find(p => p.id === args.purchase_id);
+      const record = buyerRecord || sellerRecord;
+      return { data: { purchase: record && scenario !== 'empty' ? copy({ ...record, viewer_is_buyer: !!buyerRecord, viewer_is_seller: !!sellerRecord }) : null } };
+    }
+    return { data: { purchases: scenario === 'empty' ? [] : copy(purchases.filter(p => !args.event_id || p.event_id === args.event_id)), sales: scenario === 'empty' ? [] : copy(sales.filter(p => !args.event_id || p.event_id === args.event_id).map(p => ({ ...p, payment_captured: !!p.payment_captured, payment_capture_failed: !!p.payment_capture_failed }))) } };
+  }
   if (name === 'getListingParticipantView') {
     if (args.action === 'list_mine' && params.get('flashLookupDelay')) await new Promise(resolve => setTimeout(resolve, Number(params.get('flashLookupDelay')) || 0));
     if (scenario === 'auth-denied') throw failure('FICTIONAL_AUTH_RESPONSE_MUST_NOT_APPEAR', 403);
@@ -201,7 +221,10 @@ const functions = { invoke: async (name, args = {}) => {
     // readiness is absent. Explicit payout variants test future-safe display.
     return { data: { complete: true, details_submitted: true, charges_enabled: true, ...(stripeState === 'payouts-enabled' ? { payouts_enabled: true } : stripeState === 'payouts-disabled' ? { payouts_enabled: false } : {}) } };
   }
-  if (name === 'getStripeMode') return { data: { consistent: true, overallMode: 'test' } };
+  if (name === 'getStripeMode') {
+    if (fixture.failedRead === 'stripe') throw failure('Fictional Stripe mode read failure');
+    return { data: { consistent: true, overallMode: 'test' } };
+  }
   if (name === 'getBetaMetrics') return { data: { feedback: [], testers: [], events: [], metrics: {} } };
   if (name === 'tmSuggest') return { data: { attractions: [{ type: 'attraction', tm_id: 'fixture-attraction', name: 'The Aurora Waves', image_url: artwork, genre: 'Alternative' }], venues: [{ type: 'venue', tm_id: 'fixture-venue', name: 'Imaginary Arena', image_url: artwork }] } };
   if (name === 'manageDiscoveryAlerts') {

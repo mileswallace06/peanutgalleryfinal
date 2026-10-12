@@ -35,6 +35,18 @@ document.head.appendChild = node => {
     if (params.get('policyState') === 'error') { node.dispatchEvent(new Event('error')); return; }
     const target = document.querySelector('.uc-privacy-policy');
     if (target) target.innerHTML = `<h1>Privacy Policy</h1><p>Fictional policy content for isolated layout testing only.</p><p><a href="#providers">Service providers</a> · <a href="#privacy-rights">Your rights</a></p><h2 id="providers">Service providers</h2><table><thead><tr><th>Provider</th><th>Purpose</th><th>Data categories</th><th>Storage period</th><th>Location and contact</th></tr></thead><tbody>${Array.from({length: 12}, (_, i) => `<tr><td>Fictional Provider ${i+1}</td><td>Local fixture accessibility verification</td><td>Fictional identifiers and preferences</td><td>Fixture session only</td><td>Example City — <a href="https://example.invalid/privacy">https://example.invalid/privacy</a></td></tr>`).join('')}</tbody></table><h2 id="privacy-rights">Your rights</h2><p>This is a non-production test document.</p>`;
+    if (target && params.get('policyStages') === '1') {
+      const heading = target.querySelector('#privacy-rights');
+      const paragraph = heading.nextElementSibling;
+      heading.remove();
+      paragraph.remove();
+      // Model a hosted provider adding a later fragment in a separate update.
+      // This is controlled fixture latency, not a browser assertion delay.
+      setTimeout(() => {
+        if (!node.isConnected || !target.isConnected) return;
+        target.append(heading, paragraph);
+      }, 80);
+    }
     node.dispatchEvent(new Event('load'));
   }, Number(params.get('policyDelay')) || 30);
   return appended;

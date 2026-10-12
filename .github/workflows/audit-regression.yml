@@ -19,6 +19,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --ignore-scripts
+      - run: npm run lint
       - run: npm run lint:audit
       - run: npm run test:audit-safe
       - run: npm run build
@@ -28,5 +29,5 @@ jobs:
         if: always()
         with:
           name: isolated-audit-evidence
-          path: tests/artifacts/oct06
+          path: tests/artifacts/oct09
           if-no-files-found: ignore

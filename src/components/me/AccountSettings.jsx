@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useTheme } from '@/hooks/useTheme';
-import { LogOut, Trash2, Moon, Sun, CreditCard, Mail, Key, ChevronRight, ExternalLink } from 'lucide-react';
+import { LogOut, Trash2, Moon, Sun, CreditCard, Mail, Key, ExternalLink } from 'lucide-react';
 import DeleteAccountModal from '@/components/DeleteAccountModal';
 
 export default function AccountSettings({ user, purchases = [] }) {

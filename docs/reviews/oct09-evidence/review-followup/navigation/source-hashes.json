@@ -1,0 +1,9 @@
+{
+  "baseline": "3a56073ba06f9f25b42844d2ca67068dafd4c554",
+  "sha256": {
+    "src/pages/Upgrades.jsx": "c404c58045b4c88120bd9f53d3df76e31742c71b98edbd93f0684a9232159830",
+    "src/hooks/useSellingDiscovery.js": "009b4ee6773e9fca462bef64f64419729f8b8c9b9041e2120b28019971d7a0e8",
+    "tests/fixtures/events-search/base44.js": "41a664467e5b6661a1482c634ba3db3ece6049f15b8ce5fabcd9e3c254037faf",
+    "tests/upgrades-history-request-browser.mjs": "76efdf8a3ed07a92cc85cdf48ba41ba53d13093b5a3e3baefa2b9a24fa9d2f41"
+  }
+}

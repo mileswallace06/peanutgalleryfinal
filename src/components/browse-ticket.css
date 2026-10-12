@@ -73,6 +73,13 @@
   white-space: nowrap;
 }
 .pg-browse-ticket .pg-browse-ticket-detail strong { color: var(--browse-ink); font-weight: 650; }
+.pg-browse-ticket .pg-event-identity {
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+  margin-block: 4px;
+}
 .pg-browse-ticket .pg-browse-ticket-detail svg { display: inline; vertical-align: -.15em; margin-right: 3px; }
 .pg-browse-ticket .pg-browse-ticket-stub {
   display: flex;

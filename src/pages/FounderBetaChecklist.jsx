@@ -1,7 +1,6 @@
 import '@/components/admin/operations-theme.css';
 import { useState } from 'react';
-import { base44 } from '@/api/base44Client';
-import { CheckCircle2, XCircle, HelpCircle, AlertTriangle, ChevronDown, ChevronUp, Plus, Trash2, User, RefreshCw } from 'lucide-react';
+import { CheckCircle2, XCircle, HelpCircle, AlertTriangle, ChevronDown, ChevronUp, Plus, Trash2, User } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { useNavigate } from 'react-router-dom';
 

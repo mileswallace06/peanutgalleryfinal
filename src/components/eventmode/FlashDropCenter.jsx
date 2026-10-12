@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Gift, Clock, CheckCircle2 } from 'lucide-react';
 import '@/components/flashdrops/fan-gifts-ticket.css';
 
-export default function FlashDropCenter({ drops, user, listings, loading, loadError, onRetry, onDropSeats, onWinnerSelected }) {
+export default function FlashDropCenter({ drops, user, listings, loading, loadError, onRetry, onDropSeats, onWinnerSelected, creationClosed = false }) {
   const activeDrops = drops.filter(d => d.status === 'active');
   const pendingDrops = drops.filter(d => d.status === 'pending');
   const recentDrops = drops.filter(d =>
@@ -34,12 +34,14 @@ export default function FlashDropCenter({ drops, user, listings, loading, loadEr
             </motion.span>
           )}
         </div>
-        <button
+        {!creationClosed && <button
           onClick={onDropSeats}
           className="pg-gift-button pg-gift-button-yellow text-xs px-3 py-1.5 font-bold transition-all active:scale-95">
           + Drop Seats
-        </button>
+        </button>}
       </div>
+
+      {creationClosed && <p role="status" className="pg-gift-panel px-5 py-4 text-sm text-foreground">Fan gifts are closed for this event.</p>}
 
       {/* Active Drops */}
       {loading ? (
@@ -55,16 +57,16 @@ export default function FlashDropCenter({ drops, user, listings, loading, loadEr
           <div>
             <p className="font-semibold text-sm text-foreground">No fan gifts yet</p>
             <p className="text-xs text-muted-foreground mt-1.5 max-w-[220px] mx-auto leading-relaxed">
-              Fans can offer unused seats to others during the event.
+              {creationClosed ? 'This event has ended or is no longer open for new fan gifts.' : 'Fans can offer unused seats to others during the event.'}
             </p>
           </div>
-          <div className="flex flex-col gap-2 items-center">
+          {!creationClosed && <div className="flex flex-col gap-2 items-center">
             <p className="text-xs text-muted-foreground">Check back here for new fan gifts. Fan gift alerts aren’t available yet.</p>
             <button onClick={onDropSeats}
               className="pg-gift-button text-xs px-4 py-2 font-medium transition-all active:scale-95">
               Offer your seats
             </button>
-          </div>
+          </div>}
         </div>
       ) : (
         <AnimatePresence>

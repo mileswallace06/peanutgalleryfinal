@@ -1,0 +1,18 @@
+✔ independent success, failure and malformed sources never collapse into empty success (1.797002ms)
+✔ read timeout settles and a late rejected response cannot escape or report success (6.671686ms)
+✔ failed read recovers independently on retry (0.401763ms)
+✔ an empty log sample and sub-threshold failure sample never write an alert (0.296388ms)
+✔ simultaneous mounts and repeated refresh share one operational alert (0.406601ms)
+✔ remount/reload with session memory does not recreate the same incident (0.276628ms)
+✔ existing unresolved spike deduplicates across a fresh session (0.207777ms)
+✔ failed or malformed alert lookup blocks writes and remains retryable (0.438738ms)
+✔ uncertain failed create is rechecked against persisted alert before another write (0.407031ms)
+✔ storage denied does not break the in-memory guard (0.39931ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 90.022014

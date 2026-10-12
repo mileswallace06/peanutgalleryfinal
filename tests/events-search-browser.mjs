@@ -8,13 +8,14 @@ import react from '@vitejs/plugin-react';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const playwrightPath = process.env.PG_PLAYWRIGHT_MODULE || process.env.PLAYWRIGHT_MODULE || (process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES && path.join(process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES, 'playwright', 'index.mjs'));
 const { chromium } = await import(playwrightPath ? pathToFileURL(playwrightPath).href : 'playwright');
-const server = await createServer({ configFile: false, root, cacheDir: path.join(root, 'node_modules/.vite-events-search'), logLevel: 'error', optimizeDeps: { entries: ['tests/fixtures/events-search/index.html'] }, plugins: [react(), { name: 'isolated-discovery-routes', configureServer(server) { server.middlewares.use((req, _res, next) => { if (req.url.split('?')[0] === '/events' || req.url.startsWith('/events/') || req.url.startsWith('/upgrades/')) req.url = '/tests/fixtures/events-search/index.html'; next(); }); } }], resolve: { alias: [{ find: '@/lib/navLogger', replacement: path.join(root, 'tests/fixtures/events-search/navLogger.js') }, { find: '@/api/base44Client', replacement: path.join(root, 'tests/fixtures/events-search/base44.js') }, { find: '@', replacement: path.join(root, 'src') }] }, server: { watch: null, hmr: false, host: '127.0.0.1', port: Number(process.env.PG_FIXTURE_PORT || 5179) } });
+const server = await createServer({ configFile: false, root, cacheDir: path.join(root, 'node_modules/.vite-events-search'), logLevel: 'error', optimizeDeps: { entries: ['tests/fixtures/events-search/index.html'] }, plugins: [react(), { name: 'isolated-discovery-routes', configureServer(server) { server.middlewares.use((req, _res, next) => { if (req.url.split('?')[0] === '/events' || req.url.startsWith('/events/') || req.url.startsWith('/upgrades')) req.url = '/tests/fixtures/events-search/index.html'; next(); }); } }], resolve: { alias: [{find:'@/lib/AuthContext',replacement:path.join(root,'tests/fixtures/events-search/auth.js')}, { find: '@/lib/navLogger', replacement: path.join(root, 'tests/fixtures/events-search/navLogger.js') }, { find: '@/api/base44Client', replacement: path.join(root, 'tests/fixtures/events-search/base44.js') }, { find: '@', replacement: path.join(root, 'src') }] }, server: { watch: null, hmr: false, host: '127.0.0.1', port: Number(process.env.PG_FIXTURE_PORT || 5179) } });
 let browser;
 try {
   await server.listen(); browser = await chromium.launch({ headless: true, ...(process.env.PG_CHROMIUM_PATH ? { executablePath: process.env.PG_CHROMIUM_PATH } : {}), args: process.env.PG_CHROMIUM_ARGS ? JSON.parse(process.env.PG_CHROMIUM_ARGS) : [] });
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
   await context.route('**/*', route => new URL(route.request().url()).hostname === '127.0.0.1' ? route.continue() : route.abort());
   await context.addInitScript(() => {
+    localStorage.setItem('pg_onboarded','1');
     localStorage.setItem('pg_events_local_area_v1', JSON.stringify({ validated: true, city: 'Phoenix', state: 'AZ', label: 'Phoenix, AZ' }));
     const event = (title, city, state, tm_id, days = 1) => ({ title, city, state, tm_id, date: new Date(Date.UTC(2099, 9, days, 20)).toISOString(), venue: 'Fixture Arena' });
     const rock = event('Phoenix Rock Night', 'Phoenix', 'AZ', 'rock');
@@ -49,8 +50,8 @@ try {
   await page.goBack();
   await page.getByRole('link', {name:/^View Local Series 170,/}).waitFor();
   await page.waitForFunction(()=>document.activeElement?.getAttribute('aria-label')?.startsWith('View Local Series 170,'));
-  const evidenceDir=path.join(root,'docs/reviews/oct06-evidence'); await mkdir(evidenceDir,{recursive:true});
-  for (const theme of ['dark','light']) { await page.evaluate(theme=>document.documentElement.classList.toggle('dark',theme==='dark'),theme); await page.screenshot({path:path.join(evidenceDir,`events-return-390-${theme}.png`)}); }
+  const evidenceDir=path.join(root,'tests/artifacts/oct09'); await mkdir(evidenceDir,{recursive:true});
+  for (const theme of ['dark','light']) { await page.evaluate(theme=>{localStorage.setItem('pg_theme',theme);document.documentElement.classList.toggle('dark',theme==='dark');},theme); await page.screenshot({path:path.join(evidenceDir,`events-return-390-${theme}.png`)}); }
   await page.getByRole('button', { name: 'Search and filters', exact: true }).click();
   const search = page.getByRole('searchbox'), latest = () => page.evaluate(() => window.searchFixture.calls.filter(call => call.name === 'getTicketmasterEvents').at(-1)?.params);
   await search.fill('Rock'); await search.press('Enter');

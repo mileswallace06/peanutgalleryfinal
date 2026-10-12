@@ -1,0 +1,55 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> base44-app@0.0.0 lint
+> eslint . --quiet
+
+
+/workspace/scratch/580f2607a348/peanutgalleryfinal/src/components/admin/FeeComparisonReport.jsx
+  10:18  error  'FEE_MODELS' is defined but never used  unused-imports/no-unused-imports
+
+/workspace/scratch/580f2607a348/peanutgalleryfinal/src/components/admin/FeeSimulator.jsx
+  2:37  error  'BENCHMARK_PRICES' is defined but never used  unused-imports/no-unused-imports
+  3:10  error  'TrendingUp' is defined but never used        unused-imports/no-unused-imports
+  3:22  error  'TrendingDown' is defined but never used      unused-imports/no-unused-imports
+  3:36  error  'Minus' is defined but never used             unused-imports/no-unused-imports
+
+/workspace/scratch/580f2607a348/peanutgalleryfinal/src/components/admin/MinListingPriceConfig.jsx
+  8:20  error  'useEffect' is defined but never used   unused-imports/no-unused-imports
+  9:25  error  'FEE_MODELS' is defined but never used  unused-imports/no-unused-imports
+
+/workspace/scratch/580f2607a348/peanutgalleryfinal/src/components/admin/TransactionAnalytics.jsx
+  2:34  error  'analyzePurchase' is defined but never used  unused-imports/no-unused-imports
+  3:36  error  'AlertTriangle' is defined but never used    unused-imports/no-unused-imports
+  3:51  error  'DollarSign' is defined but never used       unused-imports/no-unused-imports
+
+/workspace/scratch/580f2607a348/peanutgalleryfinal/src/components/admin/cc/StripePanel.jsx
+  1:36  error  'AlertTriangle' is defined but never used  unused-imports/no-unused-imports
+  1:51  error  'CheckCircle' is defined but never used    unused-imports/no-unused-imports
+  1:64  error  'RefreshCw' is defined but never used      unused-imports/no-unused-imports
+  2:10  error  'format' is defined but never used         unused-imports/no-unused-imports
+
+/workspace/scratch/580f2607a348/peanutgalleryfinal/src/components/beta/BugTracker.jsx
+  3:10  error  'AlertTriangle' is defined but never used  unused-imports/no-unused-imports
+
+/workspace/scratch/580f2607a348/peanutgalleryfinal/src/components/eventmode/LiveActivityBar.jsx
+  5:18  error  'AnimatePresence' is defined but never used  unused-imports/no-unused-imports
+
+/workspace/scratch/580f2607a348/peanutgalleryfinal/src/components/eventmode/UpgradeFeed.jsx
+  5:38  error  'Bell' is defined but never used  unused-imports/no-unused-imports
+
+/workspace/scratch/580f2607a348/peanutgalleryfinal/src/components/flashdrops/FlashDropAlertBanner.jsx
+  7:16  error  'BellOff' is defined but never used  unused-imports/no-unused-imports
+
+/workspace/scratch/580f2607a348/peanutgalleryfinal/src/components/me/AccountSettings.jsx
+  4:60  error  'ChevronRight' is defined but never used  unused-imports/no-unused-imports
+
+/workspace/scratch/580f2607a348/peanutgalleryfinal/src/components/purchase/AIVerificationStatus.jsx
+  7:17  error  'CheckCircle' is defined but never used    unused-imports/no-unused-imports
+  7:37  error  'AlertTriangle' is defined but never used  unused-imports/no-unused-imports
+
+/workspace/scratch/580f2607a348/peanutgalleryfinal/src/pages/FounderBetaChecklist.jsx
+  3:10   error  'base44' is defined but never used     unused-imports/no-unused-imports
+  4:104  error  'RefreshCw' is defined but never used  unused-imports/no-unused-imports
+
+✖ 23 problems (23 errors, 0 warnings)
+  23 errors and 0 warnings potentially fixable with the `--fix` option.

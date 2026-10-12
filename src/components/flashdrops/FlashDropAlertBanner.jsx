@@ -4,7 +4,7 @@
  * Stored in localStorage keyed by event_id.
  */
 import { useState, useEffect } from 'react';
-import { Bell, BellOff, X } from 'lucide-react';
+import { Bell, X } from 'lucide-react';
 
 export default function FlashDropAlertBanner({ eventId, onOptIn, onDismiss }) {
   const [status, setStatus] = useState('idle'); // idle | opted_in | dismissed

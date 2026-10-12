@@ -1,0 +1,439 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> base44-app@0.0.0 test:audit-safe
+> node tests/run-audit-safe.mjs
+
+PASS audit-workflow-semantics {"tests":9,"pass":9,"fail":0,"cancelled":0,"skipped":0,"todo":0}
+PASS branded-auth-fields {"tests":4,"pass":4,"fail":0,"cancelled":0,"skipped":0,"todo":0}
+PASS branded-auth {"tests":12,"pass":12,"fail":0,"cancelled":0,"skipped":0,"todo":0}
+PASS member-access {"tests":5,"pass":5,"fail":0,"cancelled":0,"skipped":0,"todo":0}
+PASS event-date-display {"tests":13,"pass":13,"fail":0,"cancelled":0,"skipped":0,"todo":0}
+PASS flash-drop-dialog {"tests":7,"pass":7,"fail":0,"cancelled":0,"skipped":0,"todo":0}
+PASS public-access-render {"tests":4,"pass":4,"fail":0,"cancelled":0,"skipped":0,"todo":0}
+PASS ui-control-contrast {"tests":10,"pass":10,"fail":0,"cancelled":0,"skipped":0,"todo":0}
+PASS upgrade-route-clock {"tests":4,"pass":4,"fail":0,"cancelled":0,"skipped":0,"todo":0}
+PASS upgrade-showtime-state {"tests":11,"pass":11,"fail":0,"cancelled":0,"skipped":0,"todo":0}
+PASS tm-event-timezone-handler {"tests":14,"pass":14,"fail":0,"cancelled":0,"skipped":0,"todo":0}
+PASS venue-timezone-frontend {"tests":10,"pass":10,"fail":0,"cancelled":0,"skipped":0,"todo":0}
+PASS event-search-request {"tests":13,"pass":13,"fail":0,"cancelled":0,"skipped":0,"todo":0}
+PASS selling-event-picker {"tests":13,"pass":13,"fail":0,"cancelled":0,"skipped":0,"todo":0}
+PASS selling-ongoing-provider {"tests":8,"pass":8,"fail":0,"cancelled":0,"skipped":0,"todo":0}
+PASS tm-ongoing-handler {"tests":7,"pass":7,"fail":0,"cancelled":0,"skipped":0,"todo":0}
+PASS search-normalize {"tests":28,"pass":28,"fail":0,"skipped":0,"reporter":"legacy"}
+PASS tm-response-handler {"tests":15,"pass":15,"fail":0,"skipped":0,"reporter":"legacy"}
+PASS upgrade-discovery {"tests":7,"pass":7,"fail":0,"cancelled":0,"skipped":0,"todo":0}
+PASS upgrades-live-discovery {"tests":7,"pass":7,"fail":0,"cancelled":0,"skipped":0,"todo":0}
+PASS upgrades-owned-navigation {"tests":6,"pass":6,"fail":0,"cancelled":0,"skipped":0,"todo":0}
+PASS listing-share {"tests":15,"pass":15,"fail":0,"cancelled":0,"skipped":0,"todo":0}
+PASS shared-listing-destination {"tests":14,"pass":14,"fail":0,"cancelled":0,"skipped":0,"todo":0}
+PASS fan-post-composer {"tests":12,"pass":12,"fail":0,"cancelled":0,"skipped":0,"todo":0}
+PASS bucket-list-feed {"tests":4,"pass":4,"fail":0,"cancelled":0,"skipped":0,"todo":0}
+PASS browse-ticket-interaction {"tests":13,"pass":13,"fail":0,"cancelled":0,"skipped":0,"todo":0}
+PASS event-discovery-paging {"tests":13,"pass":13,"fail":0,"cancelled":0,"skipped":0,"todo":0}
+PASS listing-event-lifecycle {"tests":6,"pass":6,"fail":0,"cancelled":0,"skipped":0,"todo":0}
+PASS legal-document {"tests":5,"pass":5,"fail":0,"cancelled":0,"skipped":0,"todo":0}
+PASS fan-zone-recovery {"tests":10,"pass":10,"fail":0,"cancelled":0,"skipped":0,"todo":0}
+PASS profile-beta-accessibility {"tests":9,"pass":9,"fail":0,"cancelled":0,"skipped":0,"todo":0}
+PASS sales-admin-presentation {"tests":11,"pass":11,"fail":0,"cancelled":0,"skipped":0,"todo":0}
+PASS route-metadata {"tests":2,"pass":2,"fail":0,"cancelled":0,"skipped":0,"todo":0}
+PASS oct09-discovery-state {"tests":5,"pass":5,"fail":0,"cancelled":0,"skipped":0,"todo":0}
+PASS oct09-discovery-paging {"tests":4,"pass":4,"fail":0,"cancelled":0,"skipped":0,"todo":0}
+PASS event-identity-presentation {"tests":10,"pass":10,"fail":0,"cancelled":0,"skipped":0,"todo":0}
+PASS oct09-lifecycle {"tests":27,"pass":27,"fail":0,"cancelled":0,"skipped":0,"todo":0}
+PASS founder-read-recovery {"tests":10,"pass":10,"fail":0,"cancelled":0,"skipped":0,"todo":0}
+PASS purchase-detail {"tests":7,"pass":7,"fail":0,"cancelled":0,"skipped":0,"todo":0}
+{
+  "safeOffline": true,
+  "suiteCount": 39,
+  "failures": 0,
+  "results": [
+    {
+      "suite": "audit-workflow-semantics",
+      "exit": 0,
+      "tests": 9,
+      "pass": 9,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "suite": "branded-auth-fields",
+      "exit": 0,
+      "tests": 4,
+      "pass": 4,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "suite": "branded-auth",
+      "exit": 0,
+      "tests": 12,
+      "pass": 12,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "suite": "member-access",
+      "exit": 0,
+      "tests": 5,
+      "pass": 5,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "suite": "event-date-display",
+      "exit": 0,
+      "tests": 13,
+      "pass": 13,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "suite": "flash-drop-dialog",
+      "exit": 0,
+      "tests": 7,
+      "pass": 7,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "suite": "public-access-render",
+      "exit": 0,
+      "tests": 4,
+      "pass": 4,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "suite": "ui-control-contrast",
+      "exit": 0,
+      "tests": 10,
+      "pass": 10,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "suite": "upgrade-route-clock",
+      "exit": 0,
+      "tests": 4,
+      "pass": 4,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "suite": "upgrade-showtime-state",
+      "exit": 0,
+      "tests": 11,
+      "pass": 11,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "suite": "tm-event-timezone-handler",
+      "exit": 0,
+      "tests": 14,
+      "pass": 14,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "suite": "venue-timezone-frontend",
+      "exit": 0,
+      "tests": 10,
+      "pass": 10,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "suite": "event-search-request",
+      "exit": 0,
+      "tests": 13,
+      "pass": 13,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "suite": "selling-event-picker",
+      "exit": 0,
+      "tests": 13,
+      "pass": 13,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "suite": "selling-ongoing-provider",
+      "exit": 0,
+      "tests": 8,
+      "pass": 8,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "suite": "tm-ongoing-handler",
+      "exit": 0,
+      "tests": 7,
+      "pass": 7,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "suite": "search-normalize",
+      "exit": 0,
+      "tests": 28,
+      "pass": 28,
+      "fail": 0,
+      "skipped": 0,
+      "reporter": "legacy"
+    },
+    {
+      "suite": "tm-response-handler",
+      "exit": 0,
+      "tests": 15,
+      "pass": 15,
+      "fail": 0,
+      "skipped": 0,
+      "reporter": "legacy"
+    },
+    {
+      "suite": "upgrade-discovery",
+      "exit": 0,
+      "tests": 7,
+      "pass": 7,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "suite": "upgrades-live-discovery",
+      "exit": 0,
+      "tests": 7,
+      "pass": 7,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "suite": "upgrades-owned-navigation",
+      "exit": 0,
+      "tests": 6,
+      "pass": 6,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "suite": "listing-share",
+      "exit": 0,
+      "tests": 15,
+      "pass": 15,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "suite": "shared-listing-destination",
+      "exit": 0,
+      "tests": 14,
+      "pass": 14,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "suite": "fan-post-composer",
+      "exit": 0,
+      "tests": 12,
+      "pass": 12,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "suite": "bucket-list-feed",
+      "exit": 0,
+      "tests": 4,
+      "pass": 4,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "suite": "browse-ticket-interaction",
+      "exit": 0,
+      "tests": 13,
+      "pass": 13,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "suite": "event-discovery-paging",
+      "exit": 0,
+      "tests": 13,
+      "pass": 13,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "suite": "listing-event-lifecycle",
+      "exit": 0,
+      "tests": 6,
+      "pass": 6,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "suite": "legal-document",
+      "exit": 0,
+      "tests": 5,
+      "pass": 5,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "suite": "fan-zone-recovery",
+      "exit": 0,
+      "tests": 10,
+      "pass": 10,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "suite": "profile-beta-accessibility",
+      "exit": 0,
+      "tests": 9,
+      "pass": 9,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "suite": "sales-admin-presentation",
+      "exit": 0,
+      "tests": 11,
+      "pass": 11,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "suite": "route-metadata",
+      "exit": 0,
+      "tests": 2,
+      "pass": 2,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "suite": "oct09-discovery-state",
+      "exit": 0,
+      "tests": 5,
+      "pass": 5,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "suite": "oct09-discovery-paging",
+      "exit": 0,
+      "tests": 4,
+      "pass": 4,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "suite": "event-identity-presentation",
+      "exit": 0,
+      "tests": 10,
+      "pass": 10,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "suite": "oct09-lifecycle",
+      "exit": 0,
+      "tests": 27,
+      "pass": 27,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "suite": "founder-read-recovery",
+      "exit": 0,
+      "tests": 10,
+      "pass": 10,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    {
+      "suite": "purchase-detail",
+      "exit": 0,
+      "tests": 7,
+      "pass": 7,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    }
+  ]
+}

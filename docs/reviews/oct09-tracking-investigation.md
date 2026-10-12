@@ -1,0 +1,37 @@
+# October 9 tracking and consent investigation (I2)
+
+**I2 remains open for owner review.** Local execution establishes which calls this checkout initiates; it does not establish production provider storage, subsequent processing, or legal compliance. No consent or policy wording was changed. No live site, real identity/location, provider code or outbound network was used.
+
+Reviewed base `c31a2e1aa9f9c7d7916908ab948201cfad3243a8` plus the repair working tree. Locked and installed versions match: Base44 SDK 0.8.53, Base44 Vite plugin 1.0.44, react-onesignal 3.5.3. The October 9 audit reports a hosted Privacy table describing Google Analytics marketing/fingerprint/location categories; that report is an input, not an independently verified runtime finding here.
+
+## Verified boundaries
+
+| Path | Evidence and limit |
+|---|---|
+| Impact affiliate bootstrap | Executing the actual inline [index.html](../../index.html) script in an inert DOM schedules `https://utt.impactcdn.com/P-A7374474-4aa1-43ab-af61-43ef107a047f1.js` and queues `transformLinks` and `trackImpression`, without a preceding consent action. The stub never downloads or executes that script. Cookies, link rewriting, identifiers and downstream requests remain unknown. |
+| OneSignal startup and identity | Executing [AuthContext](../../src/lib/AuthContext.jsx) and the actual [wrapper](../../src/lib/oneSignal.js) with stub hooks/providers shows mount calls `init` before authentication resolves, including the guest case. A synthetic authenticated email is passed to `login`; logout calls `logout`. Automatic slidedown/notify button are disabled; no `Notifications.requestPermission` call occurs during these startup paths. The explicit request function does call it. No provider storage or transmission was exercised. |
+| App bootstrap storage | Executing [app-params](../../src/lib/app-params.js) against in-memory storage writes `base44_app_id`, `base44_functions_version`, `base44_app_base_url` and `base44_from_url` on the tested fresh start. A synthetic URL access token is stored in `base44_access_token` and removed from the URL; explicit clearing removes stored token keys. These are app-side storage operations, not evidence of third-party cookies. |
+| Navigation diagnostics | Executing [navLogger](../../src/lib/navLogger.js) calls a stub `EventNavigationLog.create` with route/event identifiers, user agent, timestamp and a session ID stored under `pg_nav_session_id`. The API accepts optional email; current inspected page callers do not supply `userEmail`. The synthetic email case proves capability only. No real record was created. |
+| Base44 page/listing analytics | Source inspection: [Vite config](../../vite.config.js) enables `analyticsTracker`. The locked plugin's `src/html-injections-plugin.ts` supplies a production-only inline tracker that, when top-level and app ID is set, POSTs `/api/app-logs/{appId}/log-user-in-app/{firstPathSegment}` on initial load/history changes. [CreateListing](../../src/pages/CreateListing.jsx) calls `analytics.track` with `listing_submitted` and listing economics after eligibility checks. Neither provider code nor those analytics requests were executed here; deployed build/account behavior is unverified. |
+| Privacy document | [PrivacyPolicy](../../src/pages/PrivacyPolicy.jsx) injects the Usercentrics policy-generator script on that route. This code renders a hosted document; no consent-manager callback or tracking gate appears in this component. Hosted content/settings were not fetched. |
+
+The first-party runtime probe uses a minimal hook harness to invoke the real authentication effect and async auth function. It is not a browser/React lifecycle or third-party SDK test. All imports must match explicit stubs; network globals throw. Synthetic emails use `example.invalid`, locations are absent, and all storage/entity writes remain in memory.
+
+## Consent and storage scope
+
+No app-side consent check was found before the reviewed Impact bootstrap, OneSignal init/email-linking, listing analytics or navigation logging paths. That observation does not determine whether a provider/account, hosting layer or deployed build applies another control. [CookiePolicy](../../src/pages/CookiePolicy.jsx) contains disclosure text, not a runtime consent control.
+
+Separate controls exist for distinct actions: [NotificationPermissionPrompt](../../src/components/NotificationPermissionPrompt.jsx) requests push permission through an Enable action and stores dismissal in `pg_notif_prompt_dismissed`; [useFanLocation](../../src/hooks/useFanLocation.js) requests GPS through a deliberate action; [BucketListAlerts](../../src/components/fanzone/BucketListAlerts.jsx) has explicit saved-location consent. The OAuth consent screen concerns MCP authorization. None of those reviewed controls gates the general tracking startup above. R15's controlled location evidence is recorded separately in [Fan validation](oct09-fan-validation.md).
+
+Other source-visible storage includes theme/onboarding/dismissal preferences, discovery return state, admin/QA state, recent cities and a browsing-location cache (`pg_events_local_area_v1`, legacy `pg_location_cache`). GPS restoration has a one-hour freshness check; a freshness limit is not proof that every stored copy is deleted at that time. The sidebar utility also contains a UI-state cookie setter. This is a bounded source inventory, not an exhaustive production storage audit.
+
+## Decisions and remaining evidence
+
+1. **App owner and privacy/legal owner:** approve an accurate provider/purpose inventory and the required controls for the intended users/regions; decide whether Impact, analytics and OneSignal initialization/identity linking require gating, and define withdrawal behavior before implementation.
+2. **Provider/account owners:** verify Impact attribution/link transformation, Base44 analytics/log retention and access, OneSignal identifiers/retention/sharing, and any deployed Google Analytics/tag configuration. Decide whether using email as OneSignal external ID and logging it to the console is intended. The local probe does not prove any of these providers actually stores or transmits particular data in production.
+3. **Privacy-document owner:** reconcile the hosted provider table and Cookie Policy against that verified inventory, including affiliate attribution and the current claims excluding advertising/retargeting/cross-site/fingerprinting. A hosted Google Analytics entry is not proof that its script runs; no direct Google Analytics loader was identified in the reviewed app paths.
+4. **Deployment/testing owner:** authorize a separate controlled production/staging capture if needed, with synthetic accounts and explicit provider execution scope. Record the exact deployed build, requests, cookies/local/session storage, service workers, permissions, and opt-in/opt-out/withdrawal behavior. Those runtime observations, regional/account configuration, recipient locations, retention and real data uses remain unknown.
+
+## Reproduction
+
+`node --test tests/tracking-bootstrap-investigation.test.mjs` — **7/7 passed, no skips** on Node 24.19.0. [Recorded output](oct09-evidence/tracking/offline-probe.txt). This optional investigative suite is not added to aggregate runners here; its assertions characterize current behavior and must be revised with any owner-approved consent changes. It does not certify compliance or close I2.

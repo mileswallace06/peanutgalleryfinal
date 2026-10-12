@@ -1,6 +1,6 @@
 /** Isolated R09/R15/R16 browser regression; never run against the production app. */
 import assert from 'node:assert/strict';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 import { fanEventChoices } from '../src/components/fanzone/fanEventChoice.js';
@@ -25,6 +25,16 @@ async function scenario(params, viewport, run) {
   });
   const page = await context.newPage();
   page.on('pageerror', error => errors.push(error.message));
+  await page.addInitScript(() => {
+    window.__PG_FAN_FOCUS_EVENTS__ = [];
+    for (const type of ['focusin', 'pointerdown']) document.addEventListener(type, event => {
+      const rows = window.__PG_FAN_FOCUS_EVENTS__;
+      rows.push({ type, time: performance.now(), target: event.target?.className,
+        name: event.target?.getAttribute?.('aria-label'), key: event.target?.tagName,
+        x: event.clientX, y: event.clientY, dialogPresent: !!document.querySelector('.pg-fan-sort-dialog') });
+      if (rows.length > 60) rows.shift();
+    }, true);
+  });
   const url = new URL('/tests/fixtures/ticket-design/app.html', base);
   url.search = new URLSearchParams({ page: 'fan-zone', ...params });
   try {
@@ -36,6 +46,25 @@ async function scenario(params, viewport, run) {
     assert.deepEqual(fixture.unexpected, []); assert.deepEqual(fixture.blocked, []);
     assert.deepEqual(errors, []); assert.deepEqual(external, []);
     passed++;
+  } catch (error) {
+    // Preserve the original raw backdrop action and exact trigger assertion.
+    // Record whether dismissal failed or focus was lost after dismissal; the
+    // historical CI artifact did not contain that distinction.
+    const state = await page.evaluate(() => ({
+      step: window.__PG_FAN_CHECK__, dialogPresent: !!document.querySelector('.pg-fan-sort-dialog'),
+      activeElement: document.activeElement?.outerHTML,
+      originalTriggerConnected: window.__PG_SORT_ORIGINAL__?.isConnected,
+      originalTriggerFocused: document.activeElement === window.__PG_SORT_ORIGINAL__,
+      pointerTargetAt2: document.elementFromPoint(2, 2)?.className,
+      focusEvents: window.__PG_FAN_FOCUS_EVENTS__,
+      blocked: window.ticketDesignFixture?.blocked, unexpected: window.ticketDesignFixture?.unexpected,
+    })).catch(() => null);
+    if (evidence) {
+      await writeFile(path.join(evidence, 'failure.json'), JSON.stringify({ params, viewport, message: error.message, state, errors, external }, null, 2));
+      await page.screenshot({ path: path.join(evidence, 'failure.png') }).catch(() => {});
+    }
+    console.error(JSON.stringify({ fanZoneFailure: { params, viewport, message: error.message, state } }));
+    throw error;
   } finally { await context.close(); }
 }
 const geoCount = page => page.evaluate(() => window.fixtureGeoCalls ?? window.ticketDesignFixture.geoCalls);
@@ -43,6 +72,7 @@ const openSort = async page => {
   const filters = page.locator('.pg-feed-filter-menu');
   if ((await filters.getAttribute('open')) === null) await filters.locator('summary').click();
   const trigger = page.getByRole('button', { name: /^Sort posts\. Current:/ });
+  await trigger.evaluate(element => { window.__PG_SORT_ORIGINAL__ ||= element; });
   await trigger.click();
   await page.getByRole('dialog', { name: 'Sort posts', exact: true }).waitFor();
   return trigger;
@@ -50,7 +80,9 @@ const openSort = async page => {
 const assertTrigger = async trigger => {
   await trigger.page().waitForFunction(() => document.activeElement?.classList.contains('pg-sort-control'));
   assert.equal(await trigger.evaluate(element => document.activeElement === element), true);
+  assert.equal(await trigger.evaluate(element => element === window.__PG_SORT_ORIGINAL__), true, 'The exact original DOM trigger remains mounted');
 };
+const markClose = (page, method) => page.evaluate(method => { window.__PG_FAN_CHECK__ = method; }, method);
 
 try {
   for (const theme of (process.env.PG_FAN_TEST_FILTER && process.env.PG_FAN_TEST_FILTER !== 'sort') ? [] : ['light', 'dark']) {
@@ -69,11 +101,12 @@ try {
         const bounds = await dialog.boundingBox();
         assert.ok(bounds.x >= -1 && bounds.x + bounds.width <= viewport.width + 1 && bounds.height <= viewport.height);
         if (evidence && [320, 390].includes(viewport.width)) await page.screenshot({ path: path.join(evidence, `sort-${theme}-${viewport.width}.png`) });
-        await page.keyboard.press('Escape'); await assertTrigger(trigger);
-        await openSort(page); await page.getByRole('button', { name: 'Close sort sheet' }).click(); await assertTrigger(trigger);
-        await openSort(page); await page.mouse.click(2, 2); await assertTrigger(trigger);
+        await markClose(page, 'Escape'); await page.keyboard.press('Escape'); await assertTrigger(trigger);
+        await markClose(page, 'Close button'); await openSort(page); await page.getByRole('button', { name: 'Close sort sheet' }).click(); await assertTrigger(trigger);
+        await markClose(page, 'Raw backdrop click (2, 2)'); await openSort(page); await page.mouse.click(2, 2); await assertTrigger(trigger);
         // All six non-distance options update selection and close without touching posts.
         for (const label of ['Upcoming Soonest', 'Newest Posted', 'Most Recent Activity', 'Most Liked', 'Most Commented', 'Oldest']) {
+          await markClose(page, `Selection: ${label}`);
           await openSort(page);
           const option = page.getByRole('button', { name: label, exact: true });
           await option.scrollIntoViewIfNeeded(); await option.click(); await assertTrigger(trigger);

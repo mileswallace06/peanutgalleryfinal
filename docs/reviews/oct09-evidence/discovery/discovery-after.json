@@ -1,0 +1,38 @@
+[
+  {
+    "finding": "R02",
+    "theme": "dark",
+    "phase": "after",
+    "focus": {
+      "tag": "INPUT",
+      "id": "event-search",
+      "label": null,
+      "scrollY": 0,
+      "ancestorScroll": []
+    }
+  },
+  {
+    "finding": "N01",
+    "theme": "dark",
+    "phase": "after",
+    "restored": "true"
+  },
+  {
+    "finding": "R02",
+    "theme": "light",
+    "phase": "after",
+    "focus": {
+      "tag": "INPUT",
+      "id": "event-search",
+      "label": null,
+      "scrollY": 0,
+      "ancestorScroll": []
+    }
+  },
+  {
+    "finding": "N01",
+    "theme": "light",
+    "phase": "after",
+    "restored": "true"
+  }
+]

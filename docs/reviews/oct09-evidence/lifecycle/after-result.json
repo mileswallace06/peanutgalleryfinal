@@ -1,0 +1,168 @@
+{
+  "phase": "after",
+  "fixtureOnly": true,
+  "browser": "153.0.8010.0",
+  "checks": [
+    "after native-ended admin light",
+    "after provider-ended user light",
+    "after hub-ended admin light",
+    "after native-ended admin dark",
+    "after provider-ended user dark",
+    "after hub-ended admin dark",
+    "boundary user before /events/fixture-live",
+    "boundary user before /events/tm/tm-fixture-live",
+    "boundary user before /upgrades/fixture-live",
+    "boundary user before /create-listing?event_id=fixture-live",
+    "boundary user exact /events/fixture-live",
+    "boundary user exact /events/tm/tm-fixture-live",
+    "boundary user exact /upgrades/fixture-live",
+    "boundary user exact /create-listing?event_id=fixture-live",
+    "boundary user after /events/fixture-live",
+    "boundary user after /events/tm/tm-fixture-live",
+    "boundary user after /upgrades/fixture-live",
+    "boundary user after /create-listing?event_id=fixture-live",
+    "boundary admin before /events/fixture-live",
+    "boundary admin before /events/tm/tm-fixture-live",
+    "boundary admin before /upgrades/fixture-live",
+    "boundary admin before /create-listing?event_id=fixture-live",
+    "boundary admin exact /events/fixture-live",
+    "boundary admin exact /events/tm/tm-fixture-live",
+    "boundary admin exact /upgrades/fixture-live",
+    "boundary admin exact /create-listing?event_id=fixture-live",
+    "boundary admin after /events/fixture-live",
+    "boundary admin after /events/tm/tm-fixture-live",
+    "boundary admin after /upgrades/fixture-live",
+    "boundary admin after /create-listing?event_id=fixture-live",
+    "guest route gate /events/fixture-live",
+    "guest route gate /events/tm/tm-fixture-live",
+    "guest route gate /upgrades/fixture-live",
+    "guest route gate /create-listing?event_id=fixture-live",
+    "local draft closes exact end light",
+    "local draft closes exact end dark",
+    "fresh guard stale light, no create",
+    "fresh guard read-error light, no create",
+    "fresh guard stale dark, no create",
+    "fresh guard read-error dark, no create",
+    "R05 error retry populated selection light",
+    "R05 error retry populated selection dark",
+    "R05 duplicate synchronous submit callbacks: one fresh read, one local-only scheduled create, selected listing retained",
+    "unknown timing stays unknown /create-listing?event_id=fixture-live",
+    "unknown timing stays unknown /upgrades/fixture-live"
+  ],
+  "screenshots": [
+    {
+      "file": "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct09/lifecycle/after/native-ended-admin-light.png",
+      "route": "/events/fixture-live",
+      "role": "admin",
+      "theme": "light",
+      "viewport": {
+        "width": 1180,
+        "height": 757
+      },
+      "isolated": true
+    },
+    {
+      "file": "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct09/lifecycle/after/provider-ended-user-light.png",
+      "route": "/events/tm/tm-fixture-live",
+      "role": "user",
+      "theme": "light",
+      "viewport": {
+        "width": 1180,
+        "height": 757
+      },
+      "isolated": true
+    },
+    {
+      "file": "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct09/lifecycle/after/hub-ended-admin-light.png",
+      "route": "/upgrades/fixture-live",
+      "role": "admin",
+      "theme": "light",
+      "viewport": {
+        "width": 1180,
+        "height": 757
+      },
+      "isolated": true
+    },
+    {
+      "file": "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct09/lifecycle/after/native-ended-admin-dark.png",
+      "route": "/events/fixture-live",
+      "role": "admin",
+      "theme": "dark",
+      "viewport": {
+        "width": 1180,
+        "height": 757
+      },
+      "isolated": true
+    },
+    {
+      "file": "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct09/lifecycle/after/provider-ended-user-dark.png",
+      "route": "/events/tm/tm-fixture-live",
+      "role": "user",
+      "theme": "dark",
+      "viewport": {
+        "width": 1180,
+        "height": 757
+      },
+      "isolated": true
+    },
+    {
+      "file": "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct09/lifecycle/after/hub-ended-admin-dark.png",
+      "route": "/upgrades/fixture-live",
+      "role": "admin",
+      "theme": "dark",
+      "viewport": {
+        "width": 1180,
+        "height": 757
+      },
+      "isolated": true
+    },
+    {
+      "file": "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct09/lifecycle/after/draft-crossing-end-user-light.png",
+      "route": "/upgrades/fixture-live",
+      "role": "user",
+      "theme": "light",
+      "viewport": {
+        "width": 1180,
+        "height": 757
+      },
+      "isolated": true
+    },
+    {
+      "file": "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct09/lifecycle/after/draft-crossing-end-user-dark.png",
+      "route": "/upgrades/fixture-live",
+      "role": "user",
+      "theme": "dark",
+      "viewport": {
+        "width": 1180,
+        "height": 757
+      },
+      "isolated": true
+    },
+    {
+      "file": "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct09/lifecycle/after/eligible-lookup-recovery-user-light.png",
+      "route": "/upgrades/fixture-live",
+      "role": "user",
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "isolated": true
+    },
+    {
+      "file": "/workspace/scratch/580f2607a348/peanutgalleryfinal/tests/artifacts/oct09/lifecycle/after/eligible-lookup-recovery-user-dark.png",
+      "route": "/upgrades/fixture-live",
+      "role": "user",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "isolated": true
+    }
+  ],
+  "errors": [],
+  "external": [],
+  "base": "c31a2e1aa9f9c7d7916908ab948201cfad3243a8",
+  "status": "PASSED"
+}

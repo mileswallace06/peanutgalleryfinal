@@ -30,7 +30,7 @@ if (process.env.PG_LEGAL_START_FIXTURE === '1') {
 const evidence = process.env.PG_LEGAL_EVIDENCE_DIR || '/tmp/pg-legal-browser';
 await mkdir(evidence, { recursive: true });
 const report = { fixtureOnly: true, checks: [], screenshots: [], errors: [], externalRequests: [], limits: ['Synthetic policy-provider content', 'MemoryRouter navigation history; no production browser session', 'Zoom uses CSS zoom emulation; no physical device or assistive-technology test'] };
-const fixtureUrl = (route, theme) => `${base.origin}/tests/fixtures/ticket-design/app.html?${new URLSearchParams({ route, theme, auth: 'guest' })}`;
+const fixtureUrl = (route, theme, extra = {}) => `${base.origin}/tests/fixtures/ticket-design/app.html?${new URLSearchParams({ route, theme, auth: 'guest', ...extra })}`;
 
 async function setup(width, height, theme) {
   const context = await browser.newContext({ viewport: { width, height }, reducedMotion: 'reduce' });
@@ -75,6 +75,7 @@ try {
   for (const [width, height] of [[320, 844], [375, 844], [390, 844], [430, 844], [1280, 900], [844, 390]]) {
     for (const theme of ['light', 'dark']) {
       const { context, page } = await setup(width, height, theme);
+      assert.deepEqual(page.viewportSize(), { width, height }, 'Reported viewport is the actual browser viewport');
       await page.goto(fixtureUrl('/privacy', theme));
       const region = page.getByRole('region', { name: /scroll horizontally to view all columns/ }).first();
       await region.waitFor();
@@ -91,7 +92,8 @@ try {
       await page.mouse.wheel(800, 0);
       await page.waitForFunction(() => document.querySelector('.pg-legal-table-scroll').scrollLeft > 0);
       const lastLink = region.getByRole('link').last();
-      await lastLink.focus();
+      await region.focus();
+      for (let index = 0; index < await region.getByRole('link').count(); index++) await page.keyboard.press('Tab');
       assert.equal(await lastLink.evaluate(node => node === document.activeElement), true);
       assert.ok((await lastLink.innerText()).trim().length > 4, 'Last-column link remains labeled and reachable');
       assert.equal(await region.locator('th:not([scope])').count(), 0, 'Headers preserve explicit table column relationships');
@@ -107,6 +109,22 @@ try {
       }
       await checkFixture(page);
       report.checks.push(`Privacy ${width}×${height} ${theme}: five visible-width columns, no page overflow, keyboard/pointer scroll, final link focus, main/h1/table semantics`);
+
+      // The provider first appends its table, then adds a later section. The
+      // fragment must resolve after that second update at every real viewport.
+      await page.goto(fixtureUrl('/privacy#privacy-rights', theme, { policyDelay: '80', policyStages: '1' }));
+      await fragmentVisible(page, 'privacy-rights');
+      await semanticPage(page, 'Privacy Policy');
+      await page.reload();
+      await fragmentVisible(page, 'privacy-rights');
+      await page.evaluate(() => window.__PG_REVIEW_NAVIGATE__('/privacy#providers'));
+      await fragmentVisible(page, 'providers');
+      await page.evaluate(() => window.__PG_REVIEW_NAVIGATE__(-1));
+      await fragmentVisible(page, 'privacy-rights');
+      await page.evaluate(() => window.__PG_REVIEW_NAVIGATE__(1));
+      await fragmentVisible(page, 'providers');
+      await checkFixture(page);
+      report.checks.push(`Privacy ${width}×${height} ${theme}: delayed two-stage content, direct/reload fragment, Back/Forward, reduced motion and exact target focus`);
 
       await page.goto(fixtureUrl('/terms#returnno', theme));
       await semanticPage(page, 'Terms of Service');

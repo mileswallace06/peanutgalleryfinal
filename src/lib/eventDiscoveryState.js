@@ -26,10 +26,54 @@ export function requestLocation(request) {
 export function safeDiscoveryReturnTo(value) {
   return typeof value === 'string' && /^\/events(?:\?[^#]*)?$/.test(value) ? value : '/events';
 }
-const storageKey = search => `pg_events_return_v1:${search}`;
-export function saveDiscoveryReturn(search, value, storage = globalThis.sessionStorage) {
-  try { storage?.setItem(storageKey(search), JSON.stringify({ ...value, savedAt: Date.now() })); } catch { /* Navigation works without storage. */ }
+export function safeUpgradesReturnTo(value) {
+  return typeof value === 'string' && /^\/upgrades(?:\?[^#]*)?$/.test(value) ? value : '/upgrades';
 }
-export function readDiscoveryReturn(search, storage = globalThis.sessionStorage) {
-  try { const value = JSON.parse(storage?.getItem(storageKey(search)) || 'null'); return value && Date.now() - value.savedAt < 3600000 ? value : null; } catch { return null; }
+export function discoveryBackLink(state, defaultPage = 'events') {
+  const fromUpgrades = typeof state?.upgradesReturnTo === 'string' && safeUpgradesReturnTo(state.upgradesReturnTo) === state.upgradesReturnTo;
+  const fromEvents = typeof state?.discoveryReturnTo === 'string' && safeDiscoveryReturnTo(state.discoveryReturnTo) === state.discoveryReturnTo;
+  const page = fromUpgrades ? 'upgrades' : fromEvents ? 'events' : defaultPage;
+  return {
+    to: fromUpgrades ? state.upgradesReturnTo : fromEvents ? state.discoveryReturnTo : page === 'upgrades' ? '/upgrades' : '/events',
+    state: { restoreDiscoveryEntry: fromUpgrades ? state.upgradesReturnKey : fromEvents ? state.discoveryReturnKey : undefined },
+    label: page === 'upgrades' ? 'Upgrades' : 'Events',
+  };
+}
+export function upgradeViewFromSearch(search) {
+  return new URLSearchParams(search).get('view') === 'live' ? 'live' : 'upcoming';
+}
+export function upgradeSearchFromView(search, view) {
+  const params = new URLSearchParams(search);
+  if (view === 'live') params.set('view', 'live'); else params.delete('view');
+  return params.size ? `?${params}` : '';
+}
+const validEntryKey = value => typeof value === 'string' && /^[a-zA-Z0-9_-]{1,100}$/.test(value);
+// Router keys survive Back/Forward and reload. The initial document's default
+// key needs its own marker so an unrelated direct visit cannot inherit it.
+export function discoveryReturnContext(route, navigationType, history = globalThis.history) {
+  let entryKey = validEntryKey(route.key) && route.key !== 'default' ? route.key : null;
+  if (!entryKey) {
+    entryKey = history?.state?.pgDiscoveryEntry;
+    if (!validEntryKey(entryKey)) {
+      entryKey = globalThis.crypto?.randomUUID?.() || `entry-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      try { history?.replaceState({ ...history.state, pgDiscoveryEntry: entryKey }, ''); } catch { /* Browsing still works without history storage. */ }
+    }
+  }
+  const restoreKey = route.state?.restoreDiscoveryEntry;
+  const explicitReturn = validEntryKey(restoreKey);
+  return { entryKey: explicitReturn ? restoreKey : entryKey, pathname: route.pathname, search: route.search, mayRestore: navigationType === 'POP' || explicitReturn };
+}
+const storageKey = context => `pg_discovery_return_v2:${context.pathname}:${context.entryKey}`;
+export function saveDiscoveryReturn(context, value, storage = globalThis.sessionStorage) {
+  try { storage?.setItem(storageKey(context), JSON.stringify({ ...value, pathname: context.pathname, search: context.search, savedAt: Date.now() })); } catch { /* Navigation works without storage. */ }
+}
+export function clearDiscoveryReturn(context, storage = globalThis.sessionStorage) {
+  try { storage?.removeItem(storageKey(context)); } catch { /* Navigation works without storage. */ }
+}
+export function readDiscoveryReturn(context, storage = globalThis.sessionStorage) {
+  if (!context.mayRestore) return null;
+  try {
+    const value = JSON.parse(storage?.getItem(storageKey(context)) || 'null');
+    return value && value.pathname === context.pathname && value.search === context.search && Date.now() - value.savedAt >= 0 && Date.now() - value.savedAt < 3600000 ? value : null;
+  } catch { return null; }
 }

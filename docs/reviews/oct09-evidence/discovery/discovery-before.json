@@ -1,0 +1,48 @@
+[
+  {
+    "finding": "R02",
+    "theme": "dark",
+    "phase": "before",
+    "focus": {
+      "tag": "A",
+      "id": "",
+      "label": "View Knocked Loose, Fri, Oct 2 · 3:00 PM MST",
+      "scrollY": 0,
+      "ancestorScroll": [
+        {
+          "tag": "DIV",
+          "scrollTop": 78
+        }
+      ]
+    }
+  },
+  {
+    "finding": "N01",
+    "theme": "dark",
+    "phase": "before",
+    "restored": "false"
+  },
+  {
+    "finding": "R02",
+    "theme": "light",
+    "phase": "before",
+    "focus": {
+      "tag": "A",
+      "id": "",
+      "label": "View Knocked Loose, Fri, Oct 2 · 3:00 PM MST",
+      "scrollY": 0,
+      "ancestorScroll": [
+        {
+          "tag": "DIV",
+          "scrollTop": 78
+        }
+      ]
+    }
+  },
+  {
+    "finding": "N01",
+    "theme": "light",
+    "phase": "before",
+    "restored": "false"
+  }
+]

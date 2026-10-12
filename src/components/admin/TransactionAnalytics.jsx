@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
-import { buildPurchaseAnalytics, analyzePurchase } from '@/lib/feeEngine';
-import { TrendingUp, TrendingDown, AlertTriangle, DollarSign } from 'lucide-react';
+import { buildPurchaseAnalytics } from '@/lib/feeEngine';
+import { TrendingUp, TrendingDown } from 'lucide-react';
 
 function StatCard({ label, value, sub, color }) {
   return (

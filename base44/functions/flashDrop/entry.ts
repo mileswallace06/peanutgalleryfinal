@@ -2,6 +2,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 import { recordNotification } from '../../shared/notifications.ts';
 import { isMaintenanceActive, maintenance503 } from '../../shared/maintenance.ts';
 import { isFlashDropViewer, projectFlashDrop, projectFlashDropWinner } from '../../shared/flashDropReadView.js';
+import { checkListingEvent } from '../../shared/listingEventEligibility.js';
 
 // ── Config ──────────────────────────────────────────────────────────────────
 const MAX_DROPS_PER_USER_PER_EVENT = 2;
@@ -101,6 +102,14 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'event_id and section required' }, { status: 400 });
     }
 
+    // Normal fan-gift creation has no ended-event admin override. Reuse the
+    // listing lifecycle, with an authoritative read before any inventory write.
+    let eligibility;
+    try { eligibility = await checkListingEvent(base44.asServiceRole, event_id); }
+    catch { return Response.json({ error: 'Could not check this event. Retry before creating a fan gift.', code: 'EVENT_CHECK_UNAVAILABLE' }, { status: 503 }); }
+    if (!eligibility.allowed) return Response.json({ error: eligibility.message, code: eligibility.code }, { status: eligibility.code === 'EVENT_UNAVAILABLE' ? 404 : 409 });
+    let event = eligibility.event;
+
     // ── Anti-abuse: rate limiting ───────────────────────────────────────────
     const existingDrops = await base44.asServiceRole.entities.FlashDrop.filter({ donor_email: user.email, event_id });
     const nonCancelledDrops = existingDrops.filter(d => !['cancelled', 'expired'].includes(d.status));
@@ -197,8 +206,6 @@ Deno.serve(async (req) => {
       ownershipVerified, ownershipMethod, transferConfirmed: trustTransferConfirmed, sellerVerified, priorSuccessfulTransfers: priorSuccessful,
     });
 
-    const events = await base44.asServiceRole.entities.Event.filter({ id: event_id });
-    const event = events[0];
     const windowSecs = Math.min(90, Math.max(30, entry_window_seconds || 60));
 
     let status = 'pending';
@@ -212,6 +219,13 @@ Deno.serve(async (req) => {
     }
 
     // ── Create or update SeatInventory ─────────────────────────────────────
+    // Awaited ownership/rate checks can span the end instant or a provider
+    // timing/status change. Re-read immediately before the first mutation.
+    let atWrite;
+    try { atWrite = await checkListingEvent(base44.asServiceRole, event_id); }
+    catch { return Response.json({ error: 'Could not recheck this event. Retry before creating a fan gift.', code: 'EVENT_CHECK_UNAVAILABLE' }, { status: 503 }); }
+    if (!atWrite.allowed) return Response.json({ error: atWrite.message, code: atWrite.code }, { status: atWrite.code === 'EVENT_UNAVAILABLE' ? 404 : 409 });
+    event = atWrite.event;
     let seatInventoryId = existingInv?.id || null;
     const invData = {
       event_id,

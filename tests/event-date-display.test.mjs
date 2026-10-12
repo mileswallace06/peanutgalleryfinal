@@ -6,8 +6,9 @@ import { transform } from 'esbuild';
 import { getEventDateDisplay } from '../src/lib/eventDateDisplay.js';
 import { reliableTime, sellingEventDate, sellingEventTiming, SELLING_STATUS_LABELS } from '../src/lib/sellingEventTiming.js';
 import { getUpgradeEventState, getUpgradeShowtimeLabel, getUpgradeVenueDateParts } from '../src/lib/upgradeEventState.js';
-import { safeDiscoveryReturnTo } from '../src/lib/eventDiscoveryState.js';
-import { eventVariantLabel } from '../src/lib/eventIdentity.js';
+import { discoveryBackLink } from '../src/lib/eventDiscoveryState.js';
+import { eventIdentityLabel } from '../src/lib/eventIdentity.js';
+import { listingEventEligibility, checkListingEvent } from '../base44/shared/listingEventEligibility.js';
 import { getEventUrl } from '../src/lib/eventUrl.js';
 import { sharedListingSelection } from '../src/lib/sharedListingDestination.js';
 import { TICKET_LISTING_TYPES } from '../src/lib/listingTypes.js';
@@ -30,7 +31,7 @@ async function compile(source, globals) {
 }
 const eventsSource = await readFile(new URL('../src/pages/Events.jsx', import.meta.url), 'utf8');
 const { EventRow } = await compile(`${eventsSource.slice(eventsSource.indexOf('function EventRow('))}\nexport { EventRow };`, {
-  getEventDateDisplay, eventVariantLabel, getUpgradeEventState, getEventUrl, logNavEvent() {},
+  getEventDateDisplay, eventIdentityLabel, getUpgradeEventState, getEventUrl, logNavEvent() {},
   Link: 'a', EventThumbnail: 'thumbnail', ShieldCheck: 'shield', ArrowRight: 'arrow',
 });
 
@@ -88,7 +89,7 @@ test('missing, naive, invalid and TBA starts never invent an Events card time or
     assert.match(text(rendered), /Time TBA/);
     assert.equal(text(rendered.find(node => node?.props?.className === 'pg-browse-ticket-month')), 'TBD');
     assert.equal(text(rendered.find(node => node?.props?.className === 'pg-browse-ticket-day')), '—');
-    assert.equal(rendered.find(node => node?.type === 'a').props['aria-label'], 'View Fixture show, Date to be announced');
+    assert.equal(rendered.find(node => node?.type === 'a').props['aria-label'], 'View Fixture show, Date to be announced, Occurrence unconfirmed · Event reference tm_fixture');
   }
 });
 
@@ -108,8 +109,8 @@ test('unavailable venue zones use explicitly labeled UTC without guessing from t
 const nativeSource = (await readFile(new URL('../src/pages/EventDetail.jsx', import.meta.url), 'utf8')).replace(/^import .+\n/gm, '');
 const nativeFixture = { event, now: Date.parse(event.event_start_utc), cursor: 0 };
 const { default: NativeDetail } = await compile(nativeSource, {
-  getEventDateDisplay, safeDiscoveryReturnTo, getUpgradeEventState, getUpgradeShowtimeLabel, sharedListingSelection, TICKET_LISTING_TYPES,
-  useParams: () => ({ id: nativeFixture.event.id }), useLocation: () => ({ search: '' }),
+  getEventDateDisplay, eventIdentityLabel, listingEventEligibility, discoveryBackLink, getUpgradeEventState, getUpgradeShowtimeLabel, sharedListingSelection, TICKET_LISTING_TYPES,
+  useParams: () => ({ id: nativeFixture.event.id }), useLocation: () => ({ search: '', state: nativeFixture.routeState }),
   useUpgradeClock: () => nativeFixture.now, useEffect() {},
   useState: () => [[nativeFixture.event, [], false, null, null, false, null][nativeFixture.cursor++], () => {}],
   sessionStorage: { getItem: () => null },
@@ -117,8 +118,8 @@ const { default: NativeDetail } = await compile(nativeSource, {
   Zap: 'zap', Plus: 'plus', Bell: 'bell', ShieldCheck: 'shield', ListingCard: 'listing',
   PurchaseDialog: 'purchase', Disclosure: 'details', DiscoveryAlertControl: 'upgrade-alert-control',
 });
-function renderNative(event, now = Date.parse(event.event_start_utc || event.date)) {
-  Object.assign(nativeFixture, { event, now, cursor: 0 });
+function renderNative(event, now = Date.parse(event.event_start_utc || event.date), routeState) {
+  Object.assign(nativeFixture, { event, now, cursor: 0, routeState });
   return NativeDetail();
 }
 const summarySource = (await readFile(new URL('../src/components/listings/SellingEventSummary.jsx', import.meta.url), 'utf8')).replace(/^import .+\n/gm, '');
@@ -206,7 +207,7 @@ test('the native empty-event alert control stays scoped to this event and descri
   assert.doesNotMatch(text(rendered), /alert you the moment a listing goes live|Manage alerts/);
 });
 
-async function renderDetail({ localEvent = event, passedEvent, tmId = 'fixture' } = {}) {
+async function renderDetail({ localEvent = event, passedEvent, tmId = 'fixture', routeState } = {}) {
   const source = (await readFile(new URL('../src/pages/EventDetailTM.jsx', import.meta.url), 'utf8')).replace(/^import .+\n/gm, '');
   const state = [];
   const effects = [];
@@ -216,9 +217,10 @@ async function renderDetail({ localEvent = event, passedEvent, tmId = 'fixture' 
   const calls = [];
   const reads = [];
   const { default: Detail } = await compile(source, {
-    getEventDateDisplay, safeDiscoveryReturnTo, reliableTime,
+    getEventDateDisplay, eventIdentityLabel, listingEventEligibility, checkListingEvent, discoveryBackLink, reliableTime,
+    useUpgradeClock: () => Date.parse(localEvent.event_start_utc || localEvent.date) - 1,
     console: { info() {}, warn() {}, error() {} },
-    useParams: () => ({ tmId }), useNavigate: () => () => {}, useLocation: () => ({ state: { tmEvent: passedEvent } }),
+    useParams: () => ({ tmId }), useNavigate: () => () => {}, useLocation: () => ({ state: { ...routeState, tmEvent: passedEvent } }),
     useEffect: fn => effects.push(fn),
     useState: initial => {
       const index = cursor++;
@@ -237,7 +239,8 @@ async function renderDetail({ localEvent = event, passedEvent, tmId = 'fixture' 
   effects[0]();
   await loaded;
   cursor = 0;
-  return { rendered: text(Detail()), state, calls, reads };
+  const tree = Detail();
+  return { rendered: text(tree), tree, state, calls, reads };
 }
 
 test('Ticketmaster detail preserves local timing metadata and renders venue time or TBA without writes', async () => {
@@ -308,5 +311,23 @@ test('Ticketmaster detail rejects conflicting or unconfirmed router timezone don
     assert.match(rendered, /Saturday, October 3, 2026 · 10:00 PM UTC · venue time unconfirmed/);
     assert.equal(state[0].venue_timezone, undefined);
     assert.deepEqual(calls.map(call => call.name), ['getListingParticipantView']);
+  }
+});
+
+
+test('native and provider details retain the originating list entry in their actual Back links', async () => {
+  for (const [routeState, expected] of [
+    [{discoveryReturnTo:'/events?browse=1&q=Fixture',discoveryReturnKey:'events-entry'}, '/events?browse=1&q=Fixture'],
+    [{upgradesReturnTo:'/upgrades?view=live',upgradesReturnKey:'upgrade-entry'}, '/upgrades?view=live'],
+  ]) {
+    const wantedKey = routeState.discoveryReturnKey || routeState.upgradesReturnKey;
+    const native = nodes(renderNative(event, Date.parse(event.event_start_utc)-1, routeState));
+    const nativeBack = native.find(node => node?.type==='a' && node.props.className==='pg-event-back');
+    assert.equal(nativeBack.props.to,expected);assert.equal(nativeBack.props.state.restoreDiscoveryEntry,wantedKey);
+    const hubLinks = native.filter(node=>node?.type==='a' && node.props.to===`/upgrades/${event.id}`);
+    assert.ok(hubLinks.length>0);for(const link of hubLinks)assert.equal(link.props.state,routeState);
+    const provider = nodes((await renderDetail({routeState})).tree);
+    const providerBack = provider.find(node=>node?.type==='a' && node.props.className==='pg-event-back');
+    assert.equal(providerBack.props.to,expected);assert.equal(providerBack.props.state.restoreDiscoveryEntry,wantedKey);
   }
 });

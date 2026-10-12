@@ -1,0 +1,61 @@
+{
+  "fixtureOnly": true,
+  "results": [
+    {
+      "name": "fixture-isolation-browser",
+      "exit": 0
+    },
+    {
+      "name": "events-search-browser",
+      "exit": 0
+    },
+    {
+      "name": "legal-document-browser",
+      "exit": 0
+    },
+    {
+      "name": "fan-zone-browser",
+      "exit": 0
+    },
+    {
+      "name": "profile-beta-browser",
+      "exit": 0
+    },
+    {
+      "name": "listing-workflows-browser",
+      "exit": 0
+    },
+    {
+      "name": "sales-admin-browser",
+      "exit": 0
+    },
+    {
+      "name": "route-inventory-browser",
+      "exit": 0
+    },
+    {
+      "name": "oct09-discovery-navigation-browser",
+      "exit": 0
+    },
+    {
+      "name": "event-identity-browser",
+      "exit": 0
+    },
+    {
+      "name": "oct09-lifecycle-browser",
+      "exit": 0
+    },
+    {
+      "name": "founder-recovery-browser",
+      "exit": 0
+    },
+    {
+      "name": "purchase-detail-browser",
+      "exit": 0
+    },
+    {
+      "name": "fan-behavior-browser",
+      "exit": 0
+    }
+  ]
+}

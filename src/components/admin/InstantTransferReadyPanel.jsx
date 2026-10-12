@@ -1,7 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { base44 } from '@/api/base44Client';
+import { useOperationalReads } from '@/hooks/useOperationalReads';
 import { format } from 'date-fns';
-import { RefreshCw, AlertTriangle, CheckCircle, RotateCcw, XCircle, Package } from 'lucide-react';
+import { RefreshCw, AlertTriangle, XCircle, Package } from 'lucide-react';
+const READS = { listings: () => base44.entities.Listing.filter({ listing_transfer_mode: 'instant_transfer_ready' }, '-created_date', 100) };
+
 
 const CUSTODY_LABELS = {
   not_received: { label: 'Not Received', color: '#FF8C00', bg: 'color-mix(in srgb, rgb(255 140 0) 10%, var(--pg-surface))' },
@@ -23,20 +26,12 @@ const STATUS_TRANSITIONS = [
 ];
 
 export default function InstantTransferReadyPanel() {
-  const [listings, setListings] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { sources, reload: load, loading } = useOperationalReads(READS);
+  const source = sources.listings;
+  const listings = source.rows;
   const [updating, setUpdating] = useState(null);
   const [failureReason, setFailureReason] = useState('');
   const [expandedId, setExpandedId] = useState(null);
-
-  const load = async () => {
-    setLoading(true);
-    const data = await base44.entities.Listing.filter({ listing_transfer_mode: 'instant_transfer_ready' }, '-created_date', 100);
-    setListings(data);
-    setLoading(false);
-  };
-
-  useEffect(() => { load(); }, []);
 
   const updateCustody = async (listing, newStatus, extraFields = {}) => {
     setUpdating(listing.id);
@@ -89,12 +84,6 @@ export default function InstantTransferReadyPanel() {
     alert('Seller flagged. Admin alert created.');
   };
 
-  if (loading) return (
-    <div className="flex justify-center py-12">
-      <span className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-    </div>
-  );
-
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -104,8 +93,8 @@ export default function InstantTransferReadyPanel() {
             Listings where sellers authorized PG as limited transfer agent. PG does not own these tickets.
           </p>
         </div>
-        <button onClick={load} className="p-2 rounded-xl" style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)' }}>
-          <RefreshCw className="w-4 h-4 text-muted-foreground" />
+        <button type="button" aria-label="Refresh instant transfer ready listings" aria-busy={loading} disabled={loading} onClick={() => load()} className="p-2 rounded-xl" style={{ background: 'var(--pg-surface-raised)', border: '1px solid var(--pg-line)' }}>
+          <RefreshCw className={`w-4 h-4 text-muted-foreground ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
@@ -118,7 +107,11 @@ export default function InstantTransferReadyPanel() {
         </p>
       </div>
 
-      {listings.length === 0 ? (
+      {loading ? (
+        <p role="status" className="text-sm text-muted-foreground py-6">Loading instant transfer ready listings…</p>
+      ) : source.status !== 'ready' ? (
+        <p role="status" className="text-sm text-muted-foreground py-6">Instant transfer ready listings unavailable. Refresh to retry.</p>
+      ) : listings.length === 0 ? (
         <div className="text-center py-12 space-y-2">
           <Package className="w-10 h-10 text-muted-foreground mx-auto opacity-40" />
           <p className="text-sm text-muted-foreground">No Instant Transfer Ready listings yet.</p>

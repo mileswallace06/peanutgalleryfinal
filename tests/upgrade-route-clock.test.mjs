@@ -6,6 +6,9 @@ import { transform } from 'esbuild';
 import { getUpgradeEventState } from '../src/lib/upgradeEventState.js';
 import { UPGRADE_LISTING_TYPES } from '../src/lib/listingTypes.js';
 import { sharedListingSelection } from '../src/lib/sharedListingDestination.js';
+import { listingEventEligibility } from '../base44/shared/listingEventEligibility.js';
+import { discoveryBackLink } from '../src/lib/eventDiscoveryState.js';
+import { eventIdentityLabel } from '../src/lib/eventIdentity.js';
 
 const event = {
   id: 'clock-fixture', title: 'Fixture concert', status: 'upcoming',
@@ -29,7 +32,7 @@ test('the hub presents existing eligibility requirements only during its shared 
     reservation_state: 'available', asking_price: 50, requires_location: true, requires_existing_ticket: true };
   let cursor = 0, now = start - 1;
   const { default: Hub } = await compile('../src/pages/EventDetailUpgrade.jsx', {
-    getUpgradeEventState, UPGRADE_LISTING_TYPES, sharedListingSelection,
+    getUpgradeEventState, UPGRADE_LISTING_TYPES, sharedListingSelection, listingEventEligibility, eventIdentityLabel, discoveryBackLink,
     useParams: () => ({ id: event.id }), useLocation: () => ({ search: '' }), useUpgradeClock: () => now,
     useState: () => [[event, [listing], [], false, false, null, false, 'Upgrades', false, null, false, true, null, false, false][cursor++], () => {}],
     useRef: current => ({ current }), useEffect() {}, useCallback: fn => fn,
@@ -114,7 +117,7 @@ test('both Fan Gifts launchers establish a focus-return target and empty gifts d
   let cursor = 0;
   const calls = [];
   const { default: Hub } = await compile('../src/pages/EventDetailUpgrade.jsx', {
-    getUpgradeEventState, UPGRADE_LISTING_TYPES, sharedListingSelection,
+    getUpgradeEventState, UPGRADE_LISTING_TYPES, sharedListingSelection, listingEventEligibility, eventIdentityLabel, discoveryBackLink, Date: { now: () => start },
     useParams: () => ({ id: event.id }), useLocation: () => ({ search: '' }), useUpgradeClock: () => start,
     useState: () => {
       const index = cursor++;

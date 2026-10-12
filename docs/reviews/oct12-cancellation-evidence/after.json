@@ -1,0 +1,26 @@
+{
+  "baseline": false,
+  "comparisonBase": "9d7aa593d8d6a8177eac7fb37d4d2cfc0fe99e84",
+  "fixtureOnly": true,
+  "checks": [
+    "light/reject: pending controls disable, failure releases them, truthful error, original reference, no automatic repeat; refresh then explicit retry succeeds with read-back",
+    "light/missing: pending controls disable, failure releases them, truthful error, original reference, no automatic repeat",
+    "light/string: pending controls disable, failure releases them, truthful error, original reference, no automatic repeat",
+    "light/server-error: pending controls disable, failure releases them, truthful error, original reference, no automatic repeat",
+    "light: declining confirmation makes no cancellation request",
+    "dark/reject: pending controls disable, failure releases them, truthful error, original reference, no automatic repeat; refresh then explicit retry succeeds with read-back",
+    "dark/missing: pending controls disable, failure releases them, truthful error, original reference, no automatic repeat",
+    "dark/string: pending controls disable, failure releases them, truthful error, original reference, no automatic repeat",
+    "dark/server-error: pending controls disable, failure releases them, truthful error, original reference, no automatic repeat",
+    "dark: declining confirmation makes no cancellation request"
+  ],
+  "errors": [],
+  "blocked": [],
+  "screenshots": [
+    "recovered-light.png",
+    "retry-success-light.png",
+    "recovered-dark.png",
+    "retry-success-dark.png"
+  ],
+  "status": "PASSED"
+}
