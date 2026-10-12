@@ -213,10 +213,20 @@ export default function PurchaseSuccess() {
     if (!confirm('Cancel this purchase? The payment will be refunded.')) return;
     setActionLoading(true);
     setError('');
-    const res = await base44.functions.invoke('cancelPurchase', { purchase_id: purchase.id });
-    if (res.data.error) setError(res.data.error);
-    else await load();
-    setActionLoading(false);
+    try {
+      const res = await base44.functions.invoke('cancelPurchase', { purchase_id: purchase.id });
+      if (!res?.data || typeof res.data !== 'object' || Array.isArray(res.data)) {
+        throw new Error('Cancellation response unavailable');
+      }
+      if (res.data.error) setError(res.data.error);
+      else await load();
+    } catch {
+      // A transport failure does not establish whether the server cancelled it.
+      // Do not retry the write or claim a refund outcome from a failed response.
+      setError('The cancellation result could not be confirmed. Refresh this page to check the latest status before trying again.');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const handleDispute = async ({ category, details }) => {
