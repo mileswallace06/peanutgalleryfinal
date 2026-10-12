@@ -6,14 +6,15 @@ import { browserListingResponses } from '../../helpers/listingParticipantFixture
 const root = fileURLToPath(new URL('../../../', import.meta.url));
 const fixture = fileURLToPath(new URL('./', import.meta.url));
 export default {
-  root, cacheDir: `${root}node_modules/.vite-purchase-review`, plugins: [
+  root, cacheDir: `${root}node_modules/.vite-purchase-review${process.env.PG_PURCHASE_RECOVERY_SOURCE_REF ? '-cancel-before' : ''}`, plugins: [
     { name: 'actual-listing-participant-fixture',
       resolveId(id) { if (id === 'virtual:listing-participant-responses') return '\0listing-participant-responses'; },
       async load(id) { if (id === '\0listing-participant-responses') return `export default ${JSON.stringify(await browserListingResponses(process.env.PG_PURCHASE_LISTING_SOURCE_REF))}`; },
     },
     { name: 'isolated-purchase-baseline', enforce: 'pre', load(id) {
-      if (process.env.PG_PURCHASE_BASELINE === '1' && id === `${root}src/pages/PurchaseSuccess.jsx`) {
-        return execFileSync('git', ['show', 'c31a2e1aa9f9c7d7916908ab948201cfad3243a8:src/pages/PurchaseSuccess.jsx'], { cwd: root, encoding: 'utf8' });
+      const sourceRef = process.env.PG_PURCHASE_RECOVERY_SOURCE_REF || (process.env.PG_PURCHASE_BASELINE === '1' ? 'c31a2e1aa9f9c7d7916908ab948201cfad3243a8' : null);
+      if (sourceRef && id === `${root}src/pages/PurchaseSuccess.jsx`) {
+        return execFileSync('git', ['show', `${sourceRef}:src/pages/PurchaseSuccess.jsx`], { cwd: root, encoding: 'utf8' });
       }
     } }, fixtureSourceIsolation(), react(),
   ],

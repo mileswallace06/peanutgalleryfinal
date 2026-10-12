@@ -8,6 +8,7 @@ export const fixture = window.purchaseReview = {
   readFailure: query.get('readFailure') === '1',
   stripe: query.get('stripe') || 'missing-readiness',
   recordLoading: query.get('recordLoading') === '1',
+  cancelMode: 'reject', cancellationRequests: [], pendingCancellations: [],
 };
 const user = { id: `fixture-${role}`, email: `${role}@example.invalid`, full_name: 'Fixture participant', role: role === 'admin' ? 'admin' : 'user' };
 const base = { listing_id: 'fixture-listing', event_id: 'fixture-event', amount: 15, seller_payout: 12, quantity: 2, transfer_status: 'completed', seller_confirmed: true, buyer_confirmed: true, payment_captured: true, created_date: '2026-10-09T12:00:00Z', seller_confirmed_at: '2026-10-09T13:00:00Z', buyer_email: 'buyer@example.invalid', seller_email: 'seller@example.invalid' };
@@ -31,6 +32,21 @@ const sdk = {
   },
   functions: { invoke: async (name, args) => {
     record(name, args);
+    if (name === 'cancelPurchase' && query.get('cancelRecovery') === '1' && role === 'buyer') {
+      if (args.purchase_id !== purchases[0].id) return deny('cancelPurchase: unexpected purchase');
+      fixture.cancellationRequests.push({ ...args });
+      const mode = fixture.cancelMode;
+      return new Promise((resolve, reject) => fixture.pendingCancellations.push(() => {
+        if (mode === 'reject') reject(new Error('PRIVATE_SYNTHETIC_TRANSPORT_ERROR'));
+        else if (mode === 'missing') resolve(undefined);
+        else if (mode === 'string') resolve({ data: 'Synthetic malformed response' });
+        else if (mode === 'server-error') resolve({ data: { error: 'Synthetic cancellation is unavailable.' } });
+        else if (mode === 'success') {
+          purchases[0].transfer_status = 'expired';
+          resolve({ data: { success: true } });
+        } else { deny('cancelPurchase: unexpected mode'); }
+      }));
+    }
     if (name === 'getPurchaseParticipantView') {
       if (fixture.recordLoading) await new Promise(resolve => { fixture.releaseRecord = resolve; });
       if (fixture.readFailure) throw { status: 503 };
