@@ -1,0 +1,24 @@
+{
+  "baseline": true,
+  "comparisonBase": "9d7aa593d8d6a8177eac7fb37d4d2cfc0fe99e84",
+  "fixtureOnly": true,
+  "checks": [],
+  "errors": [
+    "PRIVATE_SYNTHETIC_TRANSPORT_ERROR"
+  ],
+  "blocked": [],
+  "screenshots": [
+    "failure.png"
+  ],
+  "status": "FAILED",
+  "failure": "locator.waitFor: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('alert').filter({ hasText: 'The cancellation result could not be confirmed. Refresh this page to check the latest status before trying again.' }) to be visible\u001b[22m\n",
+  "observed": {
+    "cancelDisabled": true,
+    "alerts": [],
+    "cancellations": [
+      {
+        "purchase_id": "fixture-sale-aaaaaaaaaaaaaaaa"
+      }
+    ]
+  }
+}

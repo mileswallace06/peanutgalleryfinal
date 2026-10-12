@@ -1,0 +1,6 @@
+{
+  "src/pages/PurchaseSuccess.jsx": "6c85f1d53843f7ce9682bc4c9d4423497f587a103ee240420b631c6a9f36ee40",
+  "tests/purchase-cancellation-recovery-browser.mjs": "f75528ddaa0bb25c57fd5601117c68ac52f9e2068acb34689b8728dfd86b4681",
+  "tests/fixtures/purchase-review/base44.js": "ab45c737e478a9e9265387b45cc5c46104925e203030f66bf1a26405b2a7df05",
+  "tests/fixtures/purchase-review/vite.config.mjs": "595b22b79935a2fc097be2f99f5f957c404db1f44a5913520a1113a93bab9d15"
+}
