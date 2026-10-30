@@ -30,7 +30,7 @@ export default defineConfig({
     { find: '@/lib/AuthContext', replacement: `${fixture}AuthContext.jsx` },
     { find: '@', replacement: `${root}src` },
   ] },
-  server: { host: '127.0.0.1', port: 4174, strictPort: true },
+  server: { host: '127.0.0.1', port: 4174, strictPort: true, allowedHosts: ['terminal.local'] },
   build: {
     outDir: `${fixture}.review-dist`,
     emptyOutDir: true,

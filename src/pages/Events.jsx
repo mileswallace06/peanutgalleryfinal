@@ -408,7 +408,7 @@ export default function Events() {
       {loading ? (
         <div className="pg-events-list" role="status" aria-label="Loading events">
           {[...Array(3)].map((_, i) => (
-            <div key={i} className="pg-events-skeleton pg-ticket animate-pulse" aria-hidden="true" />
+            <div key={i} className="pg-events-skeleton pg-discovery-skeleton animate-pulse" aria-hidden="true" />
           ))}
         </div>
       ) : restoringLocation ? (
@@ -510,7 +510,7 @@ function EventRow({ event, nowMs, returnTo, returnKey, onOpen }) {
       </span>
     </>
   );
-  const cardClass = `pg-ticket pg-browse-ticket pg-printed-ticket pg-event-ticket ${isLive ? 'is-live' : ''}`;
+  const cardClass = `pg-discovery-row pg-browse-ticket pg-event-ticket ${isLive ? 'is-live' : ''}`;
 
   return (
     <article id={`event-row-${event.id}`} className="pg-event-row">

@@ -1,0 +1,245 @@
+/* Browse rows only. Ticket wallets, checkout, and other ticket surfaces retain
+   their existing presentation. Keep the browse child hooks for event semantics. */
+.pg-design-page:is(.pg-events-page, .pg-upgrades-page) {
+  --pg-discovery-accent: #dcb6f5;
+  --pg-discovery-surface: #111019;
+  --pg-discovery-ink: #f6f3f5;
+  --pg-discovery-muted: #bdb7c8;
+  --pg-discovery-border: #34303e;
+  --pg-discovery-rule: #494050;
+  --pg-discovery-art: #211b2a;
+  --pg-discovery-row-min: 124px;
+}
+
+.pg-ticket-app .pg-design-page.pg-upgrades-page {
+  --pg-discovery-accent: #a3efc3;
+  --pg-discovery-row-min: 116px;
+  padding-inline: 8px;
+}
+
+.pg-design-page.pg-events-page .pg-events-list {
+  padding-inline: 8px;
+}
+
+.pg-design-page.pg-events-page .pg-events-count {
+  min-height: 34px;
+  margin: 0 10px;
+  gap: 4px 10px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.pg-design-page.pg-events-page .pg-events-count .pg-events-search-scope {
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.pg-design-page.pg-events-page .pg-events-count > p:last-child:not(.pg-events-search-scope) {
+  flex: 0 1 auto;
+  max-width: 50%;
+  white-space: normal;
+}
+
+:root:not(.dark) .pg-design-page:is(.pg-events-page, .pg-upgrades-page) {
+  --pg-discovery-accent: #70468b;
+  --pg-discovery-surface: #faf7fb;
+  --pg-discovery-ink: #27202d;
+  --pg-discovery-muted: #63596c;
+  --pg-discovery-border: #d8cedf;
+  --pg-discovery-rule: #c5b8ce;
+  --pg-discovery-art: #e9e0ee;
+}
+
+:root:not(.dark) .pg-design-page.pg-upgrades-page {
+  --pg-discovery-accent: #296b4a;
+}
+
+.pg-design-page:is(.pg-events-page, .pg-upgrades-page) .pg-discovery-row {
+  display: grid;
+  grid-template-columns: minmax(84px, 30%) minmax(0, 1fr) 42px;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  min-width: 0;
+  min-height: var(--pg-discovery-row-min);
+  height: auto;
+  padding: 8px;
+  margin: 0;
+  overflow: hidden;
+  color: var(--pg-discovery-ink);
+  background: var(--pg-discovery-surface);
+  border: 1px solid var(--pg-discovery-border);
+  border-radius: 5px;
+  box-shadow: none;
+  text-align: left;
+  text-decoration: none;
+  -webkit-mask-image: none;
+  mask-image: none;
+  cursor: pointer;
+}
+
+.pg-design-page:is(.pg-events-page, .pg-upgrades-page) .pg-discovery-row::before,
+.pg-design-page:is(.pg-events-page, .pg-upgrades-page) .pg-discovery-row::after {
+  content: none;
+}
+
+.pg-design-page:is(.pg-events-page, .pg-upgrades-page) .pg-discovery-row:focus-visible {
+  outline: 3px solid var(--pg-discovery-accent);
+  outline-offset: -3px;
+}
+
+.pg-design-page:is(.pg-events-page, .pg-upgrades-page) .pg-discovery-row:is(:disabled, [aria-disabled="true"]) {
+  cursor: default;
+  opacity: .7;
+}
+
+.pg-design-page:is(.pg-events-page, .pg-upgrades-page) .pg-discovery-row .pg-browse-ticket-art {
+  display: flex;
+  align-self: center;
+  width: 100%;
+  min-width: 0;
+  aspect-ratio: 1;
+  height: auto;
+  margin: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 1px;
+  background: var(--pg-discovery-art);
+  box-shadow: none;
+}
+
+.pg-design-page:is(.pg-events-page, .pg-upgrades-page) .pg-discovery-row .pg-browse-ticket-art img {
+  object-fit: cover;
+  object-position: center;
+}
+
+.pg-design-page:is(.pg-events-page, .pg-upgrades-page) .pg-discovery-row .pg-browse-ticket-copy {
+  align-self: center;
+  min-width: 0;
+  padding: 2px 0;
+}
+
+.pg-design-page:is(.pg-events-page, .pg-upgrades-page) .pg-discovery-row .pg-browse-ticket-title {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  margin: 0 0 7px;
+  overflow: hidden;
+  color: var(--pg-discovery-ink);
+  font-family: 'PG Condensed', 'Barlow Semi Condensed', var(--font-editorial, sans-serif);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -.015em;
+  overflow-wrap: anywhere;
+}
+
+.pg-design-page:is(.pg-events-page, .pg-upgrades-page) .pg-discovery-row :is(.pg-browse-ticket-venue, .pg-browse-ticket-detail, .pg-event-identity) {
+  margin: 3px 0 0;
+  color: var(--pg-discovery-muted);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Identity distinctions remain readable even when two events share a name. */
+.pg-design-page:is(.pg-events-page, .pg-upgrades-page) .pg-discovery-row :is(.pg-browse-ticket-detail, .pg-event-identity) {
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+}
+
+.pg-design-page:is(.pg-events-page, .pg-upgrades-page) .pg-discovery-row .pg-browse-ticket-detail strong {
+  color: var(--pg-discovery-accent);
+  font-weight: 700;
+}
+
+.pg-design-page:is(.pg-events-page, .pg-upgrades-page) .pg-discovery-row .pg-event-protection {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pg-design-page:is(.pg-events-page, .pg-upgrades-page) .pg-discovery-row .pg-browse-ticket-stub {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  gap: 4px;
+  min-width: 0;
+  padding: 6px 0 6px 8px;
+  color: var(--pg-discovery-accent);
+  background: none;
+  border-left: 1px solid var(--pg-discovery-rule);
+  box-shadow: none;
+}
+
+.pg-design-page:is(.pg-events-page, .pg-upgrades-page) .pg-discovery-row .pg-browse-ticket-month {
+  color: var(--pg-discovery-accent);
+  font-family: 'PG Condensed', 'Barlow Semi Condensed', var(--font-editorial, sans-serif);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.pg-design-page:is(.pg-events-page, .pg-upgrades-page) .pg-discovery-row .pg-browse-ticket-day {
+  color: var(--pg-discovery-accent);
+  font-family: 'PG Condensed', 'Barlow Semi Condensed', var(--font-editorial, sans-serif);
+  font-size: 31px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.pg-design-page:is(.pg-events-page, .pg-upgrades-page) .pg-discovery-row .pg-browse-ticket-arrow {
+  width: 23px;
+  height: 23px;
+  flex: none;
+  margin-top: 5px;
+  color: var(--pg-discovery-accent);
+  stroke-width: 1.7;
+}
+
+.pg-design-page:is(.pg-events-page, .pg-upgrades-page) .pg-discovery-row .pg-browse-ticket-status {
+  max-width: 100%;
+  color: var(--pg-discovery-accent);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-transform: uppercase;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.pg-design-page:is(.pg-events-page, .pg-upgrades-page) .pg-discovery-skeleton {
+  height: var(--pg-discovery-row-min);
+  min-height: var(--pg-discovery-row-min);
+  border: 1px solid var(--pg-discovery-border);
+  border-radius: 5px;
+  background: var(--pg-discovery-surface);
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+@media (max-width: 350px) {
+  .pg-design-page:is(.pg-events-page, .pg-upgrades-page) .pg-discovery-row {
+    grid-template-columns: minmax(66px, 27%) minmax(0, 1fr) 37px;
+    gap: 7px;
+    padding: 7px;
+  }
+
+  .pg-design-page:is(.pg-events-page, .pg-upgrades-page) .pg-discovery-row .pg-browse-ticket-title {
+    font-size: 15px;
+  }
+
+  .pg-design-page:is(.pg-events-page, .pg-upgrades-page) .pg-discovery-row .pg-browse-ticket-stub {
+    padding-left: 6px;
+  }
+}

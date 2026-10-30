@@ -7,12 +7,23 @@ export async function installFixtureIsolation(context, { origin, documentPaths, 
   assert.ok(['127.0.0.1', 'localhost', '[::1]'].includes(base.hostname) && base.protocol === 'http:' && !base.username && !base.password, 'Fixtures require a local HTTP origin');
   assert.equal(base.origin, origin, 'Use the exact fixture origin');
   const record = entry => attempts.push(entry);
+  // Exact public discovery assets are read-only fixture inputs. This does not
+  // allow arbitrary public paths, application endpoints, or remote requests.
+  const discoveryAssets = [
+    '/images/discovery/events-gallery-hero.webp',
+    '/images/discovery/upgrades-gallery-hero.webp',
+    '/images/brand/peanut-gallery.png',
+    '/fonts/discovery/black-han-sans-latin-400-normal.woff2',
+    '/fonts/discovery/dm-sans-latin-wght-normal.woff2',
+    '/fonts/discovery/barlow-semi-condensed-latin-700-normal.woff2',
+  ];
   const asset = pathname => /^\/(?:src\/|tests\/(?:fixtures|helpers)\/|node_modules\/|@vite\/|@fs\/|@id\/|@react-refresh$|assets\/|base44\/shared\/[^?]+\.(?:js|mjs|ts)$)/.test(pathname) || pathname === '/favicon.ico';
   await context.exposeBinding('__PG_ISOLATION_REPORT__', (_source, entry) => record(entry));
   await context.route('**/*', route => {
     const request = route.request(), target = new URL(request.url());
     const document = request.resourceType() === 'document';
-    if (target.origin === origin && ['GET', 'HEAD'].includes(request.method()) && (document ? documentPaths.includes(target.pathname) : asset(target.pathname))) return route.continue();
+    const permittedAsset = asset(target.pathname) || (request.method() === 'GET' && discoveryAssets.includes(target.pathname));
+    if (target.origin === origin && ['GET', 'HEAD'].includes(request.method()) && (document ? documentPaths.includes(target.pathname) : permittedAsset)) return route.continue();
     record({ kind: 'request', method: request.method(), url: target.href, resourceType: request.resourceType() });
     return route.abort('blockedbyclient');
   });
@@ -20,7 +31,7 @@ export async function installFixtureIsolation(context, { origin, documentPaths, 
     record({ kind: 'websocket', url: socket.url() });
     socket.close();
   });
-  await context.addInitScript(({ origin }) => {
+  await context.addInitScript(({ origin, discoveryAssets }) => {
     const pending = new Set();
     const report = entry => {
       const promise = window.__PG_ISOLATION_REPORT__(entry);
@@ -39,7 +50,8 @@ export async function installFixtureIsolation(context, { origin, documentPaths, 
       const target = new URL(typeof input === 'string' || input instanceof URL ? input : input.url, location.href);
       const method = (init?.method || input?.method || 'GET').toUpperCase();
       const asset = /^\/(?:src\/|tests\/(?:fixtures|helpers)\/|node_modules\/|@vite\/|@fs\/|@id\/|@react-refresh$|assets\/|base44\/shared\/[^?]+\.(?:js|mjs|ts)$)/.test(target.pathname);
-      if (target.origin === origin && ['GET', 'HEAD'].includes(method) && asset) return nativeFetch(input, init);
+      const permittedAsset = asset || (method === 'GET' && discoveryAssets.includes(target.pathname));
+      if (target.origin === origin && ['GET', 'HEAD'].includes(method) && permittedAsset) return nativeFetch(input, init);
       report({ kind: 'fetch', method, url: target.href });
       return Promise.reject(new Error('Isolated fixture blocks application fetch'));
     });
@@ -51,7 +63,7 @@ export async function installFixtureIsolation(context, { origin, documentPaths, 
     protect(window, 'SharedWorker', function (url) { forbidden('sharedworker', url); });
     if (navigator.serviceWorker) protect(navigator.serviceWorker, 'register', url => { forbidden('serviceworker', url); });
     document.addEventListener('securitypolicyviolation', event => report({ kind: 'csp', url: event.blockedURI, directive: event.violatedDirective }));
-  }, { origin });
+  }, { origin, discoveryAssets });
   const assertClean = async () => {
     for (const page of context.pages()) if (!page.isClosed()) await page.evaluate(() => window.__PG_FLUSH_FIXTURE_BLOCKS__?.());
     assert.deepEqual(attempts, [], 'No forbidden network or SDK attempts, including caught failures and earlier documents');

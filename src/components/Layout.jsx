@@ -14,6 +14,8 @@ import { pageVariants, reducedPageVariants, useNavigationDirection, useReducedMo
 import '@/components/ticket-design.css';
 import '@/components/browse-ticket.css';
 import '@/components/printed-ticket.css';
+import '@/components/discovery-rows.css';
+import '@/components/discovery-chrome.css';
 
 /**
  * Once a tab has been activated, keep its Outlet mounted permanently.
@@ -52,14 +54,14 @@ const NAV = [
   { to: '/me', label: 'Me', icon: User, color: 'var(--pg-mint)', key: 'me' }
 ];
 
-// Reuse the concert photography already featured in PG's onboarding.
+// Decorative plates from the approved PG concepts; all text and controls stay live.
 const BROWSE_HERO = {
   Events: {
-    image: 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=1200&q=90',
+    image: '/images/discovery/events-gallery-hero.webp',
     description: 'Concerts, games & nights worth going out for.',
   },
   Upgrades: {
-    image: 'https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?w=1200&q=90',
+    image: '/images/discovery/upgrades-gallery-hero.webp',
     description: 'Already going? Find a better seat for your night.',
   },
 };
@@ -187,11 +189,11 @@ export default function Layout() {
           <div className="pg-brandbar-inner">
             {browseTitle && (
               <div className="pg-browse-photo" aria-hidden="true">
-                <img src={BROWSE_HERO[browseTitle].image} alt="" />
+                <img src={BROWSE_HERO[browseTitle].image} alt="" width="1600" height="800" decoding="async" />
               </div>
             )}
             <Link to="/events" className="pg-brand" aria-label="Peanut Gallery — Events">
-              <img src="https://media.base44.com/images/public/69ef9900cf3862dc0ea39734/9022a5431_ChatGPTImageMay1202601_29_27PM.png" alt="" width="34" height="34" />
+              <img src="/images/brand/peanut-gallery.png" alt="" width="34" height="34" />
               <span className={browseTitle ? 'sr-only' : undefined}>Peanut Gallery</span>
             </Link>
             {browseTitle && <>

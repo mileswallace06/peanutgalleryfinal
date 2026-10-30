@@ -181,7 +181,7 @@ export default function Upgrades() {
       </div>
 
       <div className="pg-upgrades-feed">
-        {loading ? <div className="pg-upgrades-stack" role="status" aria-label="Loading nearby upgrades">{[1, 2, 3].map(i => <div key={i} className="pg-upgrades-skeleton animate-pulse" />)}</div>
+        {loading ? <div className="pg-upgrades-stack" role="status" aria-label="Loading nearby upgrades">{[1, 2, 3].map(i => <div key={i} className="pg-upgrades-skeleton pg-discovery-skeleton animate-pulse" />)}</div>
           : (locationStatus === 'granted' || locationLabel) && <>
             <div className="pg-upgrades-view-switch" role="group" aria-label="Browse upgrades by event time">
               <button type="button" aria-pressed={browseView === 'upcoming'} aria-controls="upgrade-discovery-results" onClick={() => setBrowseView('upcoming')}>
@@ -294,7 +294,7 @@ function EventCard({ event, mode, owned = false, nowMs = Date.now(), returnState
 
   return (
     <button id={`${owned ? 'upgrade-owned-event' : 'upgrade-event'}-${event.id}`} type="button" onClick={handleClick} disabled={syncing || !hasValidLink}
-      className={`pg-ticket pg-browse-ticket pg-printed-ticket pg-upgrade-ticket pg-upgrade-ticket-${isLive ? 'live' : mode}`}>
+      className={`pg-discovery-row pg-browse-ticket pg-upgrade-ticket pg-upgrade-ticket-${isLive ? 'live' : mode}`}>
       <EventThumbnail event={event} className="pg-browse-ticket-art" />
       <div className="pg-browse-ticket-copy">
         {event.category && <span className="sr-only">{event.category}</span>}

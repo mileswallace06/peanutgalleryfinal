@@ -1,0 +1,100 @@
+/* The two browse screens share the approved gallery-rail composition.
+   Other member screens retain their existing shell and ticket treatments. */
+@font-face {
+  font-family: 'PG Display';
+  src: url('/fonts/discovery/black-han-sans-latin-400-normal.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'PG Sans';
+  src: url('/fonts/discovery/dm-sans-latin-wght-normal.woff2') format('woff2');
+  font-weight: 100 1000;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'PG Condensed';
+  src: url('/fonts/discovery/barlow-semi-condensed-latin-700-normal.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+.pg-ticket-app--browse {
+  --pg-browse-hero-height: clamp(160px, 49.2vw, 252px);
+  --pg-browse-header-height: calc(var(--pg-browse-hero-height) + 64px);
+  font-family: 'PG Sans', var(--font-sans);
+}
+.dark .pg-ticket-app--browse { --pg-canvas: #050509; --pg-surface: #111119; }
+.pg-brandbar--browse { --pg-header-title: #dfb5f5; }
+.pg-brandbar--browse[data-browse-page='upgrades'] { --pg-header-title: #a4f2c4; }
+.pg-brandbar--browse .pg-brandbar-inner {
+  grid-template-columns: 36px minmax(0, 1fr);
+  grid-template-rows: var(--pg-browse-hero-height) 44px;
+  gap: 10px 8px;
+  padding: 0 10px 10px;
+}
+.pg-brandbar--browse .pg-browse-photo {
+  top: calc(-1 * var(--app-safe-top));
+  height: calc(var(--pg-browse-hero-height) + var(--app-safe-top));
+  border-bottom: 2px solid var(--pg-page-accent);
+}
+.pg-brandbar--browse .pg-browse-photo img { object-position: center bottom; }
+.pg-brandbar--browse[data-browse-page='upgrades'] .pg-browse-photo img { object-position: center bottom; }
+/* The plates already contain the dark text area; leave the illustration vivid. */
+.pg-brandbar--browse .pg-browse-photo::after { display: none; }
+.pg-brandbar--browse .pg-brand { width: 44px; margin-left: -4px; overflow: hidden; align-self: end; margin-bottom: 54px; }
+.pg-brandbar--browse .pg-brand img { width: 66px; height: 44px; max-width: none; }
+.pg-brandbar--browse .pg-browse-heading { align-self: end; padding: 0 27% 21px 0; }
+.pg-brandbar--browse .pg-browse-title {
+  font-family: 'PG Display', var(--font-display);
+  font-size: clamp(35px, 11.5vw, 59px);
+  line-height: 1.1;
+  letter-spacing: -.045em;
+  font-weight: 400;
+  text-shadow: 0 2px 10px #0005;
+}
+.pg-brandbar--browse .pg-browse-description {
+  margin-top: 10px;
+  max-width: 29ch;
+  font-size: clamp(12px, 3.5vw, 17px);
+  line-height: 1.35;
+  font-weight: 550;
+}
+.pg-brandbar--browse .pg-browse-header-tools { gap: 8px; }
+.pg-brandbar--browse .pg-browse-header-tools :is(.pg-events-location, .pg-upgrades-location) {
+  padding: 0 10px;
+  gap: 8px;
+  font-size: 14px;
+  border-radius: 5px;
+  background: var(--pg-surface);
+}
+.pg-brandbar--browse .pg-browse-header-tools :is(.pg-events-location, .pg-upgrades-location) > svg:first-child { width: 20px; height: 20px; }
+.pg-brandbar--browse .pg-events-tools-toggle { border-radius: 5px; font-size: 14px; padding: 0 15px; }
+.pg-brandbar--browse .pg-upgrades-help { border-radius: 5px; background: var(--pg-surface); padding: 0 10px; font-size: 12px; }
+.pg-ticket-app--browse > a[aria-label^='Notifications'] { border-radius: 10px; background: #0b0a13d9 !important; backdrop-filter: none; }
+.pg-ticket-app--browse > a[aria-label^='Notifications'] svg { width: 23px; height: 23px; }
+.pg-ticket-app--browse .pg-bottom-nav { background: var(--pg-canvas); }
+.pg-ticket-app--browse .pg-bottom-nav-inner { padding: 7px 10px 10px; gap: 5px; }
+.pg-ticket-app--browse .pg-nav-item { min-height: 60px; border-radius: 10px; }
+.pg-ticket-app--browse .pg-nav-label { font-size: 12px; }
+.pg-ticket-app--browse .pg-nav-icon svg { width: 23px; height: 23px; }
+.pg-upgrades-page .pg-upgrades-view-switch { min-height: 44px; margin-bottom: 8px; }
+.pg-upgrades-page .pg-upgrades-view-switch button { font-size: 14px; }
+.pg-upgrades-page .pg-upgrades-view-count { font-size: 12px; }
+.pg-upgrades-page .pg-upgrades-view-switch svg { width: 18px; height: 18px; }
+@media (max-width: 359px) {
+  .pg-brandbar--browse .pg-brandbar-inner { grid-template-columns: 30px minmax(0, 1fr); column-gap: 6px; }
+  .pg-brandbar--browse .pg-brand { margin-left: -7px; }
+  .pg-brandbar--browse .pg-browse-header-tools :is(.pg-events-location, .pg-upgrades-location) { font-size: 12px; gap: 5px; padding: 0 7px; }
+  .pg-brandbar--browse .pg-upgrades-help { padding: 0 8px; gap: 5px; font-size: 11px; }
+  .pg-brandbar--browse .pg-events-tools-toggle { padding: 0 10px; font-size: 13px; }
+  .pg-ticket-app--browse .pg-nav-label { font-size: 11px; }
+}
+@media (max-height: 560px) and (min-width: 600px) {
+  .pg-ticket-app--browse { --pg-browse-hero-height: 154px; }
+  .pg-brandbar--browse .pg-browse-title { font-size: 42px; }
+  .pg-brandbar--browse .pg-browse-description { font-size: 13px; }
+  .pg-brandbar--browse .pg-browse-heading { padding-bottom: 14px; }
+}
