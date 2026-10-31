@@ -16,6 +16,7 @@ import '@/components/browse-ticket.css';
 import '@/components/printed-ticket.css';
 import '@/components/discovery-rows.css';
 import '@/components/discovery-chrome.css';
+import '@/components/member-gallery.css';
 
 /**
  * Once a tab has been activated, keep its Outlet mounted permanently.
@@ -64,6 +65,18 @@ const BROWSE_HERO = {
     image: '/images/discovery/upgrades-gallery-hero.webp',
     description: 'Already going? Find a better seat for your night.',
   },
+  Sell: {
+    image: '/images/discovery/sell-gallery-hero.webp',
+    description: 'Your seats. Someone else’s night.',
+  },
+  'Fan Zone': {
+    image: '/images/discovery/fan-zone-gallery-hero.webp',
+    description: 'Share the moment.',
+  },
+  Me: {
+    image: '/images/discovery/me-gallery-hero.webp',
+    description: 'Your corner of the gallery.',
+  },
 };
 
 export default function Layout() {
@@ -85,7 +98,8 @@ export default function Layout() {
   };
 
   const currentTab = getCurrentTab();
-  const browseTitle = { '/events': 'Events', '/upgrades': 'Upgrades' }[location.pathname];
+  const browseTitle = { '/events': 'Events', '/upgrades': 'Upgrades', '/sell': 'Sell', '/fan-zone': 'Fan Zone', '/me': 'Me' }[location.pathname];
+  const hasBrowseTools = browseTitle === 'Events' || browseTitle === 'Upgrades';
   const accountRoutes = ['/my-tickets', '/my-sales', '/me', '/account-settings', '/edit-persona', '/notifications'];
   // Every member route shares the same shell, including guides and operations.
   const usesTicketDesign = true;
@@ -185,7 +199,7 @@ export default function Layout() {
       {user?.email && <DonationWinNotification userEmail={user.email} />}
       {user && <FeedbackWidget user={user} />}
       {usesTicketDesign && (
-        <header data-browse-page={browseTitle?.toLowerCase()} className={`pg-brandbar ${browseTitle ? 'pg-brandbar--browse' : ''} ${browseTitle && !user ? 'pg-brandbar--guest' : ''}`}>
+        <header data-browse-page={browseTitle?.toLowerCase()} className={`pg-brandbar ${browseTitle ? 'pg-brandbar--browse' : ''} ${browseTitle && !hasBrowseTools ? 'pg-brandbar--member' : ''} ${browseTitle && !user ? 'pg-brandbar--guest' : ''}`}>
           <div className="pg-brandbar-inner">
             {browseTitle && (
               <div className="pg-browse-photo" aria-hidden="true">
@@ -201,7 +215,7 @@ export default function Layout() {
                 <h1 className="pg-browse-title">{browseTitle}</h1>
                 <p className="pg-browse-description">{BROWSE_HERO[browseTitle].description}</p>
               </div>
-              <div id="pg-browse-header-tools" className="pg-browse-header-tools" />
+              {hasBrowseTools && <div id="pg-browse-header-tools" className="pg-browse-header-tools" />}
             </>}
           </div>
         </header>
