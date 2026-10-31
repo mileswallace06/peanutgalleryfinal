@@ -1,5 +1,4 @@
-/* The two browse screens share the approved gallery-rail composition.
-   Other member screens retain their existing shell and ticket treatments. */
+/* Shared gallery-rail composition for the five primary tabs. */
 @font-face {
   font-family: 'PG Display';
   src: url('/fonts/discovery/black-han-sans-latin-400-normal.woff2') format('woff2');

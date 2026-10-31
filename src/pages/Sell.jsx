@@ -74,7 +74,7 @@ export default function Sell() {
 
   if (loading) {
     return (
-      <div className="pg-design-page pg-sell-page">
+      <div className="pg-design-page pg-sell-page pg-gallery-page">
         <div className="pg-state pg-sell-loading" role="status">
           <Loader2 className="pg-sell-spinner" aria-hidden="true" />
           <span>Loading your listings…</span>
@@ -85,10 +85,10 @@ export default function Sell() {
 
   if (!user) {
     return (
-      <div className="pg-design-page pg-sell-page">
+      <div className="pg-design-page pg-sell-page pg-gallery-page">
         <div className="pg-state pg-sell-signin">
           <Ticket className="pg-sell-state-icon" aria-hidden="true" />
-          <h1 className="pg-page-title">Sign in to sell</h1>
+          <h2 className="pg-page-title">Sign in to sell</h2>
           <p>List your seats and start earning.</p>
           <button onClick={() => base44.auth.redirectToLogin()} className="pg-action pg-sell-primary">
             <LogIn size={18} aria-hidden="true" /> Sign In
@@ -101,14 +101,9 @@ export default function Sell() {
   const active = listings.filter(l => l.status === 'active' || l.status === 'pending_transfer');
   const drafts = listings.filter(l => l.status === 'pending_payout_setup');
   const sold = listings.filter(l => l.status === 'sold');
-  const other = listings.filter(l => l.status === 'cancelled' || l.status === 'expired');
 
   return (
-    <div className="pg-design-page pg-sell-page">
-      <header className="pg-sell-intro" data-page-hero="sell">
-        <h1 className="pg-page-title">Sell your seats</h1>
-      </header>
-
+    <div className="pg-design-page pg-sell-page pg-gallery-page">
       <div className="pg-sell-content">
         {/* Listing creation remains available while payout setup is incomplete. */}
         {!isAdmin(user) && user.stripe_onboarding_complete !== true && user.stripe_onboarding_complete !== 'true' && (
@@ -162,7 +157,7 @@ export default function Sell() {
           {[
             { label: 'Active listings', value: listingsError ? 'Unavailable' : active.length },
             { label: 'Completed sales', value: sellerHistory.status === 'ready' ? sellerHistory.summary.completedCount : sellerHistory.status === 'loading' ? '…' : 'Unavailable' },
-            { label: 'Loaded listings', value: listingsError ? 'Unavailable' : listings.length },
+            { label: 'Drafts', value: listingsError ? 'Unavailable' : drafts.length },
           ].map(({ label, value }) => (
             <div key={label}>
               <strong>{value}</strong>
@@ -170,15 +165,6 @@ export default function Sell() {
             </div>
           ))}
         </div>
-
-        {drafts.length > 0 && (
-          <section className="pg-sell-listing-section">
-            <h2 className="pg-section-title">Your drafts <span>{drafts.length}</span></h2>
-            <div className="pg-sell-listings">
-              {drafts.map(l => <ListingRow key={l.id} listing={l} event={nearbyEvents.find(ev => ev.id === l.event_id)} />)}
-            </div>
-          </section>
-        )}
 
         <p className="pg-sell-draft-note">Completed sales: completed transfers in {SELLER_HISTORY_SCOPE.toLowerCase()}</p>
         {sellerHistory.status === 'error' && <button type="button" className="pg-action" onClick={sellerHistory.reload}>Retry sales total</button>}
@@ -193,13 +179,22 @@ export default function Sell() {
           </section>
         )}
 
+        {drafts.length > 0 && (
+          <details className="pg-sell-listing-section pg-gallery-listing-disclosure">
+            <summary><span>Your drafts <small>{drafts.length}</small></span><ChevronRight size={20} aria-hidden="true" /></summary>
+            <div className="pg-sell-listings">
+              {drafts.map(l => <ListingRow key={l.id} listing={l} event={nearbyEvents.find(ev => ev.id === l.event_id)} />)}
+            </div>
+          </details>
+        )}
+
         {sold.length > 0 && (
-          <section className="pg-sell-listing-section">
-            <h2 className="pg-section-title">Listings marked sold <span>{sold.length}</span></h2>
+          <details className="pg-sell-listing-section pg-gallery-listing-disclosure">
+            <summary><span>Listings marked sold <small>{sold.length}</small></span><ChevronRight size={20} aria-hidden="true" /></summary>
             <div className="pg-sell-listings">
               {sold.map(l => <ListingRow key={l.id} listing={l} event={nearbyEvents.find(ev => ev.id === l.event_id)} />)}
             </div>
-          </section>
+          </details>
         )}
 
         {listings.length === 0 && (
@@ -239,7 +234,7 @@ export default function Sell() {
                   ? `/create-listing?tab=search&q=${encodeURIComponent(ev.title)}`
                   : `/create-listing?event_id=${ev.id}`;
                 return (
-                  <Link key={ev.id} to={linkTo} className="pg-ticket pg-printed-ticket pg-sell-nearby-event">
+                  <Link key={ev.id} to={linkTo} className="pg-sell-nearby-event">
                     {ev.image_url
                       ? <img src={ev.image_url} alt="" />
                       : <span className="pg-sell-nearby-placeholder"><Ticket size={22} aria-hidden="true" /></span>}
@@ -271,7 +266,7 @@ function ListingRow({ listing, event }) {
   const isDraft = listing.status === 'pending_payout_setup';
 
   return (
-    <article className={`pg-ticket pg-printed-ticket pg-sell-listing pg-sell-listing-${listing.status}`}>
+    <article className={`pg-sell-listing pg-sell-listing-${listing.status}`}>
       <div className="pg-sell-listing-image">
         {event?.image_url ? <img src={event.image_url} alt="" /> : <Ticket size={27} strokeWidth={1.6} aria-hidden="true" />}
       </div>
@@ -286,7 +281,7 @@ function ListingRow({ listing, event }) {
         <p className="pg-sell-listing-quantity">{listing.quantity} ticket{listing.quantity !== 1 ? 's' : ''}</p>
         <span className="pg-sell-status">{STATUS_LABEL[listing.status] || listing.status.replace(/_/g, ' ')}</span>
       </div>
-      <div className="pg-ticket-end pg-sell-listing-price"><strong>${listing.asking_price}</strong><span>each</span></div>
+      <div className="pg-sell-listing-price"><strong>${listing.asking_price}</strong><span>each</span></div>
       {isDraft && <p className="pg-sell-listing-note">Not visible to buyers until payout setup is complete.</p>}
     </article>
   );

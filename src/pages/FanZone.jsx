@@ -306,7 +306,7 @@ export default function FanZone() {
 
   return (
     <>
-    <div ref={containerRef} className="pg-design-page pg-fanzone-page">
+    <div ref={containerRef} className="pg-design-page pg-fanzone-page pg-gallery-page">
       <div ref={innerRef} className="transition-transform duration-200">
       {pulling && (
         <div className="fixed left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-4 py-2 rounded-full"
@@ -317,8 +317,7 @@ export default function FanZone() {
       )}
       <header className="pg-fan-heading" data-page-hero="fan-zone">
         <div>
-          <h1 className="pg-page-title">Fan Zone</h1>
-          <p className="pg-community-subtitle">Share the moment.</p>
+          <h2 className="pg-gallery-feed-title">From the crowd.</h2>
         </div>
         <button
           ref={createPostButton}
@@ -516,14 +515,14 @@ function PostCard({ post, user, onReact, reactingId }) {
       )}
 
       {isSeatFlex && hasSeatMove && (
-        <div className="pg-ticket pg-seat-move">
+        <div className="pg-seat-move">
           <div className="pg-seat-origin">
             <span className="pg-seat-direction">From</span>
             <strong>{post.from_section ? `Section ${post.from_section}` : 'Section not shared'}</strong>
             {post.from_row && <span>Row {post.from_row}</span>}
           </div>
           <ArrowRight className="pg-seat-arrow" size={24} aria-label="to" />
-          <div className="pg-ticket-end pg-seat-destination">
+          <div className="pg-seat-destination">
             <span className="pg-seat-direction">To</span>
             <strong>{post.to_section ? `Section ${post.to_section}` : 'Section not shared'}</strong>
             {post.to_row && <span>Row {post.to_row}</span>}
