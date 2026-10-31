@@ -5,7 +5,7 @@ import { Ticket, TrendingUp, Shield, LogIn, Edit2, ChevronRight, Camera, ImagePl
 import PeanutPointsCard from '@/components/points/PeanutPointsCard';
 import RecentPointsActivity from '@/components/points/RecentPointsActivity';
 import CommunityImpactCard from '@/components/donations/CommunityImpactCard';
-import { Disclosure, PageIntro } from '@/components/ClarityUI';
+import { Disclosure } from '@/components/ClarityUI';
 import { isAdmin } from '@/lib/isAdmin';
 import { useAuth } from '@/lib/AuthContext';
 import { feedbackAccess } from '@/lib/feedbackInbox';
@@ -104,8 +104,7 @@ export default function Me() {
 
   if (!user) {
     return (
-      <div className="pg-secondary-page pg-account-page">
-        <PageIntro title="Me" />
+      <div className="pg-secondary-page pg-account-page pg-me-page pg-gallery-page">
         <div className="pg-state pg-account-signin">
           <Ticket size={32} aria-hidden="true" />
           <h2>Make yourself at home.</h2>
@@ -118,36 +117,33 @@ export default function Me() {
   }
 
   return (
-    <div className="pg-secondary-page pg-account-page pg-me-page">
-      <PageIntro title="Me" />
-
+    <div className="pg-secondary-page pg-account-page pg-me-page pg-gallery-page">
       <section className="pg-member-ticket" aria-label="Your fan profile">
-        <div className="pg-member-banner" data-page-hero="me">
-          <img src={user.banner_url || 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=900&q=80'} alt="Your profile banner" />
-          <button type="button" onClick={() => bannerInputRef.current?.click()} disabled={uploadingBanner} className="pg-photo-action" aria-label="Change profile banner">
-            <ImagePlus size={15} aria-hidden="true" /> {uploadingBanner ? 'Uploading…' : 'Change banner'}
-          </button>
-          <input ref={bannerInputRef} type="file" accept="image/*" className="hidden" aria-label="Upload profile banner" onChange={handleBannerUpload} />
-        </div>
-        <div className="pg-member-content">
-          <div className="pg-member-topline">
-            <div className="pg-member-avatar-wrap">
-              <div className="pg-member-avatar">{user.avatar_url ? <img src={user.avatar_url} alt="Your profile photo" /> : initials}</div>
-              <button type="button" onClick={() => avatarInputRef.current?.click()} disabled={uploadingAvatar} aria-label={uploadingAvatar ? 'Uploading profile photo' : 'Change profile photo'} className="pg-avatar-action">
-                {uploadingAvatar ? <span className="pg-account-spinner" /> : <Camera size={16} aria-hidden="true" />}
-              </button>
-              <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" aria-label="Upload profile photo" onChange={handleAvatarUpload} />
-            </div>
-            <Link to="/edit-persona" className="pg-member-edit"><Edit2 size={14} aria-hidden="true" /> Edit persona</Link>
+        {user.banner_url && <div className="pg-member-banner" data-page-hero="me">
+          <img src={user.banner_url} alt="Your profile banner" />
+        </div>}
+        <div className="pg-gallery-profile">
+          <div className="pg-member-avatar-wrap">
+            <div className="pg-member-avatar">{user.avatar_url ? <img src={user.avatar_url} alt="Your profile photo" /> : initials}</div>
+            <button type="button" onClick={() => avatarInputRef.current?.click()} disabled={uploadingAvatar} aria-label={uploadingAvatar ? 'Uploading profile photo' : 'Change profile photo'} className="pg-avatar-action">
+              {uploadingAvatar ? <span className="pg-account-spinner" /> : <Camera size={16} aria-hidden="true" />}
+            </button>
+            <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" aria-label="Upload profile photo" onChange={handleAvatarUpload} />
           </div>
           <div className="pg-member-identity">
-            <p className="pg-member-eyebrow">Peanut Gallery member</p>
             <h2>{user.full_name || 'Fan'}</h2>
-            <EmailDisplay email={user.email} />
+            <p className="pg-member-eyebrow">Peanut Gallery member</p>
             {user.bio && <p className="pg-member-bio">{user.bio}</p>}
           </div>
+          <Link to="/edit-persona" className="pg-member-edit"><Edit2 size={14} aria-hidden="true" /> Edit persona</Link>
+          <div className="pg-gallery-profile-actions">
+            <button type="button" onClick={() => bannerInputRef.current?.click()} disabled={uploadingBanner} className="pg-gallery-banner-action" aria-label="Change profile banner">
+              <ImagePlus size={15} aria-hidden="true" /> {uploadingBanner ? 'Uploading…' : 'Change banner'}
+            </button>
+            <EmailDisplay email={user.email} />
+          </div>
+          <input ref={bannerInputRef} type="file" accept="image/*" className="hidden" aria-label="Upload profile banner" onChange={handleBannerUpload} />
         </div>
-        <div className="pg-member-stub"><span>ALL FANS WELCOME</span><span>FAN{isAdmin(user) ? ' / ADMIN' : ''}</span></div>
       </section>
 
       <nav className="pg-account-primary" aria-label="Tickets and sales">
