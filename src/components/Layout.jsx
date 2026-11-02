@@ -65,8 +65,8 @@ const BROWSE_HERO = {
     description: 'Concerts, games & nights worth going out for.',
   },
   Upgrades: {
-    photo: '/images/discovery/upgrades-baseball-martin-pechy.webp',
-    photoPosition: 'center bottom',
+    photo: '/images/discovery/upgrades-seats-van-anh-nguyen.webp',
+    photoPosition: 'center 44%',
     mascot: '/images/discovery/upgrades-mascot.webp',
     description: 'Already going? Find a better seat for your night.',
   },
