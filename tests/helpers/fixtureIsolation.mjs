@@ -10,11 +10,12 @@ export async function installFixtureIsolation(context, { origin, documentPaths, 
   // Exact public discovery assets are read-only fixture inputs. This does not
   // allow arbitrary public paths, application endpoints, or remote requests.
   const discoveryAssets = [
-    '/images/discovery/events-gallery-hero.webp',
-    '/images/discovery/upgrades-gallery-hero.webp',
-    '/images/discovery/sell-gallery-hero.webp',
-    '/images/discovery/fan-zone-gallery-hero.webp',
-    '/images/discovery/me-gallery-hero.webp',
+    '/images/discovery/concert-crowd-picjumbo.webp',
+    '/images/discovery/events-mascot.webp',
+    '/images/discovery/upgrades-mascot.webp',
+    '/images/discovery/sell-mascot.webp',
+    '/images/discovery/fan-zone-mascot.webp',
+    '/images/discovery/me-mascot.webp',
     '/images/brand/peanut-gallery.png',
     '/fonts/discovery/black-han-sans-latin-400-normal.woff2',
     '/fonts/discovery/dm-sans-latin-wght-normal.woff2',
