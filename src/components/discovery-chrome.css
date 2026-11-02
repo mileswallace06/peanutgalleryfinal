@@ -39,10 +39,16 @@
   height: calc(var(--pg-browse-hero-height) + var(--app-safe-top));
   border-bottom: 2px solid var(--pg-page-accent);
 }
-.pg-brandbar--browse .pg-browse-photo img { object-position: center bottom; }
-.pg-brandbar--browse[data-browse-page='upgrades'] .pg-browse-photo img { object-position: center bottom; }
-/* The plates already contain the dark text area; leave the illustration vivid. */
-.pg-brandbar--browse .pg-browse-photo::after { display: none; }
+.pg-brandbar--browse .pg-browse-photo img { position: absolute; inset: 0; }
+.pg-brandbar--browse .pg-browse-photo .pg-browse-photograph { object-position: center 44%; }
+.pg-brandbar--browse .pg-browse-photo .pg-browse-mascot { z-index: 2; object-position: center bottom; }
+/* Shade only the photograph. The unchanged character stays above this layer. */
+.pg-brandbar--browse .pg-browse-photo::after {
+  display: block;
+  z-index: 1;
+  background: linear-gradient(90deg, #05050970 0%, #05050925 70%), linear-gradient(180deg, #05050918 0%, #05050955 40%, #050509ed 100%);
+  box-shadow: none;
+}
 .pg-brandbar--browse .pg-brand { width: 44px; margin-left: -4px; overflow: hidden; align-self: end; margin-bottom: 54px; }
 .pg-brandbar--browse .pg-brand img { width: 66px; height: 44px; max-width: none; }
 .pg-brandbar--browse .pg-browse-heading { align-self: end; padding: 0 27% 21px 0; }
