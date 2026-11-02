@@ -1,6 +1,22 @@
 # Gallery header assets
 
-## Real concert photograph
+## Real photographs by page
+
+Each primary page has a different source photograph. The four new images were retrieved November 2, 2026 and converted to 1600-pixel-wide WebP files. The Me page retains the original picjumbo photograph.
+
+| Page | Local asset | Photographer and original page | Published |
+| --- | --- | --- | --- |
+| Events | `events-festival-wendy-wei.webp` | [Wendy Wei — People on Concert](https://www.pexels.com/photo/people-on-concert-1179581/) | June 21, 2018 |
+| Upgrades | `upgrades-baseball-martin-pechy.webp` | [Martin Péchy — Men Playing Baseball in Stadium](https://www.pexels.com/photo/men-playing-baseball-in-stadium-2763962/) | August 6, 2019 |
+| Sell | `sell-theater-tima-miroshnichenko.webp` | [Tima Miroshnichenko — Empty Seats of the Cinema](https://www.pexels.com/photo/empty-seats-of-the-cinema-7991436/) | May 21, 2021 |
+| Fan Zone | `fan-zone-crowd-andrius-simkus.webp` | [Andrius Šimkus — A Crowd of People in a Concert](https://www.pexels.com/photo/a-crowd-of-people-in-a-concert-14267300/) | November 1, 2022 |
+| Me | `concert-crowd-picjumbo.webp` | [picjumbo.com — Crowd in Front of People Playing Musical Instrument During Nighttime](https://www.pexels.com/photo/crowd-in-front-of-people-playing-musical-instrument-during-nighttime-196652/) | October 16, 2016 |
+
+The Events photograph was taken June 8, 2018 on a Canon EOS 6D. The Upgrades photograph was taken June 2, 2019 on a Sony ILCE-7M2. These are existing photographs, not generated scenes. Direct downloads use `https://images.pexels.com/photos/ID/pexels-photo-ID.jpeg?auto=compress&cs=tinysrgb&w=1600`, with IDs 1179581, 2763962, 7991436, and 14267300 respectively.
+
+All five photographs use the [Pexels license](https://www.pexels.com/license/), which permits use and modification in an app and does not require attribution. They are decorative and do not imply endorsement or identify the nearby event listings. No generative fill, reconstruction, replacement people, or generated lighting was used. Changes are limited to resizing/format compression, per-page CSS framing, and a CSS shade for text readability.
+
+## Retained Me photograph
 
 `concert-crowd-picjumbo.webp` is a resized WebP copy of an existing photograph by **picjumbo.com**, taken September 12, 2015 on a Canon EOS 5D Mark III, published on Pexels October 16, 2016.
 
@@ -8,8 +24,6 @@
 - Download: https://images.pexels.com/photos/196652/pexels-photo-196652.jpeg?auto=compress&cs=tinysrgb&w=1600
 - License: https://www.pexels.com/license/
 - Retrieved November 1, 2026 (America/Phoenix).
-- The Pexels license permits use and modification in an app; it does not require attribution. The image is decorative and does not imply an endorsement or depict a particular event listing.
-- No generative fill, reconstruction, replacement people, or generated lighting was used. Only resizing/format compression and a CSS shade for text readability.
 
 ## Existing PG artwork
 
