@@ -7,14 +7,18 @@ Each primary page has a different source photograph. The four new images were re
 | Page | Local asset | Photographer and original page | Published |
 | --- | --- | --- | --- |
 | Events | `events-festival-wendy-wei.webp` | [Wendy Wei — People on Concert](https://www.pexels.com/photo/people-on-concert-1179581/) | June 21, 2018 |
-| Upgrades | `upgrades-baseball-martin-pechy.webp` | [Martin Péchy — Men Playing Baseball in Stadium](https://www.pexels.com/photo/men-playing-baseball-in-stadium-2763962/) | August 6, 2019 |
+| Upgrades | `upgrades-seats-van-anh-nguyen.webp` | [Van Anh Nguyen — Green Seats on Stadium](https://www.pexels.com/photo/green-seats-on-stadium-18960948/) | November 1, 2023 |
 | Sell | `sell-theater-tima-miroshnichenko.webp` | [Tima Miroshnichenko — Empty Seats of the Cinema](https://www.pexels.com/photo/empty-seats-of-the-cinema-7991436/) | May 21, 2021 |
 | Fan Zone | `fan-zone-crowd-andrius-simkus.webp` | [Andrius Šimkus — A Crowd of People in a Concert](https://www.pexels.com/photo/a-crowd-of-people-in-a-concert-14267300/) | November 1, 2022 |
 | Me | `concert-crowd-picjumbo.webp` | [picjumbo.com — Crowd in Front of People Playing Musical Instrument During Nighttime](https://www.pexels.com/photo/crowd-in-front-of-people-playing-musical-instrument-during-nighttime-196652/) | October 16, 2016 |
 
-The Events photograph was taken June 8, 2018 on a Canon EOS 6D. The Upgrades photograph was taken June 2, 2019 on a Sony ILCE-7M2. These are existing photographs, not generated scenes. Direct downloads use `https://images.pexels.com/photos/ID/pexels-photo-ID.jpeg?auto=compress&cs=tinysrgb&w=1600`, with IDs 1179581, 2763962, 7991436, and 14267300 respectively.
+The Events photograph was taken June 8, 2018 on a Canon EOS 6D. These are existing photographs, not generated scenes. Direct downloads use `https://images.pexels.com/photos/ID/pexels-photo-ID.jpeg?auto=compress&cs=tinysrgb&w=1600`, with IDs 1179581, 18960948, 7991436, and 14267300 respectively.
 
-All five photographs use the [Pexels license](https://www.pexels.com/license/), which permits use and modification in an app and does not require attribution. They are decorative and do not imply endorsement or identify the nearby event listings. No generative fill, reconstruction, replacement people, or generated lighting was used. Changes are limited to resizing/format compression, per-page CSS framing, and a CSS shade for text readability.
+All five photographs are offered under the [Pexels license](https://www.pexels.com/license/), subject to its [full terms](https://www.pexels.com/terms-of-service/), including restrictions on commercial use of content depicting brands/logos and separate third-party rights. A free photo license is not blanket clearance of those rights. These images are decorative and do not identify the nearby event listings. No generative fill, reconstruction, replacement people, or generated lighting was used. Changes are limited to cropping/resizing/format compression, per-page CSS framing, and a CSS shade for text readability.
+
+## Upgrades replacement — November 2, 2026
+
+The former Dodger Stadium photo (`upgrades-baseball-martin-pechy.webp`, Pexels 2763962) is removed from the served assets because it contains team and sponsor branding. Its replacement is a close-up of numbered green seats, with no visible people, logos, sponsor signs, or venue name in the inspected source image. The portrait source is center-cropped to a 1600 × 1067 landscape WebP; no content is generated or reconstructed. This replacement addresses the Upgrades image only and is not a claim that all third-party rights in the other pages' photos have been independently cleared.
 
 ## Retained Me photograph
 
