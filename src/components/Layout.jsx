@@ -57,25 +57,34 @@ const NAV = [
 
 // Real event photography and the approved PG character are independent layers.
 // Photo provenance lives alongside the local assets in SOURCES.md.
-const BROWSE_PHOTO = '/images/discovery/concert-crowd-picjumbo.webp';
 const BROWSE_HERO = {
   Events: {
+    photo: '/images/discovery/events-festival-wendy-wei.webp',
+    photoPosition: 'center 44%',
     mascot: '/images/discovery/events-mascot.webp',
     description: 'Concerts, games & nights worth going out for.',
   },
   Upgrades: {
+    photo: '/images/discovery/upgrades-baseball-martin-pechy.webp',
+    photoPosition: 'center bottom',
     mascot: '/images/discovery/upgrades-mascot.webp',
     description: 'Already going? Find a better seat for your night.',
   },
   Sell: {
+    photo: '/images/discovery/sell-theater-tima-miroshnichenko.webp',
+    photoPosition: 'center 20%',
     mascot: '/images/discovery/sell-mascot.webp',
     description: 'Your seats. Someone else’s night.',
   },
   'Fan Zone': {
+    photo: '/images/discovery/fan-zone-crowd-andrius-simkus.webp',
+    photoPosition: 'center 65%',
     mascot: '/images/discovery/fan-zone-mascot.webp',
     description: 'Share the moment.',
   },
   Me: {
+    photo: '/images/discovery/concert-crowd-picjumbo.webp',
+    photoPosition: 'center 44%',
     mascot: '/images/discovery/me-mascot.webp',
     description: 'Your corner of the gallery.',
   },
@@ -205,7 +214,7 @@ export default function Layout() {
           <div className="pg-brandbar-inner">
             {browseTitle && (
               <div className="pg-browse-photo" aria-hidden="true">
-                <img className="pg-browse-photograph" src={BROWSE_PHOTO} alt="" width="1600" height="1067" decoding="async" />
+                <img className="pg-browse-photograph" src={BROWSE_HERO[browseTitle].photo} style={{ objectPosition: BROWSE_HERO[browseTitle].photoPosition }} alt="" width="1600" height="1067" decoding="async" />
                 <img className="pg-browse-mascot" src={BROWSE_HERO[browseTitle].mascot} alt="" width="1600" height="800" decoding="async" />
               </div>
             )}
