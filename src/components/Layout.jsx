@@ -55,26 +55,28 @@ const NAV = [
   { to: '/me', label: 'Me', icon: User, color: 'var(--pg-mint)', key: 'me' }
 ];
 
-// Decorative plates from the approved PG concepts; all text and controls stay live.
+// Real event photography and the approved PG character are independent layers.
+// Photo provenance lives alongside the local assets in SOURCES.md.
+const BROWSE_PHOTO = '/images/discovery/concert-crowd-picjumbo.webp';
 const BROWSE_HERO = {
   Events: {
-    image: '/images/discovery/events-gallery-hero.webp',
+    mascot: '/images/discovery/events-mascot.webp',
     description: 'Concerts, games & nights worth going out for.',
   },
   Upgrades: {
-    image: '/images/discovery/upgrades-gallery-hero.webp',
+    mascot: '/images/discovery/upgrades-mascot.webp',
     description: 'Already going? Find a better seat for your night.',
   },
   Sell: {
-    image: '/images/discovery/sell-gallery-hero.webp',
+    mascot: '/images/discovery/sell-mascot.webp',
     description: 'Your seats. Someone else’s night.',
   },
   'Fan Zone': {
-    image: '/images/discovery/fan-zone-gallery-hero.webp',
+    mascot: '/images/discovery/fan-zone-mascot.webp',
     description: 'Share the moment.',
   },
   Me: {
-    image: '/images/discovery/me-gallery-hero.webp',
+    mascot: '/images/discovery/me-mascot.webp',
     description: 'Your corner of the gallery.',
   },
 };
@@ -203,7 +205,8 @@ export default function Layout() {
           <div className="pg-brandbar-inner">
             {browseTitle && (
               <div className="pg-browse-photo" aria-hidden="true">
-                <img src={BROWSE_HERO[browseTitle].image} alt="" width="1600" height="800" decoding="async" />
+                <img className="pg-browse-photograph" src={BROWSE_PHOTO} alt="" width="1600" height="1067" decoding="async" />
+                <img className="pg-browse-mascot" src={BROWSE_HERO[browseTitle].mascot} alt="" width="1600" height="800" decoding="async" />
               </div>
             )}
             <Link to="/events" className="pg-brand" aria-label="Peanut Gallery — Events">
