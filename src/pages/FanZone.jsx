@@ -14,6 +14,7 @@ import BucketListSheet from '@/components/fanzone/BucketListSheet';
 import BucketListIntro from '@/components/fanzone/BucketListIntro';
 import { filterBucketListPosts } from '@/components/fanzone/bucketListFeed';
 import './community-ticket.css';
+import './fan-zone-stepped.css';
 
 const REACTIONS = [
   { key: 'fire', emoji: '🔥' },
@@ -306,7 +307,7 @@ export default function FanZone() {
 
   return (
     <>
-    <div ref={containerRef} className="pg-design-page pg-fanzone-page pg-gallery-page">
+    <div ref={containerRef} className="pg-design-page pg-fanzone-page pg-gallery-page pg-fanzone-stepped">
       <div ref={innerRef} className="transition-transform duration-200">
       {pulling && (
         <div className="fixed left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-4 py-2 rounded-full"
@@ -325,7 +326,7 @@ export default function FanZone() {
           disabled={authLoading}
           aria-label="Create post"
           aria-haspopup="dialog"
-          className="pg-compose-button"
+          className="pg-compose-button pg-fan-step-action"
         >
           <Plus aria-hidden="true" /><span>Create</span>
         </button>
@@ -391,14 +392,13 @@ export default function FanZone() {
         ) : loadError && !authLoading ? (
           <div className="pg-state pg-community-state">
             <AlertCircle size={32} aria-hidden="true" />
-            <p className="font-bold text-foreground">Couldn't load posts</p>
+            <h2>Couldn't load posts</h2>
             <p className="text-sm text-muted-foreground">Check your connection and try again.</p>
             <button
               onClick={loadPosts}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-sm"
-              style={{ background: 'rgba(var(--neon-cyan-rgb), 0.08)', border: '1px solid rgba(var(--neon-cyan-rgb), 0.2)', color: 'var(--neon-cyan)' }}
+              className="pg-fan-step-action"
             >
-              <RefreshCw className="w-4 h-4" /> Retry
+              <RefreshCw size={17} aria-hidden="true" /> Retry
             </button>
           </div>
         ) : (loading || authLoading || (feedTab === 'bucket' && bucketLoading)) ? (
@@ -408,13 +408,13 @@ export default function FanZone() {
         ) : filtered.length === 0 ? (
           <div className="pg-state pg-community-state">
             {feedTab === 'bucket' ? <Star size={32} aria-hidden="true" /> : feedTab === 'nearby' ? <MapPin size={32} aria-hidden="true" /> : feedTab === 'friends' ? <Users size={32} aria-hidden="true" /> : <MessageCircle size={32} aria-hidden="true" />}
-            <p className="font-bold text-foreground">
+            <h2>
               {feedTab === 'bucket' ? 'No bucket list posts yet' :
                feedTab === 'nearby' ? nearbyLocation.area ? 'No nearby posts yet' : 'Choose your nearby area' :
                feedTab === 'friends' ? 'No friend posts yet' :
                feedTab === 'trending' ? 'No trending posts yet' :
                'No fan posts yet'}
-            </p>
+            </h2>
             <p className="text-sm text-muted-foreground">
               {feedTab === 'bucket' ? 'Posts about your saved artists, teams and venues will show up here. Add more favorites to find more conversations.' :
                feedTab === 'nearby' ? nearbyLocation.area ? 'No posts match this area and your filters. Choose another city above or explore Trending.' : 'Use the location button or city search above to find nearby posts.' :
@@ -428,10 +428,10 @@ export default function FanZone() {
             ) : (
               <button
                 onClick={() => user?.email ? setFab('post') : base44.auth.redirectToLogin()}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-sm"
-                style={{ background: 'rgba(var(--neon-cyan-rgb), 0.08)', border: '1px solid rgba(var(--neon-cyan-rgb), 0.2)', color: 'var(--neon-cyan)' }}
+                className="pg-fan-step-action"
+                aria-haspopup="dialog"
               >
-                <Plus className="w-4 h-4" /> Create Post
+                <Plus size={19} aria-hidden="true" /> Create Post
               </button>
             )}
           </div>

@@ -1,11 +1,11 @@
 import { useId } from 'react';
-import { ArrowRight, MapPin, Mic2, Plus, Star } from 'lucide-react';
+import { ArrowRight, MapPin, Mic2, Plus, Sparkle, Star } from 'lucide-react';
 import './bucket-list.css';
 
 export default function BucketListIntro({ onAdd, compact = false }) {
   const titleId = useId();
   if (compact) return <button type="button" className="pg-bucket-prompt" onClick={onAdd}>
-    <Star size={21} aria-hidden="true" />
+    <Sparkle size={25} aria-hidden="true" />
     <span><strong>Who’s on your bucket list?</strong><small>Save artists, teams and venues for related posts and event alerts.</small></span>
     <ArrowRight size={18} aria-hidden="true" />
   </button>;

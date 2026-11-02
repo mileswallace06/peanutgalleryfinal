@@ -1,0 +1,166 @@
+/* Fan Zone's stepped concept, using the shared PG fonts, inks and page shell.
+   Keep this treatment inside the feed; shared sheets and other tabs are unchanged. */
+.pg-ticket-app .pg-gallery-page.pg-fanzone-stepped {
+  --pg-fan-callout: #d5a5f3;
+}
+
+.pg-ticket-app .pg-fanzone-stepped .pg-gallery-feed-title {
+  font-family: 'PG Display', var(--font-display);
+  font-size: clamp(17px, 4.6vw, 21px);
+  font-weight: 400;
+  line-height: 1.3;
+  letter-spacing: -.025em;
+}
+
+/* Clip only the paint: the entire button remains clickable and its keyboard
+   outline stays visible, including around the missing upper-left corner. */
+.pg-ticket-app .pg-fanzone-stepped :is(.pg-fan-step-action, .pg-bucket-primary) {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: auto;
+  max-width: 100%;
+  min-height: 44px;
+  height: auto;
+  padding: 12px 19px 12px 23px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--pg-ink);
+  font-family: 'PG Sans', var(--font-sans);
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.35;
+  text-align: center;
+  box-shadow: none;
+  cursor: pointer;
+}
+.pg-ticket-app .pg-fanzone-stepped :is(.pg-fan-step-action, .pg-bucket-primary)::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: var(--pg-violet);
+  clip-path: polygon(13px 0, 100% 0, 100% 100%, 0 100%, 0 8px, 13px 8px);
+  pointer-events: none;
+}
+.pg-ticket-app .pg-fanzone-stepped .pg-compose-button {
+  flex: 0 0 auto;
+  padding-inline: 15px;
+  padding-left: 20px;
+  font-size: 13px;
+}
+.pg-ticket-app .pg-fanzone-stepped :is(.pg-fan-step-action, .pg-bucket-primary) > svg {
+  flex-shrink: 0;
+}
+.pg-ticket-app .pg-fanzone-stepped :is(.pg-fan-step-action, .pg-bucket-primary):disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+/* The right-hand tab gives the bucket list its own recognisable silhouette.
+   Text and the arrow sit clear of both cutouts, even when the copy wraps. */
+.pg-ticket-app .pg-fanzone-stepped .pg-bucket-prompt {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: 25px minmax(0, 1fr) 22px;
+  gap: 12px;
+  min-height: 94px;
+  margin: 18px 0 12px;
+  padding: 18px 12px 18px 14px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--pg-ink);
+  box-shadow: none;
+}
+.pg-ticket-app .pg-fanzone-stepped .pg-bucket-prompt::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: var(--pg-fan-callout);
+  clip-path: polygon(0 4px, calc(100% - 32px) 0, calc(100% - 32px) 20px, 100% 20px, 100% calc(100% - 20px), calc(100% - 32px) calc(100% - 20px), calc(100% - 32px) 100%, 0 100%);
+  pointer-events: none;
+}
+.pg-ticket-app .pg-fanzone-stepped .pg-bucket-prompt :is(strong, small, svg) {
+  color: inherit;
+}
+.pg-ticket-app .pg-fanzone-stepped .pg-bucket-prompt > svg:first-child {
+  align-self: start;
+  margin-top: 3px;
+  fill: currentColor;
+  stroke-width: 1;
+}
+.pg-ticket-app .pg-fanzone-stepped .pg-bucket-prompt > svg:last-child {
+  width: 22px;
+  height: 22px;
+  stroke-width: 2.5;
+}
+.pg-ticket-app .pg-fanzone-stepped .pg-bucket-prompt strong {
+  font-family: 'PG Display', var(--font-display);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.35;
+  letter-spacing: -.025em;
+}
+.pg-ticket-app .pg-fanzone-stepped .pg-bucket-prompt small {
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.pg-ticket-app .pg-fanzone-stepped .pg-date-filters button {
+  border-radius: 0;
+}
+.pg-ticket-app .pg-fanzone-stepped .pg-community-state {
+  gap: 10px;
+  margin: 24px 0 0;
+  padding: 18px 8px 28px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.pg-ticket-app .pg-fanzone-stepped .pg-community-state > svg {
+  width: 40px;
+  height: 40px;
+  margin-bottom: 8px;
+  color: var(--pg-gallery-accent);
+  stroke-width: 2;
+}
+.pg-ticket-app .pg-fanzone-stepped .pg-community-state h2 {
+  max-width: 27ch;
+  font-family: 'PG Display', var(--font-display);
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1.35;
+  letter-spacing: -.025em;
+  color: var(--pg-text);
+}
+.pg-ticket-app .pg-fanzone-stepped .pg-community-state p {
+  max-width: 34ch;
+  color: var(--pg-muted);
+}
+.pg-ticket-app .pg-fanzone-stepped .pg-community-state > button {
+  margin-top: 14px;
+}
+
+@media (hover: hover) {
+  .pg-ticket-app .pg-fanzone-stepped :is(.pg-fan-step-action, .pg-bucket-primary, .pg-bucket-prompt):hover::before {
+    filter: brightness(1.08);
+  }
+}
+@media (forced-colors: active) {
+  .pg-ticket-app .pg-fanzone-stepped :is(.pg-fan-step-action, .pg-bucket-primary, .pg-bucket-prompt) {
+    border: 2px solid ButtonText;
+    color: ButtonText;
+    background: ButtonFace;
+  }
+  .pg-ticket-app .pg-fanzone-stepped :is(.pg-fan-step-action, .pg-bucket-primary, .pg-bucket-prompt)::before {
+    display: none;
+  }
+}
