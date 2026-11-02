@@ -12,7 +12,7 @@ export async function installFixtureIsolation(context, { origin, documentPaths, 
   const discoveryAssets = [
     '/images/discovery/concert-crowd-picjumbo.webp',
     '/images/discovery/events-festival-wendy-wei.webp',
-    '/images/discovery/upgrades-baseball-martin-pechy.webp',
+    '/images/discovery/upgrades-seats-van-anh-nguyen.webp',
     '/images/discovery/sell-theater-tima-miroshnichenko.webp',
     '/images/discovery/fan-zone-crowd-andrius-simkus.webp',
     '/images/discovery/events-mascot.webp',
