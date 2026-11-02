@@ -35,6 +35,7 @@
   padding: 0 10px 10px;
 }
 .pg-brandbar--browse .pg-browse-photo {
+  isolation: isolate;
   top: calc(-1 * var(--app-safe-top));
   height: calc(var(--pg-browse-hero-height) + var(--app-safe-top));
   border-bottom: 2px solid var(--pg-page-accent);
